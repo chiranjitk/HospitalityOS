@@ -1,14 +1,12 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -47,19 +45,15 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  ResponsiveContainer,
   Tooltip,
 } from 'recharts';
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
   type ChartConfig,
 } from '@/components/ui/chart';
 import {
-  Search,
   Send,
   Sparkles,
   Clock,
@@ -67,20 +61,15 @@ import {
   Bookmark,
   BookmarkPlus,
   Calendar,
-  Filter,
   ChevronRight,
   TrendingUp,
   TrendingDown,
   BarChart3,
-  PieChart as PieChartIcon,
   Lightbulb,
   Share2,
-  Download,
   Eye,
-  RefreshCw,
   Brain,
   Globe,
-  Hotel,
   Users,
   DollarSign,
   BedDouble,
@@ -91,8 +80,6 @@ import {
   Loader2,
   MessageSquare,
   Copy,
-  Plus,
-  Trash2,
   Settings2,
   CalendarDays,
 } from 'lucide-react';
@@ -105,7 +92,7 @@ interface QueryResult {
   id: string;
   query: string;
   category: string;
-  chartType: 'line' | 'bar' | 'pie' | 'table';
+  chartType: 'line' | 'bar' | 'pie' | 'table' | 'area';
   chartData: Record<string, unknown>[];
   tableData?: Record<string, string | number>[];
   insight: string;
@@ -134,16 +121,7 @@ interface QuerySuggestion {
   category: string;
 }
 
-interface AnalysisTemplate {
-  id: string;
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-  color: string;
-  metrics: string[];
-}
-
-// ── Mock Data ──────────────────────────────────────────────────────────
+// ── Suggestion Chips (UI only, not mock data) ─────────────────────────
 
 const QUERY_SUGGESTIONS: QuerySuggestion[] = [
   { id: 's-01', label: 'Revenue trends', icon: <TrendingUp className="h-3.5 w-3.5" />, category: 'Revenue' },
@@ -156,156 +134,36 @@ const QUERY_SUGGESTIONS: QuerySuggestion[] = [
   { id: 's-08', label: 'F&B revenue breakdown', icon: <BarChart3 className="h-3.5 w-3.5" />, category: 'F&B' },
 ];
 
-const REVENUE_TREND_DATA = [
-  { month: 'Jan', revenue: 4250000, expenses: 2850000, profit: 1400000 },
-  { month: 'Feb', revenue: 3980000, expenses: 2780000, profit: 1200000 },
-  { month: 'Mar', revenue: 4820000, expenses: 3010000, profit: 1810000 },
-  { month: 'Apr', revenue: 5100000, expenses: 3200000, profit: 1900000 },
-  { month: 'May', revenue: 5560000, expenses: 3350000, profit: 2210000 },
-  { month: 'Jun', revenue: 5890000, expenses: 3420000, profit: 2470000 },
-];
-
-const ROOM_TYPE_DATA = [
-  { name: 'Deluxe King', occupancy: 87, revenue: 1850000, adr: 8500 },
-  { name: 'Premium Suite', occupancy: 82, revenue: 2200000, adr: 14500 },
-  { name: 'Standard Twin', occupancy: 94, revenue: 1200000, adr: 5200 },
-  { name: 'Family Room', occupancy: 78, revenue: 980000, adr: 6800 },
-  { name: 'Presidential Suite', occupancy: 65, revenue: 1560000, adr: 28000 },
-];
-
-const SATISFACTION_DATA = [
-  { category: 'Room Quality', score: 4.5, responses: 234 },
-  { category: 'Staff Service', score: 4.7, responses: 312 },
-  { category: 'Food & Beverage', score: 4.3, responses: 289 },
-  { category: 'Cleanliness', score: 4.6, responses: 298 },
-  { category: 'Check-in/out', score: 4.4, responses: 267 },
-  { category: 'Amenities', score: 4.2, responses: 245 },
-  { category: 'Location', score: 4.8, responses: 320 },
-  { category: 'Value for Money', score: 4.1, responses: 210 },
-];
-
-const STAFF_EFFICIENCY_DATA = [
-  { department: 'Front Office', tasks: 892, avgTime: '4.2min', satisfaction: 4.6 },
-  { department: 'Housekeeping', tasks: 1245, avgTime: '22min', satisfaction: 4.4 },
-  { department: 'F&B Service', tasks: 678, avgTime: '8.5min', satisfaction: 4.5 },
-  { department: 'Kitchen', tasks: 567, avgTime: '18min', satisfaction: 4.3 },
-  { department: 'Maintenance', tasks: 134, avgTime: '35min', satisfaction: 4.2 },
-  { department: 'Security', tasks: 456, avgTime: '2.1min', satisfaction: 4.7 },
-];
-
-const ADR_REVPAR_DATA = [
-  { month: 'Jan', adr: 7200, revpar: 5400, occupancy: 75 },
-  { month: 'Feb', adr: 6800, revpar: 4900, occupancy: 72 },
-  { month: 'Mar', adr: 7800, revpar: 5800, occupancy: 78 },
-  { month: 'Apr', adr: 8200, revpar: 6200, occupancy: 82 },
-  { month: 'May', adr: 8800, revpar: 6800, occupancy: 85 },
-  { month: 'Jun', adr: 9200, revpar: 7200, occupancy: 88 },
-];
-
-const CHANNEL_DATA = [
-  { name: 'Direct Booking', bookings: 245, revenue: 3200000, share: 35 },
-  { name: 'Booking.com', bookings: 180, revenue: 2100000, share: 25 },
-  { name: 'Expedia', bookings: 120, revenue: 1400000, share: 17 },
-  { name: 'Agoda', bookings: 85, revenue: 980000, share: 12 },
-  { name: 'Corporate', bookings: 65, revenue: 850000, share: 7 },
-  { name: 'Walk-in', bookings: 40, revenue: 420000, share: 4 },
-];
-
-const OCCUPANCY_FORECAST_DATA = [
-  { date: 'Mon', actual: 78, forecast: 80 },
-  { date: 'Tue', actual: 82, forecast: 81 },
-  { date: 'Wed', actual: 85, forecast: 83 },
-  { date: 'Thu', actual: 88, forecast: 86 },
-  { date: 'Fri', actual: 92, forecast: 90 },
-  { date: 'Sat', actual: 95, forecast: 94 },
-  { date: 'Sun', actual: 88, forecast: 87 },
-];
-
-const FB_DATA = [
-  { category: 'Restaurant', revenue: 1800000, orders: 4560 },
-  { category: 'Room Service', revenue: 620000, orders: 1230 },
-  { category: 'Bar & Lounge', revenue: 480000, orders: 2100 },
-  { category: 'Poolside', revenue: 340000, orders: 890 },
-  { category: 'Banquet', revenue: 890000, orders: 45 },
-  { category: 'Minibar', revenue: 180000, orders: 3400 },
-];
-
-const MOCK_QUERY_RESULTS: QueryResult[] = [
-  {
-    id: 'qr-001', query: 'Show me revenue for last 6 months', category: 'Revenue', chartType: 'line',
-    chartData: REVENUE_TREND_DATA, insight: 'Revenue has shown a strong upward trend, growing 38.6% from ₹42.5L in January to ₹58.9L in June. The profit margin has also improved from 32.9% to 41.9%, indicating better cost management alongside revenue growth.',
-    timestamp: new Date(Date.now() - 120000).toISOString(), keyMetric: 'Total Revenue', keyMetricValue: '₹2.96 Cr', keyMetricTrend: 'up', keyMetricChange: '+38.6% vs Jan',
-  },
-  {
-    id: 'qr-002', query: 'Compare occupancy this week vs last week', category: 'Occupancy', chartType: 'line',
-    chartData: OCCUPANCY_FORECAST_DATA, insight: 'Weekend occupancy peaked at 95% on Saturday, which is 3% above forecast. Weekday averages are steady at 83%. Consider implementing dynamic pricing for the weekend peak.',
-    timestamp: new Date(Date.now() - 600000).toISOString(), keyMetric: 'Avg Occupancy', keyMetricValue: '86.9%', keyMetricTrend: 'up', keyMetricChange: '+4.2% vs last week',
-  },
-  {
-    id: 'qr-003', query: 'Best performing room type', category: 'Occupancy', chartType: 'bar',
-    chartData: ROOM_TYPE_DATA, insight: 'Standard Twin rooms lead in occupancy at 94%, while Presidential Suite has the highest ADR at ₹28,000. Premium Suites generate the most revenue despite lower occupancy. Consider upselling Deluxe King guests to Premium Suites.',
-    timestamp: new Date(Date.now() - 1200000).toISOString(), keyMetric: 'Top Performer', keyMetricValue: 'Standard Twin', keyMetricTrend: 'neutral', keyMetricChange: '94% occupancy',
-  },
-  {
-    id: 'qr-004', query: 'Guest satisfaction score breakdown', category: 'Guest', chartType: 'bar',
-    chartData: SATISFACTION_DATA, insight: 'Location (4.8) and Staff Service (4.7) are the highest-rated categories. Value for Money (4.1) and Amenities (4.2) have room for improvement. F&B satisfaction dropped 0.2 points this month.',
-    timestamp: new Date(Date.now() - 1800000).toISOString(), keyMetric: 'Avg Score', keyMetricValue: '4.45/5.0', keyMetricTrend: 'up', keyMetricChange: '+0.12 vs last month',
-  },
-  {
-    id: 'qr-005', query: 'Staff efficiency by department', category: 'Staff', chartType: 'table',
-    chartData: [], tableData: STAFF_EFFICIENCY_DATA.map(d => ({ Department: d.department, 'Tasks Completed': d.tasks, 'Avg Time': d.avgTime, 'Satisfaction': `${d.satisfaction}/5.0` })),
-    insight: 'Housekeeping handles the highest volume (1,245 tasks) with strong satisfaction. Security has the fastest response time (2.1 min). Front Office satisfaction improved by 0.3 points.',
-    timestamp: new Date(Date.now() - 2400000).toISOString(), keyMetric: 'Total Tasks', keyMetricValue: '3,972', keyMetricTrend: 'up', keyMetricChange: '+12% vs last month',
-  },
-  {
-    id: 'qr-006', query: 'ADR and RevPAR comparison', category: 'Revenue', chartType: 'area',
-    chartData: ADR_REVPAR_DATA, insight: 'ADR has grown 27.8% from ₹7,200 to ₹9,200 over 6 months. RevPAR growth of 33.3% outpaces ADR growth, showing that both rate increases and occupancy gains are driving performance.',
-    timestamp: new Date(Date.now() - 3600000).toISOString(), keyMetric: 'Current RevPAR', keyMetricValue: '₹7,200', keyMetricTrend: 'up', keyMetricChange: '+33.3% vs Jan',
-  },
-  {
-    id: 'qr-007', query: 'Channel performance breakdown', category: 'Distribution', chartType: 'pie',
-    chartData: CHANNEL_DATA, insight: 'Direct bookings lead at 35% share with highest revenue per booking (₹13,061). OTA contribution is 54% combined. Consider increasing direct booking incentives as OTA commissions average 15-18%.',
-    timestamp: new Date(Date.now() - 5400000).toISOString(), keyMetric: 'Direct Share', keyMetricValue: '35%', keyMetricTrend: 'up', keyMetricChange: '+5% vs last quarter',
-  },
-  {
-    id: 'qr-008', query: 'F&B revenue breakdown by outlet', category: 'F&B', chartType: 'bar',
-    chartData: FB_DATA, insight: 'Main Restaurant drives 45% of F&B revenue. Room Service and Banquet are strong contributors. Minibar shows high order volume (3,400) with relatively low revenue — consider premium product placement.',
-    timestamp: new Date(Date.now() - 7200000).toISOString(), keyMetric: 'Total F&B', keyMetricValue: '₹43.1L', keyMetricTrend: 'up', keyMetricChange: '+18.5% vs last month',
-  },
-];
-
-const MOCK_SAVED_QUERIES: SavedQuery[] = [
-  { id: 'sq-001', name: 'Monthly Revenue Dashboard', query: 'Show me revenue for last 6 months', category: 'Revenue', isPinned: true, lastRun: new Date(Date.now() - 120000).toISOString(), sharedWith: ['Finance Team', 'GM'] },
-  { id: 'sq-002', name: 'Weekly Occupancy Check', query: 'Compare occupancy this week vs last week', category: 'Occupancy', isPinned: true, lastRun: new Date(Date.now() - 600000).toISOString(), schedule: 'Weekly - Every Monday' },
-  { id: 'sq-003', name: 'Room Performance', query: 'Best performing room type', category: 'Occupancy', isPinned: false, lastRun: new Date(Date.now() - 1200000).toISOString() },
-  { id: 'sq-004', name: 'Guest Satisfaction', query: 'Guest satisfaction score breakdown', category: 'Guest', isPinned: true, lastRun: new Date(Date.now() - 1800000).toISOString(), schedule: 'Monthly - 1st' },
-  { id: 'sq-005', name: 'Channel Mix Analysis', query: 'Channel performance breakdown', category: 'Distribution', isPinned: false, lastRun: new Date(Date.now() - 5400000).toISOString(), sharedWith: ['Revenue Manager'] },
-];
-
-const MOCK_TEMPLATES: AnalysisTemplate[] = [
-  { id: 't-001', name: 'Revenue Performance', description: 'Comprehensive revenue analysis with trends, ADR, RevPAR', icon: <DollarSign className="h-5 w-5" />, color: 'from-emerald-500 to-teal-600', metrics: ['Revenue', 'ADR', 'RevPAR', 'GOPPAR'] },
-  { id: 't-002', name: 'Guest Segmentation', description: 'Understand your guest demographics and preferences', icon: <Users className="h-5 w-5" />, color: 'from-violet-500 to-purple-600', metrics: ['Segments', 'Nationality', 'Purpose', 'Loyalty Tier'] },
-  { id: 't-003', name: 'Operational Efficiency', description: 'Staff performance, task completion, response times', icon: <Zap className="h-5 w-5" />, color: 'from-amber-500 to-orange-600', metrics: ['Task Completion', 'Response Time', 'Satisfaction', 'Efficiency Score'] },
-  { id: 't-004', name: 'Financial Health', description: 'P&L overview, cost ratios, and budget variance', icon: <TrendingUp className="h-5 w-5" />, color: 'from-sky-500 to-blue-600', metrics: ['Revenue', 'Expenses', 'Profit Margin', 'Budget Variance'] },
+const ANALYSIS_TEMPLATES = [
+  { id: 't-001', name: 'Revenue Performance', description: 'Comprehensive revenue analysis with trends, ADR, RevPAR', icon: <DollarSign className="h-5 w-5" />, color: 'from-emerald-500 to-teal-600', query: 'Show me revenue trends for the last 6 months', metrics: ['Revenue', 'ADR', 'RevPAR', 'GOPPAR'] },
+  { id: 't-002', name: 'Guest Segmentation', description: 'Understand your guest demographics and preferences', icon: <Users className="h-5 w-5" />, color: 'from-violet-500 to-purple-600', query: 'Guest satisfaction score breakdown', metrics: ['Segments', 'Nationality', 'Purpose', 'Loyalty Tier'] },
+  { id: 't-003', name: 'Operational Efficiency', description: 'Staff performance, task completion, response times', icon: <Zap className="h-5 w-5" />, color: 'from-amber-500 to-orange-600', query: 'Staff efficiency by department', metrics: ['Task Completion', 'Response Time', 'Satisfaction', 'Efficiency Score'] },
+  { id: 't-004', name: 'Financial Health', description: 'P&L overview, cost ratios, and budget variance', icon: <TrendingUp className="h-5 w-5" />, color: 'from-rose-500 to-pink-600', query: 'Revenue and expenses breakdown', metrics: ['Revenue', 'Expenses', 'Profit Margin', 'Budget Variance'] },
 ];
 
 const CHART_COLORS = ['#f59e0b', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#f97316', '#14b8a6'];
 
-const revenueChartConfig: ChartConfig = {
-  revenue: { label: 'Revenue', color: '#f59e0b' },
-  expenses: { label: 'Expenses', color: '#ef4444' },
-  profit: { label: 'Profit', color: '#10b981' },
-};
+// ── Helper: parse API response into QueryResult ───────────────────────
 
-const occupancyChartConfig: ChartConfig = {
-  actual: { label: 'Actual', color: '#f59e0b' },
-  forecast: { label: 'Forecast', color: '#06b6d4' },
-};
+function parseApiResponse(apiData: Record<string, unknown>): QueryResult {
+  const rd = (apiData.resultData || apiData) as Record<string, unknown>;
+  const chartType = (rd.chartType || apiData.chartType || 'table') as QueryResult['chartType'];
 
-const adrChartConfig: ChartConfig = {
-  adr: { label: 'ADR', color: '#8b5cf6' },
-  revpar: { label: 'RevPAR', color: '#10b981' },
-};
+  return {
+    id: (apiData.id as string) || `qr-${Date.now()}`,
+    query: (apiData.query as string) || '',
+    category: (apiData.category as string) || 'General',
+    chartType,
+    chartData: (rd.chartData as Record<string, unknown>[]) || [],
+    tableData: (rd.tableData as Record<string, string | number>[]) || undefined,
+    insight: (rd.insight as string) || 'No insight available.',
+    timestamp: (apiData.createdAt as string) || new Date().toISOString(),
+    keyMetric: (rd.keyMetric as string) || 'Result',
+    keyMetricValue: (rd.keyMetricValue as string) || 'N/A',
+    keyMetricTrend: (rd.keyMetricTrend as 'up' | 'down' | 'neutral') || 'neutral',
+    keyMetricChange: (rd.keyMetricChange as string) || '',
+  };
+}
 
 // ── Component ──────────────────────────────────────────────────────────
 
@@ -322,118 +180,93 @@ export default function ConversationalAnalytics() {
   const [builderCompare, setBuilderCompare] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [initialError, setInitialError] = useState<string | null>(null);
-  const [satisfactionData, setSatisfactionData] = useState<Record<string, unknown>[] | null>(null);
 
-  // Fetch real guest satisfaction data on mount
+  // Fetch saved queries from API on mount
   useEffect(() => {
     let cancelled = false;
-    async function fetchInitialData() {
+    async function fetchSavedQueries() {
       setInitialLoading(true);
       setInitialError(null);
       try {
-        const res = await fetch('/api/dashboard/guest-satisfaction');
-        if (res.ok && !cancelled) {
-          const data = await res.json();
-          const scores = Array.isArray(data) ? data : data.satisfaction || data.scores || data.categories || [];
-          if (scores.length > 0) setSatisfactionData(scores);
-          // Also load saved queries from API
-          const savedRes = await fetch('/api/ai/analytics/saved');
-          if (savedRes.ok && !cancelled) {
-            const savedData = await savedRes.json();
-            const saved = Array.isArray(savedData) ? savedData : savedData.queries || [];
-            if (saved.length > 0) setSavedQueries(saved.map((sq: Record<string, unknown>) => ({
-              id: sq.id || `sq-${Date.now()}`,
-              name: sq.name || sq.title || 'Unnamed Query',
-              query: sq.query || sq.queryText || '',
-              category: sq.category || 'General',
-              isPinned: Boolean(sq.isPinned || sq.pinned || false),
-              lastRun: sq.lastRun || sq.lastExecutedAt || new Date().toISOString(),
-              schedule: sq.schedule || undefined,
-              sharedWith: sq.sharedWith || undefined,
-            }));
-          }
+        const savedRes = await fetch('/api/ai/analytics/saved');
+        if (!cancelled && savedRes.ok) {
+          const savedData = await savedRes.json();
+          const raw = Array.isArray(savedData) ? savedData : savedData.data || savedData.queries || [];
+          const saved = raw.map((sq: Record<string, unknown>) => ({
+            id: sq.id || `sq-${Date.now()}`,
+            name: sq.name || sq.title || sq.query || 'Unnamed Query',
+            query: sq.query || sq.queryText || '',
+            category: sq.category || (sq.parameters as Record<string, unknown>)?.category || 'General',
+            isPinned: Boolean(sq.isPinned || sq.pinned || false),
+            lastRun: sq.lastRun || sq.lastExecutedAt || sq.createdAt || new Date().toISOString(),
+            schedule: sq.schedule || undefined,
+            sharedWith: sq.sharedWith || undefined,
+          }));
+          setSavedQueries(saved);
         }
       } catch (err) {
-        if (!cancelled) setInitialError(err instanceof Error ? err.message : 'Failed to load initial data');
+        if (!cancelled) setInitialError(err instanceof Error ? err.message : 'Failed to load saved queries');
       } finally {
         if (!cancelled) setInitialLoading(false);
       }
     }
-    fetchInitialData();
+    fetchSavedQueries();
     return () => { cancelled = true; };
   }, []);
 
-  // When no saved queries from API and no satisfaction data, populate from mock for demo
-  useEffect(() => {
-    if (!initialLoading && savedQueries.length === 0) {
-      setSavedQueries(MOCK_SAVED_QUERIES);
-    }
-  }, [initialLoading, savedQueries.length]);
-
-  useEffect(() => {
-    if (!initialLoading && satisfactionData === null) {
-      setSatisfactionData(SATISFACTION_DATA);
-    }
-  }, [initialLoading, satisfactionData]);
-
-  // Build real query result from satisfaction data when user asks about guest satisfaction
-  const buildSatisfactionResult = useCallback((query: string): QueryResult | null => {
-    if (!satisfactionData || satisfactionData.length === 0) return null;
-    const q = query.toLowerCase();
-    if (q.includes('satisfaction') || q.includes('guest score') || q.includes('feedback')) {
-      const totalResponses = satisfactionData.reduce((s: number, c: Record<string, unknown>) => s + Number(c.responses || 0), 0);
-      const avgScore = satisfactionData.reduce((s: number, c: Record<string, unknown>) => s + Number(c.score || c.satisfactionScore || 0), 0) / satisfactionData.length;
-      return {
-        id: `qr-${Date.now()}`,
-        query,
-        category: 'Guest',
-        chartType: 'bar',
-        chartData: satisfactionData,
-        insight: satisfactionData.map((c: Record<string, unknown>) => `${c.category}: ${(c.score || c.satisfactionScore || 0).toFixed(1)}/5 (${c.responses || 0} responses)`).join('. '),
-        timestamp: new Date().toISOString(),
-        keyMetric: 'Avg Score',
-        keyMetricValue: `${avgScore.toFixed(2)}/5.0`,
-        keyMetricTrend: 'up',
-        keyMetricChange: 'Real-time data from guest feedback',
-      };
-    }
-    return null;
-  }, [satisfactionData]);
-
   // ── Handlers ─────────────────────────────────────────────────────
+
+  const executeQuery = useCallback(async (query: string) => {
+    setIsQuerying(true);
+    try {
+      const res = await fetch('/api/ai/analytics/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || `Request failed (${res.status})`);
+      }
+      const json = await res.json();
+      if (!json.success || !json.data) {
+        throw new Error('No data returned from server');
+      }
+      const newResult = parseApiResponse(json.data);
+      setQueryHistory(prev => [newResult, ...prev]);
+      setSelectedResult(newResult);
+      toast.success('Query processed', { description: 'Results generated successfully' });
+      return newResult;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to process query';
+      toast.error('Query failed', { description: message });
+      // Create an error result to show the message
+      const errorResult: QueryResult = {
+        id: `qr-error-${Date.now()}`,
+        query,
+        category: 'Error',
+        chartType: 'table',
+        chartData: [],
+        insight: `No data available for this query. ${message}. Please try a different question.`,
+        timestamp: new Date().toISOString(),
+        keyMetric: 'Status',
+        keyMetricValue: 'No Data',
+        keyMetricTrend: 'neutral',
+        keyMetricChange: message,
+      };
+      setQueryHistory(prev => [errorResult, ...prev]);
+      setSelectedResult(errorResult);
+    } finally {
+      setIsQuerying(false);
+    }
+  }, []);
 
   const handleSubmitQuery = useCallback(() => {
     if (!queryInput.trim()) return;
-    setIsQuerying(true);
-
-    setTimeout(() => {
-      const matched = MOCK_QUERY_RESULTS.find(qr =>
-        queryInput.toLowerCase().includes('revenue') && qr.category === 'Revenue' ||
-        queryInput.toLowerCase().includes('occupancy') && qr.category === 'Occupancy' ||
-        queryInput.toLowerCase().includes('satisfaction') && qr.category === 'Guest' ||
-        queryInput.toLowerCase().includes('staff') && qr.category === 'Staff' ||
-        queryInput.toLowerCase().includes('adr') && qr.query.includes('ADR') ||
-        queryInput.toLowerCase().includes('channel') && qr.category === 'Distribution' ||
-        queryInput.toLowerCase().includes('f&b') && qr.category === 'F&B' ||
-        queryInput.toLowerCase().includes('room type') && qr.query.includes('room type') ||
-        queryInput.toLowerCase().includes('forecast') && qr.query.includes('forecast'),
-      );
-
-      const result = matched || MOCK_QUERY_RESULTS[Math.floor(Math.random() * MOCK_QUERY_RESULTS.length)];
-      const newResult: QueryResult = {
-        ...result,
-        id: `qr-${Date.now()}`,
-        query: queryInput,
-        timestamp: new Date().toISOString(),
-      };
-
-      setQueryHistory(prev => [newResult, ...prev]);
-      setSelectedResult(newResult);
-      setIsQuerying(false);
-      setQueryInput('');
-      toast.success('Query processed', { description: 'Results generated successfully' });
-    }, 1500);
-  }, [queryInput]);
+    const q = queryInput.trim();
+    setQueryInput('');
+    executeQuery(q);
+  }, [queryInput, executeQuery]);
 
   const handleSuggestionClick = (suggestion: string) => {
     setQueryInput(suggestion);
@@ -459,21 +292,20 @@ export default function ConversationalAnalytics() {
   };
 
   const handleBuilderRun = () => {
-    setIsQuerying(true);
-    setTimeout(() => {
-      const result = MOCK_QUERY_RESULTS[0];
-      const newResult: QueryResult = {
-        ...result,
-        id: `qr-${Date.now()}`,
-        query: `Custom: ${builderMetric} analysis (${builderPeriod}${builderCompare ? ' with comparison' : ''})`,
-        timestamp: new Date().toISOString(),
-      };
-      setQueryHistory(prev => [newResult, ...prev]);
-      setSelectedResult(newResult);
-      setIsQuerying(false);
-      setShowBuilder(false);
-      toast.success('Custom query processed');
-    }, 1500);
+    const q = `Custom: ${builderMetric} analysis (${builderPeriod}${builderCompare ? ' with comparison' : ''})`;
+    setShowBuilder(false);
+    executeQuery(q);
+  };
+
+  const handleRunSavedQuery = (sq: SavedQuery) => {
+    executeQuery(sq.query);
+    setActiveTab('query');
+  };
+
+  const handleTemplateClick = (template: { query: string; name: string }) => {
+    setQueryInput(template.query);
+    setActiveTab('query');
+    toast.info(`Opening ${template.name} template`);
   };
 
   const formatTimeAgo = (isoString: string) => {
@@ -700,7 +532,7 @@ export default function ConversationalAnalytics() {
                 {renderChart(selectedResult)}
 
                 {/* Table (if applicable) */}
-                {selectedResult.chartType === 'table' && selectedResult.tableData && (
+                {selectedResult.chartType === 'table' && selectedResult.tableData && selectedResult.tableData.length > 0 && (
                   <div className="rounded-lg border overflow-hidden">
                     <Table>
                       <TableHeader>
@@ -735,8 +567,21 @@ export default function ConversationalAnalytics() {
             </Card>
           )}
 
+          {/* Empty State - when no query has been made yet */}
+          {!isQuerying && !selectedResult && queryHistory.length === 0 && (
+            <Card>
+              <CardContent className="p-8 flex flex-col items-center gap-3">
+                <Brain className="h-10 w-10 text-muted-foreground/40" />
+                <h3 className="text-base font-semibold text-muted-foreground">Ask a question about your hotel data</h3>
+                <p className="text-sm text-muted-foreground/70 text-center max-w-md">
+                  Type a question in the search bar above or click one of the suggestion chips to get started. For example, try &quot;Show me revenue for last month&quot; or &quot;Guest satisfaction breakdown&quot;.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Recent Queries List */}
-          {!isQuerying && (
+          {!isQuerying && queryHistory.length > 0 && (
             <div className="space-y-2">
               <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <Clock className="h-4 w-4" />
@@ -778,136 +623,158 @@ export default function ConversationalAnalytics() {
             </Button>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            {savedQueries.map(sq => (
-              <Card key={sq.id} className={cn('transition-all hover:shadow-md', sq.isPinned && 'border-primary/30')}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      {sq.isPinned && <Star className="h-4 w-4 text-amber-500 fill-amber-500" />}
-                      <h4 className="font-semibold text-sm">{sq.name}</h4>
+          {initialLoading && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">Loading saved queries...</span>
+            </div>
+          )}
+
+          {!initialLoading && savedQueries.length === 0 && (
+            <Card>
+              <CardContent className="p-8 flex flex-col items-center gap-3">
+                <Bookmark className="h-10 w-10 text-muted-foreground/40" />
+                <h3 className="text-base font-semibold text-muted-foreground">No saved queries yet</h3>
+                <p className="text-sm text-muted-foreground/70 text-center max-w-md">
+                  Run a query and bookmark it to see it here. Saved queries can be re-run anytime for quick access to your most-used analyses.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {!initialLoading && savedQueries.length > 0 && (
+            <div className="grid gap-3 md:grid-cols-2">
+              {savedQueries.map(sq => (
+                <Card key={sq.id} className={cn('transition-all hover:shadow-md', sq.isPinned && 'border-primary/30')}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        {sq.isPinned && <Star className="h-4 w-4 text-amber-500 fill-amber-500" />}
+                        <h4 className="font-semibold text-sm">{sq.name}</h4>
+                      </div>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100">
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleTogglePin(sq.id)}>
+                          {sq.isPinned ? <Star className="h-3 w-3 text-amber-500 fill-amber-500" /> : <Star className="h-3 w-3" />}
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleShareQuery(sq.id)}>
+                          <Share2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100">
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleTogglePin(sq.id)}>
-                        {sq.isPinned ? <Star className="h-3 w-3 text-amber-500 fill-amber-500" /> : <Star className="h-3 w-3" />}
+                    <p className="text-xs text-muted-foreground mb-2">{sq.query}</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">{sq.category}</Badge>
+                        <span className="text-[10px] text-muted-foreground">{formatTimeAgo(sq.lastRun)}</span>
+                      </div>
+                      <div className="flex gap-1">
+                        {sq.schedule && (
+                          <Badge variant="secondary" className="text-[10px] gap-1 bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+                            <CalendarDays className="h-2.5 w-2.5" />
+                            Scheduled
+                          </Badge>
+                        )}
+                        {sq.sharedWith && sq.sharedWith.length > 0 && (
+                          <Badge variant="secondary" className="text-[10px] gap-1">
+                            <Users className="h-2.5 w-2.5" />
+                            Shared
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <Button size="sm" className="h-7 text-xs flex-1" onClick={() => handleRunSavedQuery(sq)}>
+                        <Eye className="h-3 w-3 mr-1" />
+                        Run
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleShareQuery(sq.id)}>
-                        <Share2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-2">{sq.query}</p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">{sq.category}</Badge>
-                      <span className="text-[10px] text-muted-foreground">{formatTimeAgo(sq.lastRun)}</span>
-                    </div>
-                    <div className="flex gap-1">
-                      {sq.schedule && (
-                        <Badge variant="secondary" className="text-[10px] gap-1 bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
-                          <CalendarDays className="h-2.5 w-2.5" />
-                          Scheduled
-                        </Badge>
+                      {sq.schedule ? (
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleScheduleReport(sq.id)}>
+                          <Calendar className="h-3 w-3 mr-1" />
+                          Reschedule
+                        </Button>
+                      ) : (
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleScheduleReport(sq.id)}>
+                          <Calendar className="h-3 w-3 mr-1" />
+                          Schedule
+                        </Button>
                       )}
-                      {sq.sharedWith && sq.sharedWith.length > 0 && (
-                        <Badge variant="secondary" className="text-[10px] gap-1">
-                          <Users className="h-2.5 w-2.5" />
-                          Shared
-                        </Badge>
-                      )}
                     </div>
-                  </div>
-                  <div className="flex gap-2 mt-3">
-                    <Button size="sm" className="h-7 text-xs flex-1" onClick={() => {
-                      const matchResult = MOCK_QUERY_RESULTS.find(qr => qr.query === sq.query);
-                      if (matchResult) {
-                        setSelectedResult(matchResult);
-                        setActiveTab('query');
-                      }
-                    }}>
-                      <Eye className="h-3 w-3 mr-1" />
-                      Run
-                    </Button>
-                    {sq.schedule ? (
-                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleScheduleReport(sq.id)}>
-                        <Calendar className="h-3 w-3 mr-1" />
-                        Reschedule
-                      </Button>
-                    ) : (
-                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleScheduleReport(sq.id)}>
-                        <Calendar className="h-3 w-3 mr-1" />
-                        Schedule
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         {/* ── Recent History Tab ─────────────────────────────────── */}
         <TabsContent value="history" className="space-y-4">
-          <Card>
-            <CardContent className="p-0">
-              <ScrollArea className="max-h-[500px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Query</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead className="hidden sm:table-cell">Result</TableHead>
-                      <TableHead className="hidden md:table-cell">Time</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {queryHistory.map(qr => (
-                      <TableRow key={qr.id} className="cursor-pointer hover:bg-muted/50" onClick={() => { setSelectedResult(qr); setActiveTab('query'); }}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <MessageSquare className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span className="text-sm font-medium truncate max-w-[250px]">{qr.query}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">{qr.category}</Badge>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          <span className="text-sm text-muted-foreground">{qr.keyMetric}: {qr.keyMetricValue}</span>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <span className="text-xs text-muted-foreground">{formatTimeAgo(qr.timestamp)}</span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); handleSaveQuery(qr); }}>
-                              <BookmarkPlus className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); toast.success('Copied'); }}>
-                              <Copy className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
+          {queryHistory.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 flex flex-col items-center gap-3">
+                <Clock className="h-10 w-10 text-muted-foreground/40" />
+                <h3 className="text-base font-semibold text-muted-foreground">No history yet</h3>
+                <p className="text-sm text-muted-foreground/70 text-center max-w-md">
+                  Your query history will appear here after you run your first analysis.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <ScrollArea className="max-h-[500px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Query</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead className="hidden sm:table-cell">Result</TableHead>
+                        <TableHead className="hidden md:table-cell">Time</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-            </CardContent>
-          </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {queryHistory.map(qr => (
+                        <TableRow key={qr.id} className="cursor-pointer hover:bg-muted/50" onClick={() => { setSelectedResult(qr); setActiveTab('query'); }}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <MessageSquare className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <span className="text-sm font-medium truncate max-w-[250px]">{qr.query}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">{qr.category}</Badge>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            <span className="text-sm text-muted-foreground">{qr.keyMetric}: {qr.keyMetricValue}</span>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            <span className="text-xs text-muted-foreground">{formatTimeAgo(qr.timestamp)}</span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); handleSaveQuery(qr); }}>
+                                <BookmarkPlus className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); toast.success('Copied'); }}>
+                                <Copy className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* ── Analytics Gallery Tab ──────────────────────────────── */}
         <TabsContent value="gallery" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
-            {MOCK_TEMPLATES.map(template => (
-              <Card key={template.id} className="hover:shadow-lg transition-all cursor-pointer" onClick={() => {
-                const qr = MOCK_QUERY_RESULTS[0];
-                setSelectedResult(qr);
-                setActiveTab('query');
-                toast.info(`Opening ${template.name} template`);
-              }}>
+            {ANALYSIS_TEMPLATES.map(template => (
+              <Card key={template.id} className="hover:shadow-lg transition-all cursor-pointer" onClick={() => handleTemplateClick(template)}>
                 <CardContent className="p-5">
                   <div className="flex items-start gap-4">
                     <div className={cn('p-3 rounded-xl bg-gradient-to-br text-white shrink-0', template.color)}>
@@ -1052,8 +919,8 @@ export default function ConversationalAnalytics() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowBuilder(false)}>Cancel</Button>
-            <Button onClick={handleBuilderRun}>
-              <Sparkles className="h-4 w-4 mr-1.5" />
+            <Button onClick={handleBuilderRun} disabled={isQuerying}>
+              {isQuerying ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1.5" />}
               Generate Report
             </Button>
           </DialogFooter>

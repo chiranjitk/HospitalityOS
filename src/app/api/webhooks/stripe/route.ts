@@ -136,25 +136,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Strategy 3: If only livemode is available, filter by livemode in config
-      if (!gatewayConfig && stripeLivemode !== undefined) {
-        const allStripeGateways = await db.paymentGateway.findMany({
-          where: { provider: 'stripe', status: 'active' },
-          select: { id: true, apiKey: true, webhookSecret: true, tenantId: true, config: true },
-        });
-
-        for (const gw of allStripeGateways) {
-          try {
-            const gwConfig = JSON.parse(gw.config as string) as Record<string, unknown>;
-            if (gwConfig.livemode === stripeLivemode) {
-              gatewayConfig = gw;
-              break;
-            }
-          } catch {
-            // Skip gateways with invalid config JSON
-          }
-        }
-      }
+      // SECURITY FIX (G-04): Removed unsafe livemode-only fallback.
+      // livemode is a boolean, not a tenant identifier — matching on it alone
+      // in multi-tenant mode will attribute the webhook to the wrong tenant.
+      // Skip this strategy entirely and fall through to Strategy 4.
     }
 
     // Strategy 4: Last resort — if only one active Stripe gateway exists, use it

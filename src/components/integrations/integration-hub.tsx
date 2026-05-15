@@ -164,119 +164,15 @@ function formatRelativeTime(date: string | Date): string {
   return d.toLocaleDateString();
 }
 
-const errorRateTrendInitial = [
-  { day: 'Mon', rate: 0, errors: 0 },
-  { day: 'Tue', rate: 0, errors: 0 },
-  { day: 'Wed', rate: 0, errors: 0 },
-  { day: 'Thu', rate: 0, errors: 0 },
-  { day: 'Fri', rate: 0, errors: 0 },
-  { day: 'Sat', rate: 0, errors: 0 },
-  { day: 'Sun', rate: 0, errors: 0 },
-];
-
-const dataVolumeDataInitial = [
-  { day: 'Mon', volume: 0 },
-  { day: 'Tue', volume: 0 },
-  { day: 'Wed', volume: 0 },
-  { day: 'Thu', volume: 0 },
-  { day: 'Fri', volume: 0 },
-  { day: 'Sat', volume: 0 },
-  { day: 'Sun', volume: 0 },
-];
-
-const availableEvents = [
-  { id: 'int-1', name: 'Stripe', description: 'Online payment processing platform', category: 'Payment', status: 'connected', lastSync: '2 min ago', syncInterval: 'Real-time', recordsSynced: 12500, uptime: 99.9, avgLatency: 120, errorRate: 0.1, logoColor: 'bg-violet-600', icon: <CreditCard className="h-5 w-5" /> },
-  { id: 'int-2', name: 'PayPal', description: 'Global payment gateway', category: 'Payment', status: 'connected', lastSync: '5 min ago', syncInterval: 'Real-time', recordsSynced: 8900, uptime: 99.8, avgLatency: 150, errorRate: 0.2, logoColor: 'bg-blue-600', icon: <CreditCard className="h-5 w-5" /> },
-  { id: 'int-3', name: 'Razorpay', description: 'India-focused payment gateway', category: 'Payment', status: 'connected', lastSync: '1 min ago', syncInterval: 'Real-time', recordsSynced: 5200, uptime: 99.7, avgLatency: 180, errorRate: 0.3, logoColor: 'bg-cyan-600', icon: <CreditCard className="h-5 w-5" /> },
-  { id: 'int-4', name: 'Booking.com', description: 'Global hotel booking channel', category: 'Channel Manager', status: 'connected', lastSync: '15 min ago', syncInterval: '15 min', recordsSynced: 34200, uptime: 99.5, avgLatency: 800, errorRate: 0.5, logoColor: 'bg-blue-700', icon: <Globe className="h-5 w-5" /> },
-  { id: 'int-5', name: 'Expedia', description: 'Online travel agency channel', category: 'Channel Manager', status: 'connected', lastSync: '20 min ago', syncInterval: '20 min', recordsSynced: 22800, uptime: 99.3, avgLatency: 950, errorRate: 0.8, logoColor: 'bg-yellow-600', icon: <Globe className="h-5 w-5" /> },
-  { id: 'int-6', name: 'Airbnb', description: 'Vacation rental marketplace', category: 'Channel Manager', status: 'connected', lastSync: '30 min ago', syncInterval: '30 min', recordsSynced: 18500, uptime: 99.1, avgLatency: 1100, errorRate: 1.2, logoColor: 'bg-rose-500', icon: <Home className="h-5 w-5" /> },
-  { id: 'int-7', name: 'MakeMyTrip', description: 'India travel booking platform', category: 'Channel Manager', status: 'error', lastSync: '2 hours ago', syncInterval: '15 min', recordsSynced: 9800, uptime: 95.2, avgLatency: 2200, errorRate: 4.8, logoColor: 'bg-red-600', icon: <Globe className="h-5 w-5" /> },
-  { id: 'int-8', name: 'Goibibo', description: 'India hotel and flight booking', category: 'Channel Manager', status: 'connected', lastSync: '10 min ago', syncInterval: '15 min', recordsSynced: 7600, uptime: 98.8, avgLatency: 1300, errorRate: 1.5, logoColor: 'bg-green-600', icon: <Globe className="h-5 w-5" /> },
-  { id: 'int-9', name: 'Mailchimp', description: 'Email marketing automation', category: 'Communication', status: 'connected', lastSync: '1 hour ago', syncInterval: 'Hourly', recordsSynced: 45000, uptime: 99.9, avgLatency: 350, errorRate: 0.1, logoColor: 'bg-amber-600', icon: <Mail className="h-5 w-5" /> },
-  { id: 'int-10', name: 'SendGrid', description: 'Transactional email delivery', category: 'Communication', status: 'connected', lastSync: '5 min ago', syncInterval: 'Real-time', recordsSynced: 67000, uptime: 99.95, avgLatency: 80, errorRate: 0.05, logoColor: 'bg-sky-600', icon: <Mail className="h-5 w-5" /> },
-  { id: 'int-11', name: 'Twilio', description: 'SMS and voice communication', category: 'Communication', status: 'connected', lastSync: '3 min ago', syncInterval: 'Real-time', recordsSynced: 23000, uptime: 99.9, avgLatency: 200, errorRate: 0.2, logoColor: 'bg-red-500', icon: <MessageSquare className="h-5 w-5" /> },
-  { id: 'int-12', name: 'MSG91', description: 'SMS gateway for India', category: 'Communication', status: 'disconnected', lastSync: 'N/A', syncInterval: 'N/A', recordsSynced: 0, uptime: 0, avgLatency: 0, errorRate: 0, logoColor: 'bg-orange-500', icon: <MessageSquare className="h-5 w-5" /> },
-  { id: 'int-13', name: 'ASSA ABLOY', description: 'Smart lock access control', category: 'IoT', status: 'connected', lastSync: '1 min ago', syncInterval: 'Real-time', recordsSynced: 8900, uptime: 99.8, avgLatency: 150, errorRate: 0.3, logoColor: 'bg-blue-800', icon: <Lock className="h-5 w-5" /> },
-  { id: 'int-14', name: 'SALTO', description: 'Electronic access control systems', category: 'IoT', status: 'connected', lastSync: '2 min ago', syncInterval: 'Real-time', recordsSynced: 6200, uptime: 99.6, avgLatency: 180, errorRate: 0.4, logoColor: 'bg-emerald-700', icon: <Lock className="h-5 w-5" /> },
-  { id: 'int-15', name: 'Dormakaba', description: 'Security and access solutions', category: 'IoT', status: 'configuring', lastSync: 'N/A', syncInterval: 'Real-time', recordsSynced: 0, uptime: 0, avgLatency: 0, errorRate: 0, logoColor: 'bg-gray-700', icon: <Lock className="h-5 w-5" /> },
-  { id: 'int-16', name: 'Google Analytics', description: 'Web analytics and reporting', category: 'Analytics', status: 'connected', lastSync: '30 min ago', syncInterval: '30 min', recordsSynced: 156000, uptime: 99.9, avgLatency: 400, errorRate: 0.1, logoColor: 'bg-orange-500', icon: <BarChart3 className="h-5 w-5" /> },
-  { id: 'int-17', name: 'Mixpanel', description: 'Product analytics platform', category: 'Analytics', status: 'disconnected', lastSync: 'N/A', syncInterval: 'N/A', recordsSynced: 0, uptime: 0, avgLatency: 0, errorRate: 0, logoColor: 'bg-indigo-600', icon: <BarChart3 className="h-5 w-5" /> },
-  { id: 'int-18', name: 'Salesforce CRM', description: 'Customer relationship management', category: 'CRM', status: 'connected', lastSync: '10 min ago', syncInterval: '10 min', recordsSynced: 42000, uptime: 99.7, avgLatency: 500, errorRate: 0.6, logoColor: 'bg-blue-500', icon: <Users className="h-5 w-5" /> },
-];
-
-const syncLogEntries: SyncLogEntry[] = [
-  { id: 'log-1', integrationId: 'int-1', integrationName: 'Stripe', type: 'push', direction: 'outgoing', records: 45, status: 'success', timestamp: '2 min ago', duration: '120ms' },
-  { id: 'log-2', integrationId: 'int-4', integrationName: 'Booking.com', type: 'pull', direction: 'incoming', records: 23, status: 'success', timestamp: '5 min ago', duration: '850ms' },
-  { id: 'log-3', integrationId: 'int-7', integrationName: 'MakeMyTrip', type: 'push', direction: 'outgoing', records: 0, status: 'failed', timestamp: '8 min ago', duration: '5000ms', errorMessage: 'Connection timeout - API endpoint unreachable' },
-  { id: 'log-4', integrationId: 'int-3', integrationName: 'Razorpay', type: 'push', direction: 'outgoing', records: 12, status: 'success', timestamp: '10 min ago', duration: '180ms' },
-  { id: 'log-5', integrationId: 'int-9', integrationName: 'Mailchimp', type: 'pull', direction: 'incoming', records: 156, status: 'success', timestamp: '15 min ago', duration: '350ms' },
-  { id: 'log-6', integrationId: 'int-13', integrationName: 'ASSA ABLOY', type: 'push', direction: 'outgoing', records: 3, status: 'success', timestamp: '18 min ago', duration: '150ms' },
-  { id: 'log-7', integrationId: 'int-5', integrationName: 'Expedia', type: 'pull', direction: 'incoming', records: 18, status: 'success', timestamp: '20 min ago', duration: '950ms' },
-  { id: 'log-8', integrationId: 'int-7', integrationName: 'MakeMyTrip', type: 'push', direction: 'outgoing', records: 0, status: 'retrying', timestamp: '25 min ago', duration: '4500ms', errorMessage: 'Retrying (attempt 2/3) - 503 Service Unavailable' },
-  { id: 'log-9', integrationId: 'int-11', integrationName: 'Twilio', type: 'push', direction: 'outgoing', records: 28, status: 'success', timestamp: '30 min ago', duration: '200ms' },
-  { id: 'log-10', integrationId: 'int-10', integrationName: 'SendGrid', type: 'push', direction: 'outgoing', records: 89, status: 'success', timestamp: '32 min ago', duration: '80ms' },
-  { id: 'log-11', integrationId: 'int-2', integrationName: 'PayPal', type: 'push', direction: 'outgoing', records: 7, status: 'success', timestamp: '35 min ago', duration: '150ms' },
-  { id: 'log-12', integrationId: 'int-6', integrationName: 'Airbnb', type: 'pull', direction: 'incoming', records: 14, status: 'success', timestamp: '40 min ago', duration: '1100ms' },
-  { id: 'log-13', integrationId: 'int-14', integrationName: 'SALTO', type: 'push', direction: 'outgoing', records: 5, status: 'success', timestamp: '42 min ago', duration: '180ms' },
-  { id: 'log-14', integrationId: 'int-16', integrationName: 'Google Analytics', type: 'pull', direction: 'incoming', records: 342, status: 'success', timestamp: '45 min ago', duration: '400ms' },
-  { id: 'log-15', integrationId: 'int-8', integrationName: 'Goibibo', type: 'pull', direction: 'incoming', records: 9, status: 'success', timestamp: '50 min ago', duration: '1300ms' },
-  { id: 'log-16', integrationId: 'int-18', integrationName: 'Salesforce CRM', type: 'pull', direction: 'incoming', records: 67, status: 'success', timestamp: '55 min ago', duration: '500ms' },
-  { id: 'log-17', integrationId: 'int-4', integrationName: 'Booking.com', type: 'push', direction: 'outgoing', records: 31, status: 'failed', timestamp: '1 hour ago', duration: '3200ms', errorMessage: 'Rate limit exceeded - 429 Too Many Requests' },
-  { id: 'log-18', integrationId: 'int-7', integrationName: 'MakeMyTrip', type: 'push', direction: 'outgoing', records: 0, status: 'failed', timestamp: '1.5 hours ago', duration: '5000ms', errorMessage: 'Authentication failed - Invalid API credentials' },
-  { id: 'log-19', integrationId: 'int-1', integrationName: 'Stripe', type: 'pull', direction: 'incoming', records: 22, status: 'success', timestamp: '1.5 hours ago', duration: '130ms' },
-  { id: 'log-20', integrationId: 'int-9', integrationName: 'Mailchimp', type: 'push', direction: 'outgoing', records: 89, status: 'success', timestamp: '2 hours ago', duration: '320ms' },
-  { id: 'log-21', integrationId: 'int-5', integrationName: 'Expedia', type: 'push', direction: 'outgoing', records: 15, status: 'success', timestamp: '2 hours ago', duration: '900ms' },
-  { id: 'log-22', integrationId: 'int-11', integrationName: 'Twilio', type: 'pull', direction: 'incoming', records: 12, status: 'failed', timestamp: '2.5 hours ago', duration: '3000ms', errorMessage: 'SMS delivery failed - carrier rejection' },
-];
-
-const webhookConfigs: WebhookConfig[] = [
-  { id: 'wh-1', name: 'Booking Confirmation Webhook', url: 'https://api.example.com/webhooks/bookings', events: ['booking.created', 'booking.updated', 'booking.cancelled'], status: 'active', secret: 'whsec_***...a3f2', lastDelivery: '5 min ago', successRate: 98.5, deliveries: 2450 },
-  { id: 'wh-2', name: 'Payment Events', url: 'https://api.example.com/webhooks/payments', events: ['payment.completed', 'payment.failed', 'refund.processed'], status: 'active', secret: 'whsec_***...b7e1', lastDelivery: '2 min ago', successRate: 99.2, deliveries: 8920 },
-  { id: 'wh-3', name: 'Guest Check-in/out', url: 'https://api.example.com/webhooks/checkin', events: ['guest.checked_in', 'guest.checked_out'], status: 'active', secret: 'whsec_***...c4d8', lastDelivery: '1 hour ago', successRate: 100, deliveries: 1240 },
-  { id: 'wh-4', name: 'Review Notifications', url: 'https://api.example.com/webhooks/reviews', events: ['review.submitted', 'review.responded'], status: 'inactive', secret: 'whsec_***...e2f5', lastDelivery: 'N/A', successRate: 95.0, deliveries: 320 },
-  { id: 'wh-5', name: 'Revenue Alerts', url: 'https://api.example.com/webhooks/revenue', events: ['revenue.threshold_crossed', 'occupancy.changed'], status: 'active', secret: 'whsec_***...f6a9', lastDelivery: '30 min ago', successRate: 97.8, deliveries: 1560 },
-];
-
-const availableEvents = [
+// Valid webhook event types (configuration, not mock data)
+const WEBHOOK_EVENT_OPTIONS = [
   'booking.created', 'booking.updated', 'booking.cancelled',
   'payment.completed', 'payment.failed', 'refund.processed',
   'guest.checked_in', 'guest.checked_out', 'guest.registered',
   'review.submitted', 'review.responded',
   'revenue.threshold_crossed', 'occupancy.changed',
   'room.status_changed', 'service_request.created',
-];
-
-const apiKeys: ApiKeyEntry[] = [
-  { id: 'key-1', name: 'Stripe Production Key', integration: 'Stripe', key: 'sk_live_51N4x2xAaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTt', maskedKey: 'sk_live_****...SsTt', createdAt: 'Jan 15, 2024', lastUsed: '2 min ago', expiresAt: 'Jan 15, 2025', usageCount: 12500, status: 'active' },
-  { id: 'key-2', name: 'Booking.com API Key', integration: 'Booking.com', key: 'bcom_v3_99887766554433221100AaBbCcDdEeFfGg', maskedKey: 'bcom_v3_****...FfGg', createdAt: 'Feb 20, 2024', lastUsed: '15 min ago', expiresAt: 'Feb 20, 2025', usageCount: 34200, status: 'active' },
-  { id: 'key-3', name: 'Twilio Auth Token', integration: 'Twilio', key: 'tw_auth_ac1234567890abcdef1234567890abcdef', maskedKey: 'tw_auth_****...cdef', createdAt: 'Mar 10, 2024', lastUsed: '3 min ago', expiresAt: 'Never', usageCount: 23000, status: 'active' },
-  { id: 'key-4', name: 'Mailchimp API Key (Legacy)', integration: 'Mailchimp', key: 'mc_us1_abcdef1234567890abcdef1234567890', maskedKey: 'mc_us1_****...7890', createdAt: 'Jun 1, 2023', lastUsed: 'N/A', expiresAt: 'Jun 1, 2024', usageCount: 12500, status: 'expired', rotationScheduled: undefined },
-  { id: 'key-5', name: 'ASSA ABLOY Access Key', integration: 'ASSA ABLOY', key: 'assa_prod_xYz123AbC456DeF789GhI012JkLmNoP', maskedKey: 'assa_prod_****...mNoP', createdAt: 'Nov 5, 2024', lastUsed: '1 min ago', expiresAt: 'May 5, 2025', usageCount: 8900, status: 'active', rotationScheduled: 'Apr 5, 2025' },
-  { id: 'key-6', name: 'Google Analytics OAuth', integration: 'Google Analytics', key: 'ga4_oauth_9876543210abcdef9876543210abcdef', maskedKey: 'ga4_oauth_****...cdef', createdAt: 'Aug 15, 2024', lastUsed: '30 min ago', expiresAt: 'Aug 15, 2025', usageCount: 156000, status: 'active', rotationScheduled: 'Jul 15, 2025' },
-  { id: 'key-7', name: 'Razorpay Test Key', integration: 'Razorpay', key: 'rzp_test_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6', maskedKey: 'rzp_test_****...o5p6', createdAt: 'Dec 1, 2024', lastUsed: '1 min ago', expiresAt: 'Never', usageCount: 5200, status: 'active' },
-  { id: 'key-8', name: 'Expedia Partner Key (Rotated)', integration: 'Expedia', key: 'exp_v2_z9y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4', maskedKey: 'exp_v2_****...l5k4', createdAt: 'Oct 20, 2024', lastUsed: '20 min ago', expiresAt: 'Apr 20, 2025', usageCount: 22800, status: 'rotated' },
-];
-
-const errorRateTrend = [
-  { day: 'Mon', rate: 1.2, errors: 8 },
-  { day: 'Tue', rate: 0.8, errors: 5 },
-  { day: 'Wed', rate: 2.1, errors: 15 },
-  { day: 'Thu', rate: 0.5, errors: 3 },
-  { day: 'Fri', rate: 1.8, errors: 12 },
-  { day: 'Sat', rate: 0.3, errors: 2 },
-  { day: 'Sun', rate: 0.9, errors: 6 },
-];
-
-const dataVolumeData = [
-  { day: 'Mon', volume: 12500 },
-  { day: 'Tue', volume: 14200 },
-  { day: 'Wed', volume: 15800 },
-  { day: 'Thu', volume: 13500 },
-  { day: 'Fri', volume: 18200 },
-  { day: 'Sat', volume: 22100 },
-  { day: 'Sun', volume: 19800 },
-];
+] as const;
 
 const categories = ['Payment', 'Channel Manager', 'CRM', 'PMS', 'Revenue Management', 'Housekeeping', 'IoT', 'Communication', 'Analytics', 'HR/Payroll'];
 
@@ -321,17 +217,18 @@ export default function IntegrationHub() {
   const [syncLogEntries, setSyncLogEntries] = useState<SyncLogEntry[]>([]);
   const [webhookConfigs, setWebhookConfigs] = useState<WebhookConfig[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKeyEntry[]>([]);
-  const [errorRateTrend, setErrorRateTrend] = useState(errorRateTrendInitial);
-  const [dataVolumeData, setDataVolumeData] = useState(dataVolumeDataInitial);
+  const [errorRateTrend, setErrorRateTrend] = useState<Array<{day: string; rate: number; errors: number}>>([]);
+  const [dataVolumeData, setDataVolumeData] = useState<Array<{day: string; volume: number}>>([]);
 
   // ─── Data fetching ─────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [integRes, webhookRes, syncLogRes] = await Promise.allSettled([
+      const [integRes, webhookRes, syncLogRes, keysRes] = await Promise.allSettled([
         fetch('/api/settings/integrations').then(r => r.ok ? r.json() : null),
         fetch('/api/webhooks/events').then(r => r.ok ? r.json() : null),
         fetch('/api/channels/sync-logs?limit=50').then(r => r.ok ? r.json() : null),
+        fetch('/api/settings/integrations/keys').then(r => r.ok ? r.json() : null),
       ]);
 
       // Process integrations
@@ -378,7 +275,25 @@ export default function IntegrationHub() {
           lastDelivery: ep.lastTriggered ? formatRelativeTime(ep.lastTriggered) : 'N/A',
           successRate: ep.successRate || 0,
           deliveries: ep.totalTriggers || 0,
-        }));
+        })));
+      }
+
+      // Process API keys
+      if (keysRes?.success && keysRes.data) {
+        const keys = Array.isArray(keysRes.data) ? keysRes.data : keysRes.data?.keys || [];
+        setApiKeys((keys as Array<Record<string, unknown>>).map((k: Record<string, unknown>) => ({
+          id: k.id,
+          name: k.name,
+          integration: k.integration,
+          key: k.key || '',
+          maskedKey: k.maskedKey || k.key ? `${(k.key as string).slice(0, 8)}...` : '',
+          createdAt: k.createdAt ? formatRelativeTime(k.createdAt) : 'N/A',
+          lastUsed: k.lastUsed ? formatRelativeTime(k.lastUsed) : 'N/A',
+          expiresAt: k.expiresAt || 'N/A',
+          usageCount: k.usageCount || 0,
+          status: (k.status as 'active' | 'expired' | 'rotated') || 'active',
+          rotationScheduled: k.rotationScheduled || undefined,
+        })));
       }
 
       // Process sync logs
@@ -395,7 +310,7 @@ export default function IntegrationHub() {
           timestamp: log.createdAt ? formatRelativeTime(log.createdAt) : '',
           duration: '',
           errorMessage: log.errorMessage || undefined,
-        }));
+        })));
       }
     } catch (err) {
       console.error('Failed to fetch integration data:', err);
@@ -406,11 +321,7 @@ export default function IntegrationHub() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const integrationStates = useMemo(() => {
-    const states: Record<string, string> = {};
-    integrations.forEach(i => { states[i.id] = i.status; });
-    return states;
-  }, [integrations]);
+  const [integrationStates, setIntegrationStates] = useState<Record<string, string>>({});
 
   const connectedIntegrations = useMemo(() =>
     integrations.filter(i => i.status === 'connected'),
@@ -897,6 +808,7 @@ export default function IntegrationHub() {
           </div>
 
           {/* Error Rate Chart */}
+          {errorRateTrend.length > 0 ? (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Error Rate Trend (7 Days)</CardTitle>
@@ -922,8 +834,19 @@ export default function IntegrationHub() {
               </div>
             </CardContent>
           </Card>
+          ) : (
+          <Card>
+            <CardContent className="h-48 flex items-center justify-center">
+              <div className="text-center text-muted-foreground">
+                <Activity className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No error rate data available</p>
+              </div>
+            </CardContent>
+          </Card>
+          )}
 
           {/* Data Volume Chart */}
+          {dataVolumeData.length > 0 ? (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Data Volume (Records Synced)</CardTitle>
@@ -949,6 +872,16 @@ export default function IntegrationHub() {
               </div>
             </CardContent>
           </Card>
+          ) : (
+          <Card>
+            <CardContent className="h-48 flex items-center justify-center">
+              <div className="text-center text-muted-foreground">
+                <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No data volume data available</p>
+              </div>
+            </CardContent>
+          </Card>
+          )}
 
           {/* Health Table */}
           <Card>
@@ -1246,7 +1179,7 @@ export default function IntegrationHub() {
             <div className="space-y-2">
               <Label>Events to Subscribe</Label>
               <div className="flex flex-wrap gap-1.5 p-3 rounded-lg border max-h-32 overflow-y-auto">
-                {availableEvents.map((event) => (
+                {WEBHOOK_EVENT_OPTIONS.map((event) => (
                   <label key={event} className="flex items-center gap-1.5 cursor-pointer">
                     <input type="checkbox" className="rounded" />
                     <span className="text-xs font-mono">{event}</span>

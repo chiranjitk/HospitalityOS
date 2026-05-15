@@ -4540,7 +4540,7 @@ model Promotion {
   tenantId            String   @db.Uuid
   propertyId          String?  @db.Uuid
   name                String
-  code                String   @unique
+  code                String
   description         String?
   discountType        String
   discountValue       Float
@@ -4557,6 +4557,7 @@ model Promotion {
   createdAt           DateTime @default(now()) @db.Timestamptz
   updatedAt           DateTime @updatedAt @db.Timestamptz
 
+  @@unique([tenantId, code])
   @@index([tenantId])
   @@index([code])
 }

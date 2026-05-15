@@ -440,6 +440,7 @@ export default function VipRecognition() {
   const [selectedGuest, setSelectedGuest] = useState<VipGuest | null>(null);
   const [isGuestDialogOpen, setIsGuestDialogOpen] = useState(false);
   const [alertLog, setAlertLog] = useState<AlertLogEntry[]>(INITIAL_ALERT_LOG);
+  const [vipGuests, setVipGuests] = useState<VipGuest[]>([]);
   const [vipLoading, setVipLoading] = useState(true);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -460,8 +461,35 @@ export default function VipRecognition() {
         // VIP guests
         if (guestsRes.status === 'fulfilled' && guestsRes.value.ok) {
           const data = await guestsRes.value.json();
-          // If real VIP guests returned, use them (keeping VIP_GUESTS as fallback)
-          // Note: VIP_GUESTS constant remains for tier config display
+          const items = Array.isArray(data) ? data : data.guests || data.data || [];
+          const mapped: VipGuest[] = items.map((g: Record<string, unknown>) => ({
+            id: g.id || `guest-${Math.random().toString(36).slice(2, 9)}`,
+            firstName: g.firstName || g.first_name || '',
+            lastName: g.lastName || g.last_name || '',
+            email: g.email || '',
+            phone: g.phone || '',
+            tier: (g.tier || g.loyaltyTier || g.loyalty_tier || 'silver') as VipTier,
+            totalSpent: typeof g.totalSpent === 'number' ? g.totalSpent : typeof g.total_spent === 'number' ? g.total_spent : 0,
+            totalNights: typeof g.totalNights === 'number' ? g.totalNights : typeof g.total_nights === 'number' ? g.total_nights : 0,
+            totalVisits: typeof g.totalVisits === 'number' ? g.totalVisits : typeof g.total_visits === 'number' ? g.total_visits : 0,
+            loyaltyPoints: typeof g.loyaltyPoints === 'number' ? g.loyaltyPoints : typeof g.loyalty_points === 'number' ? g.loyalty_points : 0,
+            avatar: g.avatar || undefined,
+            checkInDate: g.checkInDate || g.check_in_date || undefined,
+            checkOutDate: g.checkOutDate || g.check_out_date || undefined,
+            roomNumber: g.roomNumber || g.room_number || undefined,
+            roomType: g.roomType || g.room_type || undefined,
+            company: g.company || undefined,
+            dateOfBirth: g.dateOfBirth || g.date_of_birth || g.dob || undefined,
+            anniversary: g.anniversary || undefined,
+            dietaryPreference: g.dietaryPreference || g.dietary_preference || (g.preferences as Record<string, unknown>)?.dietaryPreference || (g.preferences as Record<string, unknown>)?.dietary_preference || undefined,
+            pillowPreference: g.pillowPreference || g.pillow_preference || (g.preferences as Record<string, unknown>)?.pillowPreference || (g.preferences as Record<string, unknown>)?.pillow_preference || undefined,
+            roomPreference: g.roomPreference || g.room_preference || (g.preferences as Record<string, unknown>)?.roomPreference || (g.preferences as Record<string, unknown>)?.room_preference || undefined,
+            allergies: g.allergies || (g.preferences as Record<string, unknown>)?.allergies || undefined,
+            specialRequests: g.specialRequests || g.special_requests || (g.preferences as Record<string, unknown>)?.specialRequests || (g.preferences as Record<string, unknown>)?.special_requests || undefined,
+            previousFeedback: g.previousFeedback || g.previous_feedback || [],
+            tags: g.tags || undefined,
+          }));
+          setVipGuests(mapped);
         }
         // Alert log
         if (alertsRes.status === 'fulfilled' && alertsRes.value.ok) {
@@ -494,7 +522,7 @@ export default function VipRecognition() {
 
   // Filter guests
   const filteredGuests = useMemo(() => {
-    let guests = VIP_GUESTS;
+    let guests = vipGuests;
     if (selectedTier !== 'all') {
       guests = guests.filter(g => g.tier === selectedTier);
     }
@@ -508,22 +536,22 @@ export default function VipRecognition() {
       );
     }
     return guests;
-  }, [selectedTier, searchQuery]);
+  }, [vipGuests, selectedTier, searchQuery]);
 
   const todaysArrivals = useMemo(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
-    return VIP_GUESTS.filter(g => g.checkInDate === today).sort((a, b) => {
+    return vipGuests.filter(g => g.checkInDate === today).sort((a, b) => {
       const order: Record<VipTier, number> = { platinum: 0, gold: 1, silver: 2, bronze: 3 };
       return order[a.tier] - order[b.tier];
     });
-  }, []);
+  }, [vipGuests]);
 
   const tierCounts = useMemo(() => ({
-    platinum: VIP_GUESTS.filter(g => g.tier === 'platinum').length,
-    gold: VIP_GUESTS.filter(g => g.tier === 'gold').length,
-    silver: VIP_GUESTS.filter(g => g.tier === 'silver').length,
-    bronze: VIP_GUESTS.filter(g => g.tier === 'bronze').length,
-  }), []);
+    platinum: vipGuests.filter(g => g.tier === 'platinum').length,
+    gold: vipGuests.filter(g => g.tier === 'gold').length,
+    silver: vipGuests.filter(g => g.tier === 'silver').length,
+    bronze: vipGuests.filter(g => g.tier === 'bronze').length,
+  }), [vipGuests]);
 
   const handleToggleRule = (ruleId: string) => {
     setRules(prev => prev.map(r => r.id === ruleId ? { ...r, isActive: !r.isActive } : r));
@@ -614,7 +642,7 @@ export default function VipRecognition() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-violet-700 dark:text-violet-400">Total VIP Guests</p>
-                <p className="text-2xl font-bold text-violet-900 dark:text-violet-100">{VIP_GUESTS.length}</p>
+                <p className="text-2xl font-bold text-violet-900 dark:text-violet-100">{vipGuests.length}</p>
                 <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">Across all tiers</p>
               </div>
               <div className="p-3 rounded-full bg-violet-200 dark:bg-violet-800">
@@ -653,6 +681,12 @@ export default function VipRecognition() {
               </div>
             </CardHeader>
             <CardContent>
+              {todaysArrivals.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <LogIn className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">No VIP guests arriving today</p>
+                </div>
+              ) : (
               <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
                 {todaysArrivals.map(guest => {
                   const config = TIER_CONFIG[guest.tier];
@@ -712,6 +746,7 @@ export default function VipRecognition() {
                   );
                 })}
               </div>
+              )}
             </CardContent>
           </Card>
 
@@ -763,7 +798,24 @@ export default function VipRecognition() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredGuests.map(guest => (
+                    {vipLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            Loading VIP guests…
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredGuests.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                          {vipGuests.length === 0
+                            ? 'No VIP guests currently checked in'
+                            : 'No guests match the current filter'}
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredGuests.map(guest => (
                       <TableRow key={guest.id} className="cursor-pointer hover:bg-muted/50" onClick={() => handleOpenGuest(guest)}>
                         <TableCell>
                           <div className="flex items-center gap-3">
@@ -832,7 +884,7 @@ export default function VipRecognition() {
                       </div>
                     </div>
                     <Badge className={`${config.bgColor} ${config.color} text-sm`}>
-                      {VIP_GUESTS.filter(g => g.tier === config.tier).length} active
+                      {vipGuests.filter(g => g.tier === config.tier).length} active
                     </Badge>
                   </div>
                 </CardHeader>
