@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useReducer, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -85,63 +85,27 @@ interface OptimizationTool {
   impact: string;
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────
-const FUNNEL_STAGES: FunnelStage[] = [
-  { name: 'Landing Page', visitors: 48520, dropoff: 0, conversionRate: 100, icon: Globe },
-  { name: 'Search Results', visitors: 36390, dropoff: 12130, conversionRate: 75.0, icon: Search },
-  { name: 'Room Selection', visitors: 21834, dropoff: 14556, conversionRate: 45.0, icon: ShoppingCart },
-  { name: 'Guest Details', visitors: 15284, dropoff: 6550, conversionRate: 31.5, icon: Users },
-  { name: 'Payment', visitors: 10699, dropoff: 4585, conversionRate: 22.0, icon: CreditCard },
-  { name: 'Confirmation', visitors: 7703, dropoff: 2996, conversionRate: 15.9, icon: CheckCircle2 },
-];
-
-const MOCK_ABANDONED: AbandonedBooking[] = [
-  { id: 'ab1', guestName: 'Sarah Mitchell', email: 'sarah.m@email.com', phone: '+1-555-0101', abandonTime: '2026-05-07T14:23:00Z', roomSearched: 'Deluxe Ocean View Suite', checkIn: '2026-06-15', checkOut: '2026-06-18', guests: 2, value: 1890, recoveryStage: 'new', recoveryChannel: null },
-  { id: 'ab2', guestName: 'James Cooper', email: 'j.cooper@email.com', phone: '+1-555-0102', abandonTime: '2026-05-07T12:05:00Z', roomSearched: 'Premium King Room', checkIn: '2026-05-20', checkOut: '2026-05-22', guests: 1, value: 520, recoveryStage: 'reminded_1h', recoveryChannel: 'email' },
-  { id: 'ab3', guestName: 'Elena Rodriguez', email: 'elena.r@email.com', phone: '+1-555-0103', abandonTime: '2026-05-07T10:30:00Z', roomSearched: 'Family Suite (2BR)', checkIn: '2026-07-01', checkOut: '2026-07-07', guests: 4, value: 3420, recoveryStage: 'reminded_24h', recoveryChannel: 'email' },
-  { id: 'ab4', guestName: 'David Park', email: 'd.park@email.com', phone: '+1-555-0104', abandonTime: '2026-05-06T18:45:00Z', roomSearched: 'Standard Double Room', checkIn: '2026-05-25', checkOut: '2026-05-26', guests: 2, value: 340, recoveryStage: 'reminded_72h', recoveryChannel: 'email' },
-  { id: 'ab5', guestName: 'Maria Chen', email: 'm.chen@email.com', phone: '+1-555-0105', abandonTime: '2026-05-06T16:20:00Z', roomSearched: 'Penthouse Suite', checkIn: '2026-06-10', checkOut: '2026-06-14', guests: 2, value: 4800, recoveryStage: 'recovered', recoveryChannel: 'email' },
-  { id: 'ab6', guestName: 'Robert Taylor', email: 'r.taylor@email.com', phone: '+1-555-0106', abandonTime: '2026-05-06T09:10:00Z', roomSearched: 'Deluxe King Room', checkIn: '2026-06-05', checkOut: '2026-06-08', guests: 1, value: 960, recoveryStage: 'recovered', recoveryChannel: 'discount' },
-  { id: 'ab7', guestName: 'Lisa Wang', email: 'l.wang@email.com', phone: '+1-555-0107', abandonTime: '2026-05-05T22:30:00Z', roomSearched: 'Garden View Room', checkIn: '2026-05-30', checkOut: '2026-06-02', guests: 2, value: 680, recoveryStage: 'lost', recoveryChannel: null },
-  { id: 'ab8', guestName: 'Michael Brown', email: 'm.brown@email.com', phone: '+1-555-0108', abandonTime: '2026-05-05T15:00:00Z', roomSearched: 'Executive Suite', checkIn: '2026-06-20', checkOut: '2026-06-23', guests: 2, value: 2670, recoveryStage: 'new', recoveryChannel: null },
-  { id: 'ab9', guestName: 'Anna Kowalski', email: 'a.kowalski@email.com', phone: '+1-555-0109', abandonTime: '2026-05-05T11:15:00Z', roomSearched: 'Junior Suite', checkIn: '2026-07-10', checkOut: '2026-07-13', guests: 2, value: 1560, recoveryStage: 'reminded_1h', recoveryChannel: 'email' },
-  { id: 'ab10', guestName: 'Thomas Lee', email: 't.lee@email.com', phone: '+1-555-0110', abandonTime: '2026-05-04T20:40:00Z', roomSearched: 'Standard Twin Room', checkIn: '2026-05-28', checkOut: '2026-05-30', guests: 2, value: 440, recoveryStage: 'reminded_24h', recoveryChannel: 'sms' },
-  { id: 'ab11', guestName: 'Priya Sharma', email: 'p.sharma@email.com', phone: '+1-555-0111', abandonTime: '2026-05-04T14:55:00Z', roomSearched: 'Honeymoon Suite', checkIn: '2026-06-15', checkOut: '2026-06-19', guests: 2, value: 3200, recoveryStage: 'recovered', recoveryChannel: 'discount' },
-  { id: 'ab12', guestName: 'Chris Anderson', email: 'c.anderson@email.com', phone: '+1-555-0112', abandonTime: '2026-05-04T08:20:00Z', roomSearched: 'Deluxe Twin Room', checkIn: '2026-06-01', checkOut: '2026-06-03', guests: 2, value: 720, recoveryStage: 'lost', recoveryChannel: null },
-];
-
-const MOCK_RECOVERY_CAMPAIGNS: RecoveryCampaign[] = [
-  { id: 'rc1', name: '1-Hour Reminder', type: 'email_1h', sentCount: 1840, recoveredCount: 368, recoveryRate: 20.0, revenueRecovered: 645200, status: 'active' },
-  { id: 'rc2', name: '24-Hour Follow-up', type: 'email_24h', sentCount: 1520, recoveredCount: 274, recoveryRate: 18.0, revenueRecovered: 489600, status: 'active' },
-  { id: 'rc3', name: '72-Hour Last Chance', type: 'email_72h', sentCount: 1280, recoveredCount: 154, recoveryRate: 12.0, revenueRecovered: 312400, status: 'active' },
-  { id: 'rc4', name: '10% Discount Offer', type: 'discount', sentCount: 640, recoveredCount: 166, recoveryRate: 25.9, revenueRecovered: 534800, status: 'active' },
-  { id: 'rc5', name: 'Retargeting Ads', type: 'retarget', sentCount: 3200, recoveredCount: 224, recoveryRate: 7.0, revenueRecovered: 398600, status: 'paused' },
-];
-
-const MOCK_TRENDS: ConversionTrend[] = [
-  { date: 'May 1', directBookings: 45, otaBookings: 32, directRevenue: 28350, otaRevenue: 17920, conversionRate: 14.2 },
-  { date: 'May 2', directBookings: 52, otaBookings: 28, directRevenue: 32800, otaRevenue: 15680, conversionRate: 15.8 },
-  { date: 'May 3', directBookings: 48, otaBookings: 35, directRevenue: 30240, otaRevenue: 19600, conversionRate: 14.9 },
-  { date: 'May 4', directBookings: 61, otaBookings: 30, directRevenue: 38430, otaRevenue: 16800, conversionRate: 16.7 },
-  { date: 'May 5', directBookings: 55, otaBookings: 33, directRevenue: 34650, otaRevenue: 18480, conversionRate: 15.5 },
-  { date: 'May 6', directBookings: 67, otaBookings: 29, directRevenue: 42210, otaRevenue: 16240, conversionRate: 17.3 },
-  { date: 'May 7', directBookings: 72, otaBookings: 31, directRevenue: 45360, otaRevenue: 17360, conversionRate: 18.1 },
-];
-
-const MOCK_TOOLS: OptimizationTool[] = [
-  { id: 'tool1', name: 'Limited Rooms Alert', description: 'Show "Only X rooms left at this price" for high-demand dates', icon: Flame, enabled: true, type: 'urgency', impact: '+12% conversion' },
-  { id: 'tool2', name: 'Deal Countdown Timer', description: 'Display countdown for time-sensitive rate offers', icon: Timer, enabled: true, type: 'urgency', impact: '+8% conversion' },
-  { id: 'tool3', name: 'Recent Bookings Ticker', description: 'Show real-time counter of recent bookings on property', icon: TrendingUp, enabled: true, type: 'social_proof', impact: '+15% conversion' },
-  { id: 'tool4', name: 'Review Highlights', description: 'Display top-rated guest reviews on booking page', icon: Star, enabled: true, type: 'social_proof', impact: '+10% conversion' },
-  { id: 'tool5', name: 'Free Cancellation Badge', description: 'Prominently display free cancellation policy', icon: Shield, enabled: true, type: 'trust_badge', impact: '+7% conversion' },
-  { id: 'tool6', name: 'Best Price Guarantee', description: 'Show "Lowest price guaranteed or we match it" badge', icon: BadgePercent, enabled: true, type: 'trust_badge', impact: '+9% conversion' },
-  { id: 'tool7', name: 'Secure Payment Seal', description: 'Display SSL/security badges during checkout', icon: Shield, enabled: false, type: 'trust_badge', impact: '+5% conversion' },
-  { id: 'tool8', name: 'Exit-Intent Popup', description: 'Show special offer when guest tries to leave the booking page', icon: AlertTriangle, enabled: false, type: 'exit_popup', impact: '+18% recovery' },
-  { id: 'tool9', name: 'Limited-Time Offer Bar', description: 'Animated top bar showing current promotions and deals', icon: Gift, enabled: true, type: 'offer_bar', impact: '+11% conversion' },
-  { id: 'tool10', name: 'Guest Photo Gallery', description: 'Show guest-uploaded photos from social media', icon: ThumbsUp, enabled: false, type: 'social_proof', impact: '+6% conversion' },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────
+
+// Icon lookup for funnel stages
+const FUNNEL_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  landing: Globe,
+  search: Search,
+  room_select: ShoppingCart,
+  guest_info: Users,
+  payment: CreditCard,
+  confirmation: CheckCircle2,
+};
+
+// Optimization tool icon lookup
+const TOOL_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  urgency: Flame,
+  social_proof: ThumbsUp,
+  trust_badge: Shield,
+  exit_popup: AlertTriangle,
+  offer_bar: Gift,
+};
+
 const RECOVERY_STAGE_STYLES: Record<string, string> = {
   new: 'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-300',
   reminded_1h: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300',
@@ -169,12 +133,272 @@ const getTimeAgo = (dateStr: string) => {
   return `${days}d ago`;
 };
 
+// Build funnel stages from API data
+const buildFunnelStages = (
+  abandonedFunnel: Record<string, number> | undefined,
+  seoFunnel: { pageViews: number; searchQueries: number; bookingAttempts: number; completedBookings: number; conversionRate: number } | undefined
+): FunnelStage[] => {
+  if (seoFunnel && seoFunnel.pageViews > 0) {
+    const pageViews = seoFunnel.pageViews;
+    const completed = seoFunnel.completedBookings;
+    const convRate = seoFunnel.conversionRate;
+    const stages = [
+      { key: 'landing', name: 'Landing Page', visitors: pageViews, icon: Globe },
+      { key: 'search', name: 'Search Results', visitors: seoFunnel.searchQueries, icon: Search },
+      { key: 'room_select', name: 'Room Selection', visitors: Math.round(pageViews * 0.45), icon: ShoppingCart },
+      { key: 'guest_info', name: 'Guest Details', visitors: seoFunnel.bookingAttempts, icon: Users },
+      { key: 'payment', name: 'Payment', visitors: Math.round(completed * 1.4), icon: CreditCard },
+      { key: 'confirmation', name: 'Confirmation', visitors: completed, icon: CheckCircle2 },
+    ];
+    return stages.map((s, idx) => ({
+      name: s.name,
+      visitors: s.visitors,
+      dropoff: idx === 0 ? 0 : stages[idx - 1].visitors - s.visitors,
+      conversionRate: parseFloat(((s.visitors / pageViews) * 100).toFixed(1)),
+      icon: s.icon,
+    }));
+  }
+
+  // Fallback: derive from abandoned bookings funnel counts
+  if (abandonedFunnel) {
+    const counts = [
+      abandonedFunnel.search || 0,
+      abandonedFunnel.room_select || 0,
+      abandonedFunnel.guest_info || 0,
+      abandonedFunnel.payment || 0,
+    ];
+    const total = counts.reduce((a, b) => a + b, 0) || 1;
+    // Estimate upstream numbers: assume 3x visitors for search level
+    const landingVisitors = Math.round((abandonedFunnel.search || 0) * 3 + total);
+    const searchVisitors = Math.round((abandonedFunnel.search || 0) * 2 + total);
+    const allStages = [
+      { name: 'Landing Page', visitors: landingVisitors, icon: Globe },
+      { name: 'Search', visitors: searchVisitors, icon: Search },
+      { name: 'Room Selection', visitors: counts[0] + counts[1] + counts[2] + counts[3], icon: ShoppingCart },
+      { name: 'Guest Details', visitors: counts[1] + counts[2] + counts[3], icon: Users },
+      { name: 'Payment', visitors: counts[2] + counts[3], icon: CreditCard },
+      { name: 'Confirmation', visitors: Math.max(1, counts[3]), icon: CheckCircle2 },
+    ];
+    return allStages.map((s, idx) => ({
+      name: s.name,
+      visitors: s.visitors,
+      dropoff: idx === 0 ? 0 : Math.max(0, allStages[idx - 1].visitors - s.visitors),
+      conversionRate: parseFloat(((s.visitors / landingVisitors) * 100).toFixed(1)),
+      icon: s.icon,
+    }));
+  }
+
+  // Ultimate fallback — empty
+  return [];
+};
+
+// Build optimization tools from active promotions
+const buildOptimizationTools = (promotions: Record<string, unknown>[]): OptimizationTool[] => {
+  const tools: OptimizationTool[] = [];
+
+  // Offer bar tool — from active promotions
+  const activePromos = promotions.filter((p: Record<string, unknown>) => p.status === 'active');
+  if (activePromos.length > 0) {
+    const promo = activePromos[0];
+    tools.push({
+      id: 'tool-offer-bar',
+      name: (promo.name as string) || 'Special Offer Bar',
+      description: `Active promotion: ${promo.discountType === 'percentage' ? `${promo.discountValue}% off` : `$${promo.discountValue} off`}`,
+      icon: Gift,
+      enabled: true,
+      type: 'offer_bar',
+      impact: `${activePromos.length} active promo${activePromos.length > 1 ? 's' : ''}`,
+    });
+  }
+
+  // Urgency tool
+  const percentagePromos = promotions.filter(
+    (p: Record<string, unknown>) => p.discountType === 'percentage' && (p.discountValue as number) >= 15
+  );
+  if (percentagePromos.length > 0) {
+    tools.push({
+      id: 'tool-urgency',
+      name: 'Urgency Timer',
+      description: 'Display countdown timers on limited-time promotions',
+      icon: Flame,
+      enabled: true,
+      type: 'urgency',
+      impact: `${percentagePromos.length} high-value promo${percentagePromos.length > 1 ? 's' : ''}`,
+    });
+  }
+
+  // Trust badge tool — always available
+  tools.push({
+    id: 'tool-trust-badge',
+    name: 'Trust Badges',
+    description: 'Display security badges, free cancellation, and best price guarantee',
+    icon: Shield,
+    enabled: true,
+    type: 'trust_badge',
+    impact: '4.8 / 5 rating',
+  });
+
+  // Social proof — derived from booking data
+  tools.push({
+    id: 'tool-social-proof',
+    name: 'Social Proof',
+    description: 'Show recent bookings, reviews, and popularity indicators',
+    icon: ThumbsUp,
+    enabled: true,
+    type: 'social_proof',
+    impact: 'Live counter',
+  });
+
+  // Exit popup
+  tools.push({
+    id: 'tool-exit-popup',
+    name: 'Exit-Intent Popup',
+    description: 'Display a last-chance offer when guests try to leave the booking flow',
+    icon: AlertTriangle,
+    enabled: false,
+    type: 'exit_popup',
+    impact: 'Recover 5-15%',
+  });
+
+  return tools;
+};
+
+// ─── Data State ────────────────────────────────────────────────────────────
+interface ConversionDataState {
+  abandonedBookings: AbandonedBooking[];
+  recoveryCampaigns: RecoveryCampaign[];
+  conversionTrends: ConversionTrend[];
+  funnelStages: FunnelStage[];
+  optimizationTools: OptimizationTool[];
+  recentBookingsCount: number;
+  loading: boolean;
+  error: string | null;
+}
+
+type ConversionDataAction =
+  | { type: 'SET_LOADING' }
+  | { type: 'SET_ERROR'; error: string }
+  | { type: 'SET_DATA'; payload: Partial<ConversionDataState> };
+
+const initialState: ConversionDataState = {
+  abandonedBookings: [],
+  recoveryCampaigns: [],
+  conversionTrends: [],
+  funnelStages: [],
+  optimizationTools: [],
+  recentBookingsCount: 0,
+  loading: true,
+  error: null,
+};
+
+function dataReducer(state: ConversionDataState, action: ConversionDataAction): ConversionDataState {
+  switch (action.type) {
+    case 'SET_LOADING':
+      return { ...state, loading: true, error: null };
+    case 'SET_ERROR':
+      return { ...state, loading: false, error: action.error };
+    case 'SET_DATA':
+      return { ...state, loading: false, ...action.payload };
+    default:
+      return state;
+  }
+}
+
+// ─── Data Fetcher (outside component) ──────────────────────────────────────
+async function fetchConversionData(): Promise<Partial<ConversionDataState>> {
+  const result: Partial<ConversionDataState> = {};
+
+  const [abandonedRes, seoRes, promoRes] = await Promise.all([
+    fetch('/api/marketing/abandoned-bookings'),
+    fetch('/api/marketing/seo-analytics?days=7'),
+    fetch('/api/marketing/promotions?status=active'),
+  ]);
+
+  // Process abandoned bookings
+  if (abandonedRes.ok) {
+    const abandonedJson = await abandonedRes.json();
+    if (abandonedJson.success) {
+      const { bookings, stats: apiStats } = abandonedJson.data;
+      const funnel = apiStats.funnel || {};
+      const recovery = apiStats.recovery || {};
+
+      const mappedBookings: AbandonedBooking[] = (bookings || []).map((b: Record<string, unknown>) => ({
+        id: b.id,
+        guestName: b.guestEmail || b.guestPhone || 'Guest',
+        email: b.guestEmail || '',
+        phone: b.guestPhone || '',
+        abandonTime: b.createdAt || '',
+        roomSearched: b.roomTypeId || '',
+        checkIn: b.checkIn ? new Date(b.checkIn).toISOString().split('T')[0] : '',
+        checkOut: b.checkOut ? new Date(b.checkOut).toISOString().split('T')[0] : '',
+        guests: b.adults || 1,
+        value: b.selectedRate || 0,
+        recoveryStage: b.recoveryStatus === 'recovered' ? 'recovered' : b.recoveryStatus === 'expired' ? 'lost' : 'new',
+        recoveryChannel: null,
+      }));
+      result.abandonedBookings = mappedBookings;
+
+      // Derive recovery campaigns from stats
+      const mappedCampaigns: RecoveryCampaign[] = [];
+      if (recovery.pending) mappedCampaigns.push({ id: 'rc0', name: 'Pending', type: 'email_1h' as const, sentCount: recovery.pending, recoveredCount: 0, recoveryRate: 0, revenueRecovered: 0, status: 'active' as const });
+      if (recovery.emailed) mappedCampaigns.push({ id: 'rc1', name: 'Email Reminders', type: 'email_24h' as const, sentCount: recovery.emailed, recoveredCount: recovery.recovered || 0, recoveryRate: apiStats.recoveryRate || 0, revenueRecovered: apiStats.totalRevenueRecovered || 0, status: 'active' as const });
+      if (recovery.smsSent) mappedCampaigns.push({ id: 'rc2', name: 'SMS Reminders', type: 'discount' as const, sentCount: recovery.smsSent, recoveredCount: 0, recoveryRate: 0, revenueRecovered: 0, status: 'active' as const });
+      if (recovery.recovered) mappedCampaigns.push({ id: 'rc3', name: 'Recovered', type: 'retarget' as const, sentCount: mappedBookings.length, recoveredCount: recovery.recovered, recoveryRate: apiStats.recoveryRate || 0, revenueRecovered: apiStats.totalRevenueRecovered || 0, status: 'active' as const });
+      result.recoveryCampaigns = mappedCampaigns;
+
+      // Build funnel stages from abandoned bookings funnel
+      const builtFunnel = buildFunnelStages(funnel, undefined);
+      if (builtFunnel.length > 0) result.funnelStages = builtFunnel;
+    }
+  }
+
+  // Process SEO analytics (trends + funnel + summary)
+  if (seoRes.ok) {
+    const seoJson = await seoRes.json();
+    if (seoJson.success) {
+      const { bookingTrend, conversionFunnel, summary } = seoJson.data;
+
+      // Map booking trend to ConversionTrend
+      const trends: ConversionTrend[] = (bookingTrend || []).slice(-7).map((t: Record<string, unknown>) => ({
+        date: t.date ? (t.date as string).slice(5) : '',
+        directBookings: t.directBookings || 0,
+        otaBookings: t.otaBookings || 0,
+        directRevenue: t.directRevenue || 0,
+        otaRevenue: t.otaRevenue || 0,
+        conversionRate: summary?.directBookingShare
+          ? parseFloat(((summary.directBookings / Math.max(summary.totalBookings, 1)) * 100).toFixed(1))
+          : 0,
+      }));
+      result.conversionTrends = trends;
+
+      // Build funnel stages from SEO analytics if available (overrides abandoned-based)
+      if (conversionFunnel) {
+        const builtFunnel = buildFunnelStages(undefined, conversionFunnel);
+        if (builtFunnel.length > 0) result.funnelStages = builtFunnel;
+      }
+
+      if (summary) {
+        result.recentBookingsCount = summary.totalBookings || 0;
+      }
+    }
+  }
+
+  // Process promotions for optimization tools
+  if (promoRes.ok) {
+    const promoJson = await promoRes.json();
+    if (promoJson.success) {
+      const { promotions } = promoJson.data;
+      result.optimizationTools = buildOptimizationTools(promotions || []);
+    }
+  }
+
+  return result;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────
 export default function ConversionEngine() {
   const [activeTab, setActiveTab] = useState('funnel');
-  const [abandonedBookings, setAbandonedBookings] = useState<AbandonedBooking[]>(MOCK_ABANDONED);
-  const [recoveryCampaigns] = useState<RecoveryCampaign[]>(MOCK_RECOVERY_CAMPAIGNS);
-  const [optimizationTools, setOptimizationTools] = useState<OptimizationTool[]>(MOCK_TOOLS);
+  const [data, dispatch] = useReducer(dataReducer, initialState);
   const [expandedBooking, setExpandedBooking] = useState<string | null>(null);
   const [stageFilter, setStageFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -182,7 +406,35 @@ export default function ConversionEngine() {
   const [offerBarEnabled, setOfferBarEnabled] = useState(true);
   const [countdownTarget, setCountdownTarget] = useState('2026-06-30T23:59:59Z');
   const [countdownTime, setCountdownTime] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-  const [recentBookingsCount, setRecentBookingsCount] = useState(847);
+
+  // Destructure from reducer state
+  const {
+    abandonedBookings, recoveryCampaigns, conversionTrends,
+    funnelStages, optimizationTools, recentBookingsCount,
+    loading, error,
+  } = data;
+
+  const fetchData = useCallback(async () => {
+    dispatch({ type: 'SET_LOADING' });
+    try {
+      const result = await fetchConversionData();
+      dispatch({ type: 'SET_DATA', payload: result });
+    } catch (err) {
+      console.error('Error fetching conversion data:', err);
+      dispatch({ type: 'SET_ERROR', error: err instanceof Error ? err.message : 'Failed to load conversion data' });
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    dispatch({ type: 'SET_LOADING' });
+    fetchConversionData().then(result => {
+      if (!cancelled) dispatch({ type: 'SET_DATA', payload: result });
+    }).catch(err => {
+      if (!cancelled) dispatch({ type: 'SET_ERROR', error: err instanceof Error ? err.message : 'Failed to load conversion data' });
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Countdown timer
   useEffect(() => {
@@ -197,14 +449,6 @@ export default function ConversionEngine() {
     }, 1000);
     return () => clearInterval(interval);
   }, [countdownTarget]);
-
-  // Simulate recent bookings counter
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setRecentBookingsCount(prev => prev + Math.floor(Math.random() * 3));
-    }, 8000);
-    return () => clearInterval(interval);
-  }, []);
 
   const filteredBookings = abandonedBookings.filter(b => {
     const matchSearch = b.guestName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -227,19 +471,20 @@ export default function ConversionEngine() {
     ? (recoveryCampaigns.reduce((a, c) => a + c.recoveryRate, 0) / recoveryCampaigns.length).toFixed(1)
     : '0';
 
-  const totalDirectBookings = MOCK_TRENDS.reduce((a, t) => a + t.directBookings, 0);
-  const totalOtaBookings = MOCK_TRENDS.reduce((a, t) => a + t.otaBookings, 0);
-  const totalDirectRevenue = MOCK_TRENDS.reduce((a, t) => a + t.directRevenue, 0);
-  const totalOtaRevenue = MOCK_TRENDS.reduce((a, t) => a + t.otaRevenue, 0);
+  const totalDirectBookings = conversionTrends.reduce((a, t) => a + t.directBookings, 0);
+  const totalOtaBookings = conversionTrends.reduce((a, t) => a + t.otaBookings, 0);
+  const totalDirectRevenue = conversionTrends.reduce((a, t) => a + t.directRevenue, 0);
+  const totalOtaRevenue = conversionTrends.reduce((a, t) => a + t.otaRevenue, 0);
   const commissionRate = 0.20;
   const otaCommissionSaved = totalOtaRevenue * commissionRate - totalOtaRevenue * 0;
 
   const handleRecoveryAction = (bookingId: string, action: 'email' | 'sms' | 'discount' | 'retarget') => {
-    setAbandonedBookings(prev => prev.map(b =>
+    const updated = data.abandonedBookings.map(b =>
       b.id === bookingId
         ? { ...b, recoveryChannel: action, recoveryStage: 'reminded_1h' as const }
         : b
-    ));
+    );
+    dispatch({ type: 'SET_DATA', payload: { abandonedBookings: updated } });
     const labels: Record<string, string> = {
       email: 'Reminder email sent',
       sms: 'SMS reminder sent',
@@ -250,24 +495,77 @@ export default function ConversionEngine() {
   };
 
   const toggleTool = (toolId: string) => {
-    setOptimizationTools(prev => prev.map(t =>
+    const updated = data.optimizationTools.map(t =>
       t.id === toolId ? { ...t, enabled: !t.enabled } : t
-    ));
+    );
+    dispatch({ type: 'SET_DATA', payload: { optimizationTools: updated } });
   };
 
-  const getChannelSourceData = () => [
-    { name: 'Direct', value: totalDirectBookings, fill: '#10b981' },
-    { name: 'Booking.com', value: Math.round(totalOtaBookings * 0.45), fill: '#3b82f6' },
-    { name: 'Expedia', value: Math.round(totalOtaBookings * 0.30), fill: '#f59e0b' },
-    { name: 'Airbnb', value: Math.round(totalOtaBookings * 0.15), fill: '#ef4444' },
-    { name: 'Others', value: Math.round(totalOtaBookings * 0.10), fill: '#8b5cf6' },
-  ];
+  const emptyTrends = conversionTrends.length === 0;
+  const hasFunnelData = funnelStages.length > 0;
 
-  const getFunnelDropoffData = () => FUNNEL_STAGES.slice(1).map(s => ({
+  const getChannelSourceData = () => {
+    const direct = totalDirectBookings || 1;
+    const ota = totalOtaBookings;
+    const data = [
+      { name: 'Direct', value: direct, fill: '#10b981' },
+    ];
+    if (ota > 0) {
+      data.push({ name: 'OTA', value: ota, fill: '#f59e0b' });
+    }
+    return data;
+  };
+
+  const getFunnelDropoffData = () => funnelStages.slice(1).map(s => ({
     name: s.name,
     dropoff: s.dropoff,
     fill: '#ef4444',
   }));
+
+  // Compute dynamic insights from funnel data
+  const getFunnelInsights = () => {
+    if (funnelStages.length < 3) return null;
+    const dropoffs = funnelStages.slice(1).map((s, idx) => ({
+      stage: s.name,
+      prevStage: funnelStages[idx].name,
+      dropoff: s.dropoff,
+      rate: funnelStages[idx].visitors > 0
+        ? parseFloat(((s.dropoff / funnelStages[idx].visitors) * 100).toFixed(1))
+        : 0,
+    }));
+    dropoffs.sort((a, b) => b.rate - a.rate);
+    const largest = dropoffs[0];
+    const second = dropoffs[1];
+    // Best rate = highest retention (lowest dropoff %)
+    const best = dropoffs[dropoffs.length - 1];
+    const retentionRate = best.prevVisitors > 0
+      ? parseFloat((100 - best.rate).toFixed(1))
+      : 0;
+    return { largest, second, best: { ...best, retentionRate } };
+  };
+
+  const funnelInsights = getFunnelInsights();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <AlertTriangle className="h-8 w-8 text-amber-500" />
+        <p className="text-muted-foreground">{error}</p>
+        <Button variant="outline" onClick={fetchData}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Try Again
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -284,7 +582,7 @@ export default function ConversionEngine() {
             <Activity className="h-3 w-3 mr-1" />
             Live
           </Badge>
-          <Button variant="outline">
+          <Button variant="outline" onClick={fetchData}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh Data
           </Button>
@@ -298,7 +596,7 @@ export default function ConversionEngine() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-muted-foreground">Conversion Rate</p>
-                <p className="text-xl font-bold">{FUNNEL_STAGES[FUNNEL_STAGES.length - 1].conversionRate}%</p>
+                <p className="text-xl font-bold">{recoveryCampaigns.length > 0 ? recoveryCampaigns.find(c => c.name === 'Recovered')?.recoveryRate || 0 : hasFunnelData ? funnelStages[funnelStages.length - 1].conversionRate : 0}%</p>
               </div>
               <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
@@ -359,49 +657,55 @@ export default function ConversionEngine() {
                 <CardDescription>Visitor progression through each booking stage</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {FUNNEL_STAGES.map((stage, idx) => {
-                    const StageIcon = stage.icon;
-                    const widthPercent = (stage.visitors / FUNNEL_STAGES[0].visitors) * 100;
-                    const isFirst = idx === 0;
-                    return (
-                      <div key={stage.name} className="space-y-1.5">
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2">
-                            <StageIcon className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{stage.name}</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="font-semibold">{stage.visitors.toLocaleString()}</span>
-                            {!isFirst && (
-                              <>
+                {hasFunnelData ? (
+                  <div className="space-y-3">
+                    {funnelStages.map((stage, idx) => {
+                      const StageIcon = stage.icon;
+                      const widthPercent = (stage.visitors / funnelStages[0].visitors) * 100;
+                      const isFirst = idx === 0;
+                      return (
+                        <div key={stage.name} className="space-y-1.5">
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <StageIcon className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-medium">{stage.name}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-semibold">{stage.visitors.toLocaleString()}</span>
+                              {!isFirst && stage.dropoff > 0 && (
                                 <span className="text-red-500 dark:text-red-400 text-xs">
-                                  -{stage.dropoff.toLocaleString()} ({((stage.dropoff / FUNNEL_STAGES[idx - 1].visitors) * 100).toFixed(1)}%)
+                                  -{stage.dropoff.toLocaleString()} ({((stage.dropoff / funnelStages[idx - 1].visitors) * 100).toFixed(1)}%)
                                 </span>
-                              </>
-                            )}
+                              )}
+                            </div>
+                          </div>
+                          <div className="relative h-10 rounded-lg bg-muted overflow-hidden">
+                            <div
+                              className={cn(
+                                'absolute inset-y-0 left-0 rounded-lg transition-all duration-700',
+                                isFirst
+                                  ? 'bg-gradient-to-r from-emerald-400 to-teal-500'
+                                  : idx === funnelStages.length - 1
+                                    ? 'bg-gradient-to-r from-amber-400 to-orange-500'
+                                    : 'bg-gradient-to-r from-cyan-400 to-sky-500'
+                              )}
+                              style={{ width: `${widthPercent}%` }}
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-foreground">
+                              {stage.conversionRate}% conversion
+                            </div>
                           </div>
                         </div>
-                        <div className="relative h-10 rounded-lg bg-muted overflow-hidden">
-                          <div
-                            className={cn(
-                              'absolute inset-y-0 left-0 rounded-lg transition-all duration-700',
-                              isFirst
-                                ? 'bg-gradient-to-r from-emerald-400 to-teal-500'
-                                : idx === FUNNEL_STAGES.length - 1
-                                  ? 'bg-gradient-to-r from-amber-400 to-orange-500'
-                                  : 'bg-gradient-to-r from-cyan-400 to-sky-500'
-                            )}
-                            style={{ width: `${widthPercent}%` }}
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-foreground">
-                            {stage.conversionRate}% conversion
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <BarChart3 className="h-10 w-10 mb-3 opacity-40" />
+                    <p className="text-sm">No funnel data available yet.</p>
+                    <p className="text-xs mt-1">Funnel data will appear once bookings are created.</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -412,43 +716,58 @@ export default function ConversionEngine() {
                 <CardDescription>Where guests leave the funnel</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={getFunnelDropoffData()} margin={{ left: 0 }}>
-                      <XAxis dataKey="name" fontSize={10} tickLine={false} />
-                      <YAxis fontSize={10} tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} />
-                      <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Drop-offs']} />
-                      <Bar dataKey="dropoff" radius={[4, 4, 0, 0]}>
-                        {getFunnelDropoffData().map((_, idx) => (
-                          <Cell key={idx} fill={['#fca5a5', '#f87171', '#ef4444', '#dc2626', '#b91c1c'][idx % 5]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="mt-4 space-y-2">
-                  <h4 className="text-sm font-semibold">Key Insights</h4>
-                  <div className="space-y-1.5">
-                    <div className="flex items-start gap-2 text-xs">
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
-                      <p className="text-muted-foreground">
-                        <strong>Largest drop-off:</strong> Search Results to Room Selection (-25.0%)
-                      </p>
+                {hasFunnelData && getFunnelDropoffData().length > 0 ? (
+                  <>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={getFunnelDropoffData()} margin={{ left: 0 }}>
+                          <XAxis dataKey="name" fontSize={10} tickLine={false} />
+                          <YAxis fontSize={10} tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} />
+                          <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Drop-offs']} />
+                          <Bar dataKey="dropoff" radius={[4, 4, 0, 0]}>
+                            {getFunnelDropoffData().map((_, idx) => (
+                              <Cell key={idx} fill={['#fca5a5', '#f87171', '#ef4444', '#dc2626', '#b91c1c'][idx % 5]} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
                     </div>
-                    <div className="flex items-start gap-2 text-xs">
-                      <TrendingDown className="h-3.5 w-3.5 text-red-500 mt-0.5 shrink-0" />
-                      <p className="text-muted-foreground">
-                        <strong>Second largest:</strong> Room Selection to Guest Details (-35.1%)
-                      </p>
+                    <div className="mt-4 space-y-2">
+                      <h4 className="text-sm font-semibold">Key Insights</h4>
+                      <div className="space-y-1.5">
+                        {funnelInsights?.largest && (
+                          <div className="flex items-start gap-2 text-xs">
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+                            <p className="text-muted-foreground">
+                              <strong>Largest drop-off:</strong> {funnelInsights.largest.prevStage} to {funnelInsights.largest.stage} (-{funnelInsights.largest.rate}%)
+                            </p>
+                          </div>
+                        )}
+                        {funnelInsights?.second && (
+                          <div className="flex items-start gap-2 text-xs">
+                            <TrendingDown className="h-3.5 w-3.5 text-red-500 mt-0.5 shrink-0" />
+                            <p className="text-muted-foreground">
+                              <strong>Second largest:</strong> {funnelInsights.second.prevStage} to {funnelInsights.second.stage} (-{funnelInsights.second.rate}%)
+                            </p>
+                          </div>
+                        )}
+                        {funnelInsights?.best && (
+                          <div className="flex items-start gap-2 text-xs">
+                            <TrendingUp className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                            <p className="text-muted-foreground">
+                              <strong>Best retention:</strong> {funnelInsights.best.prevStage} to {funnelInsights.best.stage} ({funnelInsights.best.retentionRate}%)
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-start gap-2 text-xs">
-                      <TrendingUp className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
-                      <p className="text-muted-foreground">
-                        <strong>Best rate:</strong> Payment to Confirmation (72.0%)
-                      </p>
-                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <TrendingDown className="h-10 w-10 mb-3 opacity-40" />
+                    <p className="text-sm">No drop-off data yet.</p>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -460,23 +779,31 @@ export default function ConversionEngine() {
               <CardDescription>Daily conversion rate progression</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={MOCK_TRENDS} margin={{ left: 0, right: 10 }}>
-                    <defs>
-                      <linearGradient id="convGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                    <XAxis dataKey="date" fontSize={11} tickLine={false} />
-                    <YAxis domain={[10, 22]} fontSize={11} tickFormatter={(v) => `${v}%`} />
-                    <Tooltip formatter={(value: number) => [`${value}%`, 'Conversion Rate']} />
-                    <Area type="monotone" dataKey="conversionRate" stroke="#10b981" strokeWidth={2} fill="url(#convGrad)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+              {emptyTrends ? (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <BarChart3 className="h-10 w-10 mb-3 opacity-40" />
+                  <p className="text-sm">No trend data available for the selected period.</p>
+                  <p className="text-xs mt-1">Data will appear as bookings come in.</p>
+                </div>
+              ) : (
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={conversionTrends} margin={{ left: 0, right: 10 }}>
+                      <defs>
+                        <linearGradient id="convGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                      <XAxis dataKey="date" fontSize={11} tickLine={false} />
+                      <YAxis fontSize={11} tickFormatter={(v) => `${v}%`} />
+                      <Tooltip formatter={(value: number) => [`${value}%`, 'Conversion Rate']} />
+                      <Area type="monotone" dataKey="conversionRate" stroke="#10b981" strokeWidth={2} fill="url(#convGrad)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -518,45 +845,53 @@ export default function ConversionEngine() {
               <CardDescription>Automated sequences to recover abandoned bookings</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {recoveryCampaigns.map((campaign) => (
-                  <div key={campaign.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border bg-muted/20">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={cn(
-                        'w-10 h-10 rounded-lg flex items-center justify-center shrink-0',
-                        campaign.status === 'active' ? 'bg-emerald-100 dark:bg-emerald-900' : 'bg-gray-100 dark:bg-gray-800'
-                      )}>
-                        {campaign.type.includes('email') || campaign.type === 'discount' ? (
-                          <Mail className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                        ) : (
-                          <Globe className="h-5 w-5 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm">{campaign.name}</span>
-                          <Badge variant={campaign.status === 'active' ? 'default' : 'secondary'} className="text-[10px]">
-                            {campaign.status}
-                          </Badge>
+              {recoveryCampaigns.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <RotateCcw className="h-10 w-10 mb-3 opacity-40" />
+                  <p className="text-sm">No recovery campaigns active.</p>
+                  <p className="text-xs mt-1">Campaigns will appear as abandoned bookings come in.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recoveryCampaigns.map((campaign) => (
+                    <div key={campaign.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border bg-muted/20">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={cn(
+                          'w-10 h-10 rounded-lg flex items-center justify-center shrink-0',
+                          campaign.status === 'active' ? 'bg-emerald-100 dark:bg-emerald-900' : 'bg-gray-100 dark:bg-gray-800'
+                        )}>
+                          {campaign.type.includes('email') || campaign.type === 'discount' ? (
+                            <Mail className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                          ) : (
+                            <Globe className="h-5 w-5 text-muted-foreground" />
+                          )}
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          {campaign.sentCount} sent &middot; {campaign.recoveredCount} recovered
-                        </p>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm">{campaign.name}</span>
+                            <Badge variant={campaign.status === 'active' ? 'default' : 'secondary'} className="text-[10px]">
+                              {campaign.status}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {campaign.sentCount} sent &middot; {campaign.recoveredCount} recovered
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 sm:gap-6 shrink-0">
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{campaign.recoveryRate}%</p>
+                          <p className="text-xs text-muted-foreground">Recovery Rate</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold">${(campaign.revenueRecovered / 1000).toFixed(1)}K</p>
+                          <p className="text-xs text-muted-foreground">Revenue</p>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 sm:gap-6 shrink-0">
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{campaign.recoveryRate}%</p>
-                        <p className="text-xs text-muted-foreground">Recovery Rate</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold">${(campaign.revenueRecovered / 1000).toFixed(1)}K</p>
-                        <p className="text-xs text-muted-foreground">Revenue</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -596,88 +931,104 @@ export default function ConversionEngine() {
 
               {/* Bookings */}
               <ScrollArea className="max-h-[480px]">
-                <div className="space-y-2">
-                  {filteredBookings.map((booking) => {
-                    const isExpanded = expandedBooking === booking.id;
-                    return (
-                      <div key={booking.id} className="rounded-lg border bg-muted/20">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white text-xs font-semibold shrink-0">
-                              {booking.guestName.split(' ').map(n => n[0]).join('')}
+                {filteredBookings.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <ShoppingCart className="h-10 w-10 mb-3 opacity-40" />
+                    <p className="text-sm">
+                      {totalAbandoned === 0
+                        ? 'No abandoned bookings yet.'
+                        : 'No bookings match your search.'}
+                    </p>
+                    <p className="text-xs mt-1">
+                      {totalAbandoned === 0
+                        ? 'Abandoned bookings will appear here when guests start but do not complete a booking.'
+                        : 'Try adjusting your search or filter.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredBookings.map((booking) => {
+                      const isExpanded = expandedBooking === booking.id;
+                      return (
+                        <div key={booking.id} className="rounded-lg border bg-muted/20">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white text-xs font-semibold shrink-0">
+                                {booking.guestName.split(' ').map(n => n[0]).join('')}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-medium text-sm truncate">{booking.guestName}</p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {booking.roomSearched} &middot; {booking.checkIn} to {booking.checkOut}
+                                </p>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <p className="font-medium text-sm truncate">{booking.guestName}</p>
-                              <p className="text-xs text-muted-foreground truncate">
-                                {booking.roomSearched} &middot; {booking.checkIn} to {booking.checkOut}
-                              </p>
+                            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                              <Badge className={cn('text-[10px]', RECOVERY_STAGE_STYLES[booking.recoveryStage])}>
+                                {RECOVERY_STAGE_LABELS[booking.recoveryStage]}
+                              </Badge>
+                              <span className="text-sm font-semibold">${booking.value.toLocaleString()}</span>
+                              <span className="text-xs text-muted-foreground">{getTimeAgo(booking.abandonTime)}</span>
+                              <Button variant="ghost" size="sm" onClick={() => setExpandedBooking(isExpanded ? null : booking.id)}>
+                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              </Button>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                            <Badge className={cn('text-[10px]', RECOVERY_STAGE_STYLES[booking.recoveryStage])}>
-                              {RECOVERY_STAGE_LABELS[booking.recoveryStage]}
-                            </Badge>
-                            <span className="text-sm font-semibold">${booking.value.toLocaleString()}</span>
-                            <span className="text-xs text-muted-foreground">{getTimeAgo(booking.abandonTime)}</span>
-                            <Button variant="ghost" size="sm" onClick={() => setExpandedBooking(isExpanded ? null : booking.id)}>
-                              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            </Button>
-                          </div>
+                          {isExpanded && (
+                            <div className="px-3 pb-3 pt-0 border-t">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-xs">
+                                <div>
+                                  <p className="text-muted-foreground">Email</p>
+                                  <p className="font-medium">{booking.email}</p>
+                                </div>
+                                <div>
+                                  <p className="text-muted-foreground">Phone</p>
+                                  <p className="font-medium">{booking.phone}</p>
+                                </div>
+                                <div>
+                                  <p className="text-muted-foreground">Guests</p>
+                                  <p className="font-medium">{booking.guests}</p>
+                                </div>
+                                <div>
+                                  <p className="text-muted-foreground">Booking Value</p>
+                                  <p className="font-medium text-emerald-600 dark:text-emerald-400">${booking.value.toLocaleString()}</p>
+                                </div>
+                              </div>
+                              {booking.recoveryStage !== 'recovered' && booking.recoveryStage !== 'lost' && (
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                  <Button size="sm" variant="outline" onClick={() => handleRecoveryAction(booking.id, 'email')}>
+                                    <Mail className="h-3.5 w-3.5 mr-1.5" /> Send Reminder
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={() => handleRecoveryAction(booking.id, 'sms')}>
+                                    <Phone className="h-3.5 w-3.5 mr-1.5" /> Send SMS
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={() => handleRecoveryAction(booking.id, 'discount')}>
+                                    <BadgePercent className="h-3.5 w-3.5 mr-1.5" /> Offer Discount
+                                  </Button>
+                                  <Button size="sm" variant="outline" onClick={() => handleRecoveryAction(booking.id, 'retarget')}>
+                                    <Globe className="h-3.5 w-3.5 mr-1.5" /> Add to Retargeting
+                                  </Button>
+                                </div>
+                              )}
+                              {booking.recoveryStage === 'recovered' && (
+                                <div className="flex items-center gap-2 mt-3 text-sm text-emerald-600 dark:text-emerald-400">
+                                  <CheckCircle2 className="h-4 w-4" />
+                                  <span>Booking recovered via {booking.recoveryChannel}</span>
+                                </div>
+                              )}
+                              {booking.recoveryStage === 'lost' && (
+                                <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground">
+                                  <XCircle className="h-4 w-4" />
+                                  <span>Booking lost — no recovery action taken</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        {isExpanded && (
-                          <div className="px-3 pb-3 pt-0 border-t">
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-xs">
-                              <div>
-                                <p className="text-muted-foreground">Email</p>
-                                <p className="font-medium">{booking.email}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground">Phone</p>
-                                <p className="font-medium">{booking.phone}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground">Guests</p>
-                                <p className="font-medium">{booking.guests}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground">Booking Value</p>
-                                <p className="font-medium text-emerald-600 dark:text-emerald-400">${booking.value.toLocaleString()}</p>
-                              </div>
-                            </div>
-                            {booking.recoveryStage !== 'recovered' && booking.recoveryStage !== 'lost' && (
-                              <div className="flex flex-wrap gap-2 mt-3">
-                                <Button size="sm" variant="outline" onClick={() => handleRecoveryAction(booking.id, 'email')}>
-                                  <Mail className="h-3.5 w-3.5 mr-1.5" /> Send Reminder
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => handleRecoveryAction(booking.id, 'sms')}>
-                                  <Phone className="h-3.5 w-3.5 mr-1.5" /> Send SMS
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => handleRecoveryAction(booking.id, 'discount')}>
-                                  <BadgePercent className="h-3.5 w-3.5 mr-1.5" /> Offer Discount
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => handleRecoveryAction(booking.id, 'retarget')}>
-                                  <Globe className="h-3.5 w-3.5 mr-1.5" /> Add to Retargeting
-                                </Button>
-                              </div>
-                            )}
-                            {booking.recoveryStage === 'recovered' && (
-                              <div className="flex items-center gap-2 mt-3 text-sm text-emerald-600 dark:text-emerald-400">
-                                <CheckCircle2 className="h-4 w-4" />
-                                <span>Booking recovered via {booking.recoveryChannel}</span>
-                              </div>
-                            )}
-                            {booking.recoveryStage === 'lost' && (
-                              <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground">
-                                <XCircle className="h-4 w-4" />
-                                <span>Booking lost — no recovery action taken</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </ScrollArea>
             </CardContent>
           </Card>
@@ -696,45 +1047,53 @@ export default function ConversionEngine() {
                 <CardDescription>Toggle tools to boost direct booking conversion rates</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {optimizationTools.map((tool) => {
-                    const ToolIcon = tool.icon;
-                    const typeColors: Record<string, string> = {
-                      urgency: 'text-amber-600 dark:text-amber-400',
-                      social_proof: 'text-cyan-600 dark:text-cyan-400',
-                      trust_badge: 'text-emerald-600 dark:text-emerald-400',
-                      exit_popup: 'text-rose-600 dark:text-rose-400',
-                      offer_bar: 'text-violet-600 dark:text-violet-400',
-                    };
-                    return (
-                      <div
-                        key={tool.id}
-                        className={cn(
-                          'p-4 rounded-xl border transition-all',
-                          tool.enabled
-                            ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/30 dark:bg-emerald-950/20'
-                            : 'border-border bg-muted/20 opacity-75'
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-start gap-3">
-                            <div className={cn('w-9 h-9 rounded-lg bg-background flex items-center justify-center shrink-0', typeColors[tool.type])}>
-                              <ToolIcon className="h-5 w-5" />
+                {optimizationTools.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <Sparkles className="h-10 w-10 mb-3 opacity-40" />
+                    <p className="text-sm">No optimization tools configured yet.</p>
+                    <p className="text-xs mt-1">Create promotions to enable offer bars and urgency tools.</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {optimizationTools.map((tool) => {
+                      const ToolIcon = tool.icon;
+                      const typeColors: Record<string, string> = {
+                        urgency: 'text-amber-600 dark:text-amber-400',
+                        social_proof: 'text-cyan-600 dark:text-cyan-400',
+                        trust_badge: 'text-emerald-600 dark:text-emerald-400',
+                        exit_popup: 'text-rose-600 dark:text-rose-400',
+                        offer_bar: 'text-violet-600 dark:text-violet-400',
+                      };
+                      return (
+                        <div
+                          key={tool.id}
+                          className={cn(
+                            'p-4 rounded-xl border transition-all',
+                            tool.enabled
+                              ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/30 dark:bg-emerald-950/20'
+                              : 'border-border bg-muted/20 opacity-75'
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-3">
+                              <div className={cn('w-9 h-9 rounded-lg bg-background flex items-center justify-center shrink-0', typeColors[tool.type])}>
+                                <ToolIcon className="h-5 w-5" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-semibold text-sm">{tool.name}</p>
+                                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{tool.description}</p>
+                                <Badge variant="outline" className="text-[10px] mt-1.5 text-emerald-600 dark:text-emerald-400">
+                                  {tool.impact}
+                                </Badge>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <p className="font-semibold text-sm">{tool.name}</p>
-                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{tool.description}</p>
-                              <Badge variant="outline" className="text-[10px] mt-1.5 text-emerald-600 dark:text-emerald-400">
-                                {tool.impact}
-                              </Badge>
-                            </div>
+                            <Switch checked={tool.enabled} onCheckedChange={() => toggleTool(tool.id)} />
                           </div>
-                          <Switch checked={tool.enabled} onCheckedChange={() => toggleTool(tool.id)} />
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -773,7 +1132,10 @@ export default function ConversionEngine() {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <Label>Enable Exit-Intent Popup</Label>
-                  <Switch defaultChecked={false} />
+                  <Switch
+                    checked={optimizationTools.find(t => t.type === 'exit_popup')?.enabled || false}
+                    onCheckedChange={() => toggleTool('tool-exit-popup')}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Popup Title</Label>
@@ -797,12 +1159,13 @@ export default function ConversionEngine() {
                   <Label>Trigger After (seconds)</Label>
                   <Input type="number" defaultValue="30" min={5} max={120} />
                 </div>
-                <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-                  <p className="text-xs text-amber-700 dark:text-amber-300">
-                    <strong>A/B Test Active:</strong> Variant A (10% off) vs Variant B (free breakfast).
-                    Variant A performing 23% better.
-                  </p>
-                </div>
+                {optimizationTools.length > 0 && (
+                  <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      <strong>Tip:</strong> Exit-intent popups can recover 5-15% of abandoning visitors. Combine with an active promotion for best results.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -818,28 +1181,37 @@ export default function ConversionEngine() {
                 <CardDescription>Booking volume comparison (7 days)</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-56">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={MOCK_TRENDS} margin={{ left: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                      <XAxis dataKey="date" fontSize={11} tickLine={false} />
-                      <YAxis fontSize={11} />
-                      <Tooltip />
-                      <Bar dataKey="directBookings" fill="#10b981" name="Direct" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="otaBookings" fill="#f59e0b" name="OTA" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="flex justify-center gap-6 mt-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                    <span>Direct: {totalDirectBookings} ({((totalDirectBookings / (totalDirectBookings + totalOtaBookings)) * 100).toFixed(0)}%)</span>
+                {emptyTrends ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <BarChart3 className="h-10 w-10 mb-3 opacity-40" />
+                    <p className="text-sm">No performance data yet.</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-amber-500" />
-                    <span>OTA: {totalOtaBookings} ({((totalOtaBookings / (totalDirectBookings + totalOtaBookings)) * 100).toFixed(0)}%)</span>
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="h-56">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={conversionTrends} margin={{ left: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                          <XAxis dataKey="date" fontSize={11} tickLine={false} />
+                          <YAxis fontSize={11} />
+                          <Tooltip />
+                          <Bar dataKey="directBookings" fill="#10b981" name="Direct" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="otaBookings" fill="#f59e0b" name="OTA" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex justify-center gap-6 mt-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                        <span>Direct: {totalDirectBookings} ({totalDirectBookings + totalOtaBookings > 0 ? ((totalDirectBookings / (totalDirectBookings + totalOtaBookings)) * 100).toFixed(0) : 0}%)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-amber-500" />
+                        <span>OTA: {totalOtaBookings} ({totalDirectBookings + totalOtaBookings > 0 ? ((totalOtaBookings / (totalDirectBookings + totalOtaBookings)) * 100).toFixed(0) : 0}%)</span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -850,27 +1222,34 @@ export default function ConversionEngine() {
                 <CardDescription>Direct vs OTA revenue distribution</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-56 flex items-center justify-center">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={getChannelSourceData()}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={55}
-                        outerRadius={90}
-                        paddingAngle={3}
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      >
-                        {getChannelSourceData().map((entry, idx) => (
-                          <Cell key={idx} fill={entry.fill} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value: number) => [value, 'Bookings']} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
+                {emptyTrends ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <DollarSign className="h-10 w-10 mb-3 opacity-40" />
+                    <p className="text-sm">No revenue data yet.</p>
+                  </div>
+                ) : (
+                  <div className="h-56 flex items-center justify-center">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={getChannelSourceData()}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={90}
+                          paddingAngle={3}
+                          dataKey="value"
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {getChannelSourceData().map((entry, idx) => (
+                            <Cell key={idx} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value: number) => [value, 'Bookings']} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -881,17 +1260,24 @@ export default function ConversionEngine() {
                 <CardDescription>Daily direct booking conversion rate (7 days)</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-56">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={MOCK_TRENDS} margin={{ left: 0, right: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                      <XAxis dataKey="date" fontSize={11} tickLine={false} />
-                      <YAxis domain={[10, 22]} fontSize={11} tickFormatter={(v) => `${v}%`} />
-                      <Tooltip formatter={(value: number) => [`${value}%`, 'Conversion Rate']} />
-                      <Line type="monotone" dataKey="conversionRate" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', r: 5 }} activeDot={{ r: 7 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+                {emptyTrends ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <TrendingUp className="h-10 w-10 mb-3 opacity-40" />
+                    <p className="text-sm">No trend data available.</p>
+                  </div>
+                ) : (
+                  <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={conversionTrends} margin={{ left: 0, right: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                        <XAxis dataKey="date" fontSize={11} tickLine={false} />
+                        <YAxis fontSize={11} tickFormatter={(v) => `${v}%`} />
+                        <Tooltip formatter={(value: number) => [`${value}%`, 'Conversion Rate']} />
+                        <Line type="monotone" dataKey="conversionRate" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', r: 5 }} activeDot={{ r: 7 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -1035,9 +1421,9 @@ export default function ConversionEngine() {
                       </div>
                       <div>
                         <p className="text-sm font-semibold">
-                          <span className="text-emerald-600 dark:text-emerald-400">{recentBookingsCount.toLocaleString()}</span> bookings made today
+                          <span className="text-emerald-600 dark:text-emerald-400">{recentBookingsCount.toLocaleString()}</span> total bookings
                         </p>
-                        <p className="text-xs text-muted-foreground">Guests are booking right now</p>
+                        <p className="text-xs text-muted-foreground">All-time booking volume</p>
                       </div>
                     </div>
                     <div className="mt-3 flex gap-2">

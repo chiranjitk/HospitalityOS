@@ -16,7 +16,7 @@ import {
   TrendingUp,
   DollarSign,
   ArrowUpRight,
-  Calendar,
+  AlertTriangle,
   type LucideIcon,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -36,35 +36,6 @@ interface MiniRevenueData {
   dailyMin: number;
   dailyMax: number;
   dailyAvg: number;
-}
-
-// ── Mock Data ──────────────────────────────────────────────────────────────
-
-function generateMockRevenueData(): RevenueDataPoint[] {
-  const data: RevenueDataPoint[] = [];
-  const baseDate = new Date();
-  baseDate.setDate(baseDate.getDate() - 29);
-
-  // Darjeeling hotel realistic revenue pattern with weekend peaks and variance
-  const baseRevenue = 185000;
-  for (let i = 0; i < 30; i++) {
-    const date = new Date(baseDate);
-    date.setDate(date.getDate() + i);
-    const dayOfWeek = date.getDay();
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
-
-    // Weekend multiplier + random variance
-    const weekendMultiplier = isWeekend ? 1.25 : 0.92;
-    const noise = 0.85 + Math.random() * 0.35;
-    // Slight upward trend
-    const trendBoost = 1 + (i / 30) * 0.08;
-
-    const amount = Math.round(baseRevenue * weekendMultiplier * noise * trendBoost);
-    const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-    data.push({ date: formatted, amount });
-  }
-  return data;
 }
 
 // ── SVG Path Helpers ──────────────────────────────────────────────────────
@@ -342,35 +313,86 @@ export function MiniRevenueChart() {
   const t = useTranslations('dashboard');
   const [data, setData] = useState<MiniRevenueData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const dataPoints = generateMockRevenueData();
-      const currentMonthTotal = dataPoints.reduce((sum, d) => sum + d.amount, 0);
-      const lastMonthTotal = Math.round(currentMonthTotal / 1.125);
-      const amounts = dataPoints.map(d => d.amount);
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/reports/revenue?granularity=daily');
+        const result = await response.json();
 
-      setData({
-        dataPoints,
-        currentMonthTotal,
-        lastMonthTotal,
-        percentChange: 12.5,
-        dailyMin: Math.min(...amounts),
-        dailyMax: Math.max(...amounts),
-        dailyAvg: Math.round(currentMonthTotal / dataPoints.length),
-      });
-      setIsLoading(false);
-    }, 1000);
-    return () => clearTimeout(timer);
+        if (result.success && result.data) {
+          const revenueData = result.data.revenueData || [];
+          const summary = result.data.summary || {};
+
+          if (revenueData.length === 0) {
+            setError('No revenue data available');
+            setIsLoading(false);
+            return;
+          }
+
+          const dataPoints: RevenueDataPoint[] = revenueData.map((d: { date: string; revenue: number }) => ({
+            date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            amount: d.revenue,
+          }));
+
+          const currentMonthTotal = summary.totalRevenue || dataPoints.reduce((s: number, d: RevenueDataPoint) => s + d.amount, 0);
+          const lastMonthTotal = summary.revenueChange !== undefined
+            ? Math.round(currentMonthTotal / (1 + (summary.revenueChange / 100)))
+            : Math.round(currentMonthTotal / 1.1);
+
+          const amounts = dataPoints.map(d => d.amount);
+
+          setData({
+            dataPoints,
+            currentMonthTotal,
+            lastMonthTotal,
+            percentChange: summary.revenueChange !== undefined
+              ? Math.round(Math.abs(summary.revenueChange) * 10) / 10
+              : 0,
+            dailyMin: Math.min(...amounts),
+            dailyMax: Math.max(...amounts),
+            dailyAvg: Math.round((summary.avgDailyRevenue || currentMonthTotal / dataPoints.length)),
+          });
+        } else {
+          setError('Failed to load revenue data');
+        }
+      } catch {
+        setError('Failed to fetch revenue data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
   }, []);
 
   const handleHover = useCallback((index: number | null) => {
     setActiveIndex(index);
   }, []);
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return <MiniRevenueSkeleton />;
+  }
+
+  if (error || !data) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+      >
+        <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+          <div className="h-[2px] bg-gradient-to-r from-primary via-emerald-400 to-teal-400" />
+          <CardContent className="p-4 flex items-center justify-center min-h-[280px]">
+            <div className="text-center">
+              <AlertTriangle className="h-6 w-6 mx-auto mb-2 text-muted-foreground/50" />
+              <p className="text-sm text-muted-foreground">{error || 'No data'}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
   }
 
   return (

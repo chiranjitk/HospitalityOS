@@ -33,7 +33,9 @@ import {
   Bell,
   Info,
   ShieldAlert,
-  ArrowUpRight
+  ArrowUpRight,
+  Package,
+  Users
 } from 'lucide-react';
 
 interface RoomStatus {
@@ -55,42 +57,80 @@ interface Task {
   assignee: string | null;
 }
 
+interface DashboardStats {
+  revenue: { today: number; thisWeek: number; thisMonth: number; change: number | null };
+  occupancy: { today: number; thisWeek: number; thisMonth: number; change: number };
+  bookings: { today: number; thisWeek: number; thisMonth: number; pending: number };
+  guests: { checkedIn: number; arriving: number; departing: number; total: number };
+  adr: number;
+  revpar: number;
+  activeWifiSessions: number;
+  pendingServiceRequests: number;
+  lowStockItems: number;
+}
+
+interface ApiActivityItem {
+  id: string;
+  type: 'booking' | 'check_in' | 'check_out' | 'payment';
+  title: string;
+  description: string;
+  guest: { name: string; initials: string };
+  room: string | null;
+  timestamp: string;
+  status: string;
+  amount: number;
+}
+
+interface ApiAlert {
+  id: string;
+  type: string;
+  severity: string;
+  title: string;
+  message: string;
+  timestamp: string | Date;
+}
+
 interface CommandCenterData {
+  stats: DashboardStats;
   rooms: RoomStatus;
   totalRooms: number;
   upcomingCheckIns: number;
   staffOnDuty: number;
   todaysTasks: Task[];
+  recentActivity: ApiActivityItem[];
+  alerts: ApiAlert[];
 }
 
-// --- Mock Data for new sections ---
+// --- Derived data types ---
 
-const recentActivity = [
-  { time: '2 min ago', icon: LogIn, title: 'Guest Checked In', desc: 'Vikram Singh — Room 1002', color: 'bg-emerald-500', border: 'border-l-emerald-500' },
-  { time: '15 min ago', icon: CreditCard, title: 'Payment Received', desc: '₹12,500 — Room 501', color: 'bg-teal-500', border: 'border-l-teal-500' },
-  { time: '32 min ago', icon: CalendarPlus, title: 'New Booking', desc: 'Sneha Gupta — May 12-14', color: 'bg-amber-500', border: 'border-l-amber-500' },
-  { time: '1h ago', icon: AlertTriangle, title: 'Late Check-out', desc: 'Rina Chatterjee — Room 305', color: 'bg-red-500', border: 'border-l-red-500' },
-  { time: '2h ago', icon: Wrench, title: 'Maintenance Done', desc: 'AC repair — Room 408', color: 'bg-gray-500', border: 'border-l-gray-500' },
-  { time: '3h ago', icon: LogIn, title: 'Guest Checked In', desc: 'Arjun Mehta — Room 707', color: 'bg-emerald-500', border: 'border-l-emerald-500' },
-  { time: '3h ago', icon: CreditCard, title: 'Payment Received', desc: '₹8,200 — Room 212', color: 'bg-teal-500', border: 'border-l-teal-500' },
-  { time: '4h ago', icon: CalendarPlus, title: 'New Booking', desc: 'Priya Nair — May 15-18', color: 'bg-amber-500', border: 'border-l-amber-500' },
-];
+interface QuickStatItem {
+  label: string;
+  value: string | number;
+  icon: typeof Bed;
+  trend: string;
+  trendUp: boolean;
+  color: string;
+}
 
-const activeAlerts = [
-  { severity: 'critical' as const, icon: ShieldAlert, title: 'Fire Alarm Malfunction', desc: 'Floor 3 smoke detector sensor needs immediate inspection.', timestamp: '10 min ago', action: 'Dispatch Team' },
-  { severity: 'warning' as const, icon: AlertTriangle, title: 'High Occupancy Alert', desc: 'Occupancy at 94% — 3 check-ins pending, only 4 rooms available.', timestamp: '25 min ago', action: 'Review' },
-  { severity: 'info' as const, icon: Info, title: 'System Update Scheduled', desc: 'PMS maintenance window tonight at 2:00 AM — expected downtime 15 min.', timestamp: '1h ago', action: 'Acknowledge' },
-  { severity: 'warning' as const, icon: AlertTriangle, title: 'Housekeeping Delay', desc: '5 rooms pending cleaning beyond SLA — 3 housekeeping staff short.', timestamp: '45 min ago', action: 'Reassign' },
-];
+interface ActivityEvent {
+  time: string;
+  icon: typeof LogIn;
+  title: string;
+  desc: string;
+  color: string;
+  border: string;
+}
 
-const quickStats = [
-  { label: "Today's Check-ins", value: 18, icon: LogIn, trend: '+3 vs yesterday', trendUp: true, color: 'bg-emerald-500' },
-  { label: "Today's Revenue", value: '₹1,84,500', icon: CreditCard, trend: '+12% vs yesterday', trendUp: true, color: 'bg-teal-500' },
-  { label: 'Available Rooms', value: 24, icon: DoorOpen, trend: '32% available', trendUp: true, color: 'bg-amber-500' },
-  { label: 'Average Rating', value: '4.6', icon: Star, trend: '+0.2 this week', trendUp: true, color: 'bg-yellow-500' },
-  { label: 'Active WiFi Users', value: 156, icon: Wifi, trend: '42 devices', trendUp: true, color: 'bg-emerald-500' },
-  { label: 'Service Requests', value: 7, icon: Wrench, trend: '-2 resolved', trendUp: true, color: 'bg-red-500' },
-];
+interface AlertItem {
+  severity: 'critical' | 'warning' | 'info';
+  icon: typeof ShieldAlert;
+  title: string;
+  desc: string;
+  timestamp: string;
+  action: string;
+}
+
+// --- Severity styles ---
 
 const severityStyles = {
   critical: { border: 'border-l-red-500', bg: 'bg-red-50 dark:bg-red-950/30', iconColor: 'text-red-500', badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' },
@@ -113,9 +153,99 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } },
 };
 
+// --- Helpers ---
+
+function formatCurrency(amount: number): string {
+  if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
+  if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}K`;
+  return `₹${amount.toLocaleString()}`;
+}
+
+function timeAgo(dateStr: string | Date): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return `${Math.floor(diffHr / 24)}d ago`;
+}
+
+function buildQuickStats(stats: DashboardStats): QuickStatItem[] {
+  return [
+    { label: "Today's Check-ins", value: stats.guests.arriving, icon: LogIn, trend: `${stats.guests.arriving} arrivals`, trendUp: true, color: 'bg-emerald-500' },
+    { label: "Today's Revenue", value: formatCurrency(stats.revenue.today), icon: CreditCard, trend: stats.revenue.change !== null ? `${stats.revenue.change >= 0 ? '+' : ''}${stats.revenue.change}% vs last week` : 'No prior data', trendUp: (stats.revenue.change ?? 0) >= 0, color: 'bg-teal-500' },
+    { label: 'Available Rooms', value: stats.bookings.pending, icon: DoorOpen, trend: `${stats.occupancy.today}% occupied`, trendUp: stats.occupancy.today < 90, color: 'bg-amber-500' },
+    { label: 'Active WiFi', value: stats.activeWifiSessions, icon: Wifi, trend: `${stats.guests.checkedIn} guests`, trendUp: true, color: 'bg-emerald-500' },
+    { label: 'Service Requests', value: stats.pendingServiceRequests, icon: Wrench, trend: stats.pendingServiceRequests > 5 ? 'Needs attention' : 'Under control', trendUp: stats.pendingServiceRequests <= 5, color: 'bg-red-500' },
+    { label: 'ADR', value: `₹${stats.adr.toLocaleString()}`, icon: Star, trend: `RevPAR ₹${stats.revpar.toLocaleString()}`, trendUp: true, color: 'bg-yellow-500' },
+  ];
+}
+
+function buildActivityEvents(items: ApiActivityItem[]): ActivityEvent[] {
+  const iconMap: Record<string, typeof LogIn> = {
+    check_in: LogIn,
+    check_out: DoorOpen,
+    booking: CalendarPlus,
+    payment: CreditCard,
+  };
+  const colorMap: Record<string, string> = {
+    check_in: 'bg-emerald-500',
+    check_out: 'bg-amber-500',
+    booking: 'bg-teal-500',
+    payment: 'bg-cyan-500',
+  };
+  const borderMap: Record<string, string> = {
+    check_in: 'border-l-emerald-500',
+    check_out: 'border-l-amber-500',
+    booking: 'border-l-teal-500',
+    payment: 'border-l-cyan-500',
+  };
+
+  return items.slice(0, 8).map((item) => ({
+    time: timeAgo(item.timestamp),
+    icon: iconMap[item.type] || CalendarPlus,
+    title: item.title,
+    desc: item.guest.name + (item.room ? ` — ${item.description}` : ''),
+    color: colorMap[item.type] || 'bg-gray-500',
+    border: borderMap[item.type] || 'border-l-gray-500',
+  }));
+}
+
+function buildAlerts(items: ApiAlert[]): AlertItem[] {
+  const iconMap: Record<string, typeof ShieldAlert> = {
+    critical: ShieldAlert,
+    warning: AlertTriangle,
+    info: Info,
+  };
+  const actionMap: Record<string, string> = {
+    inventory: 'Order Stock',
+    service: 'View Requests',
+    room: 'Assign Staff',
+    maintenance: 'Schedule Repair',
+    system: 'Acknowledge',
+  };
+  const severityMap: Record<string, 'critical' | 'warning' | 'info'> = {
+    critical: 'critical',
+    warning: 'warning',
+    info: 'info',
+  };
+
+  return items.slice(0, 6).map((item) => ({
+    severity: (severityMap[item.severity] || 'info') as 'critical' | 'warning' | 'info',
+    icon: iconMap[item.severity] || Info,
+    title: item.title,
+    desc: item.message,
+    timestamp: timeAgo(item.timestamp),
+    action: actionMap[item.type] || 'Review',
+  }));
+}
+
 // --- New Sub-Components ---
 
-function QuickStatCard({ stat, index }: { stat: typeof quickStats[number]; index: number }) {
+function QuickStatCard({ stat, index }: { stat: QuickStatItem; index: number }) {
   return (
     <motion.div
       variants={itemVariants}
@@ -151,7 +281,7 @@ function QuickStatCard({ stat, index }: { stat: typeof quickStats[number]; index
   );
 }
 
-function ActivityTimeline() {
+function ActivityTimeline({ events }: { events: ActivityEvent[] }) {
   return (
     <Card className="border border-border/50 shadow-sm h-full">
       <CardHeader className="pb-3">
@@ -176,40 +306,49 @@ function ActivityTimeline() {
             {/* Vertical line */}
             <div className="absolute left-[15px] top-2 bottom-2 w-px bg-border" />
             <div className="space-y-1">
-              {recentActivity.map((event, i) => {
-                const EventIcon = event.icon;
-                return (
-                  <motion.div
-                    key={i}
-                    variants={itemVariants}
-                    className="relative flex gap-3 pl-2 group"
-                  >
-                    {/* Dot on the line */}
-                    <div className={cn(
-                      'relative z-10 mt-3 flex-shrink-0 w-[30px] h-[30px] rounded-full flex items-center justify-center',
-                      event.color,
-                      'text-white'
-                    )}>
-                      <EventIcon className="h-3.5 w-3.5" />
-                    </div>
-                    {/* Content card */}
-                    <div className={cn(
-                      'flex-1 ml-1 border-l-[3px] rounded-r-lg p-3 pl-4 mb-1',
-                      'border-l-transparent hover:border-l-current transition-colors',
-                      event.border,
-                      'hover:bg-muted/40 transition-colors'
-                    )}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium leading-tight">{event.title}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{event.desc}</p>
-                        </div>
-                        <span className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">{event.time}</span>
+              {events.length === 0 ? (
+                <div className="flex items-center justify-center h-[200px] text-center">
+                  <div>
+                    <Clock className="h-6 w-6 mx-auto mb-2 text-muted-foreground/40" />
+                    <p className="text-sm text-muted-foreground">No recent activity</p>
+                  </div>
+                </div>
+              ) : (
+                events.map((event, i) => {
+                  const EventIcon = event.icon;
+                  return (
+                    <motion.div
+                      key={`${event.title}-${i}`}
+                      variants={itemVariants}
+                      className="relative flex gap-3 pl-2 group"
+                    >
+                      {/* Dot on the line */}
+                      <div className={cn(
+                        'relative z-10 mt-3 flex-shrink-0 w-[30px] h-[30px] rounded-full flex items-center justify-center',
+                        event.color,
+                        'text-white'
+                      )}>
+                        <EventIcon className="h-3.5 w-3.5" />
                       </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
+                      {/* Content card */}
+                      <div className={cn(
+                        'flex-1 ml-1 border-l-[3px] rounded-r-lg p-3 pl-4 mb-1',
+                        'border-l-transparent hover:border-l-current transition-colors',
+                        event.border,
+                        'hover:bg-muted/40 transition-colors'
+                      )}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium leading-tight">{event.title}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 truncate">{event.desc}</p>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">{event.time}</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })
+              )}
             </div>
           </div>
         </ScrollArea>
@@ -218,7 +357,7 @@ function ActivityTimeline() {
   );
 }
 
-function AlertCards() {
+function AlertCards({ alerts }: { alerts: AlertItem[] }) {
   return (
     <Card className="border border-border/50 shadow-sm h-full">
       <CardHeader className="pb-3">
@@ -229,54 +368,63 @@ function AlertCards() {
             </div>
             <div>
               <CardTitle className="text-base font-semibold">Active Alerts</CardTitle>
-              <CardDescription className="text-xs">{activeAlerts.length} alerts require attention</CardDescription>
+              <CardDescription className="text-xs">{alerts.length} alerts require attention</CardDescription>
             </div>
           </div>
           <Badge variant="secondary" className="text-[10px] h-5 bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400">
-            {activeAlerts.filter(a => a.severity === 'critical').length} Critical
+            {alerts.filter(a => a.severity === 'critical').length} Critical
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="pt-0">
         <ScrollArea className="h-[440px] pr-3 -mr-3">
           <div className="space-y-2">
-            {activeAlerts.map((alert, i) => {
-              const AlertIcon = alert.icon;
-              const styles = severityStyles[alert.severity];
-              return (
-                <motion.div
-                  key={i}
-                  variants={itemVariants}
-                  className={cn(
-                    'rounded-lg border-l-[3px] p-3 cursor-pointer',
-                    'hover:shadow-sm transition-all',
-                    styles.border,
-                    styles.bg
-                  )}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <AlertIcon className={cn('h-4 w-4 mt-0.5 flex-shrink-0', styles.iconColor)} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="text-sm font-medium leading-tight">{alert.title}</p>
-                      </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{alert.desc}</p>
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-[10px] text-muted-foreground">{alert.timestamp}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 text-[10px] px-2 gap-1 hover:bg-white/60 dark:hover:bg-white/10"
-                        >
-                          {alert.action}
-                          <ArrowUpRight className="h-3 w-3" />
-                        </Button>
+            {alerts.length === 0 ? (
+              <div className="flex items-center justify-center h-[200px] text-center">
+                <div>
+                  <CheckCircle2 className="h-6 w-6 mx-auto mb-2 text-emerald-500/60" />
+                  <p className="text-sm text-muted-foreground">All clear — no active alerts</p>
+                </div>
+              </div>
+            ) : (
+              alerts.map((alert, i) => {
+                const AlertIcon = alert.icon;
+                const styles = severityStyles[alert.severity];
+                return (
+                  <motion.div
+                    key={`${alert.title}-${i}`}
+                    variants={itemVariants}
+                    className={cn(
+                      'rounded-lg border-l-[3px] p-3 cursor-pointer',
+                      'hover:shadow-sm transition-all',
+                      styles.border,
+                      styles.bg
+                    )}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <AlertIcon className={cn('h-4 w-4 mt-0.5 flex-shrink-0', styles.iconColor)} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-sm font-medium leading-tight">{alert.title}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{alert.desc}</p>
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-[10px] text-muted-foreground">{alert.timestamp}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-[10px] px-2 gap-1 hover:bg-white/60 dark:hover:bg-white/10"
+                          >
+                            {alert.action}
+                            <ArrowUpRight className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </motion.div>
-              );
-            })}
+                  </motion.div>
+                );
+              })
+            )}
           </div>
         </ScrollArea>
       </CardContent>
@@ -474,7 +622,17 @@ export default function CommandCenter() {
         const response = await fetch('/api/dashboard');
         const result = await response.json();
         if (result.success) {
-          setData(result.data.commandCenter);
+          const api = result.data;
+          setData({
+            stats: api.stats,
+            rooms: api.commandCenter.rooms,
+            totalRooms: api.commandCenter.totalRooms,
+            upcomingCheckIns: api.commandCenter.upcomingCheckIns,
+            staffOnDuty: api.commandCenter.staffOnDuty,
+            todaysTasks: api.commandCenter.todaysTasks,
+            recentActivity: api.recentActivity,
+            alerts: api.alerts,
+          });
         } else {
           setError(result.error?.message || 'Failed to load data');
         }
@@ -503,6 +661,11 @@ export default function CommandCenter() {
       </Card>
     );
   }
+
+  // Build derived data from API response
+  const quickStats = buildQuickStats(data.stats);
+  const activityEvents = buildActivityEvents(data.recentActivity);
+  const alertItems = buildAlerts(data.alerts);
 
   return (
     <div className="space-y-6">
@@ -710,10 +873,10 @@ export default function CommandCenter() {
         className="grid gap-4 lg:grid-cols-5"
       >
         <motion.div variants={itemVariants} className="lg:col-span-3">
-          <ActivityTimeline />
+          <ActivityTimeline events={activityEvents} />
         </motion.div>
         <motion.div variants={itemVariants} className="lg:col-span-2">
-          <AlertCards />
+          <AlertCards alerts={alertItems} />
         </motion.div>
       </motion.div>
     </div>

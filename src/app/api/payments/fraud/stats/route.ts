@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
       activeRulesCount,
       highRiskPayments,
       totalBlockedAmount,
+      avgRiskScoreResult,
     ] = await Promise.all([
       // Total alerts in period
       db.fraudAlert.count({
@@ -73,6 +74,7 @@ export async function GET(request: NextRequest) {
           createdAt: { gte: since },
         },
         _count: { id: true },
+        _avg: { riskScore: true },
       }),
 
       // Alerts by type
@@ -142,6 +144,16 @@ export async function GET(request: NextRequest) {
         },
         _count: { id: true },
       }),
+
+      // Average risk score across all alerts in the period
+      db.fraudAlert.aggregate({
+        where: {
+          tenantId: user.tenantId,
+          createdAt: { gte: since },
+        },
+        _avg: { riskScore: true },
+        _count: { id: true },
+      }),
     ]);
 
     // Get total blocked amount from payments linked to confirmed fraud alerts
@@ -190,8 +202,8 @@ export async function GET(request: NextRequest) {
           fraudRate: parseFloat(fraudRate),
           totalPaymentsInPeriod,
           blockedAmount,
-          averageRiskScore: alertsBySeverity.length > 0
-            ? alertsBySeverity.reduce((sum, s) => sum + 0, 0) // placeholder for avg
+          averageRiskScore: avgRiskScoreResult._count.id > 0
+            ? Math.round(avgRiskScoreResult._avg.riskScore || 0)
             : 0,
         },
         alertsBySeverity: alertsBySeverity.map(s => ({

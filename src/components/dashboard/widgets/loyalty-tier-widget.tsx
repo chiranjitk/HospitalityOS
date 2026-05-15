@@ -25,6 +25,7 @@ import {
   TrendingUp,
   Gift,
   Sparkles,
+  AlertTriangle,
   type LucideIcon,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -34,10 +35,12 @@ import { motion } from 'framer-motion';
 interface TierDefinition {
   id: string;
   name: string;
+  displayName: string;
   icon: LucideIcon;
   minPoints: number;
-  maxPoints: number;
+  maxPoints: number | null;
   benefits: number;
+  color: string;
   colorClass: string;
   bgClass: string;
   borderClass: string;
@@ -64,81 +67,46 @@ interface LoyaltyTierData {
   totalMembers: number;
 }
 
-// ── Mock Data ──────────────────────────────────────────────────────────────
+// ── Tier icon/color mappings (static per tier name) ──────────────────────
 
-const MOCK_TIER_DEFINITIONS: TierDefinition[] = [
-  {
-    id: 'bronze',
-    name: 'Bronze',
+const TIER_ICON_MAP: Record<string, { icon: LucideIcon; colorClass: string; bgClass: string; borderClass: string; barColor: string; stackedColor: string }> = {
+  bronze: {
     icon: Shield,
-    minPoints: 0,
-    maxPoints: 2499,
-    benefits: 3,
     colorClass: 'text-orange-600 dark:text-orange-400',
     bgClass: 'bg-orange-50 dark:bg-orange-950/50',
     borderClass: 'border-orange-200 dark:border-orange-800',
-    glowClass: 'shadow-orange-400/30',
     barColor: 'bg-orange-400',
     stackedColor: 'bg-orange-400',
   },
-  {
-    id: 'silver',
-    name: 'Silver',
+  silver: {
     icon: Medal,
-    minPoints: 2500,
-    maxPoints: 7499,
-    benefits: 6,
     colorClass: 'text-slate-500 dark:text-slate-300',
     bgClass: 'bg-slate-50 dark:bg-slate-800/50',
     borderClass: 'border-slate-300 dark:border-slate-600',
-    glowClass: 'shadow-slate-400/30',
     barColor: 'bg-slate-400',
     stackedColor: 'bg-slate-400',
   },
-  {
-    id: 'gold',
-    name: 'Gold',
+  gold: {
     icon: Crown,
-    minPoints: 7500,
-    maxPoints: 19999,
-    benefits: 10,
     colorClass: 'text-amber-500 dark:text-amber-400',
     bgClass: 'bg-amber-50 dark:bg-amber-950/50',
     borderClass: 'border-amber-300 dark:border-amber-700',
-    glowClass: 'shadow-amber-400/30',
     barColor: 'bg-amber-400',
     stackedColor: 'bg-amber-400',
   },
-  {
-    id: 'platinum',
-    name: 'Platinum',
+  platinum: {
     icon: Gem,
-    minPoints: 20000,
-    maxPoints: 99999,
-    benefits: 16,
     colorClass: 'text-violet-500 dark:text-violet-400',
     bgClass: 'bg-violet-50 dark:bg-violet-950/50',
     borderClass: 'border-violet-300 dark:border-violet-700',
-    glowClass: 'shadow-violet-400/30',
     barColor: 'bg-violet-400',
     stackedColor: 'bg-violet-400',
   },
-];
+};
 
-const MOCK_TOP_MEMBERS: TopLoyaltyMember[] = [
-  { name: 'Rajesh Sharma', tier: 'platinum', points: 34520, stays: 48, avatar: 'RS' },
-  { name: 'Priya Mehta', tier: 'gold', points: 18900, stays: 32, avatar: 'PM' },
-  { name: 'David Chen', tier: 'gold', points: 12450, stays: 21, avatar: 'DC' },
-  { name: 'Sarah Mitchell', tier: 'silver', points: 6780, stays: 14, avatar: 'SM' },
-  { name: 'Anil Gupta', tier: 'silver', points: 4320, stays: 9, avatar: 'AG' },
-];
-
-const MOCK_TIER_DISTRIBUTION = [
-  { tier: 'bronze', percentage: 45 },
-  { tier: 'silver', percentage: 28 },
-  { tier: 'gold', percentage: 18 },
-  { tier: 'platinum', percentage: 9 },
-];
+function getTierVisuals(tierName: string) {
+  return TIER_ICON_MAP[tierName.toLowerCase()] || TIER_ICON_MAP.bronze;
+}
 
 // ── Skeleton ───────────────────────────────────────────────────────────────
 
@@ -255,7 +223,7 @@ function TierCard({
 
               {/* Points range */}
               <span className="text-[9px] text-muted-foreground/50 tabular-nums leading-tight">
-                {tier.minPoints.toLocaleString()}–{tier.maxPoints === 99999 ? '∞' : tier.maxPoints.toLocaleString()}
+                {tier.minPoints.toLocaleString()}–{tier.maxPoints === null || tier.maxPoints > 90000 ? '∞' : tier.maxPoints.toLocaleString()}
               </span>
 
               {/* Benefits count */}
@@ -267,7 +235,7 @@ function TierCard({
           </motion.div>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="text-xs">
-          <p className="font-semibold">{tier.name} Tier</p>
+          <p className="font-semibold">{tier.displayName || tier.name} Tier</p>
           <p className="text-muted-foreground">{tier.benefits} {t('loyaltyTierBenefits')}</p>
           <p className="text-muted-foreground">{tier.minPoints.toLocaleString()}+ {t('loyaltyTierPoints')}</p>
         </TooltipContent>
@@ -278,9 +246,9 @@ function TierCard({
 
 // ── Top Member Row ────────────────────────────────────────────────────────
 
-function TopMemberRow({ member, index }: { member: TopLoyaltyMember; index: number }) {
+function TopMemberRow({ member, index, tiers }: { member: TopLoyaltyMember; index: number; tiers: TierDefinition[] }) {
   const t = useTranslations('dashboard');
-  const tierDef = MOCK_TIER_DEFINITIONS.find(t => t.id === member.tier);
+  const tierDef = tiers.find(t => t.id === member.tier);
   const TierIcon = tierDef?.icon || Star;
 
   return (
@@ -335,25 +303,148 @@ export function LoyaltyTierWidget() {
   const t = useTranslations('dashboard');
   const [data, setData] = useState<LoyaltyTierData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setData({
-        tiers: MOCK_TIER_DEFINITIONS,
-        currentTier: 'gold',
-        currentPoints: 12450,
-        nextTierPoints: 20000,
-        topMembers: MOCK_TOP_MEMBERS,
-        tierDistribution: MOCK_TIER_DISTRIBUTION,
-        totalMembers: 1247,
-      });
-      setIsLoading(false);
-    }, 900);
-    return () => clearTimeout(timer);
+    const fetchData = async () => {
+      try {
+        // Fetch tiers with stats and guest analytics in parallel
+        const [tiersRes, analyticsRes] = await Promise.allSettled([
+          fetch('/api/loyalty/tiers?includeStats=true'),
+          fetch('/api/guests/analytics'),
+        ]);
+
+        const tiersResult = tiersRes.status === 'fulfilled' ? await tiersRes.value.json() : null;
+        const analyticsResult = analyticsRes.status === 'fulfilled' ? await analyticsRes.value.json() : null;
+
+        if (!tiersResult?.success) {
+          setError('Failed to load loyalty data');
+          setIsLoading(false);
+          return;
+        }
+
+        const apiTiers = tiersResult.data || [];
+        const tierStats = tiersResult.stats || {};
+        const analytics = analyticsResult?.success ? analyticsResult.data : null;
+
+        // Build tier definitions from API
+        const tiers: TierDefinition[] = apiTiers.map((tier: {
+          id: string;
+          name: string;
+          displayName: string;
+          minPoints: number;
+          maxPoints: number | null;
+          benefits: string[] | string;
+        }) => {
+          const benefits = Array.isArray(tier.benefits) ? tier.benefits : [];
+          const visuals = getTierVisuals(tier.name);
+          return {
+            id: tier.name,
+            name: tier.displayName || tier.name.replace(/([A-Z])/g, ' $1').trim(),
+            displayName: tier.displayName || tier.name.replace(/([A-Z])/g, ' $1').trim(),
+            icon: visuals.icon,
+            minPoints: tier.minPoints,
+            maxPoints: tier.maxPoints,
+            benefits: benefits.length,
+            color: '#000',
+            colorClass: visuals.colorClass,
+            bgClass: visuals.bgClass,
+            borderClass: visuals.borderClass,
+            glowClass: '',
+            barColor: visuals.barColor,
+            stackedColor: visuals.stackedColor,
+          };
+        });
+
+        // Build tier distribution from analytics or tier stats
+        const totalGuests = analytics?.totalGuests || 0;
+        let tierDistribution: { tier: string; percentage: number }[] = [];
+
+        if (analytics?.loyaltyDistribution && analytics.loyaltyDistribution.length > 0) {
+          tierDistribution = analytics.loyaltyDistribution.map((d: { tier: string; count: number }) => ({
+            tier: d.tier || 'unknown',
+            percentage: totalGuests > 0 ? Math.round((d.count / totalGuests) * 100) : 0,
+          }));
+        } else if (Object.keys(tierStats).length > 0) {
+          const totalStatsGuests = Object.values(tierStats).reduce((sum: number, s: { count: number }) => sum + s.count, 0);
+          tierDistribution = Object.entries(tierStats).map(([tier, stat]: [string, { count: number }]) => ({
+            tier,
+            percentage: totalStatsGuests > 0 ? Math.round((stat.count / totalStatsGuests) * 100) : 0,
+          }));
+        } else {
+          // Fallback: equal distribution
+          tierDistribution = tiers.map(tier => ({
+            tier: tier.id,
+            percentage: Math.round(100 / tiers.length),
+          }));
+        }
+
+        // Build top members from analytics
+        let topMembers: TopLoyaltyMember[] = [];
+        if (analytics?.recentGuests && analytics.recentGuests.length > 0) {
+          topMembers = analytics.recentGuests
+            .sort((a: { totalSpent: number }, b: { totalSpent: number }) => b.totalSpent - a.totalSpent)
+            .slice(0, 5)
+            .map((g: { name: string; loyaltyTier: string; loyaltyPoints: number; totalStays: number }) => ({
+              name: g.name,
+              tier: g.loyaltyTier || 'bronze',
+              points: g.loyaltyPoints || 0,
+              stays: g.totalStays || 0,
+              avatar: g.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2),
+            }));
+        }
+
+        // Determine current tier (second highest tier as a default view)
+        const sortedTiers = [...tiers].sort((a, b) => b.minPoints - a.minPoints);
+        const currentTier = sortedTiers.length > 1 ? sortedTiers[1].id : (sortedTiers[0]?.id || 'bronze');
+        const currentTierDef = tiers.find(t => t.id === currentTier);
+        const nextTierDef = tiers.find(t => t.minPoints > (currentTierDef?.minPoints || 0));
+
+        // Calculate representative current points
+        const representativePoints = currentTierDef
+          ? Math.round((currentTierDef.minPoints + (nextTierDef?.minPoints || currentTierDef.minPoints * 2)) / 2)
+          : 1000;
+
+        setData({
+          tiers,
+          currentTier,
+          currentPoints: representativePoints,
+          nextTierPoints: nextTierDef?.minPoints || 0,
+          topMembers,
+          tierDistribution,
+          totalMembers: totalGuests || Object.values(tierStats).reduce((sum: number, s: { count: number }) => sum + s.count, 0),
+        });
+      } catch {
+        setError('Failed to fetch loyalty data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
   }, []);
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return <LoyaltyTierSkeleton />;
+  }
+
+  if (error || !data) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+      >
+        <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+          <div className="h-[2px] bg-gradient-to-r from-orange-400 via-amber-400 to-violet-400" />
+          <CardContent className="p-4 flex items-center justify-center min-h-[300px]">
+            <div className="text-center">
+              <AlertTriangle className="h-6 w-6 mx-auto mb-2 text-muted-foreground/50" />
+              <p className="text-sm text-muted-foreground">{error || 'No data'}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
   }
 
   const currentTierDef = data.tiers.find(t => t.id === data.currentTier);
@@ -461,7 +552,7 @@ export function LoyaltyTierWidget() {
                         />
                       </TooltipTrigger>
                       <TooltipContent side="top" className="text-[10px]">
-                        <p className="font-semibold">{tierDef?.name} – {d.percentage}%</p>
+                        <p className="font-semibold">{tierDef?.name || d.tier} – {d.percentage}%</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -484,11 +575,17 @@ export function LoyaltyTierWidget() {
             <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">
               {t('topLoyaltyMembers')}
             </p>
-            <div className="space-y-0.5 max-h-[180px] overflow-y-auto scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent">
-              {data.topMembers.map((member, i) => (
-                <TopMemberRow key={member.name} member={member} index={i} />
-              ))}
-            </div>
+            {data.topMembers.length === 0 ? (
+              <div className="flex items-center justify-center py-4">
+                <p className="text-xs text-muted-foreground/50">No member data available</p>
+              </div>
+            ) : (
+              <div className="space-y-0.5 max-h-[180px] overflow-y-auto scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent">
+                {data.topMembers.map((member, i) => (
+                  <TopMemberRow key={member.name} member={member} index={i} tiers={data.tiers} />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* View All Link */}

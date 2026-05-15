@@ -146,7 +146,86 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === 'staff') {
-      return NextResponse.json({ success: true, data: { ordersPerStaff: [], revenuePerStaff: [], avgCompletionTime: 0 } });
+      // Calculate average order completion time (kitchen turnaround)
+      const completedOrders = await db.order.findMany({
+        where: { ...where, completedAt: { not: null }, createdAt: { not: null } },
+        select: { createdAt: true, completedAt: true },
+      });
+      const durations: number[] = completedOrders.map(o => {
+        return (new Date(o.completedAt!).getTime() - new Date(o.createdAt).getTime()) / 60000;
+      });
+      const avgCompletionTime = durations.length > 0
+        ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+        : 0;
+
+      // Get restaurant staff from StaffShift in the date range
+      const shiftWhere: Record<string, unknown> = { tenantId: user.tenantId, status: { in: ['scheduled', 'on_duty', 'completed'] } };
+      if (startDate) {
+        shiftWhere.date = { ...((shiftWhere.date as Record<string, unknown>) || {}), gte: new Date(startDate) };
+      }
+      if (endDate) {
+        shiftWhere.date = { ...((shiftWhere.date as Record<string, unknown>) || {}), lte: new Date(endDate + 'T23:59:59') };
+      }
+
+      const staffShifts = await db.staffShift.findMany({
+        where: shiftWhere,
+        include: {
+          user: { select: { id: true, firstName: true, lastName: true, department: true } },
+        },
+        orderBy: { date: 'desc' },
+      });
+
+      // Collect unique staff members and their shift dates/properties
+      const staffMap = new Map<string, { name: string; department: string; shiftDates: string[] }>();
+      for (const shift of staffShifts) {
+        const uid = shift.userId;
+        if (!staffMap.has(uid)) {
+          staffMap.set(uid, {
+            name: `${shift.user.firstName} ${shift.user.lastName}`.trim(),
+            department: shift.user.department || 'General',
+            shiftDates: [],
+          });
+        }
+        staffMap.get(uid)!.shiftDates.push(shift.date.toISOString().split('T')[0]);
+      }
+
+      // Get orders with property info for cross-referencing
+      const ordersInRange = await db.order.findMany({
+        where: { ...where },
+        select: { id: true, propertyId: true, createdAt: true, completedAt: true, totalAmount: true, orderType: true },
+      });
+
+      // Count orders per staff by matching shift dates with order dates
+      const ordersPerStaff: Array<{ staffName: string; department: string; orderCount: number; shiftDays: number }> = [];
+      const revenuePerStaff: Array<{ staffName: string; department: string; revenue: number; shiftDays: number }> = [];
+
+      staffMap.forEach((staffInfo, uid) => {
+        const shiftDateSet = new Set(staffInfo.shiftDates);
+        const staffOrders = ordersInRange.filter(o =>
+          shiftDateSet.has(o.createdAt.toISOString().split('T')[0])
+        );
+        const orderCount = staffOrders.length;
+        const revenue = staffOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
+        ordersPerStaff.push({
+          staffName: staffInfo.name,
+          department: staffInfo.department,
+          orderCount,
+          shiftDays: shiftDateSet.size,
+        });
+        revenuePerStaff.push({
+          staffName: staffInfo.name,
+          department: staffInfo.department,
+          revenue: Math.round(revenue * 100) / 100,
+          shiftDays: shiftDateSet.size,
+        });
+      });
+
+      // Sort by descending
+      ordersPerStaff.sort((a, b) => b.orderCount - a.orderCount);
+      revenuePerStaff.sort((a, b) => b.revenue - a.revenue);
+
+      return NextResponse.json({ success: true, data: { ordersPerStaff, revenuePerStaff, avgCompletionTime } });
     }
 
     return NextResponse.json({ success: false, error: { code: 'INVALID_TYPE', message: 'Invalid report type' } }, { status: 400 });

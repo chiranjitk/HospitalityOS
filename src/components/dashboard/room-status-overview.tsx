@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store';
 import {
@@ -12,6 +13,7 @@ import {
   Wrench,
   Crown,
   ArrowRight,
+  AlertTriangle,
   type LucideIcon,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -29,34 +31,13 @@ interface RoomData {
   checkoutDate?: string;
 }
 
-// ─── Mock Data ──────────────────────────────────────────────────────────
-
-const MOCK_ROOMS: RoomData[] = [
-  { number: '101', floor: 1, status: 'available', type: 'Standard Room' },
-  { number: '102', floor: 1, status: 'occupied', type: 'Deluxe Room', guestName: 'John Smith', checkoutDate: 'May 15' },
-  { number: '103', floor: 1, status: 'vip', type: 'Royal Suite', guestName: 'Sarah Johnson', checkoutDate: 'May 18' },
-  { number: '104', floor: 1, status: 'maintenance', type: 'Standard Room' },
-  { number: '105', floor: 1, status: 'occupied', type: 'Deluxe Room', guestName: 'Michael Chen', checkoutDate: 'May 16' },
-  { number: '106', floor: 1, status: 'available', type: 'Standard Room' },
-  { number: '201', floor: 2, status: 'occupied', type: 'Premium Suite', guestName: 'Emily Davis', checkoutDate: 'May 20' },
-  { number: '202', floor: 2, status: 'available', type: 'Deluxe Room' },
-  { number: '203', floor: 2, status: 'vip', type: 'Presidential Suite', guestName: 'Robert Williams', checkoutDate: 'May 22' },
-  { number: '204', floor: 2, status: 'occupied', type: 'Standard Room', guestName: 'Lisa Brown', checkoutDate: 'May 14' },
-  { number: '205', floor: 2, status: 'maintenance', type: 'Deluxe Room' },
-  { number: '206', floor: 2, status: 'available', type: 'Standard Room' },
-  { number: '301', floor: 3, status: 'available', type: 'Standard Room' },
-  { number: '302', floor: 3, status: 'occupied', type: 'Premium Suite', guestName: 'David Wilson', checkoutDate: 'May 17' },
-  { number: '303', floor: 3, status: 'occupied', type: 'Deluxe Room', guestName: 'Jessica Taylor', checkoutDate: 'May 19' },
-  { number: '304', floor: 3, status: 'available', type: 'Standard Room' },
-  { number: '305', floor: 3, status: 'vip', type: 'Royal Suite', guestName: 'James Anderson', checkoutDate: 'May 25' },
-  { number: '306', floor: 3, status: 'maintenance', type: 'Standard Room' },
-  { number: '401', floor: 4, status: 'occupied', type: 'Deluxe Room', guestName: 'Amanda Martinez', checkoutDate: 'May 16' },
-  { number: '402', floor: 4, status: 'available', type: 'Standard Room' },
-  { number: '403', floor: 4, status: 'occupied', type: 'Premium Suite', guestName: 'Christopher Lee', checkoutDate: 'May 21' },
-  { number: '404', floor: 4, status: 'available', type: 'Deluxe Room' },
-  { number: '405', floor: 4, status: 'occupied', type: 'Standard Room', guestName: 'Rachel Garcia', checkoutDate: 'May 15' },
-  { number: '406', floor: 4, status: 'available', type: 'Standard Room' },
-];
+interface ApiRoom {
+  id: string;
+  number: string;
+  floor: number;
+  status: string;
+  roomType: { id: string; name: string; code?: string; basePrice?: number; currency?: string } | null;
+}
 
 // ─── Status Config ──────────────────────────────────────────────────────
 
@@ -128,6 +109,24 @@ const STATUS_CONFIG: Record<RoomStatus, {
     statBorder: 'border-purple-200/60 dark:border-purple-800/40',
   },
 };
+
+// ─── Helpers ────────────────────────────────────────────────────────────
+
+function mapApiStatus(apiStatus: string): RoomStatus {
+  switch (apiStatus) {
+    case 'occupied':
+      return 'occupied';
+    case 'maintenance':
+    case 'dirty':
+    case 'outOfOrder':
+    case 'out_of_order':
+      return 'maintenance';
+    case 'vip':
+      return 'vip';
+    default:
+      return 'available';
+  }
+}
 
 // ─── Room Cell Component ────────────────────────────────────────────────
 
@@ -283,10 +282,69 @@ function FloorSeparator({ floor }: { floor: number }) {
   );
 }
 
+// ─── Skeleton ───────────────────────────────────────────────────────────
+
+function RoomStatusOverviewSkeleton() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+    >
+      <Card className="border border-border/60 shadow-md rounded-2xl bg-card">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-7 w-24" />
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 rounded-lg" />)}
+          </div>
+          <Skeleton className="h-px w-full" />
+          <div className="grid grid-cols-4 sm:grid-cols-7 xl:grid-cols-10 gap-2">
+            {[...Array(24)].map((_, i) => <Skeleton key={i} className="h-10 rounded-lg" />)}
+          </div>
+          <Skeleton className="h-4 w-40" />
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────
 
 export function RoomStatusOverview() {
   const { setActiveSection } = useUIStore();
+  const [rooms, setRooms] = useState<RoomData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        const response = await fetch('/api/rooms');
+        const result = await response.json();
+        if (result.success) {
+          const mapped: RoomData[] = (result.data as ApiRoom[]).map((room) => ({
+            number: room.number,
+            floor: room.floor,
+            status: mapApiStatus(room.status),
+            type: room.roomType?.name || 'Standard Room',
+          }));
+          setRooms(mapped);
+        } else {
+          setError(result.error?.message || 'Failed to load rooms');
+        }
+      } catch (err) {
+        setError('Failed to fetch room data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchRooms();
+  }, []);
 
   // Calculate status counts
   const statusCounts = useMemo(() => {
@@ -296,22 +354,48 @@ export function RoomStatusOverview() {
       maintenance: 0,
       vip: 0,
     };
-    MOCK_ROOMS.forEach((room) => {
+    rooms.forEach((room) => {
       counts[room.status]++;
     });
     return counts;
-  }, []);
+  }, [rooms]);
 
   // Group rooms by floor
   const roomsByFloor = useMemo(() => {
     const floors = new Map<number, RoomData[]>();
-    MOCK_ROOMS.forEach((room) => {
+    rooms.forEach((room, idx) => {
       const existing = floors.get(room.floor) || [];
-      existing.push(room);
+      existing.push({ ...room, _index: idx } as RoomData & { _index: number });
       floors.set(room.floor, existing);
     });
     return Array.from(floors.entries()).sort(([a], [b]) => a - b);
-  }, []);
+  }, [rooms]);
+
+  if (isLoading) {
+    return <RoomStatusOverviewSkeleton />;
+  }
+
+  if (error) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+      >
+        <Card className="border border-border/60 shadow-md rounded-2xl bg-card">
+          <CardContent className="p-6 flex items-center justify-center min-h-[300px]">
+            <div className="text-center">
+              <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-destructive" />
+              <p className="text-sm text-muted-foreground">{error}</p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => window.location.reload()}>
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -353,12 +437,15 @@ export function RoomStatusOverview() {
 
           {/* Visual Room Grid */}
           <div className="grid grid-cols-4 sm:grid-cols-7 xl:grid-cols-10 gap-2">
-            {roomsByFloor.map(([floor, rooms]) => (
+            {roomsByFloor.map(([floor, floorRooms]) => (
               <React.Fragment key={floor}>
                 <FloorSeparator floor={floor} />
-                {rooms.map((room) => (
-                  <RoomCell key={room.number} room={room} index={MOCK_ROOMS.indexOf(room)} />
-                ))}
+                {floorRooms.map((room) => {
+                  const globalIndex = rooms.findIndex(r => r.number === room.number);
+                  return (
+                    <RoomCell key={room.number} room={room} index={globalIndex} />
+                  );
+                })}
               </React.Fragment>
             ))}
           </div>
@@ -375,7 +462,7 @@ export function RoomStatusOverview() {
               );
             })}
             <span className="text-[11px] text-muted-foreground/50 ml-auto">
-              {MOCK_ROOMS.length} rooms total
+              {rooms.length} rooms total
             </span>
           </div>
         </CardContent>

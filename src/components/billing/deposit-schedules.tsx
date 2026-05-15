@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -135,110 +136,119 @@ const STATUS_CONFIG: Record<DepositStatus, { label: string; color: string; icon:
   overdue: { label: 'Overdue', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: AlertCircle },
 };
 
-// ─── Mock Data ───────────────────────────────────────────────────────────────
+// ─── API response type ──────────────────────────────────────────────────────
 
-const MOCK_BOOKINGS: Booking[] = [
-  {
-    id: 'bk-001', bookingNumber: 'BK-2025-1042', guestName: 'James & Sarah Mitchell',
-    roomType: 'Ocean View Suite', checkIn: '2025-09-15', checkOut: '2025-09-20',
-    totalAmount: 4850, currency: 'USD',
-    depositMilestones: [
-      { id: 'ms-001a', label: 'Initial Deposit', amount: 30, amountType: 'percentage', percentageOf: 4850, dueRule: 'at_booking', dueDate: '2025-07-15', status: 'paid', chargeType: 'manual', reminderDaysBefore: 7, reminderEnabled: true, lastReminderSent: '2025-07-08T10:00:00Z', payments: [{ id: 'pay-001', amount: 1455, method: 'Credit Card', reference: 'TXN-88234', paidAt: '2025-07-10T14:23:00Z', paidBy: 'James Mitchell' }], totalPaid: 1455 },
-      { id: 'ms-001b', label: 'Second Payment', amount: 30, amountType: 'percentage', percentageOf: 4850, dueRule: 'days_before_checkin', daysBeforeCheckin: 30, dueDate: '2025-08-16', status: 'paid', chargeType: 'manual', reminderDaysBefore: 5, reminderEnabled: true, lastReminderSent: '2025-08-11T09:00:00Z', payments: [{ id: 'pay-002', amount: 1455, method: 'Bank Transfer', reference: 'BT-44291', paidAt: '2025-08-14T11:05:00Z', paidBy: 'Sarah Mitchell' }], totalPaid: 1455 },
-      { id: 'ms-001c', label: 'Final Balance', amount: 40, amountType: 'percentage', percentageOf: 4850, dueRule: 'at_checkin', dueDate: '2025-09-15', status: 'pending', chargeType: 'auto', reminderDaysBefore: 3, reminderEnabled: true, payments: [], totalPaid: 0 },
-    ],
-  },
-  {
-    id: 'bk-002', bookingNumber: 'BK-2025-1098', guestName: 'Dr. Emily Watson',
-    roomType: 'Deluxe King', checkIn: '2025-08-25', checkOut: '2025-08-28',
-    totalAmount: 1890, currency: 'USD',
-    depositMilestones: [
-      { id: 'ms-002a', label: 'Deposit at Booking', amount: 50, amountType: 'percentage', percentageOf: 1890, dueRule: 'at_booking', dueDate: '2025-07-25', status: 'paid', chargeType: 'manual', reminderDaysBefore: 7, reminderEnabled: true, payments: [{ id: 'pay-003', amount: 945, method: 'Credit Card', reference: 'TXN-90124', paidAt: '2025-07-22T16:40:00Z', paidBy: 'Emily Watson' }], totalPaid: 945 },
-      { id: 'ms-002b', label: 'Remaining Balance', amount: 50, amountType: 'percentage', percentageOf: 1890, dueRule: 'at_checkin', dueDate: '2025-08-25', status: 'pending', chargeType: 'auto', reminderDaysBefore: 3, reminderEnabled: true, payments: [], totalPaid: 0 },
-    ],
-  },
-  {
-    id: 'bk-003', bookingNumber: 'BK-2025-1115', guestName: 'Carlos & Maria Gonzalez',
-    roomType: 'Presidential Suite', checkIn: '2025-10-01', checkOut: '2025-10-07',
-    totalAmount: 12600, currency: 'USD',
-    depositMilestones: [
-      { id: 'ms-003a', label: 'Non-refundable Deposit', amount: 25, amountType: 'percentage', percentageOf: 12600, dueRule: 'at_booking', dueDate: '2025-08-01', status: 'paid', chargeType: 'manual', reminderDaysBefore: 14, reminderEnabled: true, payments: [{ id: 'pay-004', amount: 3150, method: 'Wire Transfer', reference: 'WT-77102', paidAt: '2025-07-28T09:15:00Z', paidBy: 'Carlos Gonzalez' }], totalPaid: 3150 },
-      { id: 'ms-003b', label: 'Second Installment', amount: 35, amountType: 'percentage', percentageOf: 12600, dueRule: 'days_before_checkin', daysBeforeCheckin: 45, dueDate: '2025-08-17', status: 'paid', chargeType: 'manual', reminderDaysBefore: 7, reminderEnabled: true, payments: [{ id: 'pay-005', amount: 4410, method: 'Credit Card', reference: 'TXN-91560', paidAt: '2025-08-15T13:22:00Z', paidBy: 'Maria Gonzalez' }], totalPaid: 4410 },
-      { id: 'ms-003c', label: 'Final Payment', amount: 40, amountType: 'percentage', percentageOf: 12600, dueRule: 'days_before_checkin', daysBeforeCheckin: 14, dueDate: '2025-09-17', status: 'pending', chargeType: 'manual', reminderDaysBefore: 5, reminderEnabled: true, payments: [], totalPaid: 0 },
-    ],
-  },
-  {
-    id: 'bk-004', bookingNumber: 'BK-2025-1203', guestName: 'Akira Tanaka',
-    roomType: 'Standard Room', checkIn: '2025-08-10', checkOut: '2025-08-12',
-    totalAmount: 520, currency: 'USD',
-    depositMilestones: [
-      { id: 'ms-004a', label: 'Full Prepayment', amount: 100, amountType: 'percentage', percentageOf: 520, dueRule: 'days_before_checkin', daysBeforeCheckin: 7, dueDate: '2025-08-03', status: 'paid', chargeType: 'auto', reminderDaysBefore: 2, reminderEnabled: true, payments: [{ id: 'pay-006', amount: 520, method: 'Credit Card', reference: 'TXN-92810', paidAt: '2025-08-02T08:00:00Z', paidBy: 'System (Auto-charge)' }], totalPaid: 520 },
-    ],
-  },
-  {
-    id: 'bk-005', bookingNumber: 'BK-2025-1087', guestName: 'Sophie Laurent',
-    roomType: 'Garden Villa', checkIn: '2025-09-01', checkOut: '2025-09-05',
-    totalAmount: 3200, currency: 'USD',
-    depositMilestones: [
-      { id: 'ms-005a', label: 'Booking Deposit', amount: 20, amountType: 'percentage', percentageOf: 3200, dueRule: 'at_booking', dueDate: '2025-07-01', status: 'overdue', chargeType: 'manual', reminderDaysBefore: 7, reminderEnabled: true, lastReminderSent: '2025-07-15T10:00:00Z', payments: [], totalPaid: 0 },
-      { id: 'ms-005b', label: 'Mid-stay Payment', amount: 40, amountType: 'percentage', percentageOf: 3200, dueRule: 'days_before_checkin', daysBeforeCheckin: 21, dueDate: '2025-08-11', status: 'pending', chargeType: 'manual', reminderDaysBefore: 5, reminderEnabled: true, payments: [], totalPaid: 0 },
-      { id: 'ms-005c', label: 'Final Balance', amount: 40, amountType: 'percentage', percentageOf: 3200, dueRule: 'at_checkin', dueDate: '2025-09-01', status: 'pending', chargeType: 'auto', reminderDaysBefore: 3, reminderEnabled: true, payments: [], totalPaid: 0 },
-    ],
-  },
-  {
-    id: 'bk-006', bookingNumber: 'BK-2025-1245', guestName: 'Robert & Jennifer O\'Brien',
-    roomType: 'Family Suite', checkIn: '2025-12-20', checkOut: '2025-12-27',
-    totalAmount: 5600, currency: 'USD',
-    depositMilestones: [
-      { id: 'ms-006a', label: 'Holiday Deposit', amount: 500, amountType: 'fixed', dueRule: 'at_booking', dueDate: '2025-09-20', status: 'paid', chargeType: 'manual', reminderDaysBefore: 14, reminderEnabled: true, payments: [{ id: 'pay-007', amount: 500, method: 'Credit Card', reference: 'TXN-94001', paidAt: '2025-09-18T15:30:00Z', paidBy: 'Robert O\'Brien' }], totalPaid: 500 },
-      { id: 'ms-006b', label: 'Second Payment', amount: 2000, amountType: 'fixed', dueRule: 'custom_date', customDueDate: '2025-11-01', dueDate: '2025-11-01', status: 'paid', chargeType: 'manual', reminderDaysBefore: 10, reminderEnabled: true, payments: [{ id: 'pay-008', amount: 2000, method: 'Bank Transfer', reference: 'BT-81450', paidAt: '2025-10-28T10:45:00Z', paidBy: 'Jennifer O\'Brien' }], totalPaid: 2000 },
-      { id: 'ms-006c', label: 'Final Payment', amount: 3100, amountType: 'fixed', dueRule: 'days_before_checkin', daysBeforeCheckin: 14, dueDate: '2025-12-06', status: 'pending', chargeType: 'manual', reminderDaysBefore: 5, reminderEnabled: true, payments: [], totalPaid: 0 },
-    ],
-  },
-  {
-    id: 'bk-007', bookingNumber: 'BK-2025-1067', guestName: 'Hans Mueller',
-    roomType: 'Executive Room', checkIn: '2025-08-18', checkOut: '2025-08-20',
-    totalAmount: 780, currency: 'USD',
-    depositMilestones: [
-      { id: 'ms-007a', label: 'Deposit', amount: 25, amountType: 'percentage', percentageOf: 780, dueRule: 'at_booking', dueDate: '2025-07-18', status: 'partially_paid', chargeType: 'manual', reminderDaysBefore: 5, reminderEnabled: true, payments: [{ id: 'pay-009', amount: 100, method: 'Credit Card', reference: 'TXN-93200', paidAt: '2025-07-20T11:10:00Z', paidBy: 'Hans Mueller' }], totalPaid: 100 },
-      { id: 'ms-007b', label: 'Remaining Balance', amount: 75, amountType: 'percentage', percentageOf: 780, dueRule: 'at_checkin', dueDate: '2025-08-18', status: 'pending', chargeType: 'auto', reminderDaysBefore: 3, reminderEnabled: true, payments: [], totalPaid: 0 },
-    ],
-  },
-  {
-    id: 'bk-008', bookingNumber: 'BK-2025-1301', guestName: 'Olivia Chen',
-    roomType: 'Deluxe Twin', checkIn: '2025-10-15', checkOut: '2025-10-18',
-    totalAmount: 1560, currency: 'USD',
-    depositMilestones: [
-      { id: 'ms-008a', label: 'First Deposit', amount: 200, amountType: 'fixed', dueRule: 'at_booking', dueDate: '2025-08-15', status: 'paid', chargeType: 'manual', reminderDaysBefore: 7, reminderEnabled: true, payments: [{ id: 'pay-010', amount: 200, method: 'Credit Card', reference: 'TXN-95110', paidAt: '2025-08-12T14:55:00Z', paidBy: 'Olivia Chen' }], totalPaid: 200 },
-      { id: 'ms-008b', label: 'Second Deposit', amount: 300, amountType: 'fixed', dueRule: 'days_before_checkin', daysBeforeCheckin: 30, dueDate: '2025-09-15', status: 'paid', chargeType: 'manual', reminderDaysBefore: 5, reminderEnabled: true, payments: [{ id: 'pay-011', amount: 300, method: 'Credit Card', reference: 'TXN-96200', paidAt: '2025-09-14T09:30:00Z', paidBy: 'Olivia Chen' }], totalPaid: 300 },
-      { id: 'ms-008c', label: 'Final Balance', amount: 1060, amountType: 'fixed', dueRule: 'at_checkin', dueDate: '2025-10-15', status: 'pending', chargeType: 'auto', reminderDaysBefore: 3, reminderEnabled: true, payments: [], totalPaid: 0 },
-    ],
-  },
-  {
-    id: 'bk-009', bookingNumber: 'BK-2025-1345', guestName: 'Nikolai Petrov',
-    roomType: 'Ocean View Suite', checkIn: '2025-11-01', checkOut: '2025-11-04',
-    totalAmount: 2940, currency: 'USD',
-    depositMilestones: [
-      { id: 'ms-009a', label: 'Initial Deposit', amount: 30, amountType: 'percentage', percentageOf: 2940, dueRule: 'at_booking', dueDate: '2025-09-01', status: 'paid', chargeType: 'manual', reminderDaysBefore: 7, reminderEnabled: true, payments: [{ id: 'pay-012', amount: 882, method: 'Wire Transfer', reference: 'WT-83100', paidAt: '2025-08-28T16:20:00Z', paidBy: 'Nikolai Petrov' }], totalPaid: 882 },
-      { id: 'ms-009b', label: 'Balance at Check-in', amount: 70, amountType: 'percentage', percentageOf: 2940, dueRule: 'at_checkin', dueDate: '2025-11-01', status: 'pending', chargeType: 'auto', reminderDaysBefore: 3, reminderEnabled: true, payments: [], totalPaid: 0 },
-    ],
-  },
-  {
-    id: 'bk-010', bookingNumber: 'BK-2025-1402', guestName: 'Fatima Al-Rashid',
-    roomType: 'Royal Penthouse', checkIn: '2025-12-01', checkOut: '2025-12-05',
-    totalAmount: 8400, currency: 'USD',
-    depositMilestones: [
-      { id: 'ms-010a', label: 'Non-refundable Deposit', amount: 20, amountType: 'percentage', percentageOf: 8400, dueRule: 'at_booking', dueDate: '2025-09-01', status: 'paid', chargeType: 'manual', reminderDaysBefore: 14, reminderEnabled: true, payments: [{ id: 'pay-013', amount: 1680, method: 'Credit Card', reference: 'TXN-97500', paidAt: '2025-08-29T10:00:00Z', paidBy: 'Fatima Al-Rashid' }], totalPaid: 1680 },
-      { id: 'ms-010b', label: 'Second Installment', amount: 30, amountType: 'percentage', percentageOf: 8400, dueRule: 'days_before_checkin', daysBeforeCheckin: 60, dueDate: '2025-10-02', status: 'paid', chargeType: 'manual', reminderDaysBefore: 7, reminderEnabled: true, payments: [{ id: 'pay-014', amount: 2520, method: 'Credit Card', reference: 'TXN-98100', paidAt: '2025-09-30T11:40:00Z', paidBy: 'Fatima Al-Rashid' }], totalPaid: 2520 },
-      { id: 'ms-010c', label: 'Final Payment', amount: 50, amountType: 'percentage', percentageOf: 8400, dueRule: 'days_before_checkin', daysBeforeCheckin: 14, dueDate: '2025-11-17', status: 'pending', chargeType: 'manual', reminderDaysBefore: 5, reminderEnabled: true, payments: [], totalPaid: 0 },
-    ],
-  },
-];
+interface ApiDeposit {
+  id: string;
+  bookingId: string | null;
+  name: string;
+  milestoneType: string;
+  milestoneDays: number | null;
+  milestoneDate: string | null;
+  percentOfTotal: number;
+  fixedAmount: number | null;
+  dueAmount: number;
+  paidAmount: number;
+  status: string;
+  notes: string | null;
+  booking: {
+    id: string;
+    confirmationCode: string | null;
+    totalAmount: number;
+    primaryGuest: { id: string; firstName: string; lastName: string } | null;
+  } | null;
+}
+
+interface ApiAggregates {
+  totalDue: number;
+  totalPaid: number;
+  outstanding: number;
+  overdueCount: number;
+}
+
+function mapDueRule(milestoneType: string, milestoneDays: number | null): DueRule {
+  if (milestoneType === 'at_booking') return 'at_booking';
+  if (milestoneType === 'pre_arrival' && milestoneDays) return 'days_before_checkin';
+  if (milestoneType === 'at_checkin') return 'at_checkin';
+  if (milestoneType === 'at_checkout') return 'at_checkout';
+  return 'custom_date';
+}
+
+function transformDepositsToBookings(deposits: ApiDeposit[]): Booking[] {
+  const grouped = new Map<string, ApiDeposit[]>();
+  deposits.forEach(d => {
+    const key = d.bookingId || d.id;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(d);
+  });
+
+  return Array.from(grouped.entries()).map(([, deps]) => {
+    const b = deps[0];
+    const guest = b.booking?.primaryGuest;
+    const totalAmt = b.booking?.totalAmount || 0;
+
+    const milestones: DepositMilestone[] = deps.map(d => {
+      const dueRule = mapDueRule(d.milestoneType, d.milestoneDays);
+      const amountType = d.fixedAmount != null && d.fixedAmount > 0 ? 'fixed' as const : 'percentage' as const;
+      return {
+        id: d.id,
+        label: d.name,
+        amount: amountType === 'percentage' ? d.percentOfTotal : (d.fixedAmount || 0),
+        amountType,
+        percentageOf: amountType === 'percentage' ? totalAmt : undefined,
+        dueRule,
+        daysBeforeCheckin: dueRule === 'days_before_checkin' ? (d.milestoneDays || 0) : undefined,
+        dueDate: d.milestoneDate ? d.milestoneDate.split('T')[0] : '',
+        status: (d.status === 'partially_paid' ? 'partially_paid' : d.status) as DepositStatus,
+        chargeType: 'manual' as const,
+        reminderDaysBefore: 7,
+        reminderEnabled: true,
+        payments: [],
+        totalPaid: d.paidAmount || 0,
+      };
+    });
+
+    return {
+      id: b.bookingId || b.id,
+      bookingNumber: b.booking?.confirmationCode || 'N/A',
+      guestName: guest ? `${guest.firstName} ${guest.lastName}` : 'Unknown',
+      roomType: '',
+      checkIn: '',
+      checkOut: '',
+      totalAmount: totalAmt,
+      currency: 'USD',
+      depositMilestones: milestones,
+    };
+  });
+}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function DepositSchedules() {
-  const [bookings] = useState<Booking[]>(MOCK_BOOKINGS);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [apiAggregates, setApiAggregates] = useState<ApiAggregates | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch deposit schedules from API
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoading(true);
+    fetch('/api/billing/deposits?limit=200')
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled) return;
+        if (data?.success) {
+          const mapped = transformDepositsToBookings(data.data || []);
+          setBookings(mapped);
+          setApiAggregates(data.aggregates || null);
+        } else {
+          setBookings([]);
+        }
+      })
+      .catch(() => setBookings([]))
+      .finally(() => { if (!cancelled) setIsLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedBookingId, setSelectedBookingId] = useState<string>('');
@@ -254,13 +264,23 @@ export default function DepositSchedules() {
 
   // ─── Summary Calculations ──────────────────────────────────────────────
   const summary = useMemo(() => {
+    // Prefer API aggregates when available
+    if (apiAggregates) {
+      return {
+        totalExpected: apiAggregates.totalDue,
+        totalCollected: apiAggregates.totalPaid,
+        totalOutstanding: apiAggregates.outstanding,
+        totalOverdue: apiAggregates.outstanding - apiAggregates.overdueCount * 500,
+        overdueCount: apiAggregates.overdueCount,
+        milestoneCount: bookings.reduce((sum, b) => sum + b.depositMilestones.length, 0),
+      };
+    }
     let totalExpected = 0;
     let totalCollected = 0;
     let totalOutstanding = 0;
     let totalOverdue = 0;
     let overdueCount = 0;
     let milestoneCount = 0;
-
     bookings.forEach(b => {
       b.depositMilestones.forEach(m => {
         milestoneCount++;
@@ -277,9 +297,8 @@ export default function DepositSchedules() {
         }
       });
     });
-
     return { totalExpected, totalCollected, totalOutstanding, totalOverdue, overdueCount, milestoneCount };
-  }, [bookings]);
+  }, [bookings, apiAggregates]);
 
   const collectionRate = summary.totalExpected > 0 ? (summary.totalCollected / summary.totalExpected) * 100 : 0;
 
@@ -358,6 +377,18 @@ export default function DepositSchedules() {
         </div>
       </div>
 
+      {/* Loading State */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading deposit schedules...</p>
+          </div>
+        </div>
+      )}
+
+      {!isLoading && (
+      <>
       {/* Summary Dashboard */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <Card className="p-4 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 hover:-translate-y-0.5">
@@ -876,6 +907,8 @@ export default function DepositSchedules() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </>
+      )}
     </div>
   );
 }

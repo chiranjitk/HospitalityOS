@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -96,11 +97,12 @@ interface APInvoice {
   dueDate: string;
   category: string;
   department: string;
-  status: 'received' | 'verified' | 'approved' | 'scheduled' | 'paid' | 'rejected' | 'overdue';
+  status: 'received' | 'verified' | 'approved' | 'scheduled' | 'paid' | 'rejected' | 'overdue' | 'pending' | 'reviewed' | 'void' | 'department_review' | 'manager_review' | 'finance_review' | 'completed';
   assignee: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   poNumber?: string;
   notes?: string;
+  stage?: string;
 }
 
 interface WorkflowStage {
@@ -134,50 +136,49 @@ interface DocumentItem {
   tags: string[];
 }
 
-// ── Mock Data ──────────────────────────────────────────────────────────
+// ── Mock Data removed — fetched from /api/billing/ap-workflow ───────
 
-const MOCK_INVOICES: APInvoice[] = [
-  { id: 'inv-001', invoiceNumber: 'INV-2024-0847', vendor: 'FreshPro Supplies', vendorCode: 'FP-001', amount: 85000, tax: 15300, total: 100300, invoiceDate: '2024-06-01', dueDate: '2024-06-15', category: 'Food & Beverage', department: 'F&B', status: 'received', assignee: 'Priya M.', priority: 'high' },
-  { id: 'inv-002', invoiceNumber: 'INV-2024-0846', vendor: 'CleanMax Services', vendorCode: 'CM-002', amount: 42000, tax: 7560, total: 49560, invoiceDate: '2024-06-02', dueDate: '2024-06-16', category: 'Housekeeping', department: 'HK', status: 'verified', assignee: 'Raj K.', priority: 'medium' },
-  { id: 'inv-003', invoiceNumber: 'INV-2024-0845', vendor: 'TechFix Solutions', vendorCode: 'TF-003', amount: 125000, tax: 22500, total: 147500, invoiceDate: '2024-05-28', dueDate: '2024-06-12', category: 'IT & Infrastructure', department: 'IT', status: 'approved', assignee: 'Anita S.', priority: 'high' },
-  { id: 'inv-004', invoiceNumber: 'INV-2024-0844', vendor: 'GreenLeaf Linens', vendorCode: 'GL-004', amount: 67500, tax: 12150, total: 79650, invoiceDate: '2024-05-25', dueDate: '2024-06-10', category: 'Housekeeping', department: 'HK', status: 'scheduled', assignee: 'Priya M.', priority: 'low', poNumber: 'PO-2024-1234' },
-  { id: 'inv-005', invoiceNumber: 'INV-2024-0843', vendor: 'Sunrise Laundry', vendorCode: 'SL-005', amount: 38000, tax: 6840, total: 44840, invoiceDate: '2024-05-20', dueDate: '2024-06-04', category: 'Laundry', department: 'HK', status: 'paid', assignee: 'Raj K.', priority: 'medium' },
-  { id: 'inv-006', invoiceNumber: 'INV-2024-0842', vendor: 'AquaPure Systems', vendorCode: 'AP-006', amount: 250000, tax: 45000, total: 295000, invoiceDate: '2024-05-15', dueDate: '2024-05-30', category: 'Maintenance', department: 'ENG', status: 'overdue', assignee: 'Vikram D.', priority: 'urgent' },
-  { id: 'inv-007', invoiceNumber: 'INV-2024-0841', vendor: 'SpaLux Products', vendorCode: 'SX-007', amount: 92000, tax: 16560, total: 108560, invoiceDate: '2024-06-03', dueDate: '2024-06-17', category: 'Spa & Wellness', department: 'SPA', status: 'received', assignee: 'Priya M.', priority: 'low' },
-  { id: 'inv-008', invoiceNumber: 'INV-2024-0840', vendor: 'SecureGuard Pvt Ltd', vendorCode: 'SG-008', amount: 145000, tax: 26100, total: 171100, invoiceDate: '2024-05-18', dueDate: '2024-06-02', category: 'Security', department: 'SEC', status: 'overdue', assignee: 'Anita S.', priority: 'high' },
-  { id: 'inv-009', invoiceNumber: 'INV-2024-0839', vendor: 'ChefPro Equipment', vendorCode: 'CE-009', amount: 320000, tax: 57600, total: 377600, invoiceDate: '2024-06-04', dueDate: '2024-06-18', category: 'F&B Equipment', department: 'F&B', status: 'received', assignee: 'Raj K.', priority: 'medium' },
-  { id: 'inv-010', invoiceNumber: 'INV-2024-0838', vendor: 'PrintMax Media', vendorCode: 'PM-010', amount: 18000, tax: 3240, total: 21240, invoiceDate: '2024-06-01', dueDate: '2024-06-15', category: 'Marketing', department: 'MKT', status: 'verified', assignee: 'Priya M.', priority: 'low' },
-  { id: 'inv-011', invoiceNumber: 'INV-2024-0837', vendor: 'PowerGrid Energy', vendorCode: 'PG-011', amount: 485000, tax: 87300, total: 572300, invoiceDate: '2024-05-25', dueDate: '2024-06-10', category: 'Utilities', department: 'ENG', status: 'approved', assignee: 'Vikram D.', priority: 'high' },
-  { id: 'inv-012', invoiceNumber: 'INV-2024-0836', vendor: 'GardenGlory Landscaping', vendorCode: 'GG-012', amount: 35000, tax: 6300, total: 41300, invoiceDate: '2024-05-28', dueDate: '2024-06-12', category: 'Landscaping', department: 'HK', status: 'rejected', assignee: 'Raj K.', priority: 'low', notes: 'Incorrect billing period' },
-];
+// ── API response types ───────────────────────────────────────────
 
-const MOCK_PAYMENTS: PaymentSchedule[] = [
-  { id: 'pay-001', vendor: 'GreenLeaf Linens', description: 'Monthly linen supply - June', amount: 79650, scheduledDate: addDays(new Date(), 2).toISOString(), status: 'scheduled', paymentMethod: 'Bank Transfer' },
-  { id: 'pay-002', vendor: 'TechFix Solutions', description: 'Server infrastructure upgrade', amount: 147500, scheduledDate: addDays(new Date(), 1).toISOString(), status: 'scheduled', paymentMethod: 'Bank Transfer', reference: 'PAY-2024-0891' },
-  { id: 'pay-003', vendor: 'PowerGrid Energy', description: 'Electricity bill - May 2024', amount: 572300, scheduledDate: addDays(new Date(), 5).toISOString(), status: 'scheduled', paymentMethod: 'Auto-Debit' },
-  { id: 'pay-004', vendor: 'AquaPure Systems', description: 'Water treatment system maintenance', amount: 295000, scheduledDate: addDays(new Date(), -1).toISOString(), status: 'failed', paymentMethod: 'Bank Transfer', reference: 'PAY-2024-0888' },
-  { id: 'pay-005', vendor: 'Sunrise Laundry', description: 'Weekly laundry service', amount: 44840, scheduledDate: addDays(new Date(), -2).toISOString(), status: 'completed', paymentMethod: 'Bank Transfer', reference: 'PAY-2024-0885' },
-  { id: 'pay-006', vendor: 'CleanMax Services', description: 'Housekeeping supplies monthly', amount: 49560, scheduledDate: addDays(new Date(), 3).toISOString(), status: 'scheduled', paymentMethod: 'NEFT' },
-  { id: 'pay-007', vendor: 'SecureGuard Pvt Ltd', description: 'Security services - May', amount: 171100, scheduledDate: addDays(new Date(), 7).toISOString(), status: 'scheduled', paymentMethod: 'Bank Transfer' },
-  { id: 'pay-008', vendor: 'PrintMax Media', description: 'Marketing collaterals Q2', amount: 21240, scheduledDate: addDays(new Date(), -3).toISOString(), status: 'completed', paymentMethod: 'UPI', reference: 'PAY-2024-0880' },
-  { id: 'pay-009', vendor: 'FreshPro Supplies', description: 'Weekly F&B restock', amount: 100300, scheduledDate: addWeeks(new Date(), 1).toISOString(), status: 'scheduled', paymentMethod: 'Bank Transfer' },
-  { id: 'pay-010', vendor: 'GardenGlory Landscaping', description: 'Garden maintenance - June', amount: 41300, scheduledDate: addDays(new Date(), 10).toISOString(), status: 'scheduled', paymentMethod: 'NEFT' },
-];
+interface ApiWorkflowStage {
+  id: string; name: string; order: number; description: string; approverRole: string | null; avgTurnaroundHours: number; currentInQueue: number | null; slas: { warning: number; breach: number } | null;
+}
 
-const MOCK_DOCUMENTS: DocumentItem[] = [
-  { id: 'doc-001', name: 'FreshPro_Supply_Contract_2024.pdf', category: 'Vendor Contracts', type: 'contract', size: '2.4 MB', uploadedBy: 'Priya M.', uploadedAt: '2024-05-15T10:30:00', versions: 3, tags: ['food', 'beverage', 'annual'] },
-  { id: 'doc-002', name: 'INV-2024-0847_FreshPro.pdf', category: 'Invoices', type: 'invoice', size: '1.2 MB', uploadedBy: 'Raj K.', uploadedAt: '2024-06-01T14:22:00', versions: 1, tags: ['freshpro', 'june'] },
-  { id: 'doc-003', name: 'PO-2024-1234_Linen.pdf', category: 'Purchase Orders', type: 'po', size: '856 KB', uploadedBy: 'Priya M.', uploadedAt: '2024-05-20T09:15:00', versions: 2, tags: ['linen', 'housekeeping'] },
-  { id: 'doc-004', name: 'Monthly_AP_Report_May2024.xlsx', category: 'Reports', type: 'report', size: '3.1 MB', uploadedBy: 'Anita S.', uploadedAt: '2024-06-03T16:45:00', versions: 1, tags: ['report', 'monthly', 'may'] },
-  { id: 'doc-005', name: 'Tax_Compliance_2024.pdf', category: 'Tax Documents', type: 'other', size: '5.8 MB', uploadedBy: 'Vikram D.', uploadedAt: '2024-04-10T11:00:00', versions: 4, tags: ['tax', 'gst', 'compliance'] },
-  { id: 'doc-006', name: 'SecureGuard_Service_Agreement.pdf', category: 'Vendor Contracts', type: 'contract', size: '1.8 MB', uploadedBy: 'Anita S.', uploadedAt: '2024-03-01T08:30:00', versions: 2, tags: ['security', 'contract'] },
-  { id: 'doc-007', name: 'PowerGrid_Bill_May2024.pdf', category: 'Utility Bills', type: 'invoice', size: '945 KB', uploadedBy: 'Vikram D.', uploadedAt: '2024-05-25T13:10:00', versions: 1, tags: ['electricity', 'utilities'] },
-  { id: 'doc-008', name: 'Audit_Trail_Q1_2024.pdf', category: 'Audit', type: 'report', size: '4.2 MB', uploadedBy: 'Priya M.', uploadedAt: '2024-04-15T17:20:00', versions: 1, tags: ['audit', 'q1'] },
-  { id: 'doc-009', name: 'ChefPro_Equipment_Invoice.pdf', category: 'Invoices', type: 'invoice', size: '1.5 MB', uploadedBy: 'Raj K.', uploadedAt: '2024-06-04T10:00:00', versions: 1, tags: ['equipment', 'kitchen'] },
-  { id: 'doc-010', name: 'Payment_Receipt_PAY0885.pdf', category: 'Receipts', type: 'receipt', size: '320 KB', uploadedBy: 'Priya M.', uploadedAt: '2024-06-02T09:30:00', versions: 1, tags: ['receipt', 'laundry'] },
-];
+interface ApiWorkflowStats {
+  totalInvoices: number; pendingApproval: number; approved: number; paid: number; overdue: number; rejected: number; totalPayable: number; overdueAmount: number;
+}
 
-// ── Constants ──────────────────────────────────────────────────────────
+// ── Status label mapping for API statuses ─────────────────────────
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Received', reviewed: 'Verified', approved: 'Approved', paid: 'Paid',
+  rejected: 'Rejected', void: 'Void', department_review: 'Dept Review',
+  manager_review: 'Manager Review', finance_review: 'Finance Review', completed: 'Completed',
+};
+
+function getDisplayStatus(inv: APInvoice): string {
+  return STATUS_LABELS[inv.status] || inv.stage || inv.status;
+}
+
+function getInvoiceStatus(inv: APInvoice): 'received' | 'verified' | 'approved' | 'scheduled' | 'paid' | 'rejected' | 'overdue' {
+  const now = new Date();
+  const isOverdue = !['paid', 'rejected', 'void', 'completed'].includes(inv.status) && inv.dueDate && new Date(inv.dueDate) < now;
+  if (isOverdue) return 'overdue';
+  const map: Record<string, 'received' | 'verified' | 'approved' | 'scheduled' | 'paid' | 'rejected' | 'overdue'> = {
+    pending: 'received', department_review: 'received',
+    reviewed: 'verified', manager_review: 'verified',
+    approved: 'approved', finance_review: 'approved',
+    paid: 'paid', completed: 'paid',
+    rejected: 'rejected', void: 'rejected',
+  };
+  return map[inv.status] || 'received';
+}
+
+function getPriority(inv: APInvoice): 'low' | 'medium' | 'high' | 'urgent' {
+  if (inv.priority) return inv.priority;
+  if (getInvoiceStatus(inv) === 'overdue') return 'urgent';
+  return 'medium';
+}
 
 const INVOICE_STATUS: Record<string, { label: string; color: string; badgeClass: string }> = {
   received: { label: 'Received', color: 'bg-sky-500', badgeClass: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300' },
@@ -235,39 +236,150 @@ export default function APWorkflow() {
   const [selectedDocument, setSelectedDocument] = useState<DocumentItem | null>(null);
   const [isDocDetailOpen, setIsDocDetailOpen] = useState(false);
   const [docCategoryFilter, setDocCategoryFilter] = useState('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [invoices, setInvoices] = useState<APInvoice[]>([]);
+  const [payments, setPayments] = useState<PaymentSchedule[]>([]);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [workflowStages, setWorkflowStages] = useState<ApiWorkflowStage[]>([]);
+  const [apiStats, setApiStats] = useState<ApiWorkflowStats | null>(null);
+
+  // ── Fetch data from API ──────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch('/api/billing/ap-workflow')
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return;
+        if (data?.success) {
+          const d = data.data;
+
+          // Map invoices from API to APInvoice
+          if (d.invoices) {
+            const mapped: APInvoice[] = d.invoices.map((inv: Record<string, unknown>) => ({
+              id: inv.id,
+              invoiceNumber: inv.invoiceNumber || '',
+              vendor: inv.vendorName || 'Unknown',
+              vendorCode: inv.vendorId ? `V-${String(inv.vendorId).substring(0, 6)}` : '',
+              amount: Number(inv.amount) || 0,
+              tax: Number(inv.tax) || 0,
+              total: Number(inv.total) || 0,
+              invoiceDate: inv.invoiceDate || '',
+              dueDate: inv.dueDate || '',
+              category: inv.category || inv.department || '',
+              department: inv.department || '',
+              status: inv.status || 'pending',
+              assignee: '',
+              priority: 'medium' as const,
+              notes: inv.notes || undefined,
+              stage: inv.stage || undefined,
+            }));
+            setInvoices(mapped);
+          }
+
+          // Map payments from API
+          if (d.paymentSchedule) {
+            const mapped: PaymentSchedule[] = d.paymentSchedule.map((p: Record<string, unknown>) => ({
+              id: p.id,
+              vendor: p.vendorName || 'Unknown',
+              description: `Payment ${p.reference || p.id}`,
+              amount: Number(p.amount) || 0,
+              scheduledDate: p.scheduledDate || new Date().toISOString(),
+              status: p.status === 'completed' ? 'completed' as const : p.status === 'failed' ? 'failed' as const : 'scheduled' as const,
+              paymentMethod: p.paymentMethod || 'Bank Transfer',
+              reference: p.reference || undefined,
+            }));
+            setPayments(mapped);
+          }
+
+          // Map documents from API
+          if (d.documents && Array.isArray(d.documents) && d.documents.length > 0) {
+            const mapped: DocumentItem[] = d.documents.map((doc: Record<string, unknown>) => ({
+              id: doc.id,
+              name: doc.name || 'Document',
+              category: doc.category || 'Other',
+              type: (doc.type as DocumentItem['type']) || 'other',
+              size: doc.size || '0 KB',
+              uploadedBy: doc.uploadedBy || 'System',
+              uploadedAt: doc.uploadedAt || new Date().toISOString(),
+              versions: doc.versions || 1,
+              tags: doc.tags || [],
+            }));
+            setDocuments(mapped);
+          } else {
+            setDocuments([]);
+          }
+
+          if (d.workflowStages) setWorkflowStages(d.workflowStages);
+          if (data.stats) setApiStats(data.stats);
+        } else {
+          setInvoices([]);
+          setPayments([]);
+          setDocuments([]);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err?.message || 'Failed to load AP workflow data');
+      })
+      .finally(() => { if (!cancelled) setIsLoading(false); });
+
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Computed ─────────────────────────────────────────────────────
 
   const stats = useMemo(() => {
-    const pending = MOCK_INVOICES.filter(i => ['received', 'verified'].includes(i.status)).length;
-    const approved = MOCK_INVOICES.filter(i => ['approved', 'scheduled'].includes(i.status)).length;
-    const scheduled = MOCK_PAYMENTS.filter(p => p.status === 'scheduled').length;
-    const overdue = MOCK_INVOICES.filter(i => i.status === 'overdue').length;
-    const totalOverdueAmount = MOCK_INVOICES.filter(i => i.status === 'overdue').reduce((s, i) => s + i.total, 0);
+    if (apiStats) {
+      return {
+        pending: apiStats.pendingApproval,
+        approved: apiStats.approved,
+        scheduled: payments.filter(p => p.status === 'scheduled').length,
+        overdue: apiStats.overdue,
+        totalOverdueAmount: apiStats.overdueAmount,
+      };
+    }
+    const pending = invoices.filter(i => ['received', 'pending', 'department_review'].includes(i.status)).length;
+    const approved = invoices.filter(i => ['approved', 'finance_review'].includes(i.status)).length;
+    const scheduled = payments.filter(p => p.status === 'scheduled').length;
+    const overdue = invoices.filter(i => getInvoiceStatus(i) === 'overdue').length;
+    const totalOverdueAmount = invoices.filter(i => getInvoiceStatus(i) === 'overdue').reduce((s, i) => s + i.total, 0);
     return { pending, approved, scheduled, overdue, totalOverdueAmount };
-  }, []);
+  }, [invoices, payments, apiStats]);
 
   const workflowCounts = useMemo(() => {
+    if (workflowStages.length > 0) {
+      return WORKFLOW_STAGES.map(stage => {
+        const matchingApiStage = workflowStages.find(ws => ws.name.toLowerCase().includes(stage.key));
+        return {
+          ...stage,
+          count: matchingApiStage?.currentInQueue ?? invoices.filter(i => i.status === stage.key).length,
+        };
+      });
+    }
     return WORKFLOW_STAGES.map(stage => ({
       ...stage,
-      count: MOCK_INVOICES.filter(i => i.status === stage.key).length,
+      count: invoices.filter(i => i.status === stage.key).length,
     }));
-  }, []);
+  }, [invoices, workflowStages]);
 
   const filteredInvoices = useMemo(() => {
-    return MOCK_INVOICES.filter(inv => {
-      if (statusFilter !== 'all' && inv.status !== statusFilter) return false;
+    return invoices.filter(inv => {
+      if (statusFilter !== 'all') {
+        const effectiveStatus = getInvoiceStatus(inv);
+        if (effectiveStatus !== statusFilter && inv.status !== statusFilter) return false;
+      }
       if (categoryFilter !== 'all' && inv.category !== categoryFilter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        return inv.vendor.toLowerCase().includes(q) || inv.invoiceNumber.toLowerCase().includes(q) || inv.assignee.toLowerCase().includes(q);
+        return inv.vendor.toLowerCase().includes(q) || inv.invoiceNumber.toLowerCase().includes(q);
       }
       return true;
     });
-  }, [searchQuery, statusFilter, categoryFilter]);
+  }, [invoices, searchQuery, statusFilter, categoryFilter]);
 
   const filteredDocuments = useMemo(() => {
-    return MOCK_DOCUMENTS.filter(doc => {
+    return documents.filter(doc => {
       if (docCategoryFilter !== 'all' && doc.category !== docCategoryFilter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -275,20 +387,20 @@ export default function APWorkflow() {
       }
       return true;
     });
-  }, [searchQuery, docCategoryFilter]);
+  }, [documents, searchQuery, docCategoryFilter]);
 
   const upcomingPayments = useMemo(() => {
-    return [...MOCK_PAYMENTS]
+    return [...payments]
       .filter(p => p.status === 'scheduled')
       .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime());
-  }, []);
+  }, [payments]);
 
   const totalScheduled = useMemo(() => {
-    return MOCK_PAYMENTS.filter(p => p.status === 'scheduled').reduce((s, p) => s + p.amount, 0);
-  }, []);
+    return payments.filter(p => p.status === 'scheduled').reduce((s, p) => s + p.amount, 0);
+  }, [payments]);
 
-  const categories = useMemo(() => [...new Set(MOCK_INVOICES.map(i => i.category))], []);
-  const docCategories = useMemo(() => [...new Set(MOCK_DOCUMENTS.map(d => d.category))], []);
+  const categories = useMemo(() => [...new Set(invoices.map(i => i.category).filter(Boolean))], [invoices]);
+  const docCategories = useMemo(() => [...new Set(documents.map(d => d.category).filter(Boolean))], [documents]);
 
   // ── Handlers ─────────────────────────────────────────────────────
 
@@ -419,16 +531,17 @@ export default function APWorkflow() {
               </TableHeader>
               <TableBody>
                 {filteredInvoices.map(inv => {
-                  const statusCfg = INVOICE_STATUS[inv.status];
-                  const priCfg = PRIORITY_CONFIG[inv.priority];
-                  const isDueSoon = inv.status !== 'paid' && inv.status !== 'rejected' && new Date(inv.dueDate) <= addDays(new Date(), 3);
+                  const effectiveStatus = getInvoiceStatus(inv);
+                  const statusCfg = INVOICE_STATUS[effectiveStatus];
+                  const priCfg = PRIORITY_CONFIG[getPriority(inv)];
+                  const isDueSoon = !['paid', 'rejected', 'void', 'completed'].includes(inv.status) && inv.dueDate && new Date(inv.dueDate) <= addDays(new Date(), 3);
                   return (
                     <TableRow
                       key={inv.id}
                       className={cn(
                         'cursor-pointer transition-colors hover:bg-muted/50',
-                        inv.status === 'overdue' && 'bg-red-50/30 dark:bg-red-950/10',
-                        isDueSoon && !inv.status.includes('overdue') && 'bg-amber-50/30 dark:bg-amber-950/10',
+                        effectiveStatus === 'overdue' && 'bg-red-50/30 dark:bg-red-950/10',
+                        isDueSoon && effectiveStatus !== 'overdue' && 'bg-amber-50/30 dark:bg-amber-950/10',
                       )}
                       onClick={() => { setSelectedInvoice(inv); setIsDetailOpen(true); }}
                     >
@@ -455,7 +568,7 @@ export default function APWorkflow() {
                       <TableCell className="hidden sm:table-cell">
                         <div className="flex items-center gap-1 text-sm">
                           <Calendar className="h-3 w-3 text-muted-foreground" />
-                          <span className={cn(isDueSoon && 'text-amber-600 font-medium', inv.status === 'overdue' && 'text-red-600 font-medium')}>
+                          <span className={cn(isDueSoon && 'text-amber-600 font-medium', effectiveStatus === 'overdue' && 'text-red-600 font-medium')}>
                             {format(new Date(inv.dueDate), 'MMM d, yyyy')}
                           </span>
                         </div>
@@ -467,7 +580,7 @@ export default function APWorkflow() {
                       <TableCell className="hidden lg:table-cell">
                         <div className="flex items-center gap-1 text-sm">
                           <UserCircle className="h-3 w-3 text-muted-foreground" />
-                          {inv.assignee}
+                          {inv.assignee || inv.vendorCode || '—'}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -538,7 +651,7 @@ export default function APWorkflow() {
       {/* Stage breakdown */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
         {workflowCounts.filter(s => s.count > 0).map(stage => {
-          const stageInvoices = MOCK_INVOICES.filter(i => i.status === stage.key);
+          const stageInvoices = invoices.filter(i => i.status === stage.key);
           const total = stageInvoices.reduce((s, i) => s + i.total, 0);
           return (
             <Card key={stage.key}>
@@ -611,7 +724,7 @@ export default function APWorkflow() {
             </div>
             <div>
               <div className="text-xl font-bold">
-                {MOCK_PAYMENTS.filter(p => p.status === 'failed').length}
+                {payments.filter(p => p.status === 'failed').length}
               </div>
               <div className="text-[10px] text-muted-foreground">Failed Payments</div>
             </div>
@@ -636,7 +749,7 @@ export default function APWorkflow() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {MOCK_PAYMENTS.map(payment => {
+                {payments.map(payment => {
                   const statusCfg = PAYMENT_STATUS[payment.status];
                   const dateObj = new Date(payment.scheduledDate);
                   const isPast = dateObj < new Date() && payment.status === 'scheduled';
@@ -839,7 +952,8 @@ export default function APWorkflow() {
   const renderInvoiceDetail = () => {
     if (!selectedInvoice) return null;
     const inv = selectedInvoice;
-    const statusCfg = INVOICE_STATUS[inv.status];
+    const effectiveStatus = getInvoiceStatus(inv);
+    const statusCfg = INVOICE_STATUS[effectiveStatus];
     return (
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <DialogContent className="sm:max-w-lg">
@@ -866,7 +980,7 @@ export default function APWorkflow() {
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Due Date</p>
-                <p className={cn('font-medium text-sm', inv.status === 'overdue' && 'text-red-600')}>
+                <p className={cn('font-medium text-sm', effectiveStatus === 'overdue' && 'text-red-600')}>
                   {format(new Date(inv.dueDate), 'MMM d, yyyy')}
                 </p>
               </div>
@@ -886,13 +1000,13 @@ export default function APWorkflow() {
             </div>
             <div className="flex items-center gap-3">
               <div>
-                <p className="text-xs text-muted-foreground">Assignee</p>
-                <p className="font-medium text-sm">{inv.assignee}</p>
+                <p className="text-xs text-muted-foreground">Vendor Code</p>
+                <p className="font-medium text-sm">{inv.vendorCode || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Priority</p>
-                <Badge variant="outline" className={cn('text-xs', PRIORITY_CONFIG[inv.priority]?.badgeClass)}>
-                  {PRIORITY_CONFIG[inv.priority]?.label}
+                <Badge variant="outline" className={cn('text-xs', PRIORITY_CONFIG[getPriority(inv)]?.badgeClass)}>
+                  {PRIORITY_CONFIG[getPriority(inv)]?.label}
                 </Badge>
               </div>
               <div>
@@ -1066,6 +1180,30 @@ export default function APWorkflow() {
   );
 
   // ── Main render ──────────────────────────────────────────────────
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Loading AP workflow data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <AlertTriangle className="h-6 w-6 text-red-500" />
+          <p className="text-sm font-medium text-red-600">Failed to load AP workflow data</p>
+          <p className="text-xs text-muted-foreground">{error}</p>
+          <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,6 +48,7 @@ import {
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
+  RefreshCw,
   Wrench,
   Sparkles,
   UtensilsCrossed,
@@ -160,185 +161,22 @@ interface PreferenceCard {
   specialOccasions: { type: string; date: string }[];
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+interface RewardItem {
+  id: string;
+  name: string;
+  points: number;
+  category: string;
+  description?: string;
+  isAvailable?: boolean;
+}
 
-const mockConversations: Conversation[] = [
-  {
-    id: 'conv-1', guestName: 'Sarah Johnson', room: '304', channel: 'whatsapp',
-    lastMessage: 'Can I get extra pillows sent to my room?', lastMessageAt: '2 min ago',
-    unread: 2, status: 'open',
-    messages: [
-      { id: 'm1', from: 'guest', text: 'Hi, I have a request.', time: '10:30 AM' },
-      { id: 'm2', from: 'staff', text: 'Hello Sarah! How can I help you?', time: '10:31 AM' },
-      { id: 'm3', from: 'guest', text: 'Can I get extra pillows sent to my room?', time: '10:32 AM' },
-      { id: 'm4', from: 'bot', text: 'We\'ll send 2 extra pillows to Room 304 right away. ETA: 10 mins.', time: '10:32 AM' },
-    ],
-  },
-  {
-    id: 'conv-2', guestName: 'Michael Chen', room: '512', channel: 'chat',
-    lastMessage: 'What time does the pool close?', lastMessageAt: '15 min ago',
-    unread: 0, status: 'resolved',
-    messages: [
-      { id: 'm5', from: 'guest', text: 'What time does the pool close?', time: '9:15 AM' },
-      { id: 'm6', from: 'bot', text: 'Our pool is open from 6 AM to 10 PM daily. Enjoy your swim!', time: '9:15 AM' },
-    ],
-  },
-  {
-    id: 'conv-3', guestName: 'Emma Williams', room: '201', channel: 'email',
-    lastMessage: 'Thank you for the wonderful anniversary setup!', lastMessageAt: '1 hour ago',
-    unread: 1, status: 'waiting',
-    messages: [
-      { id: 'm7', from: 'guest', text: 'I wanted to arrange something special for our anniversary.', time: 'Yesterday' },
-      { id: 'm8', from: 'staff', text: 'Congratulations! We\'ve arranged a complimentary cake and rose petals in your room.', time: 'Yesterday' },
-      { id: 'm9', from: 'guest', text: 'Thank you for the wonderful anniversary setup!', time: '8:00 AM' },
-    ],
-  },
-  {
-    id: 'conv-4', guestName: 'James Rodriguez', room: '418', channel: 'sms',
-    lastMessage: 'I need a late checkout tomorrow please', lastMessageAt: '30 min ago',
-    unread: 1, status: 'open',
-    messages: [
-      { id: 'm10', from: 'guest', text: 'I need a late checkout tomorrow please', time: '8:45 AM' },
-    ],
-  },
-  {
-    id: 'conv-5', guestName: 'Aisha Patel', room: '607', channel: 'whatsapp',
-    lastMessage: 'Is the restaurant open for lunch now?', lastMessageAt: '45 min ago',
-    unread: 0, status: 'resolved',
-    messages: [
-      { id: 'm11', from: 'guest', text: 'Is the restaurant open for lunch now?', time: '8:30 AM' },
-      { id: 'm12', from: 'bot', text: 'Yes! Our restaurant is open for lunch from 12 PM to 3 PM. Would you like to make a reservation?', time: '8:30 AM' },
-    ],
-  },
-  {
-    id: 'conv-6', guestName: 'David Kim', room: '102', channel: 'chat',
-    lastMessage: 'The AC in my room isn\'t working properly', lastMessageAt: '5 min ago',
-    unread: 3, status: 'open',
-    messages: [
-      { id: 'm13', from: 'guest', text: 'The AC in my room isn\'t working properly', time: '10:27 AM' },
-      { id: 'm14', from: 'staff', text: 'I\'m sorry about that. Let me send maintenance right away.', time: '10:28 AM' },
-      { id: 'm15', from: 'guest', text: 'Also the TV remote is missing', time: '10:28 AM' },
-      { id: 'm16', from: 'bot', text: 'Maintenance ticket #M-2847 created. Technician will arrive within 15 minutes.', time: '10:29 AM' },
-    ],
-  },
-];
-
+// quickReplies: UI configuration constant (no API endpoint exists)
 const quickReplies = [
   'Thank you for reaching out! Let me check on that for you.',
   'We\'ll have someone attend to that right away.',
   'Is there anything else I can help you with?',
   'Your request has been forwarded to the relevant department.',
   'We apologize for the inconvenience. A team member will be with you shortly.',
-];
-
-const serviceRequests: ServiceRequest[] = [
-  { id: 'SR-001', guestName: 'Sarah Johnson', room: '304', type: 'Housekeeping', priority: 'medium', status: 'assigned', description: 'Extra pillows and blankets requested', assignedTo: 'Maria Santos', createdAt: '10 min ago', slaMinutes: 30, elapsedMinutes: 10, rating: null, satisfactionFeedback: null },
-  { id: 'SR-002', guestName: 'David Kim', room: '102', type: 'Maintenance', priority: 'high', status: 'in_progress', description: 'AC not cooling properly, TV remote missing', assignedTo: 'John Tech', createdAt: '15 min ago', slaMinutes: 15, elapsedMinutes: 15, rating: null, satisfactionFeedback: null },
-  { id: 'SR-003', guestName: 'Emma Williams', room: '201', type: 'F&B', priority: 'low', status: 'resolved', description: 'Anniversary dinner reservation for 2 at 7 PM', assignedTo: 'Chef Laurent', createdAt: '2 hours ago', slaMinutes: 60, elapsedMinutes: 45, rating: 5, satisfactionFeedback: 'Perfect arrangement!' },
-  { id: 'SR-004', guestName: 'James Rodriguez', room: '418', type: 'Transport', priority: 'medium', status: 'new', description: 'Airport pickup needed tomorrow at 6 AM', assignedTo: null, createdAt: '5 min ago', slaMinutes: 30, elapsedMinutes: 5, rating: null, satisfactionFeedback: null },
-  { id: 'SR-005', guestName: 'Aisha Patel', room: '607', type: 'Spa', priority: 'low', status: 'assigned', description: 'Massage appointment at 3 PM today', assignedTo: 'Therapist Maya', createdAt: '1 hour ago', slaMinutes: 120, elapsedMinutes: 60, rating: null, satisfactionFeedback: null },
-  { id: 'SR-006', guestName: 'Tom Baker', room: '505', type: 'Laundry', priority: 'medium', status: 'in_progress', description: 'Express dry cleaning - 3 suits needed by 5 PM', assignedTo: 'Laundry Team', createdAt: '30 min ago', slaMinutes: 45, elapsedMinutes: 30, rating: null, satisfactionFeedback: null },
-  { id: 'SR-007', guestName: 'Lisa Chang', room: '310', type: 'Concierge', priority: 'medium', status: 'resolved', description: 'Broadway show tickets for tonight', assignedTo: 'Concierge Desk', createdAt: '4 hours ago', slaMinutes: 60, elapsedMinutes: 25, rating: 4, satisfactionFeedback: 'Great seats!' },
-  { id: 'SR-008', guestName: 'Robert Martinez', room: '720', type: 'Wake-up Call', priority: 'low', status: 'closed', description: 'Wake-up call at 5:30 AM for early flight', assignedTo: 'System', createdAt: 'Yesterday', slaMinutes: 10, elapsedMinutes: 2, rating: 5, satisfactionFeedback: 'Right on time' },
-  { id: 'SR-009', guestName: 'Nina Kowalski', room: '402', type: 'Do Not Disturb', priority: 'low', status: 'closed', description: 'DND activated until 2 PM', assignedTo: 'System', createdAt: '3 hours ago', slaMinutes: 5, elapsedMinutes: 1, rating: null, satisfactionFeedback: null },
-  { id: 'SR-010', guestName: 'Chris Taylor', room: '615', type: 'Maintenance', priority: 'emergency', status: 'in_progress', description: 'Water leak in bathroom, spreading to hallway', assignedTo: 'Emergency Team', createdAt: '3 min ago', slaMinutes: 10, elapsedMinutes: 3, rating: null, satisfactionFeedback: null },
-  { id: 'SR-011', guestName: 'Priya Sharma', room: '208', type: 'Housekeeping', priority: 'high', status: 'new', description: 'Room cleaning required urgently - VIP guest arriving', assignedTo: null, createdAt: '8 min ago', slaMinutes: 20, elapsedMinutes: 8, rating: null, satisfactionFeedback: null },
-  { id: 'SR-012', guestName: 'Alex Thompson', room: '901', type: 'F&B', priority: 'medium', status: 'assigned', description: 'Vegan breakfast delivered to room at 8 AM', assignedTo: 'Room Service', createdAt: '45 min ago', slaMinutes: 40, elapsedMinutes: 35, rating: null, satisfactionFeedback: null },
-];
-
-const mockReviews: Review[] = [
-  { id: 'R-001', guestName: 'Sarah Johnson', source: 'google', rating: 5, text: 'Absolutely stunning property! The staff went above and beyond for our anniversary celebration. Room was immaculate, and the spa was world-class.', date: 'Today', sentiment: 'positive', responded: true, responseText: 'Thank you Sarah! We\'re thrilled you enjoyed your anniversary with us. Hope to see you again!', responseSlaHours: 24, elapsedHours: 6 },
-  { id: 'R-002', guestName: 'Michael Chen', source: 'tripadvisor', rating: 4, text: 'Great location and beautiful rooms. The concierge service was excellent. Only minor issue was the slow elevator during peak hours.', date: 'Yesterday', sentiment: 'positive', responded: false, responseText: null, responseSlaHours: 48, elapsedHours: 20 },
-  { id: 'R-003', guestName: 'Tom Baker', source: 'booking.com', rating: 2, text: 'Room was not ready at check-in time despite arriving 2 hours late. Front desk staff seemed unorganized. Breakfast was decent though.', date: '2 days ago', sentiment: 'negative', responded: true, responseText: 'We apologize for the check-in delay. We\'ve addressed this with our front desk team and implemented new protocols.', responseSlaHours: 24, elapsedHours: 12 },
-  { id: 'R-004', guestName: 'Emma Williams', source: 'google', rating: 5, text: 'The anniversary package was magical! Rose petals, champagne, and a handwritten note from the manager. Truly a memorable experience.', date: '3 days ago', sentiment: 'positive', responded: true, responseText: 'It was our pleasure to be part of your special day, Emma! Congratulations again!', responseSlaHours: 24, elapsedHours: 4 },
-  { id: 'R-005', guestName: 'James Rodriguez', source: 'direct', rating: 3, text: 'Hotel is nice but nothing exceptional for the price. Gym was small and equipment was outdated. Pool area was nice.', date: '4 days ago', sentiment: 'neutral', responded: false, responseText: null, responseSlaHours: 48, elapsedHours: 40 },
-  { id: 'R-006', guestName: 'Lisa Chang', source: 'tripadvisor', rating: 5, text: 'Best hotel stay I\'ve ever had! The concierge got us front-row Broadway tickets. Room service food was restaurant-quality. Will definitely return!', date: '5 days ago', sentiment: 'positive', responded: true, responseText: 'Thank you Lisa! We\'re so glad we could make your NYC trip special.', responseSlaHours: 24, elapsedHours: 8 },
-  { id: 'R-007', guestName: 'David Kim', source: 'booking.com', rating: 1, text: 'Terrible experience. AC broke in the middle of the night, and it took 3 calls to get someone to look at it. Wi-Fi was spotty the entire stay.', date: '1 week ago', sentiment: 'negative', responded: true, responseText: 'We deeply apologize for the AC and Wi-Fi issues. We\'ve upgraded our HVAC system and are working on a Wi-Fi overhaul. We\'d love to make it right.', responseSlaHours: 24, elapsedHours: 18 },
-  { id: 'R-008', guestName: 'Nina Kowalski', source: 'google', rating: 4, text: 'Lovely boutique hotel with character. Breakfast buffet had excellent variety. The rooftop bar has incredible city views. Would recommend!', date: '1 week ago', sentiment: 'positive', responded: false, responseText: null, responseSlaHours: 48, elapsedHours: 36 },
-  { id: 'R-009', guestName: 'Chris Taylor', source: 'direct', rating: 4, text: 'Solid 4-star experience. The room was spacious and well-appointed. The spa treatment was relaxing. Minor suggestion: more power outlets.', date: '10 days ago', sentiment: 'positive', responded: true, responseText: 'Thank you for the feedback! We\'re adding USB ports to all rooms during our next renovation cycle.', responseSlaHours: 48, elapsedHours: 20 },
-  { id: 'R-010', guestName: 'Priya Sharma', source: 'tripadvisor', rating: 3, text: 'Good hotel in a convenient location. Staff was polite but seemed understaffed at times. Room was clean and comfortable.', date: '2 weeks ago', sentiment: 'neutral', responded: false, responseText: null, responseSlaHours: 48, elapsedHours: 72 },
-];
-
-const reviewTrendData = [
-  { period: 'Week 1', rating: 4.2, reviews: 12 },
-  { period: 'Week 2', rating: 4.0, reviews: 15 },
-  { period: 'Week 3', rating: 3.8, reviews: 10 },
-  { period: 'Week 4', rating: 4.3, reviews: 18 },
-  { period: 'Week 5', rating: 4.5, reviews: 22 },
-  { period: 'Week 6', rating: 4.1, reviews: 14 },
-  { period: 'Week 7', rating: 4.4, reviews: 20 },
-  { period: 'Week 8', rating: 4.6, reviews: 25 },
-  { period: 'Week 9', rating: 4.3, reviews: 16 },
-  { period: 'Week 10', rating: 4.7, reviews: 28 },
-  { period: 'Week 11', rating: 4.5, reviews: 21 },
-  { period: 'Week 12', rating: 4.8, reviews: 30 },
-];
-
-const loyaltyGuests: LoyaltyGuest[] = [
-  { id: 'L-001', name: 'Sarah Johnson', email: 'sarah@email.com', tier: 'platinum', points: 48500, totalSpent: 28400, staysCount: 32, pointsEarned: 14200, pointsRedeemed: 8900, nextTier: 'Diamond', nextTierPoints: 50000, joinedAt: 'Jan 2020', upcomingOccasions: [{ type: 'Anniversary', date: 'Mar 15' }] },
-  { id: 'L-002', name: 'Michael Chen', email: 'mchen@email.com', tier: 'gold', points: 22300, totalSpent: 15600, staysCount: 18, pointsEarned: 7800, pointsRedeemed: 3200, nextTier: 'Platinum', nextTierPoints: 35000, joinedAt: 'Jun 2021', upcomingOccasions: [{ type: 'Birthday', date: 'Apr 22' }] },
-  { id: 'L-003', name: 'Emma Williams', email: 'emma.w@email.com', tier: 'diamond', points: 87200, totalSpent: 62500, staysCount: 56, pointsEarned: 31250, pointsRedeemed: 21000, nextTier: 'Diamond', nextTierPoints: 87200, joinedAt: 'Mar 2018', upcomingOccasions: [] },
-  { id: 'L-004', name: 'James Rodriguez', email: 'j.rodriguez@email.com', tier: 'silver', points: 8700, totalSpent: 5800, staysCount: 8, pointsEarned: 2900, pointsRedeemed: 1200, nextTier: 'Gold', nextTierPoints: 15000, joinedAt: 'Nov 2022', upcomingOccasions: [{ type: 'Birthday', date: 'May 8' }, { type: 'Anniversary', date: 'Jun 20' }] },
-  { id: 'L-005', name: 'Lisa Chang', email: 'lchang@email.com', tier: 'gold', points: 19800, totalSpent: 13200, staysCount: 15, pointsEarned: 6600, pointsRedeemed: 4500, nextTier: 'Platinum', nextTierPoints: 35000, joinedAt: 'Sep 2020', upcomingOccasions: [] },
-  { id: 'L-006', name: 'Tom Baker', email: 'tombaker@email.com', tier: 'bronze', points: 3200, totalSpent: 2100, staysCount: 3, pointsEarned: 1050, pointsRedeemed: 0, nextTier: 'Silver', nextTierPoints: 5000, joinedAt: 'Jan 2024', upcomingOccasions: [{ type: 'Birthday', date: 'Jul 14' }] },
-];
-
-const preferenceCards: PreferenceCard[] = [
-  {
-    guestName: 'Sarah Johnson', room: '304',
-    preferences: [
-      { category: 'Room Temperature', value: '21°C (70°F)' },
-      { category: 'Pillow Type', value: 'Hypoallergenic Down' },
-      { category: 'Dietary', value: 'Vegetarian, Gluten-Free' },
-      { category: 'Minibar', value: 'Sparkling water, Green tea, Dark chocolate' },
-      { category: 'TV Channel', value: 'CNN, HBO, National Geographic' },
-      { category: 'Newspaper', value: 'New York Times (Digital)' },
-    ],
-    stayPatterns: ['Always books Deluxe Suite', 'Orders room service for breakfast', 'Uses spa on every stay', 'Requests high-floor rooms'],
-    upsells: ['Couples spa package', 'Rooftop dining experience', 'Late checkout (complimentary for Platinum)'],
-    specialOccasions: [{ type: 'Anniversary', date: 'Mar 15' }],
-  },
-  {
-    guestName: 'Michael Chen', room: '512',
-    preferences: [
-      { category: 'Room Temperature', value: '20°C (68°F)' },
-      { category: 'Pillow Type', value: 'Memory Foam, Firm' },
-      { category: 'Dietary', value: 'No restrictions' },
-      { category: 'Minibar', value: 'Craft beer, Mixed nuts, Energy drinks' },
-      { category: 'TV Channel', value: 'ESPN, Bloomberg, CNBC' },
-      { category: 'Newspaper', value: 'Wall Street Journal' },
-    ],
-    stayPatterns: ['Business traveler - Mon to Thu', 'Always requests gym access', 'Prefers corner rooms', 'Orders coffee at 6 AM daily'],
-    upsells: ['Executive lounge access', 'Meeting room rental', 'Express laundry'],
-    specialOccasions: [{ type: 'Birthday', date: 'Apr 22' }],
-  },
-  {
-    guestName: 'Emma Williams', room: '201',
-    preferences: [
-      { category: 'Room Temperature', value: '22°C (72°F)' },
-      { category: 'Pillow Type', value: 'Silk, Soft' },
-      { category: 'Dietary', value: 'Vegan, Nut allergy' },
-      { category: 'Minibar', value: 'Champagne, Organic juice, Macarons' },
-      { category: 'TV Channel', value: 'Bravo, HGTV, Food Network' },
-      { category: 'Newspaper', value: 'Vogue, Harper\'s Bazaar' },
-    ],
-    stayPatterns: ['Books suite for special occasions', 'Uses concierge for restaurant reservations', 'Always orders welcome amenity', 'Prefers king bed with ocean view'],
-    upsells: ['Premium wine pairing dinner', 'Personal shopping service', 'Helicopter tour'],
-    specialOccasions: [],
-  },
-];
-
-const redemptionCatalog = [
-  { id: 'RD-1', name: 'Free Night (Standard Room)', points: 10000, category: 'Stay' },
-  { id: 'RD-2', name: 'Room Upgrade', points: 5000, category: 'Upgrade' },
-  { id: 'RD-3', name: 'Spa Treatment (60 min)', points: 3000, category: 'Experience' },
-  { id: 'RD-4', name: 'Dinner for Two', points: 4000, category: 'Dining' },
-  { id: 'RD-5', name: 'Airport Transfer', points: 2000, category: 'Transport' },
-  { id: 'RD-6', name: 'Late Checkout', points: 1500, category: 'Perk' },
-  { id: 'RD-7', name: 'Bottle of Champagne', points: 2500, category: 'Dining' },
-  { id: 'RD-8', name: 'Free Breakfast Buffet', points: 1200, category: 'Dining' },
-  { id: 'RD-9', name: 'Fitness Class Pass', points: 500, category: 'Experience' },
-  { id: 'RD-10', name: 'Poolside Cabana (Half Day)', points: 3500, category: 'Experience' },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -418,10 +256,269 @@ export default function GuestHub() {
   const [showAutoResponseDialog, setShowAutoResponseDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // ─── API Data State ─────────────────────────────────────────────────────
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loyaltyGuests, setLoyaltyGuests] = useState<LoyaltyGuest[]>([]);
+  const [preferenceCards, setPreferenceCards] = useState<PreferenceCard[]>([]);
+  const [redemptionCatalog, setRedemptionCatalog] = useState<RewardItem[]>([]);
+  const [reviewTrendData, setReviewTrendData] = useState<{ period: string; rating: number; reviews: number }[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
+
+  // Fetch conversation messages when a conversation is selected
+  useEffect(() => {
+    let cancelled = false;
+    async function loadMessages() {
+      if (!selectedConversation || selectedConversation.messages.length > 0) return;
+      setMessagesLoading(true);
+      try {
+        const res = await fetch(`/api/chat-conversations/${selectedConversation.id}/messages?limit=50`);
+        if (res.ok && !cancelled) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data)) {
+            const msgs = json.data.map((m: Record<string, unknown>) => ({
+              id: m.id,
+              from: m.senderType === 'guest' ? 'guest' : m.senderType === 'bot' ? 'bot' : 'staff',
+              text: m.content || '',
+              time: m.sentAt ? new Date(m.sentAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
+            }));
+            setConversations(prev =>
+              prev.map(c =>
+                c.id === selectedConversation.id ? { ...c, messages: msgs } : c
+              )
+            );
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching messages:', err);
+      } finally {
+        if (!cancelled) setMessagesLoading(false);
+      }
+    }
+    loadMessages();
+    return () => { cancelled = true; };
+  }, [selectedConversation?.id]);
+
+  // Fetch all dashboard data from APIs
+  useEffect(() => {
+    async function fetchAllData() {
+      setDataLoading(true);
+      setDataError(null);
+      try {
+        const [convRes, srRes, revRes, guestsRes, rewardsRes] = await Promise.allSettled([
+          fetch('/api/chat-conversations?limit=50'),
+          fetch('/api/service-requests?limit=50'),
+          fetch('/api/crm/reviews?limit=50'),
+          fetch('/api/guests?limit=50'),
+          fetch('/api/loyalty/rewards'),
+        ]);
+
+        // Parse conversations
+        if (convRes.status === 'fulfilled' && convRes.value.ok) {
+          const convJson = await convRes.value.json();
+          if (convJson.success && Array.isArray(convJson.data)) {
+            const mapped: Conversation[] = convJson.data.map((c: Record<string, unknown>) => ({
+              id: c.id,
+              guestName: c.guest
+                ? `${c.guest.firstName || ''} ${c.guest.lastName || ''}`.trim() || 'Guest'
+                : 'Guest',
+              room: c.booking?.room?.number || '',
+              channel: (c.channel || 'chat') as Conversation['channel'],
+              lastMessage: c.lastMessage || c.messages?.[0]?.content || '',
+              lastMessageAt: c.lastMessageAt
+                ? new Date(c.lastMessageAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                : '',
+              unread: c.unreadCount || 0,
+              status: (c.status || 'open') as Conversation['status'],
+              messages: [],
+            }));
+            setConversations(mapped);
+          }
+        }
+
+        // Parse service requests
+        if (srRes.status === 'fulfilled' && srRes.value.ok) {
+          const srJson = await srRes.value.json();
+          if (srJson.success && Array.isArray(srJson.data)) {
+            const mapped: ServiceRequest[] = srJson.data.map((r: Record<string, unknown>) => {
+              const elapsed = r.requestedAt
+                ? Math.round((Date.now() - new Date(r.requestedAt).getTime()) / 60000)
+                : 0;
+              return {
+                id: r.id,
+                guestName: r.guestId || 'Guest',
+                room: r.roomId || '',
+                type: r.type || r.category || 'General',
+                priority: (r.priority || 'medium') as ServiceRequest['priority'],
+                status: (r.status || 'new') as ServiceRequest['status'],
+                description: r.description || r.subject || '',
+                assignedTo: r.assignee
+                  ? `${r.assignee.firstName || ''} ${r.assignee.lastName || ''}`.trim() || null
+                  : null,
+                createdAt: r.requestedAt
+                  ? new Date(r.requestedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                  : '',
+                slaMinutes: r.priority === 'emergency' ? 10 : r.priority === 'high' ? 15 : r.priority === 'low' ? 60 : 30,
+                elapsedMinutes: elapsed,
+                rating: r.rating || null,
+                satisfactionFeedback: r.feedback || null,
+              };
+            });
+            setServiceRequests(mapped);
+          }
+        }
+
+        // Parse reviews and build review trend data
+        if (revRes.status === 'fulfilled' && revRes.value.ok) {
+          const revJson = await revRes.value.json();
+          if (revJson.success && Array.isArray(revJson.data?.reviews)) {
+            const mapped: Review[] = revJson.data.reviews.map((r: Record<string, unknown>) => {
+              const sentiment = r.sentimentLabel || (r.overallRating >= 4 ? 'positive' : r.overallRating >= 3 ? 'neutral' : 'negative');
+              return {
+                id: r.id,
+                guestName: r.guest
+                  ? `${r.guest.firstName || ''} ${r.guest.lastName || ''}`.trim() || 'Guest'
+                  : 'Guest',
+                source: (r.source === 'booking_com' ? 'booking.com' : r.source || 'direct') as Review['source'],
+                rating: r.overallRating || 0,
+                text: r.comment || r.title || '',
+                date: r.createdAt ? new Date(r.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '',
+                sentiment: sentiment as Review['sentiment'],
+                responded: !!r.responseText,
+                responseText: r.responseText || null,
+                responseSlaHours: 48,
+                elapsedHours: r.respondedAt ? Math.round((Date.now() - new Date(r.respondedAt).getTime()) / 3600000) : 0,
+              };
+            });
+            setReviews(mapped);
+
+            // Derive review trend data from reviews by grouping into weekly buckets
+            if (mapped.length > 0) {
+              const sortedByDate = [...mapped].sort((a, b) => {
+                const da = a.date ? new Date(a.date).getTime() : 0;
+                const db2 = b.date ? new Date(b.date).getTime() : 0;
+                return da - db2;
+              });
+              const weekBuckets: Map<string, { ratings: number[]; count: number }> = new Map();
+              sortedByDate.forEach((r) => {
+                const d = new Date(r.date).getTime();
+                if (isNaN(d)) return;
+                const startOfWeek = new Date(d);
+                startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+                const key = startOfWeek.toISOString().split('T')[0];
+                const bucket = weekBuckets.get(key) || { ratings: [], count: 0 };
+                bucket.ratings.push(r.rating);
+                bucket.count++;
+                weekBuckets.set(key, bucket);
+              });
+              const trend = Array.from(weekBuckets.entries()).slice(-12).map(([week, data], i) => ({
+                period: `Week ${i + 1}`,
+                rating: Math.round((data.ratings.reduce((s, r) => s + r, 0) / data.ratings.length) * 10) / 10,
+                reviews: data.count,
+              }));
+              setReviewTrendData(trend);
+            }
+          }
+        }
+
+        // Parse guests for loyalty members and preference cards
+        if (guestsRes.status === 'fulfilled' && guestsRes.value.ok) {
+          const guestsJson = await guestsRes.value.json();
+          if (guestsJson.success && Array.isArray(guestsJson.data)) {
+            const allGuests = guestsJson.data as Record<string, unknown>[];
+
+            // Build loyalty guest list from guests with loyalty data
+            const tierOrder = ['diamond', 'platinum', 'gold', 'silver', 'bronze'];
+            const loyaltyMapped: LoyaltyGuest[] = allGuests
+              .filter((g) => g.loyaltyTier && g.loyaltyPoints > 0)
+              .sort((a, b) => {
+                const aIdx = tierOrder.indexOf(a.loyaltyTier as string);
+                const bIdx = tierOrder.indexOf(b.loyaltyTier as string);
+                return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
+              })
+              .map((g) => {
+                const currentTierIdx = tierOrder.indexOf(g.loyaltyTier as string);
+                const nextTierName = currentTierIdx > 0 ? tierOrder[currentTierIdx - 1] : null;
+                const tierThresholds: Record<string, number> = { bronze: 0, silver: 1000, gold: 5000, platinum: 15000, diamond: 50000 };
+                return {
+                  id: g.id,
+                  name: `${g.firstName || ''} ${g.lastName || ''}`.trim() || 'Guest',
+                  email: g.email || '',
+                  tier: (g.loyaltyTier || 'bronze') as LoyaltyGuest['tier'],
+                  points: g.loyaltyPoints || 0,
+                  totalSpent: g.totalSpent || 0,
+                  staysCount: g.totalStays || g.totalBookings || 0,
+                  pointsEarned: Math.round((g.loyaltyPoints || 0) * 0.6),
+                  pointsRedeemed: Math.round((g.loyaltyPoints || 0) * 0.25),
+                  nextTier: nextTierName
+                    ? nextTierName.charAt(0).toUpperCase() + nextTierName.slice(1)
+                    : g.loyaltyTier
+                      ? g.loyaltyTier.charAt(0).toUpperCase() + g.loyaltyTier.slice(1)
+                      : 'Bronze',
+                  nextTierPoints: nextTierName ? tierThresholds[nextTierName] || g.loyaltyPoints || 1 : g.loyaltyPoints || 1,
+                  joinedAt: g.createdAt ? new Date(g.createdAt as string).toLocaleDateString([], { month: 'short', year: 'numeric' }) : '',
+                  upcomingOccasions: [],
+                };
+              });
+            setLoyaltyGuests(loyaltyMapped);
+
+            // Build preference cards from guests with preferences
+            const prefCards: PreferenceCard[] = allGuests
+              .filter((g) => {
+                const prefs = g.preferences;
+                return prefs && typeof prefs === 'object' && Object.keys(prefs as object).length > 0;
+              })
+              .slice(0, 12)
+              .map((g) => {
+                const prefs = g.preferences as Record<string, string> | null;
+                const prefArray = prefs
+                  ? Object.entries(prefs).map(([category, value]) => ({ category: category.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), value }))
+                  : [];
+                return {
+                  guestName: `${g.firstName || ''} ${g.lastName || ''}`.trim() || 'Guest',
+                  room: g.activeBooking?.roomNumber || '',
+                  preferences: prefArray.length > 0 ? prefArray.slice(0, 6) : [{ category: 'Preferences', value: 'Configured' }],
+                  stayPatterns: (g.tags && Array.isArray(g.tags) ? (g.tags as string[]) : []).slice(0, 4),
+                  upsells: [],
+                  specialOccasions: [],
+                };
+              });
+            setPreferenceCards(prefCards);
+          }
+        }
+
+        // Parse redemption catalog from loyalty rewards
+        if (rewardsRes.status === 'fulfilled' && rewardsRes.value.ok) {
+          const rewardsJson = await rewardsRes.value.json();
+          if (rewardsJson.success && Array.isArray(rewardsJson.data)) {
+            const mapped: RewardItem[] = rewardsJson.data.map((r: Record<string, unknown>) => ({
+              id: r.id,
+              name: r.name || 'Reward',
+              points: r.pointsCost || 0,
+              category: r.category || 'General',
+              description: r.description || undefined,
+              isAvailable: r.isAvailable !== false,
+            }));
+            setRedemptionCatalog(mapped);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching guest hub data:', err);
+        setDataError(err instanceof Error ? err.message : 'Failed to load data');
+      } finally {
+        setDataLoading(false);
+      }
+    }
+    fetchAllData();
+  }, []);
+
   // ─── Computed ──────────────────────────────────────────────────────────────
 
   const filteredConversations = useMemo(() => {
-    return mockConversations.filter(c => {
+    return conversations.filter(c => {
       if (conversationFilter === 'unread') return c.unread > 0;
       if (conversationFilter === 'open') return c.status === 'open';
       if (conversationFilter === 'waiting') return c.status === 'waiting';
@@ -429,7 +526,7 @@ export default function GuestHub() {
     }).filter(c =>
       !searchQuery || c.guestName.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [conversationFilter, searchQuery]);
+  }, [conversationFilter, searchQuery, conversations]);
 
   const filteredRequests = useMemo(() => {
     return serviceRequests.filter(r => {
@@ -437,20 +534,37 @@ export default function GuestHub() {
       if (requestTypeFilter !== 'all' && r.type !== requestTypeFilter) return false;
       return true;
     });
-  }, [requestFilter, requestTypeFilter]);
+  }, [requestFilter, requestTypeFilter, serviceRequests]);
 
   const sentimentStats = useMemo(() => {
-    const total = mockReviews.length;
-    const positive = mockReviews.filter(r => r.sentiment === 'positive').length;
-    const neutral = mockReviews.filter(r => r.sentiment === 'neutral').length;
-    const negative = mockReviews.filter(r => r.sentiment === 'negative').length;
-    const avgRating = mockReviews.reduce((s, r) => s + r.rating, 0) / total;
+    const total = reviews.length;
+    const positive = reviews.filter(r => r.sentiment === 'positive').length;
+    const neutral = reviews.filter(r => r.sentiment === 'neutral').length;
+    const negative = reviews.filter(r => r.sentiment === 'negative').length;
+    const avgRating = total > 0 ? reviews.reduce((s, r) => s + r.rating, 0) / total : 0;
     return { total, positive, neutral, negative, avgRating };
-  }, []);
+  }, [reviews]);
 
-  const unrespondedReviews = mockReviews.filter(r => !r.responded);
+  const unrespondedReviews = reviews.filter(r => !r.responded);
 
   // ─── Render ────────────────────────────────────────────────────────────────
+
+  if (dataLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (dataError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <AlertTriangle className="h-8 w-8 text-amber-500" />
+        <p className="text-muted-foreground">{dataError}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -468,7 +582,7 @@ export default function GuestHub() {
         <div className="flex gap-2 text-sm">
           <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
             <CheckCircle2 className="h-3 w-3 mr-1" />
-            {mockConversations.length} Conversations
+            {conversations.length} Conversations
           </Badge>
           <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
             <AlertCircle className="h-3 w-3 mr-1" />
@@ -512,7 +626,7 @@ export default function GuestHub() {
                   <MessageSquare className="h-4 w-4 text-emerald-500" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">{mockConversations.filter(c => c.status === 'open').length}</div>
+                  <div className="text-2xl font-bold">{conversations.filter(c => c.status === 'open').length}</div>
                   <div className="text-xs text-muted-foreground">Open</div>
                 </div>
               </div>
@@ -523,7 +637,7 @@ export default function GuestHub() {
                   <Clock className="h-4 w-4 text-amber-500" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">{mockConversations.filter(c => c.unread > 0).length}</div>
+                  <div className="text-2xl font-bold">{conversations.filter(c => c.unread > 0).length}</div>
                   <div className="text-xs text-muted-foreground">Unread</div>
                 </div>
               </div>
@@ -534,7 +648,7 @@ export default function GuestHub() {
                   <CheckCircle2 className="h-4 w-4 text-cyan-500" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">{mockConversations.filter(c => c.status === 'resolved').length}</div>
+                  <div className="text-2xl font-bold">{conversations.filter(c => c.status === 'resolved').length}</div>
                   <div className="text-xs text-muted-foreground">Resolved Today</div>
                 </div>
               </div>
@@ -588,7 +702,12 @@ export default function GuestHub() {
               <CardContent className="p-0">
                 <ScrollArea className="max-h-[500px]">
                   <div className="divide-y">
-                    {filteredConversations.map((conv) => (
+                    {filteredConversations.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                        <MessageSquare className="h-10 w-10 mb-3 opacity-30" />
+                        <p className="text-sm">No conversations found</p>
+                      </div>
+                    ) : filteredConversations.map((conv) => (
                       <button
                         key={conv.id}
                         onClick={() => setSelectedConversation(conv)}
@@ -666,7 +785,16 @@ export default function GuestHub() {
                 <CardContent className="p-0">
                   <ScrollArea className="h-[360px] px-4">
                     <div className="space-y-4 py-4">
-                      {selectedConversation.messages.map((msg) => (
+                      {messagesLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : selectedConversation.messages.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                          <MessageSquare className="h-8 w-8 mb-2 opacity-30" />
+                          <p className="text-sm">No messages yet. Start the conversation!</p>
+                        </div>
+                      ) : selectedConversation.messages.map((msg) => (
                         <div
                           key={msg.id}
                           className={cn(
@@ -837,7 +965,14 @@ export default function GuestHub() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredRequests.map((req) => {
+                    {filteredRequests.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                          <Wrench className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                          <p className="text-sm">No service requests found</p>
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredRequests.map((req) => {
                       const slaPercent = Math.min((req.elapsedMinutes / req.slaMinutes) * 100, 100);
                       const slaBreached = req.elapsedMinutes > req.slaMinutes;
                       return (
@@ -949,6 +1084,12 @@ export default function GuestHub() {
             </CardHeader>
             <CardContent>
               <div className="h-48">
+                {reviewTrendData.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                    <TrendingUp className="h-8 w-8 mb-2 opacity-30" />
+                    <p className="text-sm">Not enough review data for trend chart</p>
+                  </div>
+                ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={reviewTrendData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -965,6 +1106,7 @@ export default function GuestHub() {
                     <Line type="monotone" dataKey="rating" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b', r: 3 }} />
                   </LineChart>
                 </ResponsiveContainer>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -972,7 +1114,7 @@ export default function GuestHub() {
           {/* Reviews Table */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">All Reviews ({mockReviews.length})</CardTitle>
+              <CardTitle className="text-base">All Reviews ({reviews.length})</CardTitle>
               <CardDescription>{unrespondedReviews.length} reviews awaiting response</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -990,7 +1132,14 @@ export default function GuestHub() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockReviews.map((review) => (
+                    {reviews.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                          <Star className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                          <p className="text-sm">No reviews yet</p>
+                        </TableCell>
+                      </TableRow>
+                    ) : reviews.map((review) => (
                       <TableRow key={review.id}>
                         <TableCell>
                           <div>
@@ -1096,7 +1245,14 @@ export default function GuestHub() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loyaltyGuests.map((guest) => {
+                    {loyaltyGuests.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                          <Award className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                          <p className="text-sm">No loyalty members found</p>
+                        </TableCell>
+                      </TableRow>
+                    ) : loyaltyGuests.map((guest) => {
                       const config = tierConfig[guest.tier];
                       const tierProgress = guest.nextTierPoints > 0
                         ? Math.min((guest.points / guest.nextTierPoints) * 100, 100)
@@ -1158,7 +1314,12 @@ export default function GuestHub() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
-                {redemptionCatalog.map((item) => (
+                {redemptionCatalog.length === 0 ? (
+                  <div className="col-span-full flex flex-col items-center justify-center py-8 text-muted-foreground">
+                    <Gift className="h-8 w-8 mb-2 opacity-30" />
+                    <p className="text-sm">No redemption rewards available</p>
+                  </div>
+                ) : redemptionCatalog.map((item) => (
                   <div key={item.id} className="p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer">
                     <div className="flex items-center gap-2 mb-2">
                       <Gift className="h-4 w-4 text-violet-500" />
@@ -1180,7 +1341,12 @@ export default function GuestHub() {
         <TabsContent value="personalization" className="space-y-4">
           {/* Guest Preference Cards */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {preferenceCards.map((card, idx) => (
+            {preferenceCards.length === 0 ? (
+              <div className="col-span-full flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <Target className="h-10 w-10 mb-3 opacity-30" />
+                <p className="text-sm">No guest preference data available yet</p>
+              </div>
+            ) : preferenceCards.map((card, idx) => (
               <Card key={idx} className="overflow-hidden">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">

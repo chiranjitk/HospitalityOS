@@ -16,7 +16,6 @@ import {
   ListChecks,
   X,
   AlertTriangle,
-  ChevronDown,
   User,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -72,20 +71,41 @@ const TASK_TYPE_CONFIG: Record<TaskType, { label: string; icon: string }> = {
   'maintenance-followup': { label: 'Maintenance', icon: '🔧' },
 };
 
-// ─── Mock data ──────────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────
 
-const INITIAL_TASKS: Task[] = [
-  { id: 'tt-1', title: 'Prepare Room 402 for VIP check-in (Mr. & Mrs. Chen)', assignee: 'Sarah M.', dueTime: '10:00 AM', priority: 'urgent', type: 'checkin-prep', completed: false },
-  { id: 'tt-2', title: 'Inspect Room 218 AC unit — guest complaint', assignee: 'Carlos R.', dueTime: '10:30 AM', priority: 'urgent', type: 'maintenance-followup', completed: false },
-  { id: 'tt-3', title: 'Restock welcome amenity baskets — Floor 5', assignee: 'Priya K.', dueTime: '11:00 AM', priority: 'normal', type: 'room-inspection', completed: false },
-  { id: 'tt-4', title: 'Extra pillows & hypoallergenic blankets — Room 311', assignee: 'Sarah M.', dueTime: '11:30 AM', priority: 'normal', type: 'guest-request', completed: true },
-  { id: 'tt-5', title: 'Follow up on lobby fountain repair work order', assignee: 'Carlos R.', dueTime: '12:00 PM', priority: 'low', type: 'maintenance-followup', completed: false },
-  { id: 'tt-6', title: 'Late check-out approval for Room 507 (Mr. Tanaka)', assignee: 'James L.', dueTime: '1:00 PM', priority: 'normal', type: 'guest-request', completed: false },
-  { id: 'tt-7', title: 'Final walkthrough of Suite 801 before wedding party', assignee: 'Priya K.', dueTime: '2:00 PM', priority: 'urgent', type: 'room-inspection', completed: false },
-  { id: 'tt-8', title: 'Replace hallway carpet tiles — Floor 2 corridor B', assignee: 'Carlos R.', dueTime: '3:00 PM', priority: 'low', type: 'maintenance-followup', completed: false },
-  { id: 'tt-9', title: 'Prepare group check-in packets — 12 rooms for Corporate Ltd', assignee: 'James L.', dueTime: '3:30 PM', priority: 'normal', type: 'checkin-prep', completed: true },
-  { id: 'tt-10', title: 'Verify fire exit signage on all floors', assignee: 'Priya K.', dueTime: '4:00 PM', priority: 'low', type: 'room-inspection', completed: false },
-];
+function mapApiPriority(apiPriority: string): TaskPriority {
+  switch (apiPriority) {
+    case 'urgent': return 'urgent';
+    case 'high': return 'urgent';
+    case 'low': return 'low';
+    default: return 'normal';
+  }
+}
+
+function mapApiType(apiType: string): TaskType {
+  switch (apiType) {
+    case 'cleaning':
+    case 'checkin-prep': return 'checkin-prep';
+    case 'inspection':
+    case 'room-inspection': return 'room-inspection';
+    case 'guest-request':
+    case 'service': return 'guest-request';
+    case 'maintenance':
+    case 'maintenance-followup': return 'maintenance-followup';
+    default: return 'guest-request';
+  }
+}
+
+function formatDueTime(scheduledAt: string | null): string {
+  if (!scheduledAt) return '--:--';
+  const date = new Date(scheduledAt);
+  const hour = date.getHours();
+  const min = date.getMinutes().toString().padStart(2, '0');
+  if (hour === 0) return `12:${min} AM`;
+  if (hour < 12) return `${hour}:${min} AM`;
+  if (hour === 12) return `12:${min} PM`;
+  return `${hour - 12}:${min} PM`;
+}
 
 // ─── Skeleton ───────────────────────────────────────────────────────────
 
@@ -119,18 +139,65 @@ function TodaysTasksSkeleton() {
 
 export function TodaysTasksWidget() {
   const t = useTranslations('dashboard');
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<TaskPriority>('normal');
   const [newType, setNewType] = useState<TaskType>('guest-request');
 
-  // Simulated loading
+  // Fetch tasks from API
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 800);
-    return () => clearTimeout(timer);
+    const fetchTasks = async () => {
+      try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const params = new URLSearchParams({
+          scheduledFrom: today.toISOString(),
+          scheduledTo: tomorrow.toISOString(),
+          limit: '20',
+        });
+
+        const response = await fetch(`/api/tasks?${params}`);
+        const result = await response.json();
+
+        if (result.success) {
+          const apiTasks = result.data || [];
+          const mapped: Task[] = apiTasks.map((apiTask: {
+            id: string;
+            title: string;
+            priority: string;
+            type: string;
+            status: string;
+            scheduledAt: string | null;
+            assignee: { firstName: string; lastName: string } | null;
+          }) => ({
+            id: apiTask.id,
+            title: apiTask.title,
+            assignee: apiTask.assignee
+              ? `${apiTask.assignee.firstName} ${apiTask.assignee.lastName}`
+              : 'Unassigned',
+            dueTime: formatDueTime(apiTask.scheduledAt),
+            priority: mapApiPriority(apiTask.priority),
+            type: mapApiType(apiTask.type),
+            completed: apiTask.status === 'completed',
+          }));
+          setTasks(mapped);
+        } else {
+          setError('Failed to load tasks');
+        }
+      } catch {
+        setError('Failed to fetch tasks');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchTasks();
   }, []);
 
   // Derived stats
@@ -206,6 +273,23 @@ export function TodaysTasksWidget() {
   }, []);
 
   if (isLoading) return <TodaysTasksSkeleton />;
+
+  if (error) {
+    return (
+      <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+        <div className="h-0.5 bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-400" />
+        <CardContent className="p-6 flex items-center justify-center min-h-[300px]">
+          <div className="text-center">
+            <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-destructive" />
+            <p className="text-sm text-muted-foreground">{error}</p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => window.location.reload()}>
+              Retry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="border border-border/50 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 rounded-2xl overflow-hidden">
