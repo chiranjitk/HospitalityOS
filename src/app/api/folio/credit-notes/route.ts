@@ -131,6 +131,12 @@ export async function POST(request: NextRequest) {
     const creditNoteNumber = `CN-${dateStr}-${seq}`;
 
     const creditNote = await db.$transaction(async (tx) => {
+      // SECURITY FIX (A-03): Credit notes must have immediate financial effect.
+      // Previously appliedAmount was permanently 0, meaning credit notes had
+      // zero impact on folio balance. Now we: (1) set appliedAmount = totalAmount,
+      // (2) create a folio line item for the credit, (3) update the folio balance.
+
+      // Create the credit note with appliedAmount set to totalAmount
       const note = await tx.creditNote.create({
         data: {
           tenantId,
@@ -146,10 +152,56 @@ export async function POST(request: NextRequest) {
           taxAmount: 0,
           totalAmount,
           currency: currency || folio.currency,
-          status: 'issued',
-          appliedAmount: 0,
-          remainingAmount: totalAmount,
+          status: 'applied',
+          appliedAmount: totalAmount,
+          remainingAmount: 0,
           issuedBy: user.id,
+        },
+      });
+
+      // Create a negative folio line item to represent the credit on the folio
+      await tx.folioLineItem.create({
+        data: {
+          folioId,
+          description: `Credit Note ${creditNoteNumber}: ${reason}`,
+          category: 'credit_note',
+          quantity: 1,
+          unitPrice: -totalAmount,
+          totalAmount: -totalAmount,
+          serviceDate: new Date(),
+          taxRate: 0,
+          taxAmount: 0,
+          itemCurrency: currency || folio.currency,
+          referenceType: 'CreditNote',
+          referenceId: note.id,
+          postedBy: user.id,
+        },
+      });
+
+      // Recalculate the folio totals from all line items
+      const allLineItems = await tx.folioLineItem.findMany({
+        where: { folioId },
+      });
+
+      const newSubtotal = allLineItems.reduce((sum, item) => sum + item.totalAmount, 0);
+      const newTaxes = allLineItems.reduce((sum, item) => sum + item.taxAmount, 0);
+      const newTotalAmount = newSubtotal + newTaxes;
+
+      const completedPayments = await tx.payment.findMany({
+        where: { folioId, status: 'completed' },
+        select: { amount: true },
+      });
+      const newPaidAmount = completedPayments.reduce((sum, p) => sum + p.amount, 0);
+
+      // Update the folio with recalculated totals
+      await tx.folio.update({
+        where: { id: folioId },
+        data: {
+          subtotal: newSubtotal,
+          taxes: newTaxes,
+          totalAmount: newTotalAmount,
+          paidAmount: newPaidAmount,
+          balance: newTotalAmount - newPaidAmount,
         },
       });
 

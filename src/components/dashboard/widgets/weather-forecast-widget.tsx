@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
 import {
@@ -18,13 +19,22 @@ import {
   ThermometerSun,
   CloudSun,
   CloudDrizzle,
+  Settings,
+  AlertCircle,
+  RefreshCw,
   type LucideIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  fetchWeatherForecast,
+  getWeatherErrorType,
+  type WeatherForecastData,
+  type WeatherCondition,
+} from '@/lib/weather-api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type ForecastCondition = 'sunny' | 'partly_cloudy' | 'cloudy' | 'rain' | 'drizzle' | 'thunderstorm' | 'snow';
+type ForecastCondition = WeatherCondition;
 
 interface ForecastDay {
   dayName: string;
@@ -34,52 +44,6 @@ interface ForecastDay {
   condition: ForecastCondition;
 }
 
-interface CurrentConditions {
-  temp: number;
-  feelsLike: number;
-  condition: ForecastCondition;
-  conditionText: string;
-  humidity: number;
-  windSpeed: number;
-  windDir: string;
-  uvIndex: number;
-}
-
-interface WeatherForecastData {
-  location: string;
-  region: string;
-  current: CurrentConditions;
-  forecast: ForecastDay[];
-  globalHigh: number;
-  globalLow: number;
-}
-
-// ── Mock Data ──────────────────────────────────────────────────────────────
-
-const DARJEELING_WEATHER: WeatherForecastData = {
-  location: 'Darjeeling',
-  region: 'West Bengal, India',
-  current: {
-    temp: 14,
-    feelsLike: 11,
-    condition: 'partly_cloudy',
-    conditionText: 'Partly Cloudy',
-    humidity: 72,
-    windSpeed: 18,
-    windDir: 'NE',
-    uvIndex: 4,
-  },
-  forecast: [
-    { dayName: 'Today', date: 'Jun 15', high: 16, low: 10, condition: 'partly_cloudy' },
-    { dayName: 'Tue', date: 'Jun 16', high: 18, low: 11, condition: 'sunny' },
-    { dayName: 'Wed', date: 'Jun 17', high: 15, low: 9, condition: 'rain' },
-    { dayName: 'Thu', date: 'Jun 18', high: 13, low: 8, condition: 'thunderstorm' },
-    { dayName: 'Fri', date: 'Jun 19', high: 17, low: 10, condition: 'cloudy' },
-  ],
-  globalHigh: 18,
-  globalLow: 8,
-};
-
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function getConditionMeta(condition: ForecastCondition): {
@@ -88,7 +52,7 @@ function getConditionMeta(condition: ForecastCondition): {
   bgClass: string;
   glowClass: string;
 } {
-  const map: Record<ForecastCondition, { Icon: LucideIcon; colorClass: string; bgClass: string; glowClass: string }> = {
+  const map: Record<string, { Icon: LucideIcon; colorClass: string; bgClass: string; glowClass: string }> = {
     sunny: {
       Icon: Sun,
       colorClass: 'text-amber-500 dark:text-amber-400',
@@ -131,8 +95,32 @@ function getConditionMeta(condition: ForecastCondition): {
       bgClass: 'bg-cyan-50/80 dark:bg-cyan-900/30',
       glowClass: 'shadow-cyan-400/20',
     },
+    mist: {
+      Icon: Cloud,
+      colorClass: 'text-slate-400 dark:text-slate-400',
+      bgClass: 'bg-slate-50/60 dark:bg-slate-800/30',
+      glowClass: 'shadow-slate-300/15',
+    },
+    fog: {
+      Icon: Cloud,
+      colorClass: 'text-slate-400 dark:text-slate-400',
+      bgClass: 'bg-slate-50/60 dark:bg-slate-800/30',
+      glowClass: 'shadow-slate-300/15',
+    },
+    haze: {
+      Icon: Cloud,
+      colorClass: 'text-amber-400 dark:text-amber-300',
+      bgClass: 'bg-amber-50/60 dark:bg-amber-950/20',
+      glowClass: 'shadow-amber-300/15',
+    },
+    clear_night: {
+      Icon: Sun,
+      colorClass: 'text-indigo-300 dark:text-indigo-200',
+      bgClass: 'bg-indigo-50/80 dark:bg-indigo-900/30',
+      glowClass: 'shadow-indigo-400/20',
+    },
   };
-  return map[condition];
+  return (map[condition] || map.cloudy) as { Icon: LucideIcon; colorClass: string; bgClass: string; glowClass: string };
 }
 
 function getTempBarGradient(high: number, low: number, globalHigh: number, globalLow: number): string {
@@ -281,21 +269,140 @@ function ForecastDayRow({
 
 // ── Main Component ────────────────────────────────────────────────────────
 
+type WidgetState = 'loading' | 'not_configured' | 'error' | 'empty' | 'data';
+
 export function WeatherForecastWidget() {
   const t = useTranslations('dashboard');
   const [data, setData] = useState<WeatherForecastData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [state, setState] = useState<WidgetState>('loading');
+  const [errorType, setErrorType] = useState<string>('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setData(DARJEELING_WEATHER);
-      setIsLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
+  const fetchWeatherData = useCallback(async (showRefresh = false) => {
+    if (showRefresh) setIsRefreshing(true);
+    else setState('loading');
+    try {
+      const result = await fetchWeatherForecast();
+      if (!result.forecast || result.forecast.length === 0) {
+        setState('empty');
+      } else {
+        setData(result);
+        setState('data');
+      }
+    } catch (err) {
+      const errType = getWeatherErrorType(err);
+      setErrorType(errType);
+      if (errType === 'WEATHER_API_NOT_CONFIGURED') {
+        setState('not_configured');
+      } else {
+        setState('error');
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
   }, []);
 
-  if (isLoading || !data) {
-    return <WeatherForecastSkeleton />;
+  useEffect(() => {
+    fetchWeatherData();
+  }, [fetchWeatherData]);
+
+  // ── Not configured state ──
+  if (state === 'not_configured') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+      >
+        <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+          <div className="h-[2px] bg-gradient-to-r from-amber-400 via-teal-400 to-slate-400" />
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-muted/80 flex items-center justify-center">
+              <Settings className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Weather API Not Configured</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-[220px]">
+                Set <code className="text-[10px] bg-muted px-1 py-0.5 rounded">NEXT_PUBLIC_OPENWEATHER_API_KEY</code> in your environment or property settings.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" className="mt-1 text-xs" onClick={() => fetchWeatherData(true)}>
+              <RefreshCw className="h-3 w-3 mr-1.5" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  }
+
+  // ── Error state ──
+  if (state === 'error') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+      >
+        <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+          <div className="h-[2px] bg-gradient-to-r from-amber-400 via-teal-400 to-slate-400" />
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-red-50 dark:bg-red-950/50 flex items-center justify-center">
+              <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-400" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Unable to Load Forecast</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {errorType === 'WEATHER_CITY_NOT_FOUND'
+                  ? 'City not found. Check your property location settings.'
+                  : errorType === 'WEATHER_API_KEY_INVALID'
+                    ? 'Invalid API key. Verify your OpenWeatherMap key.'
+                    : 'An error occurred while fetching weather data.'}
+              </p>
+            </div>
+            <Button variant="outline" size="sm" className="mt-1 text-xs" onClick={() => fetchWeatherData(true)}>
+              <RefreshCw className="h-3 w-3 mr-1.5" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  }
+
+  // ── Empty state ──
+  if (state === 'empty') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+      >
+        <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+          <div className="h-[2px] bg-gradient-to-r from-amber-400 via-teal-400 to-slate-400" />
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-muted/80 flex items-center justify-center">
+              <Cloud className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="text-sm font-semibold text-foreground">No Forecast Data Available</p>
+            <p className="text-xs text-muted-foreground">Weather forecast data is not available for this location.</p>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  }
+
+  // ── Loading state ──
+  if (state === 'loading' || !data) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+      >
+        <WeatherForecastSkeleton />
+      </motion.div>
+    );
   }
 
   const { Icon: CurrentIcon, colorClass, bgClass, glowClass } = getConditionMeta(data.current.condition);
@@ -320,9 +427,20 @@ export function WeatherForecastWidget() {
                 <p className="text-[10px] text-muted-foreground/60">{data.region}</p>
               </div>
             </div>
-            <Badge variant="outline" className="text-[10px] px-2 py-0 h-5 border-primary/40 text-primary bg-primary/5 font-medium">
-              {t('weather5Day')}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-[10px] px-2 py-0 h-5 border-primary/40 text-primary bg-primary/5 font-medium">
+                {t('weather5Day')}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => fetchWeatherData(true)}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={cn('h-3 w-3', isRefreshing && 'animate-spin')} />
+              </Button>
+            </div>
           </div>
 
           {/* Current Conditions */}
@@ -396,7 +514,7 @@ export function WeatherForecastWidget() {
             {data.forecast.map((day, i) => (
               <ForecastDayRow
                 key={day.dayName}
-                day={day}
+                day={day as ForecastDay}
                 index={i}
                 globalHigh={data.globalHigh}
                 globalLow={data.globalLow}

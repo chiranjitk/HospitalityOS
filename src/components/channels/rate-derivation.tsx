@@ -166,7 +166,7 @@ const APPLIES_TO_LABELS: Record<string, string> = {
   specific_dates: 'Specific Date Ranges',
 };
 
-const SAMPLE_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const 'current' = '00000000-0000-0000-0000-000000000001';
 
 // ============================================
 // COMPONENT
@@ -225,11 +225,11 @@ export function RateDerivationRules() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ tenantId: SAMPLE_TENANT_ID });
+      const params = new URLSearchParams({ tenantId: 'current' });
 
       const [rulesRes, ratePlansRes, connectionsRes] = await Promise.all([
         fetch(`/api/channels/rate-derivation?${params}`),
-        fetch(`/api/pms/rate-plans?tenantId=${SAMPLE_TENANT_ID}`),
+        fetch(`/api/pms/rate-plans?tenantId=${'current'}`),
         fetch(`/api/channels/connections`),
       ]);
 
@@ -327,7 +327,7 @@ export function RateDerivationRules() {
     setSaving(true);
     try {
       const payload = {
-        tenantId: SAMPLE_TENANT_ID,
+        tenantId: 'current',
         name: formData.name.trim(),
         description: formData.description.trim() || null,
         connectionId: formData.connectionId || null,

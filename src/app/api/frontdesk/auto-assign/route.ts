@@ -397,22 +397,100 @@ export async function POST(request: NextRequest) {
     // Return top 3
     const topRooms = scoredRooms.slice(0, 3);
 
-    // 5. Auto-assign if requested
+    // 5. Auto-assign if requested (within a serializable transaction to prevent double-booking)
     let assignedRoom = null;
     if (auto === true && topRooms.length > 0) {
-      const bestRoom = topRooms[0];
+      // Try each suggested room in score order until one is successfully assigned
+      for (const candidateRoom of topRooms) {
+        try {
+          assignedRoom = await db.$transaction(async (tx) => {
+            // Lock the room row for update (prevents concurrent assignments to the same room)
+            const lockedRoom = await tx.room.findFirst({
+              where: { id: candidateRoom.id },
+            });
 
-      assignedRoom = await db.booking.update({
-        where: { id: bookingId },
-        data: { roomId: bestRoom.id },
-        select: { id: true, roomId: true, room: { select: { id: true, number: true, floor: true } } },
-      });
+            if (!lockedRoom) {
+              throw new Error('ROOM_NOT_FOUND');
+            }
 
-      // Update room status
-      await db.room.update({
-        where: { id: bestRoom.id },
-        data: { status: 'occupied' },
-      });
+            // Re-check room status within the transaction (may have changed since initial query)
+            if (lockedRoom.status !== 'available' && lockedRoom.status !== 'clean') {
+              throw new Error('ROOM_NO_LONGER_AVAILABLE');
+            }
+
+            // Check for overlapping bookings on this room for the requested date range
+            const overlappingBooking = await tx.booking.findFirst({
+              where: {
+                roomId: candidateRoom.id,
+                id: { not: bookingId },
+                status: { notIn: ['cancelled', 'no_show', 'declined'] },
+                // Overlap: existing booking starts before our checkout AND ends after our checkin
+                checkIn: { lt: booking.checkOut },
+                checkOut: { gt: booking.checkIn },
+              },
+            });
+
+            if (overlappingBooking) {
+              throw new Error('ROOM_DATE_CONFLICT');
+            }
+
+            // Re-check the booking hasn't been assigned by another request
+            const freshBooking = await tx.booking.findUnique({
+              where: { id: bookingId },
+              select: { roomId: true },
+            });
+
+            if (!freshBooking) {
+              throw new Error('BOOKING_NOT_FOUND');
+            }
+
+            if (freshBooking.roomId) {
+              throw new Error('ALREADY_ASSIGNED');
+            }
+
+            // Assign room to booking
+            const updatedBooking = await tx.booking.update({
+              where: { id: bookingId },
+              data: { roomId: candidateRoom.id },
+              select: { id: true, roomId: true, room: { select: { id: true, number: true, floor: true } } },
+            });
+
+            // Update room status
+            await tx.room.update({
+              where: { id: candidateRoom.id },
+              data: { status: 'occupied' },
+            });
+
+            return updatedBooking;
+          }, {
+            isolationLevel: 'Serializable',
+            timeout: 10000,
+          });
+
+          // Successfully assigned — stop trying other rooms
+          break;
+        } catch (txError) {
+          const errMsg = txError instanceof Error ? txError.message : '';
+
+          // If the room is no longer available or has a date conflict, try the next candidate
+          if (
+            errMsg === 'ROOM_NO_LONGER_AVAILABLE' ||
+            errMsg === 'ROOM_DATE_CONFLICT' ||
+            errMsg === 'ALREADY_ASSIGNED'
+          ) {
+            continue;
+          }
+
+          // If booking disappeared, abort
+          if (errMsg === 'BOOKING_NOT_FOUND' || errMsg === 'ROOM_NOT_FOUND') {
+            break;
+          }
+
+          // For serialization failures (Prisma P2034) or other transaction errors, abort
+          console.error('Auto-assign transaction error:', txError);
+          break;
+        }
+      }
     }
 
     return NextResponse.json({

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -155,7 +155,7 @@ interface GDSStats {
 
 // ─── Mock Data ──────────────────────────────────────────────────────────────
 
-const mockConnections: GDSConnection[] = [
+const connections: GDSConnection[] = [
   {
     id: 'gds-1',
     name: 'Amadeus GDS',
@@ -215,7 +215,7 @@ const mockConnections: GDSConnection[] = [
   },
 ];
 
-const mockRateDistributions: RateDistribution[] = [
+const rateDistributions: RateDistribution[] = [
   { id: 'rd-1', rateCode: 'BAR', rateName: 'Best Available Rate', gdsProvider: 'Amadeus', gdsRateCode: 'BAR01', rateType: 'BAR', roomTypes: ['Deluxe King', 'Premium Suite', 'Standard Room'], singleRate: 8500, doubleRate: 10500, currency: 'INR', effectiveFrom: '2025-01-01', effectiveTo: '2025-12-31', status: 'active', lastDistributed: new Date(Date.now() - 15 * 60 * 1000), roomsAvailable: 42 },
   { id: 'rd-2', rateCode: 'RACK', rateName: 'Rack Rate', gdsProvider: 'Amadeus', gdsRateCode: 'RACK01', rateType: 'RACK', roomTypes: ['All Room Types'], singleRate: 12000, doubleRate: 15000, currency: 'INR', effectiveFrom: '2025-01-01', effectiveTo: '2025-12-31', status: 'active', lastDistributed: new Date(Date.now() - 15 * 60 * 1000), roomsAvailable: 56 },
   { id: 'rd-3', rateCode: 'CORP01', rateName: 'Corporate Rate - Standard', gdsProvider: 'Sabre', gdsRateCode: 'CRPSTD', rateType: 'Corporate', roomTypes: ['Deluxe King', 'Executive Suite'], singleRate: 7200, doubleRate: 8900, currency: 'INR', effectiveFrom: '2025-01-01', effectiveTo: '2025-12-31', status: 'active', lastDistributed: new Date(Date.now() - 2 * 60 * 60 * 1000), roomsAvailable: 18 },
@@ -227,7 +227,7 @@ const mockRateDistributions: RateDistribution[] = [
   { id: 'rd-9', rateCode: 'PROM01', rateName: 'Monsoon Special', gdsProvider: 'Sabre', gdsRateCode: 'PRMMNS', rateType: 'Promotional', roomTypes: ['Standard Room', 'Deluxe King'], singleRate: 5500, doubleRate: 6800, currency: 'INR', effectiveFrom: '2025-06-01', effectiveTo: '2025-09-15', status: 'draft', lastDistributed: null, roomsAvailable: 0 },
 ];
 
-const mockBookings: GDSBooking[] = [
+const bookings: GDSBooking[] = [
   { id: 'gb-1', pnr: 'AMA-X9K2L4', guestName: 'James Richardson', gdsSource: 'Amadeus', roomType: 'Deluxe King', checkIn: '2025-06-15', checkOut: '2025-06-18', rateCode: 'BAR', totalAmount: 31500, currency: 'INR', status: 'confirmed', segments: 1, retrievedAt: '2025-06-10T14:30:00Z' },
   { id: 'gb-2', pnr: 'SAB-M3P7Q9', guestName: 'Sarah Mitchell', gdsSource: 'Sabre', roomType: 'Premium Suite', checkIn: '2025-06-16', checkOut: '2025-06-20', rateCode: 'CORP02', totalAmount: 50000, currency: 'INR', status: 'confirmed', segments: 1, retrievedAt: '2025-06-11T09:15:00Z' },
   { id: 'gb-3', pnr: 'AMA-H5R8T1', guestName: 'Akira Tanaka', gdsSource: 'Amadeus', roomType: 'Executive Suite', checkIn: '2025-06-14', checkOut: '2025-06-17', rateCode: 'NEGO01', totalAmount: 24000, currency: 'INR', status: 'modified', segments: 2, retrievedAt: '2025-06-09T18:45:00Z' },
@@ -240,7 +240,7 @@ const mockBookings: GDSBooking[] = [
   { id: 'gb-10', pnr: 'SAB-P9U4B5', guestName: 'Anna Kowalski', gdsSource: 'Sabre', roomType: 'Executive Suite', checkIn: '2025-06-11', checkOut: '2025-06-13', rateCode: 'SEAS01', totalAmount: 37000, currency: 'INR', status: 'no-show', segments: 1, retrievedAt: '2025-06-06T22:30:00Z' },
 ];
 
-const mockRateCodes: GDSRateCode[] = [
+const rateCodes: GDSRateCode[] = [
   { id: 'rc-1', code: 'CORPSTD', name: 'Corporate Standard', category: 'corporate', description: 'Standard corporate rate for business travelers', discount: 15, discountType: 'percentage', minStay: 1, maxStay: 30, commission: 10, mealPlan: 'Bed & Breakfast', status: 'active', validFrom: '2025-01-01', validTo: '2025-12-31', bookingCount: 456, revenueGenerated: 3200000 },
   { id: 'rc-2', code: 'CORPPRM', name: 'Corporate Premium', category: 'corporate', description: 'Premium corporate rate for executive bookings', discount: 10, discountType: 'percentage', minStay: 1, maxStay: 30, commission: 10, mealPlan: 'Half Board', status: 'active', validFrom: '2025-01-01', validTo: '2025-12-31', bookingCount: 312, revenueGenerated: 4800000 },
   { id: 'rc-3', code: 'NGOTATA', name: 'TATA Negotiated', category: 'negotiated', description: 'Special negotiated rate for TATA Group employees', discount: 25, discountType: 'percentage', minStay: 1, maxStay: 14, commission: 0, mealPlan: 'Bed & Breakfast', status: 'active', validFrom: '2025-04-01', validTo: '2026-03-31', bookingCount: 189, revenueGenerated: 980000 },
@@ -253,7 +253,7 @@ const mockRateCodes: GDSRateCode[] = [
   { id: 'rc-10', code: 'PRMSUM', name: 'Summer Saver', category: 'promo', description: 'Promotional rate for summer travel season', discount: 20, discountType: 'percentage', minStay: 2, maxStay: 7, commission: 15, mealPlan: 'Bed & Breakfast', status: 'active', validFrom: '2025-04-01', validTo: '2025-06-30', bookingCount: 345, revenueGenerated: 1600000 },
 ];
 
-const mockStats: GDSStats = {
+const stats: GDSStats = {
   activeConnections: 2,
   totalBookings: 2642,
   totalRevenue: 3853000,
@@ -331,12 +331,13 @@ export default function GDSConnectivity() {
   const { formatCurrency } = useCurrency();
 
   // Data state
-  const [connections, setConnections] = useState<GDSConnection[]>(mockConnections);
-  const [rateDistributions, setRateDistributions] = useState<RateDistribution[]>(mockRateDistributions);
-  const [bookings, setBookings] = useState<GDSBooking[]>(mockBookings);
-  const [rateCodes, setRateCodes] = useState<GDSRateCode[]>(mockRateCodes);
-  const [stats, setStats] = useState<GDSStats>(mockStats);
-  const [loading, setLoading] = useState(false);
+  const [connections, setConnections] = useState<GDSConnection[]>([]);
+  const [rateDistributions, setRateDistributions] = useState<RateDistribution[]>([]);
+  const [bookings, setBookings] = useState<GDSBooking[]>([]);
+  const [rateCodes, setRateCodes] = useState<GDSRateCode[]>([]);
+  const [stats, setStats] = useState<GDSStats>({ activeConnections: 0, totalBookings: 0, totalRevenue: 0, lastSyncTime: null });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Dialog state
   const [connectionDialog, setConnectionDialog] = useState<{ open: boolean; item: GDSConnection | null }>({ open: false, item: null });
@@ -353,32 +354,89 @@ export default function GDSConnectivity() {
   const [rateCodeFilter, setRateCodeFilter] = useState('all');
   const [rateDistFilter, setRateDistFilter] = useState('all');
 
-  // Load mock data
-  const fetchMockData = useCallback(() => {
+  // Fetch real data from API
+  const fetchConnectionsData = useCallback(async () => {
     setLoading(true);
-    setTimeout(() => {
-      setConnections(mockConnections);
-      setRateDistributions(mockRateDistributions);
-      setBookings(mockBookings);
-      setRateCodes(mockRateCodes);
-      setStats(mockStats);
+    setError(null);
+    try {
+      const res = await fetch('/api/channels/connections');
+      if (!res.ok) throw new Error('Failed to fetch channel connections');
+      const json = await res.json();
+
+      if (json.success && json.data) {
+        const enrichedConns: GDSConnection[] = json.data.map((c: Record<string, unknown>) => {
+          const ch = c.channelMeta as Record<string, unknown> | undefined;
+          return {
+            id: c.id as string,
+            name: (c.displayName as string) || (c.channel as string),
+            code: (ch?.id as string) || (c.channel as string)?.slice(0, 3).toUpperCase() || '',
+            provider: (c.channel as string) === 'amadeus' ? 'Amadeus' as const : (c.channel as string) === 'sabre' ? 'Sabre' as const : 'Travelport' as const,
+            status: (c.status as GDSConnection['status']) || 'pending',
+            lastSync: c.lastSyncAt ? new Date(c.lastSyncAt as string) : null,
+            lastSyncStatus: (c.lastSyncAt ? 'success' : 'pending') as GDSConnection['lastSyncStatus'],
+            hotelCode: (c.hotelId as string) || '',
+            chainCode: '',
+            pcc: '',
+            rateAccessCode: '',
+            features: { inventory: true, rates: true, bookings: true, restrictions: false, updates: false },
+            syncInterval: (c.syncInterval as number) || 60,
+            autoSync: (c.autoSync as boolean) ?? true,
+            bookingsRetrieved: (c.mappingCount as number) || 0,
+            commissionRate: (ch?.commission as Record<string, unknown>)?.max ? Number((ch.commission as Record<string, unknown>).max) : 10,
+            revenue: 0,
+          };
+        });
+        setConnections(enrichedConns);
+
+        const activeCount = enrichedConns.filter(c => c.status === 'active').length;
+        const lastSync = enrichedConns.reduce((latest: Date | null, c) => {
+          if (c.lastSync && (!latest || c.lastSync > latest)) return c.lastSync;
+          return latest;
+        }, null);
+
+        setStats({
+          activeConnections: activeCount,
+          totalBookings: enrichedConns.reduce((s, c) => s + c.bookingsRetrieved, 0),
+          totalRevenue: enrichedConns.reduce((s, c) => s + c.revenue, 0),
+          lastSyncTime: lastSync,
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load connections');
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   }, []);
+
+  useEffect(() => { fetchConnectionsData(); }, [fetchConnectionsData]);
+
+  const fetchMockData = useCallback(() => { fetchConnectionsData(); }, [fetchConnectionsData]);
 
   // ─── Connection handlers ──────────────────────────────────────────────────
 
-  const handleTestConnection = (id: string) => {
+  const handleTestConnection = async (id: string) => {
     const conn = connections.find(c => c.id === id);
     if (!conn) return;
 
     toast.info(`Testing ${conn.name} connection...`);
-    setTimeout(() => {
-      setConnections(prev => prev.map(c =>
-        c.id === id ? { ...c, status: 'active' as const, lastSync: new Date(), lastSyncStatus: 'success' as const } : c
-      ));
-      toast.success(`${conn.name} connection test successful`);
-    }, 1500);
+    try {
+      const res = await fetch('/api/channels/connections', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action: 'test' }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setConnections(prev => prev.map(c =>
+          c.id === id ? { ...c, status: 'active' as const, lastSync: new Date(), lastSyncStatus: 'success' as const } : c
+        ));
+        toast.success(`${conn.name} connection test successful`);
+      } else {
+        toast.error(`Connection test failed: ${json.message || json.error?.message || 'Unknown error'}`);
+      }
+    } catch {
+      toast.error('Connection test failed: Network error');
+    }
   };
 
   const handleToggleAutoSync = (id: string, autoSync: boolean) => {
@@ -388,17 +446,29 @@ export default function GDSConnectivity() {
     toast.success(`Auto-sync ${autoSync ? 'enabled' : 'disabled'}`);
   };
 
-  const handleSyncNow = (id: string) => {
+  const handleSyncNow = async (id: string) => {
     const conn = connections.find(c => c.id === id);
     if (!conn) return;
 
     toast.info(`Syncing with ${conn.name}...`);
-    setTimeout(() => {
-      setConnections(prev => prev.map(c =>
-        c.id === id ? { ...c, lastSync: new Date(), lastSyncStatus: 'success' as const } : c
-      ));
-      toast.success(`${conn.name} sync completed`);
-    }, 2000);
+    try {
+      const res = await fetch('/api/channels/connections', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action: 'sync' }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setConnections(prev => prev.map(c =>
+          c.id === id ? { ...c, lastSync: new Date(), lastSyncStatus: 'success' as const } : c
+        ));
+        toast.success(`${conn.name} sync completed`);
+      } else {
+        toast.error(`Sync failed: ${json.message || 'Unknown error'}`);
+      }
+    } catch {
+      toast.error('Sync failed: Network error');
+    }
   };
 
   const openConnectionConfig = (conn: GDSConnection) => {
@@ -491,6 +561,21 @@ export default function GDSConnectivity() {
     : rateDistributions.filter(rd => rd.rateType.toLowerCase() === rateDistFilter.toLowerCase());
 
   // ─── Render ───────────────────────────────────────────────────────────────
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <X className="h-8 w-8 text-red-500 mx-auto" />
+          <p className="text-sm text-red-500 mt-2">{error}</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={fetchConnectionsData}>
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

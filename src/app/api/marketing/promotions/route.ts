@@ -192,13 +192,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Unique code check
-    const existingPromo = await db.promotion.findUnique({
-      where: { code: code.trim().toUpperCase() },
+    // Unique code check scoped to tenant (same code can exist for different tenants)
+    const upperCode = code.trim().toUpperCase();
+    const existingPromo = await db.promotion.findFirst({
+      where: {
+        code: upperCode,
+        tenantId,
+      },
     });
     if (existingPromo) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Promotion code already exists' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Promotion code already exists for your tenant' } },
         { status: 409 }
       );
     }
@@ -303,12 +307,17 @@ export async function POST(request: NextRequest) {
           : '[]';
     }
 
-    const promotion = await db.promotion.create({
-      data: {
-        tenantId,
-        propertyId: resolvedPropertyId,
-        name: name.trim(),
-        code: code.trim().toUpperCase(),
+    // Create promotion — wrap in try/catch to handle the DB-level unique constraint
+    // on `code` (which is globally unique in the current schema).
+    // If a different tenant already uses the same code, the DB will reject it.
+    let promotion;
+    try {
+      promotion = await db.promotion.create({
+        data: {
+          tenantId,
+          propertyId: resolvedPropertyId,
+          name: name.trim(),
+          code: upperCode,
         description: description?.trim() || null,
         discountType,
         discountValue: parseFloat(String(discountValue)),
@@ -327,6 +336,25 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date(),
       },
     });
+    } catch (createError: unknown) {
+      // Handle Prisma unique constraint violation (P2002) for the global code uniqueness
+      if (
+        createError &&
+        typeof createError === 'object' &&
+        'code' in createError &&
+        (createError as { code: string }).code === 'P2002'
+      ) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Promotion code already exists globally. Consider using a different code.' } },
+          { status: 409 }
+        );
+      }
+      console.error('Error creating promotion:', createError);
+      return NextResponse.json(
+        { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create promotion' } },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json(
       {
@@ -432,11 +460,13 @@ export async function PUT(request: NextRequest) {
       }
       const newCode = fields.code.trim().toUpperCase();
       if (newCode !== existing.code) {
-        // Unique code check
-        const codeExists = await db.promotion.findUnique({ where: { code: newCode } });
+        // Unique code check scoped to tenant
+        const codeExists = await db.promotion.findFirst({
+          where: { code: newCode, tenantId },
+        });
         if (codeExists) {
           return NextResponse.json(
-            { success: false, error: { code: 'VALIDATION_ERROR', message: 'Promotion code already exists' } },
+            { success: false, error: { code: 'VALIDATION_ERROR', message: 'Promotion code already exists for your tenant' } },
             { status: 409 }
           );
         }

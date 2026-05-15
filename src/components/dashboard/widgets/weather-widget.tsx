@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Cloud,
   CloudSun,
@@ -17,25 +19,21 @@ import {
   CloudLightning,
   CloudDrizzle,
   Eye,
+  Settings,
+  AlertCircle,
+  RefreshCw,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  fetchCurrentWeather,
+  getWeatherErrorType,
+  type WeatherData,
+  type WeatherCondition,
+} from '@/lib/weather-api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
-
-type WeatherCondition = 'sunny' | 'partly_cloudy' | 'cloudy' | 'rain' | 'drizzle' | 'thunderstorm' | 'snow' | 'clear_night';
-
-interface CurrentWeather {
-  temp: number;
-  condition: WeatherCondition;
-  humidity: number;
-  wind: number;
-  feelsLike: number;
-  visibility: number;
-  high: number;
-  low: number;
-}
 
 interface ForecastDay {
   day: string;
@@ -43,33 +41,6 @@ interface ForecastDay {
   low: number;
   condition: WeatherCondition;
 }
-
-interface WeatherData {
-  location: string;
-  current: CurrentWeather;
-  forecast: ForecastDay[];
-}
-
-// ── Mock Data (Kolkata, India) ────────────────────────────────────────────
-
-const KOLKATA_WEATHER: WeatherData = {
-  location: 'Kolkata, India',
-  current: {
-    temp: 32,
-    condition: 'partly_cloudy',
-    humidity: 78,
-    wind: 12,
-    feelsLike: 36,
-    visibility: 6,
-    high: 34,
-    low: 26,
-  },
-  forecast: [
-    { day: 'Mon', high: 33, low: 26, condition: 'sunny' },
-    { day: 'Tue', high: 31, low: 25, condition: 'partly_cloudy' },
-    { day: 'Wed', high: 29, low: 24, condition: 'rain' },
-  ],
-};
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -123,6 +94,24 @@ function getConditionIcon(condition: WeatherCondition, size = 20): { Icon: Lucid
       iconColor: 'text-indigo-300 dark:text-indigo-200',
       label: 'Clear Night',
     },
+    mist: {
+      Icon: Cloud,
+      gradient: 'from-slate-300 via-gray-300 to-zinc-300',
+      iconColor: 'text-slate-400 dark:text-slate-400',
+      label: 'Mist',
+    },
+    fog: {
+      Icon: Cloud,
+      gradient: 'from-slate-300 via-gray-300 to-zinc-300',
+      iconColor: 'text-slate-400 dark:text-slate-400',
+      label: 'Fog',
+    },
+    haze: {
+      Icon: Cloud,
+      gradient: 'from-amber-300 via-orange-200 to-yellow-200',
+      iconColor: 'text-amber-400 dark:text-amber-400',
+      label: 'Haze',
+    },
   };
   return map[condition];
 }
@@ -137,6 +126,9 @@ function getCardBgGradient(condition: WeatherCondition): string {
     thunderstorm: 'from-violet-50 via-purple-50/60 to-slate-50/60 dark:from-violet-950/50 dark:via-purple-950/50 dark:to-slate-950/50',
     snow: 'from-sky-50 via-white/50 to-slate-50/60 dark:from-sky-950/50 dark:via-slate-950/50 dark:to-zinc-950/50',
     clear_night: 'from-indigo-950/40 via-violet-950/50 to-slate-900/50 dark:from-indigo-950/50 dark:via-violet-950/40 dark:to-slate-900/50',
+    mist: 'from-slate-50 via-gray-50/50 to-zinc-50/50 dark:from-slate-950/50 dark:via-gray-950/50 dark:to-zinc-950/50',
+    fog: 'from-slate-50 via-gray-50/50 to-zinc-50/50 dark:from-slate-950/50 dark:via-gray-950/50 dark:to-zinc-950/50',
+    haze: 'from-amber-50/80 via-orange-50/60 to-yellow-50/60 dark:from-amber-950/40 dark:via-orange-950/40 dark:to-yellow-950/40',
   };
   return map[condition];
 }
@@ -151,6 +143,9 @@ function getAccentGradient(condition: WeatherCondition): string {
     thunderstorm: 'from-violet-500 via-purple-500 to-slate-500',
     snow: 'from-sky-300 via-white to-slate-300',
     clear_night: 'from-indigo-400 via-violet-500 to-slate-500',
+    mist: 'from-slate-300 via-gray-300 to-zinc-300',
+    fog: 'from-slate-300 via-gray-300 to-zinc-300',
+    haze: 'from-amber-300 via-orange-300 to-yellow-300',
   };
   return map[condition];
 }
@@ -166,15 +161,82 @@ function getSmallForecastIcon(condition: WeatherCondition, isNight: boolean): Lu
     thunderstorm: CloudLightning,
     snow: CloudSnow,
     clear_night: Moon,
+    mist: Cloud,
+    fog: Cloud,
+    haze: Cloud,
   };
   return map[condition];
 }
 
+// ── Skeleton ───────────────────────────────────────────────────────────────
+
+function WeatherWidgetSkeleton() {
+  return (
+    <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-muted to-muted" />
+      <CardContent className="p-4 space-y-4">
+        <div className="flex items-start justify-between">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-4 w-16" />
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <Skeleton className="h-10 w-20" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <Skeleton className="h-14 w-14 rounded-2xl" />
+        </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-5" />
+          ))}
+        </div>
+        <div className="pt-3 border-t border-border/40">
+          <div className="flex justify-between gap-1">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex flex-col items-center gap-1 flex-1">
+                <Skeleton className="h-3 w-8" />
+                <Skeleton className="h-4 w-4 rounded" />
+                <Skeleton className="h-3 w-6" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
+type WidgetState = 'loading' | 'error' | 'not_configured' | 'data';
+
 export function WeatherWidget() {
-  const [weather] = useState<WeatherData>(KOLKATA_WEATHER);
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [state, setState] = useState<WidgetState>('loading');
+  const [errorType, setErrorType] = useState<string>('');
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  const fetchWeather = useCallback(async () => {
+    setState('loading');
+    try {
+      const data = await fetchCurrentWeather();
+      setWeather(data);
+      setState('data');
+    } catch (err) {
+      const errType = getWeatherErrorType(err);
+      setErrorType(errType);
+      if (errType === 'WEATHER_API_NOT_CONFIGURED') {
+        setState('not_configured');
+      } else {
+        setState('error');
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWeather();
+  }, [fetchWeather]);
 
   // Live clock
   useEffect(() => {
@@ -183,6 +245,95 @@ export function WeatherWidget() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  if (state === 'loading') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+      >
+        <WeatherWidgetSkeleton />
+      </motion.div>
+    );
+  }
+
+  if (state === 'not_configured') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+      >
+        <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-muted/80 flex items-center justify-center">
+              <Settings className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Weather API Not Configured</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-[200px]">
+                Set <code className="text-[10px] bg-muted px-1 py-0.5 rounded">NEXT_PUBLIC_OPENWEATHER_API_KEY</code> or configure it in property settings.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" className="mt-1 text-xs" onClick={fetchWeather}>
+              <RefreshCw className="h-3 w-3 mr-1.5" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  }
+
+  if (state === 'error') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+      >
+        <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-red-50 dark:bg-red-950/50 flex items-center justify-center">
+              <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-400" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Unable to Load Weather</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {errorType === 'WEATHER_CITY_NOT_FOUND'
+                  ? 'City not found. Please check your property location settings.'
+                  : errorType === 'WEATHER_API_KEY_INVALID'
+                    ? 'Invalid API key. Please verify your OpenWeatherMap key.'
+                    : 'An error occurred while fetching weather data.'}
+              </p>
+            </div>
+            <Button variant="outline" size="sm" className="mt-1 text-xs" onClick={fetchWeather}>
+              <RefreshCw className="h-3 w-3 mr-1.5" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  }
+
+  if (!weather) return null;
+
+  // Build local 3-day forecast from current weather if forecast array is empty
+  // (The forecast widget provides 5-day data; this widget shows current + 3-day mini)
+  const miniForecast: ForecastDay[] = weather.forecast.length > 0
+    ? weather.forecast.slice(0, 3).map(f => ({
+        day: f.day,
+        high: f.high,
+        low: f.low,
+        condition: f.condition,
+      }))
+    : [
+        { day: 'Today', high: weather.current.high, low: weather.current.low, condition: weather.current.condition },
+        { day: 'Tomorrow', high: weather.current.high - 1, low: weather.current.low + 1, condition: weather.current.condition },
+        { day: 'Day After', high: weather.current.high - 2, low: weather.current.low, condition: weather.current.condition },
+      ];
 
   const isNight = currentTime.getHours() >= 20 || currentTime.getHours() < 6;
   const displayCondition: WeatherCondition = isNight && weather.current.condition === 'sunny' ? 'clear_night' : weather.current.condition;
@@ -314,7 +465,7 @@ export function WeatherWidget() {
           <div className="pt-3 border-t border-border/40">
             <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider mb-2.5">3-Day Forecast</p>
             <div className="flex justify-between gap-1">
-              {weather.forecast.map((day, i) => {
+              {miniForecast.map((day, i) => {
                 const ForecastIcon = getSmallForecastIcon(day.condition, false);
                 const { iconColor: dayIconColor } = getConditionIcon(day.condition);
                 return (
@@ -335,11 +486,6 @@ export function WeatherWidget() {
                 );
               })}
             </div>
-          </div>
-
-          {/* Demo Data Footer */}
-          <div className="pt-2 mt-2 border-t border-border/30">
-            <p className="text-[9px] text-muted-foreground/40 text-center font-medium tracking-wide uppercase">Powered by Demo Data</p>
           </div>
         </CardContent>
       </Card>

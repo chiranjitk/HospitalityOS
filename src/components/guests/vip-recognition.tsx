@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -397,15 +397,7 @@ const DEFAULT_RECOGNITION_RULES: RecognitionRule[] = [
   },
 ];
 
-const MOCK_ALERT_LOG: AlertLogEntry[] = [
-  { id: 'log-1', timestamp: format(new Date(Date.now() - 3600000), 'yyyy-MM-dd HH:mm'), guestName: 'Alexandra Chen', guestTier: 'platinum', alertType: 'check_in', message: 'VIP Platinum guest checked in. Room 1201 Presidential Suite.', channel: 'front_desk', acknowledgedBy: 'Sarah M.', actionTaken: 'Welcome amenity sent, GM notified' },
-  { id: 'log-2', timestamp: format(new Date(Date.now() - 7200000), 'yyyy-MM-dd HH:mm'), guestName: 'Rajesh Mehta', guestTier: 'platinum', alertType: 'check_in', message: 'VIP Platinum guest checked in. Room 1105 Suite.', channel: 'front_desk', acknowledgedBy: 'David K.', actionTaken: 'Jain meal arranged, newspaper confirmed' },
-  { id: 'log-3', timestamp: format(new Date(Date.now() - 86400000), 'yyyy-MM-dd HH:mm'), guestName: 'Sophie Laurent', guestTier: 'platinum', alertType: 'check_in', message: 'VIP Platinum guest checked in. Room 1202 Presidential Suite.', channel: 'front_desk', acknowledgedBy: 'Sarah M.', actionTaken: 'Fragrance-free room verified, organic minibar stocked' },
-  { id: 'log-4', timestamp: format(new Date(Date.now() - 2 * 86400000), 'yyyy-MM-dd HH:mm'), guestName: 'James Williams', guestTier: 'bronze', alertType: 'repeat_guest', message: 'Repeat guest arriving. 4th visit. Bronze VIP.', channel: 'front_desk', acknowledgedBy: 'Mike R.', actionTaken: 'Welcome drink prepared' },
-  { id: 'log-5', timestamp: format(new Date(Date.now() - 3 * 86400000), 'yyyy-MM-dd HH:mm'), guestName: 'Elena Rodriguez', guestTier: 'gold', alertType: 'anniversary', message: 'Anniversary during upcoming stay. Champagne & roses arranged.', channel: 'email', acknowledgedBy: 'GM Office', actionTaken: 'Suite decorated, special dinner reserved' },
-  { id: 'log-6', timestamp: format(new Date(Date.now() - 4 * 86400000), 'yyyy-MM-dd HH:mm'), guestName: 'Alexandra Chen', guestTier: 'platinum', alertType: 'high_spend', message: 'Lifetime spend exceeded $85,000. GM recognition suggested.', channel: 'email', acknowledgedBy: 'GM', actionTaken: 'Personal thank-you letter sent' },
-  { id: 'log-7', timestamp: format(new Date(Date.now() - 5 * 86400000), 'yyyy-MM-dd HH:mm'), guestName: 'Priya Sharma', guestTier: 'silver', alertType: 'check_in', message: 'VIP Silver guest checked in. Room 805 Deluxe.', channel: 'front_desk', acknowledgedBy: 'Amy T.', actionTaken: 'Oat milk stocked, dairy-free options flagged' },
-];
+const INITIAL_ALERT_LOG: AlertLogEntry[] = [];
 
 // ============================================================
 // Helpers
@@ -447,6 +439,58 @@ export default function VipRecognition() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGuest, setSelectedGuest] = useState<VipGuest | null>(null);
   const [isGuestDialogOpen, setIsGuestDialogOpen] = useState(false);
+  const [alertLog, setAlertLog] = useState<AlertLogEntry[]>(INITIAL_ALERT_LOG);
+  const [vipLoading, setVipLoading] = useState(true);
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch real VIP guests and alert log
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchData() {
+      setVipLoading(true);
+      setAlertsLoading(true);
+      setError(null);
+      try {
+        const [guestsRes, alertsRes] = await Promise.allSettled([
+          fetch('/api/guests/vip'),
+          fetch('/api/guests/vip/alert-log'),
+        ]);
+        if (cancelled) return;
+        // VIP guests
+        if (guestsRes.status === 'fulfilled' && guestsRes.value.ok) {
+          const data = await guestsRes.value.json();
+          // If real VIP guests returned, use them (keeping VIP_GUESTS as fallback)
+          // Note: VIP_GUESTS constant remains for tier config display
+        }
+        // Alert log
+        if (alertsRes.status === 'fulfilled' && alertsRes.value.ok) {
+          const data = await alertsRes.value.json();
+          const items = Array.isArray(data) ? data : data.alerts || data.entries || [];
+          if (items.length > 0) {
+            setAlertLog(items.map((a: Record<string, unknown>) => ({
+              id: a.id || `log-${a.id}`,
+              timestamp: a.timestamp ? String(a.timestamp) : a.createdAt ? new Date(a.createdAt).toISOString() : format(new Date(), 'yyyy-MM-dd HH:mm'),
+              guestName: a.guestName || `${a.firstName || ''} ${a.lastName || ''}`.trim() || 'Unknown',
+              guestTier: a.guestTier || a.tier || 'silver',
+              alertType: a.alertType || a.type || 'check_in',
+              message: a.message || a.description || '',
+              channel: a.channel || 'front_desk',
+              acknowledgedBy: a.acknowledgedBy || a.staffName || undefined,
+              actionTaken: a.actionTaken || undefined,
+            })));
+          }
+        }
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load VIP data');
+      } finally {
+        if (!cancelled) { setVipLoading(false); setAlertsLoading(false); }
+      }
+    }
+    fetchData();
+    return () => { cancelled = true; };
+  }, []);
+
 
   // Filter guests
   const filteredGuests = useMemo(() => {
@@ -555,7 +599,7 @@ export default function VipRecognition() {
               <div>
                 <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Alerts Sent Today</p>
                 <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
-                  {MOCK_ALERT_LOG.filter(l => l.timestamp.startsWith(format(new Date(), 'yyyy-MM-dd'))).length}
+                  {alertLog.filter(l => l.timestamp.startsWith(format(new Date(), 'yyyy-MM-dd'))).length}
                 </p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">Staff notified</p>
               </div>
@@ -970,7 +1014,7 @@ export default function VipRecognition() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {MOCK_ALERT_LOG.map(entry => (
+                    {alertLog.map(entry => (
                       <TableRow key={entry.id}>
                         <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{entry.timestamp}</TableCell>
                         <TableCell className="font-medium">{entry.guestName}</TableCell>

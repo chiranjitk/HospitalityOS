@@ -63,53 +63,6 @@ function formatShortCurrency(amount: number): string {
   return `$${amount}`;
 }
 
-/** Generate realistic mock data for 7 days (3 past, today, 3 future). */
-function generateMockData(): ForecastData {
-  const today = new Date();
-  const dayOfWeek = today.getDay();
-
-  const days: ForecastDay[] = [];
-
-  for (let i = -3; i <= 3; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() + i);
-
-    const dow = d.getDay();
-    // Weekend boost (Fri, Sat)
-    const isWeekend = dow === 5 || dow === 6;
-    const isPast = i < 0;
-    const isToday = i === 0;
-
-    const baseProjected = isWeekend
-      ? 12000 + Math.floor(Math.random() * 4000) // $12k-$16k
-      : 9000 + Math.floor(Math.random() * 3000);  // $9k-$12k
-
-    const actual = isPast
-      ? baseProjected + Math.floor(Math.random() * 3000) - 1500 // slightly vary from projection
-      : isToday
-        ? baseProjected - Math.floor(Math.random() * 2000) // today partially realized
-        : null;
-
-    days.push({
-      date: d.toISOString().split('T')[0],
-      actual: actual !== null ? Math.max(8000, actual) : null,
-      projected: baseProjected,
-    });
-  }
-
-  const totalProjected = days.reduce((s, d) => s + d.projected, 0);
-  const actualDays = days.filter(d => d.actual !== null);
-  const totalActual = actualDays.reduce((s, d) => s + (d.actual ?? 0), 0);
-  const avgDaily = Math.round(totalProjected / days.length);
-
-  // Compare actual vs projected for trend
-  const projectedForActualDays = actualDays.reduce((s, d) => s + d.projected, 0);
-  const trendPercent = projectedForActualDays > 0
-    ? Math.round(((totalActual - projectedForActualDays) / projectedForActualDays) * 100)
-    : 0;
-
-  return { days, totalProjected, totalActual, avgDaily, trendPercent };
-}
 
 function getDayLabel(dateStr: string, index: number, todayIndex: number): string {
   const d = new Date(dateStr + 'T12:00:00');
@@ -520,12 +473,10 @@ export function RevenueForecastWidget() {
 
         setData({ days, totalProjected, totalActual, avgDaily, trendPercent });
       } else {
-        // Fall back to mock data
-        setData(generateMockData());
+        setError(true);
       }
     } catch {
-      // Fall back to mock data on error too
-      setData(generateMockData());
+      setError(true);
     } finally {
       setIsLoading(false);
     }

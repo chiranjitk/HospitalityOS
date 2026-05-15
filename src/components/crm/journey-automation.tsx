@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   GitBranch, Zap, Clock, Mail, MessageSquare, Bell, Tag, Users,
   BarChart3, Play, Pause, RotateCcw, Plus, ChevronRight, ChevronDown,
@@ -407,7 +408,10 @@ const MOCK_GUEST_TIMELINE: GuestTimelineEntry[] = [
 
 // ─── Component ────────────────────────────────────────────────────────────
 export default function JourneyAutomation() {
-  const [journeys, setJourneys] = useState<JourneyAutomation[]>(MOCK_JOURNEYS);
+  const [journeys, setJourneys] = useState<JourneyAutomation[]>([]);
+  const [guestTimeline, setGuestTimeline] = useState<GuestTimelineEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedJourney, setSelectedJourney] = useState<JourneyAutomation | null>(null);
   const [activeTab, setActiveTab] = useState('journeys');
   const [stageFilter, setStageFilter] = useState('all');
@@ -416,6 +420,65 @@ export default function JourneyAutomation() {
   const [expandedJourney, setExpandedJourney] = useState<string | null>(null);
   const [builderDialogOpen, setBuilderDialogOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+
+  // Fetch real automation rules and execution logs
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchData() {
+      setLoading(true);
+      setError(null);
+      try {
+        const rulesRes = await fetch('/api/automation/rules?type=journey');
+        if (rulesRes.ok && !cancelled) {
+          const data = await rulesRes.json();
+          const items = Array.isArray(data) ? data : data.rules || [];
+          if (items.length > 0) {
+            setJourneys(items.map((r: Record<string, unknown>) => ({
+              id: r.id || `j-${Date.now()}`,
+              name: r.name || r.title || 'Unnamed Journey',
+              description: r.description || '',
+              status: (r.status || 'draft') as JourneyStatus,
+              stage: r.stage || r.category || 'General',
+              totalEnrolled: Number(r.totalEnrolled || r.enrolledContacts || 0),
+              activeContacts: Number(r.activeContacts || r.currentActive || 0),
+              completedContacts: Number(r.completedContacts || 0),
+              conversionRate: Number(r.conversionRate || r.conversion || 0),
+              revenueAttributed: Number(r.revenueAttributed || r.revenue || 0),
+              touchpoints: Array.isArray(r.touchpoints) ? r.touchpoints.map((tp: Record<string, unknown>) => ({
+                id: tp.id || `tp-${Date.now()}`, name: String(tp.name || tp.title || 'Touchpoint'),
+                channel: (tp.channel || 'email') as ActionChannel,
+                sent: Number(tp.sent || 0), opened: Number(tp.opened || tp.opens || 0),
+                clicked: Number(tp.clicked || tp.clicks || 0), converted: Number(tp.converted || tp.conversions || 0),
+              })) : [],
+              nodes: [], createdAt: r.createdAt || new Date().toISOString(),
+              lastTriggered: r.lastTriggeredAt || r.lastTriggered || r.updatedAt || '',
+            })));
+          } else { setJourneys(MOCK_JOURNEYS); }
+        } else { setJourneys(MOCK_JOURNEYS); }
+        const logsRes = await fetch('/api/automation/execution-logs?limit=20');
+        if (logsRes.ok && !cancelled) {
+          const logsData = await logsRes.json();
+          const logs = Array.isArray(logsData) ? logsData : logsData.logs || logsData.entries || [];
+          setGuestTimeline(logs.slice(0, 10).map((log: Record<string, unknown>) => ({
+            id: log.id || `gt-${Date.now()}`,
+            guestName: log.guestName || `${log.guestFirstName || ''} ${log.guestLastName || ''}`.trim() || 'Guest',
+            email: log.email || log.guestEmail || '',
+            journeyName: log.journeyName || log.ruleName || log.automationName || 'Journey',
+            touchpoints: Array.isArray(log.touchpoints) ? log.touchpoints.map((tp: Record<string, unknown>) => ({
+              name: String(tp.name || tp.action || 'Action'),
+              channel: (tp.channel || 'email') as ActionChannel,
+              sentAt: tp.sentAt || tp.createdAt || tp.executedAt || '',
+              status: (tp.status || tp.result || 'sent') as 'sent' | 'opened' | 'clicked' | 'converted' | 'failed',
+            })) : [],
+          })));
+        }
+      } catch (err) {
+        if (!cancelled) { setError(err instanceof Error ? err.message : 'Failed to load automation data'); setJourneys(MOCK_JOURNEYS); }
+      } finally { if (!cancelled) setLoading(false); }
+    }
+    fetchData();
+    return () => { cancelled = true; };
+  }, []);
 
   const filteredJourneys = journeys.filter((j) => {
     const matchSearch = j.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -555,6 +618,28 @@ export default function JourneyAutomation() {
         </div>
       </div>
 
+      {/* Loading */}
+      {loading && (
+        <div className="grid gap-2 sm:gap-4 grid-cols-2 md:grid-cols-4">
+          {[1,2,3,4].map(i => <Card key={i}><CardContent className="p-4"><Skeleton className="h-16 w-24" /></CardContent></Card>)}
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <Card className="border-red-200">
+          <CardContent className="flex items-center gap-3 p-6">
+            <AlertTriangle className="h-5 w-5 text-red-500" />
+            <div>
+              <p className="text-sm font-medium text-red-700">Failed to load automation data</p>
+              <p className="text-xs text-muted-foreground">{error}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {!loading && !error && (<>
       {/* Overview Stats */}
       <div className="grid gap-2 sm:gap-4 grid-cols-2 md:grid-cols-4">
         <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950">
@@ -966,7 +1051,7 @@ export default function JourneyAutomation() {
             <CardContent>
               <ScrollArea className="max-h-[600px]">
                 <div className="space-y-4">
-                  {MOCK_GUEST_TIMELINE.map((entry) => (
+                  {guestTimeline.length > 0 ? guestTimeline.map((entry) => (
                     <div key={entry.id} className="p-4 rounded-xl border bg-muted/20 space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -1058,10 +1143,10 @@ export default function JourneyAutomation() {
                 <p className="font-semibold">Build Custom Journey</p>
                 <p className="text-sm text-muted-foreground mt-1">Create a journey from scratch</p>
               </CardContent>
-            </Card>
           </div>
         </TabsContent>
       </Tabs>
+      </>)}
 
       {/* ─── Journey Detail Dialog ────────────────────────────────────── */}
       <Dialog open={!!selectedJourney} onOpenChange={() => setSelectedJourney(null)}>

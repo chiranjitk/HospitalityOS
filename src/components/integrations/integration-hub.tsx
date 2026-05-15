@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -73,6 +73,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   LineChart,
   Line,
@@ -151,9 +152,39 @@ interface HealthMetric {
   dataVolume: number;
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+function formatRelativeTime(date: string | Date): string {
+  if (!date) return 'N/A';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  const now = Date.now();
+  const diff = now - d.getTime();
+  if (diff < 60000) return 'Just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
+  return d.toLocaleDateString();
+}
 
-const integrations: Integration[] = [
+const errorRateTrendInitial = [
+  { day: 'Mon', rate: 0, errors: 0 },
+  { day: 'Tue', rate: 0, errors: 0 },
+  { day: 'Wed', rate: 0, errors: 0 },
+  { day: 'Thu', rate: 0, errors: 0 },
+  { day: 'Fri', rate: 0, errors: 0 },
+  { day: 'Sat', rate: 0, errors: 0 },
+  { day: 'Sun', rate: 0, errors: 0 },
+];
+
+const dataVolumeDataInitial = [
+  { day: 'Mon', volume: 0 },
+  { day: 'Tue', volume: 0 },
+  { day: 'Wed', volume: 0 },
+  { day: 'Thu', volume: 0 },
+  { day: 'Fri', volume: 0 },
+  { day: 'Sat', volume: 0 },
+  { day: 'Sun', volume: 0 },
+];
+
+const availableEvents = [
   { id: 'int-1', name: 'Stripe', description: 'Online payment processing platform', category: 'Payment', status: 'connected', lastSync: '2 min ago', syncInterval: 'Real-time', recordsSynced: 12500, uptime: 99.9, avgLatency: 120, errorRate: 0.1, logoColor: 'bg-violet-600', icon: <CreditCard className="h-5 w-5" /> },
   { id: 'int-2', name: 'PayPal', description: 'Global payment gateway', category: 'Payment', status: 'connected', lastSync: '5 min ago', syncInterval: 'Real-time', recordsSynced: 8900, uptime: 99.8, avgLatency: 150, errorRate: 0.2, logoColor: 'bg-blue-600', icon: <CreditCard className="h-5 w-5" /> },
   { id: 'int-3', name: 'Razorpay', description: 'India-focused payment gateway', category: 'Payment', status: 'connected', lastSync: '1 min ago', syncInterval: 'Real-time', recordsSynced: 5200, uptime: 99.7, avgLatency: 180, errorRate: 0.3, logoColor: 'bg-cyan-600', icon: <CreditCard className="h-5 w-5" /> },
@@ -283,18 +314,112 @@ export default function IntegrationHub() {
   const [showAddWebhook, setShowAddWebhook] = useState(false);
   const [showAddKey, setShowAddKey] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
-  const [integrationStates, setIntegrationStates] = useState<Record<string, string>>(
-    Object.fromEntries(integrations.map(i => [i.id, i.status]))
-  );
+  const [loading, setLoading] = useState(true);
+
+  // Real data state
+  const [integrations, setIntegrations] = useState<Integration[]>([]);
+  const [syncLogEntries, setSyncLogEntries] = useState<SyncLogEntry[]>([]);
+  const [webhookConfigs, setWebhookConfigs] = useState<WebhookConfig[]>([]);
+  const [apiKeys, setApiKeys] = useState<ApiKeyEntry[]>([]);
+  const [errorRateTrend, setErrorRateTrend] = useState(errorRateTrendInitial);
+  const [dataVolumeData, setDataVolumeData] = useState(dataVolumeDataInitial);
+
+  // ─── Data fetching ─────────────────────────────────────────────────────
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [integRes, webhookRes, syncLogRes] = await Promise.allSettled([
+        fetch('/api/settings/integrations').then(r => r.ok ? r.json() : null),
+        fetch('/api/webhooks/events').then(r => r.ok ? r.json() : null),
+        fetch('/api/channels/sync-logs?limit=50').then(r => r.ok ? r.json() : null),
+      ]);
+
+      // Process integrations
+      if (integRes?.success) {
+        const items = integRes.data?.integrations || [];
+        const mapped = items.map((item: Record<string, unknown>, idx: number) => {
+          const statusVal = item.active ? 'connected' as const : 'disconnected' as const;
+          const providerLabel = item.name || item.type || 'Integration';
+          const categoryMap: Record<string, string> = {
+            smtp: 'Communication', sms_twilio: 'Communication', fcm: 'Communication',
+            s3_storage: 'Analytics', google_oauth: 'Communication', radius: 'IoT',
+            ai: 'Analytics', whatsapp: 'Communication',
+          };
+          return {
+            id: item.id,
+            name: providerLabel,
+            description: `${item.type || 'System'} integration`,
+            category: categoryMap[item.type as string] || 'Other',
+            status: statusVal,
+            lastSync: item.lastSyncAt ? formatRelativeTime(item.lastSyncAt) : 'Never',
+            syncInterval: item.active ? 'Configured' : 'N/A',
+            recordsSynced: 0,
+            uptime: item.active ? 99.9 : 0,
+            avgLatency: 0,
+            errorRate: 0,
+            logoColor: 'bg-violet-600',
+            icon: <Plug className="h-5 w-5" />,
+          };
+        });
+        setIntegrations(mapped);
+        setIntegrationStates(Object.fromEntries(mapped.map(i => [i.id, i.status])));
+      }
+
+      // Process webhooks
+      if (webhookRes?.success) {
+        const endpoints = webhookRes.data?.endpoints || [];
+        setWebhookConfigs(endpoints.map((ep: Record<string, unknown>) => ({
+          id: ep.id,
+          name: ep.name,
+          url: ep.url,
+          events: ep.events || [],
+          status: ep.status as 'active' | 'inactive',
+          secret: ep.secret ? `${(ep.secret as string).slice(0, 8)}...` : '',
+          lastDelivery: ep.lastTriggered ? formatRelativeTime(ep.lastTriggered) : 'N/A',
+          successRate: ep.successRate || 0,
+          deliveries: ep.totalTriggers || 0,
+        }));
+      }
+
+      // Process sync logs
+      if (syncLogRes?.success) {
+        const logs = syncLogRes.data || [];
+        setSyncLogEntries((logs as Array<Record<string, unknown>>).map((log: Record<string, unknown>, idx: number) => ({
+          id: `log-${idx}`,
+          integrationId: log.connectionId || '',
+          integrationName: log.channelName || log.channelType || 'Unknown',
+          type: (log.syncType || 'pull') as 'push' | 'pull' | 'error',
+          direction: (log.direction || 'incoming') as 'outgoing' | 'incoming',
+          records: 0,
+          status: (log.status === 'success' ? 'success' : log.status === 'failed' ? 'failed' : 'retrying') as 'success' | 'failed' | 'retrying',
+          timestamp: log.createdAt ? formatRelativeTime(log.createdAt) : '',
+          duration: '',
+          errorMessage: log.errorMessage || undefined,
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to fetch integration data:', err);
+    } finally {
+    setLoading(false);
+  }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const integrationStates = useMemo(() => {
+    const states: Record<string, string> = {};
+    integrations.forEach(i => { states[i.id] = i.status; });
+    return states;
+  }, [integrations]);
 
   const connectedIntegrations = useMemo(() =>
     integrations.filter(i => i.status === 'connected'),
-    []
+    [integrations]
   );
 
   const erroredIntegrations = useMemo(() =>
     integrations.filter(i => i.status === 'error'),
-    []
+    [integrations]
   );
 
   const filteredIntegrations = useMemo(() => {
@@ -339,6 +464,50 @@ export default function IntegrationHub() {
       return next;
     });
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+                <Plug className="h-4 w-4 text-white" />
+              </div>
+              Integration Hub
+            </h2>
+            <p className="text-muted-foreground">Centralized management for all third-party integrations</p>
+          </div>
+          <div className="flex gap-3">
+            <Skeleton className="h-9 w-28" />
+            <Skeleton className="h-9 w-28" />
+          </div>
+        </div>
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {[1,2,3,4,5,6].map(i => (
+            <Card key={i} className="overflow-hidden hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-10 rounded-lg" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const hasData = integrations.length > 0 || webhookConfigs.length > 0;
 
   return (
     <div className="space-y-6">

@@ -123,140 +123,6 @@ const STATUS_CONFIG: Record<RequestStatus, {
   },
 };
 
-// ─── Mock Data ──────────────────────────────────────────────────────────
-
-const MOCK_DATA: MaintenanceProData = {
-  stats: {
-    totalActive: 12,
-    critical: 3,
-    avgResolutionTime: '2.4h',
-    completedToday: 8,
-    pendingToday: 4,
-  },
-  requests: [
-    {
-      id: 'mt-001',
-      roomNumber: '301',
-      issueType: 'Plumbing',
-      description: 'Leaking faucet in bathroom, water dripping constantly',
-      priority: 'critical',
-      status: 'inProgress',
-      assignedTechnician: 'Raj Kumar',
-      createdAt: '2024-01-15T08:30:00Z',
-      estimatedCompletion: '2024-01-15T10:30:00Z',
-      progress: 65,
-    },
-    {
-      id: 'mt-002',
-      roomNumber: '412',
-      issueType: 'Electrical',
-      description: 'AC unit not cooling, thermostat unresponsive',
-      priority: 'critical',
-      status: 'inProgress',
-      assignedTechnician: 'Amit Sharma',
-      createdAt: '2024-01-15T07:45:00Z',
-      estimatedCompletion: '2024-01-15T11:00:00Z',
-      progress: 40,
-    },
-    {
-      id: 'mt-003',
-      roomNumber: '205',
-      issueType: 'Carpentry',
-      description: 'Broken wardrobe door hinge, door detached',
-      priority: 'critical',
-      status: 'pending',
-      assignedTechnician: 'Sunil Verma',
-      createdAt: '2024-01-15T09:15:00Z',
-      estimatedCompletion: '2024-01-15T12:00:00Z',
-      progress: 0,
-    },
-    {
-      id: 'mt-004',
-      roomNumber: '518',
-      issueType: 'Plumbing',
-      description: 'Slow drainage in bathroom sink',
-      priority: 'high',
-      status: 'inProgress',
-      assignedTechnician: 'Raj Kumar',
-      createdAt: '2024-01-15T06:20:00Z',
-      estimatedCompletion: '2024-01-15T09:30:00Z',
-      progress: 80,
-    },
-    {
-      id: 'mt-005',
-      roomNumber: '307',
-      issueType: 'HVAC',
-      description: 'Unusual noise from ventilation system',
-      priority: 'high',
-      status: 'pending',
-      assignedTechnician: 'Amit Sharma',
-      createdAt: '2024-01-15T10:00:00Z',
-      estimatedCompletion: '2024-01-15T14:00:00Z',
-      progress: 0,
-    },
-    {
-      id: 'mt-006',
-      roomNumber: '102',
-      issueType: 'Electrical',
-      description: 'Flickering lobby light fixture',
-      priority: 'medium',
-      status: 'completed',
-      assignedTechnician: 'Priya Patel',
-      createdAt: '2024-01-14T16:00:00Z',
-      estimatedCompletion: '2024-01-15T08:00:00Z',
-      progress: 100,
-    },
-    {
-      id: 'mt-007',
-      roomNumber: '403',
-      issueType: 'Painting',
-      description: 'Wall scuff marks near entrance door',
-      priority: 'medium',
-      status: 'inProgress',
-      assignedTechnician: 'Deepak Singh',
-      createdAt: '2024-01-15T08:00:00Z',
-      estimatedCompletion: '2024-01-15T11:30:00Z',
-      progress: 55,
-    },
-    {
-      id: 'mt-008',
-      roomNumber: '210',
-      issueType: 'Appliance',
-      description: 'Mini-fridge not cooling properly',
-      priority: 'low',
-      status: 'pending',
-      assignedTechnician: 'Vikram Joshi',
-      createdAt: '2024-01-15T11:00:00Z',
-      estimatedCompletion: '2024-01-15T16:00:00Z',
-      progress: 0,
-    },
-    {
-      id: 'mt-009',
-      roomNumber: '501',
-      issueType: 'Carpentry',
-      description: 'Loose towel rack in bathroom',
-      priority: 'low',
-      status: 'completed',
-      assignedTechnician: 'Sunil Verma',
-      createdAt: '2024-01-14T14:00:00Z',
-      estimatedCompletion: '2024-01-15T09:00:00Z',
-      progress: 100,
-    },
-    {
-      id: 'mt-010',
-      roomNumber: '315',
-      issueType: 'Plumbing',
-      description: 'Running toilet in suite bathroom',
-      priority: 'high',
-      status: 'inProgress',
-      assignedTechnician: 'Raj Kumar',
-      createdAt: '2024-01-15T07:00:00Z',
-      estimatedCompletion: '2024-01-15T09:00:00Z',
-      progress: 90,
-    },
-  ],
-};
-
 // ─── Skeleton Loader ────────────────────────────────────────────────────
 
 function SkeletonLoader() {
@@ -469,12 +335,10 @@ export function MaintenanceTrackerProWidget() {
       if (result.success && result.data?.maintenanceRequests) {
         setData(result.data.maintenanceRequests as MaintenanceProData);
       } else {
-        // Use mock data as fallback
-        setData(MOCK_DATA);
+        setError(t('failedToLoadMaintenance'));
       }
     } catch {
-      // Fallback to mock data on any error
-      setData(MOCK_DATA);
+      setError(t('failedToLoadMaintenance'));
     } finally {
       setIsLoading(false);
     }

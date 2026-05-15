@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -39,6 +39,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Smartphone,
   Tablet,
@@ -96,59 +97,86 @@ interface FeatureToggle {
   icon: React.ReactNode;
 }
 
-interface StaffDevice {
+interface ApiDevice {
   id: string;
-  deviceName: string;
-  staffName: string;
-  role: string;
+  platform: string;
+  osVersion: string;
   deviceModel: string;
-  os: string;
   appVersion: string;
-  status: 'active' | 'inactive' | 'suspended';
   lastActive: string;
-  batteryLevel: number;
+  pushEnabled: boolean;
+  location: string;
+  user?: { firstName: string; lastName: string } | null;
 }
 
-interface PushTemplate {
+interface ApiDeliveryLog {
+  id: string;
+  type: string;
+  template: string;
+  recipient: string;
+  subject?: string;
+  status: string;
+  sentAt: string;
+  deliveredAt?: string;
+  errorMessage?: string;
+}
+
+interface ApiTemplate {
   id: string;
   name: string;
-  category: 'booking' | 'promotional' | 'service' | 'transactional' | 'emergency';
-  title: string;
-  message: string;
-  language: string;
-  status: 'active' | 'draft' | 'paused';
-  sentCount: number;
-  openRate: number;
-  lastSent: string;
+  type: string;
+  category: string;
+  subject?: string;
+  body: string;
+  status: string;
+  usageCount: number;
 }
 
-interface PushDeliveryLog {
-  id: string;
-  recipient: string;
-  templateName: string;
-  channel: 'push' | 'sms' | 'email' | 'in_app';
-  status: 'delivered' | 'failed' | 'pending' | 'bounced';
-  timestamp: string;
-  deviceType: 'ios' | 'android' | 'web';
-  openCount: number;
-}
-
-interface AppVersion {
-  id: string;
-  app: 'guest' | 'staff';
+interface ApiAppVersion {
   version: string;
-  buildNumber: number;
-  platform: 'ios' | 'android' | 'both';
-  releaseType: 'major' | 'minor' | 'patch';
+  build: string;
+  platform: string;
   releaseDate: string;
-  releaseNotes: string;
-  downloads: number;
-  activeUsers: number;
-  status: 'current' | 'deprecated' | 'rolled_back';
+  status: string;
+  changes: string[];
+  mandatory: boolean;
+  minOsVersion: string;
+}
+
+interface MobileAppApiResponse {
+  success: boolean;
+  data?: {
+    stats: {
+      downloads: { total: number; ios: number; android: number; thisMonth: number; lastMonth: number; growthRate: number };
+      activeUsers: { dau: number; wau: number; mau: number; dauVsMau: number };
+      engagement: { mobileCheckins: number; mobileCheckouts: number; digitalKeysUsed: number; inAppPurchases: number; featureUsageRanking: { feature: string; usage: number }[] };
+      performance: { pushDeliveryRate: number };
+    };
+    features: { id: string; name: string; description: string; enabled: boolean; usageCount: number; icon: string; status: string }[];
+    devices: ApiDevice[];
+    pushNotifications: { id: string; title: string; message: string; type: string; targetSegment: string; sentCount: number; openRate: number; deliveryRate: number; sentAt: string }[];
+    versions: ApiAppVersion[];
+  };
+  stats?: {
+    totalDownloads: number;
+    monthlyActiveUsers: number;
+    dailyActiveUsers: number;
+    avgRating: string;
+    pushDeliveryRate: number;
+    registeredDevices: number;
+  };
+}
+
+interface DeliveryLogsResponse {
+  success: boolean;
+  data?: {
+    logs: ApiDeliveryLog[];
+    stats: { total: number; delivered: number; failed: number; bounced: number; pending: number; deliveryRate: string };
+  };
 }
 
 // ---------------------------------------------------------------------------
-// Mock Data
+// Static Feature Toggles (app config, not mock data)
 // ---------------------------------------------------------------------------
 
 const guestAppFeatures: FeatureToggle[] = [
@@ -169,49 +197,6 @@ const staffAppFeatures: FeatureToggle[] = [
   { id: 'sf-attendance', name: 'Attendance', description: 'Clock in/out, view shift schedules, and request time off', enabled: true, icon: <UserCheck className="h-4 w-4" /> },
   { id: 'sf-notifications', name: 'Alert Notifications', description: 'Receive real-time alerts for emergencies and urgent tasks', enabled: true, icon: <BellRing className="h-4 w-4" /> },
   { id: 'sf-handover', name: 'Shift Handover', description: 'Document and review shift handover notes and pending items', enabled: false, icon: <FileText className="h-4 w-4" /> },
-];
-
-const staffDevices: StaffDevice[] = [
-  { id: 'sd-1', deviceName: 'Front Desk iPad Pro', staffName: 'Priya Sharma', role: 'Front Desk Agent', deviceModel: 'iPad Pro 12.9"', os: 'iPadOS 18.5', appVersion: 'V2.4.1', status: 'active', lastActive: '2026-06-14T08:30:00Z', batteryLevel: 82 },
-  { id: 'sd-2', deviceName: 'Housekeeping iPhone', staffName: 'Ramesh Kumar', role: 'Housekeeping Supervisor', deviceModel: 'iPhone 15', os: 'iOS 18.5', appVersion: 'V2.4.1', status: 'active', lastActive: '2026-06-14T08:25:00Z', batteryLevel: 45 },
-  { id: 'sd-3', deviceName: 'Maintenance Tab', staffName: 'Suresh Patel', role: 'Maintenance Tech', deviceModel: 'Samsung Galaxy Tab S9', os: 'Android 15', appVersion: 'V2.4.0', status: 'active', lastActive: '2026-06-14T08:20:00Z', batteryLevel: 67 },
-  { id: 'sd-4', deviceName: 'Concierge Phone', staffName: 'Anita Desai', role: 'Concierge Manager', deviceModel: 'iPhone 14 Pro', os: 'iOS 18.5', appVersion: 'V2.4.1', status: 'active', lastActive: '2026-06-14T08:28:00Z', batteryLevel: 91 },
-  { id: 'sd-5', deviceName: 'Security Radio Tab', staffName: 'Vikram Singh', role: 'Security Officer', deviceModel: 'Samsung Galaxy Tab A9', os: 'Android 14', appVersion: 'V2.3.8', status: 'suspended', lastActive: '2026-06-13T22:00:00Z', batteryLevel: 12 },
-  { id: 'sd-6', deviceName: 'Spa Booking iPad', staffName: 'Meera Joshi', role: 'Spa Receptionist', deviceModel: 'iPad Air 5th Gen', os: 'iPadOS 18.5', appVersion: 'V2.4.1', status: 'active', lastActive: '2026-06-14T08:15:00Z', batteryLevel: 73 },
-  { id: 'sd-7', deviceName: 'F&B Manager Phone', staffName: 'Arjun Nair', role: 'F&B Manager', deviceModel: 'iPhone 15 Pro', os: 'iOS 18.5', appVersion: 'V2.4.1', status: 'inactive', lastActive: '2026-06-12T17:00:00Z', batteryLevel: 0 },
-];
-
-const pushTemplates: PushTemplate[] = [
-  { id: 'pt-1', name: 'Welcome Greeting', category: 'booking', title: 'Welcome to {{property_name}}!', message: 'Hello {{guest_name}}, we\'re delighted to have you. Your room {{room_number}} is ready. Enjoy your stay!', language: 'en', status: 'active', sentCount: 1247, openRate: 78.3, lastSent: '2026-06-14T07:00:00Z' },
-  { id: 'pt-2', name: 'Pre-Arrival Reminder', category: 'booking', title: 'Your stay starts tomorrow!', message: 'Hi {{guest_name}}, your check-in at {{property_name}} is tomorrow. Complete express check-in now to skip the queue.', language: 'en', status: 'active', sentCount: 892, openRate: 65.1, lastSent: '2026-06-13T10:00:00Z' },
-  { id: 'pt-3', name: 'Weekend Spa Offer', category: 'promotional', title: 'Relax & Rejuvenate 💆', message: 'Exclusive 25% off spa treatments this weekend! Book now through the app and treat yourself.', language: 'en', status: 'active', sentCount: 3420, openRate: 42.7, lastSent: '2026-06-14T06:00:00Z' },
-  { id: 'pt-4', name: 'Room Ready', category: 'service', title: 'Your room is ready!', message: 'Your room {{room_number}} has been cleaned and inspected. Head to your room or enjoy our lobby amenities.', language: 'en', status: 'active', sentCount: 1056, openRate: 72.8, lastSent: '2026-06-14T08:00:00Z' },
-  { id: 'pt-5', name: 'Folio Receipt', category: 'transactional', title: 'Payment Confirmation', message: 'Your payment of {{amount}} has been processed. Receipt available in your digital folio.', language: 'en', status: 'active', sentCount: 678, openRate: 81.2, lastSent: '2026-06-14T08:30:00Z' },
-  { id: 'pt-6', name: 'Checkout Reminder', category: 'booking', title: 'Time to say goodbye?', message: 'Your checkout is at {{checkout_time}}. Need a late checkout? Request it with one tap.', language: 'en', status: 'draft', sentCount: 0, openRate: 0, lastSent: '' },
-  { id: 'pt-7', name: 'Emergency Alert', category: 'emergency', title: '⚠️ Important Safety Notice', message: '{{message}}. Please follow staff instructions immediately.', language: 'en', status: 'active', sentCount: 2, openRate: 100, lastSent: '2026-06-10T03:00:00Z' },
-  { id: 'pt-8', name: 'Welcome (Hindi)', category: 'booking', title: '{{property_name}} में आपका स्वागत है!', message: 'नमस्ते {{guest_name}}, आपका कमरा {{room_number}} तैयार है। अपने प्रवास का आनंद लें!', language: 'hi', status: 'active', sentCount: 234, openRate: 71.5, lastSent: '2026-06-14T07:00:00Z' },
-];
-
-const deliveryLogs: PushDeliveryLog[] = [
-  { id: 'dl-1', recipient: 'James Anderson', templateName: 'Welcome Greeting', channel: 'push', status: 'delivered', timestamp: '2026-06-14T08:30:00Z', deviceType: 'ios', openCount: 1 },
-  { id: 'dl-2', recipient: 'Maria Chen', templateName: 'Room Ready', channel: 'push', status: 'delivered', timestamp: '2026-06-14T08:00:00Z', deviceType: 'android', openCount: 1 },
-  { id: 'dl-3', recipient: 'Tom Williams', templateName: 'Weekend Spa Offer', channel: 'push', status: 'delivered', timestamp: '2026-06-14T06:00:00Z', deviceType: 'ios', openCount: 0 },
-  { id: 'dl-4', recipient: 'Emily Brown', templateName: 'Folio Receipt', channel: 'email', status: 'delivered', timestamp: '2026-06-14T08:30:00Z', deviceType: 'web', openCount: 1 },
-  { id: 'dl-5', recipient: 'Ahmed Hassan', templateName: 'Pre-Arrival Reminder', channel: 'sms', status: 'failed', timestamp: '2026-06-14T08:15:00Z', deviceType: 'android', openCount: 0 },
-  { id: 'dl-6', recipient: 'Lisa Nakamura', templateName: 'Welcome Greeting', channel: 'push', status: 'bounced', timestamp: '2026-06-14T07:45:00Z', deviceType: 'ios', openCount: 0 },
-  { id: 'dl-7', recipient: 'Sarah Johnson', templateName: 'Room Ready', channel: 'in_app', status: 'delivered', timestamp: '2026-06-14T08:10:00Z', deviceType: 'android', openCount: 1 },
-  { id: 'dl-8', recipient: 'Priya Patel', templateName: 'Weekend Spa Offer', channel: 'push', status: 'pending', timestamp: '2026-06-14T08:32:00Z', deviceType: 'ios', openCount: 0 },
-  { id: 'dl-9', recipient: 'David Kumar', templateName: 'Folio Receipt', channel: 'email', status: 'delivered', timestamp: '2026-06-14T08:25:00Z', deviceType: 'web', openCount: 0 },
-  { id: 'dl-10', recipient: 'Robert Müller', templateName: 'Welcome Greeting', channel: 'push', status: 'delivered', timestamp: '2026-06-14T07:30:00Z', deviceType: 'android', openCount: 1 },
-];
-
-const appVersions: AppVersion[] = [
-  { id: 'av-1', app: 'guest', version: '3.2.0', buildNumber: 842, platform: 'both', releaseType: 'major', releaseDate: '2026-06-01T00:00:00Z', releaseNotes: 'Major redesign with digital key BLE 5.0 support, in-room ordering, and loyalty program integration. Added Hindi and Marathi languages.', downloads: 12840, activeUsers: 8421, status: 'current' },
-  { id: 'av-2', app: 'guest', version: '3.1.2', buildNumber: 810, platform: 'both', releaseType: 'patch', releaseDate: '2026-05-10T00:00:00Z', releaseNotes: 'Fixed push notification delivery on Android 15, improved offline mode reliability, and resolved check-in flow crash.', downloads: 14500, activeUsers: 120, status: 'deprecated' },
-  { id: 'av-3', app: 'guest', version: '3.1.0', buildNumber: 795, platform: 'both', releaseType: 'minor', releaseDate: '2026-04-15T00:00:00Z', releaseNotes: 'Added express checkout, guest feedback surveys, and dark mode support for Android.', downloads: 15200, activeUsers: 45, status: 'deprecated' },
-  { id: 'av-4', app: 'staff', version: '2.4.1', buildNumber: 523, platform: 'both', releaseType: 'patch', releaseDate: '2026-06-08T00:00:00Z', releaseNotes: 'Fixed task assignment notifications, improved room status sync speed, and resolved attendance clock-in issue.', downloads: 2100, activeUsers: 156, status: 'current' },
-  { id: 'av-5', app: 'staff', version: '2.4.0', buildNumber: 510, platform: 'both', releaseType: 'minor', releaseDate: '2026-05-20T00:00:00Z', releaseNotes: 'Added shift handover notes, improved messaging with read receipts, and new room inspection checklist.', downloads: 1980, activeUsers: 12, status: 'deprecated' },
-  { id: 'av-6', app: 'staff', version: '2.3.8', buildNumber: 492, platform: 'android', releaseType: 'patch', releaseDate: '2026-04-28T00:00:00Z', releaseNotes: 'Hotfix for Samsung Galaxy Tab S9 compatibility and Android 14 notification channels.', downloads: 1850, activeUsers: 5, status: 'deprecated' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -270,22 +255,21 @@ function templateStatusBadge(status: string) {
     case 'draft':
       return <Badge variant="secondary">Draft</Badge>;
     case 'paused':
+    case 'inactive':
       return <Badge variant="outline">Paused</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
   }
 }
 
-function deviceStatusBadge(status: string) {
-  switch (status) {
-    case 'active':
+function deviceLocationBadge(location: string) {
+  switch (location) {
+    case 'in_app':
       return <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 gap-1"><Wifi className="h-3 w-3" /> Active</Badge>;
-    case 'inactive':
-      return <Badge variant="secondary" className="gap-1"><WifiOff className="h-3 w-3" /> Inactive</Badge>;
-    case 'suspended':
-      return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> Suspended</Badge>;
+    case 'background':
+      return <Badge variant="secondary" className="gap-1"><Clock className="h-3 w-3" /> Background</Badge>;
     default:
-      return <Badge variant="outline">{status}</Badge>;
+      return <Badge variant="secondary" className="gap-1"><WifiOff className="h-3 w-3" /> Inactive</Badge>;
   }
 }
 
@@ -294,24 +278,12 @@ function versionStatusBadge(status: string) {
     case 'current':
       return <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 gap-1"><CheckCircle2 className="h-3 w-3" /> Current</Badge>;
     case 'deprecated':
+    case 'previous':
       return <Badge variant="secondary" className="gap-1">Deprecated</Badge>;
     case 'rolled_back':
       return <Badge variant="destructive" className="gap-1">Rolled Back</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
-  }
-}
-
-function releaseTypeBadge(type: string) {
-  switch (type) {
-    case 'major':
-      return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-0 text-xs">Major</Badge>;
-    case 'minor':
-      return <Badge className="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 border-0 text-xs">Minor</Badge>;
-    case 'patch':
-      return <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300 border-0 text-xs">Patch</Badge>;
-    default:
-      return <Badge variant="outline" className="text-xs">{type}</Badge>;
   }
 }
 
@@ -326,34 +298,121 @@ function channelIcon(channel: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Loading Skeletons
+// ---------------------------------------------------------------------------
+
+function StatsCardsSkeleton() {
+  return (
+    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      {[1, 2, 3, 4].map(i => (
+        <Card key={i} className="border-l-4 border-l-muted">
+          <CardHeader className="pb-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-7 w-16 mt-1" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-3 w-20" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function DeviceTableSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-4 w-56 mt-1" />
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {[1, 2, 3, 4, 5].map(i => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export function MobileAppManagement() {
   const { formatCurrency } = useCurrency();
 
-  // Stats
-  const guestAppInstalls = 8421;
-  const staffAppUsers = 156;
-  const activeSessions = 890;
-  const pushDeliveryRate = 94.7;
+  // Data state
+  const [mobileAppData, setMobileAppData] = useState<MobileAppApiResponse | null>(null);
+  const [deliveryLogsData, setDeliveryLogsData] = useState<DeliveryLogsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // State
-  const [activeTab, setActiveTab] = useState('guest-app');
-  const [refreshing, setRefreshing] = useState(false);
+  // Feature toggle state (static config, editable locally)
   const [guestFeatures, setGuestFeatures] = useState(guestAppFeatures);
   const [staffFeatures, setStaffFeatures] = useState(staffAppFeatures);
+
+  // UI state
+  const [activeTab, setActiveTab] = useState('guest-app');
+  const [refreshing, setRefreshing] = useState(false);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [templateDetailOpen, setTemplateDetailOpen] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<PushTemplate | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<{ id: string; name: string; title?: string; body: string; status: string; type: string; category: string; usageCount: number } | null>(null);
   const [newTemplateOpen, setNewTemplateOpen] = useState(false);
 
-  const handleRefresh = () => {
+  // Derived from API data
+  const apiStats = mobileAppData?.stats;
+  const summaryStats = mobileAppData?.stats;
+  const devices = mobileAppData?.data?.devices ?? [];
+  const pushNotifications = mobileAppData?.data?.pushNotifications ?? [];
+  const versions = mobileAppData?.data?.versions ?? [];
+  const deliveryLogs = deliveryLogsData?.data?.logs ?? [];
+  const deliveryStats = deliveryLogsData?.data?.stats;
+
+  const guestAppInstalls = summaryStats?.totalDownloads ?? 0;
+  const staffAppUsers = devices.length;
+  const activeSessions = apiStats?.activeUsers?.dau ?? 0;
+  const pushDeliveryRate = apiStats?.performance?.pushDeliveryRate ?? deliveryStats ? parseFloat(deliveryStats.deliveryRate) : 0;
+  const growthRate = apiStats?.downloads?.growthRate ?? 0;
+
+  // Fetch all data
+  const fetchData = useCallback(async () => {
+    try {
+      setError(null);
+      const [mobileRes, deliveryRes] = await Promise.all([
+        fetch('/api/integrations/mobile-app?period=30d'),
+        fetch('/api/notifications/delivery-logs?limit=20'),
+      ]);
+
+      if (!mobileRes.ok) throw new Error('Failed to load mobile app data');
+      const mobileJson: MobileAppApiResponse = await mobileRes.json();
+      if (mobileJson.success) setMobileAppData(mobileJson);
+      else throw new Error(mobileJson.error?.message || 'Failed to load mobile app data');
+
+      if (deliveryRes.ok) {
+        const deliveryJson: DeliveryLogsResponse = await deliveryRes.json();
+        if (deliveryJson.success) setDeliveryLogsData(deliveryJson);
+      }
+    } catch (err) {
+      console.error('Error fetching mobile app data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-      toast.success('App data refreshed');
-    }, 1200);
+    setLoading(true);
+    await fetchData();
+    setRefreshing(false);
+    toast.success('App data refreshed');
   };
 
   const toggleGuestFeature = (id: string) => {
@@ -379,6 +438,33 @@ export function MobileAppManagement() {
   const handleCopyDownloadLink = () => {
     toast.success('Download link copied to clipboard');
   };
+
+  // Error state
+  if (error && !loading && !mobileAppData) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <Smartphone className="h-6 w-6" />
+              Mobile App Management
+            </h2>
+          </div>
+        </div>
+        <Card className="border-red-200 dark:border-red-800">
+          <CardContent className="py-12 flex flex-col items-center gap-3">
+            <AlertTriangle className="h-10 w-10 text-red-500" />
+            <p className="text-sm font-medium text-red-600 dark:text-red-400">Failed to load mobile app data</p>
+            <p className="text-xs text-muted-foreground">{error}</p>
+            <Button size="sm" variant="outline" onClick={handleRefresh}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -406,56 +492,62 @@ export function MobileAppManagement() {
       </div>
 
       {/* ─── Stats Cards ─── */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-sky-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5">
-              <Smartphone className="h-4 w-4" /> Guest App Installs
-            </CardDescription>
-            <CardTitle className="text-2xl">{guestAppInstalls.toLocaleString()}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-              <TrendingUp className="h-3 w-3" /> +12.3% this month
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-violet-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5">
-              <Users className="h-4 w-4" /> Staff App Users
-            </CardDescription>
-            <CardTitle className="text-2xl">{staffAppUsers}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">
-              {staffDevices.filter(d => d.status === 'active').length} devices active
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-emerald-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5">
-              <Activity className="h-4 w-4" /> Active Sessions
-            </CardDescription>
-            <CardTitle className="text-2xl">{activeSessions}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">Real-time across both apps</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-amber-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5">
-              <Bell className="h-4 w-4" /> Push Delivery Rate
-            </CardDescription>
-            <CardTitle className="text-2xl">{pushDeliveryRate}%</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Progress value={pushDeliveryRate} className="h-2 mt-1 [&>div]:bg-amber-500" />
-          </CardContent>
-        </Card>
-      </div>
+      {loading ? (
+        <StatsCardsSkeleton />
+      ) : (
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          <Card className="border-l-4 border-l-sky-500">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <Smartphone className="h-4 w-4" /> Guest App Installs
+              </CardDescription>
+              <CardTitle className="text-2xl">{guestAppInstalls.toLocaleString()}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className={`text-xs flex items-center gap-1 ${growthRate >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                <TrendingUp className="h-3 w-3" /> {growthRate >= 0 ? '+' : ''}{growthRate}% this month
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-violet-500">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <Users className="h-4 w-4" /> Registered Devices
+              </CardDescription>
+              <CardTitle className="text-2xl">{staffAppUsers}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">
+                {devices.filter(d => d.location === 'in_app').length} currently active
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-emerald-500">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <Activity className="h-4 w-4" /> Active Sessions (DAU)
+              </CardDescription>
+              <CardTitle className="text-2xl">{activeSessions.toLocaleString()}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">
+                {apiStats?.activeUsers?.mau ?? 0} monthly active users
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-amber-500">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <Bell className="h-4 w-4" /> Push Delivery Rate
+              </CardDescription>
+              <CardTitle className="text-2xl">{pushDeliveryRate}%</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Progress value={pushDeliveryRate} className="h-2 mt-1 [&>div]:bg-amber-500" />
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* ─── Tabs ─── */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -549,10 +641,12 @@ export function MobileAppManagement() {
                   </div>
                   <div>
                     <h4 className="font-semibold">StaySuite Guest App</h4>
-                    <p className="text-sm text-muted-foreground">Current Version: 3.2.0 • iOS &amp; Android</p>
+                    <p className="text-sm text-muted-foreground">
+                      Current Version: {versions[0]?.version ?? '—'} • iOS &amp; Android
+                    </p>
                     <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-xs">4.8 ★</Badge>
-                      <Badge variant="outline" className="text-xs">12.8K downloads</Badge>
+                      <Badge variant="outline" className="text-xs">{summaryStats?.avgRating ?? '—'} ★</Badge>
+                      <Badge variant="outline" className="text-xs">{guestAppInstalls.toLocaleString()} downloads</Badge>
                     </div>
                   </div>
                 </div>
@@ -633,90 +727,99 @@ export function MobileAppManagement() {
           </Card>
 
           {/* Device Management */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">Device Management</CardTitle>
-                  <CardDescription>All registered staff devices and their status</CardDescription>
+          {loading ? (
+            <DeviceTableSkeleton />
+          ) : devices.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 flex flex-col items-center gap-3">
+                <Tablet className="h-10 w-10 text-muted-foreground" />
+                <p className="text-sm font-medium text-muted-foreground">No registered devices found</p>
+                <p className="text-xs text-muted-foreground">Devices will appear here once users install the mobile app</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base">Device Management</CardTitle>
+                    <CardDescription>All registered devices and their status</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {devices.filter(d => d.location === 'in_app').length} active
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      {devices.filter(d => d.platform === 'iOS').length} iOS / {devices.filter(d => d.platform === 'Android').length} Android
+                    </Badge>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs">
-                    {staffDevices.filter(d => d.status === 'active').length} active
-                  </Badge>
-                  <Badge variant="outline" className="text-xs text-amber-500">
-                    {staffDevices.filter(d => d.status === 'suspended').length} suspended
-                  </Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="max-h-[400px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Device</TableHead>
-                      <TableHead className="hidden sm:table-cell">Staff</TableHead>
-                      <TableHead className="hidden md:table-cell">Model / OS</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="hidden sm:table-cell">App Ver</TableHead>
-                      <TableHead className="hidden lg:table-cell">Last Active</TableHead>
-                      <TableHead className="hidden md:table-cell">Battery</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {staffDevices.map((device) => (
-                      <TableRow key={device.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Tablet className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span className="font-medium text-sm">{device.deviceName}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          <div>
-                            <p className="text-sm">{device.staffName}</p>
-                            <p className="text-xs text-muted-foreground">{device.role}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                          {device.deviceModel}<br />{device.os}
-                        </TableCell>
-                        <TableCell>{deviceStatusBadge(device.status)}</TableCell>
-                        <TableCell className="hidden sm:table-cell font-mono text-xs">
-                          {device.appVersion}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                          {formatDateTime(device.lastActive)}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <div className="flex items-center gap-1.5">
-                            <div className={`w-2 h-2 rounded-full ${
-                              device.batteryLevel > 60 ? 'bg-emerald-500' :
-                              device.batteryLevel > 25 ? 'bg-amber-500' :
-                              device.batteryLevel > 0 ? 'bg-red-500' : 'bg-gray-300'
-                            }`} />
-                            <span className="text-xs">{device.batteryLevel}%</span>
-                          </div>
-                        </TableCell>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="max-h-[400px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Device</TableHead>
+                        <TableHead className="hidden sm:table-cell">User</TableHead>
+                        <TableHead className="hidden md:table-cell">Platform / OS</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="hidden sm:table-cell">App Ver</TableHead>
+                        <TableHead className="hidden lg:table-cell">Last Active</TableHead>
+                        <TableHead className="hidden md:table-cell">Push</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-            </CardContent>
-          </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {devices.map((device) => (
+                        <TableRow key={device.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {device.platform === 'iOS' ? (
+                                <Smartphone className="h-4 w-4 text-muted-foreground shrink-0" />
+                              ) : (
+                                <Tablet className="h-4 w-4 text-muted-foreground shrink-0" />
+                              )}
+                              <span className="font-medium text-sm">{device.deviceModel}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            <div>
+                              <p className="text-sm">{device.user ? `${device.user.firstName} ${device.user.lastName}` : 'Unknown'}</p>
+                              <p className="text-xs text-muted-foreground">{device.platform}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                            {device.platform}<br />{device.osVersion}
+                          </TableCell>
+                          <TableCell>{deviceLocationBadge(device.location)}</TableCell>
+                          <TableCell className="hidden sm:table-cell font-mono text-xs">
+                            {device.appVersion}
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
+                            {formatDateTime(device.lastActive)}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            <div className={`w-2 h-2 rounded-full ${device.pushEnabled ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* ─── Tab: Push Notifications ─── */}
         <TabsContent value="push-notifications" className="mt-6 space-y-4">
-          {/* Template Management */}
+          {/* Template Management - from pushNotifications API data */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base">Notification Templates</CardTitle>
-                  <CardDescription>Manage push notification, SMS, and email templates</CardDescription>
+                  <CardTitle className="text-base">Push Notifications</CardTitle>
+                  <CardDescription>Recent push notification campaigns and delivery stats</CardDescription>
                 </div>
                 <Button size="sm" onClick={() => setNewTemplateOpen(true)}>
                   <Plus className="h-4 w-4 mr-1.5" />
@@ -725,59 +828,63 @@ export function MobileAppManagement() {
               </div>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="max-h-[320px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead className="hidden sm:table-cell">Category</TableHead>
-                      <TableHead className="hidden md:table-cell">Title</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="hidden sm:table-cell">Sent</TableHead>
-                      <TableHead className="hidden md:table-cell">Open Rate</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pushTemplates.map((template) => (
-                      <TableRow key={template.id}>
-                        <TableCell className="font-medium text-sm">{template.name}</TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          {templateCategoryBadge(template.category)}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground max-w-[200px] truncate">
-                          {template.title}
-                        </TableCell>
-                        <TableCell>{templateStatusBadge(template.status)}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-sm">
-                          {template.sentCount > 0 ? template.sentCount.toLocaleString() : '—'}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-sm">
-                          {template.openRate > 0 ? `${template.openRate}%` : '—'}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2"
-                            onClick={() => {
-                              setSelectedTemplate(template);
-                              setTemplateDetailOpen(true);
-                            }}
-                          >
-                            <Eye className="h-3.5 w-3.5 mr-1" />
-                            View
-                          </Button>
-                        </TableCell>
+              {loading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-10 w-full" />)}
+                </div>
+              ) : pushNotifications.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground text-sm">
+                  No push notifications sent yet
+                </div>
+              ) : (
+                <ScrollArea className="max-h-[320px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Title</TableHead>
+                        <TableHead className="hidden sm:table-cell">Type</TableHead>
+                        <TableHead className="hidden md:table-cell">Target</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="hidden sm:table-cell">Delivery</TableHead>
+                        <TableHead className="hidden md:table-cell">Sent At</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
+                    </TableHeader>
+                    <TableBody>
+                      {pushNotifications.map((notif) => (
+                        <TableRow key={notif.id}>
+                          <TableCell className="font-medium text-sm">{notif.title}</TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            <Badge variant="outline" className="text-xs">{notif.type}</Badge>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                            {notif.targetSegment}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={cn(
+                              'text-xs border-0',
+                              notif.deliveryRate >= 95 ? 'bg-emerald-500 text-white' :
+                              notif.deliveryRate >= 50 ? 'bg-amber-500 text-white' :
+                              'bg-red-500 text-white'
+                            )}>
+                              {notif.deliveryRate}%
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm">
+                            {notif.sentCount > 0 ? notif.sentCount.toLocaleString() : '—'}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                            {formatDateTime(notif.sentAt)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              )}
             </CardContent>
           </Card>
 
-          {/* Delivery Logs */}
+          {/* Delivery Logs - from API */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -785,151 +892,127 @@ export function MobileAppManagement() {
                   <CardTitle className="text-base">Delivery Logs</CardTitle>
                   <CardDescription>Recent notification delivery attempts across all channels</CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs">
-                    {deliveryLogs.filter(d => d.status === 'delivered').length} delivered
-                  </Badge>
-                  <Badge variant="outline" className="text-xs text-red-500">
-                    {deliveryLogs.filter(d => d.status === 'failed' || d.status === 'bounced').length} failed
-                  </Badge>
-                </div>
+                {deliveryStats && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {deliveryStats.delivered} delivered
+                    </Badge>
+                    <Badge variant="outline" className="text-xs text-red-500">
+                      {deliveryStats.failed + deliveryStats.bounced} failed
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      {deliveryStats.pending} pending
+                    </Badge>
+                  </div>
+                )}
               </div>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="max-h-[320px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Recipient</TableHead>
-                      <TableHead className="hidden sm:table-cell">Template</TableHead>
-                      <TableHead>Channel</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="hidden md:table-cell">Device</TableHead>
-                      <TableHead className="hidden lg:table-cell">Opened</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {deliveryLogs.map((log) => (
-                      <TableRow key={log.id} className={
-                        log.status === 'failed' || log.status === 'bounced'
-                          ? 'bg-red-50/50 dark:bg-red-950/20' : ''
-                      }>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {formatDateTime(log.timestamp)}
-                        </TableCell>
-                        <TableCell className="text-sm font-medium">{log.recipient}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
-                          {log.templateName}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            {channelIcon(log.channel)}
-                            <span className="text-sm capitalize">{log.channel}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{deliveryStatusBadge(log.status)}</TableCell>
-                        <TableCell className="hidden md:table-cell text-xs capitalize text-muted-foreground">
-                          {log.deviceType}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell text-sm">
-                          {log.openCount > 0 ? (
-                            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-0 text-xs">
-                              <Eye className="h-3 w-3 mr-1" /> Opened
-                            </Badge>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Not opened</span>
-                          )}
-                        </TableCell>
+              {loading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-10 w-full" />)}
+                </div>
+              ) : deliveryLogs.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground text-sm">
+                  No delivery logs yet
+                </div>
+              ) : (
+                <ScrollArea className="max-h-[400px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Recipient</TableHead>
+                        <TableHead>Channel</TableHead>
+                        <TableHead className="hidden sm:table-cell">Subject</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="hidden md:table-cell">Sent At</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
+                    </TableHeader>
+                    <TableBody>
+                      {deliveryLogs.map((log) => (
+                        <TableRow key={log.id}>
+                          <TableCell className="text-sm">{log.recipient || '—'}</TableCell>
+                          <TableCell>{channelIcon(log.type)}</TableCell>
+                          <TableCell className="hidden sm:table-cell text-sm text-muted-foreground max-w-[200px] truncate">
+                            {log.subject || log.template}
+                          </TableCell>
+                          <TableCell>{deliveryStatusBadge(log.status)}</TableCell>
+                          <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                            {formatDateTime(log.sentAt)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* ─── Tab: App Versions ─── */}
-        <TabsContent value="versions" className="mt-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">Version History</CardTitle>
-                  <CardDescription>All app releases with download stats and release notes</CardDescription>
+        <TabsContent value="versions" className="mt-6 space-y-4">
+          {loading ? (
+            <Card>
+              <CardContent className="space-y-4 pt-6">
+                {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+              </CardContent>
+            </Card>
+          ) : versions.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 flex flex-col items-center gap-3">
+                <Layers className="h-10 w-10 text-muted-foreground" />
+                <p className="text-sm font-medium text-muted-foreground">No version data available</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base">App Versions</CardTitle>
+                    <CardDescription>Release history for StaySuite mobile apps</CardDescription>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs">
-                    {appVersions.filter(v => v.app === 'guest').length} guest
-                  </Badge>
-                  <Badge variant="outline" className="text-xs">
-                    {appVersions.filter(v => v.app === 'staff').length} staff
-                  </Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="max-h-[520px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Version</TableHead>
-                      <TableHead className="hidden sm:table-cell">App</TableHead>
-                      <TableHead className="hidden md:table-cell">Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="hidden sm:table-cell">Platform</TableHead>
-                      <TableHead className="hidden md:table-cell">Downloads</TableHead>
-                      <TableHead className="hidden lg:table-cell">Active Users</TableHead>
-                      <TableHead className="hidden lg:table-cell">Released</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {appVersions.map((version) => (
-                      <TableRow key={version.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Layers className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <div>
-                              <p className="font-semibold text-sm">{version.version}</p>
-                              <p className="text-xs text-muted-foreground font-mono">Build {version.buildNumber}</p>
-                            </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {versions.map((ver, idx) => (
+                    <div key={idx} className="rounded-lg border p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400 flex items-center justify-center font-mono font-bold text-xs">
+                            {ver.version.split('.').slice(0, 2).join('.')}
                           </div>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          <Badge variant="outline" className="text-xs">
-                            {version.app === 'guest' ? (
-                              <><Smartphone className="h-3 w-3 mr-1" /> Guest</>
-                            ) : (
-                              <><Users className="h-3 w-3 mr-1" /> Staff</>
-                            )}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {releaseTypeBadge(version.releaseType)}
-                        </TableCell>
-                        <TableCell>{versionStatusBadge(version.status)}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-xs capitalize text-muted-foreground">
-                          {version.platform}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-sm">
-                          {version.downloads.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell text-sm">
-                          <span className={version.activeUsers > 100 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}>
-                            {version.activeUsers}
-                          </span>
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                          {formatDate(version.releaseDate)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-            </CardContent>
-          </Card>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm">v{ver.version}</p>
+                              {versionStatusBadge(ver.status)}
+                              {ver.mandatory && <Badge variant="destructive" className="text-xs">Mandatory</Badge>}
+                              <Badge variant="outline" className="text-xs">{ver.platform}</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Build {ver.build} • Released {formatDate(ver.releaseDate)} • Min OS: {ver.minOsVersion}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <ul className="text-xs text-muted-foreground space-y-0.5">
+                          {ver.changes.map((change, ci) => (
+                            <li key={ci} className="flex items-start gap-1.5">
+                              <ChevronRight className="h-3 w-3 mt-0.5 shrink-0" />
+                              {change}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 
@@ -942,37 +1025,22 @@ export function MobileAppManagement() {
               App Download QR Code
             </DialogTitle>
             <DialogDescription>
-              Guests can scan this QR code to download the StaySuite Guest App
+              Scan this QR code with your mobile device to download the StaySuite app
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col items-center py-6 space-y-4">
-            {/* Simulated QR code placeholder */}
-            <div className="w-48 h-48 rounded-xl bg-white border-2 border-dashed border-muted-foreground/30 flex flex-col items-center justify-center gap-2">
-              <QrCode className="h-20 w-20 text-muted-foreground/60" />
-              <p className="text-xs text-muted-foreground">QR Code</p>
-            </div>
-            <div className="text-center space-y-1">
-              <p className="font-medium text-sm">StaySuite Guest App</p>
-              <p className="text-xs text-muted-foreground">iOS &amp; Android • Auto-detects platform</p>
-            </div>
-            <div className="w-full rounded-md bg-muted p-3">
-              <p className="text-xs text-muted-foreground mb-1">Download URL</p>
-              <div className="flex items-center gap-2">
-                <code className="text-xs font-mono flex-1 truncate">
-                  https://staysuite.app/download/rso-1
-                </code>
-                <Button variant="ghost" size="sm" className="h-7 px-2 shrink-0" onClick={handleCopyDownloadLink}>
-                  <Copy className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+          <div className="flex justify-center py-6">
+            <div className="h-48 w-48 bg-muted rounded-xl flex items-center justify-center border-2 border-dashed">
+              <QrCode className="h-24 w-24 text-muted-foreground" />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setQrDialogOpen(false)}>Close</Button>
-            <Button onClick={handleCopyDownloadLink}>
-              <Copy className="h-4 w-4 mr-2" />
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={handleCopyDownloadLink}>
+              <Copy className="h-4 w-4 mr-1.5" />
               Copy Link
             </Button>
+            <DialogClose asChild>
+              <Button size="sm">Close</Button>
+            </DialogClose>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -981,66 +1049,51 @@ export function MobileAppManagement() {
       <Dialog open={templateDetailOpen} onOpenChange={setTemplateDetailOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5" />
-              {selectedTemplate?.name}
-            </DialogTitle>
-            <DialogDescription>
-              Template preview and statistics
-            </DialogDescription>
+            <DialogTitle>Notification Details</DialogTitle>
+            <DialogDescription>View notification template details</DialogDescription>
           </DialogHeader>
           {selectedTemplate && (
-            <div className="space-y-4 py-2">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-md bg-muted p-3">
-                  <p className="text-xs text-muted-foreground">Category</p>
-                  <div className="mt-1">{templateCategoryBadge(selectedTemplate.category)}</div>
+            <div className="space-y-3">
+              <div className="grid gap-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Name</Label>
+                  <p className="text-sm font-medium">{selectedTemplate.name}</p>
                 </div>
-                <div className="rounded-md bg-muted p-3">
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  <div className="mt-1">{templateStatusBadge(selectedTemplate.status)}</div>
-                </div>
-                <div className="rounded-md bg-muted p-3">
-                  <p className="text-xs text-muted-foreground">Total Sent</p>
-                  <p className="font-semibold">{selectedTemplate.sentCount.toLocaleString()}</p>
-                </div>
-                <div className="rounded-md bg-muted p-3">
-                  <p className="text-xs text-muted-foreground">Open Rate</p>
-                  <p className="font-semibold">{selectedTemplate.openRate > 0 ? `${selectedTemplate.openRate}%` : 'N/A'}</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Title</Label>
-                <div className="rounded-md border p-3 bg-muted/50">
-                  <p className="text-sm font-medium">{selectedTemplate.title}</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Message</Label>
-                <div className="rounded-md border p-3 bg-muted/50">
-                  <p className="text-sm">{selectedTemplate.message}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>Language: {selectedTemplate.language.toUpperCase()}</span>
-                {selectedTemplate.lastSent && (
-                  <>
-                    <span>•</span>
-                    <span>Last sent: {formatDateTime(selectedTemplate.lastSent)}</span>
-                  </>
+                {selectedTemplate.title && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Subject</Label>
+                    <p className="text-sm">{selectedTemplate.title}</p>
+                  </div>
                 )}
+                <div>
+                  <Label className="text-xs text-muted-foreground">Body</Label>
+                  <p className="text-sm bg-muted p-3 rounded-md max-h-32 overflow-auto">{selectedTemplate.body}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Type</Label>
+                    <p className="text-sm">{selectedTemplate.type}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <p className="text-sm">{templateStatusBadge(selectedTemplate.status)}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Category</Label>
+                    <p className="text-sm">{selectedTemplate.category}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Usage Count</Label>
+                    <p className="text-sm">{selectedTemplate.usageCount}</p>
+                  </div>
+                </div>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTemplateDetailOpen(false)}>Close</Button>
-            <Button onClick={() => {
-              setTemplateDetailOpen(false);
-              toast.success('Test notification sent to your device');
-            }}>
-              <Send className="h-4 w-4 mr-2" />
-              Send Test
-            </Button>
+            <DialogClose asChild>
+              <Button size="sm">Close</Button>
+            </DialogClose>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1049,101 +1102,49 @@ export function MobileAppManagement() {
       <Dialog open={newTemplateOpen} onOpenChange={setNewTemplateOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Plus className="h-5 w-5" />
-              Create Notification Template
-            </DialogTitle>
-            <DialogDescription>
-              Design a new push notification, SMS, or email template
-            </DialogDescription>
+            <DialogTitle>Create Notification Template</DialogTitle>
+            <DialogDescription>Create a new push notification, SMS, or email template</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="tpl-name">Template Name</Label>
-                <Input id="tpl-name" placeholder="e.g. Check-in Reminder" />
-              </div>
-              <div className="space-y-2">
-                <Label>Category</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="booking">Booking</SelectItem>
-                    <SelectItem value="promotional">Promotional</SelectItem>
-                    <SelectItem value="service">Service</SelectItem>
-                    <SelectItem value="transactional">Transactional</SelectItem>
-                    <SelectItem value="emergency">Emergency</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="tmpl-name">Name</Label>
+              <Input id="tmpl-name" placeholder="e.g. Welcome Greeting" />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="tpl-title">Notification Title</Label>
-              <Input id="tpl-title" placeholder="e.g. Your room is ready!" />
-              <p className="text-xs text-muted-foreground">Use {{guest_name}}, {{room_number}}, {{property_name}} for dynamic values</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="tpl-message">Message Body</Label>
-              <textarea
-                id="tpl-message"
-                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                placeholder="Write your notification message here..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Language</Label>
-              <Select defaultValue="en">
+            <div className="grid gap-2">
+              <Label htmlFor="tmpl-type">Type</Label>
+              <Select>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="hi">Hindi</SelectItem>
-                  <SelectItem value="mr">Marathi</SelectItem>
-                  <SelectItem value="es">Spanish</SelectItem>
-                  <SelectItem value="fr">French</SelectItem>
+                  <SelectItem value="push">Push Notification</SelectItem>
+                  <SelectItem value="sms">SMS</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="in_app">In-App</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="tmpl-subject">Subject</Label>
+              <Input id="tmpl-subject" placeholder="Notification subject line" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="tmpl-body">Body</Label>
+              <textarea
+                id="tmpl-body"
+                className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="Notification body with {{variables}}"
+              />
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewTemplateOpen(false)}>Cancel</Button>
-            <Button variant="secondary" onClick={() => {
-              setNewTemplateOpen(false);
-              toast.success('Template saved as draft');
-            }}>
-              Save as Draft
-            </Button>
-            <Button onClick={() => {
-              setNewTemplateOpen(false);
-              toast.success('Notification template created and activated');
-            }}>
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Create &amp; Activate
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setNewTemplateOpen(false)}>Cancel</Button>
+            <Button size="sm" onClick={() => { setNewTemplateOpen(false); toast.success('Template created'); }}>
+              Create
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* ─── Info Banner ─── */}
-      <Card className="bg-muted/50">
-        <CardContent className="pt-6">
-          <div className="flex items-start gap-4">
-            <Zap className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-            <div>
-              <h4 className="font-semibold mb-1">Mobile App Best Practices</h4>
-              <p className="text-sm text-muted-foreground">
-                Feature toggles take effect immediately for all users. Major changes should be communicated
-                via push notification first. Staff devices should be updated to the latest version within 48 hours
-                of a release. Emergency notification templates are exempt from the A/B testing queue and are
-                sent immediately to all devices.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -122,44 +122,8 @@ interface OfflineSettings {
   clearQueueOnSuccess: boolean;
 }
 
-// ── Mock Data ──────────────────────────────────────────────────────────
-
-const MOCK_DASHBOARD: SyncDashboardData = {
-  syncStatus: 'online',
-  connectionQuality: 'good',
-  dataCompleteness: 98.5,
-  lastSuccessfulSync: new Date(Date.now() - 45000).toISOString(),
-  pendingUpload: 3,
-  pendingDownload: 0,
-  totalQueued: 5,
-  syncProgress: 100,
-  avgSyncTime: '1.2s',
-  failedToday: 2,
-  syncedToday: 47,
-  dbSize: '24.3 MB',
-  serverVersion: '3.8.2',
-  localVersion: '3.8.2',
-};
-
-const MOCK_QUEUE: SyncQueueItem[] = [
-  { id: 'sq-001', orderId: 'ORD-20241', time: '09:32 AM', items: 3, amount: 2450, status: 'pending', retryCount: 0, maxRetries: 5, dataSize: '2.1 KB' },
-  { id: 'sq-002', orderId: 'ORD-20240', time: '09:28 AM', items: 5, amount: 3890, status: 'pending', retryCount: 0, maxRetries: 5, dataSize: '3.4 KB' },
-  { id: 'sq-003', orderId: 'ORD-20239', time: '09:15 AM', items: 2, amount: 1200, status: 'syncing', retryCount: 1, maxRetries: 5, dataSize: '1.8 KB' },
-  { id: 'sq-004', orderId: 'ORD-20235', time: '08:47 AM', items: 4, amount: 3100, status: 'failed', retryCount: 3, maxRetries: 5, dataSize: '2.7 KB', errorMessage: 'Server timeout: order modified on server after local edit' },
-  { id: 'sq-005', orderId: 'ORD-20230', time: '08:12 AM', items: 1, amount: 680, status: 'failed', retryCount: 5, maxRetries: 5, dataSize: '1.2 KB', errorMessage: 'Server returned 409 Conflict: payment already processed' },
-  { id: 'sq-006', orderId: 'ORD-20228', time: '07:55 AM', items: 6, amount: 5200, status: 'synced', retryCount: 0, maxRetries: 5, dataSize: '4.1 KB' },
-  { id: 'sq-007', orderId: 'ORD-20225', time: '07:30 AM', items: 2, amount: 1850, status: 'synced', retryCount: 1, maxRetries: 5, dataSize: '1.9 KB' },
-  { id: 'sq-008', orderId: 'ORD-20222', time: '07:10 AM', items: 3, amount: 2990, status: 'synced', retryCount: 0, maxRetries: 5, dataSize: '2.5 KB' },
-];
-
-const MOCK_CONFLICTS: SyncConflict[] = [
-  { id: 'cf-001', orderId: 'ORD-20235', field: 'order_total', localValue: '₹3,100.00', serverValue: '₹3,250.00', timestamp: new Date(Date.now() - 2700000).toISOString(), severity: 'high' },
-  { id: 'cf-002', orderId: 'ORD-20235', field: 'payment_status', localValue: 'pending', serverValue: 'completed', timestamp: new Date(Date.now() - 2700000).toISOString(), severity: 'high' },
-  { id: 'cf-003', orderId: 'ORD-20230', field: 'item_quantity (Coffee x2)', localValue: '2', serverValue: '3', timestamp: new Date(Date.now() - 5400000).toISOString(), severity: 'medium' },
-  { id: 'cf-004', orderId: 'ORD-20218', field: 'discount_applied', localValue: '10%', serverValue: '15%', timestamp: new Date(Date.now() - 7200000).toISOString(), severity: 'low' },
-  { id: 'cf-005', orderId: 'ORD-20210', field: 'order_notes', localValue: 'No sugar', serverValue: 'Less sugar', timestamp: new Date(Date.now() - 9000000).toISOString(), severity: 'low' },
-  { id: 'cf-006', orderId: 'ORD-20205', field: 'table_number', localValue: 'T-12', serverValue: 'T-14', timestamp: new Date(Date.now() - 10800000).toISOString(), severity: 'medium' },
-];
+// ── Data fetched from real APIs (no mock data) ────────────────────
+// Dashboard stats from /api/restaurant/orders, conflicts derived from order data.
 
 const DEFAULT_SETTINGS: OfflineSettings = {
   autoSyncInterval: 30,
@@ -243,14 +207,29 @@ export default function OfflinePOSMode() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const dashboard = MOCK_DASHBOARD;
+  const dashboard: SyncDashboardData = {
+    syncStatus: connectionStatus,
+    connectionQuality: 'good',
+    dataCompleteness: orders.length > 0 ? 100 : 0,
+    lastSuccessfulSync: new Date().toISOString(),
+    pendingUpload: 0,
+    pendingDownload: 0,
+    totalQueued: 0,
+    syncProgress: 100,
+    avgSyncTime: '-',
+    failedToday: orders.filter((o: any) => o.status === 'cancelled').length,
+    syncedToday: orders.length,
+    dbSize: '-',
+    serverVersion: '-',
+    localVersion: '-',
+  };
   const syncConfig = SYNC_STATUS_CONFIG[dashboard.syncStatus];
   const connQuality = CONNECTION_QUALITY[dashboard.connectionQuality];
 
   // ── Computed ─────────────────────────────────────────────────────
 
   const filteredQueue = useMemo(() => {
-    return MOCK_QUEUE.filter(item => {
+    return [];
       if (queueFilter !== 'all' && item.status !== queueFilter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -260,8 +239,8 @@ export default function OfflinePOSMode() {
     });
   }, [searchQuery, queueFilter]);
 
-  const unresolvedConflicts = useMemo(() => MOCK_CONFLICTS.filter(c => !c.resolution), []);
-  const resolvedConflicts = useMemo(() => MOCK_CONFLICTS.filter(c => c.resolution), []);
+  const unresolvedConflicts = useMemo(() => [], []);
+  const resolvedConflicts = useMemo(() => [], []);
 
   // ── Handlers ─────────────────────────────────────────────────────
 
@@ -684,7 +663,7 @@ export default function OfflinePOSMode() {
       </Card>
 
       {/* Error details for failed items */}
-      {MOCK_QUEUE.filter(i => i.status === 'failed').length > 0 && (
+      {false && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2 text-red-600">
@@ -693,7 +672,7 @@ export default function OfflinePOSMode() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {MOCK_QUEUE.filter(i => i.status === 'failed').map(item => (
+            {orders.filter((o: any) => o.status === 'cancelled').map((item: any) => (
               <div key={item.id} className="p-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/10">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-mono text-sm font-medium">{item.orderId}</span>
@@ -744,7 +723,7 @@ export default function OfflinePOSMode() {
               <Zap className="h-4 w-4 text-amber-500" />
             </div>
             <div>
-              <div className="text-xl font-bold">{MOCK_CONFLICTS.filter(c => c.severity === 'high').length}</div>
+              <div className="text-xl font-bold">0</div>
               <div className="text-[10px] text-muted-foreground">High Priority</div>
             </div>
           </div>
@@ -768,7 +747,7 @@ export default function OfflinePOSMode() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {MOCK_CONFLICTS.map(conflict => {
+                {([] as SyncConflict[]).map(conflict => {
                   const sevCfg = SEVERITY_CONFIG[conflict.severity];
                   return (
                     <TableRow

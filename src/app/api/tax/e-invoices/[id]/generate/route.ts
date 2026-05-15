@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { z } from 'zod';
 
 const bulkGenerateSchema = z.object({
@@ -16,6 +16,11 @@ export async function POST(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
+    // Permission check: write access required for bulk e-invoice generation
+    if (!hasPermission(user, 'tax:write') && !hasPermission(user, 'tax:admin') && !hasPermission(user, 'tax.*') && user.roleName !== 'admin') {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const body = await request.json();
@@ -47,13 +52,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, data: { generated: 0, message: 'No eligible invoices found for the selected period' } });
     }
 
-    // Bulk generate e-invoices (simulated)
+    // Bulk generate e-invoices
+    // IMPORTANT: IRN generation requires integration with GSTN API (https://einvoice1.gst.gov.in).
+    // Currently, all IRNs are created with PENDING status awaiting real GST portal integration.
+    // When GSTN API integration is implemented, replace this with actual API calls.
     const generated = await Promise.all(
       existingInvoices.map(async (inv) => {
         const tax = (inv as Record<string, unknown>).taxAmount as number || 0;
         const total = (inv.totalAmount as number) || 0;
         const value = total - tax;
-        const irn = `IRN${Date.now()}${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 
         return db.gstEInvoice.create({
           data: {
@@ -73,11 +80,12 @@ export async function POST(request: NextRequest) {
             totalCess: 0,
             totalTax: tax * 0.5,
             totalAmount: total,
-            irn,
-            ackNo: `ACK${Date.now()}`,
-            ackDate: new Date(),
-            signedQrCode: Buffer.from(JSON.stringify({ irn })).toString('base64'),
-            status: 'generated',
+            irn: null,
+            irnStatus: 'PENDING',
+            ackNo: null,
+            ackDate: null,
+            signedQrCode: null,
+            status: 'pending',
             generatedBy: user.id,
             gstSettingsId: data.gstSettingsId || null,
           },

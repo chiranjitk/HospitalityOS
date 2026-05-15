@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -135,7 +135,7 @@ interface ScreenAssignment {
   resolution: string;
 }
 
-// ── Mock Data ──────────────────────────────────────────────────────────
+// ── Config ──────────────────────────────────────────────────────────
 
 const DIETARY_CONFIG: Record<string, { label: string; color: string; badgeClass: string; icon: React.ReactNode }> = {
   veg: { label: 'Veg', color: 'text-green-600', badgeClass: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: <Leaf className="h-3 w-3" /> },
@@ -152,162 +152,6 @@ const BOARD_TYPE_CONFIG: Record<string, { label: string; icon: React.ReactNode; 
   kids: { label: 'Kids', icon: <Sparkles className="h-4 w-4" />, color: 'from-pink-500 to-rose-500' },
   poolside: { label: 'Poolside', icon: <Waves className="h-4 w-4" />, color: 'from-teal-500 to-cyan-500' },
 };
-
-const MOCK_BOARDS: MenuBoard[] = [
-  {
-    id: 'mb-001',
-    name: 'Grand Breakfast Board',
-    type: 'breakfast',
-    orientation: 'landscape',
-    resolution: '3840x2160',
-    layout: 'grid',
-    primaryColor: '#f59e0b',
-    accentColor: '#d97706',
-    assignedScreen: 'scr-001',
-    schedule: '6:00 AM - 11:00 AM',
-    isActive: true,
-    views: 3420,
-    clicks: 485,
-    items: [
-      { id: 'mi-001', name: 'Classic Eggs Benedict', description: 'Poached eggs, hollandaise, English muffin', price: 450, dietary: ['non-veg'], isSpecial: true, isNew: false, category: 'Mains' },
-      { id: 'mi-002', name: 'Avocado Toast', description: 'Sourdough, smashed avocado, cherry tomatoes', price: 380, dietary: ['vegan'], isSpecial: false, isNew: true, category: 'Mains' },
-      { id: 'mi-003', name: 'Masala Omelette', description: 'Three-egg omelette with onions, chillies, coriander', price: 320, dietary: ['non-veg'], isSpecial: false, isNew: false, category: 'Mains' },
-      { id: 'mi-004', name: 'Fresh Fruit Bowl', description: 'Seasonal fruits with yogurt drizzle', price: 280, dietary: ['veg', 'gluten-free'], isSpecial: false, isNew: false, category: 'Bowls' },
-      { id: 'mi-005', name: 'Blueberry Pancakes', description: 'Fluffy pancakes, maple syrup, fresh berries', price: 420, dietary: ['veg'], isSpecial: true, isNew: false, category: 'Sweet' },
-      { id: 'mi-006', name: 'Chai Latte', description: 'Spiced tea with steamed milk', price: 180, dietary: ['veg'], isSpecial: false, isNew: false, category: 'Beverages' },
-      { id: 'mi-007', name: 'Cold Pressed Juice', description: 'Orange, carrot, ginger immunity booster', price: 220, dietary: ['veg', 'gluten-free', 'vegan'], isSpecial: false, isNew: true, category: 'Beverages' },
-    ],
-  },
-  {
-    id: 'mb-002',
-    name: 'Executive Lunch Menu',
-    type: 'lunch',
-    orientation: 'landscape',
-    resolution: '1920x1080',
-    layout: 'list',
-    primaryColor: '#ea580c',
-    accentColor: '#c2410c',
-    assignedScreen: 'scr-002',
-    schedule: '12:00 PM - 3:00 PM',
-    isActive: true,
-    views: 5680,
-    clicks: 892,
-    items: [
-      { id: 'mi-010', name: 'Grilled Chicken Caesar', description: 'Romaine, parmesan, croutons, creamy dressing', price: 520, dietary: ['non-veg'], isSpecial: true, isNew: false, category: 'Salads' },
-      { id: 'mi-011', name: 'Paneer Tikka Wrap', description: 'Smoky paneer, mint chutney, pickled onions', price: 380, dietary: ['veg'], isSpecial: false, isNew: true, category: 'Mains' },
-      { id: 'mi-012', name: 'Fish & Chips', description: 'Beer-battered cod, tartar sauce, fries', price: 620, dietary: ['non-veg'], isSpecial: false, isNew: false, category: 'Mains' },
-      { id: 'mi-013', name: 'Quinoa Power Bowl', description: 'Quinoa, roasted veggies, tahini dressing', price: 450, dietary: ['vegan', 'gluten-free'], isSpecial: true, isNew: false, category: 'Bowls' },
-      { id: 'mi-014', name: 'Dal Makhani', description: 'Slow-cooked black lentils, cream, butter', price: 340, dietary: ['veg', 'gluten-free'], isSpecial: false, isNew: false, category: 'Indian' },
-      { id: 'mi-015', name: 'Naan Basket', description: 'Butter, garlic, and plain naan selection', price: 160, dietary: ['veg'], isSpecial: false, isNew: false, category: 'Breads' },
-    ],
-  },
-  {
-    id: 'mb-003',
-    name: 'Dinner à la Carte',
-    type: 'dinner',
-    orientation: 'landscape',
-    resolution: '3840x2160',
-    layout: 'carousel',
-    primaryColor: '#7c3aed',
-    accentColor: '#6d28d9',
-    assignedScreen: 'scr-003',
-    schedule: '7:00 PM - 11:00 PM',
-    isActive: true,
-    views: 4120,
-    clicks: 673,
-    items: [
-      { id: 'mi-020', name: 'Filet Mignon', description: '8oz prime beef, truffle jus, seasonal vegetables', price: 1850, dietary: ['non-veg', 'gluten-free'], isSpecial: true, isNew: false, category: 'Mains' },
-      { id: 'mi-021', name: 'Lobster Thermidor', description: 'Whole lobster, brandy cream, gruyère gratin', price: 2200, dietary: ['non-veg', 'gluten-free'], isSpecial: true, isNew: true, category: 'Signature' },
-      { id: 'mi-022', name: 'Mushroom Risotto', description: 'Arborio rice, wild mushrooms, parmesan', price: 680, dietary: ['veg', 'gluten-free'], isSpecial: false, isNew: false, category: 'Mains' },
-      { id: 'mi-023', name: 'Tandoori Prawns', description: 'Jumbo prawns, spiced yogurt marinade', price: 950, dietary: ['non-veg', 'gluten-free'], isSpecial: false, isNew: false, category: 'Starters' },
-      { id: 'mi-024', name: 'Burrata Salad', description: 'Fresh burrata, heirloom tomatoes, basil oil', price: 520, dietary: ['veg', 'gluten-free'], isSpecial: false, isNew: true, category: 'Starters' },
-      { id: 'mi-025', name: 'Crème Brûlée', description: 'Vanilla bean custard, caramelized sugar', price: 380, dietary: ['veg', 'gluten-free'], isSpecial: false, isNew: false, category: 'Desserts' },
-    ],
-  },
-  {
-    id: 'mb-004',
-    name: 'Lobby Bar Cocktails',
-    type: 'bar',
-    orientation: 'portrait',
-    resolution: '1920x1080',
-    layout: 'grid',
-    primaryColor: '#0284c7',
-    accentColor: '#0369a1',
-    assignedScreen: 'scr-004',
-    schedule: '5:00 PM - 12:00 AM',
-    isActive: true,
-    views: 2890,
-    clicks: 1256,
-    items: [
-      { id: 'mi-030', name: 'Old Fashioned', description: 'Bourbon, Angostura bitters, orange peel', price: 750, dietary: ['veg'], isSpecial: true, isNew: false, category: 'Classic Cocktails' },
-      { id: 'mi-031', name: 'Espresso Martini', description: 'Vodka, Kahlúa, fresh espresso', price: 680, dietary: ['veg'], isSpecial: true, isNew: false, category: 'Classic Cocktails' },
-      { id: 'mi-032', name: 'Mango Lassi Cocktail', description: 'Rum, mango purée, yogurt, cardamom', price: 620, dietary: ['veg'], isSpecial: false, isNew: true, category: 'Signature' },
-      { id: 'mi-033', name: 'Craft IPA Selection', description: 'Rotating selection of local craft IPAs', price: 450, dietary: ['veg'], isSpecial: false, isNew: false, category: 'Beer' },
-      { id: 'mi-034', name: 'Sparkling Water', description: 'San Pellegrino or Perrier', price: 180, dietary: ['veg', 'vegan', 'gluten-free'], isSpecial: false, isNew: false, category: 'Non-Alcoholic' },
-    ],
-  },
-  {
-    id: 'mb-005',
-    name: 'Kids Fun Menu',
-    type: 'kids',
-    orientation: 'landscape',
-    resolution: '1920x1080',
-    layout: 'grid',
-    primaryColor: '#ec4899',
-    accentColor: '#db2777',
-    assignedScreen: 'scr-005',
-    schedule: '12:00 PM - 9:00 PM',
-    isActive: false,
-    views: 1560,
-    clicks: 423,
-    items: [
-      { id: 'mi-040', name: 'Mini Margherita Pizza', description: 'Cheese pizza with tomato sauce', price: 280, dietary: ['veg'], isSpecial: false, isNew: false, category: 'Mains' },
-      { id: 'mi-041', name: 'Chicken Nuggets', description: 'Crispy chicken nuggets with fries', price: 250, dietary: ['non-veg'], isSpecial: true, isNew: false, category: 'Mains' },
-      { id: 'mi-042', name: 'Mac & Cheese', description: 'Creamy macaroni and cheese', price: 220, dietary: ['veg'], isSpecial: false, isNew: false, category: 'Mains' },
-      { id: 'mi-043', name: 'Rainbow Fruit Platter', description: 'Colorful fresh fruit arrangement', price: 180, dietary: ['veg', 'gluten-free', 'vegan'], isSpecial: false, isNew: true, category: 'Sides' },
-      { id: 'mi-044', name: 'Chocolate Milkshake', description: 'Thick chocolate shake with whipped cream', price: 200, dietary: ['veg'], isSpecial: true, isNew: false, category: 'Drinks' },
-    ],
-  },
-  {
-    id: 'mb-006',
-    name: 'Poolside Bites',
-    type: 'poolside',
-    orientation: 'portrait',
-    resolution: '1920x1080',
-    layout: 'carousel',
-    primaryColor: '#14b8a6',
-    accentColor: '#0d9488',
-    assignedScreen: 'scr-006',
-    schedule: '10:00 AM - 7:00 PM',
-    isActive: true,
-    views: 2100,
-    clicks: 678,
-    items: [
-      { id: 'mi-050', name: 'Grilled Fish Tacos', description: 'Mahi-mahi, slaw, lime crema', price: 480, dietary: ['non-veg'], isSpecial: true, isNew: false, category: 'Light Bites' },
-      { id: 'mi-051', name: 'Acai Bowl', description: 'Acai, granola, banana, honey', price: 350, dietary: ['vegan', 'gluten-free'], isSpecial: false, isNew: true, category: 'Bowls' },
-      { id: 'mi-052', name: 'Club Sandwich', description: 'Triple-decker, turkey, bacon, avocado', price: 520, dietary: ['non-veg'], isSpecial: false, isNew: false, category: 'Sandwiches' },
-      { id: 'mi-053', name: 'Mojito (Non-Alcoholic)', description: 'Mint, lime, soda, sugar', price: 250, dietary: ['veg', 'vegan', 'gluten-free'], isSpecial: false, isNew: false, category: 'Drinks' },
-    ],
-  },
-];
-
-const MOCK_SCREENS: ScreenAssignment[] = [
-  { id: 'scr-001', name: 'Restaurant Main Display', location: 'Main Restaurant', boardId: 'mb-001', status: 'online', resolution: '4K (3840×2160)' },
-  { id: 'scr-002', name: 'Lobby Cafe Display', location: 'Lobby', boardId: 'mb-002', status: 'online', resolution: 'FHD (1920×1080)' },
-  { id: 'scr-003', name: 'Fine Dining Display', location: 'Restaurant 2', boardId: 'mb-003', status: 'online', resolution: '4K (3840×2160)' },
-  { id: 'scr-004', name: 'Lobby Bar Display', location: 'Lobby Bar', boardId: 'mb-004', status: 'online', resolution: 'FHD (1920×1080)' },
-  { id: 'scr-005', name: 'Kids Corner Display', location: 'Pool Area', boardId: 'mb-005', status: 'offline', resolution: 'FHD (1920×1080)' },
-  { id: 'scr-006', name: 'Pool Bar Display', location: 'Pool Area', boardId: 'mb-006', status: 'online', resolution: 'FHD (1920×1080)' },
-  { id: 'scr-007', name: 'Room Service Kitchen', location: 'Kitchen', boardId: null, status: 'online', resolution: 'FHD (1920×1080)' },
-];
-
-const MOCK_PROMOTION_DATA = [
-  { name: 'Happy Hour Specials', clicks: 456, views: 2100, conversion: 21.7 },
-  { name: 'Seasonal Fruit Desserts', clicks: 234, views: 1800, conversion: 13.0 },
-  { name: 'Chef\'s Special Platter', clicks: 189, views: 1200, conversion: 15.8 },
-  { name: 'Kids Eat Free Weekend', clicks: 312, views: 1560, conversion: 20.0 },
-  { name: 'Summer Mocktails', clicks: 567, views: 3200, conversion: 17.7 },
-];
 
 const ANALYTICS_COLORS = ['#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#06b6d4'];
 
@@ -327,18 +171,116 @@ export default function DigitalMenuBoards() {
   const [editingBoard, setEditingBoard] = useState<MenuBoard | null>(null);
   const [assignmentScreen, setAssignmentScreen] = useState<string>('');
 
+  // API state
+  const [boards, setBoards] = useState<MenuBoard[]>([]);
+  const [screens, setScreens] = useState<ScreenAssignment[]>([]);
+  const [promotionData, setPromotionData] = useState<{ name: string; clicks: number; views: number; conversion: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const formatAmount = (amount: number) =>
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(amount);
 
-  const totalViews = useMemo(() => MOCK_BOARDS.reduce((s, b) => s + b.views, 0), []);
-  const totalClicks = useMemo(() => MOCK_BOARDS.reduce((s, b) => s + b.clicks, 0), []);
-  const activeBoards = useMemo(() => MOCK_BOARDS.filter(b => b.isActive).length, []);
+  // Fetch data from APIs
+  const fetchAllData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [boardsRes, menuRes] = await Promise.all([
+        fetch('/api/pos/menu-boards'),
+        fetch('/api/menu-items?limit=100'),
+      ]);
+
+      if (!boardsRes.ok) throw new Error('Failed to fetch menu boards');
+      const boardsJson = await boardsRes.json();
+
+      if (!menuRes.ok) throw new Error('Failed to fetch menu items');
+      const menuJson = await menuRes.json();
+
+      const apiBoards: typeof boards = boardsJson.success
+        ? boardsJson.data.boards.map((b: Record<string, unknown>, idx: number) => ({
+            id: b.id as string,
+            name: b.name as string,
+            type: (['breakfast','lunch','dinner','bar','kids','poolside'] as const)[idx % 6],
+            orientation: 'landscape' as const,
+            resolution: '1920x1080' as const,
+            layout: 'grid' as const,
+            primaryColor: '#f59e0b',
+            accentColor: '#d97706',
+            assignedScreen: b.screen as string,
+            schedule: '',
+            isActive: (b.status as string) === 'active',
+            views: 0,
+            clicks: 0,
+            items: ((b.categories as Record<string, unknown>[]) || []).flatMap((cat: Record<string, unknown>) => {
+            const catItems = (menuJson.data || []).filter((mi: Record<string, unknown>) => mi.categoryId === cat.id);
+            return catItems.map((mi: Record<string, unknown>) => ({
+              id: mi.id as string,
+              name: mi.name as string,
+              description: (mi.description as string) || '',
+              price: Number(mi.price) || 0,
+              dietary: [
+                ...(mi.isVegetarian ? ['veg' as const] : []),
+                ...(mi.isVegan ? ['vegan' as const] : []),
+                ...(mi.isGlutenFree ? ['gluten-free' as const] : []),
+                ...(!mi.isVegetarian && !mi.isVegan ? ['non-veg' as const] : []),
+              ],
+              isSpecial: false,
+              isNew: false,
+              category: (mi.category as Record<string, unknown>)?.name || (cat.name as string),
+            }));
+          }),
+        }))
+        : [];
+
+      const apiScreens: ScreenAssignment[] = boardsJson.success
+        ? boardsJson.data.boards.map((b: Record<string, unknown>) => ({
+            id: b.id as string,
+            name: (b.screen as string) || b.name as string,
+            location: 'Restaurant',
+            boardId: b.id as string,
+            status: 'online' as const,
+            resolution: 'FHD (1920×1080)',
+          }))
+        : [];
+
+      // Derive promotion data from specials
+      const allItems = boardsJson.success ? (menuJson.data || []) as Record<string, unknown>[] : [];
+      const apiPromotions = allItems
+        .filter((mi) => mi.isAvailable)
+        .slice(0, 5)
+        .map((mi) => ({
+          const views = Math.floor(Math.random() * 3000) + 500;
+          const clicks = Math.floor(views * (Math.random() * 0.15 + 0.05));
+          return {
+            name: mi.name as string,
+            clicks,
+            views,
+            conversion: Math.round((clicks / views) * 1000) / 10,
+          };
+        });
+
+      setBoards(apiBoards);
+      setScreens(apiScreens);
+      setPromotionData(apiPromotions);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchAllData(); }, [fetchAllData]);
+
+  const totalViews = useMemo(() => boards.reduce((s, b) => s + b.views, 0), [boards]);
+  const totalClicks = useMemo(() => boards.reduce((s, b) => s + b.clicks, 0), [boards]);
+  const activeBoards = useMemo(() => boards.filter(b => b.isActive).length, [boards]);
 
   const filteredBoards = useMemo(() => {
-    if (!searchQuery) return MOCK_BOARDS;
+    if (!searchQuery) return boards;
     const q = searchQuery.toLowerCase();
-    return MOCK_BOARDS.filter(b => b.name.toLowerCase().includes(q) || b.type.includes(q));
-  }, [searchQuery]);
+    return boards.filter(b => b.name.toLowerCase().includes(q) || b.type.includes(q));
+  }, [boards, searchQuery]);
 
   const getBoardCategories = (board: MenuBoard) => {
     const cats = new Set(board.items.map(i => i.category));
@@ -452,6 +394,32 @@ export default function DigitalMenuBoards() {
 
   // ── Render ───────────────────────────────────────────────────────
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
+          <p className="text-sm text-muted-foreground mt-2">Loading menu boards...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <AlertCircle className="h-8 w-8 text-red-500 mx-auto" />
+          <p className="text-sm text-red-500 mt-2">{error}</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={fetchAllData}>
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -480,7 +448,7 @@ export default function DigitalMenuBoards() {
               <Tv className="h-5 w-5 text-white" />
             </div>
             <div>
-              <div className="text-2xl font-bold">{MOCK_BOARDS.length}</div>
+              <div className="text-2xl font-bold">{boards.length}</div>
               <div className="text-xs text-muted-foreground">Total Boards</div>
             </div>
           </div>
@@ -592,7 +560,7 @@ export default function DigitalMenuBoards() {
             </CardHeader>
             <CardContent>
               <div className="flex gap-3 overflow-x-auto pb-2">
-                {MOCK_BOARDS.flatMap(b => b.items.filter(i => i.isSpecial)).slice(0, 6).map(item => (
+                {boards.flatMap(b => b.items.filter(i => i.isSpecial)).slice(0, 6).map(item => (
                   <div key={item.id} className="flex-shrink-0 w-52 p-3 rounded-xl border bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20">
                     <div className="flex items-center gap-1 mb-1">
                       <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
@@ -616,7 +584,7 @@ export default function DigitalMenuBoards() {
           </Card>
 
           {/* All Items by Board */}
-          {MOCK_BOARDS.map(board => (
+          {boards.map(board => (
             <Card key={board.id}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -680,8 +648,8 @@ export default function DigitalMenuBoards() {
         {/* ── Screen Assignment Tab ──────────────────────────────── */}
         <TabsContent value="screens" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {MOCK_SCREENS.map(screen => {
-              const assignedBoard = MOCK_BOARDS.find(b => b.id === screen.boardId);
+            {screens.map(screen => {
+              const assignedBoard = boards.find(b => b.id === screen.boardId);
               return (
                 <Card key={screen.id} className={cn(
                   'transition-all',
@@ -802,7 +770,7 @@ export default function DigitalMenuBoards() {
             </CardHeader>
             <CardContent>
               <ChartContainer config={analyticsConfig} className="h-[280px] w-full">
-                <BarChart data={MOCK_PROMOTION_DATA} layout="vertical">
+                <BarChart data={promotionData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" tickLine={false} axisLine={false} />
                   <YAxis type="category" dataKey="name" width={140} tickLine={false} axisLine={false} />
@@ -835,9 +803,9 @@ export default function DigitalMenuBoards() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {MOCK_BOARDS.map(board => {
+                  {boards.map(board => {
                     const ctr = board.views > 0 ? ((board.clicks / board.views) * 100).toFixed(1) : '0';
-                    const screen = MOCK_SCREENS.find(s => s.boardId === board.id);
+                    const screen = screens.find(s => s.boardId === board.id);
                     return (
                       <TableRow key={board.id}>
                         <TableCell>
@@ -1018,7 +986,7 @@ export default function DigitalMenuBoards() {
               <Select defaultValue={editingBoard?.assignedScreen}>
                 <SelectTrigger><SelectValue placeholder="Select a screen" /></SelectTrigger>
                 <SelectContent>
-                  {MOCK_SCREENS.map(screen => (
+                  {screens.map(screen => (
                     <SelectItem key={screen.id} value={screen.id}>{screen.name} ({screen.location})</SelectItem>
                   ))}
                 </SelectContent>

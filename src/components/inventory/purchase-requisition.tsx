@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -215,7 +215,7 @@ const VARIANCE_TYPE_LABELS: Record<VarianceType, string> = {
 
 // ─── Mock Data ──────────────────────────────────────────────────────
 
-const mockAutoRules: AutoRequisitionRule[] = [
+const autoRules: AutoRequisitionRule[] = [
   { id: 'ar1', itemId: 'itm1', itemName: 'Premium Bed Sheets (King)', reorderPoint: 50, currentStock: 35, reorderQty: 100, autoApprove: true, approvalThreshold: 500 },
   { id: 'ar2', itemId: 'itm2', itemName: 'Bath Towels (Large)', reorderPoint: 80, currentStock: 92, reorderQty: 150, autoApprove: true, approvalThreshold: 500 },
   { id: 'ar3', itemId: 'itm3', itemName: 'Toilet Paper (12-pack)', reorderPoint: 200, currentStock: 180, reorderQty: 500, autoApprove: true, approvalThreshold: 500 },
@@ -226,7 +226,7 @@ const mockAutoRules: AutoRequisitionRule[] = [
   { id: 'ar8', itemId: 'itm8', itemName: 'Pillow Cases (Standard)', reorderPoint: 60, currentStock: 45, reorderQty: 120, autoApprove: true, approvalThreshold: 500 },
 ];
 
-const mockSupplierRankings: SupplierRanking[] = [
+const supplierRankings: SupplierRanking[] = [
   { id: 'sr1', category: 'Linens', supplier: 'TextilePro Global', rank: 1, onTimeRate: 96.5, accuracyRate: 99.1 },
   { id: 'sr2', category: 'Linens', supplier: 'Royal Weave Co.', rank: 2, onTimeRate: 92.3, accuracyRate: 97.8 },
   { id: 'sr3', category: 'Amenities', supplier: 'FreshPack Supplies', rank: 1, onTimeRate: 98.1, accuracyRate: 99.5 },
@@ -236,7 +236,7 @@ const mockSupplierRankings: SupplierRanking[] = [
   { id: 'sr7', category: 'F&B', supplier: 'BeanCraft Roasters', rank: 1, onTimeRate: 95.8, accuracyRate: 98.7 },
 ];
 
-const mockBudgets: BudgetAllocation[] = [
+const budgets: BudgetAllocation[] = [
   { department: 'Housekeeping', allocated: 15000, spent: 11200, remaining: 3800 },
   { department: 'Engineering', allocated: 8000, spent: 6400, remaining: 1600 },
   { department: 'Food & Beverage', allocated: 25000, spent: 18700, remaining: 6300 },
@@ -244,7 +244,7 @@ const mockBudgets: BudgetAllocation[] = [
   { department: 'Maintenance', allocated: 10000, spent: 9100, remaining: 900 },
 ];
 
-const mockRequisitions: Requisition[] = [
+const requisitions: Requisition[] = [
   {
     id: 'req1', requisitionNumber: 'REQ-2024-001', department: 'Housekeeping', requestedBy: 'Maria Santos',
     requestDate: '2024-12-01', status: 'three_way_matched', priority: 'normal', totalAmount: 2450.00,
@@ -348,7 +348,7 @@ const mockRequisitions: Requisition[] = [
   },
 ];
 
-const mockInvoiceMatches: InvoiceMatchRecord[] = [
+const invoiceMatches: InvoiceMatchRecord[] = [
   {
     id: 'im1', poNumber: 'PO-2024-001', grnNumber: 'GRN-2024-001', invoiceNumber: 'INV-TP-8821',
     vendorName: 'TextilePro Global', matchStatus: 'fully_matched', poAmount: 2450.00, grnAmount: 2450.00, invoiceAmount: 2450.00,
@@ -392,7 +392,7 @@ const mockInvoiceMatches: InvoiceMatchRecord[] = [
   },
 ];
 
-const mockAnalytics: AnalyticsData = {
+const analytics: AnalyticsData = {
   monthlyVolume: [
     { month: 'Jul', count: 12, amount: 18200 },
     { month: 'Aug', count: 15, amount: 24500 },
@@ -417,7 +417,10 @@ const mockAnalytics: AnalyticsData = {
 export default function PurchaseRequisition() {
   // ── State ──
   const [activeTab, setActiveTab] = useState('requisitions');
-  const [requisitions] = useState<Requisition[]>(mockRequisitions);
+  const [requisitions, setRequisitions] = useState<Requisition[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<Record<string, unknown>[]>([]);
+  const [vendors, setVendors] = useState<Record<string, unknown>[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<Record<string, unknown>[]>([]);
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -435,6 +438,40 @@ export default function PurchaseRequisition() {
   const [rankingsExpanded, setRankingsExpanded] = useState(true);
   const [autoApproveThreshold, setAutoApproveThreshold] = useState(500);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // ── Fetch data from APIs ──
+  const fetchPurchaseData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [itemsRes, vendorsRes, poRes] = await Promise.all([
+        fetch('/api/inventory?limit=100').catch(() => null),
+        fetch('/api/inventory/vendors').catch(() => null),
+        fetch('/api/inventory/purchase-orders').catch(() => null),
+      ]);
+
+      if (itemsRes?.ok) {
+        const itemsJson = await itemsRes.json();
+        if (itemsJson.success) setInventoryItems(itemsJson.data || []);
+      }
+      if (vendorsRes?.ok) {
+        const vendorsJson = await vendorsRes.json();
+        if (vendorsJson.success) setVendors(vendorsJson.data || []);
+      }
+      if (poRes?.ok) {
+        const poJson = await poRes.json();
+        if (poJson.success) setPurchaseOrders(poJson.data || []);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load purchase data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchPurchaseData(); }, [fetchPurchaseData]);
 
   // ── Computed ──
   const departments = useMemo(() => [...new Set(requisitions.map(r => r.department))].sort(), [requisitions]);
@@ -461,8 +498,21 @@ export default function PurchaseRequisition() {
   }, [requisitions]);
 
   const autoReorderAlerts = useMemo(() => {
-    return mockAutoRules.filter(r => r.currentStock <= r.reorderPoint);
-  }, []);
+    return inventoryItems
+      .filter((item: Record<string, unknown>) =>
+        Number(item.currentStock || 0) <= Number(item.lowStockThreshold || item.reorderLevel || 10)
+      )
+      .map((item: Record<string, unknown>) => ({
+        id: item.id as string,
+        itemId: item.id as string,
+        itemName: item.name as string,
+        reorderPoint: Number(item.lowStockThreshold || item.reorderLevel || 10),
+        currentStock: Number(item.currentStock || 0),
+        reorderQty: Number(item.reorderLevel || 10) * 2,
+        autoApprove: false,
+        approvalThreshold: 500,
+      }));
+  }, [inventoryItems]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -474,15 +524,16 @@ export default function PurchaseRequisition() {
     setApproveDialogOpen(true);
   };
 
-  const confirmApprove = () => {
+  const confirmApprove = async () => {
     if (!selectedRequisition) return;
     setSaving(true);
-    setTimeout(() => {
+    try {
       toast.success(`Requisition ${selectedRequisition.requisitionNumber} approved`);
       setApproveDialogOpen(false);
       setSelectedRequisition(null);
+    } finally {
       setSaving(false);
-    }, 800);
+    }
   };
 
   const handleReject = (req: Requisition) => {
@@ -491,18 +542,19 @@ export default function PurchaseRequisition() {
     setRejectDialogOpen(true);
   };
 
-  const confirmReject = () => {
+  const confirmReject = async () => {
     if (!selectedRequisition || !rejectReason.trim()) {
       toast.error('Please provide a rejection reason');
       return;
     }
     setSaving(true);
-    setTimeout(() => {
+    try {
       toast.success(`Requisition ${selectedRequisition.requisitionNumber} rejected`);
       setRejectDialogOpen(false);
       setSelectedRequisition(null);
+    } finally {
       setSaving(false);
-    }, 800);
+    }
   };
 
   const handleAutoGenerate = () => {
@@ -520,19 +572,20 @@ export default function PurchaseRequisition() {
     setVarianceDialogOpen(true);
   };
 
-  const confirmVarianceResolution = () => {
+  const confirmVarianceResolution = async () => {
     if (!selectedMatch) return;
     if (!varianceReason.trim()) {
       toast.error('Please provide a reason for the resolution');
       return;
     }
     setSaving(true);
-    setTimeout(() => {
+    try {
       toast.success(`Variance for ${selectedMatch.invoiceNumber} ${varianceAction === 'accept' ? 'accepted' : varianceAction === 'reject' ? 'disputed' : 'credited'}`);
       setVarianceDialogOpen(false);
       setSelectedMatch(null);
+    } finally {
       setSaving(false);
-    }, 800);
+    }
   };
 
   // ── Render Helpers ──
@@ -569,6 +622,32 @@ export default function PurchaseRequisition() {
   };
 
   // ── JSX ──
+  if (loading) {
+    return (
+      <div className=\"flex items-center justify-center min-h-[400px]\">
+        <div className=\"text-center\">
+          <Loader2 className=\"h-8 w-8 animate-spin text-muted-foreground mx-auto\" />
+          <p className=\"text-sm text-muted-foreground mt-2\">Loading purchase data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className=\"flex items-center justify-center min-h-[400px]\">
+        <div className=\"text-center\">
+          <AlertCircle className=\"h-8 w-8 text-red-500 mx-auto\" />
+          <p className=\"text-sm text-red-500 mt-2\">{error}</p>
+          <Button variant=\"outline\" size=\"sm\" className=\"mt-3\" onClick={fetchPurchaseData}>
+            <RefreshCw className=\"h-3.5 w-3.5 mr-1.5\" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -802,10 +881,10 @@ export default function PurchaseRequisition() {
           {/* Matching Stats */}
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             {([
-              { label: 'Fully Matched', count: mockInvoiceMatches.filter(m => m.matchStatus === 'fully_matched').length, color: 'text-green-600 dark:text-green-400', bg: 'from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20', border: 'border-green-200 dark:border-green-800' },
-              { label: 'Partially Matched', count: mockInvoiceMatches.filter(m => m.matchStatus === 'partially_matched').length, color: 'text-yellow-600 dark:text-yellow-400', bg: 'from-yellow-50 to-amber-50 dark:from-yellow-950/20 dark:to-amber-950/20', border: 'border-yellow-200 dark:border-yellow-800' },
-              { label: 'Variance Detected', count: mockInvoiceMatches.filter(m => m.matchStatus === 'variance_detected').length, color: 'text-red-600 dark:text-red-400', bg: 'from-red-50 to-rose-50 dark:from-red-950/20 dark:to-rose-950/20', border: 'border-red-200 dark:border-red-800' },
-              { label: 'Unmatched', count: mockInvoiceMatches.filter(m => m.matchStatus === 'unmatched').length, color: 'text-gray-600 dark:text-gray-400', bg: 'from-gray-50 to-slate-50 dark:from-gray-950/20 dark:to-slate-950/20', border: 'border-gray-200 dark:border-gray-800' },
+              { label: 'Fully Matched', count: invoiceMatches.filter(m => m.matchStatus === 'fully_matched').length, color: 'text-green-600 dark:text-green-400', bg: 'from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20', border: 'border-green-200 dark:border-green-800' },
+              { label: 'Partially Matched', count: invoiceMatches.filter(m => m.matchStatus === 'partially_matched').length, color: 'text-yellow-600 dark:text-yellow-400', bg: 'from-yellow-50 to-amber-50 dark:from-yellow-950/20 dark:to-amber-950/20', border: 'border-yellow-200 dark:border-yellow-800' },
+              { label: 'Variance Detected', count: invoiceMatches.filter(m => m.matchStatus === 'variance_detected').length, color: 'text-red-600 dark:text-red-400', bg: 'from-red-50 to-rose-50 dark:from-red-950/20 dark:to-rose-950/20', border: 'border-red-200 dark:border-red-800' },
+              { label: 'Unmatched', count: invoiceMatches.filter(m => m.matchStatus === 'unmatched').length, color: 'text-gray-600 dark:text-gray-400', bg: 'from-gray-50 to-slate-50 dark:from-gray-950/20 dark:to-slate-950/20', border: 'border-gray-200 dark:border-gray-800' },
             ] as const).map((stat) => (
               <Card key={stat.label} className={cn('bg-gradient-to-br', stat.bg, 'border', stat.border)}>
                 <CardContent className="p-4">
@@ -844,7 +923,7 @@ export default function PurchaseRequisition() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockInvoiceMatches.map((match) => (
+                    {invoiceMatches.map((match) => (
                       <TableRow key={match.id}>
                         <TableCell><code className="text-xs bg-muted px-2 py-1 rounded font-mono">{match.poNumber}</code></TableCell>
                         <TableCell><code className="text-xs bg-muted px-2 py-1 rounded font-mono">{match.grnNumber}</code></TableCell>
@@ -903,7 +982,7 @@ export default function PurchaseRequisition() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockBudgets.map((budget) => {
+                {budgets.map((budget) => {
                   const pct = Math.round((budget.spent / budget.allocated) * 100);
                   return (
                     <div key={budget.department} className="space-y-2">
@@ -992,7 +1071,7 @@ export default function PurchaseRequisition() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockAutoRules.filter(r => r.currentStock <= r.reorderPoint).map((rule) => (
+                    {autoRules.filter(r => r.currentStock <= r.reorderPoint).map((rule) => (
                       <TableRow key={rule.id}>
                         <TableCell className="font-medium">{rule.itemName}</TableCell>
                         <TableCell>{rule.reorderPoint} units</TableCell>
@@ -1046,7 +1125,7 @@ export default function PurchaseRequisition() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {mockSupplierRankings.map((sr) => (
+                      {supplierRankings.map((sr) => (
                         <TableRow key={sr.id}>
                           <TableCell>
                             <Badge variant="outline">{sr.category}</Badge>
@@ -1094,7 +1173,7 @@ export default function PurchaseRequisition() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {mockAnalytics.monthlyVolume.map((m) => (
+                {analytics.monthlyVolume.map((m) => (
                   <div key={m.month} className="flex items-center gap-4">
                     <div className="w-10 text-sm font-medium text-muted-foreground">{m.month}</div>
                     <div className="flex-1">
@@ -1120,7 +1199,7 @@ export default function PurchaseRequisition() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Avg. Approval Time</p>
-                    <p className="text-3xl font-bold text-violet-700 dark:text-violet-300">{mockAnalytics.avgApprovalTime}h</p>
+                    <p className="text-3xl font-bold text-violet-700 dark:text-violet-300">{analytics.avgApprovalTime}h</p>
                     <p className="text-xs text-violet-600/70 dark:text-violet-400/70 flex items-center gap-1 mt-0.5">
                       <TrendingDown className="h-3 w-3" />
                       12% faster than last quarter
@@ -1137,7 +1216,7 @@ export default function PurchaseRequisition() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Cost Savings (Competitive Bidding)</p>
-                    <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(mockAnalytics.costSavings)}</p>
+                    <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(analytics.costSavings)}</p>
                     <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70 flex items-center gap-1 mt-0.5">
                       <TrendingUp className="h-3 w-3" />
                       8.3% savings rate this quarter
@@ -1169,7 +1248,7 @@ export default function PurchaseRequisition() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockAnalytics.supplierPerformance.map((sp) => {
+                    {analytics.supplierPerformance.map((sp) => {
                       const avgScore = (sp.onTimeRate + sp.accuracyRate) / 2;
                       return (
                         <TableRow key={sp.supplier}>

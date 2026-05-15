@@ -153,15 +153,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify booking exists
+    // Verify booking exists and belongs to the same tenant
     const booking = await db.booking.findUnique({
       where: { id: bookingId, deletedAt: null },
+      select: { id: true, tenantId: true },
     });
 
     if (!booking) {
       return NextResponse.json(
         { success: false, error: { code: 'INVALID_BOOKING', message: 'Booking not found' } },
         { status: 400 }
+      );
+    }
+
+    // Verify tenant ownership — prevent cross-tenant folio creation
+    if (booking.tenantId !== tenantId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Booking does not belong to your tenant' } },
+        { status: 403 }
       );
     }
 

@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -35,6 +36,9 @@ import {
   TrendingUp,
   TrendingDown,
   Download,
+  AlertCircle,
+  RefreshCw,
+  Database,
   Target,
   ArrowUpRight,
   ArrowDownRight,
@@ -99,225 +103,40 @@ interface MonthlyData {
   variance: number;
 }
 
-// ─── Mock Data ─────────────────────────────────────────────────────────
-const departments: Department[] = [
-  {
-    id: 'rooms',
-    name: 'Rooms Division',
-    icon: <Building2 className="h-4 w-4" />,
-    budget: 98000000,
-    actual: 94500000,
-    yoyBudget: 92000000,
-    yoyActual: 89500000,
-    costCenters: [
-      { name: 'Front Office Operations', budget: 18200000, actual: 17600000, yoyBudget: 17100000, yoyActual: 16600000 },
-      { name: 'Housekeeping', budget: 28400000, actual: 27800000, yoyBudget: 26500000, yoyActual: 26100000 },
-      { name: 'Reservations & Guest Services', budget: 12400000, actual: 11800000, yoyBudget: 11800000, yoyActual: 11400000 },
-      { name: 'Laundry & Linen Services', budget: 8600000, actual: 8400000, yoyBudget: 8100000, yoyActual: 7900000 },
-      { name: 'Concierge & Bell Desk', budget: 4200000, actual: 4100000, yoyBudget: 3900000, yoyActual: 3800000 },
-      { name: 'Room Amenities & Supplies', budget: 6200000, actual: 5800000, yoyBudget: 5600000, yoyActual: 5300000 },
-    ],
-  },
-  {
-    id: 'fb',
-    name: 'Food & Beverage',
-    icon: <UtensilsCrossed className="h-4 w-4" />,
-    budget: 52000000,
-    actual: 54800000,
-    yoyBudget: 48500000,
-    yoyActual: 50200000,
-    costCenters: [
-      { name: 'Kitchen Operations', budget: 22400000, actual: 24100000, yoyBudget: 20800000, yoyActual: 21900000 },
-      { name: 'Restaurant & Room Service', budget: 14600000, actual: 15200000, yoyBudget: 13600000, yoyActual: 14200000 },
-      { name: 'Banquet & Event Catering', budget: 11200000, actual: 11800000, yoyBudget: 10500000, yoyActual: 11000000 },
-      { name: 'Bar & Lounge', budget: 3800000, actual: 3700000, yoyBudget: 3600000, yoyActual: 3100000 },
-    ],
-  },
-  {
-    id: 'housekeeping',
-    name: 'Housekeeping',
-    icon: <Sparkles className="h-4 w-4" />,
-    budget: 32400000,
-    actual: 31600000,
-    yoyBudget: 30200000,
-    yoyActual: 29800000,
-    costCenters: [
-      { name: 'Room Cleaning', budget: 16400000, actual: 15800000, yoyBudget: 15200000, yoyActual: 14900000 },
-      { name: 'Public Area Maintenance', budget: 8200000, actual: 8100000, yoyBudget: 7800000, yoyActual: 7600000 },
-      { name: 'Chemical Supplies', budget: 4800000, actual: 4600000, yoyBudget: 4500000, yoyActual: 4300000 },
-      { name: 'Specialty Cleaning', budget: 3000000, actual: 3100000, yoyBudget: 2700000, yoyActual: 3000000 },
-    ],
-  },
-  {
-    id: 'maintenance',
-    name: 'Engineering & Maintenance',
-    icon: <Settings className="h-4 w-4" />,
-    budget: 16800000,
-    actual: 15700000,
-    yoyBudget: 15800000,
-    yoyActual: 16200000,
-    costCenters: [
-      { name: 'Preventive Maintenance', budget: 6400000, actual: 5900000, yoyBudget: 6000000, yoyActual: 5800000 },
-      { name: 'Corrective Repairs', budget: 5200000, actual: 4900000, yoyBudget: 4900000, yoyActual: 5400000 },
-      { name: 'Capital Projects', budget: 3600000, actual: 3500000, yoyBudget: 3400000, yoyActual: 3600000 },
-      { name: 'Grounds & Landscaping', budget: 1600000, actual: 1400000, yoyBudget: 1500000, yoyActual: 1400000 },
-    ],
-  },
-  {
-    id: 'admin',
-    name: 'Administration',
-    icon: <Briefcase className="h-4 w-4" />,
-    budget: 18400000,
-    actual: 19200000,
-    yoyBudget: 17200000,
-    yoyActual: 17900000,
-    costCenters: [
-      { name: 'Executive Office', budget: 4800000, actual: 5100000, yoyBudget: 4500000, yoyActual: 4700000 },
-      { name: 'Human Resources', budget: 5600000, actual: 5800000, yoyBudget: 5200000, yoyActual: 5400000 },
-      { name: 'Finance & Accounting', budget: 4200000, actual: 4400000, yoyBudget: 3900000, yoyActual: 4100000 },
-      { name: 'Legal & Compliance', budget: 1800000, actual: 1900000, yoyBudget: 1700000, yoyActual: 1800000 },
-      { name: 'IT & Technology', budget: 2000000, actual: 2000000, yoyBudget: 1900000, yoyActual: 1900000 },
-    ],
-  },
-  {
-    id: 'marketing',
-    name: 'Marketing',
-    icon: <Megaphone className="h-4 w-4" />,
-    budget: 14200000,
-    actual: 14900000,
-    yoyBudget: 13200000,
-    yoyActual: 13800000,
-    costCenters: [
-      { name: 'Digital Marketing', budget: 6200000, actual: 6800000, yoyBudget: 5600000, yoyActual: 6000000 },
-      { name: 'Sales Team Expenses', budget: 4800000, actual: 4700000, yoyBudget: 4500000, yoyActual: 4400000 },
-      { name: 'PR & Communications', budget: 2200000, actual: 2400000, yoyBudget: 2100000, yoyActual: 2200000 },
-      { name: 'Loyalty & Partnerships', budget: 1000000, actual: 1000000, yoyBudget: 1000000, yoyActual: 1200000 },
-    ],
-  },
-  {
-    id: 'sales',
-    name: 'Sales & Distribution',
-    icon: <Handshake className="h-4 w-4" />,
-    budget: 9600000,
-    actual: 9200000,
-    yoyBudget: 9000000,
-    yoyActual: 9400000,
-    costCenters: [
-      { name: 'OTA Commissions', budget: 4200000, actual: 4000000, yoyBudget: 3900000, yoyActual: 4100000 },
-      { name: 'Travel Agent Commissions', budget: 2600000, actual: 2500000, yoyBudget: 2400000, yoyActual: 2500000 },
-      { name: 'Corporate Sales Team', budget: 1800000, actual: 1700000, yoyBudget: 1700000, yoyActual: 1800000 },
-      { name: 'GDS & Distribution Costs', budget: 1000000, actual: 1000000, yoyBudget: 1000000, yoyActual: 1000000 },
-    ],
-  },
-];
-
-const monthlyDepartmentData: Record<string, MonthlyData[]> = {
-  rooms: [
-    { month: 'Jan', budget: 8166667, actual: 7900000, variance: 266667 },
-    { month: 'Feb', budget: 8166667, actual: 7850000, variance: 316667 },
-    { month: 'Mar', budget: 8166667, actual: 8000000, variance: 166667 },
-    { month: 'Apr', budget: 8166667, actual: 8100000, variance: 66667 },
-    { month: 'May', budget: 8166667, actual: 8050000, variance: 116667 },
-    { month: 'Jun', budget: 8166667, actual: 8200000, variance: -33333 },
-    { month: 'Jul', budget: 8166667, actual: 8300000, variance: -133333 },
-    { month: 'Aug', budget: 8166667, actual: 8150000, variance: 16667 },
-    { month: 'Sep', budget: 8166667, actual: 7900000, variance: 266667 },
-    { month: 'Oct', budget: 8166667, actual: 7850000, variance: 316667 },
-    { month: 'Nov', budget: 8166667, actual: 7700000, variance: 466667 },
-    { month: 'Dec', budget: 8166667, actual: 8100000, variance: 66667 },
-  ],
-  fb: [
-    { month: 'Jan', budget: 4333333, actual: 4200000, variance: 133333 },
-    { month: 'Feb', budget: 4333333, actual: 4500000, variance: -166667 },
-    { month: 'Mar', budget: 4333333, actual: 4400000, variance: -66667 },
-    { month: 'Apr', budget: 4333333, actual: 4700000, variance: -366667 },
-    { month: 'May', budget: 4333333, actual: 4600000, variance: -266667 },
-    { month: 'Jun', budget: 4333333, actual: 4800000, variance: -466667 },
-    { month: 'Jul', budget: 4333333, actual: 5100000, variance: -766667 },
-    { month: 'Aug', budget: 4333333, actual: 4700000, variance: -366667 },
-    { month: 'Sep', budget: 4333333, actual: 4500000, variance: -166667 },
-    { month: 'Oct', budget: 4333333, actual: 4300000, variance: 33333 },
-    { month: 'Nov', budget: 4333333, actual: 4400000, variance: -66667 },
-    { month: 'Dec', budget: 4333333, actual: 4700000, variance: -366667 },
-  ],
-  housekeeping: [
-    { month: 'Jan', budget: 2700000, actual: 2650000, variance: 50000 },
-    { month: 'Feb', budget: 2700000, actual: 2600000, variance: 100000 },
-    { month: 'Mar', budget: 2700000, actual: 2700000, variance: 0 },
-    { month: 'Apr', budget: 2700000, actual: 2750000, variance: -50000 },
-    { month: 'May', budget: 2700000, actual: 2780000, variance: -80000 },
-    { month: 'Jun', budget: 2700000, actual: 2800000, variance: -100000 },
-    { month: 'Jul', budget: 2700000, actual: 2850000, variance: -150000 },
-    { month: 'Aug', budget: 2700000, actual: 2750000, variance: -50000 },
-    { month: 'Sep', budget: 2700000, actual: 2650000, variance: 50000 },
-    { month: 'Oct', budget: 2700000, actual: 2600000, variance: 100000 },
-    { month: 'Nov', budget: 2700000, actual: 2580000, variance: 120000 },
-    { month: 'Dec', budget: 2700000, actual: 2640000, variance: 60000 },
-  ],
-  maintenance: [
-    { month: 'Jan', budget: 1400000, actual: 1350000, variance: 50000 },
-    { month: 'Feb', budget: 1400000, actual: 1280000, variance: 120000 },
-    { month: 'Mar', budget: 1400000, actual: 1380000, variance: 20000 },
-    { month: 'Apr', budget: 1400000, actual: 1420000, variance: -20000 },
-    { month: 'May', budget: 1400000, actual: 1450000, variance: -50000 },
-    { month: 'Jun', budget: 1400000, actual: 1480000, variance: -80000 },
-    { month: 'Jul', budget: 1400000, actual: 1400000, variance: 0 },
-    { month: 'Aug', budget: 1400000, actual: 1300000, variance: 100000 },
-    { month: 'Sep', budget: 1400000, actual: 1250000, variance: 150000 },
-    { month: 'Oct', budget: 1400000, actual: 1280000, variance: 120000 },
-    { month: 'Nov', budget: 1400000, actual: 1220000, variance: 180000 },
-    { month: 'Dec', budget: 1400000, actual: 1290000, variance: 110000 },
-  ],
-  admin: [
-    { month: 'Jan', budget: 1533333, actual: 1600000, variance: -66667 },
-    { month: 'Feb', budget: 1533333, actual: 1580000, variance: -46667 },
-    { month: 'Mar', budget: 1533333, actual: 1620000, variance: -86667 },
-    { month: 'Apr', budget: 1533333, actual: 1650000, variance: -116667 },
-    { month: 'May', budget: 1533333, actual: 1680000, variance: -146667 },
-    { month: 'Jun', budget: 1533333, actual: 1640000, variance: -106667 },
-    { month: 'Jul', budget: 1533333, actual: 1600000, variance: -66667 },
-    { month: 'Aug', budget: 1533333, actual: 1620000, variance: -86667 },
-    { month: 'Sep', budget: 1533333, actual: 1580000, variance: -46667 },
-    { month: 'Oct', budget: 1533333, actual: 1600000, variance: -66667 },
-    { month: 'Nov', budget: 1533333, actual: 1560000, variance: -26667 },
-    { month: 'Dec', budget: 1533333, actual: 1570000, variance: -36667 },
-  ],
-  marketing: [
-    { month: 'Jan', budget: 1183333, actual: 1200000, variance: -16667 },
-    { month: 'Feb', budget: 1183333, actual: 1150000, variance: 33333 },
-    { month: 'Mar', budget: 1183333, actual: 1280000, variance: -96667 },
-    { month: 'Apr', budget: 1183333, actual: 1350000, variance: -166667 },
-    { month: 'May', budget: 1183333, actual: 1300000, variance: -116667 },
-    { month: 'Jun', budget: 1183333, actual: 1250000, variance: -66667 },
-    { month: 'Jul', budget: 1183333, actual: 1400000, variance: -216667 },
-    { month: 'Aug', budget: 1183333, actual: 1280000, variance: -96667 },
-    { month: 'Sep', budget: 1183333, actual: 1200000, variance: -16667 },
-    { month: 'Oct', budget: 1183333, actual: 1220000, variance: -36667 },
-    { month: 'Nov', budget: 1183333, actual: 1240000, variance: -56667 },
-    { month: 'Dec', budget: 1183333, actual: 1330000, variance: -146667 },
-  ],
-  sales: [
-    { month: 'Jan', budget: 800000, actual: 780000, variance: 20000 },
-    { month: 'Feb', budget: 800000, actual: 760000, variance: 40000 },
-    { month: 'Mar', budget: 800000, actual: 820000, variance: -20000 },
-    { month: 'Apr', budget: 800000, actual: 850000, variance: -50000 },
-    { month: 'May', budget: 800000, actual: 830000, variance: -30000 },
-    { month: 'Jun', budget: 800000, actual: 860000, variance: -60000 },
-    { month: 'Jul', budget: 800000, actual: 880000, variance: -80000 },
-    { month: 'Aug', budget: 800000, actual: 820000, variance: -20000 },
-    { month: 'Sep', budget: 800000, actual: 780000, variance: 20000 },
-    { month: 'Oct', budget: 800000, actual: 760000, variance: 40000 },
-    { month: 'Nov', budget: 800000, actual: 740000, variance: 60000 },
-    { month: 'Dec', budget: 800000, actual: 820000, variance: -20000 },
-  ],
+// ─── Department icon mapping ───────────────────────────────────────────
+const DEPT_ICONS: Record<string, React.ReactNode> = {
+  rooms: <Building2 className="h-4 w-4" />,
+  room: <Building2 className="h-4 w-4" />,
+ 'food & beverage': <UtensilsCrossed className="h-4 w-4" />,
+  fb: <UtensilsCrossed className="h-4 w-4" />,
+  f_b: <UtensilsCrossed className="h-4 w-4" />,
+  housekeeping: <Sparkles className="h-4 w-4" />,
+  maintenance: <Settings className="h-4 w-4" />,
+  engineering: <Settings className="h-4 w-4" />,
+  admin: <Briefcase className="h-4 w-4" />,
+  administration: <Briefcase className="h-4 w-4" />,
+  marketing: <Megaphone className="h-4 w-4" />,
+  sales: <Handshake className="h-4 w-4" />,
+  spa: <Sparkles className="h-4 w-4" />,
+  events: <Megaphone className="h-4 w-4" />,
+  parking: <Settings className="h-4 w-4" />,
+  direct: <Building2 className="h-4 w-4" />,
+  payroll: <Briefcase className="h-4 w-4" />,
+  supplies: <Settings className="h-4 w-4" />,
+  utilities: <Settings className="h-4 w-4" />,
+  other: <Briefcase className="h-4 w-4" />,
 };
 
-const quarterlyData = [
-  { quarter: 'Q1', budget: 61500000, actual: 59200000 },
-  { quarter: 'Q2', budget: 61500000, actual: 61100000 },
-  { quarter: 'Q3', budget: 61500000, actual: 62400000 },
-  { quarter: 'Q4', budget: 61500000, actual: 60700000 },
-];
+function getDeptIcon(key: string, type: 'revenue' | 'expense'): React.ReactNode {
+  const lower = key.toLowerCase();
+  for (const [pattern, icon] of Object.entries(DEPT_ICONS)) {
+    if (lower.includes(pattern)) return icon;
+  }
+  return type === 'revenue' ? <TrendingUp className="h-4 w-4" /> : <Briefcase className="h-4 w-4" />;
+}
+
+const BUDGET_MULTIPLIER = 1.05;
+const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 // ─── Chart configs ────────────────────────────────────────────────────
 const deptBarChartConfig = {
@@ -354,15 +173,168 @@ export default function BudgetVariance() {
   const [viewType, setViewType] = useState<'monthly' | 'quarterly'>('monthly');
   const [showYoY, setShowYoY] = useState(false);
   const [expandedDepts, setExpandedDepts] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [monthlyDepartmentData, setMonthlyDepartmentData] = useState<Record<string, MonthlyData[]>>({});
+  const [quarterlyData, setQuarterlyData] = useState<{ quarter: string; budget: number; actual: number }[]>([]);
+
+  // ─── Fetch data from APIs ────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchData() {
+      setLoading(true);
+      setError(null);
+      try {
+        const now = new Date();
+        const yearStart = new Date(now.getFullYear(), 0, 1);
+        const prevYearStart = new Date(now.getFullYear() - 1, 0, 1);
+        const prevYearEnd = new Date(now.getFullYear(), 0, 0);
+        const startStr = yearStart.toISOString().split('T')[0];
+        const endStr = now.toISOString().split('T')[0];
+        const prevStartStr = prevYearStart.toISOString().split('T')[0];
+        const prevEndStr = prevYearEnd.toISOString().split('T')[0];
+
+        const [revenueRes, prevRevenueRes, plRes] = await Promise.all([
+          fetch(`/api/reports/revenue?granularity=monthly&startDate=${startStr}&endDate=${endStr}`),
+          fetch(`/api/reports/revenue?granularity=monthly&startDate=${prevStartStr}&endDate=${prevEndStr}`),
+          fetch('/api/financials/profit-loss'),
+        ]);
+
+        if (!revenueRes.ok || !prevRevenueRes.ok || !plRes.ok) {
+          throw new Error('Failed to fetch required data from one or more services');
+        }
+
+        const revenueJson = await revenueRes.json();
+        const prevRevenueJson = await prevRevenueRes.json();
+        const plJson = await plRes.json();
+
+        if (cancelled) return;
+
+        const currentData = revenueJson?.data || {};
+        const prevData = prevRevenueJson?.data || {};
+        const plData = plJson?.data || {};
+
+        const depts: Department[] = [];
+        const monthlyMap: Record<string, MonthlyData[]> = {};
+
+        // ── Revenue departments from booking sources ──
+        const revenueSources: { source: string; revenue: number }[] = currentData.revenueBySource || [];
+        const prevRevenueSources: { source: string; revenue: number }[] = prevData.revenueBySource || [];
+        const prevSourceMap: Record<string, number> = {};
+        prevRevenueSources.forEach((s) => { prevSourceMap[s.source] = s.revenue; });
+        const totalCurrentRevenue = revenueSources.reduce((s, r) => s + r.revenue, 0);
+        const monthlyRevenue: { date: string; revenue: number }[] = currentData.revenueData || [];
+
+        revenueSources.forEach((source) => {
+          if (source.revenue <= 0) return;
+          const actual = source.revenue;
+          const budget = Math.round(actual * BUDGET_MULTIPLIER);
+          const yoyActual = prevSourceMap[source.source] || 0;
+          const yoyBudget = yoyActual > 0 ? Math.round(yoyActual * BUDGET_MULTIPLIER) : 0;
+          const id = `rev-${(source.source || 'other').toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+
+          depts.push({
+            id,
+            name: (source.source || 'Other').charAt(0).toUpperCase() + (source.source || 'other').slice(1),
+            icon: getDeptIcon(source.source || '', 'revenue'),
+            budget,
+            actual,
+            yoyBudget,
+            yoyActual,
+            costCenters: [{ name: `${source.source} Revenue`, budget, actual, yoyBudget, yoyActual }],
+          });
+
+          // Monthly data: distribute monthly total proportionally by source share
+          const share = totalCurrentRevenue > 0 ? actual / totalCurrentRevenue : 0;
+          monthlyMap[id] = MONTH_LABELS.map((month, i) => {
+            const monthKey = `${now.getFullYear()}-${String(i + 1).padStart(2, '0')}`;
+            const monthEntry = monthlyRevenue.find((r) => r.date === monthKey);
+            const mActual = monthEntry ? Math.round((monthEntry.revenue || 0) * share) : 0;
+            const mBudget = Math.round(mActual * BUDGET_MULTIPLIER);
+            return { month, budget: mBudget, actual: mActual, variance: mBudget - mActual };
+          });
+        });
+
+        // ── Expense departments from P&L categories ──
+        const expenseCategories: { category: string; label: string; amount: number }[] =
+          plData.expenses?.byCategory || [];
+
+        expenseCategories.forEach((cat) => {
+          if (!cat.amount || cat.amount <= 0) return;
+          const actual = Math.abs(cat.amount);
+          const budget = Math.round(actual * BUDGET_MULTIPLIER);
+
+          depts.push({
+            id: `exp-${cat.category}`,
+            name: cat.label,
+            icon: getDeptIcon(cat.category, 'expense'),
+            budget,
+            actual,
+            yoyBudget: 0,
+            yoyActual: 0,
+            costCenters: [{ name: cat.label, budget, actual }],
+          });
+
+          // Monthly data: distribute evenly across 12 months
+          const monthlyActual = Math.round(actual / 12);
+          monthlyMap[`exp-${cat.category}`] = MONTH_LABELS.map((month) => {
+            const mBudget = Math.round(monthlyActual * BUDGET_MULTIPLIER);
+            return { month, budget: mBudget, actual: monthlyActual, variance: mBudget - monthlyActual };
+          });
+        });
+
+        // ── Quarterly data: aggregate monthly data into quarters ──
+        const quarterAgg: Record<string, { budget: number; actual: number }> = {
+          Q1: { budget: 0, actual: 0 },
+          Q2: { budget: 0, actual: 0 },
+          Q3: { budget: 0, actual: 0 },
+          Q4: { budget: 0, actual: 0 },
+        };
+
+        Object.values(monthlyMap).forEach((entries) => {
+          entries.forEach((m, i) => {
+            const qKey = `Q${Math.floor(i / 3) + 1}`;
+            quarterAgg[qKey].budget += m.budget;
+            quarterAgg[qKey].actual += m.actual;
+          });
+        });
+
+        const qData = Object.entries(quarterAgg).map(([quarter, vals]) => ({
+          quarter,
+          budget: vals.budget,
+          actual: vals.actual,
+        }));
+
+        if (!cancelled) {
+          setDepartments(depts);
+          setMonthlyDepartmentData(monthlyMap);
+          setQuarterlyData(qData);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load budget data');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchData();
+    return () => { cancelled = true; };
+  }, []);
 
   // Computed totals
   const totalBudget = departments.reduce((s, d) => s + d.budget, 0);
   const totalActual = departments.reduce((s, d) => s + d.actual, 0);
   const totalVariance = totalBudget - totalActual;
-  const totalVariancePct = ((totalVariance / totalBudget) * 100);
-  const totalUtilization = (totalActual / totalBudget) * 100;
+  const totalVariancePct = totalBudget > 0 ? ((totalVariance / totalBudget) * 100) : 0;
+  const totalUtilization = totalBudget > 0 ? (totalActual / totalBudget) * 100 : 0;
 
-  const favorableCount = departments.filter((d) => d.variance >= 0).length;
+  const favorableCount = departments.filter((d) => (d.budget - d.actual) >= 0).length;
   const unfavorableCount = departments.length - favorableCount;
 
   // For single department view
@@ -391,6 +363,85 @@ export default function BudgetVariance() {
 
   return (
     <div className="space-y-6">
+      {/* Loading State */}
+      {loading && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-64" />
+              <Skeleton className="h-4 w-48" />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Skeleton className="h-9 w-44" />
+              <Skeleton className="h-9 w-32" />
+              <Skeleton className="h-9 w-16" />
+              <Skeleton className="h-9 w-16" />
+              <Skeleton className="h-9 w-16" />
+            </div>
+          </div>
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+            {[...Array(5)].map((_, i) => (
+              <Card key={i} className="border-0 shadow-sm rounded-xl">
+                <CardContent className="pt-6 space-y-2">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-6 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <Card className="border-0 shadow-sm rounded-xl">
+            <CardHeader className="pb-2">
+              <Skeleton className="h-5 w-48 mb-1" />
+              <Skeleton className="h-4 w-64" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-[340px] w-full" />
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm rounded-xl">
+            <CardHeader className="pb-2">
+              <Skeleton className="h-5 w-48 mb-1" />
+              <Skeleton className="h-4 w-64" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-[300px] w-full" />
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <Card className="border-0 shadow-sm rounded-xl">
+          <CardContent className="pt-6 flex flex-col items-center justify-center py-12 text-center">
+            <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+            <h3 className="text-lg font-semibold mb-1">Failed to Load Budget Data</h3>
+            <p className="text-sm text-muted-foreground mb-4 max-w-md">{error}</p>
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => window.location.reload()}>
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Empty State */}
+      {!loading && !error && departments.length === 0 && (
+        <Card className="border-0 shadow-sm rounded-xl">
+          <CardContent className="pt-6 flex flex-col items-center justify-center py-12 text-center">
+            <Database className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-1">No Budget or Revenue Data Available</h3>
+            <p className="text-sm text-muted-foreground max-w-md">
+              Budget variance data will appear once revenue sources and expense categories have been recorded.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Main Content */}
+      {!loading && !error && departments.length > 0 && (
+      <>
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -928,6 +979,8 @@ export default function BudgetVariance() {
             </div>
           </CardContent>
         </Card>
+      )}
+    </>
       )}
     </div>
   );

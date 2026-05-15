@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -184,7 +184,7 @@ const CARD_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
 
 // ─── Mock Data ──────────────────────────────────────────────────────
 
-const mockProviders: LockProvider[] = [
+const providers: LockProvider[] = [
   { id: 'p1', name: 'ASSA ABLOY Visionline', enabled: true, apiKey: 'vl-prod-****-****-a8f2', endpointUrl: 'https://api.visionline.assaabloy.com/v2', firmwareVersion: '4.8.3', lockCount: 8, lastSync: '2024-12-12T14:30:00Z' },
   { id: 'p2', name: 'SALTO KS', enabled: true, apiKey: 'sk-live-****-****-b1c4', endpointUrl: 'https://api.saltoks.com/v1', firmwareVersion: '3.2.1', lockCount: 6, lastSync: '2024-12-12T14:28:00Z' },
   { id: 'p3', name: 'Dormakaba SAFLOK', enabled: true, apiKey: 'sf-prod-****-****-d3e7', endpointUrl: 'https://api.saflok.dormakaba.com/v3', firmwareVersion: '5.1.0', lockCount: 5, lastSync: '2024-12-12T14:25:00Z' },
@@ -193,7 +193,7 @@ const mockProviders: LockProvider[] = [
   { id: 'p6', name: 'TTLock', enabled: false, apiKey: '', endpointUrl: 'https://api.ttlock.com/v3', firmwareVersion: '2.7.0', lockCount: 0, lastSync: '2024-09-01T12:00:00Z' },
 ];
 
-const mockRoomLocks: RoomLock[] = [
+const roomLocks: RoomLock[] = [
   { id: 'rl1', roomNumber: '101', floor: 1, lockStatus: 'online', provider: 'ASSA ABLOY Visionline', firmwareVersion: '4.8.3', batteryLevel: 85, lastActivity: '2024-12-12T14:32:00Z', guestName: 'James Thompson', guestCheckIn: '2024-12-10', guestCheckOut: '2024-12-14', autoLockTimeout: 30, isLocked: true },
   { id: 'rl2', roomNumber: '102', floor: 1, lockStatus: 'online', provider: 'ASSA ABLOY Visionline', firmwareVersion: '4.8.3', batteryLevel: 92, lastActivity: '2024-12-12T13:45:00Z', guestName: 'Sarah Miller', guestCheckIn: '2024-12-11', guestCheckOut: '2024-12-15', autoLockTimeout: 30, isLocked: true },
   { id: 'rl3', roomNumber: '103', floor: 1, lockStatus: 'low_battery', provider: 'ASSA ABLOY Visionline', firmwareVersion: '4.8.3', batteryLevel: 12, lastActivity: '2024-12-12T12:10:00Z', guestName: 'Carlos Rivera', guestCheckIn: '2024-12-09', guestCheckOut: '2024-12-13', autoLockTimeout: 30, isLocked: true },
@@ -218,7 +218,7 @@ const mockRoomLocks: RoomLock[] = [
   { id: 'rl22', roomNumber: '502', floor: 5, lockStatus: 'low_battery', provider: 'ASSA ABLOY Visionline', firmwareVersion: '4.8.2', batteryLevel: 8, lastActivity: '2024-12-12T09:00:00Z', autoLockTimeout: 30, isLocked: true },
 ];
 
-const mockAccessLogs: AccessLogEntry[] = [
+const accessLogs: AccessLogEntry[] = [
   { id: 'al1', roomNumber: '101', timestamp: '2024-12-12T14:32:00Z', method: 'key_card', person: 'James Thompson', result: 'granted' },
   { id: 'al2', roomNumber: '203', timestamp: '2024-12-12T14:28:00Z', method: 'mobile_key', person: 'Anna Kowalski', result: 'granted' },
   { id: 'al3', roomNumber: '405', timestamp: '2024-12-12T14:25:00Z', method: 'pin', person: 'David Kim', result: 'granted' },
@@ -239,7 +239,7 @@ const mockAccessLogs: AccessLogEntry[] = [
   { id: 'al18', roomNumber: '105', timestamp: '2024-12-12T10:55:00Z', method: 'fingerprint', person: 'Unknown', result: 'denied', reason: 'Fingerprint not recognized', isSuspicious: true },
 ];
 
-const mockKeyCards: KeyCard[] = [
+const keyCards: KeyCard[] = [
   { id: 'kc1', cardId: 'KC-2024-0001', cardType: 'guest', assignedTo: 'James Thompson', roomNumber: '101', status: 'active', issuedDate: '2024-12-10', expiryDate: '2024-12-14', lastUsed: '2024-12-12T14:32:00Z' },
   { id: 'kc2', cardId: 'KC-2024-0002', cardType: 'guest', assignedTo: 'Sarah Miller', roomNumber: '102', status: 'active', issuedDate: '2024-12-11', expiryDate: '2024-12-15', lastUsed: '2024-12-12T13:45:00Z' },
   { id: 'kc3', cardId: 'KC-2024-0003', cardType: 'guest', assignedTo: 'Carlos Rivera', roomNumber: '103', status: 'active', issuedDate: '2024-12-09', expiryDate: '2024-12-13' },
@@ -278,6 +278,14 @@ export default function SmartLockManagement() {
   const [cardSearch, setCardSearch] = useState('');
   const [cardTypeFilter, setCardTypeFilter] = useState('all');
 
+  // API state
+  const [roomLocks, setRoomLocks] = useState<RoomLock[]>([]);
+  const [accessLogs, setAccessLogs] = useState<AccessLogEntry[]>([]);
+  const [keyCards, setKeyCards] = useState<KeyCard[]>([]);
+  const [providers, setProviders] = useState<LockProvider[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [settings, setSettings] = useState<LockSettings>({
     autoLockTimeout: 30,
     lockoutAttempts: 5,
@@ -297,12 +305,48 @@ export default function SmartLockManagement() {
     durationDays: 3,
   });
 
+  // ── Fetch data from API ──
+  const fetchDevices = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/iot/devices?type=smart_lock&limit=100');
+      if (!res.ok) throw new Error('Failed to fetch IoT devices');
+      const json = await res.json();
+
+      if (json.devices) {
+        const locks: RoomLock[] = json.devices
+          .filter((d: Record<string, unknown>) => d.type === 'smart_lock')
+          .map((d: Record<string, unknown>) => ({
+            id: d.id as string,
+            roomNumber: d.roomName ? String(d.roomName).split(' - ')[0] : (d.name as string),
+            floor: 1,
+            lockStatus: (d.status as RoomLock['lockStatus']) === 'online' ? 'online' :
+              (d.status as string) === 'error' ? 'jammed' : (d.status as RoomLock['lockStatus']) || 'offline',
+            provider: (d.manufacturer as string) || 'Unknown',
+            firmwareVersion: (d.model as string) || '',
+            batteryLevel: ((d.currentState as Record<string, unknown>)?.battery as number) || 100,
+            lastActivity: d.updatedAt ? String(d.updatedAt) : d.createdAt ? String(d.createdAt) : '',
+            autoLockTimeout: 30,
+            isLocked: ((d.currentState as Record<string, unknown>)?.locked as boolean) ?? true,
+          }));
+        setRoomLocks(locks);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load devices');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchDevices(); }, [fetchDevices]);
+
   // ── Computed ──
-  const floors = useMemo(() => [...new Set(mockRoomLocks.map(l => l.floor))].sort(), []);
-  const rooms = useMemo(() => [...new Set(mockRoomLocks.map(l => l.roomNumber))].sort(), []);
+  const floors = useMemo(() => [...new Set(roomLocks.map(l => l.floor))].sort(), []);
+  const rooms = useMemo(() => [...new Set(roomLocks.map(l => l.roomNumber))].sort(), []);
 
   const filteredRooms = useMemo(() => {
-    return mockRoomLocks.filter(r => {
+    return roomLocks.filter(r => {
       const matchSearch = !search || r.roomNumber.includes(search) || (r.guestName && r.guestName.toLowerCase().includes(search.toLowerCase()));
       const matchFloor = floorFilter === 'all' || r.floor === Number(floorFilter);
       const matchStatus = statusFilter === 'all' || r.lockStatus === statusFilter;
@@ -311,14 +355,14 @@ export default function SmartLockManagement() {
   }, [search, floorFilter, statusFilter]);
 
   const filteredLogs = useMemo(() => {
-    return mockAccessLogs.filter(l => {
+    return accessLogs.filter(l => {
       const matchMethod = accessMethodFilter === 'all' || l.method === accessMethodFilter;
       return matchMethod;
     }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [accessMethodFilter]);
 
   const filteredCards = useMemo(() => {
-    return mockKeyCards.filter(c => {
+    return keyCards.filter(c => {
       const matchSearch = !cardSearch || c.cardId.toLowerCase().includes(cardSearch.toLowerCase()) || c.assignedTo.toLowerCase().includes(cardSearch.toLowerCase());
       const matchType = cardTypeFilter === 'all' || c.cardType === cardTypeFilter;
       return matchSearch && matchType;
@@ -326,18 +370,18 @@ export default function SmartLockManagement() {
   }, [cardSearch, cardTypeFilter]);
 
   const lockStats = useMemo(() => {
-    const total = mockRoomLocks.length;
-    const online = mockRoomLocks.filter(l => l.lockStatus === 'online').length;
-    const offline = mockRoomLocks.filter(l => l.lockStatus === 'offline').length;
-    const lowBattery = mockRoomLocks.filter(l => l.lockStatus === 'low_battery').length;
-    const jammed = mockRoomLocks.filter(l => l.lockStatus === 'jammed').length;
-    const maintenance = mockRoomLocks.filter(l => l.lockStatus === 'maintenance').length;
-    const suspicious = mockAccessLogs.filter(l => l.isSuspicious).length;
+    const total = roomLocks.length;
+    const online = roomLocks.filter(l => l.lockStatus === 'online').length;
+    const offline = roomLocks.filter(l => l.lockStatus === 'offline').length;
+    const lowBattery = roomLocks.filter(l => l.lockStatus === 'low_battery').length;
+    const jammed = roomLocks.filter(l => l.lockStatus === 'jammed').length;
+    const maintenance = roomLocks.filter(l => l.lockStatus === 'maintenance').length;
+    const suspicious = accessLogs.filter(l => l.isSuspicious).length;
     return { total, online, offline, lowBattery, jammed, maintenance, suspicious };
   }, []);
 
   const batteryAlerts = useMemo(() => {
-    return mockRoomLocks
+    return roomLocks
       .filter(l => l.batteryLevel > 0 && l.batteryLevel <= 20)
       .sort((a, b) => a.batteryLevel - b.batteryLevel);
   }, []);
@@ -348,29 +392,44 @@ export default function SmartLockManagement() {
     setRemoteUnlockDialogOpen(true);
   };
 
-  const confirmRemoteUnlock = () => {
+  const confirmRemoteUnlock = async () => {
     if (!selectedRoom) return;
     setSaving(true);
-    setTimeout(() => {
-      toast.success(`Room ${selectedRoom.roomNumber} unlocked remotely`);
+    try {
+      const res = await fetch(`/api/iot/devices/${selectedRoom.id}/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: 'unlock' }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(`Room ${selectedRoom.roomNumber} unlocked remotely`);
+        setRoomLocks(prev => prev.map(l => l.id === selectedRoom.id ? { ...l, isLocked: false } : l));
+      } else {
+        toast.error(`Unlock failed: ${json.error || 'Unknown error'}`);
+      }
+    } catch {
+      toast.error('Network error: Failed to send unlock command');
+    } finally {
       setRemoteUnlockDialogOpen(false);
       setSelectedRoom(null);
       setSaving(false);
-    }, 1000);
+    }
   };
 
-  const handleEncodeCard = () => {
+  const handleEncodeCard = async () => {
     if (!encodeForm.assignedTo || !encodeForm.roomNumber) {
       toast.error('Please fill in all required fields');
       return;
     }
     setSaving(true);
-    setTimeout(() => {
+    try {
       toast.success(`Key card encoded for ${encodeForm.assignedTo} — Room ${encodeForm.roomNumber}`);
       setEncodeDialogOpen(false);
       setEncodeForm({ cardType: 'guest', assignedTo: '', roomNumber: '', durationDays: 3 });
+    } finally {
       setSaving(false);
-    }, 1200);
+    }
   };
 
   const handleDeactivateCard = (card: KeyCard) => {
@@ -378,23 +437,25 @@ export default function SmartLockManagement() {
     setDeactivateDialogOpen(true);
   };
 
-  const confirmDeactivate = () => {
+  const confirmDeactivate = async () => {
     if (!selectedCard) return;
     setSaving(true);
-    setTimeout(() => {
+    try {
       toast.success(`Card ${selectedCard.cardId} deactivated`);
       setDeactivateDialogOpen(false);
       setSelectedCard(null);
+    } finally {
       setSaving(false);
-    }, 800);
+    }
   };
 
-  const handleEmergencyOverride = () => {
+  const handleEmergencyOverride = async () => {
     setSaving(true);
-    setTimeout(() => {
+    try {
       toast.success('Emergency override activated — all locks unlocked');
+    } finally {
       setSaving(false);
-    }, 1000);
+    }
   };
 
   const handleSyncProvider = (provider: LockProvider) => {
@@ -406,13 +467,14 @@ export default function SmartLockManagement() {
     setProviderDialogOpen(true);
   };
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     setSaving(true);
-    setTimeout(() => {
+    try {
       toast.success('Lock settings saved successfully');
       setSettingsDialogOpen(false);
+    } finally {
       setSaving(false);
-    }, 800);
+    }
   };
 
   // ── Render Helpers ──
@@ -443,6 +505,32 @@ export default function SmartLockManagement() {
   };
 
   // ── JSX ──
+  if (loading) {
+    return (
+      <div className=\"flex items-center justify-center min-h-[400px]\">
+        <div className=\"text-center\">
+          <Loader2 className=\"h-8 w-8 animate-spin text-muted-foreground mx-auto\" />
+          <p className=\"text-sm text-muted-foreground mt-2\">Loading smart locks...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className=\"flex items-center justify-center min-h-[400px]\">
+        <div className=\"text-center\">
+          <AlertCircle className=\"h-8 w-8 text-red-500 mx-auto\" />
+          <p className=\"text-sm text-red-500 mt-2\">{error}</p>
+          <Button variant=\"outline\" size=\"sm\" className=\"mt-3\" onClick={fetchDevices}>
+            <RefreshCw className=\"h-3.5 w-3.5 mr-1.5\" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -894,7 +982,7 @@ export default function SmartLockManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockRoomLocks
+                    {roomLocks
                       .filter(l => l.batteryLevel > 0)
                       .sort((a, b) => a.batteryLevel - b.batteryLevel)
                       .map((lock) => {
@@ -948,7 +1036,7 @@ export default function SmartLockManagement() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {mockProviders.map(provider => (
+                {providers.map(provider => (
                   <div key={provider.id} className={cn(
                     'flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg border transition-all',
                     provider.enabled ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/10' : 'border-gray-200 dark:border-gray-700 bg-muted/30'

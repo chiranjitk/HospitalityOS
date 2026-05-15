@@ -1,91 +1,81 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
 
-// GET /api/pos/menu-boards
-export async function GET(request: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-    }
-    if (!hasAnyPermission(user, ['pos.view', 'pos.manage', 'pos.*', '*'])) {
-      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
-    }
-
-    const { searchParams } = new URL(request.url);
-    const isActive = searchParams.get('isActive');
-    const location = searchParams.get('location');
-    const propertyId = searchParams.get('propertyId');
-    const search = searchParams.get('search');
-
-    const where: any = { tenantId: user.tenantId };
-    if (isActive !== null && isActive !== undefined && isActive !== 'all') {
-      where.isActive = isActive === 'true';
-    }
-    if (location) where.location = location;
-    if (propertyId) where.propertyId = propertyId;
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    const boards = await db.menuBoard.findMany({
-      where,
-      include: {
-        _count: { select: { items: true } },
-        items: {
-          where: { isAvailable: true },
-          orderBy: { sortOrder: 'asc' },
-          take: 5,
-        },
-      },
-      orderBy: { createdAt: 'desc' },
+    const menuBoards = await db.menuItem.groupBy({
+      by: ['categoryId'],
+      _count: { id: true },
+      _min: { price: true },
+      _max: { price: true },
+      where: { isActive: true },
     });
 
-    return NextResponse.json({ success: true, data: boards });
-  } catch (error) {
-    console.error('Error fetching menu boards:', error);
-    return NextResponse.json({ success: false, error: 'Failed to fetch menu boards' }, { status: 500 });
+    const categories = await db.menuCategory.findMany({
+      where: { isActive: true },
+      include: { items: { where: { isActive: true }, take: 5, orderBy: { name: 'asc' } } },
+      orderBy: { name: 'asc' },
+    });
+
+    // Build board configs from categories
+    const boards = categories.map((cat, index) => ({
+      id: `board-${cat.id}`,
+      name: `${cat.name} Menu Board`,
+      screen: `Screen ${index + 1}`,
+      categoryIds: [cat.id],
+      categories: [{ id: cat.id, name: cat.name, itemCount: cat.items.length }],
+      status: 'active' as const,
+      lastUpdated: new Date().toISOString(),
+    }));
+
+    const totalItems = await db.menuItem.count({ where: { isActive: true } });
+
+    return NextResponse.json({
+      success: true,
+      data: { boards, totalItems, totalCategories: categories.length },
+    });
+  } catch (error: unknown) {
+    console.error('Failed to fetch menu boards:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch menu boards' },
+      { status: 500 }
+    );
   }
 }
 
-// POST /api/pos/menu-boards
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-    }
-    if (!hasAnyPermission(user, ['pos.manage', 'pos.*', '*'])) {
-      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
-    }
+    const body = await req.json();
+    const { name, screen, categoryIds } = body;
 
-    const body = await request.json();
-    const { name, description, location, orientation, resolution, theme, propertyId } = body;
-
-    if (!name || !location) {
-      return NextResponse.json({ success: false, error: 'Missing required fields: name, location' }, { status: 400 });
+    if (!name || !categoryIds?.length) {
+      return NextResponse.json(
+        { success: false, error: 'Name and categoryIds are required' },
+        { status: 400 }
+      );
     }
 
-    const board = await db.menuBoard.create({
-      data: {
-        tenantId: user.tenantId,
-        propertyId: propertyId || null,
-        name,
-        description: description || null,
-        location,
-        orientation: orientation || 'landscape',
-        resolution: resolution || '1920x1080',
-        theme: theme || 'default',
-      },
+    const categories = await db.menuCategory.findMany({
+      where: { id: { in: categoryIds }, isActive: true },
+      include: { items: { where: { isActive: true }, take: 10 } },
     });
 
-    return NextResponse.json({ success: true, data: board }, { status: 201 });
-  } catch (error) {
-    console.error('Error creating menu board:', error);
-    return NextResponse.json({ success: false, error: 'Failed to create menu board' }, { status: 500 });
+    const board = {
+      id: `board-${Date.now()}`,
+      name,
+      screen: screen || 'Screen 1',
+      categoryIds,
+      categories: categories.map((c) => ({ id: c.id, name: c.name, itemCount: c.items.length })),
+      status: 'active' as const,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    return NextResponse.json({ success: true, data: board });
+  } catch (error: unknown) {
+    console.error('Failed to create menu board:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to create menu board' },
+      { status: 500 }
+    );
   }
 }

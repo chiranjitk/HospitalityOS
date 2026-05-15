@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getOTAById } from '@/lib/ota';
+import { getOTAById, OTAClientFactory } from '@/lib/ota';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 // GET /api/channels/stop-sell?propertyId=X
@@ -347,6 +347,136 @@ export async function POST(request: NextRequest) {
       });
     });
 
+    // Propagate stop-sell to all active OTA connections
+    const otaResults: Array<{ channelId: string; channel: string; success: boolean; message?: string }> = [];
+    try {
+      const activeConnections = await db.channelConnection.findMany({
+        where: { id: { in: validConnIds }, status: 'active' },
+        select: {
+          id: true,
+          channel: true,
+          displayName: true,
+          apiKey: true,
+          apiSecret: true,
+          hotelId: true,
+        },
+      });
+
+      // Get channel mappings for the affected room types
+      const channelMappings = await db.channelMapping.findMany({
+        where: {
+          connectionId: { in: activeConnections.map(c => c.id) },
+          roomTypeId: { in: validRTIds },
+        },
+        select: {
+          connectionId: true,
+          externalRoomId: true,
+          roomTypeId: true,
+        },
+      });
+
+      for (const connection of activeConnections) {
+        try {
+          const client = OTAClientFactory.createClient(connection.channel);
+          if (!client) {
+            otaResults.push({ channelId: connection.id, channel: connection.channel, success: false, message: 'No OTA client available for channel' });
+            await db.channelSyncLog.create({
+              data: {
+                connectionId: connection.id,
+                syncType: 'rate',
+                direction: 'outbound',
+                status: 'failed',
+                errorMessage: 'No OTA client available for channel',
+              },
+            });
+            continue;
+          }
+
+          // Build restriction updates from channel mappings
+          const connMappings = channelMappings.filter(m => m.connectionId === connection.id);
+          if (connMappings.length === 0) {
+            otaResults.push({ channelId: connection.id, channel: connection.channel, success: false, message: 'No room mappings configured' });
+            await db.channelSyncLog.create({
+              data: {
+                connectionId: connection.id,
+                syncType: 'rate',
+                direction: 'outbound',
+                status: 'failed',
+                errorMessage: 'No room mappings configured for stop-sell propagation',
+              },
+            });
+            continue;
+          }
+
+          const restrictionUpdates = [];
+          for (const mapping of connMappings) {
+            for (const date of dateRange) {
+              restrictionUpdates.push({
+                roomTypeId: mapping.roomTypeId,
+                externalRoomId: mapping.externalRoomId,
+                date: date.toISOString().split('T')[0],
+                closedToArrival,
+                closedToDeparture,
+                closed: true,
+                minStayThrough: 1,
+              });
+            }
+          }
+
+          const syncResult = await client.updateRestrictions(restrictionUpdates);
+
+          if (syncResult.success) {
+            otaResults.push({ channelId: connection.id, channel: connection.channel, success: true });
+            await db.channelSyncLog.create({
+              data: {
+                connectionId: connection.id,
+                syncType: 'rate',
+                direction: 'outbound',
+                status: 'success',
+                requestPayload: JSON.stringify(restrictionUpdates.length),
+                responsePayload: JSON.stringify(syncResult),
+              },
+            });
+            // Update last sync time
+            await db.channelConnection.update({
+              where: { id: connection.id },
+              data: { lastSyncAt: new Date() },
+            });
+          } else {
+            const errorMsg = syncResult.errors?.map(e => e.message).join('; ') || 'Unknown error';
+            otaResults.push({ channelId: connection.id, channel: connection.channel, success: false, message: errorMsg });
+            await db.channelSyncLog.create({
+              data: {
+                connectionId: connection.id,
+                syncType: 'rate',
+                direction: 'outbound',
+                status: 'failed',
+                errorMessage: errorMsg,
+                requestPayload: JSON.stringify(restrictionUpdates.length),
+                responsePayload: JSON.stringify(syncResult),
+              },
+            });
+          }
+        } catch (otaError) {
+          const errMsg = otaError instanceof Error ? otaError.message : 'Unknown OTA push error';
+          otaResults.push({ channelId: connection.id, channel: connection.channel, success: false, message: errMsg });
+          await db.channelSyncLog.create({
+            data: {
+              connectionId: connection.id,
+              syncType: 'rate',
+              direction: 'outbound',
+              status: 'failed',
+              errorMessage: errMsg,
+            },
+          });
+        }
+      }
+    } catch (otaPropError) {
+      console.error('Error propagating stop-sell to OTAs:', otaPropError);
+    }
+
+    const otaSuccessCount = otaResults.filter(r => r.success).length;
+
     return NextResponse.json({
       success: true,
       data: {
@@ -355,7 +485,13 @@ export async function POST(request: NextRequest) {
         channelsAffected: validConnIds.length,
         roomTypesAffected: validRTIds.length,
         daysAffected: dateRange.length,
-        message: `Stop-sell applied: ${createdCount} new + ${updatedCount} updated restrictions`,
+        otaPropagation: {
+          total: otaResults.length,
+          successful: otaSuccessCount,
+          failed: otaResults.length - otaSuccessCount,
+          details: otaResults,
+        },
+        message: `Stop-sell applied: ${createdCount} new + ${updatedCount} updated restrictions. OTA propagation: ${otaSuccessCount}/${otaResults.length} channels updated.`,
       },
     });
   } catch (error) {

@@ -138,61 +138,7 @@ function getRelativeTime(dateStr: string): string {
   return `${Math.floor(diffHr / 24)}d ago`;
 }
 
-// ─── Mock data generator (uses real API when available) ─────────────────
 
-function generateMockEvents(): TimelineEvent[] {
-  const now = Date.now();
-  return [
-    {
-      id: 'ev-1', type: 'check_in', title: 'Guest Check-in',
-      description: 'Sarah Mitchell checked into Room 305 (Deluxe Suite)',
-      timestamp: new Date(now - 12 * 60000).toISOString(), user: 'Front Desk', room: '305',
-      status: 'completed',
-    },
-    {
-      id: 'ev-2', type: 'payment', title: 'Payment Received',
-      description: '₹12,450 payment for Room 412 — 3-night stay',
-      timestamp: new Date(now - 28 * 60000).toISOString(), user: 'Rajesh K.', room: '412',
-      status: 'completed',
-    },
-    {
-      id: 'ev-3', type: 'service', title: 'Room Service Request',
-      description: 'Extra pillows and blanket requested for Room 208',
-      timestamp: new Date(now - 45 * 60000).toISOString(), user: 'Housekeeping', room: '208',
-      status: 'in_progress',
-    },
-    {
-      id: 'ev-4', type: 'maintenance', title: 'AC Maintenance',
-      description: 'AC unit in Room 517 reported not cooling — technician dispatched',
-      timestamp: new Date(now - 90 * 60000).toISOString(), user: 'Maintenance', room: '517',
-      status: 'pending',
-    },
-    {
-      id: 'ev-5', type: 'wifi', title: 'WiFi Voucher Activated',
-      description: 'Guest in Room 203 activated premium WiFi (100 Mbps)',
-      timestamp: new Date(now - 120 * 60000).toISOString(), room: '203',
-      status: 'completed',
-    },
-    {
-      id: 'ev-6', type: 'check_out', title: 'Guest Check-out',
-      description: 'James Cooper checked out of Room 219 — balance cleared',
-      timestamp: new Date(now - 180 * 60000).toISOString(), user: 'Front Desk', room: '219',
-      status: 'completed',
-    },
-    {
-      id: 'ev-7', type: 'message', title: 'Guest Message',
-      description: 'Room 410 guest requested late checkout (2 PM extension)',
-      timestamp: new Date(now - 210 * 60000).toISOString(), room: '410',
-      status: 'pending',
-    },
-    {
-      id: 'ev-8', type: 'system', title: 'System Update',
-      description: 'Nightly backup completed successfully — all data verified',
-      timestamp: new Date(now - 360 * 60000).toISOString(),
-      status: 'info',
-    },
-  ];
-}
 
 // ─── Skeleton Loader ────────────────────────────────────────────────────
 
@@ -293,6 +239,7 @@ export function ActivityTimelineWidget() {
   const t = useTranslations('dashboard');
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [filter, setFilter] = useState<'all' | TimelineEvent['type']>('all');
 
   const fetchEvents = useCallback(async () => {
@@ -317,15 +264,18 @@ export function ActivityTimelineWidget() {
               status: a.status === 'completed' ? 'completed' as const : 'info' as const,
             };
           });
-          setEvents(mapped.length > 0 ? mapped : generateMockEvents());
+          setEvents(mapped);
         } else {
-          setEvents(generateMockEvents());
+          setEvents([]);
+          setError(true);
         }
       } else {
-        setEvents(generateMockEvents());
+        setEvents([]);
+        setError(true);
       }
     } catch {
-      setEvents(generateMockEvents());
+      setEvents([]);
+      setError(true);
     } finally {
       setIsLoading(false);
     }
@@ -398,6 +348,14 @@ export function ActivityTimelineWidget() {
         {/* Timeline content */}
         {isLoading ? (
           <TimelineSkeleton />
+        ) : error && events.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <div className="rounded-full bg-red-50 dark:bg-red-950/30 p-3 mb-2">
+              <Shield className="h-6 w-6 text-red-400 dark:text-red-300" />
+            </div>
+            <p className="text-sm font-medium text-muted-foreground">Unable to load data.</p>
+            <Button variant="ghost" size="sm" className="mt-2" onClick={() => { setError(false); fetchEvents(); }}>Retry</Button>
+          </div>
         ) : filteredEvents.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <div className="rounded-full bg-muted/50 p-3 mb-2">

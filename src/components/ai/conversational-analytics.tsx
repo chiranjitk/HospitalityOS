@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -312,13 +313,92 @@ export default function ConversationalAnalytics() {
   const [queryInput, setQueryInput] = useState('');
   const [activeTab, setActiveTab] = useState('query');
   const [isQuerying, setIsQuerying] = useState(false);
-  const [queryHistory, setQueryHistory] = useState<QueryResult[]>(MOCK_QUERY_RESULTS);
+  const [queryHistory, setQueryHistory] = useState<QueryResult[]>([]);
   const [selectedResult, setSelectedResult] = useState<QueryResult | null>(null);
-  const [savedQueries, setSavedQueries] = useState<SavedQuery[]>(MOCK_SAVED_QUERIES);
+  const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([]);
   const [showBuilder, setShowBuilder] = useState(false);
   const [builderMetric, setBuilderMetric] = useState('revenue');
   const [builderPeriod, setBuilderPeriod] = useState('6m');
   const [builderCompare, setBuilderCompare] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [initialError, setInitialError] = useState<string | null>(null);
+  const [satisfactionData, setSatisfactionData] = useState<Record<string, unknown>[] | null>(null);
+
+  // Fetch real guest satisfaction data on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchInitialData() {
+      setInitialLoading(true);
+      setInitialError(null);
+      try {
+        const res = await fetch('/api/dashboard/guest-satisfaction');
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          const scores = Array.isArray(data) ? data : data.satisfaction || data.scores || data.categories || [];
+          if (scores.length > 0) setSatisfactionData(scores);
+          // Also load saved queries from API
+          const savedRes = await fetch('/api/ai/analytics/saved');
+          if (savedRes.ok && !cancelled) {
+            const savedData = await savedRes.json();
+            const saved = Array.isArray(savedData) ? savedData : savedData.queries || [];
+            if (saved.length > 0) setSavedQueries(saved.map((sq: Record<string, unknown>) => ({
+              id: sq.id || `sq-${Date.now()}`,
+              name: sq.name || sq.title || 'Unnamed Query',
+              query: sq.query || sq.queryText || '',
+              category: sq.category || 'General',
+              isPinned: Boolean(sq.isPinned || sq.pinned || false),
+              lastRun: sq.lastRun || sq.lastExecutedAt || new Date().toISOString(),
+              schedule: sq.schedule || undefined,
+              sharedWith: sq.sharedWith || undefined,
+            }));
+          }
+        }
+      } catch (err) {
+        if (!cancelled) setInitialError(err instanceof Error ? err.message : 'Failed to load initial data');
+      } finally {
+        if (!cancelled) setInitialLoading(false);
+      }
+    }
+    fetchInitialData();
+    return () => { cancelled = true; };
+  }, []);
+
+  // When no saved queries from API and no satisfaction data, populate from mock for demo
+  useEffect(() => {
+    if (!initialLoading && savedQueries.length === 0) {
+      setSavedQueries(MOCK_SAVED_QUERIES);
+    }
+  }, [initialLoading, savedQueries.length]);
+
+  useEffect(() => {
+    if (!initialLoading && satisfactionData === null) {
+      setSatisfactionData(SATISFACTION_DATA);
+    }
+  }, [initialLoading, satisfactionData]);
+
+  // Build real query result from satisfaction data when user asks about guest satisfaction
+  const buildSatisfactionResult = useCallback((query: string): QueryResult | null => {
+    if (!satisfactionData || satisfactionData.length === 0) return null;
+    const q = query.toLowerCase();
+    if (q.includes('satisfaction') || q.includes('guest score') || q.includes('feedback')) {
+      const totalResponses = satisfactionData.reduce((s: number, c: Record<string, unknown>) => s + Number(c.responses || 0), 0);
+      const avgScore = satisfactionData.reduce((s: number, c: Record<string, unknown>) => s + Number(c.score || c.satisfactionScore || 0), 0) / satisfactionData.length;
+      return {
+        id: `qr-${Date.now()}`,
+        query,
+        category: 'Guest',
+        chartType: 'bar',
+        chartData: satisfactionData,
+        insight: satisfactionData.map((c: Record<string, unknown>) => `${c.category}: ${(c.score || c.satisfactionScore || 0).toFixed(1)}/5 (${c.responses || 0} responses)`).join('. '),
+        timestamp: new Date().toISOString(),
+        keyMetric: 'Avg Score',
+        keyMetricValue: `${avgScore.toFixed(2)}/5.0`,
+        keyMetricTrend: 'up',
+        keyMetricChange: 'Real-time data from guest feedback',
+      };
+    }
+    return null;
+  }, [satisfactionData]);
 
   // ── Handlers ─────────────────────────────────────────────────────
 

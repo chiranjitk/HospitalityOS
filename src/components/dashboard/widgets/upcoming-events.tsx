@@ -40,17 +40,6 @@ interface EventsData {
   events: HotelEvent[];
 }
 
-const MOCK_DATA: EventsData = {
-  lastUpdated: new Date().toISOString(),
-  events: [
-    { id: 'evt-001', name: 'Tech Innovation Summit 2026', type: 'conference', date: new Date().toISOString(), startTime: '09:00', endTime: '17:00', expectedGuests: 150, venue: 'Grand Ballroom A', status: 'confirmed' },
-    { id: 'evt-002', name: 'Anderson–Lee Wedding Reception', type: 'wedding', date: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(), startTime: '16:00', endTime: '23:00', expectedGuests: 120, venue: 'Garden Terrace', status: 'confirmed' },
-    { id: 'evt-003', name: 'Quarterly Sales Review', type: 'meeting', date: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(), startTime: '10:00', endTime: '12:00', expectedGuests: 25, venue: 'Boardroom 3', status: 'confirmed' },
-    { id: 'evt-004', name: 'Annual Charity Gala Dinner', type: 'banquet', date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), startTime: '19:00', endTime: '23:30', expectedGuests: 200, venue: 'Grand Ballroom B', status: 'pending' },
-    { id: 'evt-005', name: 'Private Birthday Celebration', type: 'private', date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), startTime: '18:00', endTime: '22:00', expectedGuests: 30, venue: 'Rooftop Lounge', status: 'confirmed' },
-  ],
-};
-
 function getCountdown(dateStr: string, t: (key: string) => string): { text: string; isToday: boolean } {
   const now = new Date();
   const eventDate = new Date(dateStr);
@@ -133,7 +122,6 @@ export function UpcomingEventsWidget() {
     } catch (err) {
       console.error('Events fetch failed:', err);
       setError(err instanceof Error ? err.message : t('unknownError'));
-      setData(MOCK_DATA); setLastRefresh(new Date());
     } finally { setIsLoading(false); }
   }, [t]);
 

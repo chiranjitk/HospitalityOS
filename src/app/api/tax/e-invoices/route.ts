@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { z } from 'zod';
 
 const createEInvoiceSchema = z.object({
@@ -29,6 +29,11 @@ export async function GET(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
+    // Permission check: read access required for e-invoice listing
+    if (!hasPermission(user, 'tax:read') && !hasPermission(user, 'tax.*') && user.roleName !== 'admin') {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const { searchParams } = request.nextUrl;
@@ -98,6 +103,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
     }
 
+    // Permission check: write access required for e-invoice creation
+    if (!hasPermission(user, 'tax:write') && !hasPermission(user, 'tax:admin') && !hasPermission(user, 'tax.*') && user.roleName !== 'admin') {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
+
     const body = await request.json();
     const parsed = createEInvoiceSchema.safeParse(body);
     if (!parsed.success) {
@@ -106,17 +116,14 @@ export async function POST(request: NextRequest) {
 
     const data = parsed.data;
 
-    // Generate simulated IRN (in production, this would call the GST portal API)
-    const irn = `IRN${Date.now()}${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
-    const ackNo = `ACK${Date.now()}`;
-    const signedQrCode = Buffer.from(JSON.stringify({
-      irn,
-      gstin: data.placeOfSupply || '29AAACR1234F1ZH',
-      invoiceNumber: data.invoiceNumber,
-      invoiceDate: data.invoiceDate ? new Date(data.invoiceDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-      totalAmount: data.totalAmount,
-      tax: data.totalTax,
-    })).toString('base64');
+    // IMPORTANT: IRN generation requires integration with GSTN API (https://einvoice1.gst.gov.in).
+    // Currently, the IRN is marked as PENDING awaiting real GST portal integration.
+    // When GSTN API integration is implemented, replace this with actual API call.
+    const irnStatus: 'PENDING' | 'GENERATED' | 'FAILED' = 'PENDING';
+    const irn = null; // Will be populated by GSTN API upon successful generation
+    const ackNo = null;
+    const ackDate = null;
+    const signedQrCode = null;
 
     const invoice = await db.gstEInvoice.create({
       data: {
@@ -139,10 +146,11 @@ export async function POST(request: NextRequest) {
         totalAmount: data.totalAmount,
         reverseCharge: data.reverseCharge,
         irn,
+        irnStatus,
         signedQrCode,
         ackNo,
-        ackDate: new Date(),
-        status: 'generated',
+        ackDate,
+        status: 'pending',
         generatedBy: user.id,
         gstSettingsId: data.gstSettingsId || null,
       },

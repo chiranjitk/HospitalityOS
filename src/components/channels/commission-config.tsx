@@ -165,7 +165,7 @@ const BILLING_CYCLE_LABELS: Record<string, string> = {
   per_booking: 'Per Booking',
 };
 
-const SAMPLE_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const 'current' = '00000000-0000-0000-0000-000000000001';
 
 // ============================================
 // COMPONENT
@@ -233,7 +233,7 @@ export function ChannelCommissionConfigPanel() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ tenantId: SAMPLE_TENANT_ID });
+      const params = new URLSearchParams({ tenantId: 'current' });
 
       const [configsRes, connectionsRes, summaryRes] = await Promise.all([
         fetch(`/api/channels/commission-config?${params}`),
@@ -335,7 +335,7 @@ export function ChannelCommissionConfigPanel() {
     try {
       const conn = connections.find(c => c.id === formData.connectionId);
       const payload = {
-        tenantId: SAMPLE_TENANT_ID,
+        tenantId: 'current',
         connectionId: formData.connectionId,
         channelCode: formData.channelCode || (conn?.channel || ''),
         commissionType: formData.commissionType,

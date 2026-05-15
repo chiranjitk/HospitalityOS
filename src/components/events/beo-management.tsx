@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,6 +64,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -405,10 +407,140 @@ const MOCK_BEOS: BEO[] = [
   },
 ];
 
+// ─── DB Record type (from API) ─────────────────────────────────────────
+interface BEOItemRecord {
+  id: string;
+  orderId: string;
+  category: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  notes?: string;
+  sortOrder: number;
+}
+
+interface BEORecord {
+  id: string;
+  tenantId: string;
+  propertyId: string;
+  eventId: string | null;
+  orderNumber: string;
+  clientName: string;
+  clientContact?: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  eventType: string;
+  setupStyle: string;
+  expectedPax: number;
+  functionDate: string;
+  startTime: string;
+  endTime?: string | null;
+  venueId?: string | null;
+  menuNotes?: string | null;
+  beverageNotes?: string | null;
+  avRequirements: string;
+  specialInstructions?: string | null;
+  status: string;
+  totalAmount: number;
+  depositAmount: number;
+  depositPaid: number;
+  finalAmountPaid: number;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items?: BEOItemRecord[];
+}
+
+// ─── Map DB status → component status ──────────────────────────────────
+function mapDbStatus(dbStatus: string): BEOStatus {
+  const map: Record<string, BEOStatus> = {
+    draft: 'draft',
+    confirmed: 'confirmed',
+    in_progress: 'approved',
+    completed: 'completed',
+    cancelled: 'draft',
+  };
+  return map[dbStatus] || 'draft';
+}
+
+function mapComponentToDbStatus(compStatus: BEOStatus): string {
+  const map: Record<BEOStatus, string> = {
+    draft: 'draft',
+    under_review: 'confirmed',
+    approved: 'in_progress',
+    confirmed: 'confirmed',
+    completed: 'completed',
+  };
+  return map[compStatus] || compStatus;
+}
+
+// ─── Map DB event type → component function type ───────────────────────
+function mapDbType(dbType: string): 'wedding' | 'corporate' | 'social' {
+  const map: Record<string, 'wedding' | 'corporate' | 'social'> = {
+    wedding: 'wedding', conference: 'corporate', banquet: 'social', meeting: 'corporate',
+  };
+  return map[dbType] || 'social';
+}
+
+// ─── Adapter: DB record → component BEO ─────────────────────────────────
+function mapDbToBEO(rec: BEORecord): BEO {
+  const items = rec.items || [];
+  const foodItems = items.filter(i => i.category === 'food' || i.category === 'beverage');
+  const avItems = items.filter(i => i.category === 'av' || i.category === 'rental');
+  let avReq: Record<string, unknown> = {};
+  try { avReq = JSON.parse(rec.avRequirements || '{}'); } catch {}
+
+  return {
+    id: rec.id,
+    beoNumber: rec.orderNumber,
+    eventName: rec.clientName,
+    eventDate: rec.functionDate ? rec.functionDate.substring(0, 10) : '',
+    startTime: rec.startTime ? new Date(rec.startTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
+    endTime: rec.endTime ? new Date(rec.endTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
+    venue: (avReq.venue as string) || rec.setupStyle || 'TBD',
+    clientName: rec.clientName,
+    contactEmail: rec.clientEmail || rec.clientContact || '',
+    contactPhone: rec.clientPhone || '',
+    functionType: mapDbType(rec.eventType),
+    expectedGuests: rec.expectedPax,
+    setupStyle: rec.setupStyle ? rec.setupStyle.charAt(0).toUpperCase() + rec.setupStyle.slice(1).replace('_', '-') : 'Theater',
+    serviceStyle: 'plated',
+    dietaryRequirements: rec.menuNotes ? [rec.menuNotes] : [],
+    menuItems: foodItems.length > 0 ? foodItems.map(item => ({
+      name: item.description,
+      description: item.notes || '',
+      dietaryTag: '',
+      perPersonCost: item.unitPrice,
+    })) : [{ name: 'Event Package', description: rec.menuNotes || '', dietaryTag: '', perPersonCost: rec.expectedPax > 0 ? rec.totalAmount / rec.expectedPax : 0 }],
+    barRequirements: rec.beverageNotes || '',
+    equipment: avItems.length > 0 ? avItems.map(item => ({
+      name: item.description,
+      quantity: item.quantity,
+      costPerUnit: item.unitPrice,
+    })) : [],
+    stageSetup: (avReq.stageSetup as string) || '',
+    lightingSetup: (avReq.lightingSetup as string) || '',
+    floorPlanDescription: rec.specialInstructions || '',
+    timeline: [],
+    fnbMinimum: rec.totalAmount * 0.6,
+    serviceChargePercent: 22,
+    taxPercent: 8.5,
+    status: mapDbStatus(rec.status),
+    createdAt: rec.createdAt,
+    updatedAt: rec.updatedAt,
+    approvedBy: rec.approvedBy || undefined,
+    approvedAt: rec.approvedAt || undefined,
+  };
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function BEOManagement() {
-  const [beos, setBeos] = useState<BEO[]>(MOCK_BEOS);
+  const [beos, setBeos] = useState<BEO[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -416,7 +548,33 @@ export default function BEOManagement() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('list');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+
+  // ─── Fetch BEOs from API ─────────────────────────────────────────────
+  const fetchBeos = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/events/beo?limit=100');
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setBeos(json.data.map(mapDbToBEO));
+      } else {
+        setBeos([]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch BEOs:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load BEO data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBeos();
+  }, []);
 
   // ─── Calculations ──────────────────────────────────────────────────────
   const calculateTotals = (beo: BEO) => {
@@ -446,17 +604,31 @@ export default function BEOManagement() {
   }, {} as Record<string, number>);
 
   // ─── Actions ───────────────────────────────────────────────────────────
-  const handleStatusAdvance = (beo: BEO) => {
+  const handleStatusAdvance = async (beo: BEO) => {
     const currentIdx = STATUS_FLOW.indexOf(beo.status);
     if (currentIdx < STATUS_FLOW.length - 1) {
-      setBeos(prev => prev.map(b => {
-        if (b.id === beo.id) {
-          const newStatus = STATUS_FLOW[currentIdx + 1];
-          return { ...b, status: newStatus, updatedAt: new Date().toISOString() };
+      const newStatus = STATUS_FLOW[currentIdx + 1];
+      try {
+        const res = await fetch(`/api/events/beo/${beo.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: mapComponentToDbStatus(newStatus) }),
+        });
+        const json = await res.json();
+        if (json.success) {
+          setBeos(prev => prev.map(b => {
+            if (b.id === beo.id) {
+              return { ...b, status: newStatus, updatedAt: new Date().toISOString() };
+            }
+            return b;
+          }));
+          toast.success(`BEO ${beo.beoNumber} status advanced to ${newStatus.replace('_', ' ')}`);
+        } else {
+          toast.error(json.error || 'Failed to update BEO status');
         }
-        return b;
-      }));
-      toast.success(`BEO ${beo.beoNumber} status advanced to ${STATUS_FLOW[currentIdx + 1].replace('_', ' ')}`);
+      } catch (err) {
+        toast.error('Network error updating BEO status');
+      }
     }
     setIsStatusDialogOpen(false);
   };
@@ -775,6 +947,66 @@ export default function BEOManagement() {
       </div>
     );
   };
+
+  // ─── Loading skeleton ──────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <FileText className="h-6 w-6 text-primary" />
+              BEO Management
+            </h2>
+            <p className="text-muted-foreground">Banquet Event Order document generation and tracking</p>
+          </div>
+          <Button className="print:hidden">
+            <Plus className="h-4 w-4 mr-2" />
+            New BEO
+          </Button>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <Skeleton className="h-4 w-32 mb-4" />
+            <div className="flex gap-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 flex-1" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <Card><CardContent className="pt-6"><Skeleton className="h-6 w-48 mb-4" /><Skeleton className="h-[400px] w-full" /></CardContent></Card>
+      </div>
+    );
+  }
+
+  // ─── Error state ───────────────────────────────────────────────────────
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <FileText className="h-6 w-6 text-primary" />
+              BEO Management
+            </h2>
+            <p className="text-muted-foreground">Banquet Event Order document generation and tracking</p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
+            <h3 className="text-lg font-medium">Error Loading BEO Data</h3>
+            <p className="text-sm text-muted-foreground mt-1 max-w-md">{error}</p>
+            <Button variant="outline" size="sm" className="mt-4 gap-2" onClick={fetchBeos}>
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // ─── Main Render ───────────────────────────────────────────────────────
 

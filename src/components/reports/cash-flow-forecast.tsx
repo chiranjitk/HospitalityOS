@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -50,9 +50,11 @@ import {
   Snowflake,
   TreePine,
   Waves,
+  RefreshCw,
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // ─── Currency formatter ────────────────────────────────────────────────
 function formatCurrency(amount: number): string {
@@ -109,272 +111,43 @@ interface SeasonalInsight {
   icon: React.ReactNode;
 }
 
-// ─── Mock Data: 12-month rolling forecast ──────────────────────────────
-const forecastData: MonthlyForecast[] = [
-  {
-    month: 'January 2025',
-    monthShort: 'Jan',
-    openingBalance: 14200000,
-    inflows: 16800000,
-    outflows: 14200000,
-    netChange: 2600000,
-    closingBalance: 16800000,
-    roomRevenue: 9800000,
-    fbRevenue: 3200000,
-    eventRevenue: 2100000,
-    otherInflow: 1700000,
-    payroll: 6200000,
-    vendorPayments: 3800000,
-    utilities: 1800000,
-    capEx: 600000,
-    season: 'low',
-  },
-  {
-    month: 'February 2025',
-    monthShort: 'Feb',
-    openingBalance: 16800000,
-    inflows: 15400000,
-    outflows: 13900000,
-    netChange: 1500000,
-    closingBalance: 18300000,
-    roomRevenue: 8800000,
-    fbRevenue: 3100000,
-    eventRevenue: 1800000,
-    otherInflow: 1700000,
-    payroll: 6000000,
-    vendorPayments: 3700000,
-    utilities: 1700000,
-    capEx: 800000,
-    season: 'low',
-  },
-  {
-    month: 'March 2025',
-    monthShort: 'Mar',
-    openingBalance: 18300000,
-    inflows: 19600000,
-    outflows: 15800000,
-    netChange: 3800000,
-    closingBalance: 22100000,
-    roomRevenue: 11200000,
-    fbRevenue: 3600000,
-    eventRevenue: 2800000,
-    otherInflow: 2000000,
-    payroll: 6400000,
-    vendorPayments: 4000000,
-    utilities: 1700000,
-    capEx: 1200000,
-    season: 'shoulder',
-  },
-  {
-    month: 'April 2025',
-    monthShort: 'Apr',
-    openingBalance: 22100000,
-    inflows: 21400000,
-    outflows: 17200000,
-    netChange: 4200000,
-    closingBalance: 26300000,
-    roomRevenue: 12400000,
-    fbRevenue: 3900000,
-    eventRevenue: 2600000,
-    otherInflow: 2500000,
-    payroll: 6500000,
-    vendorPayments: 4200000,
-    utilities: 1600000,
-    capEx: 1400000,
-    season: 'shoulder',
-  },
-  {
-    month: 'May 2025',
-    monthShort: 'May',
-    openingBalance: 26300000,
-    inflows: 22800000,
-    outflows: 18400000,
-    netChange: 4400000,
-    closingBalance: 30700000,
-    roomRevenue: 13400000,
-    fbRevenue: 4100000,
-    eventRevenue: 2600000,
-    otherInflow: 2700000,
-    payroll: 6800000,
-    vendorPayments: 4400000,
-    utilities: 1400000,
-    capEx: 1800000,
-    season: 'shoulder',
-  },
-  {
-    month: 'June 2025',
-    monthShort: 'Jun',
-    openingBalance: 30700000,
-    inflows: 24200000,
-    outflows: 19600000,
-    netChange: 4600000,
-    closingBalance: 35300000,
-    roomRevenue: 14200000,
-    fbRevenue: 4400000,
-    eventRevenue: 2600000,
-    otherInflow: 3000000,
-    payroll: 7000000,
-    vendorPayments: 4600000,
-    utilities: 1200000,
-    capEx: 2200000,
-    season: 'peak',
-  },
-  {
-    month: 'July 2025',
-    monthShort: 'Jul',
-    openingBalance: 35300000,
-    inflows: 25600000,
-    outflows: 20800000,
-    netChange: 4800000,
-    closingBalance: 40100000,
-    roomRevenue: 15200000,
-    fbRevenue: 4600000,
-    eventRevenue: 2400000,
-    otherInflow: 3400000,
-    payroll: 7200000,
-    vendorPayments: 4800000,
-    utilities: 1200000,
-    capEx: 2600000,
-    season: 'peak',
-  },
-  {
-    month: 'August 2025',
-    monthShort: 'Aug',
-    openingBalance: 40100000,
-    inflows: 23800000,
-    outflows: 19900000,
-    netChange: 3900000,
-    closingBalance: 44000000,
-    roomRevenue: 14000000,
-    fbRevenue: 4300000,
-    eventRevenue: 2200000,
-    otherInflow: 3300000,
-    payroll: 7100000,
-    vendorPayments: 4600000,
-    utilities: 1100000,
-    capEx: 2200000,
-    season: 'peak',
-  },
-  {
-    month: 'September 2025',
-    monthShort: 'Sep',
-    openingBalance: 44000000,
-    inflows: 22200000,
-    outflows: 18600000,
-    netChange: 3600000,
-    closingBalance: 47600000,
-    roomRevenue: 13000000,
-    fbRevenue: 4000000,
-    eventRevenue: 2000000,
-    otherInflow: 3200000,
-    payroll: 6900000,
-    vendorPayments: 4400000,
-    utilities: 1200000,
-    capEx: 1800000,
-    season: 'shoulder',
-  },
-  {
-    month: 'October 2025',
-    monthShort: 'Oct',
-    openingBalance: 47600000,
-    inflows: 20800000,
-    outflows: 17900000,
-    netChange: 2900000,
-    closingBalance: 50500000,
-    roomRevenue: 12000000,
-    fbRevenue: 3800000,
-    eventRevenue: 1900000,
-    otherInflow: 3100000,
-    payroll: 6700000,
-    vendorPayments: 4200000,
-    utilities: 1400000,
-    capEx: 1200000,
-    season: 'shoulder',
-  },
-  {
-    month: 'November 2025',
-    monthShort: 'Nov',
-    openingBalance: 50500000,
-    inflows: 19400000,
-    outflows: 17200000,
-    netChange: 2200000,
-    closingBalance: 52700000,
-    roomRevenue: 11000000,
-    fbRevenue: 3500000,
-    eventRevenue: 2000000,
-    otherInflow: 2900000,
-    payroll: 6400000,
-    vendorPayments: 4000000,
-    utilities: 1600000,
-    capEx: 800000,
-    season: 'low',
-  },
-  {
-    month: 'December 2025',
-    monthShort: 'Dec',
-    openingBalance: 52700000,
-    inflows: 26200000,
-    outflows: 21400000,
-    netChange: 4800000,
-    closingBalance: 57500000,
-    roomRevenue: 15400000,
-    fbRevenue: 4800000,
-    eventRevenue: 3200000,
-    otherInflow: 2800000,
-    payroll: 6800000,
-    vendorPayments: 4600000,
-    utilities: 1800000,
-    capEx: 600000,
-    season: 'peak',
-  },
-];
+// ─── API response types ────────────────────────────────────────────────
+interface CashFlowForecastRecord {
+  id: string;
+  period: string;
+  openingBalance: number;
+  totalInflow: number;
+  totalOutflow: number;
+  netCashFlow: number;
+  closingBalance: number;
+  roomRevenue: number;
+  fbRevenue: number;
+  otherRevenue: number;
+  payrollExpense: number;
+  opexExpense: number;
+  capexExpense: number;
+  forecastType: string;
+  notes?: string;
+}
 
-const lowCashAlerts: LowCashAlert[] = [
-  {
-    month: 'January 2025',
-    closingBalance: 16800000,
-    shortfall: 3200000,
-    severity: 'warning',
-    recommendation: 'Consider deferring non-essential CapEx to February. Negotiate extended payment terms with key vendors.',
-  },
-  {
-    month: 'February 2025',
-    closingBalance: 18300000,
-    shortfall: 1700000,
-    severity: 'info',
-    recommendation: 'Cash position recovering but below comfort zone. Monitor F&B purchasing costs closely.',
-  },
-];
+interface RevenueRecord {
+  date: string;
+  revenue: number;
+  bookings: number;
+  taxes: number;
+  payments: number;
+}
 
-const seasonalInsights: SeasonalInsight[] = [
-  {
-    season: 'Peak Season',
-    months: 'Jun – Aug, Dec',
-    avgInflow: 24533333,
-    avgOutflow: 20066667,
-    netAvg: 4466666,
-    trend: 'Strong surplus months with high occupancy driving revenue. Build cash reserves.',
-    icon: <Sun className="h-5 w-5 text-amber-500" />,
-  },
-  {
-    season: 'Shoulder Season',
-    months: 'Mar – May, Sep – Oct',
-    avgInflow: 21500000,
-    avgOutflow: 17980000,
-    netAvg: 3520000,
-    trend: 'Moderate cash generation. Good window for planned maintenance and CapEx.',
-    icon: <TreePine className="h-5 w-5 text-emerald-500" />,
-  },
-  {
-    season: 'Low Season',
-    months: 'Jan – Feb, Nov',
-    avgInflow: 17200000,
-    avgOutflow: 15100000,
-    netAvg: 2100000,
-    trend: 'Reduced inflows. Minimize discretionary spending and preserve liquidity.',
-    icon: <Snowflake className="h-5 w-5 text-cyan-500" />,
-  },
-];
+// ─── Season helpers ────────────────────────────────────────────────────
+function getSeason(monthIndex: number): 'peak' | 'shoulder' | 'low' {
+  // Indian hotel seasonality: peak = Jun-Aug, Dec; shoulder = Mar-May, Sep-Oct; low = Jan-Feb, Nov
+  if ([5, 6, 7, 11].includes(monthIndex)) return 'peak';
+  if ([2, 3, 4, 8, 9].includes(monthIndex)) return 'shoulder';
+  return 'low';
+}
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // ─── Chart configs ────────────────────────────────────────────────────
 const balanceChartConfig = {
@@ -418,20 +191,348 @@ function getNetColor(net: number): string {
   return net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400';
 }
 
+// ─── Derive forecast from revenue data ────────────────────────────────
+function deriveForecastFromRevenue(revenueData: RevenueRecord[]): MonthlyForecast[] {
+  const monthlyRevenue: Record<string, number> = {};
+  revenueData.forEach(r => {
+    const monthKey = r.date.substring(0, 7);
+    monthlyRevenue[monthKey] = (monthlyRevenue[monthKey] || 0) + r.revenue;
+  });
+
+  if (Object.keys(monthlyRevenue).length === 0) return [];
+
+  const months = Object.keys(monthlyRevenue).sort();
+  const forecast: MonthlyForecast[] = [];
+  let runningBalance = 0;
+
+  months.forEach((monthKey) => {
+    const monthIndex = parseInt(monthKey.split('-')[1]) - 1;
+    const year = parseInt(monthKey.split('-')[0]);
+    const revenue = monthlyRevenue[monthKey];
+    const inflows = revenue;
+    const outflows = revenue * 0.6;
+    const netChange = inflows - outflows;
+    const openingBalance = runningBalance;
+    runningBalance += netChange;
+    const closingBalance = runningBalance;
+
+    const roomRevenue = inflows * 0.58;
+    const fbRevenue = inflows * 0.19;
+    const eventRevenue = inflows * 0.12;
+    const otherInflow = inflows * 0.11;
+
+    const payroll = outflows * 0.42;
+    const vendorPayments = outflows * 0.25;
+    const utilities = outflows * 0.21;
+    const capEx = outflows * 0.12;
+
+    forecast.push({
+      month: `${MONTH_NAMES[monthIndex]} ${year}`,
+      monthShort: MONTH_SHORT[monthIndex],
+      openingBalance,
+      inflows,
+      outflows,
+      netChange,
+      closingBalance,
+      roomRevenue,
+      fbRevenue,
+      eventRevenue,
+      otherInflow,
+      payroll,
+      vendorPayments,
+      utilities,
+      capEx,
+      season: getSeason(monthIndex),
+    });
+  });
+
+  return forecast;
+}
+
+// ─── Map DB records to MonthlyForecast ───────────────────────────────
+function mapDbToForecast(records: CashFlowForecastRecord[]): MonthlyForecast[] {
+  if (!records || records.length === 0) return [];
+
+  return records.map(r => {
+    const d = new Date(r.period);
+    const monthIndex = d.getMonth();
+    const year = d.getFullYear();
+
+    const eventRevenue = (r.otherRevenue || 0) * 0.5;
+    const otherInflow = (r.otherRevenue || 0) * 0.5;
+    const vendorPayments = (r.opexExpense || 0) * 0.55;
+    const utilities = (r.opexExpense || 0) * 0.45;
+
+    return {
+      month: `${MONTH_NAMES[monthIndex]} ${year}`,
+      monthShort: MONTH_SHORT[monthIndex],
+      openingBalance: r.openingBalance || 0,
+      inflows: r.totalInflow || 0,
+      outflows: r.totalOutflow || 0,
+      netChange: r.netCashFlow || 0,
+      closingBalance: r.closingBalance || 0,
+      roomRevenue: r.roomRevenue || 0,
+      fbRevenue: r.fbRevenue || 0,
+      eventRevenue,
+      otherInflow,
+      payroll: r.payrollExpense || 0,
+      vendorPayments,
+      utilities,
+      capEx: r.capexExpense || 0,
+      season: getSeason(monthIndex),
+    };
+  });
+}
+
+// ─── Compute derived data from forecast ───────────────────────────────
+function computeAlerts(forecastData: MonthlyForecast[]): LowCashAlert[] {
+  if (forecastData.length === 0) return [];
+  const avgClosing = forecastData.reduce((s, m) => s + m.closingBalance, 0) / forecastData.length;
+  const minReserveThreshold = avgClosing * 0.5;
+  const alerts: LowCashAlert[] = [];
+
+  forecastData.forEach(m => {
+    if (m.closingBalance < minReserveThreshold) {
+      const shortfall = minReserveThreshold - m.closingBalance;
+      const severity: LowCashAlert['severity'] = shortfall > avgClosing * 0.3 ? 'critical' : shortfall > avgClosing * 0.1 ? 'warning' : 'info';
+      alerts.push({
+        month: m.month,
+        closingBalance: m.closingBalance,
+        shortfall,
+        severity,
+        recommendation: severity === 'critical'
+          ? 'Immediate action required. Consider emergency credit line or deferred vendor payments.'
+          : severity === 'warning'
+          ? 'Consider deferring non-essential CapEx. Negotiate extended payment terms with key vendors.'
+          : 'Cash position below comfort zone. Monitor F&B purchasing costs closely.',
+      });
+    }
+  });
+
+  return alerts.slice(0, 3);
+}
+
+function computeSeasonalInsights(forecastData: MonthlyForecast[]): SeasonalInsight[] {
+  if (forecastData.length === 0) return [];
+
+  const bySeason: Record<string, MonthlyForecast[]> = { peak: [], shoulder: [], low: [] };
+  forecastData.forEach(m => bySeason[m.season].push(m));
+
+  return [
+    {
+      season: 'Peak Season',
+      months: 'Jun – Aug, Dec',
+      avgInflow: bySeason.peak.length > 0 ? bySeason.peak.reduce((s, m) => s + m.inflows, 0) / bySeason.peak.length : 0,
+      avgOutflow: bySeason.peak.length > 0 ? bySeason.peak.reduce((s, m) => s + m.outflows, 0) / bySeason.peak.length : 0,
+      netAvg: bySeason.peak.length > 0 ? bySeason.peak.reduce((s, m) => s + m.netChange, 0) / bySeason.peak.length : 0,
+      trend: 'Strong surplus months with high occupancy driving revenue. Build cash reserves.',
+      icon: <Sun className="h-5 w-5 text-amber-500" />,
+    },
+    {
+      season: 'Shoulder Season',
+      months: 'Mar – May, Sep – Oct',
+      avgInflow: bySeason.shoulder.length > 0 ? bySeason.shoulder.reduce((s, m) => s + m.inflows, 0) / bySeason.shoulder.length : 0,
+      avgOutflow: bySeason.shoulder.length > 0 ? bySeason.shoulder.reduce((s, m) => s + m.outflows, 0) / bySeason.shoulder.length : 0,
+      netAvg: bySeason.shoulder.length > 0 ? bySeason.shoulder.reduce((s, m) => s + m.netChange, 0) / bySeason.shoulder.length : 0,
+      trend: 'Moderate cash generation. Good window for planned maintenance and CapEx.',
+      icon: <TreePine className="h-5 w-5 text-emerald-500" />,
+    },
+    {
+      season: 'Low Season',
+      months: 'Jan – Feb, Nov',
+      avgInflow: bySeason.low.length > 0 ? bySeason.low.reduce((s, m) => s + m.inflows, 0) / bySeason.low.length : 0,
+      avgOutflow: bySeason.low.length > 0 ? bySeason.low.reduce((s, m) => s + m.outflows, 0) / bySeason.low.length : 0,
+      netAvg: bySeason.low.length > 0 ? bySeason.low.reduce((s, m) => s + m.netChange, 0) / bySeason.low.length : 0,
+      trend: 'Reduced inflows. Minimize discretionary spending and preserve liquidity.',
+      icon: <Snowflake className="h-5 w-5 text-cyan-500" />,
+    },
+  ];
+}
+
+// ─── Loading skeleton ─────────────────────────────────────────────────
+function ForecastSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Card key={i} className="border-0 shadow-sm rounded-xl">
+            <CardContent className="pt-6">
+              <Skeleton className="h-3 w-24 mb-2" />
+              <Skeleton className="h-6 w-32" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <Card className="border-0 shadow-sm rounded-xl">
+        <CardHeader className="pb-2">
+          <Skeleton className="h-5 w-48" />
+          <Skeleton className="h-4 w-64 mt-1" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-[340px] w-full" />
+        </CardContent>
+      </Card>
+      <Card className="border-0 shadow-sm rounded-xl">
+        <CardHeader className="pb-2">
+          <Skeleton className="h-5 w-48" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-[400px] w-full" />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Component ─────────────────────────────────────────────────────────
 export default function CashFlowForecast() {
+  const [forecastData, setForecastData] = useState<MonthlyForecast[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'chart' | 'table'>('chart');
   const [focusedCategory, setFocusedCategory] = useState<'all' | 'inflows' | 'outflows'>('all');
 
-  // Computed values
+  // ─── Fetch data ───────────────────────────────────────────────────
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Try cash flow API first
+      const cashFlowRes = await fetch('/api/financials/cash-flow?year=2026');
+      const cashFlowJson = await cashFlowRes.json();
+
+      if (cashFlowJson.success && Array.isArray(cashFlowJson.data) && cashFlowJson.data.length > 0) {
+        const mapped = mapDbToForecast(cashFlowJson.data);
+        if (mapped.length > 0) {
+          setForecastData(mapped);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Fallback: derive from revenue API
+      const revenueRes = await fetch('/api/reports/revenue?granularity=monthly&startDate=2025-01-01&endDate=2026-12-31');
+      const revenueJson = await revenueRes.json();
+
+      if (revenueJson.success && revenueJson.data?.revenueData?.length > 0) {
+        const derived = deriveForecastFromRevenue(revenueJson.data.revenueData);
+        if (derived.length > 0) {
+          setForecastData(derived);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // No data available from either API
+      setForecastData([]);
+      setLoading(false);
+    } catch (err) {
+      console.error('Failed to fetch cash flow data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load cash flow forecast');
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // ─── Computed values ─────────────────────────────────────────────
+  const lowCashAlerts = useMemo(() => computeAlerts(forecastData), [forecastData]);
+  const seasonalInsights = useMemo(() => computeSeasonalInsights(forecastData), [forecastData]);
+
   const totalInflows = forecastData.reduce((s, m) => s + m.inflows, 0);
   const totalOutflows = forecastData.reduce((s, m) => s + m.outflows, 0);
   const totalNetChange = forecastData.reduce((s, m) => s + m.netChange, 0);
-  const endingBalance = forecastData[forecastData.length - 1].closingBalance;
-  const avgMonthlyClosing = forecastData.reduce((s, m) => s + m.closingBalance, 0) / forecastData.length;
-  const minBalanceMonth = forecastData.reduce((min, m) => (m.closingBalance < min.closingBalance ? m : min));
-  const maxBalanceMonth = forecastData.reduce((max, m) => (m.closingBalance > max.closingBalance ? m : max));
+  const endingBalance = forecastData.length > 0 ? forecastData[forecastData.length - 1].closingBalance : 0;
+  const avgMonthlyClosing = forecastData.length > 0 ? forecastData.reduce((s, m) => s + m.closingBalance, 0) / forecastData.length : 0;
+  const minBalanceMonth = forecastData.length > 0 ? forecastData.reduce((min, m) => (m.closingBalance < min.closingBalance ? m : min)) : null;
+  const maxBalanceMonth = forecastData.length > 0 ? forecastData.reduce((max, m) => (m.closingBalance > max.closingBalance ? m : max)) : null;
   const surplusMonths = forecastData.filter((m) => m.netChange >= 0).length;
+  const forecastYear = forecastData.length > 0 ? forecastData[0].month.split(' ')[1] : new Date().getFullYear();
+
+  // ─── CSV Export ──────────────────────────────────────────────────
+  const handleExportCSV = () => {
+    if (forecastData.length === 0) return;
+    const headers = ['Month', 'Season', 'Opening Balance', 'Inflows', 'Outflows', 'Net Change', 'Closing Balance', 'Room Revenue', 'F&B Revenue', 'Payroll', 'CapEx'];
+    const rows = forecastData.map(m => [m.month, m.season, m.openingBalance, m.inflows, m.outflows, m.netChange, m.closingBalance, m.roomRevenue, m.fbRevenue, m.payroll, m.capEx]);
+    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cash-flow-forecast.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ─── Error state ─────────────────────────────────────────────────
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold">Cash Flow Forecast</h2>
+            <p className="text-muted-foreground">12-month rolling cash flow projection and analysis</p>
+          </div>
+        </div>
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Error Loading Data</AlertTitle>
+          <AlertDescription className="mt-2">
+            <p>{error}</p>
+            <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={fetchData}>
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  // ─── Loading state ───────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold">Cash Flow Forecast</h2>
+            <p className="text-muted-foreground">12-month rolling cash flow projection and analysis</p>
+          </div>
+        </div>
+        <ForecastSkeleton />
+      </div>
+    );
+  }
+
+  // ─── Empty state ─────────────────────────────────────────────────
+  if (forecastData.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold">Cash Flow Forecast</h2>
+            <p className="text-muted-foreground">12-month rolling cash flow projection and analysis</p>
+          </div>
+        </div>
+        <Card className="border-0 shadow-sm rounded-xl">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <Waves className="h-16 w-16 mb-4 opacity-30" />
+            <h3 className="text-lg font-medium">No Cash Flow Data Available</h3>
+            <p className="text-sm mt-1 max-w-md text-center">
+              No cash flow forecast data has been recorded yet. Add forecast entries through the Financials module or create them via the cash flow API.
+            </p>
+            <Button variant="outline" size="sm" className="mt-4 gap-2" onClick={fetchData}>
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -465,16 +566,7 @@ export default function CashFlowForecast() {
             variant="outline"
             size="sm"
             className="gap-2"
-            onClick={() => {
-              const csvContent = 'Cash Flow Forecast';
-              const blob = new Blob([csvContent], { type: 'text/csv' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = 'cash-flow-forecast.csv';
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
+            onClick={handleExportCSV}
           >
             <FileSpreadsheet className="h-4 w-4" />
             CSV
@@ -542,7 +634,7 @@ export default function CashFlowForecast() {
               <div>
                 <p className="text-xs font-medium text-cyan-700 dark:text-cyan-400">Surplus Months</p>
                 <p className="text-lg font-bold text-cyan-900 dark:text-cyan-100">
-                  {surplusMonths} / 12
+                  {surplusMonths} / {forecastData.length}
                 </p>
               </div>
               <div className="p-2.5 rounded-full bg-cyan-200 dark:bg-cyan-800">
@@ -638,7 +730,7 @@ export default function CashFlowForecast() {
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Legend />
                   <ReferenceLine
-                    y={20000000}
+                    y={avgMonthlyClosing * 0.5}
                     stroke="#f59e0b"
                     strokeDasharray="5 5"
                     label={{ value: 'Min. Reserve', position: 'insideTopRight', className: 'text-xs fill-amber-500', fontSize: 10 }}
@@ -864,30 +956,34 @@ export default function CashFlowForecast() {
 
       {/* Key Metrics */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-0 shadow-sm rounded-xl">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium text-muted-foreground">Lowest Cash Month</p>
-            <p className="text-lg font-bold mt-1">{minBalanceMonth.monthShort} 2025</p>
-            <p className="text-sm text-amber-600">{formatCurrency(minBalanceMonth.closingBalance)}</p>
-            <Progress value={(minBalanceMonth.closingBalance / maxBalanceMonth.closingBalance) * 100} className="h-2 mt-2" />
-          </CardContent>
-        </Card>
+        {minBalanceMonth && maxBalanceMonth && (
+          <>
+            <Card className="border-0 shadow-sm rounded-xl">
+              <CardContent className="pt-6">
+                <p className="text-xs font-medium text-muted-foreground">Lowest Cash Month</p>
+                <p className="text-lg font-bold mt-1">{minBalanceMonth.monthShort} {forecastYear}</p>
+                <p className="text-sm text-amber-600">{formatCurrency(minBalanceMonth.closingBalance)}</p>
+                <Progress value={(minBalanceMonth.closingBalance / maxBalanceMonth.closingBalance) * 100} className="h-2 mt-2" />
+              </CardContent>
+            </Card>
 
-        <Card className="border-0 shadow-sm rounded-xl">
-          <CardContent className="pt-6">
-            <p className="text-xs font-medium text-muted-foreground">Highest Cash Month</p>
-            <p className="text-lg font-bold mt-1">{maxBalanceMonth.monthShort} 2025</p>
-            <p className="text-sm text-emerald-600">{formatCurrency(maxBalanceMonth.closingBalance)}</p>
-            <Progress value={100} className="h-2 mt-2" />
-          </CardContent>
-        </Card>
+            <Card className="border-0 shadow-sm rounded-xl">
+              <CardContent className="pt-6">
+                <p className="text-xs font-medium text-muted-foreground">Highest Cash Month</p>
+                <p className="text-lg font-bold mt-1">{maxBalanceMonth.monthShort} {forecastYear}</p>
+                <p className="text-sm text-emerald-600">{formatCurrency(maxBalanceMonth.closingBalance)}</p>
+                <Progress value={100} className="h-2 mt-2" />
+              </CardContent>
+            </Card>
+          </>
+        )}
 
         <Card className="border-0 shadow-sm rounded-xl">
           <CardContent className="pt-6">
             <p className="text-xs font-medium text-muted-foreground">Cash Coverage Ratio</p>
-            <p className="text-lg font-bold mt-1">{(avgMonthlyClosing / (totalOutflows / 12)).toFixed(1)}x</p>
+            <p className="text-lg font-bold mt-1">{totalOutflows > 0 ? (avgMonthlyClosing / (totalOutflows / forecastData.length)).toFixed(1) : '0.0'}x</p>
             <p className="text-sm text-muted-foreground">Avg balance / Monthly outflows</p>
-            <Progress value={Math.min((avgMonthlyClosing / (totalOutflows / 12)) * 20, 100)} className="h-2 mt-2" />
+            <Progress value={totalOutflows > 0 ? Math.min((avgMonthlyClosing / (totalOutflows / forecastData.length)) * 20, 100) : 0} className="h-2 mt-2" />
           </CardContent>
         </Card>
 
@@ -895,13 +991,13 @@ export default function CashFlowForecast() {
           <CardContent className="pt-6">
             <p className="text-xs font-medium text-muted-foreground">CapEx as % of Outflows</p>
             <p className="text-lg font-bold mt-1">
-              {((forecastData.reduce((s, m) => s + m.capEx, 0) / totalOutflows) * 100).toFixed(1)}%
+              {totalOutflows > 0 ? ((forecastData.reduce((s, m) => s + m.capEx, 0) / totalOutflows) * 100).toFixed(1) : '0.0'}%
             </p>
             <p className="text-sm text-muted-foreground">
               {formatCurrency(forecastData.reduce((s, m) => s + m.capEx, 0))} total CapEx
             </p>
             <Progress
-              value={(forecastData.reduce((s, m) => s + m.capEx, 0) / totalOutflows) * 100}
+              value={totalOutflows > 0 ? (forecastData.reduce((s, m) => s + m.capEx, 0) / totalOutflows) * 100 : 0}
               className="h-2 mt-2"
             />
           </CardContent>

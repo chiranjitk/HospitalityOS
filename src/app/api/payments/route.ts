@@ -7,6 +7,7 @@ import { logPayment } from '@/lib/audit';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { notifyPaymentReceived, notifyPaymentFailed } from '@/lib/notify';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
+import { evaluateTransaction } from '@/lib/fraud-detection';
 
 // Helper function to generate transaction ID
 function generateTransactionId(): string {
@@ -217,7 +218,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify folio exists
+    // Verify folio exists and check tenant ownership via the folio's booking
     const folio = await db.folio.findUnique({
       where: { id: folioId },
       include: {
@@ -225,6 +226,7 @@ export async function POST(request: NextRequest) {
           select: {
             id: true,
             confirmationCode: true,
+            tenantId: true,
           },
         },
       },
@@ -234,6 +236,77 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'INVALID_FOLIO', message: 'Folio not found' } },
         { status: 400 }
+      );
+    }
+
+    // Verify tenant ownership — prevent cross-tenant payments
+    if (folio.booking.tenantId !== tenantId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Folio does not belong to your tenant' } },
+        { status: 403 }
+      );
+    }
+
+    // SECURITY FIX (P-01): Overpayment guard. Prevent payments that exceed
+    // the outstanding folio balance, which would make the balance deeply negative
+    // and enable revenue leakage.
+    if (amount > folio.balance) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'OVERPAYMENT',
+            message: `Payment amount exceeds outstanding balance of ${folio.balance.toFixed(2)}`,
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    // SECURITY FIX (P-02): Fraud detection enforcement. Run the fraud detection
+    // engine before processing any payment. If the risk score is high (> 0.7 = 70
+    // on the 0-100 scale), block the payment and create a fraud alert record.
+    const clientIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined;
+    const fraudResult = await evaluateTransaction({
+      tenantId,
+      amount,
+      currency,
+      userId: guestId || user.id,
+      ip: clientIp,
+      paymentMethod: method,
+    });
+
+    if (fraudResult.riskScore >= 70 || fraudResult.action === 'block') {
+      // Record the blocked payment attempt
+      await db.payment.create({
+        data: {
+          tenantId,
+          folioId,
+          guestId: guestId || null,
+          amount,
+          currency,
+          method,
+          transactionId: generateTransactionId(),
+          reference,
+          status: 'failed',
+          gatewayStatus: 'fraud_blocked',
+          idempotencyKey,
+        },
+      });
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'FRAUD_DETECTED',
+            message: 'Payment blocked by fraud detection',
+          },
+          fraudDetails: {
+            riskScore: fraudResult.riskScore,
+            alerts: fraudResult.alerts,
+          },
+        },
+        { status: 403 }
       );
     }
 
