@@ -133,6 +133,41 @@ export async function calculatePrice(context: PricingContext): Promise<PriceBrea
     }
   }
 
+  // Apply Length-of-Stay (LOS) graduated discount
+  try {
+    const losTiers = await db.losPricingTier.findMany({
+      where: {
+        tenantId: roomType ? await getPropertyTenantId(propertyId) : '',
+        propertyId,
+        roomTypeId,
+        isActive: true,
+      },
+      orderBy: { minNights: 'desc' },
+    });
+
+    if (losTiers.length > 0) {
+      // Find the applicable tier (highest minNights that the stay qualifies for)
+      for (const tier of losTiers) {
+        if (nights >= tier.minNights && (tier.maxNights === null || nights <= tier.maxNights)) {
+          if (tier.discountPercent > 0) {
+            const losAmount = currentPricePerNight * (tier.discountPercent / 100);
+            currentPricePerNight = Math.max(0, currentPricePerNight - losAmount);
+            adjustments.push({
+              ruleId: `los-${tier.id}`,
+              ruleName: `LOS Discount (${tier.label})`,
+              type: 'los_discount',
+              value: tier.discountPercent,
+              amount: -losAmount,
+            });
+          }
+          break; // Only apply the first matching tier (highest minNights)
+        }
+      }
+    }
+  } catch {
+    // LOS tiers not available or table doesn't exist yet — skip silently
+  }
+
   // Calculate totals
   const subtotal = currentPricePerNight * nights;
 

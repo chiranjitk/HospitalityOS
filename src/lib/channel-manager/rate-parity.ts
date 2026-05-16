@@ -4,9 +4,13 @@
  * Compares PMS base rates with all connected channel rates,
  * detects rate disparities, and recommends corrective actions.
  * Supports configurable thresholds and pricing strategies.
+ * 
+ * Enhanced to use real OTA rate fetching when available,
+ * falling back to variance-based estimation.
  */
 
 import { db } from '@/lib/db';
+import { fetchLiveRatesFromChannel, getChannelVarianceFactor } from './ota-rate-fetcher';
 
 // ============================================
 // TYPES
@@ -159,7 +163,7 @@ export async function checkRateParity(
       },
     });
 
-    // Use rate min/max from restriction if available, otherwise estimate from PMS rate
+    // Use rate min/max from restriction if available, otherwise try live OTA fetch, then variance fallback
     let channelRate = pmsBaseRate;
 
     if (restriction?.rateMin && restriction.rateMin > 0) {
@@ -167,10 +171,28 @@ export async function checkRateParity(
     } else if (restriction?.rateMax && restriction.rateMax > 0) {
       channelRate = restriction.rateMax;
     } else {
-      // Simulate: channels often have slight price variations
-      // In production, this would come from the OTA API
-      const varianceFactor = getChannelVarianceFactor(mapping.connection.channel);
-      channelRate = Math.round(pmsBaseRate * varianceFactor * 100) / 100;
+      // Try fetching live rates from the OTA channel
+      try {
+        const liveRates = await fetchLiveRatesFromChannel(
+          mapping.connectionId,
+          roomTypeId,
+          { start: new Date(date), end: new Date(date) },
+        );
+
+        // Use the first available rate for this date, or fall back to variance
+        if (liveRates.length > 0 && liveRates[0].baseRate > 0) {
+          channelRate = liveRates[0].baseRate;
+        } else {
+          // Fallback: use variance-based estimation
+          const varianceFactor = getChannelVarianceFactor(mapping.connection.channel);
+          channelRate = Math.round(pmsBaseRate * varianceFactor * 100) / 100;
+        }
+      } catch (error) {
+        // Fallback: use variance-based estimation if live fetch fails
+        console.warn(`[RateParity] Live rate fetch failed for ${mapping.connection.channel}, using variance fallback:`, error);
+        const varianceFactor = getChannelVarianceFactor(mapping.connection.channel);
+        channelRate = Math.round(pmsBaseRate * varianceFactor * 100) / 100;
+      }
     }
 
     allEntries.push({
@@ -509,24 +531,4 @@ function calculateRecommendedRate(
     default:
       return channelRate;
   }
-}
-
-/**
- * Get a variance factor for simulating channel price differences.
- * In production, this would be replaced by actual OTA API calls.
- */
-function getChannelVarianceFactor(channel: string): number {
-  const factors: Record<string, number> = {
-    booking_com: 0.98,
-    expedia: 0.97,
-    airbnb: 1.02,
-    hotels_com: 0.99,
-    agoda: 0.96,
-    tripadvisor: 1.00,
-    makemytrip: 0.95,
-    google_hotels: 1.01,
-    goibibo: 0.94,
-    booking: 0.98,
-  };
-  return factors[channel] ?? 1.0;
 }
