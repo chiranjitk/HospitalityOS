@@ -160,7 +160,7 @@ const SUPPLEMENT_TYPE_LABELS: Record<string, string> = {
   percentage: 'Percentage',
 };
 
-const 'current' = '00000000-0000-0000-0000-000000000001';
+const CURRENT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 // ============================================
 // COMPONENT

@@ -624,10 +624,10 @@ export default function PurchaseRequisition() {
   // ── JSX ──
   if (loading) {
     return (
-      <div className=\"flex items-center justify-center min-h-[400px]\">
-        <div className=\"text-center\">
-          <Loader2 className=\"h-8 w-8 animate-spin text-muted-foreground mx-auto\" />
-          <p className=\"text-sm text-muted-foreground mt-2\">Loading purchase data...</p>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
+          <p className="text-sm text-muted-foreground mt-2">Loading purchase data...</p>
         </div>
       </div>
     );
@@ -635,12 +635,12 @@ export default function PurchaseRequisition() {
 
   if (error) {
     return (
-      <div className=\"flex items-center justify-center min-h-[400px]\">
-        <div className=\"text-center\">
-          <AlertCircle className=\"h-8 w-8 text-red-500 mx-auto\" />
-          <p className=\"text-sm text-red-500 mt-2\">{error}</p>
-          <Button variant=\"outline\" size=\"sm\" className=\"mt-3\" onClick={fetchPurchaseData}>
-            <RefreshCw className=\"h-3.5 w-3.5 mr-1.5\" />
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <AlertCircle className="h-8 w-8 text-red-500 mx-auto" />
+          <p className="text-sm text-red-500 mt-2">{error}</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={fetchPurchaseData}>
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
             Retry
           </Button>
         </div>

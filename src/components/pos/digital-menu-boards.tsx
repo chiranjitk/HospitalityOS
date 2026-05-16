@@ -249,7 +249,7 @@ export default function DigitalMenuBoards() {
       const apiPromotions = allItems
         .filter((mi) => mi.isAvailable)
         .slice(0, 5)
-        .map((mi) => ({
+        .map((mi) => {
           const views = Math.floor(Math.random() * 3000) + 500;
           const clicks = Math.floor(views * (Math.random() * 0.15 + 0.05));
           return {

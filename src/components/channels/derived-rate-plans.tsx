@@ -192,7 +192,7 @@ const APPLIES_TO_LABELS: Record<string, string> = {
   specific_dates: 'Specific Date Ranges',
 };
 
-const 'current' = '00000000-0000-0000-0000-000000000001';
+const CURRENT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 // ============================================
 // COMPONENT

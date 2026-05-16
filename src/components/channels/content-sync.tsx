@@ -119,7 +119,7 @@ interface PreviewData {
 // CONSTANTS
 // ============================================
 
-const 'current' = '00000000-0000-0000-0000-000000000001';
+const CURRENT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 const CONTENT_TYPES = [
   { value: 'hotel_info', label: 'Hotel Info', icon: Hotel },

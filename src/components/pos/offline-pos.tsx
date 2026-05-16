@@ -221,6 +221,7 @@ export default function OfflinePOS() {
   const [error, setError] = useState<string | null>(null);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [pendingOrders, setPendingOrders] = useState<SyncQueueItem[]>([]);
+  const conflicts: SyncConflict[] = [];
 
   const syncConfig = SYNC_STATUS_CONFIG[connectionStatus];
 
@@ -757,7 +758,7 @@ export default function OfflinePOS() {
                   <Copy className="h-4 w-4 text-amber-500" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold">{([].filter(c => c.conflictType === 'duplicate').length}</div>
+                  <div className="text-xl font-bold">{([].filter(c => c.conflictType === 'duplicate').length)}</div>
                   <div className="text-[10px] text-muted-foreground">Duplicates</div>
                 </div>
               </div>
@@ -768,7 +769,7 @@ export default function OfflinePOS() {
                   <Layers className="h-4 w-4 text-violet-500" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold">{([].filter(c => c.conflictType === 'stock').length}</div>
+                  <div className="text-xl font-bold">{([].filter(c => c.conflictType === 'stock').length)}</div>
                   <div className="text-[10px] text-muted-foreground">Stock Conflicts</div>
                 </div>
               </div>
@@ -793,7 +794,7 @@ export default function OfflinePOS() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {([].map(conflict => {
+                    {conflicts.map(conflict => {
                       const sevCfg = SEVERITY_CONFIG[conflict.severity];
                       const typeCfg = CONFLICT_TYPE_CONFIG[conflict.conflictType];
                       return (

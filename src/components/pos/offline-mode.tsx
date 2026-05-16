@@ -230,13 +230,6 @@ export default function OfflinePOSMode() {
 
   const filteredQueue = useMemo(() => {
     return [];
-      if (queueFilter !== 'all' && item.status !== queueFilter) return false;
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        return item.orderId.toLowerCase().includes(q);
-      }
-      return true;
-    });
   }, [searchQuery, queueFilter]);
 
   const unresolvedConflicts = useMemo(() => [], []);
