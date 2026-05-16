@@ -67,6 +67,10 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/channels/allotment-release');
     case 'channel-rate-overrides':
       return import('@/components/channels/rate-overrides');
+    case 'channel-messages':
+      return import('@/components/channels/ota-messages');
+    case 'channel-directory':
+      return import('@/components/channels/channel-directory');
     default:
       throw new Error(`Unknown channel section: ${section}`);
   }

@@ -280,6 +280,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'billing-budget', title: 'Budget Management', href: '#billing-budget', icon: TrendingUp },
       { id: 'billing-deposits', title: 'Deposit Schedules', href: '#billing-deposits', icon: Wallet },
       { id: 'billing-financing', title: 'BNPL / Financing', href: '#billing-financing', icon: CreditCard },
+      { id: 'billing-cash-book', title: 'Cash Book', href: '#billing-cash-book', icon: BookOpen },
     ],
   },
 
@@ -419,6 +420,7 @@ export const navigationConfig: NavSection[] = [
       // reflect the heuristic-based pricing logic instead of implying ML/AI.
       { id: 'revenue-ai', title: 'Smart Pricing Rules', href: '#revenue-ai', icon: Brain },
       { id: 'revenue-rate-shopping', title: 'Rate Shopping', href: '#revenue-rate-shopping', icon: Search },
+      { id: 'revenue-automation', title: 'Revenue Automation', href: '#revenue-automation', icon: Bot },
     ],
   },
   {
@@ -445,6 +447,8 @@ export const navigationConfig: NavSection[] = [
       { id: 'channel-rate-derivation', title: 'Rate Derivation', href: '#channel-rate-derivation', icon: Percent },
       { id: 'channel-rate-overrides', title: 'Rate Overrides', href: '#channel-rate-overrides', icon: Calculator },
       { id: 'channel-content-sync', title: 'Content Sync', href: '#channel-content-sync', icon: ImageIcon },
+      { id: 'channel-messages', title: 'OTA Messages', href: '#channel-messages', icon: MessageSquare },
+      { id: 'channel-directory', title: 'Channel Directory', href: '#channel-directory', icon: Database },
       { id: 'channel-tax-mapping', title: 'Tax Mapping', href: '#channel-tax-mapping', icon: Receipt },
       { id: 'channel-meal-plan', title: 'Meal Plan Mapping', href: '#channel-meal-plan', icon: UtensilsCrossed },
       { id: 'channel-virtual-inventory', title: 'Virtual Inventory', href: '#channel-virtual-inventory', icon: Layers },
@@ -485,6 +489,8 @@ export const navigationConfig: NavSection[] = [
       { id: 'marketing-upsell', title: 'Upsell Engine', href: '#marketing-upsell', icon: TrendingUp },
       { id: 'marketing-journey-campaigns', title: 'Journey Campaigns', href: '#marketing-journey-campaigns', icon: Zap },
       { id: 'marketing-abandoned-bookings', title: 'Abandoned Bookings', href: '#marketing-abandoned-bookings', icon: RotateCcw },
+      { id: 'marketing-website', title: 'Website Builder', href: '#marketing-website', icon: Palette },
+      { id: 'crm-leads', title: 'Lead Pipeline', href: '#crm-leads', icon: Target },
     ],
   },
 
