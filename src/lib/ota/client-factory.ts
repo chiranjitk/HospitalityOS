@@ -471,84 +471,204 @@ class BookingComClient extends BaseOTAClient {
 </request>`;
   }
 
+  // ============================================
+  // XML RESPONSE PARSING HELPERS
+  // ============================================
+
+  /**
+   * Parse raw XML string response into a structured object with helper methods.
+   * Booking.com returns XML, so we extract tags using regex-based parsing.
+   * Falls back to treating the response as already-parsed JSON.
+   */
+  private parseXmlResponse(xml: string | object): { extractTag: (tag: string, xmlStr: string) => Record<string, string>[]; parseInnerTags: (inner: string) => Record<string, string> } {
+    // If the response is already a parsed object (not a string), return passthrough helpers
+    if (typeof xml !== 'string') {
+      return {
+        extractTag: (_tag: string, _xmlStr: string) => [],
+        parseInnerTags: (_inner: string) => ({}),
+      };
+    }
+
+    // Extract all occurrences of a given XML tag and return array of inner tag objects
+    const extractTag = (tag: string, xmlStr: string): Record<string, string>[] => {
+      const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi');
+      const results: Record<string, string>[] = [];
+      let match;
+      while ((match = regex.exec(xmlStr)) !== null) {
+        results.push(parseInnerTags(match[1]));
+      }
+      return results;
+    };
+
+    // Parse inner XML tags of an element into a flat key-value object
+    const parseInnerTags = (inner: string): Record<string, string> => {
+      const obj: Record<string, string> = {};
+      const tagRegex = /<(\w+)[^>]*>([\s\S]*?)<\/\1>/g;
+      let m;
+      while ((m = tagRegex.exec(inner)) !== null) {
+        obj[m[1]] = m[2].trim();
+      }
+      return obj;
+    };
+
+    return { extractTag, parseInnerTags };
+  }
+
   // Response parsers
   private parseInventoryResponse(response: any): any[] {
-    // Parse XML response to inventory data
-    return response?.rooms?.map((r: any) => ({
-      externalRoomId: r.room_id,
-      date: r.date,
-      availableRooms: r.availability,
-      totalRooms: r.total || r.availability,
-    })) || [];
+    // If response is already parsed JSON with a rooms array, use it directly
+    if (response && typeof response === 'object' && !Array.isArray(response) && response.rooms) {
+      return response.rooms.map((r: any) => ({
+        externalRoomId: r.room_id,
+        date: r.date,
+        availableRooms: parseInt(r.availability, 10) || 0,
+        totalRooms: parseInt(r.total, 10) || parseInt(r.availability, 10) || 0,
+      }));
+    }
+
+    // Parse raw XML response
+    const xml = typeof response === 'string' ? response : JSON.stringify(response);
+    const { extractTag } = this.parseXmlResponse(xml);
+    const rooms = extractTag('room', xml);
+
+    if (rooms.length === 0) return [];
+
+    return rooms.map((r) => ({
+      externalRoomId: r.room_id || '',
+      date: r.date || '',
+      availableRooms: parseInt(r.availability, 10) || 0,
+      totalRooms: parseInt(r.total, 10) || parseInt(r.availability, 10) || 0,
+    }));
   }
 
   private parseRateResponse(response: any): any[] {
-    return response?.rates?.map((r: any) => ({
-      externalRoomId: r.room_id,
-      externalRatePlanId: r.rate_plan_id,
-      date: r.date,
-      baseRate: r.price,
-      currency: r.currency,
-      available: r.available !== 0,
-    })) || [];
+    // If response is already parsed JSON with a rates array, use it directly
+    if (response && typeof response === 'object' && !Array.isArray(response) && response.rates) {
+      return response.rates.map((r: any) => ({
+        externalRoomId: r.room_id,
+        externalRatePlanId: r.rate_plan_id,
+        date: r.date,
+        baseRate: parseFloat(r.price) || 0,
+        currency: r.currency || 'USD',
+        available: r.available !== '0' && r.available !== 0,
+      }));
+    }
+
+    // Parse raw XML response
+    const xml = typeof response === 'string' ? response : JSON.stringify(response);
+    const { extractTag } = this.parseXmlResponse(xml);
+    const rates = extractTag('rate', xml);
+
+    if (rates.length === 0) return [];
+
+    return rates.map((r) => ({
+      externalRoomId: r.room_id || '',
+      externalRatePlanId: r.rate_plan_id || '',
+      date: r.date || '',
+      baseRate: parseFloat(r.price) || 0,
+      currency: r.currency || 'USD',
+      available: r.available !== '0' && r.available !== 0,
+    }));
   }
 
   private parseRestrictionsResponse(response: any): any[] {
-    return response?.restrictions?.map((r: any) => ({
-      externalRoomId: r.room_id,
-      date: r.date,
-      closedToArrival: r.closed_to_arrival === 1,
-      closedToDeparture: r.closed_to_departure === 1,
-      closed: r.closed === 1,
-      minStay: r.min_stay || 1,
-      maxStay: r.max_stay || 99,
-    })) || [];
+    // If response is already parsed JSON with a restrictions array, use it directly
+    if (response && typeof response === 'object' && !Array.isArray(response) && response.restrictions) {
+      return response.restrictions.map((r: any) => ({
+        externalRoomId: r.room_id,
+        date: r.date,
+        closedToArrival: r.closed_to_arrival === 1 || r.closed_to_arrival === '1',
+        closedToDeparture: r.closed_to_departure === 1 || r.closed_to_departure === '1',
+        closed: r.closed === 1 || r.closed === '1',
+        minStay: parseInt(r.min_stay, 10) || 1,
+        maxStay: parseInt(r.max_stay, 10) || 99,
+      }));
+    }
+
+    // Parse raw XML response
+    const xml = typeof response === 'string' ? response : JSON.stringify(response);
+    const { extractTag } = this.parseXmlResponse(xml);
+    const restrictions = extractTag('restriction', xml);
+
+    if (restrictions.length === 0) return [];
+
+    return restrictions.map((r) => ({
+      externalRoomId: r.room_id || '',
+      date: r.date || '',
+      closedToArrival: r.closed_to_arrival === '1',
+      closedToDeparture: r.closed_to_departure === '1',
+      closed: r.closed === '1',
+      minStay: parseInt(r.min_stay, 10) || 1,
+      maxStay: parseInt(r.max_stay, 10) || 99,
+    }));
   }
 
   private parseBookingsResponse(response: any): any[] {
-    return response?.reservations?.map(this.parseBooking.bind(this)) || [];
+    // If response is already parsed JSON with a reservations array, use it directly
+    if (response && typeof response === 'object' && !Array.isArray(response) && response.reservations) {
+      const reservations = Array.isArray(response.reservations) ? response.reservations : [response.reservations];
+      return reservations.map((r: any) => this.parseBooking(r));
+    }
+
+    // Parse raw XML response
+    const xml = typeof response === 'string' ? response : JSON.stringify(response);
+    const { extractTag } = this.parseXmlResponse(xml);
+    const reservations = extractTag('reservation', xml);
+
+    if (reservations.length === 0) return [];
+
+    return reservations.map((r) => this.parseBooking(r));
   }
 
   private parseSingleBookingResponse(response: any): any {
-    return this.parseBooking(response?.reservation);
+    // If response is already parsed JSON with a reservation object, use it directly
+    if (response && typeof response === 'object' && response.reservation) {
+      return this.parseBooking(response.reservation);
+    }
+
+    // Parse raw XML response
+    const xml = typeof response === 'string' ? response : JSON.stringify(response);
+    const { extractTag } = this.parseXmlResponse(xml);
+    const reservations = extractTag('reservation', xml);
+    return reservations.length > 0 ? this.parseBooking(reservations[0]) : null;
   }
 
   private parseBooking(r: any): any {
     return {
       guest: {
-        firstName: r.guest_first_name,
-        lastName: r.guest_last_name,
-        email: r.guest_email,
-        phone: r.guest_phone,
-        country: r.guest_country,
+        firstName: r.guest_first_name || '',
+        lastName: r.guest_last_name || '',
+        email: r.guest_email || '',
+        phone: r.guest_phone || '',
+        country: r.guest_country || '',
       },
       room: {
-        externalRoomId: r.room_id,
-        externalRatePlanId: r.rate_plan_id,
+        externalRoomId: r.room_id || '',
+        externalRatePlanId: r.rate_plan_id || '',
       },
       dates: {
-        checkIn: r.checkin_date,
-        checkOut: r.checkout_date,
+        checkIn: r.checkin_date || '',
+        checkOut: r.checkout_date || '',
       },
       guests: {
-        adults: r.num_adults || 1,
-        children: r.num_children || 0,
+        adults: parseInt(r.num_adults, 10) || 1,
+        children: parseInt(r.num_children, 10) || 0,
       },
       pricing: {
-        roomRate: r.room_rate,
-        taxes: r.taxes || 0,
-        fees: r.fees || 0,
-        discount: r.discount || 0,
-        totalAmount: r.total_price,
-        currency: r.currency,
-        commission: r.commission || 0,
+        roomRate: parseFloat(r.room_rate) || 0,
+        taxes: parseFloat(r.taxes) || 0,
+        fees: parseFloat(r.fees) || 0,
+        discount: parseFloat(r.discount) || 0,
+        totalAmount: parseFloat(r.total_price) || 0,
+        currency: r.currency || 'USD',
+        commission: parseFloat(r.commission) || 0,
         commissionType: 'percentage' as const,
       },
       payment: {
-        method: r.prepaid ? 'prepaid' : 'collect',
+        method: r.prepaid === 'true' || r.prepaid === true ? 'prepaid' : 'collect',
       },
-      specialRequests: r.special_requests,
-      createdAt: r.created_at,
+      specialRequests: r.special_requests || '',
+      createdAt: r.created_at || '',
       source: 'booking_com',
     };
   }

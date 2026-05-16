@@ -189,7 +189,7 @@ function DonutChart({ data, totalRevenue }: { data: { name: string; value: numbe
   return (
     <div className="flex flex-col items-center gap-4">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="transform -rotate-90">
-        {segments.map(({ item, dashLength }) => {
+        {segments.map(({ item, dashLength, percentage }) => {
           const dashOffset = -(offsetMap.get(item.name) || 0);
 
           return (

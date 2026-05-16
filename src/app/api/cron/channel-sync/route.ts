@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
       if (syncType === 'all' || syncType === 'bookings') {
         try {
           const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-          const endDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+          const endDate = new Date(Date.now() + 730 * 24 * 60 * 60 * 1000); // Next 2 years (AioSell forward booking window)
           await OTASyncService.pullBookingsFromChannel(connection.id, startDate, endDate);
           result.bookingsStatus = 'synced';
         } catch (error) {

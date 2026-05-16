@@ -58,7 +58,6 @@ import {
   Sparkles,
   Clock,
   Star,
-  Bookmark,
   BookmarkPlus,
   Calendar,
   ChevronRight,
@@ -74,7 +73,6 @@ import {
   DollarSign,
   BedDouble,
   SmilePlus,
-  Zap,
   Target,
   ArrowRight,
   Loader2,
@@ -504,10 +502,10 @@ export default function ConversationalAnalytics() {
                       <BookmarkPlus className="h-3.5 w-3.5" />
                     </Button>
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleShareQuery(selectedResult.id)}>
-                      <Share2 className="h-3.5 w-3.5" />
+                      <Share2 className="h-3 w-3" />
                     </Button>
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => toast.success('Query copied')}>
-                      <Copy className="h-3.5 w-3.5" />
+                      <Copy className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
@@ -777,17 +775,12 @@ export default function ConversationalAnalytics() {
               <Card key={template.id} className="hover:shadow-lg transition-all cursor-pointer" onClick={() => handleTemplateClick(template)}>
                 <CardContent className="p-5">
                   <div className="flex items-start gap-4">
-                    <div className={cn('p-3 rounded-xl bg-gradient-to-br text-white shrink-0', template.color)}>
-                      {template.icon}
+                    <div className="p-3 rounded-xl bg-primary/10 text-primary shrink-0">
+                      {suggestion.icon}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm">{template.name}</h4>
-                      <p className="text-xs text-muted-foreground mt-0.5">{template.description}</p>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {template.metrics.map(m => (
-                          <Badge key={m} variant="secondary" className="text-[10px]">{m}</Badge>
-                        ))}
-                      </div>
+                      <h4 className="font-semibold text-sm">{suggestion.label}</h4>
+                      <Badge variant="outline" className="text-xs mt-1">{suggestion.category}</Badge>
                       <div className="flex items-center gap-1 mt-3 text-xs text-primary font-medium">
                         <ArrowRight className="h-3 w-3" />
                         Click to explore

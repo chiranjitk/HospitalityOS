@@ -372,15 +372,24 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Check if rate plan exists
+    // Check if rate plan exists and verify tenant ownership
     const existingPlan = await db.ratePlan.findUnique({
       where: { id },
+      include: { roomType: { select: { propertyId: true, property: { select: { tenantId: true } } } } },
     });
 
     if (!existingPlan) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Discount not found' } },
         { status: 404 }
+      );
+    }
+
+    // SECURITY FIX (C-05): Verify tenant ownership before delete
+    if (existingPlan.roomType?.property?.tenantId !== user.tenantId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Cannot delete discount from another tenant' } },
+        { status: 403 }
       );
     }
 

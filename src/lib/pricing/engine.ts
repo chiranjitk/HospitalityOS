@@ -133,6 +133,41 @@ export async function calculatePrice(context: PricingContext): Promise<PriceBrea
     }
   }
 
+  // Apply Length-of-Stay (LOS) graduated discount
+  try {
+    const losTiers = await db.losPricingTier.findMany({
+      where: {
+        tenantId: roomType ? await getPropertyTenantId(propertyId) : '',
+        propertyId,
+        roomTypeId,
+        isActive: true,
+      },
+      orderBy: { minNights: 'desc' },
+    });
+
+    if (losTiers.length > 0) {
+      // Find the applicable tier (highest minNights that the stay qualifies for)
+      for (const tier of losTiers) {
+        if (nights >= tier.minNights && (tier.maxNights === null || nights <= tier.maxNights)) {
+          if (tier.discountPercent > 0) {
+            const losAmount = currentPricePerNight * (tier.discountPercent / 100);
+            currentPricePerNight = Math.max(0, currentPricePerNight - losAmount);
+            adjustments.push({
+              ruleId: `los-${tier.id}`,
+              ruleName: `LOS Discount (${tier.label})`,
+              type: 'los_discount',
+              value: tier.discountPercent,
+              amount: -losAmount,
+            });
+          }
+          break; // Only apply the first matching tier (highest minNights)
+        }
+      }
+    }
+  } catch {
+    // LOS tiers not available or table doesn't exist yet — skip silently
+  }
+
   // Calculate totals
   const subtotal = currentPricePerNight * nights;
 
@@ -154,7 +189,10 @@ export async function calculatePrice(context: PricingContext): Promise<PriceBrea
         const components = JSON.parse(property.taxComponents);
         if (Array.isArray(components) && components.length > 0) {
           for (const component of components) {
-            taxes += subtotal * (component.rate / 100);
+            // SECURITY FIX: Guard against missing/invalid rate producing NaN (zero room charge edge case)
+            const rate = Number(component.rate);
+            if (subtotal <= 0 || isNaN(rate)) continue;
+            taxes += subtotal * (rate / 100);
           }
         }
       } catch {
@@ -169,11 +207,14 @@ export async function calculatePrice(context: PricingContext): Promise<PriceBrea
   }
 
   // Calculate service charge
-  const fees = property?.serviceChargePercent
+  const fees = (subtotal > 0 && property?.serviceChargePercent)
     ? subtotal * (property.serviceChargePercent / 100)
     : 0;
 
-  const totalAmount = subtotal + taxes + fees;
+  // SECURITY FIX: Sanitize all financial values — NaN propagates to DB writes (see bookings/route.ts L637-661)
+  const safeTaxes = Number(taxes) || 0;
+  const safeFees = Number(fees) || 0;
+  const totalAmount = Number(subtotal) + safeTaxes + safeFees;
 
   return {
     basePrice,

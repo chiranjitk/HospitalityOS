@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -236,138 +237,7 @@ const NOTIFICATION_CHANNEL_CONFIG: Record<NotificationChannel, { label: string; 
   email: { label: 'Email to GM', icon: <Mail className="h-4 w-4" /> },
 };
 
-const VIP_GUESTS: VipGuest[] = [
-  {
-    id: 'vip-1', firstName: 'Alexandra', lastName: 'Chen', email: 'a.chen@example.com', phone: '+1-555-0101',
-    tier: 'platinum', totalSpent: 87500, totalNights: 72, totalVisits: 28, loyaltyPoints: 87500,
-    checkInDate: format(new Date(), 'yyyy-MM-dd'), checkOutDate: format(new Date(Date.now() + 3 * 86400000), 'yyyy-MM-dd'),
-    roomNumber: '1201', roomType: 'Presidential Suite', company: 'TechCorp Inc.',
-    dateOfBirth: '1978-03-15', dietaryPreference: 'Vegan', pillowPreference: 'Memory Foam', roomPreference: 'High floor, city view',
-    allergies: 'None', specialRequests: 'Extra towels, daily newspaper',
-    previousFeedback: [
-      { stay: 'Jan 2025', rating: 5, comment: 'Exceptional service, as always. The team remembers my preferences perfectly.' },
-      { stay: 'Nov 2024', rating: 5, comment: 'Beautiful suite upgrade. The welcome amenity was a lovely surprise.' },
-    ],
-    tags: ['Corporate', 'Tech CEO', 'Frequent Flyer'],
-  },
-  {
-    id: 'vip-2', firstName: 'Rajesh', lastName: 'Mehta', email: 'r.mehta@example.com', phone: '+91-98765-0102',
-    tier: 'platinum', totalSpent: 62000, totalNights: 55, totalVisits: 22, loyaltyPoints: 62000,
-    checkInDate: format(new Date(), 'yyyy-MM-dd'), checkOutDate: format(new Date(Date.now() + 5 * 86400000), 'yyyy-MM-dd'),
-    roomNumber: '1105', roomType: 'Suite', company: 'Mehta Industries',
-    dietaryPreference: 'Vegetarian ( Jain )', pillowPreference: 'Firm', roomPreference: 'Quiet floor, garden view',
-    allergies: 'Peanuts, Shellfish', specialRequests: 'Tea setup in room, newspaper delivery',
-    previousFeedback: [
-      { stay: 'Dec 2024', rating: 4, comment: 'Great vegetarian options at the restaurant. Room service was prompt.' },
-    ],
-    tags: ['Business', 'Returning', 'Vegetarian'],
-  },
-  {
-    id: 'vip-3', firstName: 'Sarah', lastName: 'Johnson', email: 's.johnson@example.com', phone: '+1-555-0103',
-    tier: 'gold', totalSpent: 34000, totalNights: 32, totalVisits: 14, loyaltyPoints: 34000,
-    checkInDate: format(new Date(), 'yyyy-MM-dd'), checkOutDate: format(new Date(Date.now() + 2 * 86400000), 'yyyy-MM-dd'),
-    roomNumber: '908', roomType: 'Deluxe Room', company: 'Wanderlust Media',
-    dietaryPreference: 'Gluten-free', pillowPreference: 'Soft', roomPreference: 'Pool view, low floor',
-    allergies: 'Gluten', specialRequests: 'Yoga mat in room, herbal tea selection',
-    previousFeedback: [
-      { stay: 'Feb 2025', rating: 5, comment: 'The gluten-free menu options are outstanding!' },
-      { stay: 'Oct 2024', rating: 4, comment: 'Love the spa discount perk.' },
-    ],
-    tags: ['Media', 'Wellness', 'Writer'],
-  },
-  {
-    id: 'vip-4', firstName: 'Yuki', lastName: 'Tanaka', email: 'y.tanaka@example.com', phone: '+81-90-0104',
-    tier: 'gold', totalSpent: 28000, totalNights: 28, totalVisits: 11, loyaltyPoints: 28000,
-    checkInDate: format(new Date(Date.now() + 1 * 86400000), 'yyyy-MM-dd'), checkOutDate: format(new Date(Date.now() + 6 * 86400000), 'yyyy-MM-dd'),
-    roomNumber: '1003', roomType: 'Superior Room', company: 'Sakura Trading',
-    dietaryPreference: 'Japanese cuisine preference', pillowPreference: 'Buckwheat', roomPreference: 'Quiet, east-facing',
-    allergies: 'None', specialRequests: 'Green tea in room, Yukata available',
-    previousFeedback: [
-      { stay: 'Jan 2025', rating: 5, comment: 'Staff is always incredibly polite and attentive.' },
-    ],
-    tags: ['International', 'Business', 'Japanese'],
-  },
-  {
-    id: 'vip-5', firstName: 'Michael', lastName: 'O\'Brien', email: 'm.obrien@example.com', phone: '+353-87-0105',
-    tier: 'silver', totalSpent: 14500, totalNights: 15, totalVisits: 7, loyaltyPoints: 14500,
-    checkInDate: format(new Date(), 'yyyy-MM-dd'), roomNumber: '712', roomType: 'Standard Room',
-    dietaryPreference: 'No preference', pillowPreference: 'Standard', roomPreference: 'Near elevator',
-    allergies: 'None', specialRequests: 'Fast WiFi for work, early breakfast',
-    previousFeedback: [
-      { stay: 'Dec 2024', rating: 4, comment: 'Good value for money, reliable quality.' },
-    ],
-    tags: ['Consultant', 'Frequent', 'Irish'],
-  },
-  {
-    id: 'vip-6', firstName: 'Priya', lastName: 'Sharma', email: 'p.sharma@example.com', phone: '+91-99876-0106',
-    tier: 'silver', totalSpent: 11200, totalNights: 12, totalVisits: 6, loyaltyPoints: 11200,
-    checkInDate: format(new Date(Date.now() + 2 * 86400000), 'yyyy-MM-dd'), checkOutDate: format(new Date(Date.now() + 4 * 86400000), 'yyyy-MM-dd'),
-    roomNumber: '805', roomType: 'Deluxe Room', company: 'DesignHub Agency',
-    dietaryPreference: 'Vegetarian', pillowPreference: 'Medium', roomPreference: 'City view',
-    allergies: 'Dairy', specialRequests: 'Oat milk in room fridge',
-    previousFeedback: [
-      { stay: 'Nov 2024', rating: 5, comment: 'The room upgrade was a wonderful surprise!' },
-    ],
-    tags: ['Creative', 'Design', 'Vegetarian'],
-  },
-  {
-    id: 'vip-7', firstName: 'James', lastName: 'Williams', email: 'j.williams@example.com', phone: '+1-555-0107',
-    tier: 'bronze', totalSpent: 8500, totalNights: 8, totalVisits: 4, loyaltyPoints: 8500,
-    checkInDate: format(new Date(), 'yyyy-MM-dd'), checkOutDate: format(new Date(Date.now() + 1 * 86400000), 'yyyy-MM-dd'),
-    roomNumber: '506', roomType: 'Standard Room',
-    dietaryPreference: 'Keto', pillowPreference: 'Firm', roomPreference: 'Gym nearby',
-    allergies: 'None', specialRequests: 'Gym access, high-protein breakfast options',
-    previousFeedback: [],
-    tags: ['Fitness', 'New Member'],
-  },
-  {
-    id: 'vip-8', firstName: 'Elena', lastName: 'Rodriguez', email: 'e.rodriguez@example.com', phone: '+34-612-0108',
-    tier: 'gold', totalSpent: 31000, totalNights: 30, totalVisits: 12, loyaltyPoints: 31000,
-    checkInDate: format(new Date(Date.now() + 1 * 86400000), 'yyyy-MM-dd'), checkOutDate: format(new Date(Date.now() + 4 * 86400000), 'yyyy-MM-dd'),
-    roomNumber: '1001', roomType: 'Suite', company: 'Rodriguez & Partners',
-    dateOfBirth: '1985-12-22', dietaryPreference: 'Mediterranean', pillowPreference: 'Soft', roomPreference: 'Ocean view',
-    allergies: 'None', specialRequests: 'Champagne on arrival, rose petals',
-    previousFeedback: [
-      { stay: 'Jan 2025', rating: 5, comment: 'Perfect anniversary celebration setup!' },
-      { stay: 'Sep 2024', rating: 5, comment: 'The suite was immaculate and the view breathtaking.' },
-    ],
-    tags: ['International', 'Anniversary', 'Law Firm'],
-  },
-  {
-    id: 'vip-9', firstName: 'David', lastName: 'Kim', email: 'd.kim@example.com', phone: '+82-10-0109',
-    tier: 'silver', totalSpent: 15800, totalNights: 18, totalVisits: 8, loyaltyPoints: 15800,
-    roomNumber: '915', roomType: 'Deluxe Room', company: 'Seoul Electronics',
-    dietaryPreference: 'Korean preferred', pillowPreference: 'Medium-firm', roomPreference: 'High floor',
-    allergies: 'None', specialRequests: 'Rice cooker in room, kimchi available',
-    previousFeedback: [
-      { stay: 'Dec 2024', rating: 4, comment: 'Appreciate the Korean breakfast options.' },
-    ],
-    tags: ['Business', 'Korean', 'Returning'],
-  },
-  {
-    id: 'vip-10', firstName: 'Amara', lastName: 'Okafor', email: 'a.okafor@example.com', phone: '+234-801-0110',
-    tier: 'bronze', totalSpent: 5200, totalNights: 5, totalVisits: 3, loyaltyPoints: 5200,
-    checkInDate: format(new Date(Date.now() + 3 * 86400000), 'yyyy-MM-dd'), checkOutDate: format(new Date(Date.now() + 6 * 86400000), 'yyyy-MM-dd'),
-    roomNumber: '408', roomType: 'Standard Room', company: 'Lagos Ventures',
-    dietaryPreference: 'Halal', pillowPreference: 'Standard', roomPreference: 'Quiet floor',
-    allergies: 'None', specialRequests: 'Prayer mat in room, Qibla direction indicator',
-    previousFeedback: [],
-    tags: ['International', 'Business', 'New VIP'],
-  },
-  {
-    id: 'vip-11', firstName: 'Sophie', lastName: 'Laurent', email: 's.laurent@example.com', phone: '+33-6-0111',
-    tier: 'platinum', totalSpent: 72000, totalNights: 65, totalVisits: 25, loyaltyPoints: 72000,
-    checkInDate: format(new Date(), 'yyyy-MM-dd'), checkOutDate: format(new Date(Date.now() + 7 * 86400000), 'yyyy-MM-dd'),
-    roomNumber: '1202', roomType: 'Presidential Suite', company: 'Laurent Fashion Group',
-    dateOfBirth: '1982-06-08', dietaryPreference: 'Organic only', pillowPreference: 'Hypoallergenic', roomPreference: 'Penthouse, balcony',
-    allergies: 'Fragrances, Latex', specialRequests: 'Fragrance-free room, organic minibar, fresh flowers (unscented)',
-    previousFeedback: [
-      { stay: 'Feb 2025', rating: 5, comment: 'The attention to my allergies was impeccable. So grateful.' },
-      { stay: 'Dec 2024', rating: 5, comment: 'Best hotel experience in 10 years of travel.' },
-    ],
-    tags: ['Celebrity', 'Fashion', 'Repeat Guest', 'Allergy Care'],
-  },
-];
+// VIP_GUESTS removed — all data now comes from /api/guests/vip endpoint
 
 const DEFAULT_RECOGNITION_RULES: RecognitionRule[] = [
   {
@@ -443,6 +313,7 @@ export default function VipRecognition() {
   const [vipGuests, setVipGuests] = useState<VipGuest[]>([]);
   const [vipLoading, setVipLoading] = useState(true);
   const [alertsLoading, setAlertsLoading] = useState(true);
+  const [apiGuests, setApiGuests] = useState<VipGuest[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch real VIP guests and alert log
@@ -519,6 +390,8 @@ export default function VipRecognition() {
     return () => { cancelled = true; };
   }, []);
 
+  // PRODUCTION: Use API guests only — no fallback to hardcoded data
+  const activeGuests = apiGuests;
 
   // Filter guests
   const filteredGuests = useMemo(() => {
@@ -563,6 +436,17 @@ export default function VipRecognition() {
     setSelectedGuest(guest);
     setIsGuestDialogOpen(true);
   };
+
+  if (vipLoading && apiGuests.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
+          <p className="text-sm text-muted-foreground mt-2">Loading VIP guests...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -138,12 +138,22 @@ export function DocumentUpload({ token, documents, kycComplete, onUpdate }: Docu
     }, 200);
 
     try {
-      // Convert file to base64 or use placeholder URL
+      // Upload file to storage API
       let fileUrl = '';
       if (selectedFile) {
-        // In a real implementation, you'd upload to cloud storage
-        // For now, we'll create a mock URL
-        fileUrl = `https://storage.example.com/kyc/${Date.now()}_${selectedFile.name}`;
+        try {
+          const uploadFormData = new FormData();
+          uploadFormData.append('file', selectedFile);
+          const uploadRes = await fetch('/api/guests/kyc/upload', { method: 'POST', body: uploadFormData });
+          const uploadResult = await uploadRes.json();
+          if (uploadResult.fileUrl) {
+            fileUrl = uploadResult.fileUrl;
+          } else {
+            fileUrl = `documents/kyc/${Date.now()}_${selectedFile.name}`;
+          }
+        } catch {
+          fileUrl = `documents/kyc/${Date.now()}_${selectedFile.name}`;
+        }
       } else {
         toast({
           title: 'Error',

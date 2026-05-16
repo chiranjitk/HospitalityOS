@@ -229,7 +229,6 @@ export default function OfflinePOS() {
   useEffect(() => {
     const handleOnline = () => setConnectionStatus('online');
     const handleOffline = () => setConnectionStatus('offline');
-    setConnectionStatus(navigator.onLine ? 'online' : 'offline');
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
@@ -242,11 +241,13 @@ export default function OfflinePOS() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/restaurant/orders?limit=50');
+        const res = await fetch('/api/orders?limit=50');
         if (cancelled) return;
         if (res.ok) {
           const json = await res.json();
-          setRecentOrders(json.data?.orders || json.orders || []);
+          // /api/orders returns { success, data: [...orders], pagination }
+          const ordersList = json.data;
+          setRecentOrders(Array.isArray(ordersList) ? ordersList : []);
         }
       } catch (err) {
         if (!cancelled) setError('Failed to load orders');

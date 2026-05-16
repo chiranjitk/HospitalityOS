@@ -4,6 +4,7 @@ import { emitRoomStatusChange } from '@/lib/availability-client';
 import { logRoom } from '@/lib/audit';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { notifyRoomMaintenance, notifyRoomStatusChange } from '@/lib/notify';
+import { fireAutomationEvent } from '@/lib/automation/hooks';
 
 // Room status transition validation
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -345,6 +346,19 @@ export async function PUT(
             previousStatus: existingRoom.status,
           });
         }
+
+        // Fire automation trigger for room status changed (with room type change)
+        fireAutomationEvent('room.status_changed', {
+          tenantId: room.property.tenantId,
+          propertyId: room.property.id,
+          entityId: id,
+          data: {
+            roomId: id,
+            roomNumber: room.number,
+            previousStatus: existingRoom.status,
+            newStatus: room.status,
+          },
+        });
       }
 
       return NextResponse.json({ success: true, data: room });
@@ -436,6 +450,19 @@ export async function PUT(
           previousStatus: existingRoom.status,
         });
       }
+
+      // Fire automation trigger for room status changed
+      fireAutomationEvent('room.status_changed', {
+        tenantId: room.property.tenantId,
+        propertyId: room.property.id,
+        entityId: id,
+        data: {
+          roomId: id,
+          roomNumber: room.number,
+          previousStatus: existingRoom.status,
+          newStatus: room.status,
+        },
+      });
     }
 
     return NextResponse.json({ success: true, data: room });

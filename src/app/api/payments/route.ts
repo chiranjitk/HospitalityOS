@@ -8,6 +8,7 @@ import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { notifyPaymentReceived, notifyPaymentFailed } from '@/lib/notify';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 import { evaluateTransaction } from '@/lib/fraud-detection';
+import { fireAutomationEvent } from '@/lib/automation/hooks';
 
 // Helper function to generate transaction ID
 function generateTransactionId(): string {
@@ -541,6 +542,22 @@ export async function POST(request: NextRequest) {
       method: payment.method || payment.gateway || 'unknown',
       confirmationCode: folio?.booking?.confirmationCode,
       folioNumber: folio?.folioNumber,
+    });
+
+    // Fire automation trigger for payment received
+    fireAutomationEvent('payment.received', {
+      tenantId: payment.tenantId,
+      entityId: payment.id,
+      data: {
+        paymentId: payment.id,
+        folioId,
+        amount: payment.amount,
+        currency: payment.currency,
+        method: payment.method,
+        gateway: payment.gateway,
+        transactionId: payment.transactionId,
+        status: payment.status,
+      },
     });
 
     return NextResponse.json({ 

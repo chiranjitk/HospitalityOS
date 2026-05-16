@@ -458,7 +458,8 @@ const t = useTranslations('billing');
           category: lineItemFormData.category,
           quantity: parseInt(lineItemFormData.quantity),
           unitPrice: parseFloat(lineItemFormData.unitPrice),
-          taxRate: taxResult.totalTax > 0 ? (taxResult.totalTax / amount) * 100 : 0,
+          // SECURITY FIX: Guard against division by zero when amount is 0 but totalTax > 0 (fixed-amount taxes)
+          taxRate: (taxResult.totalTax > 0 && amount > 0) ? (taxResult.totalTax / amount) * 100 : 0,
           taxAmount: taxResult.totalTax,
           appliedTaxes: taxResult.taxes.map(t => ({
             taxId: t.tax.id,

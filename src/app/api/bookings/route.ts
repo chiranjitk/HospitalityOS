@@ -9,6 +9,7 @@ import { getTodayInTimezone } from '@/lib/timezone';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { notifyBookingCreated } from '@/lib/notify';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
+import { fireAutomationEvent } from '@/lib/automation/hooks';
 
 // Helper function to generate confirmation code
 function generateConfirmationCode(): string {
@@ -633,17 +634,22 @@ export async function POST(request: NextRequest) {
         ? pricingBreakdown.subtotal
         : (finalRoomRate * nights);
 
+      // SECURITY FIX: Sanitize all financial values before DB write — NaN propagates from pricing engine on zero room charge
+      const safeRoomCharge = Number(roomChargeTotal) || 0;
+      const safeTaxes = Number(finalTaxes) || 0;
+      const safeTotal = Number(finalTotalAmount) || 0;
+
       await tx.folioLineItem.create({
         data: {
           folioId: folio.id,
           description: `Room ${newBooking.room?.number || roomTypeId} - ${nights} night(s)`,
           category: 'room_charge',
           quantity: nights,
-          unitPrice: perNightRate,
-          totalAmount: roomChargeTotal,
+          unitPrice: Number(perNightRate) || 0,
+          totalAmount: safeRoomCharge,
           serviceDate: checkInDate,
-          taxRate: roomChargeTotal > 0 ? (finalTaxes / roomChargeTotal) * 100 : 0,
-          taxAmount: finalTaxes,
+          taxRate: safeRoomCharge > 0 ? (safeTaxes / safeRoomCharge) * 100 : 0,
+          taxAmount: safeTaxes,
         },
       });
 
@@ -651,11 +657,11 @@ export async function POST(request: NextRequest) {
       await tx.folio.update({
         where: { id: folio.id },
         data: {
-          subtotal: roomChargeTotal,
-          taxes: finalTaxes,
-          discount: finalDiscount,
-          totalAmount: finalTotalAmount,
-          balance: finalTotalAmount,
+          subtotal: safeRoomCharge,
+          taxes: safeTaxes,
+          discount: Number(finalDiscount) || 0,
+          totalAmount: safeTotal,
+          balance: safeTotal,
         },
       });
 
@@ -745,6 +751,24 @@ export async function POST(request: NextRequest) {
       checkOut: booking.checkOut,
       totalAmount: booking.totalAmount,
       currency: booking.currency,
+    });
+
+    // Fire automation trigger for booking creation
+    fireAutomationEvent('booking.created', {
+      tenantId: booking.tenantId,
+      propertyId: booking.propertyId,
+      entityId: booking.id,
+      data: {
+        bookingId: booking.id,
+        confirmationCode: booking.confirmationCode,
+        guestId: booking.primaryGuestId,
+        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim(),
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        totalAmount: booking.totalAmount,
+        source: booking.source,
+        status: booking.status,
+      },
     });
 
     return NextResponse.json({ success: true, data: transformedBooking }, { status: 201 });

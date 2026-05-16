@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { z } from 'zod';
+// FIX (M-8): Added GSTN API integration architecture
+import {
+  generateGSTNIRN,
+  validateEInvoiceData,
+  type GstnEInvoiceData,
+  type ValidationError,
+} from '@/lib/gstn-client';
 
 const createEInvoiceSchema = z.object({
   propertyId: z.string().optional(),
@@ -116,14 +123,92 @@ export async function POST(request: NextRequest) {
 
     const data = parsed.data;
 
-    // IMPORTANT: IRN generation requires integration with GSTN API (https://einvoice1.gst.gov.in).
-    // Currently, the IRN is marked as PENDING awaiting real GST portal integration.
-    // When GSTN API integration is implemented, replace this with actual API call.
-    const irnStatus: 'PENDING' | 'GENERATED' | 'FAILED' = 'PENDING';
-    const irn = null; // Will be populated by GSTN API upon successful generation
-    const ackNo = null;
-    const ackDate = null;
-    const signedQrCode = null;
+    // FIX (M-8): Added GSTN API integration architecture
+    // Fetch GST settings to obtain the seller GSTIN for IRN generation
+    let sellerGstin: string | null = null;
+    let sellerTradeName: string | null = null;
+
+    if (data.gstSettingsId) {
+      const gstSettings = await db.gstSettings.findUnique({
+        where: { id: data.gstSettingsId, tenantId: user.tenantId },
+        select: { gstin: true, tradeName: true },
+      });
+      if (gstSettings) {
+        sellerGstin = gstSettings.gstin;
+        sellerTradeName = gstSettings.tradeName;
+      }
+    }
+
+    // If no GST settings specified, try to find one linked to the property
+    if (!sellerGstin && data.propertyId) {
+      const gstSettings = await db.gstSettings.findFirst({
+        where: { propertyId: data.propertyId, tenantId: user.tenantId },
+        select: { id: true, gstin: true, tradeName: true },
+      });
+      if (gstSettings) {
+        sellerGstin = gstSettings.gstin;
+        sellerTradeName = gstSettings.tradeName;
+      }
+    }
+
+    // Attempt to generate IRN via GSTN client
+    let irn: string | null = null;
+    let signedQrCode: string | null = null;
+    let signedInvoice: string | null = null;
+    let ackNo: string | null = null;
+    let ackDate: Date | null = null;
+    let irnStatus: 'PENDING' | 'GENERATED' | 'FAILED' = 'PENDING';
+    let errorDetails: string | null = null;
+
+    if (sellerGstin) {
+      try {
+        const invoicePayload: GstnEInvoiceData = {
+          supplyType: data.supplyType,
+          placeOfSupply: data.placeOfSupply || '',
+          invoiceNumber: data.invoiceNumber || '',
+          invoiceDate: (data.invoiceDate || new Date().toISOString()).toString(),
+          totalValue: data.totalValue,
+          totalCgst: data.totalCgst,
+          totalSgst: data.totalSgst,
+          totalIgst: data.totalIgst,
+          totalCess: data.totalCess,
+          totalTax: data.totalTax,
+          totalAmount: data.totalAmount,
+          reverseCharge: data.reverseCharge,
+          sellerGstin,
+          sellerTradeName: sellerTradeName || '',
+        };
+
+        // Run pre-generation validation for logging purposes
+        const validationErrors: ValidationError[] = validateEInvoiceData(invoicePayload);
+        if (validationErrors.length > 0) {
+          console.warn('[EInvoices POST] GST data validation warnings:', validationErrors.map(e => e.message).join('; '));
+          // Don't block on warnings — still attempt IRN generation
+        }
+
+        const irnResponse = await generateGSTNIRN(invoicePayload);
+
+        if (irnResponse.success) {
+          irn = irnResponse.irn;
+          signedQrCode = irnResponse.signedQrCode || null;
+          signedInvoice = irnResponse.signedInvoice || null;
+          ackNo = irnResponse.ackNo || null;
+          ackDate = irnResponse.ackDate ? new Date(irnResponse.ackDate) : null;
+          irnStatus = 'GENERATED';
+        } else {
+          irnStatus = 'FAILED';
+          errorDetails = irnResponse.error || 'IRN generation failed';
+          console.error('[EInvoices POST] IRN generation failed:', errorDetails);
+        }
+      } catch (irnError) {
+        irnStatus = 'FAILED';
+        errorDetails = irnError instanceof Error ? irnError.message : 'Unknown IRN generation error';
+        console.error('[EInvoices POST] IRN generation exception:', irnError);
+      }
+    } else {
+      // No GSTIN configured — mark as PENDING
+      errorDetails = 'No GST settings configured for this property. IRN will be pending until GSTIN is provided.';
+    }
 
     const invoice = await db.gstEInvoice.create({
       data: {
@@ -146,11 +231,12 @@ export async function POST(request: NextRequest) {
         totalAmount: data.totalAmount,
         reverseCharge: data.reverseCharge,
         irn,
-        irnStatus,
+        signedInvoice,
         signedQrCode,
         ackNo,
         ackDate,
-        status: 'pending',
+        errorDetails,
+        status: irnStatus === 'GENERATED' ? 'active' : 'pending',
         generatedBy: user.id,
         gstSettingsId: data.gstSettingsId || null,
       },

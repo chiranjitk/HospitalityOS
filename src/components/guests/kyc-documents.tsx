@@ -175,8 +175,28 @@ export function KYCDocuments({ guestId }: KYCDocumentsProps) {
     }, 200);
 
     try {
-      // Mock the file upload - in real implementation, you'd upload to storage
-      const mockFileUrl = `https://storage.example.com/documents/${Date.now()}_${selectedFile?.name || 'document.pdf'}`;
+      // Upload file to storage
+      const uploadFormData = new FormData();
+      if (selectedFile) {
+        uploadFormData.append('file', selectedFile);
+      }
+      uploadFormData.append('guestId', guestId);
+      uploadFormData.append('type', formData.type);
+
+      const uploadRes = await fetch('/api/guests/kyc/upload', {
+        method: 'POST',
+        body: uploadFormData,
+      });
+
+      if (!uploadRes.ok) {
+        const text = await uploadRes.text().catch(() => 'Unknown error');
+        throw new Error(text);
+      }
+      const uploadResult = await uploadRes.json();
+      if (!uploadResult.success || !uploadResult.data?.fileUrl) {
+        throw new Error(uploadResult.error?.message || 'File upload failed');
+      }
+      const fileUrl = uploadResult.data.fileUrl;
       
       const response = await fetch(`/api/guests/${guestId}/documents`, {
         method: 'POST',
@@ -184,7 +204,7 @@ export function KYCDocuments({ guestId }: KYCDocumentsProps) {
         body: JSON.stringify({
           type: formData.type,
           name: formData.name,
-          fileUrl: mockFileUrl,
+          fileUrl,
           expiryDate: formData.expiryDate || null,
         }),
       });

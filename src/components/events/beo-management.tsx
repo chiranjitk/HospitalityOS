@@ -66,6 +66,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -151,260 +152,6 @@ const SERVICE_STYLES = [
   { value: 'plated', label: 'Plated Service' },
   { value: 'buffet', label: 'Buffet' },
   { value: 'stations', label: 'Food Stations' },
-];
-
-// ─── Mock Data ───────────────────────────────────────────────────────────────
-
-const MOCK_BEOS: BEO[] = [
-  {
-    id: 'beo-001', beoNumber: 'BEO-2025-001', eventName: 'Anderson-Chen Wedding Reception',
-    eventDate: '2025-08-15', startTime: '17:00', endTime: '23:00', venue: 'Grand Ballroom',
-    clientName: 'Sarah Anderson & James Chen', contactEmail: 'sarah.anderson@email.com', contactPhone: '+1 (555) 234-5678',
-    functionType: 'wedding', expectedGuests: 180, setupStyle: 'Banquet Rounds', serviceStyle: 'plated',
-    dietaryRequirements: ['12 Vegetarian', '6 Gluten-Free', '3 Nut Allergies', '2 Vegan'],
-    menuItems: [
-      { name: 'Seared Filet Mignon', description: 'With truffle demi-glace and roasted vegetables', dietaryTag: 'GF Option', perPersonCost: 45 },
-      { name: 'Pan-Roasted Salmon', description: 'With lemon beurre blanc and asparagus', dietaryTag: 'GF', perPersonCost: 38 },
-      { name: 'Wild Mushroom Risotto', description: 'Truffle oil, aged parmesan, fresh herbs', dietaryTag: 'V', perPersonCost: 28 },
-      { name: 'Caesar Salad', description: 'Romaine hearts, house croutons, anchovy dressing', dietaryTag: '', perPersonCost: 14 },
-      { name: 'Wedding Cake (3-tier)', description: 'Vanilla sponge with buttercream, fresh berries', dietaryTag: 'V', perPersonCost: 12 },
-    ],
-    barRequirements: 'Open bar: Premium spirits, craft cocktails, wine selection, craft beer, sparkling water, soft drinks. Signature cocktail: "The Anderson" — elderflower gin fizz.',
-    equipment: [
-      { name: 'HD Projector', quantity: 1, costPerUnit: 350 },
-      { name: '16ft Projection Screen', quantity: 1, costPerUnit: 200 },
-      { name: 'Wireless Lavalier Mic', quantity: 3, costPerUnit: 75 },
-      { name: 'PA Speaker System', quantity: 1, costPerUnit: 500 },
-      { name: 'DJ Booth & Lighting', quantity: 1, costPerUnit: 800 },
-      { name: 'Dance Floor (20x20)', quantity: 1, costPerUnit: 600 },
-    ],
-    stageSetup: '4x8ft raised platform at front of ballroom with backdrop draping and floral arrangements',
-    lightingSetup: 'Warm ambient lighting, uplighting in gold/white, spotlight on stage, string lights over dance floor',
-    floorPlanDescription: '18 round tables of 10, sweetheart table for bridal party at front, head table offset left, dance floor center-right, bar station back-right, gift table near entrance',
-    timeline: [
-      { time: '09:00', activity: 'Vendor setup begins', responsible: 'Events Team', notes: 'Florist, caterer, DJ arrival' },
-      { time: '12:00', activity: 'Table setting & place cards', responsible: 'Banquet Team', notes: 'Verify dietary markers' },
-      { time: '14:00', activity: 'AV & sound check', responsible: 'AV Team', notes: 'Test mic levels, slideshow' },
-      { time: '15:30', activity: 'Final walkthrough with client', responsible: 'Event Manager', notes: 'Sarah Anderson confirmed' },
-      { time: '16:30', activity: 'Guest arrival & cocktail hour', responsible: 'F&B Team', notes: 'Piano trio performs' },
-      { time: '17:30', activity: 'Wedding party introduction', responsible: 'MC / DJ' },
-      { time: '17:45', activity: 'First dance & parent dances', responsible: 'MC / DJ' },
-      { time: '18:00', activity: 'Dinner service begins', responsible: 'F&B Captain' },
-      { time: '19:30', activity: 'Toasts & speeches', responsible: 'MC' },
-      { time: '20:00', activity: 'Cake cutting', responsible: 'F&B Team' },
-      { time: '20:30', activity: 'Open dance floor', responsible: 'DJ' },
-      { time: '22:30', activity: 'Last dance & sparkler exit', responsible: 'Events Team' },
-      { time: '23:00', activity: 'Venue breakdown begins', responsible: 'Setup Team', notes: 'Overnight crew' },
-    ],
-    fnbMinimum: 12500, serviceChargePercent: 22, taxPercent: 8.5, status: 'approved',
-    createdAt: '2025-05-20T10:00:00Z', updatedAt: '2025-07-10T14:30:00Z', approvedBy: 'Michael Torres', approvedAt: '2025-07-10T14:30:00Z',
-  },
-  {
-    id: 'beo-002', beoNumber: 'BEO-2025-002', eventName: 'TechNova Annual Summit 2025',
-    eventDate: '2025-09-22', startTime: '08:00', endTime: '18:00', venue: 'Convention Hall A',
-    clientName: 'TechNova Inc.', contactEmail: 'events@technova.io', contactPhone: '+1 (555) 876-5432',
-    functionType: 'corporate', expectedGuests: 250, setupStyle: 'Theater', serviceStyle: 'stations',
-    dietaryRequirements: ['30 Vegetarian', '15 Vegan', '20 Gluten-Free', 'Halal options available'],
-    menuItems: [
-      { name: 'Continental Breakfast Station', description: 'Pastries, fruit, yogurt parfaits, coffee bar', dietaryTag: 'V Options', perPersonCost: 22 },
-      { name: 'Gourmet Lunch Buffet', description: 'Carving station, pasta bar, salad station, dessert bar', dietaryTag: 'V/VG/GF Options', perPersonCost: 42 },
-      { name: 'Afternoon Refreshments', description: 'Cookies, fruit, coffee, tea station', dietaryTag: 'V Options', perPersonCost: 10 },
-    ],
-    barRequirements: 'Coffee & tea stations throughout. No alcohol. Sparkling and still water at each station.',
-    equipment: [
-      { name: '4K Laser Projector', quantity: 2, costPerUnit: 500 },
-      { name: '20ft LED Screen', quantity: 2, costPerUnit: 750 },
-      { name: 'Wireless Presentation System', quantity: 1, costPerUnit: 400 },
-      { name: 'Wireless Handheld Mic', quantity: 4, costPerUnit: 60 },
-      { name: 'Wireless Lavalier Mic', quantity: 2, costPerUnit: 75 },
-      { name: 'PA Speaker System', quantity: 2, costPerUnit: 500 },
-      { name: 'Stage (16x8ft)', quantity: 1, costPerUnit: 1200 },
-      { name: 'Live Streaming Kit', quantity: 1, costPerUnit: 350 },
-      { name: 'Wi-Fi Access Point (Dedicated)', quantity: 4, costPerUnit: 100 },
-    ],
-    stageSetup: '16x8ft main stage with LED backdrop, podium center, two side monitors for presenter confidence',
-    lightingSetup: 'Full stage wash, house lights dimmable, pin spots on podium, LED wall ambient colors',
-    floorPlanDescription: 'Theater-style seating 250, two aisles, registration desk at entrance, breakout tables back of hall, 4 coffee stations, 2 water stations',
-    timeline: [
-      { time: '06:30', activity: 'Venue opens for setup', responsible: 'Events Team' },
-      { time: '07:30', activity: 'AV & tech check', responsible: 'AV Team' },
-      { time: '07:45', activity: 'Registration desk opens', responsible: 'Registration Staff' },
-      { time: '08:00', activity: 'Breakfast service begins', responsible: 'F&B Team' },
-      { time: '08:45', activity: 'Opening keynote', responsible: 'MC / AV Team' },
-      { time: '10:00', activity: 'Panel Discussion 1', responsible: 'AV Team' },
-      { time: '11:00', activity: 'Networking Break', responsible: 'F&B Team' },
-      { time: '11:30', activity: 'Breakout Sessions', responsible: 'Events Team' },
-      { time: '12:30', activity: 'Lunch Service', responsible: 'F&B Captain' },
-      { time: '14:00', activity: 'Afternoon Sessions', responsible: 'AV Team' },
-      { time: '16:00', activity: 'Afternoon Break', responsible: 'F&B Team' },
-      { time: '16:30', activity: 'Closing Remarks', responsible: 'MC / AV Team' },
-      { time: '17:00', activity: 'Reception & Networking', responsible: 'Events Team' },
-      { time: '18:00', activity: 'Event concludes', responsible: 'Events Team' },
-      { time: '18:30', activity: 'Breakdown begins', responsible: 'Setup Team' },
-    ],
-    fnbMinimum: 18500, serviceChargePercent: 22, taxPercent: 8.5, status: 'under_review',
-    createdAt: '2025-06-15T09:00:00Z', updatedAt: '2025-08-01T11:00:00Z',
-  },
-  {
-    id: 'beo-003', beoNumber: 'BEO-2025-003', eventName: 'Martinez 50th Birthday Gala',
-    eventDate: '2025-10-05', startTime: '19:00', endTime: '01:00', venue: 'Rooftop Terrace',
-    clientName: 'Roberto Martinez', contactEmail: 'rmartinez@family.com', contactPhone: '+1 (555) 345-6789',
-    functionType: 'social', expectedGuests: 80, setupStyle: 'Cocktail', serviceStyle: 'stations',
-    dietaryRequirements: ['5 Vegetarian', '3 Pescatarian', 'Kosher option available'],
-    menuItems: [
-      { name: 'Tapas Station', description: 'Assorted Spanish small plates, manchego, olives', dietaryTag: 'V Options', perPersonCost: 24 },
-      { name: 'Carving Station', description: 'Slow-roasted prime rib with horseradish cream', dietaryTag: '', perPersonCost: 32 },
-      { name: 'Sushi Bar', description: 'Chef-attended nigiri, sashimi, maki rolls', dietaryTag: '', perPersonCost: 28 },
-      { name: 'Dessert Station', description: 'Chocolate fountain, mini pastries, gelato bar', dietaryTag: 'V Options', perPersonCost: 18 },
-      { name: 'Premium Bar Package', description: 'Top-shelf liquor, champagne toast, signature cocktails', dietaryTag: '', perPersonCost: 45 },
-    ],
-    barRequirements: 'Full open bar with premium spirits. Signature cocktail: "Golden 50" — champagne, elderflower, gold leaf.',
-    equipment: [
-      { name: 'Wireless Mic System', quantity: 1, costPerUnit: 150 },
-      { name: 'Bluetooth Speaker Set', quantity: 2, costPerUnit: 100 },
-      { name: 'Photo Booth Setup', quantity: 1, costPerUnit: 450 },
-      { name: 'Ambient String Lights', quantity: 1, costPerUnit: 300 },
-    ],
-    stageSetup: 'Small performance area (8x6ft) for live band setup',
-    lightingSetup: 'Warm fairy lights, uplighting in warm amber/gold, spotlight on performance area, candles on tables',
-    floorPlanDescription: 'Cocktail-style high-tops throughout, lounge furniture clusters, food stations along perimeter, bar station center-back, dance area front-center',
-    timeline: [
-      { time: '15:00', activity: 'Setup begins', responsible: 'Events Team' },
-      { time: '17:00', activity: 'Live band sound check', responsible: 'AV Team' },
-      { time: '18:30', activity: 'Final inspection', responsible: 'Event Manager' },
-      { time: '19:00', activity: 'Guest arrival & cocktails', responsible: 'F&B Team' },
-      { time: '20:00', activity: 'Welcome speech & toast', responsible: 'Host' },
-      { time: '20:15', activity: 'Dinner stations open', responsible: 'F&B Captain' },
-      { time: '21:30', activity: 'Live band performance', responsible: 'Entertainment' },
-      { time: '22:30', activity: 'Birthday cake & surprise video', responsible: 'Events Team' },
-      { time: '23:00', activity: 'Dance party & open bar', responsible: 'F&B Team' },
-      { time: '00:30', activity: 'Last call', responsible: 'Bar Staff' },
-      { time: '01:00', activity: 'Event concludes, breakdown', responsible: 'Setup Team' },
-    ],
-    fnbMinimum: 8200, serviceChargePercent: 20, taxPercent: 8.5, status: 'draft',
-    createdAt: '2025-07-20T15:00:00Z', updatedAt: '2025-07-20T15:00:00Z',
-  },
-  {
-    id: 'beo-004', beoNumber: 'BEO-2025-004', eventName: 'Greenfield Corp. Q3 Strategy Meeting',
-    eventDate: '2025-08-28', startTime: '09:00', endTime: '17:00', venue: 'Executive Boardroom',
-    clientName: 'Greenfield Corporation', contactEmail: 'admin@greenfield.co', contactPhone: '+1 (555) 987-6543',
-    functionType: 'corporate', expectedGuests: 20, setupStyle: 'Boardroom', serviceStyle: 'plated',
-    dietaryRequirements: ['4 Vegetarian', '2 Gluten-Free'],
-    menuItems: [
-      { name: 'Working Breakfast', description: 'Continental spread with hot options', dietaryTag: 'V Options', perPersonCost: 18 },
-      { name: 'Three-Course Executive Lunch', description: 'Seasonal menu, choice of entree', dietaryTag: 'V/GF Options', perPersonCost: 55 },
-      { name: 'Afternoon Tea Service', description: 'Finger sandwiches, scones, petit fours', dietaryTag: 'V Options', perPersonCost: 15 },
-    ],
-    barRequirements: 'Coffee, tea, sparkling water, and juice throughout the day. No alcohol.',
-    equipment: [
-      { name: '85" Smart Display', quantity: 1, costPerUnit: 200 },
-      { name: 'Wireless Lavalier Mic', quantity: 2, costPerUnit: 75 },
-      { name: 'Conference Phone System', quantity: 1, costPerUnit: 100 },
-      { name: 'Video Conferencing Kit', quantity: 1, costPerUnit: 250 },
-    ],
-    stageSetup: 'No stage required — podium at head of table for presentations',
-    lightingSetup: 'Natural light supplemented by adjustable overhead fluorescents, blackout option for presentations',
-    floorPlanDescription: '20-seat boardroom configuration, oval table, presentation screen at far end, credenza for refreshments along left wall',
-    timeline: [
-      { time: '07:30', activity: 'Room setup & AV check', responsible: 'Events Team' },
-      { time: '08:30', activity: 'Breakfast service', responsible: 'F&B Team' },
-      { time: '09:00', activity: 'Meeting begins — CEO opening remarks', responsible: 'Facilitator' },
-      { time: '10:30', activity: 'Morning break', responsible: 'F&B Team' },
-      { time: '10:45', activity: 'Department presentations', responsible: 'Facilitator' },
-      { time: '12:00', activity: 'Lunch service', responsible: 'F&B Captain' },
-      { time: '13:00', activity: 'Afternoon strategy session', responsible: 'Facilitator' },
-      { time: '15:00', activity: 'Afternoon tea break', responsible: 'F&B Team' },
-      { time: '15:30', activity: 'Action items & closing', responsible: 'Facilitator' },
-      { time: '17:00', activity: 'Meeting concludes', responsible: 'Events Team' },
-    ],
-    fnbMinimum: 3500, serviceChargePercent: 22, taxPercent: 8.5, status: 'confirmed',
-    createdAt: '2025-06-01T08:00:00Z', updatedAt: '2025-08-15T16:00:00Z', approvedBy: 'Lisa Park', approvedAt: '2025-08-10T09:00:00Z',
-  },
-  {
-    id: 'beo-005', beoNumber: 'BEO-2025-005', eventName: 'Rivera-Patel Mehndi Ceremony',
-    eventDate: '2025-11-08', startTime: '16:00', endTime: '22:00', venue: 'Garden Pavilion',
-    clientName: 'Priya Rivera & Arjun Patel', contactEmail: 'priya.r@email.com', contactPhone: '+1 (555) 567-8901',
-    functionType: 'wedding', expectedGuests: 120, setupStyle: 'Custom', serviceStyle: 'stations',
-    dietaryRequirements: ['All Vegetarian', '15 Vegan', 'Strictly no beef/pork in venue'],
-    menuItems: [
-      { name: 'Chaats & Starters Station', description: 'Samosa, paneer tikka, papdi chaat, bhel puri', dietaryTag: 'V/VG', perPersonCost: 18 },
-      { name: 'Tandoor Station', description: 'Naan, garlic naan, tandoori vegetables, seekh kebab', dietaryTag: 'V Options', perPersonCost: 22 },
-      { name: 'Main Course Buffet', description: 'Paneer butter masala, dal makhani, biryani, aloo gobi, raita', dietaryTag: 'V/VG', perPersonCost: 28 },
-      { name: 'Dessert Station', description: 'Gulab jamun, ras malai, mango lassi, jalebi', dietaryTag: 'V', perPersonCost: 14 },
-      { name: 'Mocktail Bar', description: 'Masala chai, mango lassi, rose sharbat, nimbu pani', dietaryTag: 'V', perPersonCost: 10 },
-    ],
-    barRequirements: 'No alcohol — full mocktail bar, chai station, traditional Indian beverages.',
-    equipment: [
-      { name: 'PA Speaker System', quantity: 1, costPerUnit: 500 },
-      { name: 'Wireless Mic', quantity: 2, costPerUnit: 75 },
-      { name: 'LED Uplighting (Warm)', quantity: 10, costPerUnit: 40 },
-      { name: 'Mehndi Canopy Setup', quantity: 1, costPerUnit: 350 },
-      { name: 'Portable Stage (10x8ft)', quantity: 1, costPerUnit: 800 },
-    ],
-    stageSetup: '10x8ft stage with traditional mandap-style canopy, decorated with marigolds and fairy lights',
-    lightingSetup: 'Warm golden uplighting, string lights, lanterns, colored LED accents (saffron & fuchsia)',
-    floorPlanDescription: 'Open lawn configuration, low seating with floor cushions for mehndi, buffet stations along left, stage at far end, photobooth area right of stage, dance circle center',
-    timeline: [
-      { time: '10:00', activity: 'Decor setup begins', responsible: 'Decor Team' },
-      { time: '13:00', activity: 'Catering setup & food stations', responsible: 'F&B Team' },
-      { time: '15:00', activity: 'Sound & lighting check', responsible: 'AV Team' },
-      { time: '15:30', activity: 'Mehndi artist setup', responsible: 'Events Team' },
-      { time: '16:00', activity: 'Guest arrival & mehndi begins', responsible: 'Events Team' },
-      { time: '17:00', activity: 'Music & performances', responsible: 'Entertainment' },
-      { time: '18:00', activity: 'Dinner stations open', responsible: 'F&B Captain' },
-      { time: '19:30', activity: 'Family performances & games', responsible: 'MC' },
-      { time: '20:30', activity: 'Dance floor opens', responsible: 'Entertainment' },
-      { time: '21:30', activity: 'Favors & farewell', responsible: 'Events Team' },
-      { time: '22:00', activity: 'Event concludes', responsible: 'Events Team' },
-    ],
-    fnbMinimum: 9200, serviceChargePercent: 20, taxPercent: 8.5, status: 'draft',
-    createdAt: '2025-08-01T12:00:00Z', updatedAt: '2025-08-01T12:00:00Z',
-  },
-  {
-    id: 'beo-006', beoNumber: 'BEO-2025-006', eventName: 'Lakeside Charity Gala 2025',
-    eventDate: '2025-09-13', startTime: '18:00', endTime: '23:30', venue: 'Grand Ballroom',
-    clientName: 'Lakeside Community Foundation', contactEmail: 'gala@lakesidecf.org', contactPhone: '+1 (555) 432-1098',
-    functionType: 'social', expectedGuests: 200, setupStyle: 'Banquet Rounds', serviceStyle: 'plated',
-    dietaryRequirements: ['25 Vegetarian', '12 Gluten-Free', '8 Dairy-Free', '4 Vegan', 'Kosher meals available'],
-    menuItems: [
-      { name: 'Canape Reception', description: 'Smoked salmon blinis, shrimp cocktail, bruschetta, cheese display', dietaryTag: 'V Options', perPersonCost: 20 },
-      { name: 'Seasonal Salad', description: 'Mixed greens, goat cheese, candied pecans, balsamic vinaigrette', dietaryTag: 'VG Option', perPersonCost: 12 },
-      { name: 'Herb-Crusted Chicken', description: 'With wild mushroom sauce, truffle mash, seasonal vegetables', dietaryTag: 'GF', perPersonCost: 38 },
-      { name: 'Pan-Seared Sea Bass', description: 'With saffron risotto and beurre blanc', dietaryTag: 'GF', perPersonCost: 42 },
-      { name: 'Deconstructed Cheesecake', description: 'Berry compote, vanilla cream, crumble', dietaryTag: 'V', perPersonCost: 16 },
-    ],
-    barRequirements: 'Premium open bar: Wine (red/white), champagne toast, craft cocktails, premium spirits, local craft beer, NA options.',
-    equipment: [
-      { name: '4K Projector', quantity: 1, costPerUnit: 400 },
-      { name: '20ft Projection Screen', quantity: 1, costPerUnit: 250 },
-      { name: 'Wireless Mic Set (Lav + Handheld)', quantity: 4, costPerUnit: 75 },
-      { name: 'PA Speaker System', quantity: 1, costPerUnit: 500 },
-      { name: 'Stage (12x8ft)', quantity: 1, costPerUnit: 900 },
-      { name: 'Dance Floor (24x24)', quantity: 1, costPerUnit: 700 },
-      { name: 'Silent Auction Displays', quantity: 4, costPerUnit: 50 },
-    ],
-    stageSetup: '12x8ft stage with pipe & drape backdrop, podium for MC, video wall for auction items',
-    lightingSetup: 'Elegant uplighting in navy/gold, spotlight on stage, pin spots on auction tables, ambient candlelight on guest tables',
-    floorPlanDescription: '20 round tables of 10, VIP table near stage, silent auction area in foyer, registration/greeting at entrance, photo wall, dance floor center',
-    timeline: [
-      { time: '12:00', activity: 'Full venue setup begins', responsible: 'Events Team' },
-      { time: '15:00', activity: 'Catering setup & station prep', responsible: 'F&B Team' },
-      { time: '16:00', activity: 'AV & sound check', responsible: 'AV Team' },
-      { time: '16:30', activity: 'Silent auction item setup', responsible: 'Auction Team' },
-      { time: '17:30', activity: 'Final walkthrough', responsible: 'Event Manager' },
-      { time: '18:00', activity: 'VIP reception', responsible: 'F&B Team' },
-      { time: '18:30', activity: 'General guest arrival', responsible: 'Registration' },
-      { time: '19:00', activity: 'Welcome remarks & charity video', responsible: 'MC / AV' },
-      { time: '19:30', activity: 'Dinner service begins', responsible: 'F&B Captain' },
-      { time: '20:45', activity: 'Live auction', responsible: 'Auctioneer' },
-      { time: '21:30', activity: 'Live entertainment', responsible: 'Entertainment' },
-      { time: '22:00', activity: 'Dance floor & DJ', responsible: 'Entertainment' },
-      { time: '23:00', activity: 'Closing remarks & thank you', responsible: 'MC' },
-      { time: '23:30', activity: 'Event concludes', responsible: 'Events Team' },
-    ],
-    fnbMinimum: 16000, serviceChargePercent: 22, taxPercent: 8.5, status: 'completed',
-    createdAt: '2025-04-10T10:00:00Z', updatedAt: '2025-09-14T08:00:00Z', approvedBy: 'David Kim', approvedAt: '2025-08-20T14:00:00Z',
-  },
 ];
 
 // ─── DB Record type (from API) ─────────────────────────────────────────
@@ -547,6 +294,11 @@ export default function BEOManagement() {
   const [selectedBEO, setSelectedBEO] = useState<BEO | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [creatingBEO, setCreatingBEO] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    clientName: '', eventType: 'wedding', functionDate: '', expectedPax: 100, setupStyle: 'Banquet Rounds',
+  });
   const [activeTab, setActiveTab] = useState('list');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -639,6 +391,40 @@ export default function BEOManagement() {
 
   const handleExportPDF = () => {
     toast.info('PDF export initiated. Document will download shortly.');
+  };
+
+  const handleCreateBEO = async () => {
+    if (!createForm.clientName || !createForm.functionDate) {
+      toast.error('Client name and event date are required');
+      return;
+    }
+    setCreatingBEO(true);
+    try {
+      const res = await fetch('/api/events/beo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...createForm,
+          totalAmount: 0,
+          depositAmount: 0,
+          status: 'draft',
+          avRequirements: '{}',
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success('BEO created successfully');
+        setIsCreateDialogOpen(false);
+        setCreateForm({ clientName: '', eventType: 'wedding', functionDate: '', expectedPax: 100, setupStyle: 'Banquet Rounds' });
+        fetchBeos();
+      } else {
+        toast.error(json.error || 'Failed to create BEO');
+      }
+    } catch {
+      toast.error('Network error creating BEO');
+    } finally {
+      setCreatingBEO(false);
+    }
   };
 
   // ─── Render: Status Badge ──────────────────────────────────────────────
@@ -960,7 +746,7 @@ export default function BEOManagement() {
             </h2>
             <p className="text-muted-foreground">Banquet Event Order document generation and tracking</p>
           </div>
-          <Button className="print:hidden">
+          <Button className="print:hidden" onClick={() => setIsCreateDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             New BEO
           </Button>
@@ -1021,7 +807,7 @@ export default function BEOManagement() {
           </h2>
           <p className="text-muted-foreground">Banquet Event Order document generation and tracking</p>
         </div>
-        <Button className="print:hidden">
+        <Button className="print:hidden" onClick={() => setIsCreateDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           New BEO
         </Button>
@@ -1258,6 +1044,63 @@ export default function BEOManagement() {
             <Button onClick={() => selectedBEO && handleStatusAdvance(selectedBEO)}>
               <ArrowRight className="h-4 w-4 mr-2" />
               Advance Status
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create BEO Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create New BEO</DialogTitle>
+            <DialogDescription>Start a new Banquet Event Order</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="space-y-2">
+              <Label>Client / Event Name <span className="text-red-500">*</span></Label>
+              <Input placeholder="e.g., Smith Wedding Reception" value={createForm.clientName} onChange={e => setCreateForm(f => ({ ...f, clientName: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Event Type</Label>
+                <Select value={createForm.eventType} onValueChange={v => setCreateForm(f => ({ ...f, eventType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {FUNCTION_TYPES.map(t => (
+                      <SelectItem key={t.value} value={t.value}>{t.icon} {t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Expected Guests</Label>
+                <Input type="number" value={createForm.expectedPax} onChange={e => setCreateForm(f => ({ ...f, expectedPax: parseInt(e.target.value) || 0 }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Event Date <span className="text-red-500">*</span></Label>
+                <Input type="date" value={createForm.functionDate} onChange={e => setCreateForm(f => ({ ...f, functionDate: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Setup Style</Label>
+                <Select value={createForm.setupStyle} onValueChange={v => setCreateForm(f => ({ ...f, setupStyle: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SETUP_STYLES.map(s => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateBEO} disabled={creatingBEO}>
+              {creatingBEO && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Create BEO
             </Button>
           </DialogFooter>
         </DialogContent>

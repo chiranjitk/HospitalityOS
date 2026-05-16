@@ -8,6 +8,7 @@ module.exports = {
       args: 'run dev',
       cwd: APP_DIR,
       watch: false,
+      instances: 1,
       autorestart: true,
       max_memory_restart: '2G',
       env: {

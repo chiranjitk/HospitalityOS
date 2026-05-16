@@ -64,12 +64,12 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Validate date range is reasonable (max 365 days)
+    // Validate date range is reasonable (max 730 days / 2 years — AioSell supports forward booking up to 2 years)
     const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysDiff > 365) {
+    if (daysDiff > 730) {
       return NextResponse.json({
         success: false,
-        error: { message: 'Date range cannot exceed 365 days' }
+        error: { message: 'Date range cannot exceed 730 days (2 years)' }
       }, { status: 400 });
     }
 

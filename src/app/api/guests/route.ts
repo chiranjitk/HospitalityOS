@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { logGuest } from '@/lib/audit';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
+import { fireAutomationEvent } from '@/lib/automation/hooks';
 
 function safeJsonParse(value: string, fallback: unknown = null): unknown {
   try {
@@ -266,6 +267,21 @@ export async function POST(request: NextRequest) {
     } catch (auditError) {
       console.error('Audit log failed (non-blocking):', auditError);
     }
+
+    // Fire automation trigger for guest creation
+    fireAutomationEvent('guest.created', {
+      tenantId: guest.tenantId,
+      entityId: guest.id,
+      data: {
+        guestId: guest.id,
+        firstName: guest.firstName,
+        lastName: guest.lastName,
+        email: guest.email,
+        phone: guest.phone,
+        source: guest.source,
+        isVip: guest.isVip,
+      },
+    });
 
     return NextResponse.json({
       success: true,

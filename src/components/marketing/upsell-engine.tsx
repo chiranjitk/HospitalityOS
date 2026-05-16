@@ -256,6 +256,16 @@ export default function UpsellEngine() {
   // Dialog state
   const [campaignDialog, setCampaignDialog] = useState<{ open: boolean; item: Campaign | null }>({ open: false, item: null });
   const [offerDialog, setOfferDialog] = useState<{ open: boolean; item: UpsellOffer | null }>({ open: false, item: null });
+  const [createOfferDialog, setCreateOfferDialog] = useState(false);
+  const [createOfferForm, setCreateOfferForm] = useState({
+    name: '',
+    offerType: 'percentage',
+    value: '',
+    conditions: '',
+    validFrom: '',
+    validUntil: '',
+  });
+  const [createOfferLoading, setCreateOfferLoading] = useState(false);
 
   // Fetch real data from API
   const fetchUpsellData = useCallback(async (isRefresh = false) => {
@@ -358,7 +368,7 @@ export default function UpsellEngine() {
     }
   }, []);
 
-  useEffect(() => { fetchUpsellData(); }, [fetchUpsellData]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchUpsellData(); }, [fetchUpsellData]);
 
   // ─── Campaign handlers ──────────────────────────────────────────────────
 
@@ -663,7 +673,7 @@ export default function UpsellEngine() {
         <TabsContent value="offers" className="mt-4 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">{offers.filter(o => o.status === 'active').length} active offers in catalog</p>
-            <Button size="sm" onClick={() => toast.info('Create offer form coming soon')}>
+            <Button size="sm" onClick={() => { setCreateOfferForm({ name: '', offerType: 'percentage', value: '', conditions: '', validFrom: '', validUntil: '' }); setCreateOfferDialog(true); }}>
               <Plus className="h-4 w-4 mr-2" />
               Create Offer
             </Button>
@@ -1260,6 +1270,125 @@ export default function UpsellEngine() {
             <Button onClick={() => { toast.success('Offer settings saved'); setOfferDialog({ open: false, item: null }); }}>
               <Save className="h-4 w-4 mr-2" />
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Create Offer Dialog ──────────────────────────────────────── */}
+      <Dialog open={createOfferDialog} onOpenChange={setCreateOfferDialog}>
+        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Gift className="h-5 w-5" />
+              Create Upsell Offer
+            </DialogTitle>
+            <DialogDescription>Configure a new upsell offer for your campaigns.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="offer-name">Offer Name *</Label>
+              <Input
+                id="offer-name"
+                placeholder="e.g., Weekend Spa Package"
+                value={createOfferForm.name}
+                onChange={(e) => setCreateOfferForm(prev => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="offer-type">Type *</Label>
+                <Select value={createOfferForm.offerType} onValueChange={(v) => setCreateOfferForm(prev => ({ ...prev, offerType: v }))}>
+                  <SelectTrigger id="offer-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">Percentage Discount</SelectItem>
+                    <SelectItem value="flat">Flat Amount Off</SelectItem>
+                    <SelectItem value="room-upgrade">Room Upgrade</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="offer-value">Value *</Label>
+                <Input
+                  id="offer-value"
+                  type="number"
+                  placeholder={createOfferForm.offerType === 'percentage' ? '15' : '50.00'}
+                  value={createOfferForm.value}
+                  onChange={(e) => setCreateOfferForm(prev => ({ ...prev, value: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="offer-conditions">Conditions (min stay nights, room type, booking window)</Label>
+              <Input
+                id="offer-conditions"
+                placeholder="e.g., min 3 nights, deluxe room only"
+                value={createOfferForm.conditions}
+                onChange={(e) => setCreateOfferForm(prev => ({ ...prev, conditions: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="offer-valid-from">Valid From</Label>
+                <Input
+                  id="offer-valid-from"
+                  type="date"
+                  value={createOfferForm.validFrom}
+                  onChange={(e) => setCreateOfferForm(prev => ({ ...prev, validFrom: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="offer-valid-until">Valid Until</Label>
+                <Input
+                  id="offer-valid-until"
+                  type="date"
+                  value={createOfferForm.validUntil}
+                  onChange={(e) => setCreateOfferForm(prev => ({ ...prev, validUntil: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOfferDialog(false)} disabled={createOfferLoading}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                if (!createOfferForm.name.trim() || !createOfferForm.value) {
+                  toast.error('Please fill in the offer name and value');
+                  return;
+                }
+                setCreateOfferLoading(true);
+                try {
+                  const firstCampaign = campaigns[0];
+                  const res = await fetch('/api/marketing/upsell/offers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      campaignId: firstCampaign?.id,
+                      name: createOfferForm.name,
+                      description: createOfferForm.conditions || undefined,
+                      offerType: createOfferForm.offerType,
+                      originalPrice: createOfferForm.offerType === 'flat' ? parseFloat(createOfferForm.value) : 0,
+                      upsellPrice: createOfferForm.offerType === 'flat' ? 0 : parseFloat(createOfferForm.value),
+                      discount: createOfferForm.offerType === 'percentage' ? parseFloat(createOfferForm.value) : 0,
+                    }),
+                  });
+                  if (!res.ok) throw new Error('Failed to create offer');
+                  const json = await res.json();
+                  if (!json.success) throw new Error(json.error || 'Failed to create offer');
+                  toast.success(`Offer "${createOfferForm.name}" created successfully`);
+                  setCreateOfferDialog(false);
+                  fetchUpsellData();
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Failed to create offer');
+                } finally {
+                  setCreateOfferLoading(false);
+                }
+              }}
+              disabled={createOfferLoading}
+            >
+              {createOfferLoading ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Creating...</> : <><Plus className="h-4 w-4 mr-2" />Create Offer</>}
             </Button>
           </DialogFooter>
         </DialogContent>

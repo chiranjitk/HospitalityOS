@@ -259,7 +259,6 @@ export default function IntegrationHub() {
           };
         });
         setIntegrations(mapped);
-        setIntegrationStates(Object.fromEntries(mapped.map(i => [i.id, i.status])));
       }
 
       // Process webhooks
@@ -354,12 +353,12 @@ export default function IntegrationHub() {
   const successRate = totalSyncOps > 0 ? ((totalSyncOps - failedSyncOps) / totalSyncOps * 100).toFixed(1) : '100';
 
   const handleConnect = (id: string) => {
-    setIntegrationStates(prev => ({ ...prev, [id]: 'connected' }));
+    setIntegrations(prev => prev.map(i => i.id === id ? { ...i, status: 'connected' as const } : i));
     toast.success('Integration connected successfully!');
   };
 
   const handleDisconnect = (id: string) => {
-    setIntegrationStates(prev => ({ ...prev, [id]: 'disconnected' }));
+    setIntegrations(prev => prev.map(i => i.id === id ? { ...i, status: 'disconnected' as const } : i));
     toast.success('Integration disconnected.');
   };
 
