@@ -280,6 +280,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'billing-budget', title: 'Budget Management', href: '#billing-budget', icon: TrendingUp },
       { id: 'billing-deposits', title: 'Deposit Schedules', href: '#billing-deposits', icon: Wallet },
       { id: 'billing-financing', title: 'BNPL / Financing', href: '#billing-financing', icon: CreditCard },
+      { id: 'billing-cash-book', title: 'Cash Book', href: '#billing-cash-book', icon: BookOpen },
     ],
   },
 
@@ -417,6 +418,11 @@ export const navigationConfig: NavSection[] = [
       { id: 'revenue-competitor', title: 'Competitor Pricing', href: '#revenue-competitor', icon: Target },
       { id: 'revenue-ai', title: 'AI Suggestions', href: '#revenue-ai', icon: Brain },
       { id: 'revenue-rate-shopping', title: 'Rate Shopping', href: '#revenue-rate-shopping', icon: Search },
+      { id: 'revenue-hourly-pricing', title: 'Hourly Pricing', href: '#revenue-hourly-pricing', icon: Timer },
+      { id: 'revenue-linear-pricing', title: 'Per-Room Pricing', href: '#revenue-linear-pricing', icon: ArrowUpDown },
+      { id: 'revenue-auto-overbooking', title: 'Auto-Overbooking', href: '#revenue-auto-overbooking', icon: AlertTriangle },
+      { id: 'revenue-last-minute', title: 'Last-Minute Triggers', href: '#revenue-last-minute', icon: Zap },
+      { id: 'revenue-automation', title: 'Revenue Automation', href: '#revenue-automation', icon: Bot },
     ],
   },
   {
@@ -443,6 +449,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'channel-rate-derivation', title: 'Rate Derivation', href: '#channel-rate-derivation', icon: Percent },
       { id: 'channel-rate-overrides', title: 'Rate Overrides', href: '#channel-rate-overrides', icon: Calculator },
       { id: 'channel-content-sync', title: 'Content Sync', href: '#channel-content-sync', icon: ImageIcon },
+      { id: 'channel-messages', title: 'OTA Messages', href: '#channel-messages', icon: MessageSquare },
       { id: 'channel-tax-mapping', title: 'Tax Mapping', href: '#channel-tax-mapping', icon: Receipt },
       { id: 'channel-meal-plan', title: 'Meal Plan Mapping', href: '#channel-meal-plan', icon: UtensilsCrossed },
       { id: 'channel-virtual-inventory', title: 'Virtual Inventory', href: '#channel-virtual-inventory', icon: Layers },
@@ -483,6 +490,8 @@ export const navigationConfig: NavSection[] = [
       { id: 'marketing-upsell', title: 'Upsell Engine', href: '#marketing-upsell', icon: TrendingUp },
       { id: 'marketing-journey-campaigns', title: 'Journey Campaigns', href: '#marketing-journey-campaigns', icon: Zap },
       { id: 'marketing-abandoned-bookings', title: 'Abandoned Bookings', href: '#marketing-abandoned-bookings', icon: RotateCcw },
+      { id: 'marketing-website-builder', title: 'Website Builder', href: '#marketing-website-builder', icon: Globe },
+      { id: 'crm-lead-pipeline', title: 'Lead Pipeline', href: '#crm-lead-pipeline', icon: Kanban },
     ],
   },
 

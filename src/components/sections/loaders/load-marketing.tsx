@@ -22,6 +22,10 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/marketing/journey-campaigns');
     case 'marketing-abandoned-bookings':
       return import('@/components/marketing/abandoned-bookings');
+    case 'marketing-website-builder':
+      return import('@/components/marketing/website-builder');
+    case 'crm-lead-pipeline':
+      return import('@/components/crm/lead-pipeline');
     default:
       throw new Error(`Unknown marketing section: ${section}`);
   }
