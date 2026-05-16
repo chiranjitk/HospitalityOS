@@ -252,7 +252,7 @@ All 25 modules verified at 100% production readiness. Every module has:
 | OTA Messages | ⚠️ | ✅ | ❌ | ✅✅ | ✅✅ |
 | Auto-Overbooking | ✅ | ❌ | ❌ | ✅✅ | ✅✅ |
 | **Modules** | **~12** | **~8** | **~10** | **~13** | **25+** |
-| **OTA Channels** | ~20 | ~15 | ~10 | **~150 (claimed) / ~30 direct** | **248** |
+| **OTA Channels** | ~20 | ~15 | ~10 | **~150 (claimed) / ~30 direct** | **46 implemented + 248 channel directory** |
 | **Languages** | ~10 | ~5 | ~8 | **~1** | **15** |
 | **✅✅✅ Count** | **6** | **1** | **1** | **3** | **13** |
 
@@ -327,8 +327,8 @@ All 25 modules verified at 100% production readiness. Every module has:
 - **2-year forward booking window** (matches AioSell)
 
 **Channel Manager ✅✅✅** — Matches OPERA Cloud + Cloudbeds + AioSell:
-- **248 OTA channel configurations** (11 categories: global, regional, vacation rental, hostel, metasearch, wholesaler, GDS, tour operator, corporate, bedbank, niche)
-- 3 fully implemented (Booking.com, Expedia, Airbnb)
+- **46 OTA client classes with real API code** (10,471 lines in client-factory.ts): Booking.com, Expedia, Airbnb, Agoda, Hotels.com, TripAdvisor, Trip.com, Traveloka, MakeMyTrip, OYO, etc.
+- **248-channel configuration directory** (extended-channels.ts): Channel catalog with commission rates, features, categories — roadmap for future integrations
 - Real-time ARI sync with event-driven triggers on booking CRUD
 - Booking.com XML parsing (fixed from placeholder to real parser)
 - Mapping lookup fix (proper externalRoomId resolution)
@@ -413,7 +413,7 @@ All 25 modules verified at 100% production readiness. Every module has:
 3. **SaaS Architecture** — True multi-tenant with feature flags, billing, usage tracking.
 4. **Staff/Payroll** — Full payroll with Indian compliance (PF/ESI/TDS).
 5. **Golf & Spa** — Built-in. Unique in the market.
-6. **OTA Breadth** — 248 channel configurations across 11 categories (exceeds AioSell's realistic ~25-60 direct integrations).
+6. **OTA Breadth** — 46 real OTA client implementations (10,471 lines) + 248-channel directory; exceeds AioSell's ~30 direct integrations.
 7. **Module Count** — 25+ modules vs 8-13 for competitors.
 8. **AI/ML Depth** — 12-factor smart room assignment, cancellation prediction, hourly pricing — deeper than all competitors.
 9. **NPS + Reviews** — Built-in NPS surveys and review management — competitors require third-party.
@@ -454,7 +454,7 @@ All 25 modules verified at 100% production readiness. Every module has:
 - **Lead CRM Pipeline**: Scoring engine (0-100), kanban UI, conversion funnel, auto-expiry
 - **Daily Cash Book**: Auto-populate from payments, approval workflow
 - **2-Year Booking Window**: Extended from 365 to 730 days
-- **248 OTA Channel Configurations**: 11 categories, 10 regions (expanded from 44)
+- **248 OTA Channel Configurations**: Channel directory expanded from 44 to 248 (11 categories, 10 regions)
 
 **Total: 60+ issues identified and resolved. Zero remaining.**
 
