@@ -634,17 +634,22 @@ export async function POST(request: NextRequest) {
         ? pricingBreakdown.subtotal
         : (finalRoomRate * nights);
 
+      // SECURITY FIX: Sanitize all financial values before DB write — NaN propagates from pricing engine on zero room charge
+      const safeRoomCharge = Number(roomChargeTotal) || 0;
+      const safeTaxes = Number(finalTaxes) || 0;
+      const safeTotal = Number(finalTotalAmount) || 0;
+
       await tx.folioLineItem.create({
         data: {
           folioId: folio.id,
           description: `Room ${newBooking.room?.number || roomTypeId} - ${nights} night(s)`,
           category: 'room_charge',
           quantity: nights,
-          unitPrice: perNightRate,
-          totalAmount: roomChargeTotal,
+          unitPrice: Number(perNightRate) || 0,
+          totalAmount: safeRoomCharge,
           serviceDate: checkInDate,
-          taxRate: roomChargeTotal > 0 ? (finalTaxes / roomChargeTotal) * 100 : 0,
-          taxAmount: finalTaxes,
+          taxRate: safeRoomCharge > 0 ? (safeTaxes / safeRoomCharge) * 100 : 0,
+          taxAmount: safeTaxes,
         },
       });
 
@@ -652,11 +657,11 @@ export async function POST(request: NextRequest) {
       await tx.folio.update({
         where: { id: folio.id },
         data: {
-          subtotal: roomChargeTotal,
-          taxes: finalTaxes,
-          discount: finalDiscount,
-          totalAmount: finalTotalAmount,
-          balance: finalTotalAmount,
+          subtotal: safeRoomCharge,
+          taxes: safeTaxes,
+          discount: Number(finalDiscount) || 0,
+          totalAmount: safeTotal,
+          balance: safeTotal,
         },
       });
 

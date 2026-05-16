@@ -154,7 +154,10 @@ export async function calculatePrice(context: PricingContext): Promise<PriceBrea
         const components = JSON.parse(property.taxComponents);
         if (Array.isArray(components) && components.length > 0) {
           for (const component of components) {
-            taxes += subtotal * (component.rate / 100);
+            // SECURITY FIX: Guard against missing/invalid rate producing NaN (zero room charge edge case)
+            const rate = Number(component.rate);
+            if (subtotal <= 0 || isNaN(rate)) continue;
+            taxes += subtotal * (rate / 100);
           }
         }
       } catch {
@@ -169,11 +172,14 @@ export async function calculatePrice(context: PricingContext): Promise<PriceBrea
   }
 
   // Calculate service charge
-  const fees = property?.serviceChargePercent
+  const fees = (subtotal > 0 && property?.serviceChargePercent)
     ? subtotal * (property.serviceChargePercent / 100)
     : 0;
 
-  const totalAmount = subtotal + taxes + fees;
+  // SECURITY FIX: Sanitize all financial values — NaN propagates to DB writes (see bookings/route.ts L637-661)
+  const safeTaxes = Number(taxes) || 0;
+  const safeFees = Number(fees) || 0;
+  const totalAmount = Number(subtotal) + safeTaxes + safeFees;
 
   return {
     basePrice,

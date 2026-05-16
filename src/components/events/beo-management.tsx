@@ -66,6 +66,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -293,6 +294,11 @@ export default function BEOManagement() {
   const [selectedBEO, setSelectedBEO] = useState<BEO | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [creatingBEO, setCreatingBEO] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    clientName: '', eventType: 'wedding', functionDate: '', expectedPax: 100, setupStyle: 'Banquet Rounds',
+  });
   const [activeTab, setActiveTab] = useState('list');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -385,6 +391,40 @@ export default function BEOManagement() {
 
   const handleExportPDF = () => {
     toast.info('PDF export initiated. Document will download shortly.');
+  };
+
+  const handleCreateBEO = async () => {
+    if (!createForm.clientName || !createForm.functionDate) {
+      toast.error('Client name and event date are required');
+      return;
+    }
+    setCreatingBEO(true);
+    try {
+      const res = await fetch('/api/events/beo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...createForm,
+          totalAmount: 0,
+          depositAmount: 0,
+          status: 'draft',
+          avRequirements: '{}',
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success('BEO created successfully');
+        setIsCreateDialogOpen(false);
+        setCreateForm({ clientName: '', eventType: 'wedding', functionDate: '', expectedPax: 100, setupStyle: 'Banquet Rounds' });
+        fetchBeos();
+      } else {
+        toast.error(json.error || 'Failed to create BEO');
+      }
+    } catch {
+      toast.error('Network error creating BEO');
+    } finally {
+      setCreatingBEO(false);
+    }
   };
 
   // ─── Render: Status Badge ──────────────────────────────────────────────
@@ -706,7 +746,7 @@ export default function BEOManagement() {
             </h2>
             <p className="text-muted-foreground">Banquet Event Order document generation and tracking</p>
           </div>
-          <Button className="print:hidden">
+          <Button className="print:hidden" onClick={() => setIsCreateDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             New BEO
           </Button>
@@ -767,7 +807,7 @@ export default function BEOManagement() {
           </h2>
           <p className="text-muted-foreground">Banquet Event Order document generation and tracking</p>
         </div>
-        <Button className="print:hidden">
+        <Button className="print:hidden" onClick={() => setIsCreateDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           New BEO
         </Button>
@@ -1004,6 +1044,63 @@ export default function BEOManagement() {
             <Button onClick={() => selectedBEO && handleStatusAdvance(selectedBEO)}>
               <ArrowRight className="h-4 w-4 mr-2" />
               Advance Status
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create BEO Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create New BEO</DialogTitle>
+            <DialogDescription>Start a new Banquet Event Order</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="space-y-2">
+              <Label>Client / Event Name <span className="text-red-500">*</span></Label>
+              <Input placeholder="e.g., Smith Wedding Reception" value={createForm.clientName} onChange={e => setCreateForm(f => ({ ...f, clientName: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Event Type</Label>
+                <Select value={createForm.eventType} onValueChange={v => setCreateForm(f => ({ ...f, eventType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {FUNCTION_TYPES.map(t => (
+                      <SelectItem key={t.value} value={t.value}>{t.icon} {t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Expected Guests</Label>
+                <Input type="number" value={createForm.expectedPax} onChange={e => setCreateForm(f => ({ ...f, expectedPax: parseInt(e.target.value) || 0 }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Event Date <span className="text-red-500">*</span></Label>
+                <Input type="date" value={createForm.functionDate} onChange={e => setCreateForm(f => ({ ...f, functionDate: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Setup Style</Label>
+                <Select value={createForm.setupStyle} onValueChange={v => setCreateForm(f => ({ ...f, setupStyle: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SETUP_STYLES.map(s => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateBEO} disabled={creatingBEO}>
+              {creatingBEO && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Create BEO
             </Button>
           </DialogFooter>
         </DialogContent>
