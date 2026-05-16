@@ -9,7 +9,7 @@ import { getTodayInTimezone } from '@/lib/timezone';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { notifyBookingCreated } from '@/lib/notify';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
-import { fireTrigger } from '@/lib/automation/trigger-engine';
+import { fireAutomationEvent } from '@/lib/automation/hooks';
 
 // Helper function to generate confirmation code
 function generateConfirmationCode(): string {
@@ -748,30 +748,23 @@ export async function POST(request: NextRequest) {
       currency: booking.currency,
     });
 
-    // SECURITY FIX (H-3): Wire automation trigger engine to booking creation event.
-    // This enables automation rules (e.g., "send welcome email on booking.created")
-    // to fire automatically when a booking is created.
-    try {
-      fireTrigger({
-        eventType: 'booking.created',
-        tenantId: booking.tenantId,
-        propertyId: booking.propertyId,
-        entityId: booking.id,
-        data: {
-          bookingId: booking.id,
-          confirmationCode: booking.confirmationCode,
-          guestId: booking.primaryGuestId,
-          guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim(),
-          checkIn: booking.checkIn,
-          checkOut: booking.checkOut,
-          totalAmount: booking.totalAmount,
-          source: booking.source,
-          status: booking.status,
-        },
-      });
-    } catch (triggerError) {
-      console.error('[Booking Created] Failed to fire automation trigger:', triggerError);
-    }
+    // Fire automation trigger for booking creation
+    fireAutomationEvent('booking.created', {
+      tenantId: booking.tenantId,
+      propertyId: booking.propertyId,
+      entityId: booking.id,
+      data: {
+        bookingId: booking.id,
+        confirmationCode: booking.confirmationCode,
+        guestId: booking.primaryGuestId,
+        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim(),
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        totalAmount: booking.totalAmount,
+        source: booking.source,
+        status: booking.status,
+      },
+    });
 
     return NextResponse.json({ success: true, data: transformedBooking }, { status: 201 });
   } catch (error) {

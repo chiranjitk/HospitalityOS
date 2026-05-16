@@ -21,6 +21,7 @@ import {
   MousePointer, Eye, CheckCircle2, XCircle, ArrowRight, Star,
   CalendarDays, Hotel, Send, Filter, Target, Split, Timer,
   TrendingUp, DollarSign, Activity, Copy, MoreHorizontal, Search,
+  AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {

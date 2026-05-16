@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { emitBookingCheckedIn } from '@/lib/events/booking-events';
-import { fireTrigger } from '@/lib/automation/trigger-engine';
+import { fireAutomationEvent } from '@/lib/automation/hooks';
 
 // POST /api/frontdesk/kiosk-checkin - Process express check-in from kiosk
 export async function POST(request: NextRequest) {
@@ -172,27 +172,22 @@ export async function POST(request: NextRequest) {
       console.warn('[Kiosk Check-in] Failed to emit booking event:', eventError);
     }
 
-    // SECURITY FIX (H-3): Wire automation trigger engine to check-in event.
-    try {
-      fireTrigger({
-        eventType: 'guest.check_in',
-        tenantId: booking.tenantId,
-        propertyId: booking.propertyId,
-        entityId: booking.id,
-        data: {
-          bookingId: booking.id,
-          guestId: booking.primaryGuest.id,
-          guestName: `${booking.primaryGuest.firstName} ${booking.primaryGuest.lastName}`,
-          roomId: booking.room.id,
-          roomNumber: booking.room.number,
-          checkIn: booking.checkIn,
-          checkOut: booking.checkOut,
-          performedBy: 'kiosk-self-service',
-        },
-      });
-    } catch (triggerError) {
-      console.error('[Kiosk Check-in] Failed to fire automation trigger:', triggerError);
-    }
+    // Fire automation trigger for kiosk guest check-in
+    fireAutomationEvent('guest.check_in', {
+      tenantId: booking.tenantId,
+      propertyId: booking.propertyId,
+      entityId: booking.id,
+      data: {
+        bookingId: booking.id,
+        guestId: booking.primaryGuest.id,
+        guestName: `${booking.primaryGuest.firstName} ${booking.primaryGuest.lastName}`,
+        roomId: booking.room.id,
+        roomNumber: booking.room.number,
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        performedBy: 'kiosk-self-service',
+      },
+    });
 
     return NextResponse.json({
       success: true,

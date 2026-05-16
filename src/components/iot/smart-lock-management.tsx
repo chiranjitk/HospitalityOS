@@ -244,10 +244,11 @@ export default function SmartLockManagement() {
       setLoading(true);
       setError(null);
       try {
-        const [devicesRes, locksRes, logsRes] = await Promise.allSettled([
+        const [devicesRes, locksRes, logsRes, cardsRes] = await Promise.allSettled([
           fetch('/api/iot/devices?type=smart_lock&limit=200', { signal: controller.signal }),
           fetch('/api/integrations/smart-locks/locks', { signal: controller.signal }),
           fetch('/api/integrations/smart-locks/access-logs?success=all', { signal: controller.signal }),
+          fetch('/api/key-cards', { signal: controller.signal }),
         ]);
         if (cancelled) return;
 
@@ -315,6 +316,38 @@ export default function SmartLockManagement() {
             setAccessLogs(logs);
           }
         }
+
+        // Process key cards
+        if (cardsRes.status === 'fulfilled' && cardsRes.value.ok) {
+          const json = await cardsRes.value.json();
+          if (json.success && json.data) {
+            const statusMap: Record<string, KeyCard['status']> = {
+              issued: 'active',
+              active: 'active',
+              deactivated: 'deactivated',
+              returned: 'deactivated',
+              lost: 'lost',
+            };
+            const cards: KeyCard[] = json.data.map((c: Record<string, unknown>) => ({
+              id: c.id as string,
+              cardId: (c.cardNumber as string) || (c.id as string),
+              cardType: (c.cardType === 'master' || c.cardType === 'emergency' || c.cardType === 'staff')
+                ? c.cardType as KeyCard['cardType']
+                : 'guest' as const,
+              assignedTo: (c.issuerName as string) || 'Unknown',
+              roomNumber: (c.room as Record<string, unknown>)?.number
+                ? String((c.room as Record<string, unknown>).number)
+                : '',
+              status: statusMap[(c.status as string)] || 'deactivated',
+              issuedDate: c.validFrom ? String(c.validFrom) : (c.issuedAt ? String(c.issuedAt) : new Date().toISOString()),
+              expiryDate: c.validTo ? String(c.validTo) : '',
+              lastUsed: (c.activatedAt as string) || undefined,
+            }));
+            setKeyCards(cards);
+          }
+        } else if (cardsRes.status === 'fulfilled' && !cardsRes.value.ok) {
+          console.warn('[SmartLockManagement] Key cards API returned', cardsRes.value.status);
+        }
       } catch (err) {
         if (!cancelled && err instanceof Error && err.name !== 'AbortError') {
           setError(err.message || 'Failed to load lock data');
@@ -358,7 +391,7 @@ export default function SmartLockManagement() {
       const matchType = cardTypeFilter === 'all' || c.cardType === cardTypeFilter;
       return matchSearch && matchType;
     });
-  }, [cardSearch, cardTypeFilter]);
+  }, [keyCards, cardSearch, cardTypeFilter]);
 
   const lockStats = useMemo(() => {
     const total = roomLocks.length;
