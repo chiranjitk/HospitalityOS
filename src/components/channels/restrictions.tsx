@@ -338,7 +338,7 @@ export default function Restrictions() {
                           <p className="font-medium">{item.roomType}</p>
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            {format(item.date, 'MMM dd, yyyy')}
+                            {item.date ? format(new Date(item.date), 'MMM dd, yyyy') : 'N/A'}
                           </p>
                         </div>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(item)}>
@@ -399,7 +399,7 @@ export default function Restrictions() {
                             <TableCell>
                               <div className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                                {format(item.date, 'MMM dd, yyyy')}
+                                {item.date ? format(new Date(item.date), 'MMM dd, yyyy') : 'N/A'}
                               </div>
                             </TableCell>
                             <TableCell>
