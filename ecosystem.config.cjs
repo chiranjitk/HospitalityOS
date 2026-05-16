@@ -26,6 +26,20 @@ module.exports = {
       out_file: '/home/z/my-project/.pm2/logs/staysuite-main-out.log',
     },
     {
+      name: 'staysuite-freeradius',
+      script: `${APP_DIR}/freeradius-install/sbin/radiusd`,
+      args: `-d ${APP_DIR}/freeradius-install/etc/raddb -D ${APP_DIR}/freeradius-install/share/freeradius -f`,
+      cwd: APP_DIR,
+      interpreter: 'none',
+      watch: false,
+      autorestart: true,
+      env: {
+        LD_LIBRARY_PATH: `${APP_DIR}/freeradius-install/lib:${APP_DIR}/freeradius-install/lib/freeradius:${APP_DIR}/pgsql-runtime/lib`,
+      },
+      error_file: '/home/z/my-project/.pm2/logs/freeradius-error.log',
+      out_file: '/home/z/my-project/.pm2/logs/freeradius-out.log',
+    },
+    {
       name: 'realtime-service',
       script: 'index.ts',
       interpreter: '/usr/local/bin/bun',
