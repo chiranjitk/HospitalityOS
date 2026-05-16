@@ -228,7 +228,6 @@ export default function OfflinePOS() {
   useEffect(() => {
     const handleOnline = () => setConnectionStatus('online');
     const handleOffline = () => setConnectionStatus('offline');
-    setConnectionStatus(navigator.onLine ? 'online' : 'offline');
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
@@ -241,11 +240,13 @@ export default function OfflinePOS() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/restaurant/orders?limit=50');
+        const res = await fetch('/api/orders?limit=50');
         if (cancelled) return;
         if (res.ok) {
           const json = await res.json();
-          setRecentOrders(json.data?.orders || json.orders || []);
+          // /api/orders returns { success, data: [...orders], pagination }
+          const ordersList = json.data;
+          setRecentOrders(Array.isArray(ordersList) ? ordersList : []);
         }
       } catch (err) {
         if (!cancelled) setError('Failed to load orders');
@@ -757,7 +758,7 @@ export default function OfflinePOS() {
                   <Copy className="h-4 w-4 text-amber-500" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold">{([].filter(c => c.conflictType === 'duplicate').length}</div>
+                  <div className="text-xl font-bold">{([].filter((c: any) => c.conflictType === 'duplicate')).length}</div>
                   <div className="text-[10px] text-muted-foreground">Duplicates</div>
                 </div>
               </div>
@@ -768,7 +769,7 @@ export default function OfflinePOS() {
                   <Layers className="h-4 w-4 text-violet-500" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold">{([].filter(c => c.conflictType === 'stock').length}</div>
+                  <div className="text-xl font-bold">{([].filter((c: any) => c.conflictType === 'stock')).length}</div>
                   <div className="text-[10px] text-muted-foreground">Stock Conflicts</div>
                 </div>
               </div>
@@ -793,7 +794,7 @@ export default function OfflinePOS() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {([].map(conflict => {
+                    {([] as any[]).map(conflict => {
                       const sevCfg = SEVERITY_CONFIG[conflict.severity];
                       const typeCfg = CONFLICT_TYPE_CONFIG[conflict.conflictType];
                       return (

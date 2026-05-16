@@ -2,6 +2,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
+// ─── Retry helper with exponential backoff ─────────────────────────────
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY_MS = 1000;
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = MAX_RETRIES): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok || response.status < 500) {
+        return response;
+      }
+      // Only retry on 5xx errors
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+    if (attempt < retries) {
+      const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw lastError || new Error('Fetch failed after retries');
+}
+
 // POST /api/integrations/pos-systems/[id]/sync - Sync menu items or orders
 export async function POST(
   request: NextRequest,
@@ -344,17 +369,54 @@ async function fetchMenuFromPOS(
 }
 
 /**
- * Push menu item to POS - logs the push attempt
+ * Push menu item to POS - sends data to the configured POS HTTP endpoint
  */
 async function pushMenuItemToPOS(
   provider: string,
   config: Record<string, unknown>,
   item: Record<string, unknown>
 ): Promise<boolean> {
-  console.log(`Pushing item ${item.name} to ${provider}`);
-  // In production, this would call the actual POS API endpoint
-  // The item data is real from the database — logging the attempt
-  return true;
+  const endpointUrl = config.endpointUrl as string | undefined;
+  const apiKey = config.apiKey as string | undefined;
+
+  if (!endpointUrl) {
+    console.warn(`No endpoint URL configured for POS provider ${provider}. Skipping push for item ${item.name}.`);
+    return false;
+  }
+
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
+    const response = await fetchWithRetry(`${endpointUrl}/menu/items`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        action: 'upsert',
+        provider,
+        item: {
+          id: item.id,
+          name: item.name,
+          price: item.price,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      console.error(`Failed to push menu item to ${provider}: ${response.status} ${text}`);
+      return false;
+    }
+
+    const result = await response.json().catch(() => null);
+    console.log(`Successfully pushed menu item ${item.name} to ${provider}`, result);
+    return true;
+  } catch (error) {
+    console.error(`Error pushing menu item ${item.name} to ${provider}:`, error);
+    return false;
+  }
 }
 
 /**
@@ -406,17 +468,54 @@ async function fetchOrdersFromPOS(
 }
 
 /**
- * Push order to POS - logs the push attempt with real order data
+ * Push order to POS - sends order data to the configured POS HTTP endpoint
  */
 async function pushOrderToPOS(
   provider: string,
   config: Record<string, unknown>,
   order: Record<string, unknown>
 ): Promise<string | null> {
-  console.log(`Pushing order ${order.id} to ${provider}`);
-  // In production, this would call the actual POS API endpoint
-  // The order data is real from the database — logging the attempt
-  return order.id as string || null;
+  const endpointUrl = config.endpointUrl as string | undefined;
+  const apiKey = config.apiKey as string | undefined;
+
+  if (!endpointUrl) {
+    console.warn(`No endpoint URL configured for POS provider ${provider}. Skipping push for order ${order.id}.`);
+    return null;
+  }
+
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
+    const response = await fetchWithRetry(`${endpointUrl}/orders`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        action: 'create',
+        provider,
+        order: {
+          id: order.id,
+          orderNumber: order.orderNumber,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      console.error(`Failed to push order ${order.id} to ${provider}: ${response.status} ${text}`);
+      return null;
+    }
+
+    const result = await response.json().catch(() => null);
+    const posOrderId = (result?.id || result?.orderId || order.id) as string;
+    console.log(`Successfully pushed order ${order.id} to ${provider} as ${posOrderId}`);
+    return posOrderId;
+  } catch (error) {
+    console.error(`Error pushing order ${order.id} to ${provider}:`, error);
+    return null;
+  }
 }
 
 // GET /api/integrations/pos-systems/[id]/sync - Get sync history

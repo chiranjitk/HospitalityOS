@@ -88,24 +88,83 @@ export async function GET(request: NextRequest) {
     }
 
     if (format === 'xlsx') {
+      // NOTE: The xlsx npm package is not installed. Generating CSV with correct
+      // content-type instead. To produce real .xlsx files, install the 'xlsx' or
+      // 'exceljs' package and replace generateCSV with a proper spreadsheet writer.
       const csvContent = generateCSV(data, columns);
       const BOM = '\uFEFF';
       return new NextResponse(BOM + csvContent, {
         headers: {
-          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'Content-Disposition': `attachment; filename="${sanitizeFilename(title)}-${new Date().toISOString().split('T')[0]}.xlsx"`,
+          'Content-Type': 'text/csv;charset=utf-8',
+          'Content-Disposition': `attachment; filename="${sanitizeFilename(title)}-${new Date().toISOString().split('T')[0]}.csv"`,
         },
       });
     }
 
     if (format === 'pdf') {
-      const htmlContent = generateHTML(data, columns, title, generatedAt, tenant);
-      return new NextResponse(htmlContent, {
-        headers: {
-          'Content-Type': 'text/html;charset=utf-8',
-          'Content-Disposition': `inline; filename="${sanitizeFilename(title)}-${new Date().toISOString().split('T')[0]}.html"`,
-        },
-      });
+      // Generate a real PDF using jspdf + jspdf-autotable (both in package.json).
+      // Falls back to an HTML printable page if the dynamic import fails.
+      try {
+        const { jsPDF } = await import('jspdf');
+        await import('jspdf-autotable');
+
+        const useColumns = columns.length > 0
+          ? columns
+          : Object.keys(data[0]).map(key => ({ key, label: key }));
+
+        const doc = new jsPDF({ orientation: 'landscape' });
+
+        // Title
+        doc.setFontSize(20);
+        doc.text(title, 14, 20);
+
+        // Meta info
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`${tenant}  |  Generated on ${generatedAt}  |  ${data.length} records`, 14, 28);
+
+        // Table
+        const tableHead = [useColumns.map(col => col.label)];
+        const tableBody = data.map(row =>
+          useColumns.map(col => {
+            const val = row[col.key];
+            return val !== null && val !== undefined ? String(val) : '-';
+          })
+        );
+
+        (doc as unknown as { autoTable: (options: Record<string, unknown>) => void }).autoTable({
+          head: tableHead,
+          body: tableBody,
+          startY: 34,
+          styles: { fontSize: 8, cellPadding: 3 },
+          headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+        });
+
+        // Footer
+        const pageHeight = doc.internal.pageSize.height;
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184);
+        doc.text('StaySuite HospitalityOS  |  Confidential - For internal use only', 14, pageHeight - 10);
+
+        const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+        return new NextResponse(pdfBuffer, {
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="${sanitizeFilename(title)}-${new Date().toISOString().split('T')[0]}.pdf"`,
+          },
+        });
+      } catch (pdfError) {
+        console.error('jsPDF generation failed, falling back to HTML:', pdfError);
+        // Fallback: serve a printable HTML page the user can "Print to PDF"
+        const htmlContent = generateHTML(data, columns, title, generatedAt, tenant);
+        return new NextResponse(htmlContent, {
+          headers: {
+            'Content-Type': 'text/html;charset=utf-8',
+            'Content-Disposition': `inline; filename="${sanitizeFilename(title)}-${new Date().toISOString().split('T')[0]}.html"`,
+          },
+        });
+      }
     }
 
     return NextResponse.json(

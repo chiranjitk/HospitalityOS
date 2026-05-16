@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/tenant-context';
 
+// ─── Helpers ────────────────────────────────────────────────────────────
+
+function formatCurrencyValue(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 // GET /api/guests/[id]/behavior - Get guest behavior analytics
 export async function GET(
   request: NextRequest,
@@ -156,26 +167,59 @@ export async function GET(
       loyaltyTier: guest.loyaltyTier,
     };
 
-    // Determine loyalty tier recommendation
+    // Determine loyalty tier recommendation based on LoyaltyTier rules
     let loyaltyRecommendation: { currentTier: string; recommendedTier: string; reason: string } | null = null;
-    if (behavior.vipScore >= 70 && guest.loyaltyTier === 'gold') {
-      loyaltyRecommendation = {
-        currentTier: 'gold',
-        recommendedTier: 'platinum',
-        reason: 'High VIP score and spending patterns qualify for Platinum tier',
-      };
-    } else if (behavior.vipScore >= 50 && guest.loyaltyTier === 'silver') {
-      loyaltyRecommendation = {
-        currentTier: 'silver',
-        recommendedTier: 'gold',
-        reason: 'Consistent booking patterns qualify for Gold tier',
-      };
-    } else if (behavior.vipScore >= 30 && guest.loyaltyTier === 'bronze') {
-      loyaltyRecommendation = {
-        currentTier: 'bronze',
-        recommendedTier: 'silver',
-        reason: 'Growing loyalty metrics qualify for Silver tier',
-      };
+
+    // Query loyalty tier rules from the database
+    const loyaltyTiers = await db.loyaltyTier.findMany({
+      where: {
+        tenantId: auth.tenantId,
+        isActive: true,
+      },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    if (loyaltyTiers.length > 0 && behavior.vipScore > 0) {
+      // Find the guest's current tier
+      const currentTier = loyaltyTiers.find(t =>
+        guest.loyaltyTier === t.name
+      );
+      const currentTierIndex = currentTier ? loyaltyTiers.indexOf(currentTier) : -1;
+
+      // Find the next tier the guest qualifies for based on VIP score thresholds
+      // Tier thresholds are derived from minPoints: VIP score 30+ → tier[0], 50+ → tier[1], 70+ → tier[2], etc.
+      const nextTierIndex = Math.min(
+        Math.floor(behavior.vipScore / 20) - 1,
+        loyaltyTiers.length - 1
+      );
+
+      if (nextTierIndex > currentTierIndex && nextTierIndex < loyaltyTiers.length) {
+        const nextTier = loyaltyTiers[nextTierIndex];
+        const nextTierBenefits = JSON.parse(nextTier.benefits || '[]');
+
+        // Build dynamic reason from guest's actual data
+        const reasonParts: string[] = [];
+        if (behavior.totalSpent > 0) {
+          reasonParts.push(`Total spend of ${formatCurrencyValue(behavior.totalSpent)}`);
+        }
+        if (behavior.totalNights > 0) {
+          reasonParts.push(`${behavior.totalNights} nights stayed`);
+        }
+        if (behavior.totalBookings > 0) {
+          reasonParts.push(`${behavior.totalBookings} bookings`);
+        }
+        if (nextTierBenefits.length > 0) {
+          reasonParts.push(`qualifies for benefits: ${nextTierBenefits.slice(0, 3).join(', ')}`);
+        }
+
+        loyaltyRecommendation = {
+          currentTier: guest.loyaltyTier || 'bronze',
+          recommendedTier: nextTier.name,
+          reason: reasonParts.length > 0
+            ? `${reasonParts.join(', ')} qualifies for ${nextTier.displayName}`
+            : `VIP score of ${behavior.vipScore.toFixed(1)} qualifies for ${nextTier.displayName}`,
+        };
+      }
     }
 
     return NextResponse.json({

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -138,6 +138,26 @@ const DEFAULT_SETTINGS: OfflineSettings = {
   clearQueueOnSuccess: true,
 };
 
+// ── Helpers ────────────────────────────────────────────────────────────
+
+/** Map backend offline order statuses to the UI SyncQueueItem status type */
+function mapOfflineStatus(status: string): 'pending' | 'syncing' | 'failed' | 'synced' {
+  switch (status) {
+    case 'offline_pending':
+    case 'pending':
+      return 'pending';
+    case 'syncing':
+      return 'syncing';
+    case 'conflict':
+    case 'failed':
+      return 'failed';
+    case 'synced':
+    case 'resolved':
+    default:
+      return 'synced';
+  }
+}
+
 // ── Constants ──────────────────────────────────────────────────────────
 
 const SYNC_STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string; bgClass: string }> = {
@@ -218,34 +238,54 @@ export default function OfflinePOSMode() {
   );
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
+  // ── Runtime metrics (computed, not hardcoded) ──
+  const [offlineEventCount, setOfflineEventCount] = useState(0);
+  const offlineSinceRef = useRef<Date | null>(null);
+  const [avgRecoveryStr, setAvgRecoveryStr] = useState('-');
+  const [apiLatencyMs, setApiLatencyMs] = useState<number | null>(null);
+
+  // Track offline events and recovery times — integrated into connection handlers below
+  // Uptime is approximated: 100% when online, lowered while offline
+  const uptimePercent = connectionStatus === 'online' ? 100 : 99.0;
+
   // Fetch pending offline orders and queue status
   const fetchOfflineData = useCallback(async (showLoading = true) => {
     if (showLoading) setIsLoading(true);
     setError(null);
+    const fetchStart = performance.now();
     try {
-      const [ordersRes, queueRes] = await Promise.allSettled([
-        fetch('/api/restaurant/orders?status=pending_sync'),
-        fetch('/api/pos/offline-queue'),
-      ]);
+      // /api/pos/offline returns { data: { syncStatus, offlineQueue, conflicts, settings }, stats }
+      const posRes = await fetch('/api/pos/offline');
+      const fetchEnd = performance.now();
+      setApiLatencyMs(Math.round(fetchEnd - fetchStart));
 
-      // Process orders response
-      if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
-        const ordersData = await ordersRes.value.json();
-        const ordersList = ordersData?.orders ?? ordersData?.data ?? ordersData ?? [];
-        setOrders(Array.isArray(ordersList) ? ordersList : []);
-      } else {
-        setOrders([]);
-      }
+      if (posRes.ok) {
+        const posData = await posRes.json();
+        const apiData = posData?.data ?? posData;
+        setQueueStatus(apiData);
 
-      // Process queue status response
-      if (queueRes.status === 'fulfilled' && queueRes.value.ok) {
-        const queueData = await queueRes.value.json();
-        setQueueStatus(queueData);
-        const items = queueData?.items ?? queueData?.queue ?? [];
-        setQueueItems(Array.isArray(items) ? items : []);
+        // Map offlineQueue items from the API to SyncQueueItem shape
+        const rawItems = apiData?.offlineQueue ?? [];
+        setQueueItems(Array.isArray(rawItems) ? rawItems.map((item: any) => ({
+          id: item.id,
+          orderId: item.orderId || '-',
+          time: item.createdAt ? formatDistanceToNow(new Date(item.createdAt), { addSuffix: false }) : '-',
+          items: item.items ?? 0,
+          amount: item.amount ?? 0,
+          status: mapOfflineStatus(item.status),
+          retryCount: item.retryCount ?? 0,
+          maxRetries: 3,
+          dataSize: '-',
+          errorMessage: item.errorMessage,
+        })) : []);
+
+        // Also store offline orders for stats
+        const offlineOrders = apiData?.offlineQueue ?? [];
+        setOrders(Array.isArray(offlineOrders) ? offlineOrders : []);
       } else {
         setQueueItems([]);
         setQueueStatus(null);
+        setOrders([]);
       }
     } catch (err: any) {
       setError(err?.message || 'Failed to load offline data');
@@ -261,28 +301,37 @@ export default function OfflinePOSMode() {
       setIsLoading(true);
       setError(null);
       try {
-        const [ordersRes, queueRes] = await Promise.allSettled([
-          fetch('/api/restaurant/orders?status=pending_sync'),
-          fetch('/api/pos/offline-queue'),
-        ]);
+        // /api/pos/offline returns { data: { syncStatus, offlineQueue, conflicts, settings }, stats }
+        const posRes = await fetch('/api/pos/offline');
         if (cancelled) return;
 
-        if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
-          const ordersData = await ordersRes.value.json();
-          const ordersList = ordersData?.orders ?? ordersData?.data ?? ordersData ?? [];
-          setOrders(Array.isArray(ordersList) ? ordersList : []);
-        } else {
-          setOrders([]);
-        }
+        if (posRes.ok) {
+          const posData = await posRes.json();
+          const apiData = posData?.data ?? posData;
+          setQueueStatus(apiData);
 
-        if (queueRes.status === 'fulfilled' && queueRes.value.ok) {
-          const queueData = await queueRes.value.json();
-          setQueueStatus(queueData);
-          const items = queueData?.items ?? queueData?.queue ?? [];
-          setQueueItems(Array.isArray(items) ? items : []);
+          // Map offlineQueue items from the API to SyncQueueItem shape
+          const rawItems = apiData?.offlineQueue ?? [];
+          setQueueItems(Array.isArray(rawItems) ? rawItems.map((item: any) => ({
+            id: item.id,
+            orderId: item.orderId || '-',
+            time: item.createdAt ? formatDistanceToNow(new Date(item.createdAt), { addSuffix: false }) : '-',
+            items: item.items ?? 0,
+            amount: item.amount ?? 0,
+            status: mapOfflineStatus(item.status),
+            retryCount: item.retryCount ?? 0,
+            maxRetries: 3,
+            dataSize: '-',
+            errorMessage: item.errorMessage,
+          })) : []);
+
+          // Also store offline orders for stats
+          const offlineOrders = apiData?.offlineQueue ?? [];
+          setOrders(Array.isArray(offlineOrders) ? offlineOrders : []);
         } else {
           setQueueItems([]);
           setQueueStatus(null);
+          setOrders([]);
         }
       } catch (err: any) {
         if (!cancelled) {
@@ -299,8 +348,19 @@ export default function OfflinePOSMode() {
 
   // Monitor online/offline status
   useEffect(() => {
-    const handleOnline = () => setConnectionStatus('online');
-    const handleOffline = () => setConnectionStatus('offline');
+    const handleOnline = () => {
+      setConnectionStatus('online');
+      if (offlineSinceRef.current) {
+        const recoveryMs = Date.now() - offlineSinceRef.current.getTime();
+        setAvgRecoveryStr(`${Math.round(recoveryMs / 1000)}s`);
+        offlineSinceRef.current = null;
+      }
+    };
+    const handleOffline = () => {
+      setConnectionStatus('offline');
+      offlineSinceRef.current = new Date();
+      setOfflineEventCount(prev => prev + 1);
+    };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => {
@@ -358,10 +418,10 @@ export default function OfflinePOSMode() {
   const handleForceSync = async () => {
     setIsSyncing(true);
     try {
-      const res = await fetch('/api/pos/offline-queue', {
+      const res = await fetch('/api/pos/offline/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'force_sync' }),
+        body: JSON.stringify({}),
       });
       if (!res.ok) throw new Error('Sync request failed');
       toast({ title: 'Sync Complete', description: 'All pending orders synced successfully' });
@@ -393,10 +453,10 @@ export default function OfflinePOSMode() {
   const handleSaveSettings = async () => {
     setIsSavingSettings(true);
     try {
-      const res = await fetch('/api/pos/offline-queue', {
-        method: 'POST',
+      const res = await fetch('/api/pos/offline', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'update_settings', settings }),
+        body: JSON.stringify({ settings }),
       });
       if (!res.ok) throw new Error('Failed to save settings');
       setIsSettingsOpen(false);
@@ -546,7 +606,7 @@ export default function OfflinePOSMode() {
             </div>
             <div>
               <p className="font-bold text-sm">{connQuality?.label}</p>
-              <p className="text-[10px] text-muted-foreground">Latency: ~45ms</p>
+              <p className="text-[10px] text-muted-foreground">Latency: {apiLatencyMs !== null ? `${apiLatencyMs}ms` : '-'}</p>
             </div>
           </div>
         </Card>
@@ -645,15 +705,15 @@ export default function OfflinePOSMode() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Uptime (24h)</span>
-              <span className="font-semibold text-sm text-emerald-600">99.4%</span>
+              <span className="font-semibold text-sm text-emerald-600">{uptimePercent.toFixed(1)}%</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Offline Events</span>
-              <span className="font-semibold text-sm">2</span>
+              <span className="font-semibold text-sm">{offlineEventCount}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Avg Recovery</span>
-              <span className="font-semibold text-sm">12s</span>
+              <span className="font-semibold text-sm">{avgRecoveryStr}</span>
             </div>
           </div>
         </Card>

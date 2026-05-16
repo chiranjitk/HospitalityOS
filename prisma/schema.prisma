@@ -2605,6 +2605,7 @@ model GoogleHotelAdsConnection {
   lengthOfStayModifier   String    @default("{}")
   autoBidEnabled         Boolean   @default(true)
   autoBidRules           String    @default("[]")
+  credentials            Json      @default("{}")
   createdAt              DateTime  @default(now()) @db.Timestamptz
   updatedAt              DateTime  @updatedAt @db.Timestamptz
   tenant                 Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -3681,6 +3682,29 @@ model MetasearchConnection {
   @@unique([tenantId, propertyId, platform])
   @@index([tenantId])
   @@index([platform])
+  @@index([status])
+}
+
+model MetaAdsConnection {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String?   @db.Uuid
+  appId           String
+  appSecret       String
+  accessToken     String
+  refreshToken    String?
+  accountId       String
+  pixelId         String?
+  status          String    @default("disconnected") // disconnected, connected, error
+  config          Json      @default("{}")
+  credentials     Json      @default("{}")
+  lastSyncedAt    DateTime? @db.Timestamptz
+  lastError       String?
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, propertyId])
   @@index([status])
 }
 
@@ -6507,6 +6531,7 @@ model Tenant {
   adCampaigns               AdCampaign[]
   googleHotelAdsConnections GoogleHotelAdsConnection[]
   metasearchConnections     MetasearchConnection[]
+  metaAdsConnections        MetaAdsConnection[]
   loyaltyTiers              LoyaltyTier[]
   loyaltyRewards            LoyaltyReward[]
   loyaltyRedemptions        LoyaltyRedemption[]

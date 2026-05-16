@@ -7,6 +7,8 @@
 
 import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
+import { emailService, TemplatedEmailOptions } from '@/lib/services/email-service';
+import { smsService, TemplatedSMSOptions } from '@/lib/services/sms-service';
 
 // ── Types ──
 
@@ -263,11 +265,85 @@ async function executeAction(
         return { success: true };
       }
 
-      case 'send_email':
+      case 'send_email': {
+        const { to, subject, body, html, templateId, templateCode, variables } = action.params as {
+          to?: string;
+          subject?: string;
+          body?: string;
+          html?: string;
+          templateId?: string;
+          templateCode?: string;
+          variables?: Record<string, string | number | boolean>;
+        };
+
+        if (!to) {
+          return { success: false, error: 'Email action requires a "to" recipient' };
+        }
+
+        // Resolve recipient from payload if it contains a guest email
+        const recipient = to === '{{guestEmail}}' || to === '${guestEmail}'
+          ? (payload.data.guestEmail as string | undefined) || to
+          : to;
+
+        const emailOptions: TemplatedEmailOptions = {
+          to: recipient,
+          subject: subject || `[Automation] ${ruleId}`,
+          tenantId: payload.tenantId,
+          templateId,
+          templateCode,
+          variables: {
+            ...variables,
+            eventId: payload.entityId || '',
+            eventType: payload.eventType,
+          },
+        };
+
+        if (html) emailOptions.html = html;
+        if (body) emailOptions.text = body;
+
+        const emailResult = await emailService.send(emailOptions);
+        if (!emailResult.success) {
+          return { success: false, error: `Email send failed: ${emailResult.error}` };
+        }
+        return { success: true };
+      }
+
       case 'send_sms': {
-        // Placeholder: email/SMS integrations should be implemented here
-        console.log(`[AutomationRule ${ruleId}] ${action.type}: ${JSON.stringify(action.params)} (integration pending)`);
-        return { success: true, error: `${action.type} integration not yet implemented` };
+        const { to, message, templateId, templateCode, variables } = action.params as {
+          to?: string;
+          message?: string;
+          templateId?: string;
+          templateCode?: string;
+          variables?: Record<string, string | number | boolean>;
+        };
+
+        if (!to) {
+          return { success: false, error: 'SMS action requires a "to" recipient' };
+        }
+
+        // Resolve recipient from payload if it contains a guest phone
+        const phone = to === '{{guestPhone}}' || to === '${guestPhone}'
+          ? (payload.data.guestPhone as string | undefined) || to
+          : to;
+
+        const smsOptions: TemplatedSMSOptions = {
+          to: phone,
+          message: message || '',
+          tenantId: payload.tenantId,
+          templateId,
+          templateCode,
+          variables: {
+            ...variables,
+            eventId: payload.entityId || '',
+            eventType: payload.eventType,
+          },
+        };
+
+        const smsResult = await smsService.send(smsOptions);
+        if (!smsResult.success) {
+          return { success: false, error: `SMS send failed: ${smsResult.error}` };
+        }
+        return { success: true };
       }
 
       default:

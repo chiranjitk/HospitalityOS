@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
   Wifi,
@@ -14,10 +15,12 @@ import {
   ArrowUp,
   ArrowDown,
   Users,
+  RefreshCw,
+  AlertTriangle,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-// ─── Mock Data Types ──────────────────────────────────────────────────
+// ─── Data Types ──────────────────────────────────────────────────────
 
 interface KPIMetric {
   label: string;
@@ -410,17 +413,193 @@ function AuthEventRow({ event, index }: { event: AuthEvent; index: number }) {
   );
 }
 
+// ─── Format helpers ──────────────────────────────────────────────────
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const value = bytes / Math.pow(k, i);
+  return `${value.toFixed(1)} ${sizes[i]}`;
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds === 0) return '0m';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function timeAgo(date: Date | string): string {
+  const now = Date.now();
+  const then = new Date(date).getTime();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return `${Math.floor(diffHr / 24)}d ago`;
+}
+
 // ─── Main WiFi Analytics Widget ───────────────────────────────────────
 
 export function WiFiAnalyticsWidget() {
-  // Generate mock data with useMemo
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // API data state
+  const [activeSessionsCount, setActiveSessionsCount] = useState(0);
+  const [totalDataUsed, setTotalDataUsed] = useState(0);
+  const [avgDuration, setAvgDuration] = useState(0);
+  const [authSuccessRate, setAuthSuccessRate] = useState(0);
+  const [authTotal, setAuthTotal] = useState(0);
+  const [authRejects, setAuthRejects] = useState(0);
+  const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
+  const [planDistribution, setPlanDistribution] = useState<PlanDistribution[]>([]);
+  const [authEvents, setAuthEvents] = useState<AuthEvent[]>([]);
+
+  const fetchWiFiData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [sessionsRes, identityRes] = await Promise.allSettled([
+        fetch('/api/wifi/sessions?status=active&limit=500'),
+        fetch('/api/wifi/identity-logs?limit=5'),
+      ]);
+
+      // Parse sessions data
+      if (sessionsRes.status === 'fulfilled' && sessionsRes.value.ok) {
+        const sessionsJson = await sessionsRes.value.json();
+        if (sessionsJson.success) {
+          const summary = sessionsJson.summary;
+          setActiveSessionsCount(summary?.count || 0);
+
+          const dataBytes = Number(summary?.totalDataUsed || 0);
+          setTotalDataUsed(dataBytes);
+
+          const totalDur = Number(summary?.totalDuration || 0);
+          const count = summary?.count || 1;
+          setAvgDuration(Math.round(totalDur / count));
+
+          // Build hourly trend from session data
+          const sessions = sessionsJson.data || [];
+          const hourlyBuckets = new Map<string, number>();
+          for (const s of sessions) {
+            if (s.startTime) {
+              const start = new Date(s.startTime);
+              const hourKey = `${String(start.getHours()).padStart(2, '0')}:00`;
+              hourlyBuckets.set(hourKey, (hourlyBuckets.get(hourKey) || 0) + 1);
+            }
+          }
+
+          const trendPoints: TrendDataPoint[] = [];
+          const now = new Date();
+          for (let h = 0; h < 24; h += 2) {
+            const key = `${String(h).padStart(2, '0')}:00`;
+            trendPoints.push({
+              hour: key,
+              sessions: hourlyBuckets.get(key) || 0,
+            });
+          }
+          setTrendData(trendPoints);
+        }
+      }
+
+      // Parse identity logs (auth events)
+      if (identityRes.status === 'fulfilled' && identityRes.value.ok) {
+        const identityJson = await identityRes.value.json();
+        if (identityJson.success) {
+          const logs = identityJson.data || [];
+          const events: AuthEvent[] = logs.slice(0, 5).map((log: Record<string, unknown>, idx: number) => ({
+            id: `auth-${idx}`,
+            type: (log.verificationStatus === 'verified' ? 'accept' : 'reject') as 'accept' | 'reject',
+            username: (log.username as string) || 'unknown',
+            time: timeAgo(log.createdAt as string),
+            device: (log.deviceType as string) || (log.macAddress as string) || 'Unknown',
+          }));
+          setAuthEvents(events);
+        }
+      }
+
+      // Fetch plans for distribution
+      try {
+        const plansRes = await fetch('/api/wifi/plans?limit=100');
+        if (plansRes.ok) {
+          const plansJson = await plansRes.json();
+          if (plansJson.success) {
+            const plans = plansJson.data || [];
+            const totalUsers = plans.reduce((sum: number, p: Record<string, unknown>) => {
+              return sum + ((p as Record<string, unknown>)._count?.sessions || 0);
+            }, 0);
+
+            if (totalUsers > 0) {
+              const gradients = [
+                'from-teal-500 to-emerald-400',
+                'from-emerald-500 to-teal-400',
+                'from-amber-500 to-yellow-400',
+                'from-cyan-500 to-teal-400',
+                'from-orange-400 to-amber-300',
+                'from-rose-500 to-pink-400',
+              ];
+              const colors = [
+                'bg-teal-500',
+                'bg-emerald-500',
+                'bg-amber-500',
+                'bg-cyan-500',
+                'bg-orange-400',
+                'bg-rose-500',
+              ];
+
+              const dist: PlanDistribution[] = plans.slice(0, 6).map((p: Record<string, unknown>, idx: number) => {
+                const count = (p as Record<string, unknown>)._count?.sessions || 0;
+                const pct = Math.round((count / totalUsers) * 100);
+                return {
+                  name: (p.name as string) || `Plan ${idx + 1}`,
+                  users: count,
+                  percentage: pct,
+                  color: colors[idx % colors.length],
+                  gradient: gradients[idx % gradients.length],
+                };
+              });
+              setPlanDistribution(dist);
+            }
+          }
+        }
+      } catch {
+        // Plans data is supplementary, ignore failures
+      }
+
+      // Derive auth stats from data
+      const totalAuths = authEvents.length || 1;
+      const accepts = authEvents.filter(e => e.type === 'accept').length;
+      setAuthTotal(totalAuths);
+      setAuthRejects(totalAuths - accepts);
+      setAuthSuccessRate(totalAuths > 0 ? Math.round((accepts / totalAuths) * 1000) / 10 : 0);
+
+    } catch (err) {
+      console.error('Error fetching WiFi analytics:', err);
+      setError('Failed to load WiFi analytics');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(fetchWiFiData, 30000);
+    return () => clearInterval(interval);
+  }, [fetchWiFiData]);
+
+  // ─── Build KPI metrics from API data ──────────────────────────────
   const kpiMetrics = useMemo<KPIMetric[]>(() => [
     {
       label: 'Active Sessions',
-      value: '247',
-      sublabel: '↑ 12 from last hour',
+      value: String(activeSessionsCount),
+      sublabel: 'Connected now',
       trend: 'up',
-      trendValue: '+8%',
+      trendValue: 'Live',
       icon: Wifi,
       gradient: 'from-teal-400 to-emerald-500',
       iconBg: 'from-teal-400 to-emerald-500',
@@ -429,10 +608,10 @@ export function WiFiAnalyticsWidget() {
     },
     {
       label: 'Total Data Usage',
-      value: '18.4 GB',
-      sublabel: '↓ 2.1 DL / ↑ 1.8 UL GB',
-      trend: 'up',
-      trendValue: '+15%',
+      value: formatBytes(totalDataUsed),
+      sublabel: 'Across all sessions',
+      trend: 'neutral',
+      trendValue: '',
       icon: Activity,
       gradient: 'from-emerald-400 to-teal-500',
       iconBg: 'from-emerald-400 to-teal-500',
@@ -441,10 +620,10 @@ export function WiFiAnalyticsWidget() {
     },
     {
       label: 'Avg Session Duration',
-      value: '1h 34m',
-      sublabel: 'Peak: 4h 12m',
-      trend: 'up',
-      trendValue: '+5%',
+      value: formatDuration(avgDuration),
+      sublabel: 'Per active session',
+      trend: 'neutral',
+      trendValue: '',
       icon: Clock,
       gradient: 'from-amber-400 to-orange-500',
       iconBg: 'from-amber-400 to-orange-500',
@@ -453,48 +632,48 @@ export function WiFiAnalyticsWidget() {
     },
     {
       label: 'Auth Success Rate',
-      value: '96.8%',
-      sublabel: '8 rejects out of 249',
-      trend: 'up',
-      trendValue: '+2.1%',
+      value: `${authSuccessRate}%`,
+      sublabel: `${authRejects} rejects out of ${authTotal}`,
+      trend: authSuccessRate >= 90 ? 'up' : 'down',
+      trendValue: `${authSuccessRate >= 90 ? '+' : ''}${authSuccessRate - 90 >= 0 ? '' : ''}${Math.abs(authSuccessRate - 90).toFixed(1)}%`,
       icon: Shield,
       gradient: 'from-teal-500 to-cyan-500',
       iconBg: 'from-teal-500 to-cyan-500',
       lightBg: 'bg-teal-50/80 dark:bg-teal-950/30',
       textColor: 'text-teal-700 dark:text-teal-400',
     },
-  ], []);
+  ], [activeSessionsCount, totalDataUsed, avgDuration, authSuccessRate, authRejects, authTotal]);
 
-  const trendData = useMemo<TrendDataPoint[]>(() => [
-    { hour: '00:00', sessions: 82 },
-    { hour: '02:00', sessions: 45 },
-    { hour: '04:00', sessions: 28 },
-    { hour: '06:00', sessions: 56 },
-    { hour: '08:00', sessions: 134 },
-    { hour: '10:00', sessions: 198 },
-    { hour: '12:00', sessions: 221 },
-    { hour: '14:00', sessions: 247 },
-    { hour: '16:00', sessions: 235 },
-    { hour: '18:00', sessions: 210 },
-    { hour: '20:00', sessions: 178 },
-    { hour: '22:00', sessions: 142 },
-  ], []);
-
-  const planDistribution = useMemo<PlanDistribution[]>(() => [
-    { name: 'Premium Unlimited', users: 87, percentage: 35, color: 'bg-teal-500', gradient: 'from-teal-500 to-emerald-400' },
-    { name: 'Standard 24h', users: 62, percentage: 25, color: 'bg-emerald-500', gradient: 'from-emerald-500 to-teal-400' },
-    { name: 'Basic 4h', users: 48, percentage: 19, color: 'bg-amber-500', gradient: 'from-amber-500 to-yellow-400' },
-    { name: 'Enterprise', users: 32, percentage: 13, color: 'bg-cyan-500', gradient: 'from-cyan-500 to-teal-400' },
-    { name: 'Guest Free', users: 18, percentage: 8, color: 'bg-orange-400', gradient: 'from-orange-400 to-amber-300' },
-  ], []);
-
-  const authEvents = useMemo<AuthEvent[]>(() => [
-    { id: '1', type: 'accept', username: 'guest_3021', time: '2m ago', device: 'iPhone 15 Pro' },
-    { id: '2', type: 'accept', username: 'voucher_A7F2', time: '4m ago', device: 'Samsung Galaxy S24' },
-    { id: '3', type: 'reject', username: 'unknown_8842', time: '7m ago', device: 'Unknown Device' },
-    { id: '4', type: 'accept', username: 'guest_1847', time: '9m ago', device: 'MacBook Air M3' },
-    { id: '5', type: 'accept', username: 'enterprise_cfo', time: '12m ago', device: 'iPad Pro 12"' },
-  ], []);
+  if (error) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+      >
+        <Card className="border border-red-200 dark:border-red-900/50 shadow-sm rounded-2xl overflow-hidden">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-gradient-to-br from-red-400 to-orange-400 shadow-sm">
+                  <Wifi className="h-3.5 w-3.5 text-white" />
+                </div>
+                WiFi Analytics
+              </CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center py-8 gap-3 text-center">
+            <AlertTriangle className="h-8 w-8 text-amber-500" />
+            <p className="text-muted-foreground text-sm">{error}</p>
+            <Button variant="outline" size="sm" onClick={fetchWiFiData}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -530,77 +709,98 @@ export function WiFiAnalyticsWidget() {
         </CardHeader>
 
         <CardContent className="space-y-5 pb-5">
-          {/* ── Key Metrics Row ── */}
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="grid grid-cols-2 lg:grid-cols-4 gap-2.5"
-          >
-            {kpiMetrics.map((metric, i) => (
-              <motion.div key={metric.label} variants={itemVariants}>
-                <KPIMiniCard metric={metric} index={i} />
+          {/* Loading skeleton */}
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              {/* ── Key Metrics Row ── */}
+              <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="grid grid-cols-2 lg:grid-cols-4 gap-2.5"
+              >
+                {kpiMetrics.map((metric, i) => (
+                  <motion.div key={metric.label} variants={itemVariants}>
+                    <KPIMiniCard metric={metric} index={i} />
+                  </motion.div>
+                ))}
               </motion.div>
-            ))}
-          </motion.div>
 
-          {/* ── Session Trend Chart ── */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5">
-                <Activity className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
-                <span className="text-xs font-semibold text-foreground">Session Trend</span>
-                <span className="text-[10px] text-muted-foreground/50">Last 24h</span>
-              </div>
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground/50">
-                <span className="flex items-center gap-1">
-                  <ArrowDown className="h-2.5 w-2.5 text-teal-500" />
-                  Download
-                </span>
-                <span className="flex items-center gap-1">
-                  <ArrowUp className="h-2.5 w-2.5 text-emerald-500" />
-                  Upload
-                </span>
-              </div>
-            </div>
-            <div className="rounded-xl border border-border/30 bg-muted/10 p-2.5 overflow-hidden">
-              <SessionTrendChart data={trendData} />
-            </div>
-          </div>
-
-          {/* ── Bottom Row: Plans + Auth ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Top Plans Distribution */}
-            <div>
-              <div className="flex items-center gap-1.5 mb-2.5">
-                <Users className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-xs font-semibold text-foreground">Plan Distribution</span>
-              </div>
-              <div className="space-y-2.5">
-                {planDistribution.map((plan, i) => (
-                  <PlanBar key={plan.name} plan={plan} index={i} />
-                ))}
-              </div>
-            </div>
-
-            {/* Recent Auth Activity */}
-            <div>
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="flex items-center gap-1.5">
-                  <Shield className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
-                  <span className="text-xs font-semibold text-foreground">Auth Activity</span>
+              {/* ── Session Trend Chart ── */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Activity className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+                    <span className="text-xs font-semibold text-foreground">Session Trend</span>
+                    <span className="text-[10px] text-muted-foreground/50">Last 24h</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground/50">
+                    <span className="flex items-center gap-1">
+                      <ArrowDown className="h-2.5 w-2.5 text-teal-500" />
+                      Download
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <ArrowUp className="h-2.5 w-2.5 text-emerald-500" />
+                      Upload
+                    </span>
+                  </div>
                 </div>
-                <span className="text-[10px] text-muted-foreground/50 tabular-nums">
-                  {authEvents.filter(e => e.type === 'accept').length}/{authEvents.length} accepted
-                </span>
+                <div className="rounded-xl border border-border/30 bg-muted/10 p-2.5 overflow-hidden">
+                  <SessionTrendChart data={trendData} />
+                </div>
               </div>
-              <div className="max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent pr-1 space-y-0.5 rounded-lg border border-border/20 bg-muted/5">
-                {authEvents.map((event, i) => (
-                  <AuthEventRow key={event.id} event={event} index={i} />
-                ))}
+
+              {/* ── Bottom Row: Plans + Auth ── */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Top Plans Distribution */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <Users className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-xs font-semibold text-foreground">Plan Distribution</span>
+                  </div>
+                  {planDistribution.length === 0 ? (
+                    <div className="text-xs text-muted-foreground text-center py-4">
+                      No plan data available
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {planDistribution.map((plan, i) => (
+                        <PlanBar key={plan.name} plan={plan} index={i} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Recent Auth Activity */}
+                <div>
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <Shield className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+                      <span className="text-xs font-semibold text-foreground">Auth Activity</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground/50 tabular-nums">
+                      {authEvents.filter(e => e.type === 'accept').length}/{authEvents.length} accepted
+                    </span>
+                  </div>
+                  {authEvents.length === 0 ? (
+                    <div className="text-xs text-muted-foreground text-center py-4">
+                      No auth events yet
+                    </div>
+                  ) : (
+                    <div className="max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent pr-1 space-y-0.5 rounded-lg border border-border/20 bg-muted/5">
+                      {authEvents.map((event, i) => (
+                        <AuthEventRow key={event.id} event={event} index={i} />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </div>
+            </>
+          )}
 
           {/* ── Footer ── */}
           <div className="flex items-center justify-between pt-2 border-t border-border/20">
