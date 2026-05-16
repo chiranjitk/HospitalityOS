@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
       }
 
       const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Last 7 days
-      const endDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // Next year
+      const endDate = new Date(Date.now() + 730 * 24 * 60 * 60 * 1000); // Next 2 years (AioSell forward booking window)
 
       const results: Array<{
         connectionId: string;
@@ -223,7 +223,7 @@ export async function POST(request: NextRequest) {
         : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const endDate = body.endDate
         ? new Date(body.endDate)
-        : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+        : new Date(Date.now() + 730 * 24 * 60 * 60 * 1000);
 
       try {
         await OTASyncService.pullBookingsFromChannel(

@@ -1241,7 +1241,7 @@ export function StopSellManager() {
             <Input
               type="number"
               min={1}
-              max={365}
+              max={730}
               value={extendDays}
               onChange={(e) => setExtendDays(parseInt(e.target.value) || 7)}
               className="mt-1.5"

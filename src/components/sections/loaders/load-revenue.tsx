@@ -23,6 +23,11 @@ export default async function loadSection(section: string): Promise<{ default: R
     case 'revenue-advanced':
     case 'revenue-analytics':
       return import('@/components/revenue/revenue-management');
+    case 'revenue-automation':
+    case 'revenue-overbooking':
+    case 'revenue-last-minute':
+    case 'revenue-triggers':
+      return import('@/components/revenue/revenue-automation');
     default:
       throw new Error(`Unknown revenue section: ${section}`);
   }

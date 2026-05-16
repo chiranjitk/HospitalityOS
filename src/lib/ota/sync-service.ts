@@ -682,7 +682,7 @@ export class OTASyncScheduler {
         await OTASyncService.pullBookingsFromChannel(
           connectionId,
           new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
-          new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // Next year
+          new Date(Date.now() + 730 * 24 * 60 * 60 * 1000) // Next 2 years (AioSell forward booking window)
         );
       } catch (error) {
         console.error(`Scheduled sync failed for ${connectionId}:`, error);
