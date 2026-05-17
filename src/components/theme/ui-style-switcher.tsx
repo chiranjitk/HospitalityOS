@@ -237,6 +237,18 @@ const uiStyleThemes: Array<{
     bestFor: 'Dark mode',
     category: 'enterprise',
   },
+  {
+    id: 'hospitality-sunrise',
+    name: 'Hospitality Sunrise',
+    description: 'Warm hospitality theme with vibrant orange and clean white — designed for hotels and resorts.',
+    icon: Sun,
+    previewGradient: 'linear-gradient(135deg, #F97316 0%, #EA580C 50%, #C2410C 100%)',
+    lightPreview: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 50%, #fed7aa 100%)',
+    darkPreview: 'linear-gradient(135deg, #1c1917 0%, #292524 50%, #1c1917 100%)',
+    features: ['Warm orange', 'Hospitality', 'Clean white'],
+    bestFor: 'Both modes',
+    category: 'enterprise',
+  },
 ];
 
 interface UIStyleCardProps {
@@ -380,7 +392,7 @@ export function UIStyleSwitcher({ trigger, open, onOpenChange }: UIStyleSwitcher
                 Choose Your Style
               </span>
               <p className="text-xs font-normal text-muted-foreground mt-0.5">
-                15 handcrafted design themes • Original, Premium & Enterprise collections
+                16 handcrafted design themes • Original, Premium & Enterprise collections
               </p>
             </div>
           </DialogTitle>
@@ -508,7 +520,7 @@ export function UIStyleToggle() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 rounded-xl p-2">
         <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-          UI Themes • 15 available
+          UI Themes • 16 available
         </div>
         <DropdownMenuSeparator className="my-1" />
         <div className="max-h-80 overflow-y-auto">

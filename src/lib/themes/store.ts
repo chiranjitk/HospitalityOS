@@ -27,7 +27,8 @@ export type UIStyleTheme =
   | 'sapphire-dash'
   | 'terra-corporate'
   | 'arctic-steel'
-  | 'noir-executive';
+  | 'noir-executive'
+  | 'hospitality-sunrise';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -150,7 +151,7 @@ export function applyUITheme(themeId: UIStyleTheme, mode: 'light' | 'dark') {
 }
 
 // Default theme constants
-const DEFAULT_UI_THEME: UIStyleTheme = 'gradient-modern';
+const DEFAULT_UI_THEME: UIStyleTheme = 'hospitality-sunrise';
 const DEFAULT_THEME_MODE: ThemeMode = 'system';
 
 export const useUIStyleStore = create<UIStyleState>()(

@@ -21,6 +21,9 @@
  * 13. terra-corporate - Luxury hotel warm corporate
  * 14. arctic-steel - Salesforce Lightning productivity SaaS
  * 15. noir-executive - Boardroom luxury dark minimal
+ *
+ * Hospitality Themes:
+ * 16. hospitality-sunrise - Warm orange and white for hotels and resorts
  */
 
 export type ThemeId = 
@@ -38,7 +41,8 @@ export type ThemeId =
   | 'sapphire-dash'
   | 'terra-corporate'
   | 'arctic-steel'
-  | 'noir-executive';
+  | 'noir-executive'
+  | 'hospitality-sunrise';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -1462,13 +1466,107 @@ export const themes: Record<ThemeId, ThemeConfig> = {
     },
   },
 
+  // ============================================
+  // HOSPITALITY THEMES
+  // ============================================
+
+  'hospitality-sunrise': {
+    id: 'hospitality-sunrise',
+    name: 'Hospitality Sunrise',
+    description: 'Warm hospitality theme with vibrant orange and clean white — designed for hotels and resorts.',
+    icon: 'Sun',
+    category: 'enterprise',
+    colors: {
+      light: {
+        primary: 'oklch(0.65 0.20 55)',
+        primaryForeground: 'oklch(0.99 0 0)',
+        secondary: 'oklch(0.95 0.03 55)',
+        secondaryForeground: 'oklch(0.28 0.04 55)',
+        accent: 'oklch(0.92 0.06 55)',
+        accentForeground: 'oklch(0.25 0.05 55)',
+        background: 'oklch(0.99 0.002 60)',
+        foreground: 'oklch(0.17 0.02 30)',
+        card: 'oklch(1 0 0)',
+        cardForeground: 'oklch(0.17 0.02 30)',
+        muted: 'oklch(0.95 0.01 60)',
+        mutedForeground: 'oklch(0.50 0.02 30)',
+        border: 'oklch(0.91 0.015 55)',
+        ring: 'oklch(0.65 0.20 55)',
+        input: 'oklch(0.91 0.015 55)',
+        destructive: 'oklch(0.55 0.22 25)',
+        destructiveForeground: 'oklch(0.99 0 0)',
+        gradientStart: 'oklch(0.68 0.22 55)',
+        gradientEnd: 'oklch(0.62 0.18 40)',
+        premium: 'oklch(0.78 0.14 75)',
+        premiumForeground: 'oklch(0.15 0.02 75)',
+        sidebar: 'oklch(0.98 0.008 55)',
+        sidebarForeground: 'oklch(0.22 0.03 30)',
+        sidebarPrimary: 'oklch(0.68 0.22 55)',
+        sidebarPrimaryForeground: 'oklch(0.99 0 0)',
+        sidebarAccent: 'oklch(0.93 0.02 55)',
+        sidebarAccentForeground: 'oklch(0.22 0.03 30)',
+        sidebarBorder: 'oklch(0.90 0.012 55)',
+        sidebarRing: 'oklch(0.65 0.20 55)',
+        chart1: 'oklch(0.65 0.20 55)',
+        chart2: 'oklch(0.60 0.16 40)',
+        chart3: 'oklch(0.55 0.12 75)',
+        chart4: 'oklch(0.65 0.14 142)',
+        chart5: 'oklch(0.70 0.10 280)',
+      },
+      dark: {
+        primary: 'oklch(0.72 0.20 55)',
+        primaryForeground: 'oklch(0.12 0.015 55)',
+        secondary: 'oklch(0.22 0.03 30)',
+        secondaryForeground: 'oklch(0.92 0.02 55)',
+        accent: 'oklch(0.28 0.05 55)',
+        accentForeground: 'oklch(0.92 0.02 55)',
+        background: 'oklch(0.13 0.015 30)',
+        foreground: 'oklch(0.95 0.01 55)',
+        card: 'oklch(0.17 0.018 30)',
+        cardForeground: 'oklch(0.95 0.01 55)',
+        muted: 'oklch(0.22 0.015 30)',
+        mutedForeground: 'oklch(0.65 0.02 55)',
+        border: 'oklch(0.28 0.02 30)',
+        ring: 'oklch(0.72 0.20 55)',
+        input: 'oklch(0.28 0.02 30)',
+        destructive: 'oklch(0.60 0.22 25)',
+        destructiveForeground: 'oklch(0.99 0 0)',
+        gradientStart: 'oklch(0.72 0.22 55)',
+        gradientEnd: 'oklch(0.65 0.18 40)',
+        premium: 'oklch(0.78 0.14 75)',
+        premiumForeground: 'oklch(0.12 0.02 75)',
+        sidebar: 'oklch(0.12 0.02 55)',
+        sidebarForeground: 'oklch(0.92 0.01 55)',
+        sidebarPrimary: 'oklch(0.72 0.20 55)',
+        sidebarPrimaryForeground: 'oklch(0.99 0 0)',
+        sidebarAccent: 'oklch(0.20 0.04 55)',
+        sidebarAccentForeground: 'oklch(0.92 0.01 55)',
+        sidebarBorder: 'oklch(0.22 0.02 55)',
+        sidebarRing: 'oklch(0.72 0.20 55)',
+        chart1: 'oklch(0.72 0.20 55)',
+        chart2: 'oklch(0.65 0.16 40)',
+        chart3: 'oklch(0.60 0.12 75)',
+        chart4: 'oklch(0.70 0.14 142)',
+        chart5: 'oklch(0.75 0.10 280)',
+      },
+    },
+    features: {
+      glassEffect: false,
+      softShadows: true,
+      gradients: true,
+      roundedCorners: 'xl',
+      animations: true,
+      neonGlow: false,
+    },
+  },
+
 };
 
 // ============================================
 // UTILITY EXPORTS
 // ============================================
 
-export const DEFAULT_THEME: ThemeId = 'gradient-modern';
+export const DEFAULT_THEME: ThemeId = 'hospitality-sunrise';
 
 export const themeIcons: Record<ThemeId, string> = {
   'gradient-modern': 'Sparkles',
@@ -1486,6 +1584,7 @@ export const themeIcons: Record<ThemeId, string> = {
   'terra-corporate': 'Palmtree',
   'arctic-steel': 'LayoutDashboard',
   'noir-executive': 'Briefcase',
+  'hospitality-sunrise': 'Sun',
 };
 
 export function getThemeConfig(id: ThemeId): ThemeConfig {
