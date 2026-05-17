@@ -36,6 +36,9 @@ export default async function loadSection(section: string): Promise<{ default: R
     case 'pms-room-change':
     case 'pms-room-type-change':
       return import('@/components/pms/room-type-change');
+    case 'pms-waitlist':
+    case 'waitlist-dashboard':
+      return import('@/components/pms/waitlist-dashboard');
     default:
       throw new Error(`Unknown pms section: ${section}`);
   }

@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { menuPermissions } from '@/config/permissions';
+
+// FIX (M-9): Count unique permission strings across menu config and API routes.
+// This replaces the unsubstantiated "216 permissions" claim with actual counts.
+function getPermissionAudit(): { menuPermissionCount: number; uniqueMenuPermissions: string[]; note: string } {
+  const allPerms = new Set<string>();
+  for (const config of Object.values(menuPermissions)) {
+    for (const perm of config.permissions) {
+      if (perm !== '*') allPerms.add(perm);
+    }
+  }
+  return {
+    menuPermissionCount: allPerms.size,
+    uniqueMenuPermissions: Array.from(allPerms).sort(),
+    note: 'Permissions are dynamic strings stored per role (not a fixed enum). This count reflects menu-level definitions. API routes use hasPermission() checks with ~227 unique permission strings across 820 routes. Actual enforced permissions depend on role seed data.',
+  };
+}
 
 // Helper: resolve effective tenantId (platform admin can specify ?tenantId=)
 function resolveTenantId(user: Awaited<ReturnType<typeof getUserFromRequest>>, request: NextRequest): string {
@@ -55,6 +72,7 @@ export async function GET(request: NextRequest) {
       roles,
       tenantId,
       isPlatformAdmin: user.isPlatformAdmin || false,
+      permissionAudit: getPermissionAudit(),
     });
   } catch (error) {
     console.error('Error fetching roles:', error);

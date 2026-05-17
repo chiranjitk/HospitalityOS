@@ -148,11 +148,46 @@ export async function POST(
         newSubtotal = itemsToMove.reduce((sum, item) => sum + item.totalAmount, 0);
         newTaxes = itemsToMove.reduce((sum, item) => sum + item.taxAmount, 0);
       } else {
-        // Proportional split of subtotal and taxes based on totalAmount
+        // SECURITY FIX (F-02): Use largest-remainder method to prevent
+        // phantom pennies. Math.round() on subtotal and taxes independently
+        // can cause newSubtotal + newTaxes != splitAmount.
         if (sourceFolio.totalAmount > 0) {
           const ratio = splitAmount / sourceFolio.totalAmount;
-          newSubtotal = Math.round(sourceFolio.subtotal * ratio * 100) / 100;
-          newTaxes = Math.round(sourceFolio.taxes * ratio * 100) / 100;
+          const rawSubtotalCents = sourceFolio.subtotal * ratio * 100;
+          const rawTaxesCents = sourceFolio.taxes * ratio * 100;
+          const targetCents = Math.round(splitAmount * 100);
+
+          // Floor both values
+          const floorSubtotalCents = Math.floor(rawSubtotalCents);
+          const floorTaxesCents = Math.floor(rawTaxesCents);
+
+          // Calculate remainder to ensure exact sum match
+          const remainder = targetCents - floorSubtotalCents - floorTaxesCents;
+
+          // Distribute remainder to the component with the largest fractional part
+          const fracSubtotal = rawSubtotalCents - floorSubtotalCents;
+          const fracTaxes = rawTaxesCents - floorTaxesCents;
+
+          if (remainder > 0) {
+            if (fracSubtotal >= fracTaxes) {
+              newSubtotal = (floorSubtotalCents + remainder) / 100;
+              newTaxes = floorTaxesCents / 100;
+            } else {
+              newSubtotal = floorSubtotalCents / 100;
+              newTaxes = (floorTaxesCents + remainder) / 100;
+            }
+          } else if (remainder < 0) {
+            if (fracSubtotal <= fracTaxes) {
+              newSubtotal = (floorSubtotalCents + remainder) / 100;
+              newTaxes = floorTaxesCents / 100;
+            } else {
+              newSubtotal = floorSubtotalCents / 100;
+              newTaxes = (floorTaxesCents + remainder) / 100;
+            }
+          } else {
+            newSubtotal = floorSubtotalCents / 100;
+            newTaxes = floorTaxesCents / 100;
+          }
         } else {
           newSubtotal = splitAmount;
           newTaxes = 0;

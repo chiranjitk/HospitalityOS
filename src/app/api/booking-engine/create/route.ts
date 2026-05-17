@@ -6,6 +6,7 @@ import { calculatePrice } from '@/lib/pricing';
 import { emailService } from '@/lib/services/email-service';
 import { notifyBookingCreated } from '@/lib/notify';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
+import { fireAutomationEvent } from '@/lib/automation/hooks';
 
 // In-memory rate limiting (5 bookings per IP per 15 minutes)
 const bookingRateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -509,6 +510,24 @@ export async function POST(request: NextRequest) {
       checkOut: booking.checkOut,
       totalAmount: booking.totalAmount,
       currency: booking.currency,
+    });
+
+    // Fire automation trigger for booking created via public booking engine
+    fireAutomationEvent('booking.created', {
+      tenantId: booking.tenantId,
+      propertyId: booking.propertyId,
+      entityId: booking.id,
+      data: {
+        bookingId: booking.id,
+        confirmationCode: booking.confirmationCode,
+        guestId: guest.id,
+        guestName: `${guest.firstName || ''} ${guest.lastName || ''}`.trim(),
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        totalAmount: booking.totalAmount,
+        source: 'direct',
+        status: booking.status,
+      },
     });
 
     return NextResponse.json({

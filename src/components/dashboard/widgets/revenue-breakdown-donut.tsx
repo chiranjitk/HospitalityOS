@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
@@ -33,19 +34,6 @@ const COLORS = {
   teal: { fill: '#14b8a6', dark: '#2dd4bf' },
   violet: { fill: '#8b5cf6', dark: '#a78bfa' },
   slate: { fill: '#64748b', dark: '#94a3b8' },
-};
-
-const MOCK_DATA: RevenueDonutData = {
-  totalRevenue: 187450,
-  currency: '$',
-  period: 'This Month',
-  segments: [
-    { category: 'Room Revenue', amount: 98520, color: COLORS.emerald.fill, colorDark: COLORS.emerald.dark, key: 'roomRevenue' },
-    { category: 'Food & Beverage', amount: 38900, color: COLORS.amber.fill, colorDark: COLORS.amber.dark, key: 'foodAndBeverage' },
-    { category: 'Spa & Wellness', amount: 22300, color: COLORS.teal.fill, colorDark: COLORS.teal.dark, key: 'spaWellness' },
-    { category: 'Events & MICE', amount: 18280, color: COLORS.violet.fill, colorDark: COLORS.violet.dark, key: 'eventsMice' },
-    { category: 'Other', amount: 9450, color: COLORS.slate.fill, colorDark: COLORS.slate.dark, key: 'otherRevenue' },
-  ],
 };
 
 const SIZE = 180;
@@ -183,6 +171,7 @@ export function RevenueBreakdownDonutWidget() {
   const t = useTranslations('dashboard');
   const [data, setData] = useState<RevenueDonutData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   const fetchData = useCallback(async (isInitial = false) => {
@@ -193,10 +182,10 @@ export function RevenueBreakdownDonutWidget() {
       if (result.success && result.data?.revenueBreakdownDonut) {
         setData(result.data.revenueBreakdownDonut as RevenueDonutData);
       } else {
-        setData(MOCK_DATA);
+        setError(true);
       }
     } catch {
-      setData(MOCK_DATA);
+      setError(true);
     } finally {
       setIsLoading(false);
     }
@@ -207,7 +196,26 @@ export function RevenueBreakdownDonutWidget() {
   }, [fetchData]);
 
   if (isLoading) return <SkeletonLoader />;
-  if (!data) return null;
+
+  if (error || !data) {
+    return (
+      <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+        <div className="h-[3px] bg-gradient-to-r from-emerald-400 via-amber-400 to-violet-400" />
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-emerald-500 to-amber-500 flex items-center justify-center shadow-sm">
+              <PieChart className="h-3.5 w-3.5 text-white" />
+            </div>
+            <CardTitle className="text-base font-semibold">{t('revenueBreakdownDonut')}</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+          <p className="text-sm text-muted-foreground">Unable to load data.</p>
+          <Button variant="ghost" size="sm" className="mt-2" onClick={() => { setError(false); fetchData(true); }}>Retry</Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const total = data.segments.reduce((sum, s) => sum + s.amount, 0);
 

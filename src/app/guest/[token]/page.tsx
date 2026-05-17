@@ -31,10 +31,23 @@ import {
   MapPin,
   CircleDot,
   LogOut,
+  Loader2,
 } from 'lucide-react';
-import { format, formatDistanceToNow, differenceInDays } from 'date-fns';
+import { format, formatDistanceToNow, differenceInDays, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Calendar as UICalendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 // Quick action items
 const quickActions = [
@@ -92,6 +105,15 @@ export default function GuestHomePage() {
   const [vehicle, setVehicle] = useState<VehicleInfo | null>(null);
   const [parkingLoading, setParkingLoading] = useState(true);
 
+  // Early checkout state
+  const [isEarlyCheckoutDialogOpen, setIsEarlyCheckoutDialogOpen] = useState(false);
+  const [earlyCheckoutDate, setEarlyCheckoutDate] = useState<Date | undefined>(undefined);
+  const [earlyCheckoutReason, setEarlyCheckoutReason] = useState('');
+  const [isSubmittingEarlyCheckout, setIsSubmittingEarlyCheckout] = useState(false);
+  const [hasPendingEarlyCheckout, setHasPendingEarlyCheckout] = useState(false);
+
+  const token = typeof window !== 'undefined' ? window.location.pathname.split('/')[2] : '';
+
   // Fetch WiFi credentials
   useEffect(() => {
     if (!data?.booking) return;
@@ -132,6 +154,23 @@ export default function GuestHomePage() {
     fetchParking();
   }, [data?.guest]);
 
+  // Check for existing early checkout request
+  useEffect(() => {
+    if (!data?.booking) return;
+    const checkEarlyCheckout = async () => {
+      try {
+        const res = await fetch(`/api/bookings/early-checkout-request?bookingId=${data.booking.id}&token=${token}`);
+        const result = await res.json();
+        if (result.success && result.data) {
+          setHasPendingEarlyCheckout(true);
+        }
+      } catch {
+        // Silently ignore - no pending request
+      }
+    };
+    checkEarlyCheckout();
+  }, [data?.booking, token]);
+
   const handleCopyWifiPassword = () => {
     if (wifiCred?.password) {
       navigator.clipboard.writeText(wifiCred.password);
@@ -145,6 +184,50 @@ export default function GuestHomePage() {
       toast({ title: 'Request Sent', description: 'Your exit request has been submitted to the front desk' });
     } catch {
       toast({ title: 'Error', description: 'Failed to submit request', variant: 'destructive' });
+    }
+  };
+
+  const handleEarlyCheckout = async () => {
+    if (!data?.booking || !earlyCheckoutDate) return;
+
+    setIsSubmittingEarlyCheckout(true);
+    try {
+      const res = await fetch('/api/bookings/early-checkout-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: data.booking.id,
+          token,
+          requestedCheckoutDate: earlyCheckoutDate.toISOString(),
+          reason: earlyCheckoutReason || undefined,
+        }),
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        setHasPendingEarlyCheckout(true);
+        setIsEarlyCheckoutDialogOpen(false);
+        setEarlyCheckoutReason('');
+        setEarlyCheckoutDate(undefined);
+        toast({
+          title: 'Request Submitted',
+          description: `Your early checkout request for ${format(earlyCheckoutDate, 'MMM d, yyyy')} has been submitted. We will review it shortly.`,
+        });
+      } else {
+        toast({
+          title: 'Request Failed',
+          description: result.error?.message || 'Failed to submit early checkout request',
+          variant: 'destructive',
+        });
+      }
+    } catch {
+      toast({
+        title: 'Error',
+        description: 'Failed to submit request. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmittingEarlyCheckout(false);
     }
   };
 
@@ -173,8 +256,6 @@ export default function GuestHomePage() {
   const handleQuickAction = (actionId: string) => {
     router.push(`/guest/${data ? (window.location.pathname.split('/')[2]) : ''}/services?action=${actionId}`);
   };
-
-  const token = typeof window !== 'undefined' ? window.location.pathname.split('/')[2] : '';
 
   return (
     <div className="p-4 space-y-6">
@@ -297,6 +378,33 @@ export default function GuestHomePage() {
               </p>
             </div>
           </div>
+
+          {/* Early Checkout Button */}
+          {data.booking.status === 'checked_in' && (
+            <div className="mt-3">
+              {hasPendingEarlyCheckout ? (
+                <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg">
+                  <Clock className="h-4 w-4 text-amber-500" />
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Early checkout request pending review
+                  </p>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-muted-foreground"
+                  onClick={() => {
+                    setEarlyCheckoutDate(addDays(new Date(), 1));
+                    setIsEarlyCheckoutDialogOpen(true);
+                  }}
+                >
+                  <Calendar className="h-3 w-3 mr-1" />
+                  Request Early Checkout
+                </Button>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -521,6 +629,99 @@ export default function GuestHomePage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Early Checkout Dialog */}
+      <Dialog open={isEarlyCheckoutDialogOpen} onOpenChange={(open) => {
+        setIsEarlyCheckoutDialogOpen(open);
+        if (!open) {
+          setEarlyCheckoutDate(undefined);
+          setEarlyCheckoutReason('');
+        }
+      }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Request Early Checkout</DialogTitle>
+            <DialogDescription>
+              Select your preferred checkout date. Your request will be reviewed by the front desk.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Current vs Requested */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 text-center">
+                <p className="text-xs text-muted-foreground mb-1">Current Checkout</p>
+                <p className="font-semibold text-sm">{format(checkOut, 'MMM d, yyyy')}</p>
+              </div>
+              <div className="bg-sky-50 dark:bg-sky-950/20 rounded-lg p-3 text-center">
+                <p className="text-xs text-muted-foreground mb-1">Requested Date</p>
+                <p className="font-semibold text-sm text-sky-600 dark:text-sky-400">
+                  {earlyCheckoutDate ? format(earlyCheckoutDate, 'MMM d, yyyy') : 'Select date'}
+                </p>
+              </div>
+            </div>
+
+            {/* Date Picker */}
+            <div className="space-y-2">
+              <Label>Preferred Checkout Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {earlyCheckoutDate ? format(earlyCheckoutDate, 'PPP') : 'Pick a date'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <UICalendar
+                    mode="single"
+                    selected={earlyCheckoutDate}
+                    onSelect={(date) => date && setEarlyCheckoutDate(date)}
+                    disabled={(date) =>
+                      date <= new Date() ||
+                      date >= checkOut ||
+                      date <= checkIn
+                    }
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Reason */}
+            <div className="space-y-2">
+              <Label>Reason (optional)</Label>
+              <Textarea
+                placeholder="Let us know why you'd like to check out early..."
+                value={earlyCheckoutReason}
+                onChange={(e) => setEarlyCheckoutReason(e.target.value)}
+                rows={2}
+              />
+            </div>
+
+            {earlyCheckoutDate && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg">
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  Note: You will be checked out on {format(earlyCheckoutDate, 'MMMM d, yyyy')}.
+                  Any applicable refund or adjustment will be reviewed by the front desk.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEarlyCheckoutDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEarlyCheckout}
+              disabled={!earlyCheckoutDate || isSubmittingEarlyCheckout}
+            >
+              {isSubmittingEarlyCheckout && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Submit Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

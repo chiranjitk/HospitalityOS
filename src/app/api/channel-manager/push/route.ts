@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { OTAClientFactory } from '@/lib/ota';
 import { eachDayOfInterval } from 'date-fns';
 
 interface OTAPushRequest {
@@ -26,16 +27,47 @@ interface OTAResponse {
   timestamp: string;
 }
 
-// Push to OTA using the OTA client factory
+// Push to OTA using the OTA client factory with real API calls
 async function pushToOTA(
-  channel: string, 
+  channel: string,
   connection: { id: string; apiKey: string | null; apiSecret: string | null; hotelId: string | null },
   request: OTAPushRequest
 ): Promise<OTAResponse> {
-  // In a real implementation, this would use the OTA client to make actual API calls
-  // For now, we log the sync and return success if connection credentials exist
-  
+  const correlationId = `${channel.toUpperCase()}-${Date.now()}`;
+
+  // Create the OTA client for this channel
+  const client = OTAClientFactory.createClient(channel);
+  if (!client) {
+    await db.channelSyncLog.create({
+      data: {
+        connectionId: connection.id,
+        syncType: request.type === 'inventory' ? 'inventory' : 'rate',
+        direction: 'outbound',
+        status: 'failed',
+        errorMessage: `No OTA client available for channel: ${channel}`,
+        requestPayload: JSON.stringify(request),
+      },
+    });
+    return {
+      channel,
+      success: false,
+      message: `No OTA client available for channel: ${channel}`,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  // Check for minimum credentials
   if (!connection.apiKey && !connection.hotelId) {
+    await db.channelSyncLog.create({
+      data: {
+        connectionId: connection.id,
+        syncType: request.type === 'inventory' ? 'inventory' : 'rate',
+        direction: 'outbound',
+        status: 'failed',
+        errorMessage: 'Missing API credentials',
+        requestPayload: JSON.stringify(request),
+      },
+    });
     return {
       channel,
       success: false,
@@ -44,25 +76,111 @@ async function pushToOTA(
     };
   }
 
-  // Log the push request
-  await db.channelSyncLog.create({
-    data: {
-      connectionId: connection.id,
-      syncType: request.type === 'inventory' ? 'inventory' : 'rate',
-      direction: 'outbound',
-      status: 'success',
-      requestPayload: JSON.stringify(request),
-      responsePayload: JSON.stringify({ pushed: true, channel }),
-    },
-  });
+  try {
+    // Get channel mappings for the room type (skip for __all__ bulk syncs)
+    let externalRoomId = connection.hotelId || '';
+    if (request.roomTypeId !== '__all__') {
+      const mapping = await db.channelMapping.findFirst({
+        where: {
+          connectionId: connection.id,
+          roomTypeId: request.roomTypeId,
+        },
+        select: { externalRoomId: true },
+      });
+      if (mapping) {
+        externalRoomId = mapping.externalRoomId;
+      }
+    }
 
-  return {
-    channel,
-    success: true,
-    message: `Successfully pushed ${request.type} to ${channel}`,
-    referenceId: `${channel.toUpperCase()}-${Date.now()}`,
-    timestamp: new Date().toISOString(),
-  };
+    let syncResult: any;
+
+    switch (request.type) {
+      case 'inventory': {
+        const inventoryUpdates = request.roomTypeId === '__all__'
+          ? [{ externalRoomId, date: request.startDate, availableRooms: request.data.available ?? 0, totalRooms: request.data.available ?? 0 }]
+          : eachDayOfInterval({ start: new Date(request.startDate), end: new Date(request.endDate) }).map(day => ({
+              roomTypeId: request.roomTypeId,
+              externalRoomId,
+              date: day.toISOString().split('T')[0],
+              availableRooms: request.data.available ?? 0,
+              totalRooms: request.data.available ?? 0,
+            }));
+        syncResult = await client.updateInventory(inventoryUpdates);
+        break;
+      }
+      case 'rates': {
+        const rateUpdates = eachDayOfInterval({ start: new Date(request.startDate), end: new Date(request.endDate) }).map(day => ({
+            roomTypeId: request.roomTypeId,
+            externalRoomId,
+            externalRatePlanId: 'default',
+            date: day.toISOString().split('T')[0],
+            baseRate: request.data.rate ?? 0,
+            currency: 'USD',
+          }));
+        syncResult = await client.updateRates(rateUpdates);
+        break;
+      }
+      case 'restrictions': {
+        const restrictionUpdates = eachDayOfInterval({ start: new Date(request.startDate), end: new Date(request.endDate) }).map(day => ({
+            roomTypeId: request.roomTypeId,
+            externalRoomId,
+            date: day.toISOString().split('T')[0],
+            closedToArrival: request.data.closedToArrival ?? false,
+            closedToDeparture: request.data.closedToDeparture ?? false,
+            closed: request.data.available === 0,
+            minStayThrough: request.data.minStay ?? 1,
+          }));
+        syncResult = await client.updateRestrictions(restrictionUpdates);
+        break;
+      }
+    }
+
+    const isSuccess = syncResult?.success ?? false;
+    const errorMsg = syncResult?.errors?.map((e: any) => e.message).join('; ');
+
+    // Log the push result
+    await db.channelSyncLog.create({
+      data: {
+        connectionId: connection.id,
+        syncType: request.type === 'inventory' ? 'inventory' : request.type === 'rates' ? 'rate' : 'rate',
+        direction: 'outbound',
+        status: isSuccess ? 'success' : 'failed',
+        requestPayload: JSON.stringify(request),
+        responsePayload: JSON.stringify(syncResult),
+        errorMessage: errorMsg || undefined,
+      },
+    });
+
+    return {
+      channel,
+      success: isSuccess,
+      message: isSuccess
+        ? `Successfully pushed ${request.type} to ${channel}`
+        : `Failed to push ${request.type} to ${channel}: ${errorMsg}`,
+      referenceId: correlationId,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : 'Unknown error';
+
+    await db.channelSyncLog.create({
+      data: {
+        connectionId: connection.id,
+        syncType: request.type === 'inventory' ? 'inventory' : 'rate',
+        direction: 'outbound',
+        status: 'failed',
+        errorMessage: errMsg,
+        requestPayload: JSON.stringify(request),
+      },
+    });
+
+    return {
+      channel,
+      success: false,
+      message: `Error pushing to ${channel}: ${errMsg}`,
+      timestamp: new Date().toISOString(),
+    };
+  }
 }
 
 // GET /api/channel-manager/push - Get push status/history

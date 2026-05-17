@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -153,113 +153,6 @@ interface GDSStats {
   lastSyncTime: Date | null;
 }
 
-// ─── Mock Data ──────────────────────────────────────────────────────────────
-
-const mockConnections: GDSConnection[] = [
-  {
-    id: 'gds-1',
-    name: 'Amadeus GDS',
-    code: 'AMA',
-    provider: 'Amadeus',
-    status: 'active',
-    lastSync: new Date(Date.now() - 12 * 60 * 1000),
-    lastSyncStatus: 'success',
-    hotelCode: 'DELRSI',
-    chainCode: 'RS',
-    pcc: 'DEL9A',
-    rateAccessCode: 'RSI2024',
-    features: { inventory: true, rates: true, bookings: true, restrictions: true, updates: true },
-    syncInterval: 15,
-    autoSync: true,
-    bookingsRetrieved: 1247,
-    commissionRate: 10,
-    revenue: 1845000,
-  },
-  {
-    id: 'gds-2',
-    name: 'Sabre GDS',
-    code: 'SAB',
-    provider: 'Sabre',
-    status: 'active',
-    lastSync: new Date(Date.now() - 45 * 60 * 1000),
-    lastSyncStatus: 'success',
-    hotelCode: 'DELRSI',
-    chainCode: 'RS',
-    pcc: 'DEL7B',
-    rateAccessCode: 'RSISAB',
-    features: { inventory: true, rates: true, bookings: true, restrictions: true, updates: false },
-    syncInterval: 30,
-    autoSync: true,
-    bookingsRetrieved: 983,
-    commissionRate: 10,
-    revenue: 1423000,
-  },
-  {
-    id: 'gds-3',
-    name: 'Travelport GDS',
-    code: 'TVL',
-    provider: 'Travelport',
-    status: 'error',
-    lastSync: new Date(Date.now() - 6 * 60 * 60 * 1000),
-    lastSyncStatus: 'failed',
-    hotelCode: 'DELRSI',
-    chainCode: 'RS',
-    pcc: 'DEL4C',
-    rateAccessCode: 'RSITVL',
-    features: { inventory: true, rates: true, bookings: true, restrictions: false, updates: false },
-    syncInterval: 30,
-    autoSync: false,
-    bookingsRetrieved: 412,
-    commissionRate: 11,
-    revenue: 587000,
-  },
-];
-
-const mockRateDistributions: RateDistribution[] = [
-  { id: 'rd-1', rateCode: 'BAR', rateName: 'Best Available Rate', gdsProvider: 'Amadeus', gdsRateCode: 'BAR01', rateType: 'BAR', roomTypes: ['Deluxe King', 'Premium Suite', 'Standard Room'], singleRate: 8500, doubleRate: 10500, currency: 'INR', effectiveFrom: '2025-01-01', effectiveTo: '2025-12-31', status: 'active', lastDistributed: new Date(Date.now() - 15 * 60 * 1000), roomsAvailable: 42 },
-  { id: 'rd-2', rateCode: 'RACK', rateName: 'Rack Rate', gdsProvider: 'Amadeus', gdsRateCode: 'RACK01', rateType: 'RACK', roomTypes: ['All Room Types'], singleRate: 12000, doubleRate: 15000, currency: 'INR', effectiveFrom: '2025-01-01', effectiveTo: '2025-12-31', status: 'active', lastDistributed: new Date(Date.now() - 15 * 60 * 1000), roomsAvailable: 56 },
-  { id: 'rd-3', rateCode: 'CORP01', rateName: 'Corporate Rate - Standard', gdsProvider: 'Sabre', gdsRateCode: 'CRPSTD', rateType: 'Corporate', roomTypes: ['Deluxe King', 'Executive Suite'], singleRate: 7200, doubleRate: 8900, currency: 'INR', effectiveFrom: '2025-01-01', effectiveTo: '2025-12-31', status: 'active', lastDistributed: new Date(Date.now() - 2 * 60 * 60 * 1000), roomsAvailable: 18 },
-  { id: 'rd-4', rateCode: 'CORP02', rateName: 'Corporate Rate - Premium', gdsProvider: 'Sabre', gdsRateCode: 'CRPPRM', rateType: 'Corporate', roomTypes: ['Premium Suite', 'Royal Suite'], singleRate: 9800, doubleRate: 12500, currency: 'INR', effectiveFrom: '2025-01-01', effectiveTo: '2025-12-31', status: 'active', lastDistributed: new Date(Date.now() - 2 * 60 * 60 * 1000), roomsAvailable: 8 },
-  { id: 'rd-5', rateCode: 'NEGO01', rateName: 'Negotiated - TATA Group', gdsProvider: 'Amadeus', gdsRateCode: 'NGOTTA', rateType: 'Negotiated', roomTypes: ['Deluxe King', 'Standard Room'], singleRate: 6500, doubleRate: 8000, currency: 'INR', effectiveFrom: '2025-04-01', effectiveTo: '2026-03-31', status: 'active', lastDistributed: new Date(Date.now() - 24 * 60 * 60 * 1000), roomsAvailable: 25 },
-  { id: 'rd-6', rateCode: 'WHSL01', rateName: 'Wholesale - MakeMyTrip', gdsProvider: 'Travelport', gdsRateCode: 'WSLMMT', rateType: 'Wholesale', roomTypes: ['Standard Room', 'Deluxe King'], singleRate: 5800, doubleRate: 7200, currency: 'INR', effectiveFrom: '2025-01-01', effectiveTo: '2025-12-31', status: 'active', lastDistributed: new Date(Date.now() - 6 * 60 * 60 * 1000), roomsAvailable: 30 },
-  { id: 'rd-7', rateCode: 'SEAS01', rateName: 'Peak Season Rate', gdsProvider: 'Amadeus', gdsRateCode: 'SEAPK', rateType: 'Seasonal', roomTypes: ['All Room Types'], singleRate: 15000, doubleRate: 18500, currency: 'INR', effectiveFrom: '2025-10-01', effectiveTo: '2026-03-31', status: 'active', lastDistributed: new Date(Date.now() - 30 * 60 * 1000), roomsAvailable: 56 },
-  { id: 'rd-8', rateCode: 'SEAS02', rateName: 'Off-Season Rate', gdsProvider: 'Amadeus', gdsRateCode: 'SEAOF', rateType: 'Seasonal', roomTypes: ['All Room Types'], singleRate: 6500, doubleRate: 8000, currency: 'INR', effectiveFrom: '2025-04-01', effectiveTo: '2025-09-30', status: 'inactive', lastDistributed: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), roomsAvailable: 56 },
-  { id: 'rd-9', rateCode: 'PROM01', rateName: 'Monsoon Special', gdsProvider: 'Sabre', gdsRateCode: 'PRMMNS', rateType: 'Promotional', roomTypes: ['Standard Room', 'Deluxe King'], singleRate: 5500, doubleRate: 6800, currency: 'INR', effectiveFrom: '2025-06-01', effectiveTo: '2025-09-15', status: 'draft', lastDistributed: null, roomsAvailable: 0 },
-];
-
-const mockBookings: GDSBooking[] = [
-  { id: 'gb-1', pnr: 'AMA-X9K2L4', guestName: 'James Richardson', gdsSource: 'Amadeus', roomType: 'Deluxe King', checkIn: '2025-06-15', checkOut: '2025-06-18', rateCode: 'BAR', totalAmount: 31500, currency: 'INR', status: 'confirmed', segments: 1, retrievedAt: '2025-06-10T14:30:00Z' },
-  { id: 'gb-2', pnr: 'SAB-M3P7Q9', guestName: 'Sarah Mitchell', gdsSource: 'Sabre', roomType: 'Premium Suite', checkIn: '2025-06-16', checkOut: '2025-06-20', rateCode: 'CORP02', totalAmount: 50000, currency: 'INR', status: 'confirmed', segments: 1, retrievedAt: '2025-06-11T09:15:00Z' },
-  { id: 'gb-3', pnr: 'AMA-H5R8T1', guestName: 'Akira Tanaka', gdsSource: 'Amadeus', roomType: 'Executive Suite', checkIn: '2025-06-14', checkOut: '2025-06-17', rateCode: 'NEGO01', totalAmount: 24000, currency: 'INR', status: 'modified', segments: 2, retrievedAt: '2025-06-09T18:45:00Z' },
-  { id: 'gb-4', pnr: 'TVL-J7N2V3', guestName: 'Elena Petrov', gdsSource: 'Travelport', roomType: 'Standard Room', checkIn: '2025-06-12', checkOut: '2025-06-14', rateCode: 'WHSL01', totalAmount: 14400, currency: 'INR', status: 'checked-out', segments: 1, retrievedAt: '2025-06-08T11:20:00Z' },
-  { id: 'gb-5', pnr: 'SAB-K9P4W5', guestName: 'Michael O\'Brien', gdsSource: 'Sabre', roomType: 'Royal Suite', checkIn: '2025-06-18', checkOut: '2025-06-22', rateCode: 'SEAS01', totalAmount: 74000, currency: 'INR', status: 'confirmed', segments: 1, retrievedAt: '2025-06-12T16:00:00Z' },
-  { id: 'gb-6', pnr: 'AMA-L1Q6X7', guestName: 'Priya Sharma', gdsSource: 'Amadeus', roomType: 'Deluxe King', checkIn: '2025-06-10', checkOut: '2025-06-11', rateCode: 'BAR', totalAmount: 10500, currency: 'INR', status: 'checked-out', segments: 1, retrievedAt: '2025-06-07T08:30:00Z' },
-  { id: 'gb-7', pnr: 'SAB-M3R8Y9', guestName: 'David Chen', gdsSource: 'Sabre', roomType: 'Premium Suite', checkIn: '2025-06-20', checkOut: '2025-06-23', rateCode: 'CORP01', totalAmount: 26700, currency: 'INR', status: 'confirmed', segments: 1, retrievedAt: '2025-06-13T10:45:00Z' },
-  { id: 'gb-8', pnr: 'AMA-N5S0Z1', guestName: 'Laura Mueller', gdsSource: 'Amadeus', roomType: 'Standard Room', checkIn: '2025-06-13', checkOut: '2025-06-15', rateCode: 'BAR', totalAmount: 21000, currency: 'INR', status: 'cancelled', segments: 1, retrievedAt: '2025-06-10T13:15:00Z' },
-  { id: 'gb-9', pnr: 'TVL-O7T2A3', guestName: 'Roberto Silva', gdsSource: 'Travelport', roomType: 'Deluxe King', checkIn: '2025-06-19', checkOut: '2025-06-21', rateCode: 'WHSL01', totalAmount: 14400, currency: 'INR', status: 'confirmed', segments: 1, retrievedAt: '2025-06-14T07:00:00Z' },
-  { id: 'gb-10', pnr: 'SAB-P9U4B5', guestName: 'Anna Kowalski', gdsSource: 'Sabre', roomType: 'Executive Suite', checkIn: '2025-06-11', checkOut: '2025-06-13', rateCode: 'SEAS01', totalAmount: 37000, currency: 'INR', status: 'no-show', segments: 1, retrievedAt: '2025-06-06T22:30:00Z' },
-];
-
-const mockRateCodes: GDSRateCode[] = [
-  { id: 'rc-1', code: 'CORPSTD', name: 'Corporate Standard', category: 'corporate', description: 'Standard corporate rate for business travelers', discount: 15, discountType: 'percentage', minStay: 1, maxStay: 30, commission: 10, mealPlan: 'Bed & Breakfast', status: 'active', validFrom: '2025-01-01', validTo: '2025-12-31', bookingCount: 456, revenueGenerated: 3200000 },
-  { id: 'rc-2', code: 'CORPPRM', name: 'Corporate Premium', category: 'corporate', description: 'Premium corporate rate for executive bookings', discount: 10, discountType: 'percentage', minStay: 1, maxStay: 30, commission: 10, mealPlan: 'Half Board', status: 'active', validFrom: '2025-01-01', validTo: '2025-12-31', bookingCount: 312, revenueGenerated: 4800000 },
-  { id: 'rc-3', code: 'NGOTATA', name: 'TATA Negotiated', category: 'negotiated', description: 'Special negotiated rate for TATA Group employees', discount: 25, discountType: 'percentage', minStay: 1, maxStay: 14, commission: 0, mealPlan: 'Bed & Breakfast', status: 'active', validFrom: '2025-04-01', validTo: '2026-03-31', bookingCount: 189, revenueGenerated: 980000 },
-  { id: 'rc-4', code: 'NGOWIPRO', name: 'Wipro Corporate', category: 'negotiated', description: 'Negotiated rate for Wipro Technologies', discount: 22, discountType: 'percentage', minStay: 3, maxStay: 30, commission: 0, mealPlan: 'Bed & Breakfast', status: 'active', validFrom: '2025-01-01', validTo: '2025-12-31', bookingCount: 234, revenueGenerated: 1450000 },
-  { id: 'rc-5', code: 'WSLMMT', name: 'MMT Wholesale', category: 'wholesale', description: 'Wholesale rate for MakeMyTrip B2B channel', discount: 35, discountType: 'percentage', minStay: 1, maxStay: 7, commission: 18, mealPlan: 'Room Only', status: 'active', validFrom: '2025-01-01', validTo: '2025-12-31', bookingCount: 678, revenueGenerated: 2900000 },
-  { id: 'rc-6', code: 'WSLGOIB', name: 'Goibibo Wholesale', category: 'wholesale', description: 'Wholesale allocation for Goibibo', discount: 30, discountType: 'percentage', minStay: 1, maxStay: 5, commission: 17, mealPlan: 'Room Only', status: 'active', validFrom: '2025-01-01', validTo: '2025-12-31', bookingCount: 445, revenueGenerated: 1800000 },
-  { id: 'rc-7', code: 'CONIHCL', name: 'IHCL Consortia', category: 'consortia', description: 'Consortia rate for IHCL partner hotels', discount: 20, discountType: 'percentage', minStay: 2, maxStay: 14, commission: 12, mealPlan: 'Bed & Breakfast', status: 'active', validFrom: '2025-01-01', validTo: '2025-12-31', bookingCount: 156, revenueGenerated: 1200000 },
-  { id: 'rc-8', code: 'CONGHA', name: 'GHA Discovery', category: 'consortia', description: 'Global Hotel Alliance Discovery loyalty rate', discount: 15, discountType: 'percentage', minStay: 1, maxStay: 21, commission: 10, mealPlan: 'Bed & Breakfast', status: 'active', validFrom: '2025-01-01', validTo: '2025-12-31', bookingCount: 289, revenueGenerated: 2100000 },
-  { id: 'rc-9', code: 'GOVCPW', name: 'Government CPW', category: 'government', description: 'Central Pay Ward government rate', discount: 40, discountType: 'percentage', minStay: 1, maxStay: 30, commission: 0, mealPlan: 'Room Only', status: 'active', validFrom: '2025-01-01', validTo: '2025-12-31', bookingCount: 98, revenueGenerated: 450000 },
-  { id: 'rc-10', code: 'PRMSUM', name: 'Summer Saver', category: 'promo', description: 'Promotional rate for summer travel season', discount: 20, discountType: 'percentage', minStay: 2, maxStay: 7, commission: 15, mealPlan: 'Bed & Breakfast', status: 'active', validFrom: '2025-04-01', validTo: '2025-06-30', bookingCount: 345, revenueGenerated: 1600000 },
-];
-
-const mockStats: GDSStats = {
-  activeConnections: 2,
-  totalBookings: 2642,
-  totalRevenue: 3853000,
-  lastSyncTime: new Date(Date.now() - 12 * 60 * 1000),
-};
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getStatusBadge(status: string) {
@@ -331,12 +224,13 @@ export default function GDSConnectivity() {
   const { formatCurrency } = useCurrency();
 
   // Data state
-  const [connections, setConnections] = useState<GDSConnection[]>(mockConnections);
-  const [rateDistributions, setRateDistributions] = useState<RateDistribution[]>(mockRateDistributions);
-  const [bookings, setBookings] = useState<GDSBooking[]>(mockBookings);
-  const [rateCodes, setRateCodes] = useState<GDSRateCode[]>(mockRateCodes);
-  const [stats, setStats] = useState<GDSStats>(mockStats);
-  const [loading, setLoading] = useState(false);
+  const [connections, setConnections] = useState<GDSConnection[]>([]);
+  const [rateDistributions, setRateDistributions] = useState<RateDistribution[]>([]);
+  const [bookings, setBookings] = useState<GDSBooking[]>([]);
+  const [rateCodes, setRateCodes] = useState<GDSRateCode[]>([]);
+  const [stats, setStats] = useState<GDSStats>({ activeConnections: 0, totalBookings: 0, totalRevenue: 0, lastSyncTime: null });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Dialog state
   const [connectionDialog, setConnectionDialog] = useState<{ open: boolean; item: GDSConnection | null }>({ open: false, item: null });
@@ -353,32 +247,191 @@ export default function GDSConnectivity() {
   const [rateCodeFilter, setRateCodeFilter] = useState('all');
   const [rateDistFilter, setRateDistFilter] = useState('all');
 
-  // Load mock data
-  const fetchMockData = useCallback(() => {
+  // FIX (M-2): Replaced hardcoded data with API calls
+  // Fetch all GDS data from APIs in parallel
+  const fetchConnectionsData = useCallback(async () => {
     setLoading(true);
-    setTimeout(() => {
-      setConnections(mockConnections);
-      setRateDistributions(mockRateDistributions);
-      setBookings(mockBookings);
-      setRateCodes(mockRateCodes);
-      setStats(mockStats);
+    setError(null);
+    try {
+      const [connRes, rateSyncRes, bookingsRes] = await Promise.allSettled([
+        fetch('/api/channels/connections'),
+        fetch('/api/channels/rate-sync'),
+        fetch('/api/bookings?source=gds'),
+      ]);
+
+      // ── Connections ────────────────────────────────────────────────
+      if (connRes.status === 'fulfilled' && connRes.value.ok) {
+        const json = await connRes.value.json();
+        if (json.success && json.data) {
+          const enrichedConns: GDSConnection[] = json.data.map((c: Record<string, unknown>) => {
+            const ch = c.channelMeta as Record<string, unknown> | undefined;
+            return {
+              id: c.id as string,
+              name: (c.displayName as string) || (c.channel as string),
+              code: (ch?.id as string) || (c.channel as string)?.slice(0, 3).toUpperCase() || '',
+              provider: (c.channel as string) === 'amadeus' ? 'Amadeus' as const : (c.channel as string) === 'sabre' ? 'Sabre' as const : 'Travelport' as const,
+              status: (c.status as GDSConnection['status']) || 'pending',
+              lastSync: c.lastSyncAt ? new Date(c.lastSyncAt as string) : null,
+              lastSyncStatus: (c.lastSyncAt ? 'success' : 'pending') as GDSConnection['lastSyncStatus'],
+              hotelCode: (c.hotelId as string) || '',
+              chainCode: '',
+              pcc: '',
+              rateAccessCode: '',
+              features: { inventory: true, rates: true, bookings: true, restrictions: false, updates: false },
+              syncInterval: (c.syncInterval as number) || 60,
+              autoSync: (c.autoSync as boolean) ?? true,
+              bookingsRetrieved: (c.mappingCount as number) || 0,
+              commissionRate: (ch?.commission as Record<string, unknown>)?.max ? Number((ch.commission as Record<string, unknown>).max) : 10,
+              revenue: 0,
+            };
+          });
+          setConnections(enrichedConns);
+
+          const activeCount = enrichedConns.filter(c => c.status === 'active').length;
+          const lastSync = enrichedConns.reduce((latest: Date | null, c) => {
+            if (c.lastSync && (!latest || c.lastSync > latest)) return c.lastSync;
+            return latest;
+          }, null);
+
+          setStats({
+            activeConnections: activeCount,
+            totalBookings: enrichedConns.reduce((s, c) => s + c.bookingsRetrieved, 0),
+            totalRevenue: enrichedConns.reduce((s, c) => s + c.revenue, 0),
+            lastSyncTime: lastSync,
+          });
+        }
+      } else {
+        console.error('Failed to fetch connections');
+      }
+
+      // ── FIX (M-2): Rate Distributions ───────────────────────────────
+      if (rateSyncRes.status === 'fulfilled' && rateSyncRes.value.ok) {
+        const json = await rateSyncRes.value.json();
+        if (json.success && json.data) {
+          const rateDistData = Array.isArray(json.data)
+            ? json.data.map((rd: Record<string, unknown>) => ({
+                id: (rd.id as string) || `rd-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                rateCode: (rd.rateCode as string) || (rd.code as string) || '',
+                rateName: (rd.rateName as string) || (rd.name as string) || (rd.rateCode as string) || '',
+                gdsProvider: (rd.gdsProvider as string) || (rd.channel as string) || (rd.provider as string) || '',
+                gdsRateCode: (rd.gdsRateCode as string) || (rd.code as string) || '',
+                rateType: (rd.rateType as RateDistribution['rateType']) || 'BAR',
+                roomTypes: Array.isArray(rd.roomTypes) ? rd.roomTypes.map(String) : [],
+                singleRate: Number(rd.singleRate) || Number(rd.baseRate) || 0,
+                doubleRate: Number(rd.doubleRate) || Number(rd.baseRate) || 0,
+                currency: (rd.currency as string) || 'INR',
+                effectiveFrom: (rd.effectiveFrom as string) || (rd.validFrom as string) || '',
+                effectiveTo: (rd.effectiveTo as string) || (rd.validTo as string) || '',
+                status: (rd.status as RateDistribution['status']) || 'active',
+                lastDistributed: rd.lastDistributed ? new Date(rd.lastDistributed as string) : null,
+                roomsAvailable: Number(rd.roomsAvailable) || Number(rd.availability) || 0,
+              }))
+            : [];
+          setRateDistributions(rateDistData);
+        }
+      } else {
+        console.error('Failed to fetch rate distributions from /api/channels/rate-sync');
+      }
+
+      // ── FIX (M-2): GDS Bookings ────────────────────────────────────
+      if (bookingsRes.status === 'fulfilled' && bookingsRes.value.ok) {
+        const json = await bookingsRes.value.json();
+        if (json.success && json.data) {
+          const bookingData = Array.isArray(json.data)
+            ? json.data.map((b: Record<string, unknown>) => ({
+                id: (b.id as string) || `gb-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                pnr: (b.pnr as string) || (b.confirmationNumber as string) || (b.id as string) || '',
+                guestName: (b.guestName as string) || ((b.guest as Record<string, unknown>)?.name as string) || (b.guestName as string) || '',
+                gdsSource: (b.gdsSource as string) || (b.source as string) || (b.channel as string) || 'GDS',
+                roomType: (b.roomType as string) || ((b.room as Record<string, unknown>)?.name as string) || '',
+                checkIn: (b.checkIn as string) || (b.checkinDate as string) || '',
+                checkOut: (b.checkOut as string) || (b.checkoutDate as string) || '',
+                rateCode: (b.rateCode as string) || (b.ratePlanCode as string) || '',
+                totalAmount: Number(b.totalAmount) || Number(b.total) || Number(b.amount) || 0,
+                currency: (b.currency as string) || 'INR',
+                status: (b.status as GDSBooking['status']) || 'confirmed',
+                segments: Number(b.segments) || 1,
+                retrievedAt: (b.retrievedAt as string) || (b.createdAt as string) || (b.bookedAt as string) || new Date().toISOString(),
+              }))
+            : [];
+          setBookings(bookingData);
+        }
+      } else {
+        console.error('Failed to fetch GDS bookings from /api/bookings?source=gds');
+      }
+
+      // ── FIX (M-2): Rate Codes (derived from connections metadata) ──
+      // Rate codes are extracted from connections data loaded above
+      const connResParsed = connRes.status === 'fulfilled' && connRes.value.ok
+        ? await connRes.value.clone().json().catch(() => null)
+        : null;
+      if (connResParsed?.success && Array.isArray(connResParsed.data)) {
+        const extractedRateCodes: GDSRateCode[] = [];
+        for (const c of connResParsed.data) {
+          const ch = c.channelMeta as Record<string, unknown> | undefined;
+          const ratePlans = (ch?.ratePlans || c.ratePlans || []) as Record<string, unknown>[];
+          for (const rp of Array.isArray(ratePlans) ? ratePlans : []) {
+            extractedRateCodes.push({
+              id: (rp.id as string) || `rc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              code: (rp.code as string) || (rp.rateCode as string) || '',
+              name: (rp.name as string) || (rp.rateName as string) || '',
+              category: (rp.category as GDSRateCode['category']) || 'corporate',
+              description: (rp.description as string) || '',
+              discount: Number(rp.discount) || 0,
+              discountType: (rp.discountType as GDSRateCode['discountType']) || 'percentage',
+              minStay: Number(rp.minStay) || 1,
+              maxStay: Number(rp.maxStay) || 30,
+              commission: Number(rp.commission) || 10,
+              mealPlan: (rp.mealPlan as string) || 'Room Only',
+              status: (rp.status as GDSRateCode['status']) || 'active',
+              validFrom: (rp.validFrom as string) || '',
+              validTo: (rp.validTo as string) || '',
+              bookingCount: Number(rp.bookingCount) || 0,
+              revenueGenerated: Number(rp.revenueGenerated) || 0,
+            });
+          }
+        }
+        if (extractedRateCodes.length > 0) {
+          setRateCodes(extractedRateCodes);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load GDS data');
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   }, []);
+
+  useEffect(() => { fetchConnectionsData(); }, [fetchConnectionsData]);
+
+  // FIX (M-2): Renamed fetchMockData → refreshData (refreshes all API data)
+  const refreshData = useCallback(() => { fetchConnectionsData(); }, [fetchConnectionsData]);
 
   // ─── Connection handlers ──────────────────────────────────────────────────
 
-  const handleTestConnection = (id: string) => {
+  const handleTestConnection = async (id: string) => {
     const conn = connections.find(c => c.id === id);
     if (!conn) return;
 
     toast.info(`Testing ${conn.name} connection...`);
-    setTimeout(() => {
-      setConnections(prev => prev.map(c =>
-        c.id === id ? { ...c, status: 'active' as const, lastSync: new Date(), lastSyncStatus: 'success' as const } : c
-      ));
-      toast.success(`${conn.name} connection test successful`);
-    }, 1500);
+    try {
+      const res = await fetch('/api/channels/connections', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action: 'test' }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setConnections(prev => prev.map(c =>
+          c.id === id ? { ...c, status: 'active' as const, lastSync: new Date(), lastSyncStatus: 'success' as const } : c
+        ));
+        toast.success(`${conn.name} connection test successful`);
+      } else {
+        toast.error(`Connection test failed: ${json.message || json.error?.message || 'Unknown error'}`);
+      }
+    } catch {
+      toast.error('Connection test failed: Network error');
+    }
   };
 
   const handleToggleAutoSync = (id: string, autoSync: boolean) => {
@@ -388,17 +441,29 @@ export default function GDSConnectivity() {
     toast.success(`Auto-sync ${autoSync ? 'enabled' : 'disabled'}`);
   };
 
-  const handleSyncNow = (id: string) => {
+  const handleSyncNow = async (id: string) => {
     const conn = connections.find(c => c.id === id);
     if (!conn) return;
 
     toast.info(`Syncing with ${conn.name}...`);
-    setTimeout(() => {
-      setConnections(prev => prev.map(c =>
-        c.id === id ? { ...c, lastSync: new Date(), lastSyncStatus: 'success' as const } : c
-      ));
-      toast.success(`${conn.name} sync completed`);
-    }, 2000);
+    try {
+      const res = await fetch('/api/channels/connections', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action: 'sync' }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setConnections(prev => prev.map(c =>
+          c.id === id ? { ...c, lastSync: new Date(), lastSyncStatus: 'success' as const } : c
+        ));
+        toast.success(`${conn.name} sync completed`);
+      } else {
+        toast.error(`Sync failed: ${json.message || 'Unknown error'}`);
+      }
+    } catch {
+      toast.error('Sync failed: Network error');
+    }
   };
 
   const openConnectionConfig = (conn: GDSConnection) => {
@@ -492,6 +557,21 @@ export default function GDSConnectivity() {
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <X className="h-8 w-8 text-red-500 mx-auto" />
+          <p className="text-sm text-red-500 mt-2">{error}</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={fetchConnectionsData}>
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -508,7 +588,7 @@ export default function GDSConnectivity() {
           <h1 className="text-2xl font-bold tracking-tight">GDS Connectivity</h1>
           <p className="text-muted-foreground">Manage Global Distribution System connections, rate distribution, and booking retrieval</p>
         </div>
-        <Button onClick={fetchMockData}>
+        <Button onClick={refreshData}>
           <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
         </Button>
@@ -749,7 +829,14 @@ export default function GDSConnectivity() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredRateDist.map((rd) => {
+                    {filteredRateDist.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
+                          No rate distribution data available
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                    filteredRateDist.map((rd) => {
                       const statusCfg = getStatusBadge(rd.status);
                       return (
                         <TableRow key={rd.id} className={!rd.status ? 'opacity-50' : ''}>
@@ -795,7 +882,8 @@ export default function GDSConnectivity() {
                           </TableCell>
                         </TableRow>
                       );
-                    })}
+                    })
+                    )}
                   </TableBody>
                 </Table>
               </ScrollArea>
@@ -847,7 +935,14 @@ export default function GDSConnectivity() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredBookings.map((booking) => {
+                    {filteredBookings.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
+                          No GDS booking data available
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                    filteredBookings.map((booking) => {
                       const statusCfg = getStatusBadge(booking.status);
                       return (
                         <TableRow key={booking.id}>
@@ -871,7 +966,8 @@ export default function GDSConnectivity() {
                           </TableCell>
                         </TableRow>
                       );
-                    })}
+                    })
+                    )}
                   </TableBody>
                 </Table>
               </ScrollArea>
@@ -926,7 +1022,14 @@ export default function GDSConnectivity() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredRateCodes.map((rc) => {
+                    {filteredRateCodes.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={11} className="text-center py-12 text-muted-foreground">
+                          No rate codes available
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                    filteredRateCodes.map((rc) => {
                       const statusCfg = getStatusBadge(rc.status);
                       return (
                         <TableRow key={rc.id}>
@@ -971,7 +1074,8 @@ export default function GDSConnectivity() {
                           </TableCell>
                         </TableRow>
                       );
-                    })}
+                    })
+                    )}
                   </TableBody>
                 </Table>
               </ScrollArea>

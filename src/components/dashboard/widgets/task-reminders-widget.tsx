@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import {
   Plus,
   ListTodo,
   X,
+  Loader2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -54,60 +55,79 @@ const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: string; bg: 
   },
 };
 
-// ─── Initial mock tasks ─────────────────────────────────────────────────
-
-const INITIAL_TASKS: Task[] = [
-  {
-    id: 'task-1',
-    title: 'Prepare Room 305 for VIP arrival',
-    dueTime: '1:30 PM',
-    priority: 'high',
-    completed: false,
-  },
-  {
-    id: 'task-2',
-    title: 'Follow up on maintenance request #12',
-    dueTime: '2:00 PM',
-    priority: 'high',
-    completed: false,
-  },
-  {
-    id: 'task-3',
-    title: 'Review tomorrow\'s group booking',
-    dueTime: '3:00 PM',
-    priority: 'medium',
-    completed: false,
-  },
-  {
-    id: 'task-4',
-    title: 'Restock minibar inventory - Floor 3',
-    dueTime: '4:00 PM',
-    priority: 'medium',
-    completed: true,
-  },
-  {
-    id: 'task-5',
-    title: 'Schedule linen pickup',
-    dueTime: '5:00 PM',
-    priority: 'low',
-    completed: false,
-  },
-  {
-    id: 'task-6',
-    title: 'Verify pool area safety equipment',
-    dueTime: '6:00 PM',
-    priority: 'medium',
-    completed: true,
-  },
-];
+// ─── Types ──────────────────────────────────────────────────────────────
+// FIX (M-7): Replaced mock tasks with API call
 
 // ─── TaskRemindersWidget ────────────────────────────────────────────────
 
 export function TaskRemindersWidget() {
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
+  // FIX (M-7): Replaced mock tasks with API call
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<TaskPriority>('medium');
+
+  // Helper: format a date string into a readable time
+  const formatTaskTime = (dateStr: string | undefined): string => {
+    if (!dateStr) return 'No due time';
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    } catch {
+      return String(dateStr);
+    }
+  };
+
+  // Helper: map API priority to local priority type
+  const mapPriority = (p: string | undefined): TaskPriority => {
+    if (!p) return 'medium';
+    const lower = String(p).toLowerCase();
+    if (lower === 'high' || lower === 'urgent' || lower === 'critical') return 'high';
+    if (lower === 'low' || lower === 'minor') return 'low';
+    return 'medium';
+  };
+
+  // Fetch pending tasks from API
+  useEffect(() => {
+    let cancelled = false;
+    const fetchTasks = async () => {
+      setIsLoading(true);
+      setFetchError(null);
+      try {
+        const res = await fetch('/api/staff/tasks?status=pending&limit=10');
+        if (!res.ok) throw new Error(`Failed to fetch tasks (${res.status})`);
+        const data = await res.json();
+        if (cancelled) return;
+
+        // Handle various API response shapes
+        const rawTasks = data?.tasks ?? data?.data ?? data ?? [];
+        if (!Array.isArray(rawTasks)) {
+          setTasks([]);
+          return;
+        }
+
+        // Map API fields to Task interface
+        const mapped: Task[] = rawTasks.map((t: any) => ({
+          id: t.id ?? `task-${Date.now()}-${Math.random()}`,
+          title: t.title ?? t.name ?? t.description ?? 'Untitled Task',
+          dueTime: t.dueTime ?? t.due_time ?? t.time ?? formatTaskTime(t.dueDate ?? t.due_at),
+          priority: mapPriority(t.priority ?? t.urgency),
+          completed: !!t.completed,
+        }));
+        setTasks(mapped);
+      } catch (err: any) {
+        if (!cancelled) {
+          setFetchError(err?.message || 'Failed to load tasks');
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    fetchTasks();
+    return () => { cancelled = true; };
+  }, []);
 
   // Derived stats
   const completedCount = tasks.filter((t) => t.completed).length;
@@ -190,7 +210,31 @@ export function TaskRemindersWidget() {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Progress bar */}
+        {/* Loading state */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-6 gap-2">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Loading tasks...</span>
+          </div>
+        )}
+
+        {/* Error state */}
+        {!isLoading && fetchError && (
+          <div className="flex flex-col items-center py-4 gap-2 text-center">
+            <AlertTriangle className="h-5 w-5 text-amber-500" />
+            <p className="text-xs text-muted-foreground">{fetchError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="text-xs text-primary underline underline-offset-2 hover:text-primary/80"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Task content - only show when not loading and no error */}
+        {!isLoading && !fetchError && (
+        <>
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">Today&apos;s Progress</span>
@@ -348,6 +392,9 @@ export function TaskRemindersWidget() {
           </AnimatePresence>
         </div>
 
+        </>
+        )}
+
         {/* All tasks completed state */}
         {completedCount === totalCount && totalCount > 0 && (
           <motion.div
@@ -362,12 +409,12 @@ export function TaskRemindersWidget() {
           </motion.div>
         )}
 
-        {/* Empty state */}
-        {totalCount === 0 && (
+        {/* Empty state - no pending tasks from API */}
+        {!isLoading && !fetchError && totalCount === 0 && (
           <div className="flex flex-col items-center py-6 text-center">
-            <ListTodo className="h-8 w-8 text-muted-foreground/30 mb-2" />
-            <p className="text-sm text-muted-foreground">No tasks yet</p>
-            <p className="text-xs text-muted-foreground/60 mt-0.5">Click + to add a new task</p>
+            <CheckCircle2 className="h-8 w-8 text-emerald-500/40 mb-2" />
+            <p className="text-sm text-muted-foreground">No pending tasks</p>
+            <p className="text-xs text-muted-foreground/60 mt-0.5">All tasks are completed</p>
           </div>
         )}
       </CardContent>

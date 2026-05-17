@@ -1,203 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { requirePermission } from '@/lib/auth/tenant-context';
-import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
+import { getUserFromRequest } from '@/lib/auth-helpers';
+import eventBus, { ALL_EVENT_TYPES, EVENT_SCHEMAS } from '@/lib/event-bus';
 
-// GET /api/events - List all events (tenant-scoped)
-export async function GET(request: NextRequest) {
-  const user = await requirePermission(request, 'events.view');
-  if (user instanceof NextResponse) return user;
-
+/**
+ * GET /api/events
+ * List available event types and their schemas.
+ */
+export async function GET() {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const propertyId = searchParams.get('propertyId');
-    const spaceId = searchParams.get('spaceId');
-    const statuses = searchParams.getAll('status');
-    const type = searchParams.get('type');
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
-
-    const where: Record<string, unknown> = {
-      tenantId: user.tenantId, // Tenant isolation
-    };
-
-    if (propertyId) {
-      where.propertyId = propertyId;
-    }
-
-    if (spaceId) {
-      where.spaceId = spaceId;
-    }
-
-    if (statuses.length > 0) {
-      where.status = { in: statuses };
-    }
-
-    if (type) {
-      where.type = type;
-    }
-
-    if (startDate || endDate) {
-      where.startDate = {};
-      if (startDate) {
-        (where.startDate as Record<string, unknown>).gte = new Date(startDate);
-      }
-      if (endDate) {
-        (where.startDate as Record<string, unknown>).lte = new Date(endDate);
-      }
-    }
-
-    const events = await db.event.findMany({
-      where,
-      include: {
-        property: {
-          select: {
-            id: true,
-            name: true,
-          }
-        },
-        space: {
-          select: {
-            id: true,
-            name: true,
-            minCapacity: true,
-            maxCapacity: true,
-          }
-        },
-        _count: {
-          select: {
-            resources: true
-          }
-        }
-      },
-      orderBy: {
-        startDate: 'asc'
-      }
-    });
-
-    // Calculate stats
-    const now = new Date();
-    const stats = {
-      total: events.length,
-      inquiry: events.filter(e => e.status === 'inquiry').length,
-      confirmed: events.filter(e => e.status === 'confirmed').length,
-      in_progress: events.filter(e => e.status === 'in_progress').length,
-      completed: events.filter(e => e.status === 'completed').length,
-      cancelled: events.filter(e => e.status === 'cancelled').length,
-      upcoming: events.filter(e => e.startDate > now && e.status !== 'cancelled').length,
-      totalRevenue: events
-        .filter(e => e.status !== 'cancelled')
-        .reduce((acc, e) => acc + e.totalAmount, 0),
-    };
+    const eventTypes = ALL_EVENT_TYPES.map((type) => ({
+      name: type,
+      ...EVENT_SCHEMAS[type],
+    }));
 
     return NextResponse.json({
-      events,
-      stats
+      events: eventTypes,
+      total: eventTypes.length,
     });
   } catch (error) {
-    console.error('Error fetching events:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch events' },
-      { status: 500 }
-    );
+    console.error('[Events] GET error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// POST /api/events - Create a new event (tenantId derived from auth)
+/**
+ * POST /api/events
+ * Manually trigger an event (admin only, for testing).
+ * Body: { event: string, payload: object }
+ */
 export async function POST(request: NextRequest) {
-  const user = await requirePermission(request, 'events.manage');
-  if (user instanceof NextResponse) return user;
-
   try {
+    const user = await getUserFromRequest(request);
+    if (!user?.tenantId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Only admins can manually trigger events
+    if (!user.isPlatformAdmin && user.roleName !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
+    }
+
     const body = await request.json();
-    const data = nullifyEmptyStrings(body);
-    const {
-      propertyId,
-      spaceId,
-      name,
-      type,
-      description,
-      organizerName,
-      organizerEmail,
-      organizerPhone,
-      startDate,
-      endDate,
-      setupStart,
-      teardownEnd,
-      expectedAttendance,
-      spaceCharge,
-      cateringCharge,
-      avCharge,
-      otherCharges,
-      totalAmount,
-      currency,
-      depositAmount,
-      depositPaid,
-      status,
-      notes
-    } = data;
+    const { event, payload } = body as { event: string; payload: unknown };
 
-    // Derive tenantId from authenticated session, NOT from request body
-    const tenantId = user.tenantId;
+    if (!event) {
+      return NextResponse.json({ error: 'event is required' }, { status: 400 });
+    }
 
-    if (!propertyId || !name || !organizerName || !startDate || !endDate) {
+    if (!ALL_EVENT_TYPES.includes(event)) {
       return NextResponse.json(
-        { error: 'Missing required fields: propertyId, name, organizerName, startDate, endDate' },
+        { error: `Unknown event type. Available: ${ALL_EVENT_TYPES.join(', ')}` },
         { status: 400 }
       );
     }
 
-    const event = await db.event.create({
-      data: {
-        tenantId, // Derived from auth session
-        propertyId,
-        spaceId: spaceId || null,
-        name,
-        type: type || 'meeting',
-        description,
-        organizerName,
-        organizerEmail: organizerEmail || '',
-        organizerPhone: organizerPhone || '',
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        setupStart: setupStart ? new Date(setupStart) : null,
-        teardownEnd: teardownEnd ? new Date(teardownEnd) : null,
-        expectedAttendance: expectedAttendance || 1,
-        spaceCharge: spaceCharge || 0,
-        cateringCharge: cateringCharge || 0,
-        avCharge: avCharge || 0,
-        otherCharges: otherCharges || 0,
-        totalAmount: totalAmount || 0,
-        currency: currency || 'USD',
-        depositAmount: depositAmount || 0,
-        depositPaid: depositPaid || false,
-        status: status || 'inquiry',
-        notes
-      },
-      include: {
-        property: {
-          select: {
-            id: true,
-            name: true,
-          }
-        },
-        space: {
-          select: {
-            id: true,
-            name: true,
-            minCapacity: true,
-            maxCapacity: true,
-          }
-        }
-      }
-    });
+    if (!payload || typeof payload !== 'object') {
+      return NextResponse.json({ error: 'payload must be a valid object' }, { status: 400 });
+    }
 
-    return NextResponse.json(event);
+    // Emit the event
+    await eventBus.emit(event, payload, user.tenantId);
+
+    return NextResponse.json({
+      success: true,
+      event,
+      message: `Event '${event}' triggered successfully`,
+    });
   } catch (error) {
-    console.error('Error creating event:', error);
-    return NextResponse.json(
-      { error: 'Failed to create event' },
-      { status: 500 }
-    );
+    console.error('[Events] POST error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

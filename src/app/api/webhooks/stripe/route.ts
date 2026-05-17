@@ -74,10 +74,106 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid signature' }, { status: 401 });
     }
 
-    const gatewayConfig = await db.paymentGateway.findFirst({
-      where: { provider: 'stripe', status: 'active' },
-      select: { id: true, apiKey: true, webhookSecret: true, tenantId: true },
-    });
+    // Determine tenant from the Stripe webhook payload
+    // Use the Stripe account ID from the event if available, or match by
+    // looking up the payment by gateway reference first, then falling back to gateway config
+    let gatewayConfig: { id: string; apiKey?: string | null; webhookSecret?: string | null; tenantId: string } | null = null;
+    const eventObjectId = event.data?.object?.id as string | undefined;
+
+    // Strategy 1: Look up the payment by Stripe gateway reference to find the correct tenant
+    if (eventObjectId) {
+      const payment = await db.payment.findFirst({
+        where: { gateway: 'stripe', gatewayRef: eventObjectId },
+        select: { tenantId: true },
+      });
+      if (payment) {
+        gatewayConfig = await db.paymentGateway.findFirst({
+          where: { provider: 'stripe', status: 'active', tenantId: payment.tenantId },
+          select: { id: true, apiKey: true, webhookSecret: true, tenantId: true },
+        });
+      }
+    }
+
+    // Strategy 2: Check if the event has livemode/metadata to scope the lookup
+    if (!gatewayConfig) {
+      const stripeLivemode = event.data?.object?.livemode;
+      const stripeAccountId = (event.data?.object?.account as string) ||
+                              (event.data?.object?.stripe_account as string) ||
+                              (event.account as string);
+
+      if (stripeAccountId) {
+        // Match by Stripe account ID stored in gateway config
+        gatewayConfig = await db.paymentGateway.findFirst({
+          where: {
+            provider: 'stripe',
+            status: 'active',
+            config: {
+              path: ['stripeAccountId'],
+              equals: stripeAccountId,
+            },
+          },
+          select: { id: true, apiKey: true, webhookSecret: true, tenantId: true },
+        });
+
+        // If not found by stripeAccountId in config, try matching by API key prefix
+        if (!gatewayConfig) {
+          const allStripeGateways = await db.paymentGateway.findMany({
+            where: { provider: 'stripe', status: 'active' },
+            select: { id: true, apiKey: true, webhookSecret: true, tenantId: true, config: true },
+          });
+
+          for (const gw of allStripeGateways) {
+            try {
+              const gwConfig = JSON.parse(gw.config as string) as Record<string, unknown>;
+              if (gwConfig.stripeAccountId === stripeAccountId || gwConfig.accountId === stripeAccountId) {
+                gatewayConfig = gw;
+                break;
+              }
+            } catch {
+              // Skip gateways with invalid config JSON
+            }
+          }
+        }
+      }
+
+      // SECURITY FIX (G-04): Removed unsafe livemode-only fallback.
+      // livemode is a boolean, not a tenant identifier — matching on it alone
+      // in multi-tenant mode will attribute the webhook to the wrong tenant.
+      // Skip this strategy entirely and fall through to Strategy 4.
+    }
+
+    // Strategy 4: Last resort — if only one active Stripe gateway exists, use it
+    // but warn about potential cross-tenant issue
+    if (!gatewayConfig) {
+      const allActive = await db.paymentGateway.findMany({
+        where: { provider: 'stripe', status: 'active' },
+        select: { id: true, tenantId: true },
+      });
+      if (allActive.length === 1) {
+        gatewayConfig = await db.paymentGateway.findFirst({
+          where: { id: allActive[0].id },
+          select: { id: true, apiKey: true, webhookSecret: true, tenantId: true },
+        });
+        console.warn('[Stripe Webhook] Used single-active-gateway fallback — verify tenant isolation');
+      } else if (allActive.length === 0) {
+        console.error('[Stripe Webhook] No active Stripe gateway found');
+        return NextResponse.json({ success: false, error: 'No Stripe gateway configured' }, { status: 400 });
+      } else {
+        console.error(`[Stripe Webhook] Cannot determine tenant: ${allActive.length} active Stripe gateways found, no scoping identifier in event`);
+        return NextResponse.json(
+          { success: false, error: 'Cannot determine tenant from webhook payload' },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (!gatewayConfig || !gatewayConfig.tenantId) {
+      console.error('[Stripe Webhook] Tenant could not be determined');
+      return NextResponse.json(
+        { success: false, error: 'Cannot determine tenant from webhook payload' },
+        { status: 400 }
+      );
+    }
 
     const result = await handleStripeEvent(event, gatewayConfig);
 
@@ -110,8 +206,12 @@ export async function POST(request: NextRequest) {
 
 async function handleStripeEvent(
   event: StripeWebhookEvent,
-  _gatewayConfig: { id: string; apiKey?: string | null; webhookSecret?: string | null } | null
+  gatewayConfig: { id: string; apiKey?: string | null; webhookSecret?: string | null; tenantId: string } | null
 ): Promise<{ success: boolean; error?: string }> {
+  if (!gatewayConfig) {
+    return { success: false, error: 'No gateway configuration available' };
+  }
+
   const { type, data } = event;
   const object = data.object;
 

@@ -40,22 +40,6 @@ const BAR_COLORS = [
   { gradient: 'from-slate-500 to-zinc-400', bg: 'bg-slate-500', ring: 'ring-slate-500/30' },
 ];
 
-// ─── Mock Data ──────────────────────────────────────────────────────────
-
-const mockDemographics: DemographicsData = {
-  nationalities: [
-    { country: '\u{1F1EE}\u{1F1F3}', name: 'India', count: 245, percentage: 35 },
-    { country: '\u{1F1FA}\u{1F1F8}', name: 'United States', count: 128, percentage: 18 },
-    { country: '\u{1F1EC}\u{1F1E7}', name: 'United Kingdom', count: 89, percentage: 13 },
-    { country: '\u{1F1E6}\u{1F1EA}', name: 'UAE', count: 56, percentage: 8 },
-    { country: '\u{1F1F8}\u{1F1EC}', name: 'Singapore', count: 42, percentage: 6 },
-    { country: '\u{1F1E6}\u{1F1FA}', name: 'Australia', count: 35, percentage: 5 },
-    { country: '\u{1F1E9}\u{1F1EA}', name: 'Germany', count: 28, percentage: 4 },
-    { country: '\u{1F1EF}\u{1F1F5}', name: 'Japan', count: 21, percentage: 3 },
-  ],
-  uniqueCountries: 24,
-  topNationality: 'India',
-};
 
 // ─── Skeleton ───────────────────────────────────────────────────────────
 
@@ -180,15 +164,12 @@ export function GuestDemographicsWidget() {
 
       if (result.success && result.data?.demographics) {
         setData(result.data.demographics);
+        setError(false);
       } else {
-        // Fall back to mock data
-        setData(mockDemographics);
+        setError(true);
       }
-      setError(false);
     } catch {
-      // Fall back to mock data on error
-      setData(mockDemographics);
-      setError(false);
+      setError(true);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -207,7 +188,17 @@ export function GuestDemographicsWidget() {
 
   if (isLoading) return <DemographicsSkeleton />;
 
-  if (!data) return null;
+  if (error || !data) {
+    return (
+      <Card className="border border-border/60 shadow-md rounded-xl">
+        <div className="h-0.5 bg-gradient-to-r from-amber-400 to-orange-500" />
+        <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+          <p className="text-sm text-muted-foreground">Unable to load data.</p>
+          <Button variant="ghost" size="sm" className="mt-2" onClick={() => { setError(false); fetchData(true); }}>Retry</Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const nationalities = data.nationalities.slice(0, 8);
   const maxPercentage = Math.max(...nationalities.map((n) => n.percentage), 1);

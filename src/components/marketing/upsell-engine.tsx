@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -81,7 +81,10 @@ import {
   Sun,
   Snowflake,
   Save,
+  AlertTriangle,
+  PackageSearch,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useTranslations } from 'next-intl';
@@ -162,222 +165,7 @@ interface UpsellStats {
   avgUpsellValue: number;
 }
 
-// ─── Mock Data ──────────────────────────────────────────────────────────────
 
-const mockCampaigns: Campaign[] = [
-  {
-    id: 'camp-1', name: 'Suite Upgrade Pre-Arrival', type: 'pre-arrival',
-    description: 'Offer room upgrade to arriving guests 48 hours before check-in',
-    status: 'active', trigger: '48h before check-in', targetSegment: 'All Guests',
-    totalSent: 1245, conversions: 312, conversionRate: 25.1, revenue: 468000,
-    startDate: '2025-01-15', endDate: '2025-12-31', offers: ['Suite Upgrade', 'Deluxe Upgrade'],
-    priority: 'high',
-  },
-  {
-    id: 'camp-2', name: 'Welcome Spa Package', type: 'check-in',
-    description: 'Promote spa treatments during the check-in kiosk flow',
-    status: 'active', trigger: 'At check-in', targetSegment: 'Leisure Travelers',
-    totalSent: 892, conversions: 178, conversionRate: 19.9, revenue: 133500,
-    startDate: '2025-02-01', endDate: '2025-12-31', offers: ['Couples Spa', 'Deep Tissue Massage'],
-    priority: 'medium',
-  },
-  {
-    id: 'camp-3', name: 'Dining Experience Upsell', type: 'in-stay',
-    description: 'Push fine dining reservations to guests on day 2 of stay',
-    status: 'active', trigger: 'Day 2 of stay', targetSegment: 'All Guests',
-    totalSent: 1567, conversions: 424, conversionRate: 27.1, revenue: 254400,
-    startDate: '2025-01-01', endDate: '2025-12-31', offers: ['Chef\'s Table', 'Rooftop Dinner'],
-    priority: 'high',
-  },
-  {
-    id: 'camp-4', name: 'Early Check-in Offer', type: 'pre-arrival',
-    description: 'Offer early check-in to guests arriving on morning flights',
-    status: 'active', trigger: '24h before check-in', targetSegment: 'Business Travelers',
-    totalSent: 2341, conversions: 819, conversionRate: 35.0, revenue: 163800,
-    startDate: '2025-03-01', endDate: '2025-12-31', offers: ['Early Check-in'],
-    priority: 'high',
-  },
-  {
-    id: 'camp-5', name: 'Late Checkout + Breakfast', type: 'in-stay',
-    description: 'Offer late checkout with breakfast extension on last night',
-    status: 'paused', trigger: 'Last night of stay', targetSegment: 'All Guests',
-    totalSent: 978, conversions: 245, conversionRate: 25.1, revenue: 73500,
-    startDate: '2025-04-01', endDate: '2025-09-30', offers: ['Late Checkout', 'Breakfast Extension'],
-    priority: 'medium',
-  },
-  {
-    id: 'camp-6', name: 'Airport Transfer Premium', type: 'check-in',
-    description: 'Upgrade airport transfer to luxury vehicle at check-in',
-    status: 'active', trigger: 'At check-in', targetSegment: 'International Guests',
-    totalSent: 456, conversions: 137, conversionRate: 30.0, revenue: 68500,
-    startDate: '2025-02-15', endDate: '2025-12-31', offers: ['Luxury Transfer'],
-    priority: 'low',
-  },
-  {
-    id: 'camp-7', name: 'Honeymoon Romance Package', type: 'pre-arrival',
-    description: 'Curated romance package for honeymoon and anniversary guests',
-    status: 'active', trigger: '72h before check-in', targetSegment: 'Couples',
-    totalSent: 234, conversions: 98, conversionRate: 41.9, revenue: 98000,
-    startDate: '2025-01-01', endDate: '2025-12-31', offers: ['Romance Package', 'Spa for Two'],
-    priority: 'high',
-  },
-  {
-    id: 'camp-8', name: 'Kids Activity Bundle', type: 'in-stay',
-    description: 'Family activity add-ons during mid-stay for family bookings',
-    status: 'draft', trigger: 'Day 1 of stay', targetSegment: 'Family Travelers',
-    totalSent: 0, conversions: 0, conversionRate: 0, revenue: 0,
-    startDate: '2025-07-01', endDate: '2025-08-31', offers: ['Kids Club', 'Family Adventure'],
-    priority: 'low',
-  },
-];
-
-const mockOffers: UpsellOffer[] = [
-  {
-    id: 'off-1', name: 'Deluxe King → Premium Suite', category: 'room-upgrade',
-    description: 'Upgrade to our spacious Premium Suite with city views, separate living area, and premium amenities',
-    originalPrice: 18500, upsellPrice: 3500, discount: 0, image: 'suite',
-    status: 'active', timesSold: 412, revenueGenerated: 1442000, rating: 4.8, popularity: 92,
-    targetAudience: ['All Guests', 'Business', 'Leisure'], availability: 'Subject to availability',
-  },
-  {
-    id: 'off-2', name: 'Royal Suite Upgrade', category: 'room-upgrade',
-    description: 'Experience the pinnacle of luxury with butler service, private terrace, and panoramic views',
-    originalPrice: 35000, upsellPrice: 8000, discount: 0, image: 'royal',
-    status: 'active', timesSold: 156, revenueGenerated: 1248000, rating: 4.9, popularity: 78,
-    targetAudience: ['VIP', 'Celebration', 'Honeymoon'], availability: 'Limited availability',
-  },
-  {
-    id: 'off-3', name: 'Early Check-in (from 10:00)', category: 'early-checkin',
-    description: 'Arrive early and settle in comfortably before standard check-in time',
-    originalPrice: 2500, upsellPrice: 1500, discount: 40, image: 'early',
-    status: 'active', timesSold: 819, revenueGenerated: 1228500, rating: 4.5, popularity: 95,
-    targetAudience: ['Business', 'Early Arrivals'], availability: 'Available most days',
-  },
-  {
-    id: 'off-4', name: 'Late Check-out (until 15:00)', category: 'late-checkout',
-    description: 'Extend your stay and enjoy a leisurely departure with late check-out',
-    originalPrice: 2500, upsellPrice: 1200, discount: 52, image: 'late',
-    status: 'active', timesSold: 645, revenueGenerated: 774000, rating: 4.6, popularity: 88,
-    targetAudience: ['All Guests', 'Evening Flights'], availability: 'Subject to availability',
-  },
-  {
-    id: 'off-5', name: 'Couples Spa Retreat', category: 'spa',
-    description: '90-minute couples massage with aromatherapy, followed by relaxation in our spa suite',
-    originalPrice: 8000, upsellPrice: 5500, discount: 31, image: 'spa',
-    status: 'active', timesSold: 234, revenueGenerated: 1287000, rating: 4.9, popularity: 82,
-    targetAudience: ['Couples', 'Honeymoon', 'Anniversary'], availability: 'Pre-booking required',
-  },
-  {
-    id: 'off-6', name: 'Chef\'s Table Experience', category: 'dining',
-    description: 'Exclusive 7-course tasting menu with wine pairing at our chef\'s table for two',
-    originalPrice: 12000, upsellPrice: 8500, discount: 29, image: 'dining',
-    status: 'active', timesSold: 178, revenueGenerated: 1513000, rating: 4.8, popularity: 76,
-    targetAudience: ['Foodies', 'Couples', 'Celebration'], availability: 'Thu-Sat evenings',
-  },
-  {
-    id: 'off-7', name: 'Heritage Walking Tour', category: 'experience',
-    description: 'Guided half-day tour of the city\'s historic sites with a personal historian guide',
-    originalPrice: 4000, upsellPrice: 2500, discount: 37, image: 'tour',
-    status: 'active', timesSold: 189, revenueGenerated: 472500, rating: 4.7, popularity: 68,
-    targetAudience: ['Leisure', 'Culture'], availability: 'Daily, weather permitting',
-  },
-  {
-    id: 'off-8', name: 'Luxury Airport Transfer', category: 'amenity',
-    description: 'Mercedes-Benz S-Class airport pickup/drop with meet & greet and refreshments',
-    originalPrice: 5000, upsellPrice: 3000, discount: 40, image: 'transfer',
-    status: 'active', timesSold: 342, revenueGenerated: 1026000, rating: 4.6, popularity: 85,
-    targetAudience: ['Business', 'VIP', 'International'], availability: 'Pre-booking required',
-  },
-  {
-    id: 'off-9', name: 'Sunrise Yoga Session', category: 'experience',
-    description: 'Private rooftop yoga session at sunrise with a certified instructor and herbal tea',
-    originalPrice: 3000, upsellPrice: 1800, discount: 40, image: 'yoga',
-    status: 'active', timesSold: 267, revenueGenerated: 480600, rating: 4.7, popularity: 74,
-    targetAudience: ['Wellness', 'Leisure', 'Couples'], availability: 'Daily at 6:00 AM',
-  },
-  {
-    id: 'off-10', name: 'Romance Package', category: 'package',
-    description: 'Room decoration, champagne, chocolates, rose petal turndown, and late check-out',
-    originalPrice: 8000, upsellPrice: 4500, discount: 43, image: 'romance',
-    status: 'active', timesSold: 198, revenueGenerated: 891000, rating: 4.8, popularity: 80,
-    targetAudience: ['Couples', 'Honeymoon', 'Anniversary'], availability: 'Requires 24h notice',
-  },
-  {
-    id: 'off-11', name: 'Rooftop Dinner for Two', category: 'dining',
-    description: 'Private candlelit dinner on the rooftop terrace with a customized 5-course menu',
-    originalPrice: 10000, upsellPrice: 7000, discount: 30, image: 'rooftop',
-    status: 'paused', timesSold: 145, revenueGenerated: 1015000, rating: 4.9, popularity: 72,
-    targetAudience: ['Couples', 'Celebration', 'VIP'], availability: 'Weather dependent',
-  },
-  {
-    id: 'off-12', name: 'Deep Tissue Recovery Massage', category: 'spa',
-    description: '60-minute deep tissue massage targeting recovery for travelers with jet lag',
-    originalPrice: 5000, upsellPrice: 3500, discount: 30, image: 'massage',
-    status: 'active', timesSold: 321, revenueGenerated: 1123500, rating: 4.6, popularity: 79,
-    targetAudience: ['Business', 'Wellness', 'Long-haul'], availability: 'Daily 10 AM - 8 PM',
-  },
-];
-
-const mockPerformance: PerformanceMetric[] = [
-  { month: 'Jan', revenue: 385000, conversions: 198, sent: 890, avgUpsell: 1944 },
-  { month: 'Feb', revenue: 412000, conversions: 215, sent: 945, avgUpsell: 1916 },
-  { month: 'Mar', revenue: 478000, conversions: 256, sent: 1089, avgUpsell: 1867 },
-  { month: 'Apr', revenue: 523000, conversions: 287, sent: 1234, avgUpsell: 1822 },
-  { month: 'May', revenue: 567000, conversions: 312, sent: 1356, avgUpsell: 1817 },
-  { month: 'Jun', revenue: 612000, conversions: 345, sent: 1478, avgUpsell: 1774 },
-];
-
-const mockRecommendations: AIRecommendation[] = [
-  {
-    id: 'ai-1', title: 'Monsoon Spa Retreat Bundle', segment: 'Wellness Travelers',
-    description: 'Combine a 90-minute massage with a rain shower experience and herbal tea ceremony. High affinity detected for guests booking rooms with garden/pool views.',
-    predictedConversion: 38.5, estimatedRevenue: 245000, priority: 'high',
-    category: 'spa', confidence: 92, action: 'Create Campaign',
-  },
-  {
-    id: 'ai-2', title: 'Business Express Package', segment: 'Corporate Travelers',
-    description: 'Bundle early check-in + express laundry + breakfast-to-go for business travelers on 1-2 night stays. Pattern shows 73% of corporate guests miss breakfast.',
-    predictedConversion: 42.1, estimatedRevenue: 189000, priority: 'high',
-    category: 'package', confidence: 89, action: 'Create Offer',
-  },
-  {
-    id: 'ai-3', title: 'Family Adventure Day Pass', segment: 'Family Travelers',
-    description: 'Curated family day with kids club, family brunch, and afternoon activity. Seasonal spike detected: family bookings up 34% this quarter.',
-    predictedConversion: 35.2, estimatedRevenue: 312000, priority: 'high',
-    category: 'experience', confidence: 87, action: 'Create Campaign',
-  },
-  {
-    id: 'ai-4', title: 'Romance Enhancement at Check-in', segment: 'Couples',
-    description: 'Target guests with "couple" or "honeymoon" booking tags at check-in. Offer champagne and rose turndown. Current romance package converts 42% in pre-arrival.',
-    predictedConversion: 45.0, estimatedRevenue: 156000, priority: 'medium',
-    category: 'dining', confidence: 84, action: 'Create Offer',
-  },
-  {
-    id: 'ai-5', title: 'Extended Stay Loyalty Perk', segment: 'Returning Guests',
-    description: 'Offer free late checkout + spa voucher for stays of 4+ nights. Loyalty data shows returning guests spend 28% more on ancillary services.',
-    predictedConversion: 55.3, estimatedRevenue: 98700, priority: 'medium',
-    category: 'package', confidence: 81, action: 'Create Campaign',
-  },
-  {
-    id: 'ai-6', title: 'Weekend Brunch Upgrade', segment: 'Leisure Travelers',
-    description: 'Upgrade standard breakfast to premium brunch buffet for weekend stays. Brunch revenue on weekends is 3.2x higher than weekday breakfast.',
-    predictedConversion: 31.7, estimatedRevenue: 134000, priority: 'low',
-    category: 'dining', confidence: 78, action: 'Create Offer',
-  },
-  {
-    id: 'ai-7', title: 'Jet Lag Recovery Kit', segment: 'International Travelers',
-    description: 'Pre-arrival offer: welcome kit with sleep aid tea, eye mask, and 30-min neck massage. Booking data shows 68% of international arrivals before 6 AM.',
-    predictedConversion: 29.4, estimatedRevenue: 87500, priority: 'low',
-    category: 'amenity', confidence: 75, action: 'Create Offer',
-  },
-];
-
-const mockStats: UpsellStats = {
-  activeCampaigns: 5,
-  conversionRate: 28.4,
-  upsellRevenue: 3425000,
-  avgUpsellValue: 2340,
-};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -456,29 +244,131 @@ export default function UpsellEngine() {
   const { formatCurrency } = useCurrency();
 
   // Data state
-  const [campaigns, setCampaigns] = useState<Campaign[]>(mockCampaigns);
-  const [offers, setOffers] = useState<UpsellOffer[]>(mockOffers);
-  const [performance, setPerformance] = useState<PerformanceMetric[]>(mockPerformance);
-  const [recommendations, setRecommendations] = useState<AIRecommendation[]>(mockRecommendations);
-  const [stats, setStats] = useState<UpsellStats>(mockStats);
-  const [loading, setLoading] = useState(false);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [offers, setOffers] = useState<UpsellOffer[]>([]);
+  const [performance, setPerformance] = useState<PerformanceMetric[]>([]);
+  const [recommendations, setRecommendations] = useState<AIRecommendation[]>([]);
+  const [stats, setStats] = useState<UpsellStats>({ activeCampaigns: 0, conversionRate: 0, upsellRevenue: 0, avgUpsellValue: 0 });
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Dialog state
   const [campaignDialog, setCampaignDialog] = useState<{ open: boolean; item: Campaign | null }>({ open: false, item: null });
   const [offerDialog, setOfferDialog] = useState<{ open: boolean; item: UpsellOffer | null }>({ open: false, item: null });
+  const [createOfferDialog, setCreateOfferDialog] = useState(false);
+  const [createOfferForm, setCreateOfferForm] = useState({
+    name: '',
+    offerType: 'percentage',
+    value: '',
+    conditions: '',
+    validFrom: '',
+    validUntil: '',
+  });
+  const [createOfferLoading, setCreateOfferLoading] = useState(false);
 
-  // Load mock data
-  const fetchMockData = useCallback(() => {
-    setLoading(true);
-    setTimeout(() => {
-      setCampaigns(mockCampaigns);
-      setOffers(mockOffers);
-      setPerformance(mockPerformance);
-      setRecommendations(mockRecommendations);
-      setStats(mockStats);
+  // Fetch real data from API
+  const fetchUpsellData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    setError(null);
+    try {
+      const res = await fetch('/api/marketing/upsell');
+      if (!res.ok) throw new Error('Failed to fetch upsell data');
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error?.message || 'Failed to fetch upsell data');
+
+      const { campaigns: apiCampaigns, offerCatalog, performanceStats, aiRecommendations: apiRecs } = json.data;
+      const apiStats = json.stats;
+
+      // Map API campaigns to component shape
+      const mappedCampaigns: Campaign[] = (apiCampaigns || []).map((c: Record<string, unknown>) => ({
+        id: c.id,
+        name: c.name,
+        description: c.description || '',
+        type: c.type || 'pre-arrival',
+        status: c.status || 'draft',
+        trigger: c.trigger || 'Manual',
+        targetSegment: c.targetSegment || '',
+        totalSent: c.stats?.impressions || 0,
+        conversions: c.stats?.conversions || 0,
+        conversionRate: c.stats?.conversionRate || 0,
+        revenue: c.stats?.revenue || 0,
+        startDate: c.startDate || '',
+        endDate: c.endDate || '',
+        offers: c.offers || [],
+        priority: c.priority || 'medium',
+      }));
+
+      // Map API offers from offer catalog
+      const categoryMap: Record<string, string> = {
+        'room-upgrade': 'room-upgrade', 'early-checkin': 'early-checkin', 'late-checkout': 'late-checkout',
+        'spa': 'spa', 'dining': 'dining', 'experience': 'experience', 'package': 'package', 'amenity': 'amenity',
+      };
+      const mappedOffers: UpsellOffer[] = (offerCatalog || []).map((o: Record<string, unknown>) => {
+        const catId = o.id?.replace('cat-', '') || 'package';
+        return {
+          id: o.id,
+          name: o.category || 'Offer',
+          category: (categoryMap[catId] || 'package') as UpsellOffer['category'],
+          description: '',
+          originalPrice: 0,
+          upsellPrice: 0,
+          discount: 0,
+          image: '',
+          status: 'active' as const,
+          timesSold: 0,
+          revenueGenerated: 0,
+          rating: 0,
+          popularity: 0,
+          targetAudience: [],
+          availability: '',
+        };
+      });
+
+      // Map performance stats
+      const ps = performanceStats?.thisMonth;
+      const mappedPerformance: PerformanceMetric[] = ps ? [
+        { month: 'This Month', revenue: ps.totalRevenue || 0, conversions: ps.totalConversions || 0, sent: ps.totalImpressions || 0, avgUpsell: ps.avgOrderValue || 0 },
+      ] : [];
+
+      // Map AI recommendations
+      const mappedRecs: AIRecommendation[] = (apiRecs || []).map((r: Record<string, unknown>) => ({
+        id: r.id || `ai-${Date.now()}`,
+        title: r.title || '',
+        description: r.description || '',
+        segment: r.segment || '',
+        predictedConversion: r.predictedConversion || 0,
+        estimatedRevenue: r.estimatedRevenue || 0,
+        priority: r.priority || 'low',
+        category: r.category || '',
+        confidence: r.confidence || 0,
+        action: r.action || '',
+      }));
+
+      setCampaigns(mappedCampaigns);
+      setOffers(mappedOffers);
+      setPerformance(mappedPerformance);
+      setRecommendations(mappedRecs);
+      setStats({
+        activeCampaigns: apiStats?.activeCampaigns || 0,
+        conversionRate: ps?.overallConversionRate || 0,
+        upsellRevenue: ps?.totalRevenue || 0,
+        avgUpsellValue: ps?.avgOrderValue || 0,
+      });
+    } catch (err) {
+      console.error('Error fetching upsell data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load data');
+    } finally {
       setLoading(false);
-    }, 600);
+      setRefreshing(false);
+    }
   }, []);
+
+  useEffect(() => { fetchUpsellData(); }, [fetchUpsellData]);
 
   // ─── Campaign handlers ──────────────────────────────────────────────────
 
@@ -543,6 +433,16 @@ export default function UpsellEngine() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <AlertTriangle className="h-8 w-8 text-amber-500" />
+        <p className="text-muted-foreground">{error}</p>
+        <Button variant="outline" onClick={fetchUpsellData}>Try Again</Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -551,8 +451,8 @@ export default function UpsellEngine() {
           <h1 className="text-2xl font-bold tracking-tight">Upsell Engine</h1>
           <p className="text-muted-foreground">Manage upsell campaigns, offer catalog, performance analytics, and AI-powered recommendations</p>
         </div>
-        <Button onClick={fetchMockData}>
-          <RefreshCw className="h-4 w-4 mr-2" />
+        <Button onClick={() => fetchUpsellData(true)} disabled={refreshing}>
+          <RefreshCw className={cn('h-4 w-4 mr-2', refreshing && 'animate-spin')} />
           Refresh
         </Button>
       </div>
@@ -676,6 +576,19 @@ export default function UpsellEngine() {
           </div>
 
           {/* Campaign Cards */}
+          {campaigns.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+                <div className="p-3 rounded-full bg-muted">
+                  <Megaphone className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-medium">No campaigns yet</p>
+                  <p className="text-sm text-muted-foreground mt-1">Create your first upsell campaign to start driving revenue.</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {campaigns.map((camp) => {
               const TypeIcon = getCampaignTypeIcon(camp.type);
@@ -753,17 +666,31 @@ export default function UpsellEngine() {
               );
             })}
           </div>
+          )}
         </TabsContent>
 
         {/* ─── Offer Catalog Tab ──────────────────────────────────────── */}
         <TabsContent value="offers" className="mt-4 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">{offers.filter(o => o.status === 'active').length} active offers in catalog</p>
-            <Button size="sm" onClick={() => toast.info('Create offer form coming soon')}>
+            <Button size="sm" onClick={() => { setCreateOfferForm({ name: '', offerType: 'percentage', value: '', conditions: '', validFrom: '', validUntil: '' }); setCreateOfferDialog(true); }}>
               <Plus className="h-4 w-4 mr-2" />
               Create Offer
             </Button>
           </div>
+          {offers.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+                <div className="p-3 rounded-full bg-muted">
+                  <PackageSearch className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-medium">No offers in catalog</p>
+                  <p className="text-sm text-muted-foreground mt-1">Add upsell offers to your catalog so campaigns can include them.</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {offers.map((offer) => {
               const OfferIcon = getOfferIcon(offer.category);
@@ -861,6 +788,7 @@ export default function UpsellEngine() {
               );
             })}
           </div>
+          )}
         </TabsContent>
 
         {/* ─── Performance Tab ────────────────────────────────────────── */}
@@ -919,6 +847,17 @@ export default function UpsellEngine() {
               <CardDescription>Revenue and conversion trends over the last 6 months</CardDescription>
             </CardHeader>
             <CardContent>
+              {performance.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+                  <div className="p-3 rounded-full bg-muted">
+                    <BarChart3 className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="font-medium">No performance data</p>
+                    <p className="text-sm text-muted-foreground mt-1">Performance metrics will appear once campaigns start generating impressions.</p>
+                  </div>
+                </div>
+              ) : (
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={performance} barGap={4}>
@@ -940,6 +879,7 @@ export default function UpsellEngine() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+              )}
             </CardContent>
           </Card>
 
@@ -1077,6 +1017,19 @@ export default function UpsellEngine() {
             </p>
           </div>
 
+          {recommendations.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+                <div className="p-3 rounded-full bg-muted">
+                  <Brain className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-medium">No AI recommendations yet</p>
+                  <p className="text-sm text-muted-foreground mt-1">AI-powered recommendations will appear once enough guest data is available for analysis.</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
           <div className="space-y-4">
             {recommendations.map((rec) => {
               const priorityCfg = getPriorityConfig(rec.priority);
@@ -1145,6 +1098,7 @@ export default function UpsellEngine() {
               );
             })}
           </div>
+          )}
         </TabsContent>
       </Tabs>
 
@@ -1316,6 +1270,125 @@ export default function UpsellEngine() {
             <Button onClick={() => { toast.success('Offer settings saved'); setOfferDialog({ open: false, item: null }); }}>
               <Save className="h-4 w-4 mr-2" />
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Create Offer Dialog ──────────────────────────────────────── */}
+      <Dialog open={createOfferDialog} onOpenChange={setCreateOfferDialog}>
+        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Gift className="h-5 w-5" />
+              Create Upsell Offer
+            </DialogTitle>
+            <DialogDescription>Configure a new upsell offer for your campaigns.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="offer-name">Offer Name *</Label>
+              <Input
+                id="offer-name"
+                placeholder="e.g., Weekend Spa Package"
+                value={createOfferForm.name}
+                onChange={(e) => setCreateOfferForm(prev => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="offer-type">Type *</Label>
+                <Select value={createOfferForm.offerType} onValueChange={(v) => setCreateOfferForm(prev => ({ ...prev, offerType: v }))}>
+                  <SelectTrigger id="offer-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">Percentage Discount</SelectItem>
+                    <SelectItem value="flat">Flat Amount Off</SelectItem>
+                    <SelectItem value="room-upgrade">Room Upgrade</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="offer-value">Value *</Label>
+                <Input
+                  id="offer-value"
+                  type="number"
+                  placeholder={createOfferForm.offerType === 'percentage' ? '15' : '50.00'}
+                  value={createOfferForm.value}
+                  onChange={(e) => setCreateOfferForm(prev => ({ ...prev, value: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="offer-conditions">Conditions (min stay nights, room type, booking window)</Label>
+              <Input
+                id="offer-conditions"
+                placeholder="e.g., min 3 nights, deluxe room only"
+                value={createOfferForm.conditions}
+                onChange={(e) => setCreateOfferForm(prev => ({ ...prev, conditions: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="offer-valid-from">Valid From</Label>
+                <Input
+                  id="offer-valid-from"
+                  type="date"
+                  value={createOfferForm.validFrom}
+                  onChange={(e) => setCreateOfferForm(prev => ({ ...prev, validFrom: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="offer-valid-until">Valid Until</Label>
+                <Input
+                  id="offer-valid-until"
+                  type="date"
+                  value={createOfferForm.validUntil}
+                  onChange={(e) => setCreateOfferForm(prev => ({ ...prev, validUntil: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOfferDialog(false)} disabled={createOfferLoading}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                if (!createOfferForm.name.trim() || !createOfferForm.value) {
+                  toast.error('Please fill in the offer name and value');
+                  return;
+                }
+                setCreateOfferLoading(true);
+                try {
+                  const firstCampaign = campaigns[0];
+                  const res = await fetch('/api/marketing/upsell/offers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      campaignId: firstCampaign?.id,
+                      name: createOfferForm.name,
+                      description: createOfferForm.conditions || undefined,
+                      offerType: createOfferForm.offerType,
+                      originalPrice: createOfferForm.offerType === 'flat' ? parseFloat(createOfferForm.value) : 0,
+                      upsellPrice: createOfferForm.offerType === 'flat' ? 0 : parseFloat(createOfferForm.value),
+                      discount: createOfferForm.offerType === 'percentage' ? parseFloat(createOfferForm.value) : 0,
+                    }),
+                  });
+                  if (!res.ok) throw new Error('Failed to create offer');
+                  const json = await res.json();
+                  if (!json.success) throw new Error(json.error || 'Failed to create offer');
+                  toast.success(`Offer "${createOfferForm.name}" created successfully`);
+                  setCreateOfferDialog(false);
+                  fetchUpsellData();
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Failed to create offer');
+                } finally {
+                  setCreateOfferLoading(false);
+                }
+              }}
+              disabled={createOfferLoading}
+            >
+              {createOfferLoading ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Creating...</> : <><Plus className="h-4 w-4 mr-2" />Create Offer</>}
             </Button>
           </DialogFooter>
         </DialogContent>

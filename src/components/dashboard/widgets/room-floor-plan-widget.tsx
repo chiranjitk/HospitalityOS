@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -114,112 +115,30 @@ const roomTypeIcons: Record<RoomType, React.ElementType> = {
   deluxe: Bath,
 };
 
-// ─── Mock Data Generator ────────────────────────────────────────────────
+// ─── Loading Skeleton ────────────────────────────────────────────────────
 
-function generateMockData(): RoomData[] {
-  const rooms: RoomData[] = [];
-  const guestNames = [
-    'James Wilson', 'Maria Garcia', 'David Chen', 'Sarah Johnson',
-    'Robert Kim', 'Emily Davis', 'Michael Brown', 'Lisa Anderson',
-    'Thomas Lee', 'Jennifer Martinez', 'Daniel Taylor', 'Rachel White',
-    'Christopher Moore', 'Amanda Clark', 'Matthew Hall', 'Stephanie Young',
-    'Andrew King', 'Nicole Wright', 'Joshua Lopez', 'Samantha Hill',
-    'Ryan Scott', 'Lauren Green', 'Brandon Adams', 'Megan Baker',
-  ];
-  const plans = ['Bed & Breakfast', 'Half Board', 'Full Board', 'All-Inclusive', 'Room Only'];
-  const maintenanceReasons = [
-    'Plumbing repair', 'AC maintenance', 'Deep cleaning', 'Carpet replacement', 'Window repair',
-  ];
-
-  const statusDistribution: RoomStatus[] = [
-    'available', 'occupied', 'occupied', 'occupied', 'occupied', 'vip', 'maintenance',
-    'available', 'occupied', 'occupied', 'vip', 'available',
-    'occupied', 'occupied', 'available', 'maintenance', 'occupied', 'occupied',
-    'available', 'occupied', 'occupied', 'available', 'occupied', 'vip',
-    'available', 'available', 'occupied', 'occupied', 'maintenance', 'occupied',
-    'occupied', 'vip', 'available', 'occupied', 'occupied', 'available',
-  ];
-
-  const roomTypes: RoomType[] = [
-    'standard', 'standard', 'standard', 'deluxe', 'deluxe', 'suite',
-    'standard', 'standard', 'deluxe', 'standard', 'suite', 'standard',
-  ];
-
-  for (let floor = 1; floor <= 3; floor++) {
-    for (let pos = 0; pos < 6; pos++) {
-      const idx = (floor - 1) * 12 + pos;
-      const status = statusDistribution[idx % statusDistribution.length];
-      const type = roomTypes[pos % roomTypes.length];
-      const roomNum = `${floor}${String(pos + 1).padStart(2, '0')}`;
-
-      const room: RoomData = {
-        id: `room-${roomNum}`,
-        number: roomNum,
-        type,
-        status,
-        floor,
-        side: 'left',
-        position: pos,
-      };
-
-      if (status === 'occupied' || status === 'vip') {
-        const guestIdx = idx % guestNames.length;
-        room.guestName = guestNames[guestIdx];
-        const ci = new Date();
-        ci.setDate(ci.getDate() - (idx % 3 + 1));
-        room.checkIn = ci.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const co = new Date();
-        co.setDate(co.getDate() + (idx % 4 + 1));
-        room.checkOut = co.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        room.plan = plans[idx % plans.length];
-        room.phone = `+1 555-${String(1000 + idx).slice(1)}`;
-      }
-
-      if (status === 'maintenance') {
-        room.maintenanceReason = maintenanceReasons[idx % maintenanceReasons.length];
-      }
-
-      rooms.push(room);
-    }
-
-    for (let pos = 0; pos < 6; pos++) {
-      const idx = (floor - 1) * 12 + pos + 6;
-      const status = statusDistribution[(idx + 3) % statusDistribution.length];
-      const type = roomTypes[(pos + 2) % roomTypes.length];
-      const roomNum = `${floor}${String(pos + 7).padStart(2, '0')}`;
-
-      const room: RoomData = {
-        id: `room-${roomNum}`,
-        number: roomNum,
-        type,
-        status,
-        floor,
-        side: 'right',
-        position: pos,
-      };
-
-      if (status === 'occupied' || status === 'vip') {
-        const guestIdx = (idx + 5) % guestNames.length;
-        room.guestName = guestNames[guestIdx];
-        const ci = new Date();
-        ci.setDate(ci.getDate() - (idx % 2 + 1));
-        room.checkIn = ci.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const co = new Date();
-        co.setDate(co.getDate() + (idx % 5 + 1));
-        room.checkOut = co.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        room.plan = plans[(idx + 2) % plans.length];
-        room.phone = `+1 555-${String(2000 + idx).slice(1)}`;
-      }
-
-      if (status === 'maintenance') {
-        room.maintenanceReason = maintenanceReasons[(idx + 1) % maintenanceReasons.length];
-      }
-
-      rooms.push(room);
-    }
-  }
-
-  return rooms;
+function LoadingSkeleton() {
+  return (
+    <Card className="border border-border/50 shadow-sm">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-7 w-7 rounded-lg" />
+            <Skeleton className="h-5 w-36" />
+          </div>
+          <Skeleton className="h-7 w-32" />
+        </div>
+      </CardHeader>
+      <CardContent className="p-4 pt-0 space-y-4">
+        <div className="grid grid-cols-4 gap-2">
+          {[1,2,3,4].map(i => (
+            <Skeleton key={i} className="h-16 rounded-lg" />
+          ))}
+        </div>
+        <Skeleton className="h-[400px] w-full rounded-lg" />
+      </CardContent>
+    </Card>
+  );
 }
 
 // ─── Room SVG Component ─────────────────────────────────────────────────
@@ -449,8 +368,73 @@ export function RoomFloorPlanWidget() {
   const [currentFloor, setCurrentFloor] = useState(1);
   const [zoom, setZoom] = useState(1);
   const [selectedRoom, setSelectedRoom] = useState<RoomData | null>(null);
+  const [allRooms, setAllRooms] = useState<RoomData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const allRooms = useMemo(() => generateMockData(), []);
+  // Fetch real rooms from API
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchRooms() {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch('/api/rooms');
+        if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
+        const data = await res.json();
+        if (cancelled) return;
+
+        const rooms = Array.isArray(data) ? data : data.rooms || [];
+        // Determine available floors
+        const floors = [...new Set(rooms.map((r: Record<string, unknown>) => Number(r.floor || Math.ceil(Number(r.roomNumber || 1) / 100))))];
+
+        const mapped: RoomData[] = rooms.map((r: Record<string, unknown>, idx: number) => {
+          const roomNum = String(r.roomNumber || r.number || `${idx + 1}`);
+          const floor = Number(r.floor || Math.ceil(Number(roomNum) / 100) || 1);
+          const statusVal = String(r.status || 'available').toLowerCase();
+          const typeVal = String(r.type || r.roomType || 'standard').toLowerCase();
+          const isOccupied = statusVal === 'occupied';
+          const isVip = statusVal === 'vip' || r.isVip || r.isVipGuest;
+          const isMaintenance = statusVal === 'maintenance' || statusVal === 'out_of_service' || statusVal === 'out-of-service';
+
+          let finalStatus: RoomStatus = 'available';
+          if (isMaintenance) finalStatus = 'maintenance';
+          else if (isVip) finalStatus = 'vip';
+          else if (isOccupied) finalStatus = 'occupied';
+
+          let roomType: RoomType = 'standard';
+          if (typeVal.includes('suite')) roomType = 'suite';
+          else if (typeVal.includes('deluxe') || typeVal.includes('superior')) roomType = 'deluxe';
+
+          const room: RoomData = {
+            id: r.id || `room-${roomNum}`,
+            number: roomNum,
+            type: roomType,
+            status: finalStatus,
+            floor,
+            side: idx % 2 === 0 ? 'left' : 'right',
+            position: Math.floor(idx / 2),
+            guestName: r.guestName || (r.currentBooking && (r.currentBooking.guestFirstName || r.currentBooking.guestName)) ? `${r.currentBooking.guestFirstName || ''} ${r.currentBooking.guestLastName || r.currentBooking.guestName || ''}`.trim() || undefined : undefined,
+            checkIn: r.checkIn || (r.currentBooking && r.currentBooking.checkIn) ? new Date(r.currentBooking.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : undefined,
+            checkOut: r.checkOut || (r.currentBooking && r.currentBooking.checkOut) ? new Date(r.currentBooking.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : undefined,
+            plan: r.plan || r.ratePlan || undefined,
+            maintenanceReason: r.maintenanceReason || r.maintenanceNote || undefined,
+          };
+          return room;
+        });
+        setAllRooms(mapped);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load rooms');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    fetchRooms();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Compute available floors from real data
+  const availableFloors = useMemo(() => [...new Set(allRooms.map(r => r.floor))].sort(), [allRooms]);
 
   const floorRooms = useMemo(
     () => allRooms.filter((r) => r.floor === currentFloor),
@@ -477,14 +461,16 @@ export function RoomFloorPlanWidget() {
 
   const handleZoomIn = useCallback(() => setZoom((z) => Math.min(z + 0.15, 1.5)), []);
   const handleZoomOut = useCallback(() => setZoom((z) => Math.max(z - 0.15, 0.5)), []);
+  const minFloor = availableFloors.length > 0 ? availableFloors[0] : 1;
+  const maxFloor = availableFloors.length > 0 ? availableFloors[availableFloors.length - 1] : 1;
   const handlePrevFloor = useCallback(() => {
     setSelectedRoom(null);
-    setCurrentFloor((f) => Math.max(1, f - 1));
-  }, []);
+    setCurrentFloor((f) => Math.max(minFloor, f - 1));
+  }, [minFloor]);
   const handleNextFloor = useCallback(() => {
     setSelectedRoom(null);
-    setCurrentFloor((f) => Math.min(3, f + 1));
-  }, []);
+    setCurrentFloor((f) => Math.min(maxFloor, f + 1));
+  }, [maxFloor]);
 
   // SVG dimensions
   const svgWidth = 700;
@@ -497,6 +483,31 @@ export function RoomFloorPlanWidget() {
   const corridorHeight = 60;
   const leftStartX = 30;
   const rightStartX = svgWidth - 30 - roomWidth;
+
+  if (loading) return <LoadingSkeleton />;
+  if (error) {
+    return (
+      <Card className="border border-border/50 shadow-sm">
+        <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
+        <AlertTriangle className="h-8 w-8 text-red-400" />
+        <p className="text-sm text-muted-foreground">Failed to load room data.</p>
+        <p className="text-xs text-muted-foreground/60">{error}</p>
+        <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
+      </CardContent>
+    </Card>
+    );
+  }
+  if (allRooms.length === 0) {
+    return (
+      <Card className="border border-border/50 shadow-sm">
+        <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
+        <Building2 className="h-10 w-10 text-muted-foreground/40" />
+        <p className="text-sm text-muted-foreground">No rooms found.</p>
+        <p className="text-xs text-muted-foreground/60">Rooms will appear here once configured.</p>
+      </CardContent>
+    </Card>
+    );
+  }
 
   return (
     <motion.div
@@ -522,7 +533,7 @@ export function RoomFloorPlanWidget() {
                   size="icon"
                   className="h-7 w-7"
                   onClick={handlePrevFloor}
-                  disabled={currentFloor <= 1}
+                  disabled={currentFloor <= minFloor}
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </Button>
@@ -537,9 +548,9 @@ export function RoomFloorPlanWidget() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">Floor 1</SelectItem>
-                    <SelectItem value="2">Floor 2</SelectItem>
-                    <SelectItem value="3">Floor 3</SelectItem>
+                    {availableFloors.map(f => (
+                      <SelectItem key={f} value={String(f)}>Floor {f}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Button
@@ -547,7 +558,7 @@ export function RoomFloorPlanWidget() {
                   size="icon"
                   className="h-7 w-7"
                   onClick={handleNextFloor}
-                  disabled={currentFloor >= 3}
+                  disabled={currentFloor >= maxFloor}
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
                 </Button>

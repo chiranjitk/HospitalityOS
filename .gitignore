@@ -69,12 +69,13 @@ freeradius-install/var/log/
 
 test
 prompt
-# Skills directory
+# Skills directory (sandbox internal, not part of project)
+skills/
+
 # SQLite database files (production uses PostgreSQL only)
 *.db
 *.db-shm
 *.db-wal
-/skills/custom.db
 
 # RRD data files (tracked structure, not runtime data)
 data/rrd/users/*.rrd
@@ -133,3 +134,6 @@ test-w.txt
 
 # StaySuite runtime data & logs
 .staysuite/
+e2e/.auth/
+tests/pms/.test-state.json
+tests/pms/*.test-state*.json

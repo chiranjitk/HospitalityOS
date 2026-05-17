@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -86,6 +86,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -134,85 +135,28 @@ interface PayrollCalendar {
   totalNetPay: number;
 }
 
-// ── Mock Data ──────────────────────────────────────────────────────────
+// ── API types ───────────────────────────────────────────────────────
 
-const DEPARTMENTS = ['Front Office', 'Housekeeping', 'F&B Service', 'Kitchen', 'Maintenance', 'Security', 'Spa & Wellness', 'Finance'];
-
-const MOCK_EMPLOYEES: Employee[] = [
-  { id: 'e-001', name: 'Rajesh Kumar', employeeId: 'EMP-001', department: 'Front Office', designation: 'Front Desk Manager', pan: 'ABCPK1234A', bankAccount: 'XXXX-XXXX-1234' },
-  { id: 'e-002', name: 'Priya Sharma', employeeId: 'EMP-002', department: 'Front Office', designation: 'Receptionist', pan: 'BCDPS5678B', bankAccount: 'XXXX-XXXX-2345' },
-  { id: 'e-003', name: 'Amit Patel', employeeId: 'EMP-003', department: 'Housekeeping', designation: 'HK Supervisor', pan: 'CDEAP9012C', bankAccount: 'XXXX-XXXX-3456' },
-  { id: 'e-004', name: 'Sunita Devi', employeeId: 'EMP-004', department: 'Housekeeping', designation: 'Room Attendant', pan: 'DEFSD3456D', bankAccount: 'XXXX-XXXX-4567' },
-  { id: 'e-005', name: 'Vikram Singh', employeeId: 'EMP-005', department: 'F&B Service', designation: 'F&B Manager', pan: 'EFGVS7890E', bankAccount: 'XXXX-XXXX-5678' },
-  { id: 'e-006', name: 'Neha Gupta', employeeId: 'EMP-006', department: 'F&B Service', designation: 'Captain', pan: 'FGHNG1234F', bankAccount: 'XXXX-XXXX-6789' },
-  { id: 'e-007', name: 'Arjun Reddy', employeeId: 'EMP-007', department: 'Kitchen', designation: 'Executive Chef', pan: 'GHIRA5678G', bankAccount: 'XXXX-XXXX-7890' },
-  { id: 'e-008', name: 'Kavita Menon', employeeId: 'EMP-008', department: 'Kitchen', designation: 'Sous Chef', pan: 'HIJKM9012H', bankAccount: 'XXXX-XXXX-8901' },
-  { id: 'e-009', name: 'Suresh Nair', employeeId: 'EMP-009', department: 'Maintenance', designation: 'Maintenance Lead', pan: 'IJKLS3456I', bankAccount: 'XXXX-XXXX-9012' },
-  { id: 'e-010', name: 'Deepa Iyer', employeeId: 'EMP-010', department: 'Security', designation: 'Security Officer', pan: 'JKLID7890J', bankAccount: 'XXXX-XXXX-0123' },
-  { id: 'e-011', name: 'Rahul Joshi', employeeId: 'EMP-011', department: 'Spa & Wellness', designation: 'Spa Manager', pan: 'KLMRJ1234K', bankAccount: 'XXXX-XXXX-1234' },
-  { id: 'e-012', name: 'Meera Krishnan', employeeId: 'EMP-012', department: 'Finance', designation: 'Accounts Manager', pan: 'LMNRM5678L', bankAccount: 'XXXX-XXXX-2345' },
-  { id: 'e-013', name: 'Sanjay Verma', employeeId: 'EMP-013', department: 'Housekeeping', designation: 'Room Attendant', pan: 'MNOSV9012M', bankAccount: 'XXXX-XXXX-3456' },
-  { id: 'e-014', name: 'Anita Desai', employeeId: 'EMP-014', department: 'F&B Service', designation: 'Steward', pan: 'NO PAD3456N', bankAccount: 'XXXX-XXXX-4567' },
-  { id: 'e-015', name: 'Kiran Rao', employeeId: 'EMP-015', department: 'Kitchen', designation: 'Commis Chef', pan: 'OPBKR7890O', bankAccount: 'XXXX-XXXX-5678' },
-  { id: 'e-016', name: 'Lakshmi Pillai', employeeId: 'EMP-016', department: 'Front Office', designation: 'Concierge', pan: 'PQCLP1234P', bankAccount: 'XXXX-XXXX-6789' },
-  { id: 'e-017', name: 'Manish Tiwari', employeeId: 'EMP-017', department: 'Maintenance', designation: 'Electrician', pan: 'QRDMT5678Q', bankAccount: 'XXXX-XXXX-7890' },
-  { id: 'e-018', name: 'Pooja Agarwal', employeeId: 'EMP-018', department: 'Spa & Wellness', designation: 'Therapist', pan: 'RSTEP9012R', bankAccount: 'XXXX-XXXX-8901' },
-];
-
-function generatePayroll(emp: Employee, index: number): PayrollRecord {
-  const baseSalaries: Record<string, number> = {
-    'Front Desk Manager': 45000, 'Receptionist': 22000, 'HK Supervisor': 28000, 'Room Attendant': 16000,
-    'F&B Manager': 50000, 'Captain': 24000, 'Executive Chef': 75000, 'Sous Chef': 42000,
-    'Maintenance Lead': 30000, 'Security Officer': 25000, 'Spa Manager': 40000, 'Accounts Manager': 48000,
-    'Steward': 18000, 'Commis Chef': 20000, 'Concierge': 26000, 'Electrician': 22000, 'Therapist': 28000,
-  };
-  const base = baseSalaries[emp.designation] || 25000;
-  const hra = Math.round(base * 0.4);
-  const da = Math.round(base * 0.1);
-  const special = Math.round(base * 0.2);
-  const ot = index % 3 === 0 ? Math.round(base * 0.08) : 0;
-  const bonus = index % 5 === 0 ? 5000 : 0;
-  const conv = 1600;
-  const med = 1250;
-  const totalEarn = base + hra + da + special + ot + bonus + conv + med;
-  const pf = Math.round((base + da) * 0.12);
-  const esi = base <= 21000 ? Math.round(base * 0.0075) : 0;
-  const tds = Math.round(totalEarn * (index % 4 === 0 ? 0.1 : 0.05));
-  const profTax = 200;
-  const loan = index === 2 ? 3000 : 0;
-  const advance = index === 6 ? 2000 : 0;
-  const totalDed = pf + esi + tds + profTax + loan + advance;
-  const lateDed = index % 7 === 0 ? 200 : 0;
-  const leaveAdj = index % 8 === 0 ? Math.round(base / 30) : 0;
-
-  return {
-    employee: emp,
-    daysWorked: 26 - (index % 3 === 0 ? 0 : 1),
-    totalDays: 26,
-    basicSalary: base,
-    hra, da, specialAllowance: special, overtime: ot, bonus, conveyance: conv, medical: med,
-    totalEarnings: totalEarn,
-    pf, esi, tds, profTax, loanEmi: loan, advanceRecovery: advance,
-    totalDeductions: totalDed + lateDed + leaveAdj,
-    netPay: totalEarn - totalDed - lateDed - leaveAdj,
-    leaveAdjustment: leaveAdj,
-    lateDeduction: lateDed,
-    status: index === 5 ? 'on_hold' : index < 16 ? 'processed' : 'pending',
-  };
+interface ApiPayrollSummary {
+  totalGross: number;
+  totalDeductions: number;
+  totalNet: number;
+  processedCount: number;
+  pendingCount: number;
+  onHoldCount: number;
+  totalEmployees: number;
 }
 
-const MOCK_PAYROLL: PayrollRecord[] = MOCK_EMPLOYEES.map((emp, i) => generatePayroll(emp, i));
+interface ApiCompliance {
+  pf: { employeeContribution: number; employerContribution: number; total: number; eligibleEmployees: number; remittanceStatus: string };
+  esi: { employeeContribution: number; employerContribution: number; total: number; eligibleEmployees: number; remittanceStatus: string };
+  tds: { total: number; taxRegime: string; form16Status: string };
+  professionalTax: { total: number; perEmployee: number };
+}
 
-const MOCK_CALENDAR: PayrollCalendar[] = [
-  { month: 'January 2025', status: 'completed', processingDate: '25 Jan 2025', paymentDate: '31 Jan 2025', totalEmployees: 17, totalNetPay: 0 },
-  { month: 'February 2025', status: 'completed', processingDate: '25 Feb 2025', paymentDate: '28 Feb 2025', totalEmployees: 17, totalNetPay: 0 },
-  { month: 'March 2025', status: 'completed', processingDate: '25 Mar 2025', paymentDate: '31 Mar 2025', totalEmployees: 17, totalNetPay: 0 },
-  { month: 'April 2025', status: 'completed', processingDate: '25 Apr 2025', paymentDate: '30 Apr 2025', totalEmployees: 18, totalNetPay: 0 },
-  { month: 'May 2025', status: 'completed', processingDate: '25 May 2025', paymentDate: '31 May 2025', totalEmployees: 18, totalNetPay: 0 },
-  { month: 'June 2025', status: 'in_progress', processingDate: '25 Jun 2025', paymentDate: '30 Jun 2025', totalEmployees: 18, totalNetPay: 0 },
-  { month: 'July 2025', status: 'upcoming', processingDate: '25 Jul 2025', paymentDate: '31 Jul 2025', totalEmployees: 18, totalNetPay: 0 },
-  { month: 'August 2025', status: 'upcoming', processingDate: '25 Aug 2025', paymentDate: '31 Aug 2025', totalEmployees: 18, totalNetPay: 0 },
-];
+// ── Department list (derived from API data) ─────────────────────────
+
+const DEFAULT_DEPARTMENTS = ['Front Office', 'Housekeeping', 'F&B Service', 'Kitchen', 'Maintenance', 'Security', 'Spa & Wellness', 'Finance'];
 
 const DEPT_COLORS = ['#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#06b6d4', '#ec4899', '#f97316', '#14b8a6'];
 
@@ -239,6 +183,45 @@ export default function PayrollManagement() {
   const [isPayslipOpen, setIsPayslipOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<PayrollRecord | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
+  const [apiSummary, setApiSummary] = useState<ApiPayrollSummary | null>(null);
+  const [calendarData, setCalendarData] = useState<PayrollCalendar[]>([]);
+  const [complianceData, setComplianceData] = useState<ApiCompliance | null>(null);
+  const [departments, setDepartments] = useState<string[]>(DEFAULT_DEPARTMENTS);
+
+  // ── Fetch data from API ──────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([
+      fetch('/api/staff/payroll?limit=200').then(r => r.json()),
+      fetch('/api/staff/payroll/calendar').then(r => r.json()),
+      fetch('/api/staff/payroll/compliance').then(r => r.json()),
+    ])
+      .then(([payrollRes, calendarRes, complianceRes]) => {
+        if (cancelled) return;
+
+        if (payrollRes?.success) {
+          setPayrollRecords(payrollRes.data || []);
+          setApiSummary(payrollRes.summary || null);
+          // Derive departments from records
+          if (payrollRes.data?.length > 0) {
+            const depts = [...new Set(payrollRes.data.map((r: PayrollRecord) => r.employee.department))].sort();
+            if (depts.length > 0) setDepartments(depts);
+          }
+        }
+        if (calendarRes?.success) setCalendarData(calendarRes.data || []);
+        if (complianceRes?.success) setComplianceData(complianceRes.data || null);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err?.message || 'Failed to load payroll data');
+      })
+      .finally(() => { if (!cancelled) setIsLoading(false); });
+
+    return () => { cancelled = true; };
+  }, []);
 
   const formatAmount = (amount: number) =>
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(amount);
@@ -246,7 +229,7 @@ export default function PayrollManagement() {
   // ── Computed ─────────────────────────────────────────────────────
 
   const filteredRecords = useMemo(() => {
-    return MOCK_PAYROLL.filter(r => {
+    return payrollRecords.filter(r => {
       if (selectedDept !== 'all' && r.employee.department !== selectedDept) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -254,23 +237,33 @@ export default function PayrollManagement() {
       }
       return true;
     });
-  }, [selectedDept, searchQuery]);
+  }, [payrollRecords, selectedDept, searchQuery]);
 
   const payrollSummary = useMemo(() => {
-    const processed = MOCK_PAYROLL.filter(r => r.status === 'processed');
+    if (apiSummary) {
+      return {
+        totalGross: apiSummary.totalGross,
+        totalDeductions: apiSummary.totalDeductions,
+        totalNet: apiSummary.totalNet,
+        processedCount: apiSummary.processedCount,
+        pendingCount: apiSummary.pendingCount,
+        onHoldCount: apiSummary.onHoldCount,
+      };
+    }
+    const processed = payrollRecords.filter(r => r.status === 'processed');
     return {
       totalGross: processed.reduce((s, r) => s + r.totalEarnings, 0),
       totalDeductions: processed.reduce((s, r) => s + r.totalDeductions, 0),
       totalNet: processed.reduce((s, r) => s + r.netPay, 0),
       processedCount: processed.length,
-      pendingCount: MOCK_PAYROLL.filter(r => r.status === 'pending').length,
-      onHoldCount: MOCK_PAYROLL.filter(r => r.status === 'on_hold').length,
+      pendingCount: payrollRecords.filter(r => r.status === 'pending').length,
+      onHoldCount: payrollRecords.filter(r => r.status === 'on_hold').length,
     };
-  }, []);
+  }, [payrollRecords, apiSummary]);
 
   const departmentBreakdown = useMemo(() => {
     const deptMap = new Map<string, { total: number; count: number }>();
-    MOCK_PAYROLL.forEach(r => {
+    payrollRecords.forEach(r => {
       const d = r.employee.department;
       const existing = deptMap.get(d) || { total: 0, count: 0 };
       deptMap.set(d, { total: existing.total + r.netPay, count: existing.count + 1 });
@@ -281,25 +274,18 @@ export default function PayrollManagement() {
       total: data.total,
       count: data.count,
     }));
-  }, []);
+  }, [payrollRecords]);
 
   const ctcBreakdown = useMemo(() => {
-    const processed = MOCK_PAYROLL.filter(r => r.status === 'processed');
+    const records = payrollRecords.length > 0 ? payrollRecords : [];
     return [
-      { name: 'Basic', value: processed.reduce((s, r) => s + r.basicSalary, 0), key: 'basic' },
-      { name: 'HRA', value: processed.reduce((s, r) => s + r.hra, 0), key: 'hra' },
-      { name: 'DA', value: processed.reduce((s, r) => s + r.da, 0), key: 'da' },
-      { name: 'Special Allow.', value: processed.reduce((s, r) => s + r.specialAllowance, 0), key: 'special' },
-      { name: 'Other', value: processed.reduce((s, r) => s + r.conveyance + r.medical + r.overtime + r.bonus, 0), key: 'other' },
+      { name: 'Basic', value: records.reduce((s, r) => s + r.basicSalary, 0), key: 'basic' },
+      { name: 'HRA', value: records.reduce((s, r) => s + r.hra, 0), key: 'hra' },
+      { name: 'DA', value: records.reduce((s, r) => s + r.da, 0), key: 'da' },
+      { name: 'Special Allow.', value: records.reduce((s, r) => s + r.specialAllowance, 0), key: 'special' },
+      { name: 'Other', value: records.reduce((s, r) => s + r.conveyance + r.medical + r.overtime + r.bonus, 0), key: 'other' },
     ];
-  }, []);
-
-  // Update calendar totals
-  useMemo(() => {
-    MOCK_CALENDAR.forEach(cal => {
-      cal.totalNetPay = MOCK_PAYROLL.filter(r => r.status !== 'pending').reduce((s, r) => s + r.netPay, 0);
-    });
-  }, []);
+  }, [payrollRecords]);
 
   // ── Handlers ─────────────────────────────────────────────────────
 
@@ -307,7 +293,7 @@ export default function PayrollManagement() {
     setIsProcessing(true);
     setTimeout(() => {
       setIsProcessing(false);
-      toast.success('Payroll Processed', { description: `${MOCK_PAYROLL.length} employee payslips generated` });
+      toast.success('Payroll Processed', { description: `${payrollRecords.length} employee payslips generated` });
     }, 2500);
   };
 
@@ -325,6 +311,30 @@ export default function PayrollManagement() {
   };
 
   // ── Render ───────────────────────────────────────────────────────
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Loading payroll data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <AlertCircle className="h-6 w-6 text-red-500" />
+          <p className="text-sm font-medium text-red-600">Failed to load payroll data</p>
+          <p className="text-xs text-muted-foreground">{error}</p>
+          <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -378,8 +388,8 @@ export default function PayrollManagement() {
             <UserCheck className="h-4 w-4 text-muted-foreground" />
             <span className="text-xs text-muted-foreground">Processed</span>
           </div>
-          <p className="text-xl font-bold">{payrollSummary.processedCount}/{MOCK_PAYROLL.length}</p>
-          <Progress value={(payrollSummary.processedCount / MOCK_PAYROLL.length) * 100} className="mt-2 h-1.5" />
+          <p className="text-xl font-bold">{payrollSummary.processedCount}/{payrollRecords.length}</p>
+          <Progress value={payrollRecords.length > 0 ? (payrollSummary.processedCount / payrollRecords.length) * 100 : 0} className="mt-2 h-1.5" />
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -418,7 +428,7 @@ export default function PayrollManagement() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Departments</SelectItem>
-                {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                {departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
             <div className="flex items-center gap-2">
@@ -643,7 +653,7 @@ export default function PayrollManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {MOCK_PAYROLL.slice(0, 12).map(record => (
+                    {payrollRecords.slice(0, 12).map(record => (
                       <TableRow key={record.employee.id}>
                         <TableCell>
                           <p className="text-sm font-medium">{record.employee.name}</p>
@@ -723,7 +733,7 @@ export default function PayrollManagement() {
             <Card className="p-4">
               <div className="text-xs text-muted-foreground mb-1">Loss of Pay (LWP)</div>
               <div className="text-xl font-bold text-red-600">2 <span className="text-sm text-muted-foreground font-normal">days</span></div>
-              <p className="text-[10px] text-muted-foreground mt-2">{formatAmount(MOCK_PAYROLL.reduce((s, r) => s + r.leaveAdjustment, 0))} total deduction</p>
+              <p className="text-[10px] text-muted-foreground mt-2">{formatAmount(payrollRecords.reduce((s, r) => s + r.leaveAdjustment, 0))} total deduction</p>
             </Card>
           </div>
         </TabsContent>
@@ -740,16 +750,16 @@ export default function PayrollManagement() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Employee PF</span>
-                  <span className="font-medium">{formatAmount(MOCK_PAYROLL.reduce((s, r) => s + r.pf, 0))}</span>
+                  <span className="font-medium">{formatAmount(complianceData?.pf?.employeeContribution ?? payrollRecords.reduce((s, r) => s + r.pf, 0))}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Employer PF</span>
-                  <span className="font-medium">{formatAmount(MOCK_PAYROLL.reduce((s, r) => s + r.pf, 0))}</span>
+                  <span className="font-medium">{formatAmount(complianceData?.pf?.employerContribution ?? payrollRecords.reduce((s, r) => s + r.pf, 0))}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between text-sm font-bold">
                   <span>Total PF</span>
-                  <span>{formatAmount(MOCK_PAYROLL.reduce((s, r) => s + r.pf * 2, 0))}</span>
+                  <span>{formatAmount(complianceData?.pf?.total ?? payrollRecords.reduce((s, r) => s + r.pf * 2, 0))}</span>
                 </div>
                 <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 text-xs">Remittance up to date</Badge>
               </div>
@@ -763,18 +773,18 @@ export default function PayrollManagement() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Employee ESI</span>
-                  <span className="font-medium">{formatAmount(MOCK_PAYROLL.reduce((s, r) => s + r.esi, 0))}</span>
+                  <span className="font-medium">{formatAmount(complianceData?.esi?.employeeContribution ?? payrollRecords.reduce((s, r) => s + r.esi, 0))}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Employer ESI</span>
-                  <span className="font-medium">{formatAmount(Math.round(MOCK_PAYROLL.reduce((s, r) => s + r.esi, 0) * 3.25))}</span>
+                  <span className="font-medium">{formatAmount(complianceData?.esi?.employerContribution ?? Math.round(payrollRecords.reduce((s, r) => s + r.esi, 0) * 3.25))}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between text-sm font-bold">
                   <span>Total ESI</span>
-                  <span>{formatAmount(Math.round(MOCK_PAYROLL.reduce((s, r) => s + r.esi * 4.25, 0)))}</span>
+                  <span>{formatAmount(complianceData?.esi?.total ?? Math.round(payrollRecords.reduce((s, r) => s + r.esi * 4.25, 0)))}</span>
                 </div>
-                <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 text-xs">Eligible: {MOCK_PAYROLL.filter(r => r.esi > 0).length} employees</Badge>
+                <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 text-xs">Eligible: {complianceData?.esi?.eligibleEmployees ?? payrollRecords.filter(r => r.esi > 0).length} employees</Badge>
               </div>
             </Card>
 
@@ -786,7 +796,7 @@ export default function PayrollManagement() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Total TDS</span>
-                  <span className="font-medium">{formatAmount(MOCK_PAYROLL.reduce((s, r) => s + r.tds, 0))}</span>
+                  <span className="font-medium">{formatAmount(complianceData?.tds?.total ?? payrollRecords.reduce((s, r) => s + r.tds, 0))}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Tax Regime</span>
@@ -808,7 +818,7 @@ export default function PayrollManagement() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Monthly PT</span>
-                  <span className="font-medium">{formatAmount(MOCK_PAYROLL.reduce((s, r) => s + r.profTax, 0))}</span>
+                  <span className="font-medium">{formatAmount(complianceData?.professionalTax?.total ?? payrollRecords.reduce((s, r) => s + r.profTax, 0))}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Compliance</span>
@@ -829,7 +839,7 @@ export default function PayrollManagement() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Lowest Paid</span>
-                  <span className="font-medium">{formatAmount(Math.min(...MOCK_PAYROLL.map(r => r.basicSalary)))}</span>
+                  <span className="font-medium">{payrollRecords.length > 0 ? formatAmount(Math.min(...payrollRecords.map(r => r.basicSalary))) : '—'}</span>
                 </div>
                 <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 text-xs">All compliant ✓</Badge>
               </div>
@@ -843,11 +853,11 @@ export default function PayrollManagement() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Active Loans</span>
-                  <span className="font-medium">{MOCK_PAYROLL.filter(r => r.loanEmi > 0).length}</span>
+                  <span className="font-medium">{payrollRecords.filter(r => r.loanEmi > 0).length}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Total Recovery</span>
-                  <span className="font-medium">{formatAmount(MOCK_PAYROLL.reduce((s, r) => s + r.loanEmi + r.advanceRecovery, 0))}</span>
+                  <span className="font-medium">{formatAmount(payrollRecords.reduce((s, r) => s + r.loanEmi + r.advanceRecovery, 0))}</span>
                 </div>
               </div>
             </Card>
@@ -871,7 +881,7 @@ export default function PayrollManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {MOCK_CALENDAR.map(cal => (
+                  {calendarData.map(cal => (
                     <TableRow key={cal.month}>
                       <TableCell>
                         <div className="flex items-center gap-2">

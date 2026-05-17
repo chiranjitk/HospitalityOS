@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { z } from 'zod';
+import { encrypt, decrypt, isEncrypted } from '@/lib/encryption';
+
+// FIX (M-1): GSTIN regex per Indian GST format: 2-digit state code + 10-digit PAN + 1-digit entity + Z
+// e.g. 22AAAAA0000A1Z5
+const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+// FIX (M-1): PAN regex per Indian ITD format: 5 letters + 4 digits + 1 letter
+// e.g. ABCDE1234F
+const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
 
 const createSettingsSchema = z.object({
   propertyId: z.string().optional(),
-  gstin: z.string().min(15, 'GSTIN must be 15 characters').max(15).optional(),
+  gstin: z.string().refine((val) => !val || GSTIN_REGEX.test(val), {
+    message: 'Invalid GSTIN format. Must be 15 characters: 2-digit state code + PAN + entity code + Z',
+  }).optional().or(z.literal('')),
   legalName: z.string().optional(),
   tradeName: z.string().optional(),
   stateCode: z.string().max(2).default(''),
@@ -22,7 +32,9 @@ const createSettingsSchema = z.object({
   tds194cRate: z.number().min(0).max(1).default(0.01),
   tds194hRate: z.number().min(0).max(1).default(0.05),
   tds194jRate: z.number().min(0).max(1).default(0.10),
-  panNumber: z.string().max(10).optional(),
+  panNumber: z.string().refine((val) => !val || PAN_REGEX.test(val.toUpperCase()), {
+    message: 'Invalid PAN format. Must be 10 characters: 5 letters + 4 digits + 1 letter (e.g. ABCDE1234F)',
+  }).optional().or(z.literal('')),
   aadhaarNumber: z.string().max(12).optional(),
   isActive: z.boolean().default(true),
 });
@@ -32,6 +44,11 @@ export async function GET(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
+    // Permission check: read access required for tax settings
+    if (!hasPermission(user, 'tax:read') && !hasPermission(user, 'tax.*') && user.roleName !== 'admin') {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const { searchParams } = request.nextUrl;
@@ -48,7 +65,16 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json({ success: true, data: settings });
+    // SECURITY FIX (H-5): Decrypt Aadhaar numbers before returning to client.
+    // Aadhaar is stored encrypted (AES-256-GCM) in the database.
+    const decryptedSettings = settings.map(s => ({
+      ...s,
+      aadhaarNumber: s.aadhaarNumber && isEncrypted(s.aadhaarNumber)
+        ? decrypt(s.aadhaarNumber)
+        : s.aadhaarNumber,
+    }));
+
+    return NextResponse.json({ success: true, data: decryptedSettings });
   } catch (error) {
     console.error('[TaxSettings GET] Error:', error);
     return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch tax settings' } }, { status: 500 });
@@ -60,6 +86,11 @@ export async function POST(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
+    // Permission check: admin/write access required to create tax settings
+    if (!hasPermission(user, 'tax:write') && !hasPermission(user, 'tax:admin') && !hasPermission(user, 'tax.*') && user.roleName !== 'admin') {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const body = await request.json();
@@ -92,7 +123,10 @@ export async function POST(request: NextRequest) {
         tds194hRate: data.tds194hRate,
         tds194jRate: data.tds194jRate,
         panNumber: data.panNumber,
-        aadhaarNumber: data.aadhaarNumber,
+        // SECURITY FIX (H-5): Encrypt Aadhaar number before storing.
+        // Aadhaar is a sensitive PII identifier (Indian UIDAI). AES-256-GCM encryption
+        // via lib/encryption.ts ensures compliance with data protection requirements.
+        aadhaarNumber: data.aadhaarNumber ? encrypt(data.aadhaarNumber) : null,
         isActive: data.isActive,
       },
       include: { property: { select: { id: true, name: true } } },

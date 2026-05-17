@@ -51,7 +51,18 @@ import {
   Filter,
   Eye,
   Edit,
+  Trash2,
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -157,6 +168,8 @@ export default function ResortTimeshare() {
   const [submitting, setSubmitting] = useState(false);
 
   const [expandedUnit, setExpandedUnit] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'unit' | 'ownership'; id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // ── Data Fetching ───────────────────────────────────────────────
 
@@ -210,6 +223,60 @@ export default function ResortTimeshare() {
 
   // ── Handlers ────────────────────────────────────────────────────
 
+  const openEditUnit = (unit: TimeshareUnit) => {
+    setEditingUnit(unit);
+    setUnitForm({
+      propertyId: unit.propertyId,
+      unitNumber: unit.unitNumber,
+      roomTypeId: '',
+      seasonType: unit.seasonType,
+      weekNumber: unit.weekNumber ? String(unit.weekNumber) : '',
+      pointsValue: String(unit.pointsValue),
+      usageType: unit.usageType,
+    });
+    setShowUnitDialog(true);
+  };
+
+  const openEditOwnership = (o: TimeshareOwnership) => {
+    setEditingOwnership(o);
+    setOwnershipForm({
+      unitId: o.unitId,
+      ownerName: o.ownerName,
+      ownerEmail: o.ownerEmail || '',
+      ownerPhone: o.ownerPhone || '',
+      startDate: o.startDate.substring(0, 10),
+      endDate: o.endDate ? o.endDate.substring(0, 10) : '',
+      purchasePrice: String(o.purchasePrice),
+      annualMf: String(o.annualMf),
+      status: o.status,
+      notes: o.notes || '',
+    });
+    setShowOwnershipDialog(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const url = deleteTarget.type === 'unit'
+        ? `/api/resort/timeshare/units/${deleteTarget.id}`
+        : `/api/resort/timeshare/ownerships/${deleteTarget.id}`;
+      const res = await fetch(url, { method: 'DELETE' });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(`${deleteTarget.type === 'unit' ? 'Unit' : 'Ownership'} deleted successfully`);
+        setDeleteTarget(null);
+        if (deleteTarget.type === 'unit') fetchUnits(); else fetchOwnerships();
+      } else {
+        toast.error(json.error || 'Failed to delete');
+      }
+    } catch {
+      toast.error('Network error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleCreateUnit = async () => {
     if (!unitForm.unitNumber || !unitForm.propertyId) {
       toast.error('Please fill in required fields');
@@ -217,23 +284,27 @@ export default function ResortTimeshare() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch('/api/resort/timeshare/units', {
-        method: 'POST',
+      const body = {
+        ...unitForm,
+        weekNumber: unitForm.weekNumber ? parseInt(unitForm.weekNumber) : null,
+        pointsValue: parseInt(unitForm.pointsValue),
+      };
+      const isEdit = !!editingUnit;
+      const url = isEdit ? `/api/resort/timeshare/units/${editingUnit.id}` : '/api/resort/timeshare/units';
+      const res = await fetch(url, {
+        method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...unitForm,
-          weekNumber: unitForm.weekNumber ? parseInt(unitForm.weekNumber) : null,
-          pointsValue: parseInt(unitForm.pointsValue),
-        }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('Timeshare unit created successfully');
+        toast.success(isEdit ? 'Timeshare unit updated' : 'Timeshare unit created successfully');
         setShowUnitDialog(false);
+        setEditingUnit(null);
         setUnitForm({ propertyId: '', unitNumber: '', roomTypeId: '', seasonType: 'annual', weekNumber: '', pointsValue: '0', usageType: 'full_ownership' });
         fetchUnits();
       } else {
-        toast.error(json.error || 'Failed to create unit');
+        toast.error(json.error || 'Failed to save unit');
       }
     } catch {
       toast.error('Network error');
@@ -249,23 +320,27 @@ export default function ResortTimeshare() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch('/api/resort/timeshare/ownerships', {
-        method: 'POST',
+      const body = {
+        ...ownershipForm,
+        purchasePrice: parseFloat(ownershipForm.purchasePrice),
+        annualMf: parseFloat(ownershipForm.annualMf),
+      };
+      const isEdit = !!editingOwnership;
+      const url = isEdit ? `/api/resort/timeshare/ownerships/${editingOwnership.id}` : '/api/resort/timeshare/ownerships';
+      const res = await fetch(url, {
+        method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...ownershipForm,
-          purchasePrice: parseFloat(ownershipForm.purchasePrice),
-          annualMf: parseFloat(ownershipForm.annualMf),
-        }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('Ownership record created successfully');
+        toast.success(isEdit ? 'Ownership record updated' : 'Ownership record created successfully');
         setShowOwnershipDialog(false);
+        setEditingOwnership(null);
         setOwnershipForm({ unitId: '', ownerName: '', ownerEmail: '', ownerPhone: '', startDate: '', endDate: '', purchasePrice: '0', annualMf: '0', status: 'active', notes: '' });
         fetchOwnerships();
       } else {
-        toast.error(json.error || 'Failed to create ownership');
+        toast.error(json.error || 'Failed to save ownership');
       }
     } catch {
       toast.error('Network error');
@@ -449,6 +524,16 @@ export default function ResortTimeshare() {
                       </div>
                     </div>
 
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-1 mt-2 pt-2 border-t">
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => openEditUnit(unit)}>
+                        <Edit className="h-3 w-3 mr-1" />Edit
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive" onClick={() => setDeleteTarget({ type: 'unit', id: unit.id, name: `Unit #${unit.unitNumber}` })}>
+                        <Trash2 className="h-3 w-3 mr-1" />Delete
+                      </Button>
+                    </div>
+
                     {/* Expandable ownerships */}
                     {unit.ownerships && unit.ownerships.length > 0 && (
                       <div>
@@ -540,7 +625,11 @@ export default function ResortTimeshare() {
                           </TableCell>
                           <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">{new Date(o.startDate).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0"><Eye className="h-3.5 w-3.5" /></Button>
+                            <div className="flex justify-end gap-1">
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Edit" onClick={() => openEditOwnership(o)}><Edit className="h-3.5 w-3.5" /></Button>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" title="Delete" onClick={() => setDeleteTarget({ type: 'ownership', id: o.id, name: o.ownerName })}><Trash2 className="h-3.5 w-3.5" /></Button>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="View"><Eye className="h-3.5 w-3.5" /></Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -680,6 +769,25 @@ export default function ResortTimeshare() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Delete Confirmation ──────────────────────────────── */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget?.type === 'unit' ? 'Unit' : 'Ownership'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <span className="font-medium">{deleteTarget?.name}</span>? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete} disabled={deleting}>
+              {deleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

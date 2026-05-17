@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { setTempSecret } from '@/lib/two-factor-temp-store';
 
 // In-memory rate limiting for 2FA setup
 const twoFASetupRateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -117,17 +118,13 @@ export async function GET(request: NextRequest) {
       crypto.randomBytes(4).toString('hex').toUpperCase()
     );
 
-    // Hash and store backup codes
+    // Hash backup codes
     const hashedBackupCodes = backupCodes.map(code => bcrypt.hashSync(code, 10));
 
-    // Store temporary secret (not yet enabled) - we'll verify before enabling
-    await db.user.update({
-      where: { id: user.id },
-      data: {
-        twoFactorSecret: secret, // Store temporarily, will be verified
-        backupCodes: hashedBackupCodes.join(','),
-      },
-    });
+    // Store temporary secret in memory ONLY — NOT in the database.
+    // The secret will be persisted to DB only after successful TOTP verification
+    // via the /api/auth/2fa/verify endpoint.
+    setTempSecret(user.id, secret, hashedBackupCodes.join(','));
 
     return NextResponse.json({
       success: true,

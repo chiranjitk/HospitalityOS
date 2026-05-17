@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { z } from 'zod';
 
 const createTcsSchema = z.object({
@@ -25,6 +25,10 @@ export async function GET(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
+    if (!hasPermission(user, 'tax:read') && !hasPermission(user, 'tax.*') && user.roleName !== 'admin') {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const { searchParams } = request.nextUrl;
@@ -74,6 +78,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
     }
 
+    if (!hasPermission(user, 'tax:write') && !hasPermission(user, 'tax:admin') && !hasPermission(user, 'tax.*') && user.roleName !== 'admin') {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
+
     const body = await request.json();
     const parsed = createTcsSchema.safeParse(body);
     if (!parsed.success) {
@@ -81,6 +89,26 @@ export async function POST(request: NextRequest) {
     }
 
     const data = parsed.data;
+
+    // SECURITY FIX (H-6): Cross-validate TCS amount ≈ bookingAmount × tcsRate.
+    // Prevents data integrity issues where amount and rate don't match,
+    // which could indicate manual errors or tampering.
+    if (data.bookingAmount > 0 && data.tcsRate > 0) {
+      const expectedAmount = Math.round(data.bookingAmount * data.tcsRate * 100) / 100;
+      const tolerance = 1.00; // ₹1 tolerance for rounding differences
+      if (data.tcsAmount > 0 && Math.abs(data.tcsAmount - expectedAmount) > tolerance) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: `TCS amount (${data.tcsAmount}) does not match expected amount (${expectedAmount}) based on booking amount (${data.bookingAmount}) × TCS rate (${data.tcsRate}). Difference: ${Math.abs(data.tcsAmount - expectedAmount).toFixed(2)} exceeds tolerance of ₹${tolerance.toFixed(2)}.`,
+            },
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     const record = await db.tcsRecord.create({
       data: {

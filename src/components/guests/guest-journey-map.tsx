@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   CalendarCheck,
   Mail,
@@ -190,378 +191,150 @@ function formatAbsoluteDate(date: Date): string {
 }
 
 // =====================================================
-// MOCK DATA
+// API data fetching + fallback
 // =====================================================
 
-function generateMockTouchpoints(guestName: string): JourneyTouchpoint[] {
+async function fetchGuestJourney(guestId: string): Promise<JourneyTouchpoint[]> {
+  // Try dedicated journey endpoint first
+  try {
+    const res = await fetch(`/api/guests/${guestId}/journey`);
+    if (res.ok) {
+      const data = await res.json();
+      const items = Array.isArray(data) ? data : data.touchpoints || data.events || [];
+      if (items.length > 0) return mapApiToTouchpoints(items);
+    }
+  } catch { /* fall through */ }
+
+  // Compose from multiple existing APIs
+  const touchpoints: JourneyTouchpoint[] = [];
+  let counter = 0;
+
+  // 1) Bookings
+  try {
+    const res = await fetch(`/api/bookings?guestId=${guestId}&limit=10`);
+    if (res.ok) {
+      const data = await res.json();
+      const bookings = Array.isArray(data) ? data : data.bookings || [];
+      for (const b of bookings) {
+        const phase = determinePhase(b.checkIn, b.checkOut);
+        counter++;
+        touchpoints.push({
+          id: `tp-booking-${counter}`,
+          phase,
+          title: b.status === 'confirmed' ? 'Booking Confirmed' : `Booking ${b.status}`,
+          description: `Booking ${b.id} — ${b.roomTypeName || b.roomType || 'Room'}. Status: ${b.status}.`,
+          status: mapBookingStatus(b.status),
+          category: 'Booking',
+          icon: CalendarCheck,
+          occurredAt: new Date(b.createdAt || b.checkIn),
+          details: b.confirmationCode || b.id,
+          amount: b.totalAmount ? `$${Number(b.totalAmount).toLocaleString()}` : undefined,
+        });
+      }
+    }
+  } catch { /* skip */ }
+
+  // 2) Service requests
+  try {
+    const res = await fetch(`/api/service-requests?guestId=${guestId}&limit=10`);
+    if (res.ok) {
+      const data = await res.json();
+      const requests = Array.isArray(data) ? data : data.requests || [];
+      for (const r of requests) {
+        counter++;
+        const phase: JourneyPhase = 'in-stay';
+        touchpoints.push({
+          id: `tp-sr-${counter}`,
+          phase,
+          title: r.title || r.type || 'Service Request',
+          description: r.description || `${r.type} request`,
+          status: mapServiceStatus(r.status),
+          category: r.category || r.type || 'Service',
+          icon: Brush,
+          occurredAt: new Date(r.createdAt || r.requestedAt),
+          location: r.roomNumber ? `Room ${r.roomNumber}` : undefined,
+        });
+      }
+    }
+  } catch { /* skip */ }
+
+  // 3) Feedback / reviews
+  try {
+    const res = await fetch(`/api/crm/feedback?guestId=${guestId}&limit=5`);
+    if (res.ok) {
+      const data = await res.json();
+      const feedback = Array.isArray(data) ? data : data.feedback || data.reviews || [];
+      for (const f of feedback) {
+        counter++;
+        touchpoints.push({
+          id: `tp-fb-${counter}`,
+          phase: 'post-stay',
+          title: 'Guest Feedback',
+          description: `Rating: ${f.rating || 'N/A'}/5 — ${f.comment || f.title || 'Feedback submitted'}`,
+          status: 'completed',
+          category: 'Feedback',
+          icon: MessageSquare,
+          occurredAt: new Date(f.createdAt || f.submittedAt),
+        });
+      }
+    }
+  } catch { /* skip */ }
+
+  // Sort chronologically
+  touchpoints.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
+  return touchpoints;
+}
+
+function determinePhase(checkIn: string, checkOut: string): JourneyPhase {
   const now = new Date();
-  const daysAgo = (d: number) => new Date(now.getTime() - d * 86400000);
-  const hoursAgo = (h: number) => new Date(now.getTime() - h * 3600000);
-  const daysFromNow = (d: number) => new Date(now.getTime() + d * 86400000);
+  const ci = new Date(checkIn);
+  const co = new Date(checkOut);
+  if (now < ci) return 'pre-arrival';
+  if (now >= ci && now <= co) return 'in-stay';
+  if (now > co) return 'post-stay';
+  return 'pre-arrival';
+}
 
-  return [
-    // Pre-Arrival
-    {
-      id: 'tp-1',
-      phase: 'pre-arrival',
-      title: 'Booking Created',
-      description: `${guestName} booked a Deluxe Suite for 4 nights via the hotel website.`,
-      status: 'completed',
-      category: 'Booking',
-      icon: CalendarCheck,
-      occurredAt: daysAgo(12),
-      details: 'Confirmation code: RS-2025-4821',
-      amount: '₹48,000',
-    },
-    {
-      id: 'tp-2',
-      phase: 'pre-arrival',
-      title: 'Booking Confirmation Sent',
-      description: 'Automated confirmation email sent with booking details and payment receipt.',
-      status: 'completed',
-      category: 'Communication',
-      icon: Mail,
-      occurredAt: daysAgo(12),
-      location: 'Email',
-    },
-    {
-      id: 'tp-3',
-      phase: 'pre-arrival',
-      title: 'Pre-Arrival Welcome Email',
-      description: 'Personalized welcome email sent with check-in instructions, local guide, and weather forecast.',
-      status: 'completed',
-      category: 'Communication',
-      icon: Mail,
-      occurredAt: daysAgo(3),
-      location: 'Email',
-    },
-    {
-      id: 'tp-4',
-      phase: 'pre-arrival',
-      title: 'Special Request Noted',
-      description: 'Guest requested extra pillows and hypoallergenic bedding. Assigned to Room 302.',
-      status: 'completed',
-      category: 'Concierge',
-      icon: Sparkles,
-      occurredAt: daysAgo(2),
-      location: 'Phone call',
-    },
-    {
-      id: 'tp-5',
-      phase: 'pre-arrival',
-      title: 'Room Pre-Arrival Setup',
-      description: 'Housekeeping configured room with extra pillows, allergen-free linens, and welcome turndown.',
-      status: 'completed',
-      category: 'Housekeeping',
-      icon: Brush,
-      occurredAt: daysAgo(1),
-      location: 'Room 302',
-    },
-    {
-      id: 'tp-6',
-      phase: 'pre-arrival',
-      title: 'Airport Transfer Confirmed',
-      description: 'Private sedan booked from Bagdogra Airport for arrival transfer.',
-      status: 'completed',
-      category: 'Transportation',
-      icon: Car,
-      occurredAt: daysAgo(1),
-      amount: '₹2,500',
-    },
+function mapBookingStatus(status: string): TouchpointStatus {
+  if (['confirmed', 'checked_in'].includes(status)) return 'completed';
+  if (status === 'pending') return 'in-progress';
+  return 'upcoming';
+}
 
-    // Arrival
-    {
-      id: 'tp-7',
-      phase: 'arrival',
-      title: 'Airport Pickup',
-      description: 'Driver Raju met guest at arrivals with name board. Smooth 90-minute drive to property.',
-      status: 'completed',
-      category: 'Transportation',
-      icon: Car,
-      occurredAt: hoursAgo(72),
-      location: 'Bagdogra Airport (IXB)',
-    },
-    {
-      id: 'tp-8',
-      phase: 'arrival',
-      title: 'Check-In Completed',
-      description: 'Express check-in processed. ID verified, ₹10,000 deposit collected.',
-      status: 'completed',
-      category: 'FrontDesk',
-      icon: UserCheck,
-      occurredAt: hoursAgo(70),
-      location: 'Front Desk',
-    },
-    {
-      id: 'tp-9',
-      phase: 'arrival',
-      title: 'Room Key Issued',
-      description: 'Digital key card issued for Room 302 (Deluxe Suite, 3rd floor, mountain view).',
-      status: 'completed',
-      category: 'FrontDesk',
-      icon: Key,
-      occurredAt: hoursAgo(70),
-      location: 'Room 302',
-    },
-    {
-      id: 'tp-10',
-      phase: 'arrival',
-      title: 'Welcome Amenities Delivered',
-      description: 'Complimentary fruit basket, Darjeeling tea set, and personalized welcome card from GM.',
-      status: 'completed',
-      category: 'Amenity',
-      icon: Gift,
-      occurredAt: hoursAgo(69),
-      location: 'Room 302',
-    },
-    {
-      id: 'tp-11',
-      phase: 'arrival',
-      title: 'WiFi Access Activated',
-      description: 'Premium WiFi plan activated — guest connected to "RoyalStay-5G" network.',
-      status: 'completed',
-      category: 'WiFi',
-      icon: Wifi,
-      occurredAt: hoursAgo(70),
-      location: 'Room 302',
-    },
-    {
-      id: 'tp-12',
-      phase: 'arrival',
-      title: 'Luggage Delivered to Room',
-      description: '3 pieces of luggage transported by bellboy to Room 302.',
-      status: 'completed',
-      category: 'Concierge',
-      icon: Luggage,
-      occurredAt: hoursAgo(69.5),
-      location: 'Room 302',
-    },
+function mapServiceStatus(status: string): TouchpointStatus {
+  if (status === 'completed' || status === 'resolved') return 'completed';
+  if (status === 'in_progress' || status === 'in-progress') return 'in-progress';
+  return 'upcoming';
+}
 
-    // In-Stay
-    {
-      id: 'tp-13',
-      phase: 'in-stay',
-      title: 'Spa Booking: Hot Stone Massage',
-      description: '90-minute hot stone therapy session booked for 2 guests at the Wellness Pavilion.',
-      status: 'completed',
-      category: 'Spa',
-      icon: Sparkles,
-      occurredAt: hoursAgo(65),
-      amount: '₹4,500',
-      location: 'Wellness Pavilion',
-    },
-    {
-      id: 'tp-14',
-      phase: 'in-stay',
-      title: 'Dinner Reservation: The Everest Restaurant',
-      description: 'Table for 2 reserved at 7:30 PM, window seat with mountain view.',
-      status: 'completed',
-      category: 'Dining',
-      icon: UtensilsCrossed,
-      occurredAt: hoursAgo(60),
-      location: 'The Everest Restaurant',
-    },
-    {
-      id: 'tp-15',
-      phase: 'in-stay',
-      title: 'Room Service Order',
-      description: 'Late-night order: Darjeeling tea, croissants, and fruit platter.',
-      status: 'completed',
-      category: 'RoomService',
-      icon: Coffee,
-      occurredAt: hoursAgo(54),
-      amount: '₹1,200',
-      location: 'Room 302',
-    },
-    {
-      id: 'tp-16',
-      phase: 'in-stay',
-      title: 'Housekeeping: Daily Turndown',
-      description: 'Evening turndown service completed. Chocolate on pillow, curtains drawn.',
-      status: 'completed',
-      category: 'Housekeeping',
-      icon: Brush,
-      occurredAt: hoursAgo(48),
-      location: 'Room 302',
-    },
-    {
-      id: 'tp-17',
-      phase: 'in-stay',
-      title: 'Minibar Consumption',
-      description: '2 premium beers and 1 bag of cashews consumed from in-room minibar.',
-      status: 'completed',
-      category: 'Minibar',
-      icon: Wine,
-      occurredAt: hoursAgo(44),
-      amount: '₹850',
-      location: 'Room 302',
-    },
-    {
-      id: 'tp-18',
-      phase: 'in-stay',
-      title: 'Laundry Pickup',
-      description: '4 garments collected for express laundry service (dry clean 2 suits, wash 2 shirts).',
-      status: 'completed',
-      category: 'Housekeeping',
-      icon: Package,
-      occurredAt: hoursAgo(36),
-      amount: '₹2,400',
-      location: 'Room 302',
-    },
-    {
-      id: 'tp-19',
-      phase: 'in-stay',
-      title: 'Laundry Delivered',
-      description: 'Express laundry returned. All garments pressed and hung in wardrobe.',
-      status: 'completed',
-      category: 'Housekeeping',
-      icon: Package,
-      occurredAt: hoursAgo(24),
-      location: 'Room 302',
-    },
-    {
-      id: 'tp-20',
-      phase: 'in-stay',
-      title: 'Concierge: Tiger Hill Sunrise Tour',
-      description: 'Private jeep booked for 4:00 AM sunrise excursion to Tiger Hill viewpoint.',
-      status: 'completed',
-      category: 'Concierge',
-      icon: MapPin,
-      occurredAt: hoursAgo(30),
-      amount: '₹3,000',
-      location: 'Tiger Hill',
-    },
-    {
-      id: 'tp-21',
-      phase: 'in-stay',
-      title: 'Maintenance Request: AC',
-      description: 'Guest reported AC making unusual noise. Technician dispatched and repaired.',
-      status: 'completed',
-      category: 'Maintenance',
-      icon: Stethoscope,
-      occurredAt: hoursAgo(20),
-      location: 'Room 302',
-    },
-    {
-      id: 'tp-22',
-      phase: 'in-stay',
-      title: 'Room Service: Lunch',
-      description: 'Grilled chicken salad, club sandwich, and fresh lime soda ordered.',
-      status: 'completed',
-      category: 'RoomService',
-      icon: UtensilsCrossed,
-      occurredAt: hoursAgo(16),
-      amount: '₹2,100',
-      location: 'Room 302',
-    },
-    {
-      id: 'tp-23',
-      phase: 'in-stay',
-      title: 'Spa Session Completed',
-      description: '90-minute hot stone massage completed. Guest rated 5/5 stars.',
-      status: 'completed',
-      category: 'Spa',
-      icon: Sparkles,
-      occurredAt: hoursAgo(10),
-      location: 'Wellness Pavilion',
-    },
-    {
-      id: 'tp-24',
-      phase: 'in-stay',
-      title: 'Loyalty Points Earned',
-      description: '480 loyalty points credited for dining and spa spends during stay.',
-      status: 'in-progress',
-      category: 'Loyalty',
-      icon: Award,
-      occurredAt: hoursAgo(2),
-    },
+function mapApiToTouchpoints(items: Record<string, unknown>[]): JourneyTouchpoint[] {
+  return items.map((item, idx) => {
+    const phaseVal = String(item.phase || item.stage || 'in-stay');
+    let phase: JourneyPhase = 'in-stay';
+    if (phaseVal.includes('pre') || phaseVal.includes('arrival') && !phaseVal.includes('check')) phase = 'pre-arrival';
+    else if (phaseVal === 'arrival' || phaseVal.includes('check-in') || phaseVal.includes('checkin')) phase = 'arrival';
+    else if (phaseVal.includes('departure') || phaseVal.includes('checkout') || phaseVal.includes('post')) phase = 'post-stay';
+    else if (phaseVal.includes('depart')) phase = 'departure';
 
-    // Departure
-    {
-      id: 'tp-25',
-      phase: 'departure',
-      title: 'Pre-Check-Out Folio Review',
-      description: 'Guest reviewed folio via in-room TV. Total outstanding: ₹62,550.',
-      status: 'upcoming',
-      category: 'Billing',
-      icon: FileText,
-      occurredAt: daysFromNow(0.5),
-    },
-    {
-      id: 'tp-26',
-      phase: 'departure',
-      title: 'Check-Out Processing',
-      description: 'Express check-out to be processed. Deposit of ₹10,000 to be refunded.',
-      status: 'upcoming',
-      category: 'FrontDesk',
-      icon: LogOut,
-      occurredAt: daysFromNow(1),
-    },
-    {
-      id: 'tp-27',
-      phase: 'departure',
-      title: 'Folio Settlement',
-      description: 'Payment via credit card (ending 4521). Final amount: ₹62,550.',
-      status: 'upcoming',
-      category: 'Billing',
-      icon: CreditCard,
-      occurredAt: daysFromNow(1),
-      amount: '₹62,550',
-    },
-    {
-      id: 'tp-28',
-      phase: 'departure',
-      title: 'Airport Transfer Scheduled',
-      description: 'Private sedan to Bagdogra Airport for 2:00 PM departure flight.',
-      status: 'upcoming',
-      category: 'Transportation',
-      icon: Car,
-      occurredAt: daysFromNow(1),
-      amount: '₹2,500',
-    },
+    const statusVal = String(item.status || 'completed');
+    let status: TouchpointStatus = 'completed';
+    if (statusVal === 'in-progress' || statusVal === 'active' || statusVal === 'pending') status = 'in-progress';
+    else if (statusVal === 'upcoming' || statusVal === 'scheduled') status = 'upcoming';
 
-    // Post-Stay
-    {
-      id: 'tp-29',
-      phase: 'post-stay',
-      title: 'Thank-You Email Sent',
-      description: 'Personalized thank-you email with stay summary and receipt attached.',
-      status: 'upcoming',
-      category: 'Communication',
-      icon: Mail,
-      occurredAt: daysFromNow(1.5),
-    },
-    {
-      id: 'tp-30',
-      phase: 'post-stay',
-      title: 'Feedback Survey Requested',
-      description: 'Guest satisfaction survey link sent via email and SMS.',
-      status: 'upcoming',
-      category: 'Feedback',
-      icon: MessageSquare,
-      occurredAt: daysFromNow(2),
-    },
-    {
-      id: 'tp-31',
-      phase: 'post-stay',
-      title: 'Loyalty Points Final Crediting',
-      description: 'Remaining 320 loyalty points to be credited based on total folio.',
-      status: 'upcoming',
-      category: 'Loyalty',
-      icon: Award,
-      occurredAt: daysFromNow(3),
-    },
-    {
-      id: 'tp-32',
-      phase: 'post-stay',
-      title: 'Follow-Up Email',
-      description: 'Personalized follow-up with special return offer: 15% off next booking.',
-      status: 'upcoming',
-      category: 'Communication',
-      icon: Mail,
-      occurredAt: daysFromNow(7),
-    },
-  ];
+    return {
+      id: item.id || `tp-${idx}`,
+      phase,
+      title: String(item.title || item.name || item.eventType || 'Event'),
+      description: String(item.description || item.details || ''),
+      status,
+      category: String(item.category || item.type || 'General'),
+      icon: CalendarCheck, // Default icon
+      occurredAt: new Date(item.occurredAt || item.createdAt || item.timestamp || Date.now()),
+      details: item.details ? String(item.details) : undefined,
+      amount: item.amount ? String(item.amount) : undefined,
+      location: item.location ? String(item.location) : undefined,
+    };
+  });
 }
 
 // =====================================================
@@ -699,10 +472,27 @@ interface GuestJourneyMapProps {
 export function GuestJourneyMap({ guestId }: GuestJourneyMapProps) {
   const [expanded, setExpanded] = useState(false);
   const [activeFilter, setActiveFilter] = useState<JourneyPhase | 'all'>('all');
+  const [allTouchpoints, setAllTouchpoints] = useState<JourneyTouchpoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const PREVIEW_COUNT = 5;
 
-  // Use mock data (can be swapped for real API when available)
-  const allTouchpoints = useMemo(() => generateMockTouchpoints('Arjun Mehta'), []);
+  // Fetch real journey data
+  useEffect(() => {
+    if (!guestId) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    fetchGuestJourney(guestId)
+      .then(data => {
+        if (!cancelled) { setAllTouchpoints(data); setLoading(false); }
+      })
+      .catch(err => {
+        if (!cancelled) { setError(err instanceof Error ? err.message : 'Failed to load journey data'); setLoading(false); }
+      });
+    return () => { cancelled = true; };
+  }, [guestId]);
 
   // Group by phase
   const touchpointsByPhase = useMemo(() => {
@@ -790,6 +580,42 @@ export function GuestJourneyMap({ guestId }: GuestJourneyMapProps) {
           </Badge>
         )}
       </div>
+
+      {loading && (
+        <div className="space-y-4">
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+            {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-20 rounded-lg" />)}
+          </div>
+          <Skeleton className="h-20 rounded-lg" />
+          <div className="space-y-2">
+            {[1,2,3,4].map(i => <Skeleton key={i} className="h-24 rounded-lg" />)}
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
+            <Route className="h-10 w-10 text-red-400" />
+            <p className="text-sm text-muted-foreground">Failed to load guest journey data.</p>
+            <p className="text-xs text-muted-foreground/60">{error}</p>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {!loading && !error && allTouchpoints.length === 0 && (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
+            <Route className="h-10 w-10 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">No journey data available.</p>
+            <p className="text-xs text-muted-foreground/60">{!guestId ? 'Select a guest to view their journey.' : 'No interactions recorded for this guest yet.'}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {!loading && !error && allTouchpoints.length > 0 && (<>
+
 
       {/* Stats Overview */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -999,6 +825,7 @@ export function GuestJourneyMap({ guestId }: GuestJourneyMapProps) {
           </div>
         </CardContent>
       </Card>
+      </>)}
     </div>
   );
 }

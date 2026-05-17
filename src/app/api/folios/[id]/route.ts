@@ -121,12 +121,10 @@ export async function PUT(
     }
 
     const {
-      subtotal,
-      taxes,
+      // SECURITY: subtotal, taxes, totalAmount, paidAmount, balance are NOT destructured
+      // from client body. These are computed server-side from line items and payments
+      // to prevent clients from manipulating financial totals.
       discount,
-      totalAmount,
-      paidAmount,
-      balance,
       status,
       invoiceNumber,
       invoiceUrl,
@@ -151,15 +149,34 @@ export async function PUT(
       }
     }
 
+    // SECURITY FIX (F-01): Recalculate all financial totals server-side from
+    // authoritative line items and payments. Never trust client-sent values
+    // for subtotal, totalAmount, or balance to prevent balance manipulation.
+    const lineItems = await db.folioLineItem.findMany({
+      where: { folioId: id },
+    });
+
+    const payments = await db.payment.findMany({
+      where: { folioId: id, status: 'completed' },
+      select: { amount: true },
+    });
+
+    const recalcSubtotal = lineItems.reduce((sum, item) => sum + item.totalAmount, 0);
+    const recalcTaxes = lineItems.reduce((sum, item) => sum + item.taxAmount, 0);
+    const recalcDiscount = (discount !== undefined) ? discount : existingFolio.discount;
+    const recalcTotalAmount = recalcSubtotal + recalcTaxes - recalcDiscount;
+    const recalcPaidAmount = payments.reduce((sum, p) => sum + p.amount, 0);
+    const recalcBalance = recalcTotalAmount - recalcPaidAmount;
+
     const folio = await db.folio.update({
       where: { id },
       data: {
-        ...(subtotal !== undefined && { subtotal }),
-        ...(taxes !== undefined && { taxes }),
-        ...(discount !== undefined && { discount }),
-        ...(totalAmount !== undefined && { totalAmount }),
-        ...(paidAmount !== undefined && { paidAmount }),
-        ...(balance !== undefined && { balance }),
+        subtotal: recalcSubtotal,
+        taxes: recalcTaxes,
+        discount: recalcDiscount,
+        totalAmount: recalcTotalAmount,
+        paidAmount: recalcPaidAmount,
+        balance: recalcBalance,
         ...(status && { status }),
         ...(invoiceNumber !== undefined && { invoiceNumber }),
         ...(invoiceUrl !== undefined && { invoiceUrl }),

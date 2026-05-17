@@ -119,7 +119,7 @@ interface PreviewData {
 // CONSTANTS
 // ============================================
 
-const SAMPLE_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const CURRENT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 const CONTENT_TYPES = [
   { value: 'hotel_info', label: 'Hotel Info', icon: Hotel },
@@ -189,13 +189,13 @@ export function ContentSync() {
   const fetchAllData = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ tenantId: SAMPLE_TENANT_ID });
+      const params = new URLSearchParams({ tenantId: 'current' });
 
       const [syncRes, statsRes, fieldsRes, connRes] = await Promise.all([
         fetch(`/api/channels/content-sync?${params}`),
         fetch(`/api/channels/content-sync?${params}&include=stats`),
         fetch(`/api/channels/content-sync?${params}&include=fields`),
-        fetch(`/api/channels/connections?tenantId=${SAMPLE_TENANT_ID}`),
+        fetch(`/api/channels/connections?tenantId=${'current'}`),
       ]);
 
       const [syncData, statsData, fieldsData, connData] = await Promise.all([
@@ -239,7 +239,7 @@ export function ContentSync() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'sync',
-          tenantId: SAMPLE_TENANT_ID,
+          tenantId: 'current',
           connectionId: connectionId || null,
           contentTypes: [contentType],
           syncType: 'full',
@@ -283,7 +283,7 @@ export function ContentSync() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'preview',
-          tenantId: SAMPLE_TENANT_ID,
+          tenantId: 'current',
           connectionId: filterConnection !== 'all' ? filterConnection : null,
           contentType,
         }),
@@ -314,7 +314,7 @@ export function ContentSync() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update-field',
-          tenantId: SAMPLE_TENANT_ID,
+          tenantId: 'current',
           connectionId: filterConnection !== 'all' ? filterConnection : null,
           fieldId: field.id || null,
           fieldType: field.fieldType,

@@ -1,19 +1,10 @@
 #!/bin/bash
-# =============================================================================
-# StaySuite — Dev mode wrapper
-# Starts PostgreSQL if not running, then launches Next.js dev server
-# =============================================================================
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Set PG paths
-export PATH="$SCRIPT_DIR/pgsql-runtime/bin:$PATH"
-export LD_LIBRARY_PATH="$SCRIPT_DIR/pgsql-runtime/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+cd /home/z/my-project
 export DATABASE_URL="postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite"
-
-# Start PG if not running
-if ! pg_isready -h localhost -p 5432 > /dev/null 2>&1; then
-  bash "$SCRIPT_DIR/pgsql-runtime/start-pgsql.sh" start
-fi
-
-cd "$SCRIPT_DIR"
-exec npx next dev -p 3000
+export NEXT_DISABLE_TURBOPACK=1
+while true; do
+  echo "[$(date)] Starting Next.js dev server..."
+  node_modules/.bin/next dev -p 3000 </dev/null
+  echo "[$(date)] Server exited, restarting in 2s..."
+  sleep 2
+done

@@ -82,61 +82,7 @@ const SOURCE_CONFIG: Record<FeedbackSource, {
   },
 };
 
-// ─── Mock Data ──────────────────────────────────────────────────────────
-
-const MOCK_DATA: FeedbackSummaryData = {
-  overallScore: 4.3,
-  totalReviews: 2847,
-  trend: '+0.2',
-  trendDirection: 'up',
-  sentiment: {
-    positive: 78,
-    neutral: 15,
-    negative: 7,
-  },
-  recentFeedback: [
-    {
-      id: 'fb-001',
-      guestName: 'Sarah Mitchell',
-      date: '2024-01-15',
-      rating: 5,
-      comment: 'Absolutely wonderful stay! The room was spotless and the staff went above and beyond. Special thanks to the concierge for restaurant recommendations.',
-      source: 'google',
-    },
-    {
-      id: 'fb-002',
-      guestName: 'Raj Patel',
-      date: '2024-01-14',
-      rating: 4,
-      comment: 'Great location and comfortable rooms. The breakfast buffet had excellent variety. Minor issue with the WiFi speed in the room.',
-      source: 'booking',
-    },
-    {
-      id: 'fb-003',
-      guestName: 'Emma Thompson',
-      date: '2024-01-14',
-      rating: 5,
-      comment: 'Perfect anniversary getaway! The spa treatment was divine and the rooftop dinner arrangement was impeccable. Will definitely return.',
-      source: 'tripadvisor',
-    },
-    {
-      id: 'fb-004',
-      guestName: 'Hiroshi Tanaka',
-      date: '2024-01-13',
-      rating: 3,
-      comment: 'Good hotel overall but the air conditioning in room 412 was noisy. Reported to front desk and they offered to move us, which was appreciated.',
-      source: 'direct',
-    },
-    {
-      id: 'fb-005',
-      guestName: 'Maria Garcia',
-      date: '2024-01-13',
-      rating: 4,
-      comment: 'Beautiful property with stunning views. The pool area is fantastic. Staff were friendly and helpful throughout our stay.',
-      source: 'google',
-    },
-  ],
-};
+// (Mock data removed — widget now shows proper error/empty states)
 
 // ─── Skeleton Loader ────────────────────────────────────────────────────
 
@@ -230,10 +176,10 @@ export function GuestFeedbackSummaryWidget() {
       if (result.success && result.data?.guestFeedbackSummary) {
         setData(result.data.guestFeedbackSummary as FeedbackSummaryData);
       } else {
-        setData(MOCK_DATA);
+        setData(null);
       }
     } catch {
-      setData(MOCK_DATA);
+      setData(null);
     } finally {
       setIsLoading(false);
     }

@@ -5,29 +5,9 @@ import { logAuth } from '@/lib/audit';
 import { verifyPassword } from '@/lib/auth';
 import { twoFactorTempTokenCache } from '@/lib/cache';
 import bcrypt from 'bcryptjs';
-
-// In-memory rate limiting
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(identifier: string, maxAttempts: number, windowMs: number): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(identifier);
-
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(identifier, { count: 1, resetAt: now + windowMs });
-    return true;
-  }
-
-  if (entry.count >= maxAttempts) return false;
-  entry.count++;
-  return true;
-}
-
-function getRateLimitReset(identifier: string): number | null {
-  const entry = rateLimitMap.get(identifier);
-  if (!entry) return null;
-  return Math.ceil((entry.resetAt - Date.now()) / 1000);
-}
+import { rateLimit, resetRateLimit } from '@/lib/rate-limiter';
+import { withIpWhitelist } from '@/lib/ip-whitelist/middleware';
+import { getClientIp } from '@/lib/ip-whitelist/utils';
 
 // Simple TOTP verification using native crypto
 function verifyTOTP(secret: string, token: string): boolean {
@@ -105,11 +85,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Rate limit check (10 attempts per 15 minutes per email)
-    if (!checkRateLimit(email.toLowerCase(), 10, 15 * 60 * 1000)) {
-      const retryAfter = getRateLimitReset(email.toLowerCase());
+    // Rate limit check using DB-persisted rate limiter (10 attempts per 15 minutes per email)
+    const rateLimitKey = `login:${email.toLowerCase()}`;
+    const rateLimitResult = await rateLimit(rateLimitKey, 10, 15 * 60 * 1000);
+    if (!rateLimitResult.allowed) {
       return NextResponse.json(
-        { success: false, error: { code: 'RATE_LIMITED', message: 'Too many login attempts. Please try again later.', retryAfter } },
+        { success: false, error: { code: 'RATE_LIMITED', message: 'Too many login attempts. Please try again later.', retryAfter: rateLimitResult.retryAfter } },
         { status: 429 }
       );
     }
@@ -227,6 +208,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ===== IP WHITELIST ENFORCEMENT =====
+    // After password verification, BEFORE creating session, check IP access.
+    // Platform admins bypass the check.
+    if (!user.isPlatformAdmin) {
+      try {
+        const ipCheckResult = await withIpWhitelist(request, {
+          tenantId: user.tenantId,
+          isPlatformAdmin: user.isPlatformAdmin,
+        });
+
+        if (ipCheckResult && !ipCheckResult.allowed) {
+          const clientIp = getClientIp(request);
+          await logAuth(request, 'login_blocked', user.id, {
+            email: user.email,
+            reason: 'ip_not_allowed',
+            ipAddress: clientIp,
+            ipReason: ipCheckResult.reason,
+          }, user.tenantId);
+
+          return NextResponse.json(
+            { success: false, error: { code: 'IP_BLOCKED', message: ipCheckResult.reason } },
+            { status: 403 }
+          );
+        }
+      } catch (ipError) {
+        console.error('IP whitelist check failed (non-blocking):', ipError);
+        // Fail-open: don't block login if IP check encounters an error
+      }
+    }
+
     // Check if 2FA is enabled for this user
     if (user.twoFactorEnabled && user.twoFactorSecret) {
       // Generate a temporary token for 2FA verification
@@ -254,6 +265,9 @@ export async function POST(request: NextRequest) {
         message: 'Two-factor authentication required',
       });
     }
+
+    // Reset rate limit on successful login
+    await resetRateLimit(rateLimitKey);
 
     // Reset failed attempts on successful login (non-blocking)
     try {
@@ -369,6 +383,9 @@ async function verifyTwoFactor(tempToken: string, code: string, request: NextReq
   await logAuth(request, '2fa_verified', user.id, { 
     email: user.email
   }, user.tenantId);
+
+  // Reset rate limit on successful login
+  await resetRateLimit(`login:${user.email.toLowerCase()}`);
 
   // Reset failed attempts on successful login
   await db.user.update({

@@ -539,6 +539,14 @@ model Booking {
   internalNotes       String?
   groupId             String?           @db.Uuid
   isGroupLeader       Boolean           @default(false)
+  guaranteeType       String            @default("none") // none, credit_card, deposit, corporate, travel_agent, guarantee_letter
+  guaranteeReference  String?
+  guaranteeCardToken  String?
+  depositRequired     Boolean           @default(false)
+  depositAmount       Float             @default(0)
+  depositDeadline     DateTime?         @db.Timestamptz
+  depositPaid         Boolean           @default(false)
+  cancellationRisk    Float?            // ML-predicted cancellation risk 0-1
   preArrivalSent      Boolean           @default(false)
   preArrivalCompleted Boolean           @default(false)
   preArrivalLink      String?
@@ -571,6 +579,9 @@ model Booking {
   laundryOrders            LaundryOrder[]
   minibarConsumptions      MinibarConsumption[]
   depositSchedules         DepositSchedule[]
+  earlyCheckoutRequests    EarlyCheckoutRequest[]
+  earlyCheckinRequests     EarlyCheckinRequest[]
+  lateCheckoutRequests     LateCheckoutRequest[]
 
   checkInDate              DateTime?            @db.Timestamptz
   checkOutDate             DateTime?            @db.Timestamptz
@@ -585,6 +596,28 @@ model Booking {
   @@index([tenantId, propertyId, status])
   @@index([tenantId, checkIn])
   @@index([tenantId, checkOut])
+}
+
+/// EarlyCheckoutRequest - Tracks guest requests for early checkout
+model EarlyCheckoutRequest {
+  id                String    @id @default(uuid()) @db.Uuid
+  bookingId         String    @db.Uuid
+  tenantId          String    @db.Uuid
+  propertyId        String    @db.Uuid
+  guestId           String    @db.Uuid
+  requestedDate     DateTime  @db.Timestamptz
+  originalCheckOut  DateTime  @db.Timestamptz
+  reason            String?
+  status            String    @default("pending") // pending, approved, rejected, completed
+  reviewedBy        String?   @db.Uuid
+  reviewedAt        DateTime? @db.Timestamptz
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+  booking           Booking   @relation(fields: [bookingId], references: [id])
+
+  @@index([bookingId])
+  @@index([tenantId, status])
+  @@index([guestId])
 }
 
 model BookingAuditLog {
@@ -2582,6 +2615,7 @@ model GoogleHotelAdsConnection {
   lengthOfStayModifier   String    @default("{}")
   autoBidEnabled         Boolean   @default(true)
   autoBidRules           String    @default("[]")
+  credentials            Json      @default("{}")
   createdAt              DateTime  @default(now()) @db.Timestamptz
   updatedAt              DateTime  @updatedAt @db.Timestamptz
   tenant                 Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -2610,6 +2644,9 @@ model GroupBooking {
   status           String    @default("inquiry")
   contractUrl      String?
   contractSignedAt DateTime? @db.Timestamptz
+  cutoffDate       DateTime? @db.Timestamptz // Release unsold rooms back to inventory X days before arrival
+  releasedRooms    Int       @default(0)
+  roomingListUrl   String?
   notes            String?
   createdAt        DateTime  @default(now()) @db.Timestamptz
   updatedAt        DateTime  @updatedAt @db.Timestamptz
@@ -2649,6 +2686,7 @@ model Guest {
   loyaltyPoints       Int                       @default(0)
   totalStays          Int                       @default(0)
   totalSpent          Float                     @default(0)
+  creditLimit         Float                     @default(0)
   isVip               Boolean                   @default(false)
   vipLevel            String?
   source              String                    @default("direct")
@@ -3243,6 +3281,46 @@ model IoTReading {
   @@index([timestamp])
 }
 
+// ============================================================
+// OCCUPANCY SENSORS MODULE - IoT-based room occupancy detection
+// ============================================================
+
+model OccupancySensor {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  propertyId   String   @db.Uuid
+  roomId       String?  @db.Uuid
+  name         String
+  sensorType   String   // motion, co2, door, infrared, pressure
+  protocol     String   // mqtt, zigbee, z-wave, ble
+  deviceId     String
+  status       String   @default("active") // active, inactive, low_battery, offline
+  batteryLevel Int?
+  lastReading  DateTime? @db.Timestamptz
+  config       String?  // JSON
+  createdAt    DateTime @default(now()) @db.Timestamptz
+  updatedAt    DateTime @updatedAt @db.Timestamptz
+  room         Room?    @relation(fields: [roomId], references: [id])
+  readings     OccupancyReading[]
+
+  @@index([tenantId, propertyId])
+  @@index([roomId])
+}
+
+model OccupancyReading {
+  id         String           @id @default(uuid()) @db.Uuid
+  sensorId   String           @db.Uuid
+  tenantId   String           @db.Uuid
+  value      Float            // 0.0 - 1.0 (0 = empty, 1 = occupied)
+  rawValue   Int?
+  confidence Float?
+  timestamp  DateTime         @db.Timestamptz
+  sensor     OccupancySensor @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+
+  @@index([sensorId, timestamp])
+  @@index([tenantId])
+}
+
 /// ============================================================================
 /// Accsium-Inspired Models — Enterprise AAA Enhancements
 /// Based on analysis of 24online AAA database schema (400+ tables)
@@ -3618,6 +3696,29 @@ model MetasearchConnection {
   @@unique([tenantId, propertyId, platform])
   @@index([tenantId])
   @@index([platform])
+  @@index([status])
+}
+
+model MetaAdsConnection {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String?   @db.Uuid
+  appId           String
+  appSecret       String
+  accessToken     String
+  refreshToken    String?
+  accountId       String
+  pixelId         String?
+  status          String    @default("disconnected") // disconnected, connected, error
+  config          Json      @default("{}")
+  credentials     Json      @default("{}")
+  lastSyncedAt    DateTime? @db.Timestamptz
+  lastError       String?
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, propertyId])
   @@index([status])
 }
 
@@ -4093,6 +4194,7 @@ model Payment {
   updatedAt       DateTime  @updatedAt @db.Timestamptz
   guest           Guest?    @relation(fields: [guestId], references: [id])
   folio           Folio     @relation(fields: [folioId], references: [id], onDelete: Cascade)
+  fraudAlerts     FraudAlert[]
 
   @@index([tenantId])
   @@index([folioId])
@@ -4127,6 +4229,52 @@ model PaymentGateway {
   @@unique([tenantId, provider])
   @@index([tenantId])
   @@index([status])
+}
+
+/// FraudDetectionRule - Configurable fraud detection rules per tenant
+model FraudDetectionRule {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  name        String
+  description String?
+  isEnabled   Boolean  @default(true)
+  ruleType    String   // velocity, amount, geolocation, pattern, device_fingerprint
+  conditions  String   // JSON - rule conditions
+  action      String   @default("flag") // flag, block, review, mfa_required
+  severity    String   @default("medium") // low, medium, high, critical
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  alerts      FraudAlert[]
+
+  @@index([tenantId, isEnabled])
+}
+
+/// FraudAlert - Alert generated when fraud is detected
+model FraudAlert {
+  id            String     @id @default(uuid()) @db.Uuid
+  tenantId      String     @db.Uuid
+  paymentId     String?    @db.Uuid
+  userId        String?    @db.Uuid
+  ruleId        String?    @db.Uuid
+  alertType     String     // velocity_exceeded, amount_anomaly, pattern_match, etc.
+  severity      String     // low, medium, high, critical
+  status        String     @default("open") // open, reviewed, dismissed, confirmed_fraud
+  riskScore     Int        // 0-100
+  details       String     // JSON - alert details
+  reviewedBy    String?    @db.Uuid
+  reviewedAt    DateTime?  @db.Timestamptz
+  resolution    String?
+  createdAt     DateTime   @default(now()) @db.Timestamptz
+  updatedAt     DateTime   @updatedAt @db.Timestamptz
+  payment       Payment?              @relation(fields: [paymentId], references: [id])
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rule          FraudDetectionRule?   @relation(fields: [ruleId], references: [id])
+  reviewer      User?                 @relation("FraudAlertReviewer", fields: [reviewedBy], references: [id])
+
+  @@index([tenantId, status])
+  @@index([paymentId])
+  @@index([createdAt])
 }
 
 /// PaymentSchedule - Payment plans and installments
@@ -4430,7 +4578,7 @@ model Promotion {
   tenantId            String   @db.Uuid
   propertyId          String?  @db.Uuid
   name                String
-  code                String   @unique
+  code                String
   description         String?
   discountType        String
   discountValue       Float
@@ -4447,6 +4595,7 @@ model Promotion {
   createdAt           DateTime @default(now()) @db.Timestamptz
   updatedAt           DateTime @updatedAt @db.Timestamptz
 
+  @@unique([tenantId, code])
   @@index([tenantId])
   @@index([code])
 }
@@ -5329,6 +5478,7 @@ model Room {
   bookings           Booking[]
   inventoryLocks     InventoryLock[]
   iotDevices         IoTDevice[]
+  occupancySensors   OccupancySensor[]
   floorPlanRooms     FloorPlanRoom[]
   roomType           RoomType           @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
   property           Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
@@ -6394,6 +6544,7 @@ model Tenant {
   adCampaigns               AdCampaign[]
   googleHotelAdsConnections GoogleHotelAdsConnection[]
   metasearchConnections     MetasearchConnection[]
+  metaAdsConnections        MetaAdsConnection[]
   loyaltyTiers              LoyaltyTier[]
   loyaltyRewards            LoyaltyReward[]
   loyaltyRedemptions        LoyaltyRedemption[]
@@ -6468,6 +6619,10 @@ model Tenant {
   systemHealth              SystemNetworkHealth[]
   interfaceAliases          InterfaceAlias[]
   staticRoutes              StaticRoute[]
+  storageQuota              StorageQuota?
+  databaseBackups           DatabaseBackup[]
+  deadLetterQueues          DeadLetterQueue[]
+  pluginInstallations       PluginInstallation[]
   multiWanConfigs           MultiWanConfig[]
   gateways                  Gateway[]
   gatewayHealthRules        GatewayHealthRule[]
@@ -6591,6 +6746,169 @@ model Tenant {
   hardwareOperationLogs     HardwareOperationLog[]
   hardwareWebhookLogs       HardwareWebhookLog[]
   licenseEntitlements       LicenseModuleEntitlement[]
+  ipWhitelistRules          IpWhitelistRule[]
+  fraudDetectionRules       FraudDetectionRule[]
+  fraudAlerts               FraudAlert[]
+  earlyCheckinRequests      EarlyCheckinRequest[]
+  lateCheckoutRequests      LateCheckoutRequest[]
+  folioRoutingRules         FolioRoutingRule[]
+  taxExemptions             TaxExemption[]
+  corporateAccounts         CorporateAccount[]
+  npsSurveys                NpsSurvey[]
+  npsResponses              NpsResponse[]
+  onlineReviews             OnlineReview[]
+  automationTemplates       AutomationTemplate[]
+  cancellationPredictions   CancellationPredictionLog[]
+  priceElasticityData       PriceElasticityData[]
+  losPricingTiers           LosPricingTier[]
+  pricingSchedulerLogs      PricingSchedulerLog[]
+  otaContentProfiles        OTAContentProfile[]
+  otaContentSyncLogs        OTAContentSyncLog[]
+  otaMessages               OTAMessage[]
+  guestCreditLimits         GuestCreditLimit[]
+  referralTrackings         ReferralTracking[]
+  guestCommunicationTimelines GuestCommunicationTimeline[]
+  hotelWebsites             HotelWebsite[]
+  leads                     Lead[]
+  cashBookEntries           CashBookEntry[]
+  overbookingSlots          OverbookingSlot[]
+  overbookingConfigs        OverbookingConfig[]
+  overbookingLogs           OverbookingLog[]
+  lastMinuteTriggers        LastMinuteTrigger[]
+  lastMinuteTriggerLogs     LastMinuteTriggerLog[]
+}
+
+// ============================================================
+// WEBSITE BUILDER MODULE
+// ============================================================
+
+model HotelWebsite {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String   @db.Uuid
+  domain          String   @unique
+  customDomain    String?
+  status          String   @default("draft") // draft, published, unpublished
+  template        String   @default("modern") // modern, classic, boutique, resort
+  theme           String   @default("{}") // JSON: primaryColor, secondaryColor, fontFamily, borderRadius, logoUrl, heroImageUrl
+  pages           String   @default("[]") // JSON: HotelWebsitePage[]
+  seo             String   @default("{}") // JSON: title, description, keywords, ogImage, faviconUrl
+  analytics       String   @default("{}") // JSON: googleAnalyticsId, googleTagManagerId, facebookPixelId, etc.
+  publishedAt     DateTime? @db.Timestamptz
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([domain])
+}
+
+// ============================================================
+// LEAD CRM PIPELINE MODULE
+// ============================================================
+
+model Lead {
+  id                  String    @id @default(uuid()) @db.Uuid
+  tenantId            String    @db.Uuid
+  propertyId          String    @db.Uuid
+  source              String    @default("website") // website, phone, email, walk_in, referral, google_ads, meta_ads, ota, travel_agent, corporate, event, whatsapp
+  type                String    @default("general") // group_booking, corporate, wedding, event, banquet, long_stay, general
+  status              String    @default("new") // new, contacted, qualified, proposal_sent, negotiation, confirmed, lost, converted
+  priority            String    @default("warm") // cold, warm, hot, urgent
+  contactName         String
+  contactEmail        String
+  contactPhone        String
+  contactCompany      String?
+  estimatedArrival    DateTime? @db.Timestamptz
+  estimatedDeparture  DateTime? @db.Timestamptz
+  roomCount           Int?
+  guestCount          Int?
+  estimatedRevenue    Float?
+  assignedTo          String?   @db.Uuid
+  notes               String    @default("")
+  followUpDate        DateTime? @db.Timestamptz
+  lossReason          String?
+  convertedBookingId  String?   @db.Uuid
+  tags                String    @default("[]") // JSON: string[]
+  pipeline            String    @default("inquiry") // inquiry, qualification, proposal, negotiation, closing
+  score               Int       @default(0) // lead scoring 0-100
+  createdAt           DateTime  @default(now()) @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @db.Timestamptz
+  deletedAt           DateTime? @db.Timestamptz
+  activities          LeadActivity[]
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([pipeline])
+  @@index([assignedTo])
+  @@index([source])
+  @@index([priority])
+  @@index([createdAt])
+  @@index([followUpDate])
+}
+
+model LeadActivity {
+  id          String   @id @default(uuid()) @db.Uuid
+  leadId      String   @db.Uuid
+  type        String   // call, email, meeting, proposal, follow_up, note, status_change, assignment
+  content     String
+  createdBy   String   @db.Uuid
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// DAILY CASH BOOK MODULE
+// ============================================================
+
+model CashBookEntry {
+  id              String              @id @default(uuid()) @db.Uuid
+  tenantId        String              @db.Uuid
+  propertyId      String              @db.Uuid
+  date            DateTime            @db.Timestamptz
+  openingBalance  Float               @default(0)
+  closingBalance  Float               @default(0)
+  preparedBy      String?             @db.Uuid
+  approvedBy      String?             @db.Uuid
+  approvedAt      DateTime?           @db.Timestamptz
+  status          String              @default("open") // open, closed, adjusted
+  createdAt       DateTime            @default(now()) @db.Timestamptz
+  updatedAt       DateTime            @updatedAt @db.Timestamptz
+  transactions    CashTransaction[]
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, propertyId, date])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([date])
+  @@index([status])
+}
+
+model CashTransaction {
+  id            String        @id @default(uuid()) @db.Uuid
+  cashBookId    String        @db.Uuid
+  time          String        // HH:MM
+  description   String
+  category      String        @default("receipt") // receipt, payment, transfer_in, transfer_out, petty_cash, refund, advance, settlement
+  amount        Float
+  reference     String?       // folio number, invoice number, etc.
+  paymentMethod String        @default("cash") // cash, card, upi, bank_transfer, cheque, online
+  createdBy     String?       @db.Uuid
+  approved      Boolean       @default(false)
+  createdAt     DateTime      @default(now()) @db.Timestamptz
+  cashBook      CashBookEntry @relation(fields: [cashBookId], references: [id], onDelete: Cascade)
+
+  @@index([cashBookId])
+  @@index([category])
+  @@index([paymentMethod])
+  @@index([createdAt])
 }
 
 model Experience {
@@ -6863,6 +7181,8 @@ model User {
   completedNightAudits    NightAudit[]         @relation("NightAuditCompletedBy")
   collectedLaundryOrders  LaundryOrder[]       @relation("LaundryCollectedBy")
   deliveredLaundryOrders  LaundryOrder[]       @relation("LaundryDeliveredBy")
+  ipWhitelistRules        IpWhitelistRule[]
+  reviewedFraudAlerts     FraudAlert[]             @relation("FraudAlertReviewer")
   role                    Role?                    @relation(fields: [roleId], references: [id])
   tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -11123,3 +11443,737 @@ model LicenseUsageLog {
   @@index([sampledAt])
 }
 
+
+/// IpWhitelistRule - IP whitelist/blacklist rules for tenant access control
+model IpWhitelistRule {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  type        String   @default("whitelist") // whitelist, blacklist
+  ipAddress   String   // Single IP or CIDR range (e.g., "192.168.1.0/24", "10.0.0.5")
+  description String?
+  isEnabled   Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  createdBy   String?  @db.Uuid
+  creator     User?    @relation(fields: [createdBy], references: [id])
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, type])
+  @@index([tenantId, isEnabled])
+  @@index([ipAddress])
+}
+
+
+// ============================================================
+// RATE LIMITING - Centralized DB-persisted rate limiting
+// ============================================================
+
+model RateLimitEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique  // e.g., "login:user@example.com" or "api:tenantId:endpoint"
+  count     Int      @default(1)
+  resetAt   DateTime @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+  @@index([key, resetAt])
+}
+
+// ============================================================
+// INFRASTRUCTURE MODELS (Task 4)
+// ============================================================
+
+model StorageQuota {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @unique @db.Uuid
+  maxStorageMb    Int      @default(5120)
+  usedStorageMb   Int      @default(0)
+  documentCount   Int      @default(0)
+  lastCalculatedAt DateTime @default(now()) @db.Timestamptz
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model DatabaseBackup {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @db.Uuid
+  type             String
+  status           String
+  fileSize         Int?
+  storageLocation  String?
+  startedAt        DateTime  @default(now()) @db.Timestamptz
+  completedAt      DateTime? @db.Timestamptz
+  expiresAt        DateTime? @db.Timestamptz
+  createdBy        String?   @db.Uuid
+  notes            String?
+  createdAt        DateTime  @default(now()) @db.Timestamptz
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([expiresAt])
+}
+
+model DeadLetterQueue {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @db.Uuid
+  source        String
+  entityType    String
+  entityId      String?
+  payload       String
+  error         String
+  retryCount    Int       @default(0)
+  maxRetries    Int       @default(3)
+  nextRetryAt   DateTime? @db.Timestamptz
+  status        String    @default("pending")
+  resolvedAt    DateTime? @db.Timestamptz
+  resolvedBy    String?   @db.Uuid
+  resolution    String?
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @db.Timestamptz
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, source, status])
+  @@index([nextRetryAt])
+}
+
+model Plugin {
+  id            String              @id @default(uuid()) @db.Uuid
+  name          String
+  slug          String              @unique
+  description   String?
+  version       String              @default("1.0.0")
+  author        String?
+  icon          String?
+  category      String
+  status        String              @default("active")
+  configSchema  String?
+  hooks         String?
+  permissions   String?
+  isOfficial    Boolean             @default(false)
+  installedAt   DateTime?           @db.Timestamptz
+  createdAt     DateTime            @default(now()) @db.Timestamptz
+  updatedAt     DateTime            @updatedAt @db.Timestamptz
+  installations PluginInstallation[]
+}
+
+model PluginInstallation {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  pluginId    String   @db.Uuid
+  isEnabled   Boolean  @default(true)
+  config      String?
+  installedBy String?  @db.Uuid
+  installedAt DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plugin      Plugin   @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, pluginId])
+  @@index([tenantId])
+}
+
+
+// ============================================================
+// COMPETITOR PARITY MODELS — Enterprise-grade features
+// ============================================================
+
+/// EarlyCheckinRequest - Fee-based early check-in with approval workflow
+model EarlyCheckinRequest {
+  id              String    @id @default(uuid()) @db.Uuid
+  bookingId       String    @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String    @db.Uuid
+  guestId         String    @db.Uuid
+  requestedTime   DateTime  @db.Timestamptz
+  feeAmount       Float     @default(0)
+  feeStatus       String    @default("pending") // pending, paid, waived, declined
+  reason          String?
+  status          String    @default("pending") // pending, approved, rejected, completed
+  approvedBy      String?   @db.Uuid
+  approvedAt      DateTime? @db.Timestamptz
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([tenantId, status])
+  @@index([guestId])
+}
+
+/// LateCheckoutRequest - Fee-based late check-out with loyalty tier waivers
+model LateCheckoutRequest {
+  id              String    @id @default(uuid()) @db.Uuid
+  bookingId       String    @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String    @db.Uuid
+  guestId         String    @db.Uuid
+  requestedUntil  DateTime  @db.Timestamptz
+  feeAmount       Float     @default(0)
+  feeStatus       String    @default("pending") // pending, paid, waived, declined
+  loyaltyWaived   Boolean   @default(false)
+  reason          String?
+  status          String    @default("pending") // pending, approved, rejected, completed
+  approvedBy      String?   @db.Uuid
+  approvedAt      DateTime? @db.Timestamptz
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([tenantId, status])
+  @@index([guestId])
+}
+
+/// FolioRoutingRule - Auto-route charges to specific folios based on charge category
+model FolioRoutingRule {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  propertyId    String   @db.Uuid
+  name          String
+  description   String?
+  chargeCategory String  // room, food_beverage, spa, laundry, minibar, telephone, miscellaneous
+  targetFolioType String  // guest, company, city_ledger, travel_agent, package
+  priority      Int      @default(0)
+  conditions    String   @default("{}") // JSON: {source, amountMin, amountMax, roomType, channel}
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  updatedAt     DateTime @updatedAt @db.Timestamptz
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, propertyId])
+  @@index([chargeCategory])
+  @@index([isActive])
+}
+
+/// TaxExemption - Per-booking/line-item tax exemption workflow
+model TaxExemption {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  bookingId       String?   @db.Uuid
+  folioId         String?   @db.Uuid
+  guestId         String    @db.Uuid
+  exemptionType   String    // diplomatic, government, inter_state, export, charity, other
+  certificateNumber String?
+  certificateUrl  String?
+  issuingAuthority String?
+  exemptTaxTypes  String    @default("[]") // JSON array: ["gst", "service_tax", "luxury_tax"]
+  exemptAmount    Float     @default(0)
+  status          String    @default("pending") // pending, approved, rejected, expired
+  approvedBy      String?   @db.Uuid
+  approvedAt      DateTime? @db.Timestamptz
+  expiresAt       DateTime? @db.Timestamptz
+  notes           String?
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([bookingId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+/// CorporateAccount - Company profile with billing terms for direct billing
+model CorporateAccount {
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @db.Uuid
+  companyName       String
+  contactName       String?
+  contactEmail      String?
+  contactPhone      String?
+  address           String?
+  city              String?
+  state             String?
+  country           String?
+  postalCode        String?
+  taxId             String?   // GSTIN, VAT number
+  website           String?
+  industry          String?
+  accountType       String    @default("corporate") // corporate, government, travel_agent, association
+  billingTerms      String    @default("net_30") // cod, net_15, net_30, net_45, net_60
+  creditLimit       Float     @default(0)
+  outstandingBalance Float    @default(0)
+  paymentTerms      String    @default("{}") // JSON: {autoInvoice, invoiceDay, dueDay}
+  discountPercent   Float     @default(0)
+  isPreferred       Boolean   @default(false)
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([companyName])
+  @@index([isActive])
+  @@index([accountType])
+}
+
+/// GuestCreditLimit - Tracks credit limit adjustments and status per guest
+model GuestCreditLimit {
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @db.Uuid
+  guestId           String    @db.Uuid
+  limitAmount       Float     @default(0)
+  currentBalance    Float     @default(0)
+  availableCredit   Float     @default(0)
+  status            String    @default("active") // active, suspended, blocked
+  adjustedBy        String?   @db.Uuid
+  adjustedAt        DateTime  @default(now()) @db.Timestamptz
+  notes             String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, guestId])
+  @@index([tenantId])
+  @@index([guestId])
+  @@index([status])
+}
+
+/// NpsSurvey - Net Promoter Score survey management
+model NpsSurvey {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String    @db.Uuid
+  name            String
+  triggerEvent    String    @default("post_checkout") // post_checkout, post_stay, on_departure, custom
+  subject         String?
+  message         String?
+  customQuestion  String?
+  minScore        Int       @default(0)
+  maxScore        Int       @default(10)
+  isActive        Boolean   @default(true)
+  sentCount       Int       @default(0)
+  responseCount   Int       @default(0)
+  avgScore        Float?
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  responses       NpsResponse[]
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([triggerEvent])
+  @@index([isActive])
+}
+
+/// NpsResponse - Individual NPS survey response
+model NpsResponse {
+  id              String    @id @default(uuid()) @db.Uuid
+  surveyId        String    @db.Uuid
+  tenantId        String    @db.Uuid
+  bookingId       String?   @db.Uuid
+  guestId         String    @db.Uuid
+  score           Int
+  category        String    // promoter (9-10), passive (7-8), detractor (0-6)
+  comment         String?
+  respondedAt     DateTime  @default(now()) @db.Timestamptz
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  survey          NpsSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([surveyId])
+  @@index([tenantId])
+  @@index([guestId])
+  @@index([bookingId])
+  @@index([category])
+}
+
+/// OnlineReview - Guest review management and response tracking
+model OnlineReview {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String    @db.Uuid
+  guestId         String?   @db.Uuid
+  platform        String    // google, tripadvisor, booking, expedia, agoda, facebook, yelp
+  externalId      String?
+  authorName      String
+  rating          Float
+  title           String?
+  content         String?
+  reviewDate      DateTime? @db.Timestamptz
+  responseText    String?
+  respondedAt     DateTime? @db.Timestamptz
+  respondedBy     String?   @db.Uuid
+  sentimentScore  Float?    // AI-analyzed sentiment 0-1
+  sentimentLabel  String?   // positive, neutral, negative, mixed
+  categories      String    @default("[]") // JSON: ["cleanliness", "service", "location", "value", "rooms", "food"]
+  isFeatured      Boolean   @default(false)
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([platform])
+  @@index([rating])
+  @@index([reviewDate])
+}
+
+/// AutomationTemplate - Pre-built automation templates for common hotel workflows
+model AutomationTemplate {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  name            String
+  description     String?
+  category        String   // pre_arrival, post_stay, check_in, check_out, housekeeping, billing, marketing, vip
+  triggerEvent    String
+  triggerConditions String?
+  actions         String
+  isSystem        Boolean  @default(false) // System-provided vs user-created
+  usageCount      Int      @default(0)
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  icon            String?
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([category])
+  @@index([isSystem])
+}
+
+/// CancellationPredictionLog - ML cancellation risk prediction results
+model CancellationPredictionLog {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  bookingId       String    @db.Uuid
+  riskScore       Float     // 0-1 probability
+  riskLevel       String    // low, medium, high, critical
+  factors         String    @default("[]") // JSON: ["lead_time_short", "ota_booking", "no_deposit"]
+  modelVersion    String    @default("v1")
+  predictedAt     DateTime  @default(now()) @db.Timestamptz
+  actualOutcome   String?   // cancelled, no_show, checked_in
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([bookingId])
+  @@index([riskLevel])
+  @@index([predictedAt])
+}
+
+/// PriceElasticityData - Price elasticity analysis results per room type
+model PriceElasticityData {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String   @db.Uuid
+  roomTypeId      String   @db.Uuid
+  dateRange       String   // JSON: {start, end}
+  elasticity      Float    // Price elasticity coefficient
+  optimalPrice    Float    // AI-suggested optimal price
+  priceFloor      Float?   // Minimum viable price
+  priceCeiling    Float?   // Maximum price before demand drops
+  demandAtCurrent Float?   // Current demand level
+  demandAtOptimal Float?   // Projected demand at optimal price
+  revenueImpact   Float?   // Projected revenue change
+  confidence      Float    @default(0.7)
+  period          String   @default("30d") // 7d, 30d, 90d, 1y
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([roomTypeId])
+  @@index([period])
+}
+
+/// ReferralTracking - Guest referral program tracking
+model ReferralTracking {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  referrerId      String    @db.Uuid
+  refereeId       String?   @db.Uuid
+  referralCode    String
+  referralSource  String    @default("link") // link, email, qr, social
+  rewardType      String    @default("points") // points, credit, discount, free_night
+  rewardAmount    Float     @default(0)
+  status          String    @default("pending") // pending, converted, rewarded, expired
+  convertedAt     DateTime? @db.Timestamptz
+  rewardedAt      DateTime? @db.Timestamptz
+  expiresAt       DateTime? @db.Timestamptz
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, referralCode])
+  @@index([tenantId])
+  @@index([referrerId])
+  @@index([status])
+}
+
+/// GuestCommunicationTimeline - Tracks all guest communications
+model GuestCommunicationTimeline {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  guestId         String    @db.Uuid
+  bookingId       String?   @db.Uuid
+  channel         String    // email, sms, whatsapp, in_app, phone, push
+  direction       String    // inbound, outbound
+  subject         String?
+  content         String
+  status          String    @default("sent") // draft, sent, delivered, read, failed, bounced
+  sentBy          String?   @db.Uuid
+  sentAt          DateTime  @default(now()) @db.Timestamptz
+  readAt          DateTime? @db.Timestamptz
+  metadata        String    @default("{}") // JSON: {templateId, automationId, campaignId}
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([guestId])
+  @@index([bookingId])
+  @@index([channel])
+  @@index([sentAt])
+}
+
+// ============================================================
+// REVENUE MANAGEMENT MODULE - Advanced Analytics & Optimization
+// ============================================================
+
+/// LosPricingTier - Graduated Length-of-Stay pricing tiers
+model LosPricingTier {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @db.Uuid
+  propertyId       String    @db.Uuid
+  roomTypeId       String    @db.Uuid
+  minNights        Int
+  maxNights        Int?      // null means unlimited upper bound
+  label            String    // e.g. "1-2 nights", "3-5 nights"
+  discountPercent  Float     @default(0) // 0%, 5%, 10%, etc.
+  isActive         Boolean   @default(true)
+  sortOrder        Int       @default(0)
+  createdAt        DateTime  @default(now()) @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @db.Timestamptz
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, roomTypeId, minNights])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([roomTypeId])
+  @@index([isActive])
+}
+
+/// PricingSchedulerLog - Auto-apply pricing scheduler execution log
+model PricingSchedulerLog {
+  id                 String    @id @default(uuid()) @db.Uuid
+  tenantId           String    @db.Uuid
+  propertyId         String
+  status             String    @default("running") // running, completed, failed
+  rulesEvaluated     Int       @default(0)
+  rulesApplied       Int       @default(0)
+  rulesSkipped       Int       @default(0)
+  totalRevenueImpact Float     @default(0)
+  errorDetails       String?
+  startedAt          DateTime  @default(now()) @db.Timestamptz
+  completedAt        DateTime? @db.Timestamptz
+  createdAt          DateTime  @default(now()) @db.Timestamptz
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+// ============================================================
+// OTA CHANNEL MANAGER - Content & Message Management
+// ============================================================
+
+/// OTAContentProfile - Per-channel content sync profiles
+model OTAContentProfile {
+  id            String     @id @default(uuid()) @db.Uuid
+  tenantId      String     @db.Uuid
+  propertyId    String     @db.Uuid
+  channelName   String
+  syncStatus    String     @default("pending") // synced, pending, failed, partial
+  fieldMapping  String     @default("{}") // JSON: Record<string, string>
+  lastSyncAt    DateTime?  @db.Timestamptz
+  totalFields   Int        @default(0)
+  syncedFields  Int        @default(0)
+  failedFields  Int        @default(0)
+  errorDetails  String?
+  createdAt     DateTime   @default(now()) @db.Timestamptz
+  updatedAt     DateTime   @updatedAt @db.Timestamptz
+  tenant        Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, propertyId, channelName])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([channelName])
+  @@index([syncStatus])
+}
+
+/// OTAContentSyncLog - Content sync execution history
+model OTAContentSyncLog {
+  id            String     @id @default(uuid()) @db.Uuid
+  tenantId      String     @db.Uuid
+  propertyId    String     @db.Uuid
+  channelName   String
+  contentType   String     // photos, descriptions, amenities, policies, all
+  syncType      String     @default("full") // full, partial
+  status        String     @default("pending") // pending, processing, synced, failed, partial
+  totalItems    Int        @default(0)
+  syncedItems   Int        @default(0)
+  failedItems   Int        @default(0)
+  errorDetails  String?
+  startedAt     DateTime   @default(now()) @db.Timestamptz
+  completedAt   DateTime?  @db.Timestamptz
+  createdAt     DateTime   @default(now()) @db.Timestamptz
+  tenant        Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([channelName])
+  @@index([status])
+  @@index([startedAt])
+}
+
+/// OTAMessage - Guest messages from OTA channels
+model OTAMessage {
+  id              String     @id @default(uuid()) @db.Uuid
+  tenantId        String     @db.Uuid
+  propertyId      String     @db.Uuid
+  channelName     String
+  reservationId   String     @db.Uuid
+  guestName       String
+  subject         String
+  body            String
+  direction       String     @default("inbound") // inbound, outbound
+  status          String     @default("unread") // unread, read, replied, archived
+  priority        String     @default("normal") // normal, high, urgent
+  guestEmail      String?
+  guestPhone      String?
+  bookingRef      String?
+  channelMessageId String?
+  receivedAt      DateTime   @default(now()) @db.Timestamptz
+  repliedAt       DateTime?  @db.Timestamptz
+  createdAt       DateTime   @default(now()) @db.Timestamptz
+  updatedAt       DateTime   @updatedAt @db.Timestamptz
+  tenant          Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([channelName])
+  @@index([reservationId])
+  @@index([status])
+  @@index([direction])
+  @@index([priority])
+  @@index([receivedAt])
+}
+
+// ============================================================
+// REVENUE MANAGEMENT - Auto-Overbooking & Last-Minute Triggers
+// ============================================================
+
+/// OverbookingSlot - Tracks virtual overbooking allocations per room type / date
+model OverbookingSlot {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String    @db.Uuid
+  roomTypeId      String    @db.Uuid
+  date            DateTime  @db.Timestamptz
+  maxExtraRooms   Int       @default(0)   // maximum overbookable rooms for this date
+  usedSlots       Int       @default(0)   // currently consumed overbooking slots
+  confidence      Float     @default(0)   // confidence score from cancellation predictor
+  status          String    @default("active") // active, absorbed, expired
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, roomTypeId, date])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([roomTypeId])
+  @@index([date])
+  @@index([status])
+}
+
+/// OverbookingConfig - Per-property overbooking configuration
+model OverbookingConfig {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @db.Uuid
+  propertyId        String   @db.Uuid
+  enabled           Boolean  @default(false)
+  maxOverbookPercent Float   @default(5)
+  minCancellationRisk Float  @default(0.15)
+  allowedRoomTypes  String   @default("[]") // JSON: [roomTypeId, ...]
+  upgradePaths      String   @default("[]") // JSON: [{fromRoomTypeId, toRoomTypeId}, ...]
+  blacklistDates    String   @default("[]") // JSON: ["2024-12-25", ...]
+  bufferDays        Int      @default(1) // stop overbooking N days before check-in
+  createdAt         DateTime @default(now()) @db.Timestamptz
+  updatedAt         DateTime @updatedAt @db.Timestamptz
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId])
+  @@index([tenantId])
+  @@index([propertyId])
+}
+
+/// OverbookingLog - Execution log for overbooking calculations
+model OverbookingLog {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String    @db.Uuid
+  date            DateTime  @db.Timestamptz
+  roomTypeId      String    @db.Uuid
+  action          String    // created, updated, absorbed
+  details         String    @default("{}") // JSON: {maxExtra, confidence, bookingsAnalyzed}
+  performedBy     String?   @db.Uuid
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([date])
+  @@index([roomTypeId])
+}
+
+/// LastMinuteTrigger - Configurable last-minute pricing/inventory automation
+model LastMinuteTrigger {
+  id                        String   @id @default(uuid()) @db.Uuid
+  tenantId                  String   @db.Uuid
+  propertyId                String   @db.Uuid
+  name                      String
+  enabled                   Boolean  @default(true)
+  triggerHoursBeforeCheckin Int      @default(48) // 48, 24, 12, 6, 3
+  action                    String   @default("decrease_rate") // increase_rate, decrease_rate, send_offer, release_inventory
+  value                     Float    @default(0) // percentage for rate changes
+  minOccupancy              Int      @default(0)
+  maxOccupancy              Int      @default(100)
+  channelScope              String   @default("all") // all, direct_only, ota_only
+  roomTypeIds               String   @default("[]") // JSON: [roomTypeId, ...]
+  repeatOnDays              String   @default("0,1,2,3,4,5,6") // JSON: [0-6]
+  createdAt                 DateTime @default(now()) @db.Timestamptz
+  updatedAt                 DateTime @updatedAt @db.Timestamptz
+  tenant                    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([enabled])
+}
+
+/// LastMinuteTriggerLog - Tracks when last-minute triggers fired (dedup)
+model LastMinuteTriggerLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @db.Uuid
+  propertyId        String   @db.Uuid
+  triggerId         String   @db.Uuid
+  roomTypeId        String   @db.Uuid
+  date              DateTime @db.Timestamptz
+  action            String
+  value             Float
+  bookingId         String?  @db.Uuid
+  result            String   @default("{}") // JSON: {newRate, oldRate, channel, ...}
+  createdAt         DateTime @default(now()) @db.Timestamptz
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([triggerId, roomTypeId, date]) // one firing per trigger+room+date
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([triggerId])
+  @@index([date])
+}

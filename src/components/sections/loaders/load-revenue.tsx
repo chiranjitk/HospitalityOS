@@ -19,6 +19,16 @@ export default async function loadSection(section: string): Promise<{ default: R
     case 'revenue-rate-shopping':
     case 'revenue-rate-shop':
       return import('@/components/revenue/rate-shopping');
+    case 'revenue-hourly-pricing':
+      return import('@/components/revenue/hourly-pricing-page');
+    case 'revenue-linear-pricing':
+      return import('@/components/revenue/linear-pricing-page');
+    case 'revenue-auto-overbooking':
+      return import('@/components/revenue/auto-overbooking-page');
+    case 'revenue-last-minute':
+      return import('@/components/revenue/last-minute-triggers-page');
+    case 'revenue-automation':
+      return import('@/components/revenue/revenue-automation');
     default:
       throw new Error(`Unknown revenue section: ${section}`);
   }

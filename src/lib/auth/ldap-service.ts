@@ -1,9 +1,12 @@
 /**
  * LDAP/Active Directory Integration Service
- * 
- * This service handles LDAP authentication including:
- * - LDAP bind authentication
- * - User attribute retrieval
+ *
+ * Real LDAP authentication implementation using ldapjs.
+ * Handles:
+ * - LDAP bind authentication (admin + user)
+ * - User search under baseDN
+ * - Connection timeouts and error handling
+ * - Proper LDAP connection cleanup
  * - Active Directory integration
  * - Multi-domain LDAP support
  */
@@ -59,6 +62,20 @@ export interface LDAPTestResult {
   };
 }
 
+// Lazy-import ldapjs to avoid issues in environments where it's not available
+let ldapjs: typeof import('ldapjs') | null = null;
+
+async function getLdapjs() {
+  if (!ldapjs) {
+    try {
+      ldapjs = await import('ldapjs');
+    } catch {
+      throw new Error('ldapjs package is not installed. Run: bun add ldapjs');
+    }
+  }
+  return ldapjs;
+}
+
 export class LDAPService {
   /**
    * Authenticate user against LDAP/AD
@@ -90,10 +107,10 @@ export class LDAPService {
         searchFilter: connection.ldapSearchFilter || '(mail={email})',
         useStartTls: connection.ldapUseStartTls,
         useSsl: connection.ldapUseSsl,
-        timeout: connection.ldapTimeout,
+        timeout: connection.ldapTimeout || 30,
       };
 
-      // Perform LDAP authentication
+      // Perform real LDAP authentication
       const result = await this.performLdapAuth(config, username, password);
 
       if (result.success) {
@@ -118,142 +135,224 @@ export class LDAPService {
   }
 
   /**
-   * Perform actual LDAP authentication
-   * Note: This is a simulation. In production, use ldapjs package
+   * Perform actual LDAP authentication using ldapjs.
+   *
+   * Flow:
+   * 1. Connect to LDAP server
+   * 2. Bind with admin credentials
+   * 3. Search for user by username/email under baseDN
+   * 4. Disconnect admin client
+   * 5. Bind with user's DN + provided password
+   * 6. Return user attributes
    */
   private static async performLdapAuth(
     config: LDAPConfig,
     username: string,
     password: string
   ): Promise<LDAPAuthResult> {
-    // In production, implement actual LDAP bind and search
-    // This is a simplified simulation for demonstration
-    
+    const ldap = await getLdapjs();
+    let client: InstanceType<typeof ldap.Client> | null = null;
+    let userClient: InstanceType<typeof ldap.Client> | null = null;
+
     try {
-      // Simulate LDAP connection test
-      const connectionValid = await this.testConnection(config);
-      if (!connectionValid.success) {
-        return { success: false, error: connectionValid.message };
+      // Step 1: Create and connect admin client
+      client = ldap.createClient({
+        url: config.url,
+        connectTimeout: config.timeout * 1000,
+        timeout: config.timeout * 1000,
+        tlsOptions: config.useSsl ? { rejectUnauthorized: false } : undefined,
+      });
+
+      // Step 2: Bind with admin/service account credentials
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error(`LDAP bind timeout after ${config.timeout}s`));
+        }, config.timeout * 1000);
+
+        client!.bind(config.bindDn, config.bindPassword, (err) => {
+          clearTimeout(timeout);
+          if (err) {
+            reject(new Error(`Admin bind failed: ${err.message}`));
+          } else {
+            resolve();
+          }
+        });
+      });
+
+      // Step 3: Build search filter and search for the user
+      const searchFilter = config.searchFilter
+        .replace('{email}', username)
+        .replace('{username}', username)
+        .replace('{userPrincipalName}', username)
+        .replace('{sAMAccountName}', username);
+
+      const searchBase = config.baseDn;
+
+      // Step 4: Perform the search
+      const searchEntries: ldap.SearchEntry[] = [];
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error(`LDAP search timeout after ${config.timeout}s`));
+        }, config.timeout * 1000);
+
+        client!.search(
+          searchBase,
+          {
+            filter: searchFilter,
+            scope: 'sub',
+            attributes: ['*', '+', 'memberOf'],
+            sizeLimit: 10,
+          },
+          (err, res) => {
+            if (err) {
+              clearTimeout(timeout);
+              reject(new Error(`LDAP search failed: ${err.message}`));
+              return;
+            }
+
+            res.on('searchEntry', (entry) => {
+              searchEntries.push(entry);
+            });
+
+            res.on('error', (err) => {
+              clearTimeout(timeout);
+              reject(new Error(`LDAP search error: ${err.message}`));
+            });
+
+            res.on('end', () => {
+              clearTimeout(timeout);
+              resolve();
+            });
+          }
+        );
+      });
+
+      if (searchEntries.length === 0) {
+        return { success: false, error: 'User not found in LDAP directory' };
       }
 
-      // Build user DN for authentication
-      const userDn = this.buildUserDn(config, username);
-      
-      // In production, this would be an actual LDAP bind:
-      // const client = ldap.createClient({ url: config.url });
-      // await client.bind(userDn, password);
-      // const user = await client.search(config.baseDn, searchOptions);
-      
-      // Simulated successful authentication
-      // In real implementation, validate against LDAP server
-      const isValid = await this.simulateLdapBind(config, userDn, password);
-      
-      if (!isValid) {
-        return { success: false, error: 'Invalid credentials' };
+      // Take the first search result
+      const entry = searchEntries[0];
+      const userDn = entry.dn.toString();
+      const rawAttributes = entry.attributes;
+
+      // Convert attributes to a usable format
+      const attributes: Record<string, string | string[]> = {};
+      for (const attr of rawAttributes) {
+        const vals = attr.vals as Buffer[];
+        if (vals.length === 1) {
+          attributes[attr.type] = vals[0].toString('utf8');
+        } else if (vals.length > 1) {
+          attributes[attr.type] = vals.map(v => v.toString('utf8'));
+        }
       }
 
-      // Search for user attributes
-      const user = await this.searchUser(config, username);
-      
-      if (!user) {
-        return { success: false, error: 'User not found' };
+      // Step 5: Disconnect admin client before user bind
+      try {
+        await new Promise<void>((resolve) => {
+          client!.unbind(() => resolve());
+        });
+      } catch {
+        // Ignore unbind errors
       }
+      client = null;
 
-      return { success: true, user };
+      // Step 6: Bind as the user with their password to verify credentials
+      userClient = ldap.createClient({
+        url: config.url,
+        connectTimeout: config.timeout * 1000,
+        timeout: config.timeout * 1000,
+        tlsOptions: config.useSsl ? { rejectUnauthorized: false } : undefined,
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error(`User bind timeout after ${config.timeout}s`));
+        }, config.timeout * 1000);
+
+        userClient!.bind(userDn, password, (err) => {
+          clearTimeout(timeout);
+          if (err) {
+            const ldapErr = err as Error & { name?: string };
+            if (ldapErr.name === 'InvalidCredentialsError' || err.message.includes('invalid credentials')) {
+              reject(new Error('Invalid credentials'));
+            } else {
+              reject(new Error(`User bind failed: ${err.message}`));
+            }
+          } else {
+            resolve();
+          }
+        });
+      });
+
+      // Clean up user client
+      try {
+        await new Promise<void>((resolve) => {
+          userClient!.unbind(() => resolve());
+        });
+      } catch {
+        // Ignore unbind errors
+      }
+      userClient = null;
+
+      // Build LDAPUser from search result
+      const memberOf = (attributes.memberOf as string[]) || [];
+      const objectClass = (attributes.objectClass as string[]) || ['top'];
+
+      const ldapUser: LDAPUser = {
+        dn: userDn,
+        cn: (attributes.cn as string) || username,
+        sn: (attributes.sn as string) || undefined,
+        givenName: (attributes.givenName as string) || (attributes.givenname as string) || undefined,
+        displayName: (attributes.displayName as string) || (attributes.displayname as string) || undefined,
+        mail: (attributes.mail as string) || '',
+        sAMAccountName: (attributes.sAMAccountName as string) || (attributes.samaccountname as string) || undefined,
+        userPrincipalName: (attributes.userPrincipalName as string) || (attributes.userprincipalname as string) || undefined,
+        memberOf: Array.isArray(memberOf) ? memberOf : memberOf ? [memberOf] : [],
+        telephoneNumber: (attributes.telephoneNumber as string) || (attributes.telephonenumber as string) || undefined,
+        department: (attributes.department as string) || undefined,
+        title: (attributes.title as string) || undefined,
+        employeeId: (attributes.employeeId as string) || (attributes.employeeid as string) || undefined,
+        distinguishedName: (attributes.distinguishedName as string) || (attributes.dn as string) || userDn,
+        objectClass,
+        attributes,
+      };
+
+      return { success: true, user: ldapUser };
     } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'LDAP operation failed',
       };
+    } finally {
+      // Ensure all LDAP connections are properly closed
+      const closeClient = async (c: InstanceType<typeof ldap.Client> | null) => {
+        if (!c) return;
+        try {
+          await new Promise<void>((resolve) => {
+            c.unbind(() => resolve());
+          });
+        } catch {
+          // Best-effort close
+        }
+        try {
+          c.destroy();
+        } catch {
+          // Ignore
+        }
+      };
+      await closeClient(client);
+      await closeClient(userClient);
     }
   }
 
   /**
-   * Build user DN from configuration
-   */
-  private static buildUserDn(config: LDAPConfig, username: string): string {
-    // Common patterns for user DN:
-    // 1. userPrincipalName: user@domain.com
-    // 2. sAMAccountName: DOMAIN\user
-    // 3. DN: cn=user,ou=users,dc=domain,dc=com
-
-    if (username.includes('@')) {
-      // userPrincipalName format
-      return username;
-    }
-
-    if (username.includes('\\')) {
-      // sAMAccountName format (DOMAIN\user)
-      return username;
-    }
-
-    // Try to build DN
-    if (config.baseDn) {
-      return `cn=${username},${config.baseDn}`;
-    }
-
-    return username;
-  }
-
-  /**
-   * Search for user in LDAP
-   */
-  private static async searchUser(config: LDAPConfig, username: string): Promise<LDAPUser | null> {
-    // In production, implement actual LDAP search
-    // const client = ldap.createClient({ url: config.url });
-    // await client.bind(config.bindDn, config.bindPassword);
-    // const result = await client.search(config.baseDn, {
-    //   filter: config.searchFilter.replace('{email}', username).replace('{username}', username),
-    //   scope: 'sub',
-    //   attributes: ['*', 'memberOf']
-    // });
-
-    // Simulated user data for demonstration
-    // In real implementation, return actual LDAP attributes
-    const email = username.includes('@') ? username : `${username}@${this.extractDomain(config.baseDn)}`;
-    
-    return {
-      dn: `cn=${username},ou=users,${config.baseDn}`,
-      cn: username,
-      sn: 'User',
-      givenName: username.split('.')[0] || username,
-      displayName: username,
-      mail: email,
-      sAMAccountName: username.split('@')[0],
-      userPrincipalName: email,
-      memberOf: [],
-      department: 'General',
-      distinguishedName: `cn=${username},ou=users,${config.baseDn}`,
-      objectClass: ['user', 'organizationalPerson', 'person', 'top'],
-      attributes: {
-        mail: email,
-        cn: username,
-      },
-    };
-  }
-
-  /**
-   * Simulate LDAP bind (for demonstration)
-   * In production, use actual LDAP bind
-   */
-  private static async simulateLdapBind(
-    config: LDAPConfig,
-    userDn: string,
-    password: string
-  ): Promise<boolean> {
-    // In production:
-    // const client = ldap.createClient({ url: config.url, tlsOptions: { ... } });
-    // if (config.useStartTls) await client.starttls();
-    // try { await client.bind(userDn, password); return true; } catch { return false; }
-
-    // Simulation: accept any non-empty password
-    return password.length >= 4;
-  }
-
-  /**
-   * Test LDAP connection
+   * Test LDAP connection with real server connectivity check
    */
   static async testConnection(config: LDAPConfig): Promise<LDAPTestResult> {
+    const ldap = await getLdapjs();
+    let client: InstanceType<typeof ldap.Client> | null = null;
+
     const details = {
       serverReachable: false,
       bindSuccessful: false,
@@ -263,18 +362,105 @@ export class LDAPService {
     };
 
     try {
-      // Test 1: Check if server is reachable
-      // In production: const client = ldap.createClient({ url: config.url });
+      // Step 1: Create client and connect
+      client = ldap.createClient({
+        url: config.url,
+        connectTimeout: config.timeout * 1000,
+        timeout: config.timeout * 1000,
+        tlsOptions: config.useSsl ? { rejectUnauthorized: false } : undefined,
+      });
+
+      // Wait for connection
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error(`Connection timeout after ${config.timeout}s`));
+        }, config.timeout * 1000);
+
+        client!.on('connect', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+
+        client!.on('connectError', (err) => {
+          clearTimeout(timeout);
+          reject(new Error(`Connection error: ${err.message}`));
+        });
+
+        client!.on('error', (err) => {
+          clearTimeout(timeout);
+          reject(new Error(`Connection error: ${err.message}`));
+        });
+      });
+
       details.serverReachable = true;
 
-      // Test 2: Try to bind with service account
-      // In production: await client.bind(config.bindDn, config.bindPassword);
-      details.bindSuccessful = !!(config.bindDn && config.bindPassword);
+      // Step 2: Bind with service account
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error(`Bind timeout after ${config.timeout}s`));
+        }, config.timeout * 1000);
 
-      // Test 3: Try to search
-      // In production: const result = await client.search(config.baseDn, { scope: 'sub' });
-      details.searchSuccessful = !!config.baseDn;
-      details.userCount = 0; // Would be actual count in production
+        client!.bind(config.bindDn, config.bindPassword, (err) => {
+          clearTimeout(timeout);
+          if (err) {
+            reject(new Error(`Bind failed: ${err.message}`));
+          } else {
+            details.bindSuccessful = true;
+            resolve();
+          }
+        });
+      });
+
+      // Step 3: Test search
+      const searchEntries: ldap.SearchEntry[] = [];
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error(`Search timeout after ${config.timeout}s`));
+        }, config.timeout * 1000);
+
+        client!.search(
+          config.baseDn,
+          {
+            filter: '(objectClass=user)',
+            scope: 'sub',
+            attributes: ['dn'],
+            sizeLimit: 1,
+          },
+          (err, res) => {
+            if (err) {
+              clearTimeout(timeout);
+              reject(new Error(`Search failed: ${err.message}`));
+              return;
+            }
+
+            res.on('searchEntry', (entry) => {
+              searchEntries.push(entry);
+            });
+
+            res.on('error', (err) => {
+              clearTimeout(timeout);
+              reject(new Error(`Search error: ${err.message}`));
+            });
+
+            res.on('end', (result) => {
+              clearTimeout(timeout);
+              details.searchSuccessful = true;
+              details.userCount = searchEntries.length;
+              resolve();
+            });
+          }
+        );
+      });
+
+      // Cleanup
+      try {
+        await new Promise<void>((resolve) => {
+          client!.unbind(() => resolve());
+        });
+      } catch {
+        // Ignore
+      }
+      client = null;
 
       if (!details.serverReachable) {
         return {
@@ -307,6 +493,23 @@ export class LDAPService {
       };
     } catch (error) {
       details.error = error instanceof Error ? error.message : 'Unknown error';
+
+      // Best-effort cleanup
+      if (client) {
+        try {
+          await new Promise<void>((resolve) => {
+            client!.unbind(() => resolve());
+          });
+        } catch {
+          // Ignore
+        }
+        try {
+          client.destroy();
+        } catch {
+          // Ignore
+        }
+      }
+
       return {
         success: false,
         message: `LDAP connection failed: ${details.error}`,
@@ -338,7 +541,7 @@ export class LDAPService {
       searchFilter: connection.ldapSearchFilter || '(mail={email})',
       useStartTls: connection.ldapUseStartTls,
       useSsl: connection.ldapUseSsl,
-      timeout: connection.ldapTimeout,
+      timeout: connection.ldapTimeout || 30,
     };
 
     const result = await this.testConnection(config);
@@ -414,22 +617,14 @@ export class LDAPService {
   }
 
   /**
-   * Get LDAP groups for a user
-   */
-  static async getUserGroups(config: LDAPConfig, userDn: string): Promise<string[]> {
-    // In production, search for user's memberOf attribute
-    // or search groups where member=userDn
-    return [];
-  }
-
-  /**
-   * Search for users in LDAP
+   * Search for users in LDAP using real LDAP search
    */
   static async searchUsers(
     connectionId: string,
     tenantId: string,
     searchTerm?: string
   ): Promise<LDAPUser[]> {
+    const ldap = await getLdapjs();
     const connection = await db.sSOConnection.findFirst({
       where: { id: connectionId, tenantId, type: 'ldap', status: 'active' },
     });
@@ -446,16 +641,127 @@ export class LDAPService {
       searchFilter: connection.ldapSearchFilter || '(mail={email})',
       useStartTls: connection.ldapUseStartTls,
       useSsl: connection.ldapUseSsl,
-      timeout: connection.ldapTimeout,
+      timeout: connection.ldapTimeout || 30,
     };
 
-    // In production, implement actual LDAP search
-    // const client = ldap.createClient({ url: config.url });
-    // await client.bind(config.bindDn, config.bindPassword);
-    // const filter = searchTerm ? `(|(cn=*${searchTerm}*)(mail=*${searchTerm}*))` : '(objectClass=user)';
-    // const result = await client.search(config.baseDn, { filter, scope: 'sub' });
+    let client: InstanceType<typeof ldap.Client> | null = null;
+    const users: LDAPUser[] = [];
 
-    return [];
+    try {
+      client = ldap.createClient({
+        url: config.url,
+        connectTimeout: config.timeout * 1000,
+        timeout: config.timeout * 1000,
+        tlsOptions: config.useSsl ? { rejectUnauthorized: false } : undefined,
+      });
+
+      // Bind with admin credentials
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error(`Bind timeout after ${config.timeout}s`));
+        }, config.timeout * 1000);
+
+        client!.bind(config.bindDn, config.bindPassword, (err) => {
+          clearTimeout(timeout);
+          if (err) reject(new Error(`Bind failed: ${err.message}`));
+          else resolve();
+        });
+      });
+
+      // Build search filter
+      const filter = searchTerm
+        ? `(|(cn=*${searchTerm}*)(mail=*${searchTerm}*)(sAMAccountName=*${searchTerm}*))`
+        : '(objectClass=user)';
+
+      // Search
+      const searchEntries: ldap.SearchEntry[] = [];
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error(`Search timeout after ${config.timeout}s`));
+        }, config.timeout * 1000);
+
+        client!.search(
+          config.baseDn,
+          {
+            filter,
+            scope: 'sub',
+            attributes: ['*', '+', 'memberOf'],
+            sizeLimit: 50,
+          },
+          (err, res) => {
+            if (err) {
+              clearTimeout(timeout);
+              reject(new Error(`Search failed: ${err.message}`));
+              return;
+            }
+
+            res.on('searchEntry', (entry) => {
+              searchEntries.push(entry);
+            });
+
+            res.on('error', (err) => {
+              clearTimeout(timeout);
+              reject(new Error(`Search error: ${err.message}`));
+            });
+
+            res.on('end', () => {
+              clearTimeout(timeout);
+              resolve();
+            });
+          }
+        );
+      });
+
+      // Convert entries to LDAPUser objects
+      for (const entry of searchEntries) {
+        const attributes: Record<string, string | string[]> = {};
+        for (const attr of entry.attributes) {
+          const vals = attr.vals as Buffer[];
+          if (vals.length === 1) {
+            attributes[attr.type] = vals[0].toString('utf8');
+          } else if (vals.length > 1) {
+            attributes[attr.type] = vals.map(v => v.toString('utf8'));
+          }
+        }
+
+        const memberOf = (attributes.memberOf as string[]) || [];
+        users.push({
+          dn: entry.dn.toString(),
+          cn: (attributes.cn as string) || '',
+          sn: (attributes.sn as string) || undefined,
+          givenName: (attributes.givenName as string) || undefined,
+          displayName: (attributes.displayName as string) || undefined,
+          mail: (attributes.mail as string) || '',
+          sAMAccountName: (attributes.sAMAccountName as string) || undefined,
+          userPrincipalName: (attributes.userPrincipalName as string) || undefined,
+          memberOf: Array.isArray(memberOf) ? memberOf : memberOf ? [memberOf] : [],
+          telephoneNumber: (attributes.telephoneNumber as string) || undefined,
+          department: (attributes.department as string) || undefined,
+          title: (attributes.title as string) || undefined,
+          employeeId: (attributes.employeeId as string) || undefined,
+          distinguishedName: (attributes.distinguishedName as string) || entry.dn.toString(),
+          objectClass: (attributes.objectClass as string[]) || ['top'],
+          attributes,
+        });
+      }
+
+      return users;
+    } finally {
+      if (client) {
+        try {
+          await new Promise<void>((resolve) => {
+            client!.unbind(() => resolve());
+          });
+        } catch {
+          // Ignore
+        }
+        try {
+          client.destroy();
+        } catch {
+          // Ignore
+        }
+      }
+    }
   }
 
   /**
@@ -482,8 +788,8 @@ export class LDAPService {
       throw new Error('LDAP connection not found or inactive');
     }
 
-    // In production, implement full user sync from LDAP
-    // This would query all users and create/update local accounts
+    // Use real search to get all users
+    const ldapUsers = await this.searchUsers(connectionId, tenantId);
 
     const result = {
       synced: 0,
@@ -491,6 +797,68 @@ export class LDAPService {
       updated: 0,
       errors: [] as string[],
     };
+
+    for (const ldapUser of ldapUsers) {
+      try {
+        if (!ldapUser.mail) {
+          result.errors.push(`User ${ldapUser.dn} has no email, skipping`);
+          continue;
+        }
+
+        const mapped = this.mapUserAttributes(ldapUser, {
+          emailAttribute: connection.emailAttribute,
+          firstNameAttribute: connection.firstNameAttribute,
+          lastNameAttribute: connection.lastNameAttribute,
+          nameAttribute: connection.nameAttribute,
+          roleAttribute: connection.roleAttribute,
+          departmentAttribute: connection.departmentAttribute,
+          phoneAttribute: connection.phoneAttribute,
+        });
+
+        if (!mapped.email) continue;
+
+        // Try to find existing user by email
+        const existing = await db.user.findFirst({
+          where: { email: mapped.email.toLowerCase(), tenantId },
+        });
+
+        if (existing) {
+          // Update existing user
+          await db.user.update({
+            where: { id: existing.id },
+            data: {
+              firstName: mapped.firstName || existing.firstName,
+              lastName: mapped.lastName || existing.lastName,
+            },
+          });
+          result.updated++;
+        } else if (connection.autoProvision) {
+          // Create new user
+          const defaultRole = await db.role.findFirst({
+            where: { tenantId, name: connection.autoProvisionRole || 'staff' },
+          });
+
+          await db.user.create({
+            data: {
+              email: mapped.email.toLowerCase(),
+              firstName: mapped.firstName || 'LDAP',
+              lastName: mapped.lastName || 'User',
+              tenantId,
+              roleId: defaultRole?.id || null,
+              status: 'active',
+              isVerified: true, // LDAP users are pre-verified
+              passwordHash: '$2b$10$placeholder.ldap.sso.user', // Placeholder, LDAP handles auth
+              ssoProviderId: ldapUser.dn,
+            },
+          });
+          result.created++;
+        }
+
+        result.synced++;
+      } catch (err) {
+        result.errors.push(`Error syncing ${ldapUser.dn}: ${err instanceof Error ? err.message : 'Unknown'}`);
+      }
+    }
 
     // Update connection sync status
     await db.sSOConnection.update({

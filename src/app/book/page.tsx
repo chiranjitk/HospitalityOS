@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +24,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Calendar as CalendarIcon,
   Users,
@@ -38,9 +40,13 @@ import {
   Clock,
   Shield,
   CreditCard,
+  AlertTriangle,
+  MapPin,
+  Phone,
 } from 'lucide-react';
 import { format, addDays, differenceInDays } from 'date-fns';
 import { toast } from 'sonner';
+import { Suspense } from 'react';
 
 interface RoomType {
   id: string;
@@ -81,12 +87,29 @@ interface AvailabilityItem {
   fitsCapacity: boolean;
 }
 
-interface SearchCriteria {
-  checkIn: Date;
-  checkOut: Date;
-  adults: number;
-  children: number;
-  nights: number;
+interface PropertyData {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  type: string;
+  address: string;
+  city: string;
+  state: string | null;
+  country: string;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  logo: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  checkInTime: string;
+  checkOutTime: string;
+  timezone: string;
+  currency: string;
+  totalRooms: number;
+  totalFloors: number;
+  roomTypeCount: number;
 }
 
 interface BookingConfirmation {
@@ -124,24 +147,33 @@ interface BookingConfirmation {
   };
 }
 
-export default function PublicBookingPage() {
+function BookingPageContent() {
+  const searchParams = useSearchParams();
+  const propertySlugParam = searchParams.get('property');
+
   // Search state
   const [checkIn, setCheckIn] = useState<Date>(addDays(new Date(), 1));
   const [checkOut, setCheckOut] = useState<Date>(addDays(new Date(), 2));
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(0);
-  
+
+  // Property state
+  const [property, setProperty] = useState<PropertyData | null>(null);
+  const [propertyLoading, setPropertyLoading] = useState(true);
+  const [propertyError, setPropertyError] = useState<string | null>(null);
+  const [propertyId, setPropertyId] = useState<string | null>(null);
+
   // Data state
   const [availability, setAvailability] = useState<AvailabilityItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
-  
+
   // Booking state
   const [selectedRoom, setSelectedRoom] = useState<AvailabilityItem | null>(null);
   const [bookingDialog, setBookingDialog] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [confirmation, setConfirmation] = useState<BookingConfirmation | null>(null);
-  
+
   // Guest details form
   const [guestForm, setGuestForm] = useState({
     firstName: '',
@@ -151,10 +183,39 @@ export default function PublicBookingPage() {
     specialRequests: '',
   });
 
-  const propertyId = 'demo-property-id'; // In production, this would come from URL/hostname
+  // Resolve property on mount
+  useEffect(() => {
+    const resolveProperty = async () => {
+      setPropertyLoading(true);
+      setPropertyError(null);
+      try {
+        const params = new URLSearchParams();
+        if (propertySlugParam) {
+          params.set('property', propertySlugParam);
+        }
+
+        const response = await fetch(`/api/booking-engine/resolve-property?${params.toString()}`);
+        const result = await response.json();
+
+        if (result.success) {
+          setProperty(result.data);
+          setPropertyId(result.data.id);
+        } else {
+          setPropertyError(result.error?.message || 'Property not found');
+        }
+      } catch (error) {
+        console.error('Error resolving property:', error);
+        setPropertyError('Failed to load property information');
+      } finally {
+        setPropertyLoading(false);
+      }
+    };
+
+    resolveProperty();
+  }, [propertySlugParam]);
 
   const searchAvailability = async () => {
-    if (!checkIn || !checkOut) {
+    if (!checkIn || !checkOut || !propertyId) {
       toast.error('Please select check-in and check-out dates');
       return;
     }
@@ -176,7 +237,7 @@ export default function PublicBookingPage() {
 
       const response = await fetch(`/api/booking-engine/availability?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to search availability');
-      
+
       const data = await response.json();
       setAvailability(data.availability);
       setSearched(true);
@@ -189,7 +250,7 @@ export default function PublicBookingPage() {
   };
 
   const handleBooking = async () => {
-    if (!selectedRoom) return;
+    if (!selectedRoom || !propertyId) return;
 
     if (!guestForm.firstName || !guestForm.lastName || !guestForm.email) {
       toast.error('Please fill in all required fields');
@@ -271,6 +332,44 @@ export default function PublicBookingPage() {
     });
   };
 
+  // Property not found state
+  if (propertyLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-teal-50 to-white">
+        <header className="bg-white border-b shadow-sm">
+          <div className="container mx-auto px-4 py-4 h-16 flex items-center">
+            <Skeleton className="h-8 w-48" />
+          </div>
+        </header>
+        <main className="container mx-auto px-4 py-12">
+          <div className="space-y-6">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-64 w-full rounded-xl" />
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (propertyError || !property) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center">
+        <div className="text-center max-w-md p-8">
+          <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle className="h-8 w-8 text-amber-600" />
+          </div>
+          <h1 className="text-2xl font-bold mb-2">Property Not Found</h1>
+          <p className="text-muted-foreground mb-6">
+            {propertyError || 'We could not find a property matching this address. Please check the URL or contact support.'}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            If you have a booking link, please use the link provided in your confirmation email.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-teal-50 to-white">
       {/* Header */}
@@ -278,10 +377,30 @@ export default function PublicBookingPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Hotel className="h-8 w-8 text-teal-600 dark:text-teal-400" />
+              {property.logo ? (
+                <img
+                  src={property.logo}
+                  alt={property.name}
+                  className="h-8 w-8 rounded-lg object-cover"
+                />
+              ) : (
+                <div
+                  className="h-8 w-8 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+                  style={{ backgroundColor: property.primaryColor || '#0d9488' }}
+                >
+                  {property.name.charAt(0)}
+                </div>
+              )}
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Grand Hotel</h1>
-                <p className="text-sm text-muted-foreground">Book your perfect stay</p>
+                <h1 className="text-xl font-bold text-gray-900">{property.name}</h1>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  {property.city && (
+                    <span className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      {property.city}{property.state ? `, ${property.state}` : ''}{property.country ? `, ${property.country}` : ''}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -293,6 +412,30 @@ export default function PublicBookingPage() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {/* Property Description */}
+        {property.description && (
+          <div className="mb-8">
+            <p className="text-muted-foreground max-w-3xl">{property.description}</p>
+            <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
+              {property.phone && (
+                <span className="flex items-center gap-1">
+                  <Phone className="h-3.5 w-3.5" />
+                  {property.phone}
+                </span>
+              )}
+              {property.totalRooms > 0 && (
+                <span>{property.totalRooms} rooms</span>
+              )}
+              {property.checkInTime && (
+                <span>Check-in: {property.checkInTime}</span>
+              )}
+              {property.checkOutTime && (
+                <span>Check-out: {property.checkOutTime}</span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Search Box */}
         <Card className="mb-8">
           <CardHeader>
@@ -500,11 +643,11 @@ export default function PublicBookingPage() {
                                 </p>
                               )}
                               <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-bold">${item.pricing.pricePerNight}</span>
+                                <span className="text-2xl font-bold">{item.pricing.currency === 'USD' ? '$' : `${item.pricing.currency} `}{item.pricing.pricePerNight}</span>
                                 <span className="text-muted-foreground">/ night</span>
                               </div>
                               <p className="text-sm text-muted-foreground">
-                                Total: ${item.pricing.totalPrice.toFixed(2)} for {item.pricing.nights} night{item.pricing.nights > 1 ? 's' : ''}
+                                Total: {item.pricing.currency === 'USD' ? '$' : `${item.pricing.currency} `}{item.pricing.totalPrice.toFixed(2)} for {item.pricing.nights} night{item.pricing.nights > 1 ? 's' : ''}
                               </p>
                             </div>
                             <Button
@@ -582,7 +725,7 @@ export default function PublicBookingPage() {
                   </p>
                   <p>{adults} adult{adults > 1 ? 's' : ''}{children > 0 ? `, ${children} child${children > 1 ? 'ren' : ''}` : ''}</p>
                   <p className="font-medium text-foreground pt-2">
-                    Total: ${selectedRoom.pricing.totalPrice.toFixed(2)}
+                    Total: {selectedRoom.pricing.currency === 'USD' ? '$' : `${selectedRoom.pricing.currency} `}{selectedRoom.pricing.totalPrice.toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -709,7 +852,7 @@ export default function PublicBookingPage() {
 
               <Button
                 className="w-full bg-teal-600 hover:bg-teal-700"
-                onClick={() => window.location.href = `/portal?token=${confirmation.booking.portalToken}`}
+                onClick={() => window.location.href = `/guest/${confirmation.booking.portalToken}`}
               >
                 Manage Booking
               </Button>
@@ -721,12 +864,29 @@ export default function PublicBookingPage() {
       {/* Footer */}
       <footer className="border-t mt-16 py-8 bg-gray-50">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} Grand Hotel. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} {property.name}. All rights reserved.</p>
           <p className="mt-1">
             Powered by <span className="font-medium text-teal-600 dark:text-teal-400">StaySuite</span>
           </p>
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function PublicBookingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-b from-teal-50 to-white">
+        <div className="container mx-auto px-4 py-12">
+          <div className="animate-pulse space-y-6">
+            <div className="h-10 w-64 bg-gray-200 rounded" />
+            <div className="h-64 w-full bg-gray-200 rounded-xl" />
+          </div>
+        </div>
+      </div>
+    }>
+      <BookingPageContent />
+    </Suspense>
   );
 }

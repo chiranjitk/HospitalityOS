@@ -13,17 +13,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface GuestSegment { id: string; name: string; count: number; percentage: number; color: string; icon: string; }
 interface GuestSegmentsData { totalGuests: number; lastUpdated: string; segments: GuestSegment[]; }
 
-const MOCK_DATA: GuestSegmentsData = {
-  totalGuests: 156, lastUpdated: new Date().toISOString(),
-  segments: [
-    { id: 'business', name: 'Business', count: 55, percentage: 35, color: '#3b82f6', icon: 'Briefcase' },
-    { id: 'leisure', name: 'Leisure', count: 39, percentage: 25, color: '#10b981', icon: 'TreePalm' },
-    { id: 'group', name: 'Group', count: 31, percentage: 20, color: '#f59e0b', icon: 'Users' },
-    { id: 'vip', name: 'VIP', count: 19, percentage: 12, color: '#8b5cf6', icon: 'Crown' },
-    { id: 'extended', name: 'Extended Stay', count: 12, percentage: 8, color: '#14b8a6', icon: 'CalendarDays' },
-  ],
-};
-
 const ICON_MAP: Record<string, React.ElementType> = { Briefcase, TreePalm, Users, Crown, CalendarDays };
 
 function DonutChart({ segments }: { segments: GuestSegment[] }) {
@@ -71,10 +60,16 @@ export function GuestSegmentsWidget() {
     try {
       const response = await fetch('/api/dashboard/guest-segments');
       const result = await response.json();
-      if (result.success && result.data) { setData(result.data); setLastRefresh(new Date()); }
+      if (result.success && result.data) {
+        if (result.data.segments && result.data.segments.length > 0) {
+          setData(result.data); setLastRefresh(new Date());
+        } else {
+          setData(null); // empty state
+        }
+      }
       else throw new Error(result.error?.message || t('failedToLoad'));
     } catch (err) {
-      console.error('Guest segments fetch failed:', err); setError(err instanceof Error ? err.message : t('unknownError')); setData(MOCK_DATA); setLastRefresh(new Date());
+      console.error('Guest segments fetch failed:', err); setError(err instanceof Error ? err.message : t('unknownError'));
     } finally { setIsLoading(false); }
   }, [t]);
 
@@ -92,14 +87,16 @@ export function GuestSegmentsWidget() {
         </div>
       </CardHeader>
       <CardContent>
-        {isLoading && !data ? (<div className="space-y-3"><div className="flex justify-center py-4"><Skeleton className="h-32 w-32 rounded-full" /></div>{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>) : error && !data ? (
+        {isLoading ? (<div className="space-y-3"><div className="flex justify-center py-4"><Skeleton className="h-32 w-32 rounded-full" /></div>{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>) : error ? (
           <div className="flex flex-col items-center justify-center py-8 text-center"><AlertCircle className="h-8 w-8 text-red-400 dark:text-red-300 mb-2" /><p className="text-sm text-muted-foreground">{t('failedToLoadSegments')}</p><Button variant="outline" size="sm" className="mt-2" onClick={() => fetchData(true)}>{t('retry')}</Button></div>
-        ) : data ? (
+        ) : data && data.segments.length > 0 ? (
           <div className="space-y-4">
             <div className="flex justify-center"><DonutChart segments={data.segments} /></div>
             <div className="space-y-1"><AnimatePresence>{data.segments.map((segment, index) => <SegmentCard key={segment.id} segment={segment} index={index} />)}</AnimatePresence></div>
           </div>
-        ) : null}
+        ) : (
+          <div className="flex flex-col items-center justify-center py-8 text-center"><Users className="h-8 w-8 text-muted-foreground/40 mb-2" /><p className="text-sm text-muted-foreground">No guest segments defined</p></div>
+        )}
       </CardContent>
     </Card>
   );

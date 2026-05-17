@@ -196,7 +196,7 @@ const CHANNEL_OPTIONS = [
   { value: 'other', label: 'Other' },
 ];
 
-const SAMPLE_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const CURRENT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 // ============================================
 // COMPONENT
@@ -262,13 +262,13 @@ export function ChannelRateOverrides() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ tenantId: SAMPLE_TENANT_ID });
+      const params = new URLSearchParams({ tenantId: 'current' });
 
       const [overridesRes, connectionsRes, roomTypesRes, ratePlansRes] = await Promise.all([
         fetch(`/api/channels/rate-overrides?${params}`),
-        fetch(`/api/channels/connections?tenantId=${SAMPLE_TENANT_ID}`),
-        fetch(`/api/pms/room-types?tenantId=${SAMPLE_TENANT_ID}`),
-        fetch(`/api/pms/rate-plans?tenantId=${SAMPLE_TENANT_ID}`),
+        fetch(`/api/channels/connections?tenantId=${'current'}`),
+        fetch(`/api/pms/room-types?tenantId=${'current'}`),
+        fetch(`/api/pms/rate-plans?tenantId=${'current'}`),
       ]);
 
       const [overridesData, connData, rtData, rpData] = await Promise.all([
@@ -369,7 +369,7 @@ export function ChannelRateOverrides() {
       }
 
       const payload = {
-        tenantId: SAMPLE_TENANT_ID,
+        tenantId: 'current',
         name: formData.name.trim(),
         description: formData.description.trim() || null,
         channelCode: formData.channelCode,

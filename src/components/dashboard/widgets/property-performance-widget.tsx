@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import {
   BarChart3,
@@ -104,79 +105,55 @@ function getTargetValue(metric: MetricKey, period: TimePeriod): number {
 }
 
 // ---------------------------------------------------------------------------
-// Mock data generator
+// Loading skeleton
 // ---------------------------------------------------------------------------
 
-function generateMockData(period: TimePeriod): PropertyData[] {
-  const multiplier = period === '7d' ? 1 : period === '30d' ? 3.8 : 11.2;
-  const properties: PropertyData[] = [
-    {
-      id: 'grand-resort',
-      name: 'Grand Resort & Spa',
-      revenue: Math.round(92400 * multiplier),
-      occupancy: 88.5,
-      adr: 245,
-      revpar: 217,
-      revenueTrend: 12.4,
-      occupancyTrend: 3.2,
-      adrTrend: 5.8,
-      revparTrend: 9.1,
-      sparkline: [78, 82, 79, 85, 88, 84, 92],
-    },
-    {
-      id: 'harbor-inn',
-      name: 'Harbor View Inn',
-      revenue: Math.round(74600 * multiplier),
-      occupancy: 82.1,
-      adr: 198,
-      revpar: 163,
-      revenueTrend: 8.7,
-      occupancyTrend: 1.8,
-      adrTrend: 3.4,
-      revparTrend: 5.2,
-      sparkline: [72, 74, 78, 76, 81, 80, 84],
-    },
-    {
-      id: 'mountain-lodge',
-      name: 'Mountain Lodge',
-      revenue: Math.round(68300 * multiplier),
-      occupancy: 76.4,
-      adr: 186,
-      revpar: 142,
-      revenueTrend: -2.3,
-      occupancyTrend: -1.5,
-      adrTrend: 2.1,
-      revparTrend: 0.6,
-      sparkline: [80, 78, 74, 72, 75, 73, 76],
-    },
-    {
-      id: 'coastal-retreat',
-      name: 'Coastal Retreat',
-      revenue: Math.round(61200 * multiplier),
-      occupancy: 71.8,
-      adr: 172,
-      revpar: 124,
-      revenueTrend: 15.6,
-      occupancyTrend: 6.9,
-      adrTrend: 4.3,
-      revparTrend: 11.5,
-      sparkline: [60, 63, 66, 68, 70, 69, 74],
-    },
-    {
-      id: 'city-center',
-      name: 'City Center Hotel',
-      revenue: Math.round(55800 * multiplier),
-      occupancy: 68.2,
-      adr: 158,
-      revpar: 108,
-      revenueTrend: -4.8,
-      occupancyTrend: -3.1,
-      adrTrend: -1.7,
-      revparTrend: -4.7,
-      sparkline: [74, 72, 70, 68, 66, 67, 68],
-    },
-  ];
-  return properties;
+function LoadingSkeleton() {
+  return (
+    <Card className="border border-border/60 rounded-xl shadow-md overflow-hidden">
+      <div className="h-0.5 w-full bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500" />
+      <CardHeader className="pb-3 px-4 sm:px-5 pt-4">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-7 w-7 rounded-lg" />
+          <div className="space-y-1.5">
+            <Skeleton className="h-4 w-44" />
+            <Skeleton className="h-3 w-56" />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="px-4 sm:px-5 pb-4 sm:pb-5 space-y-4">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-4 w-48" />
+        <div className="space-y-3">
+          {[1, 2, 3, 4, 5].map(i => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          {[1, 2, 3, 4].map(i => (
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Empty state
+// ---------------------------------------------------------------------------
+
+function EmptyState() {
+  return (
+    <Card className="border border-border/60 rounded-xl shadow-md overflow-hidden">
+      <div className="h-0.5 w-full bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500" />
+      <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
+        <BarChart3 className="h-10 w-10 text-muted-foreground/40" />
+        <p className="text-sm text-muted-foreground">No property performance data available.</p>
+        <p className="text-xs text-muted-foreground/60">Add properties and bookings to see performance metrics.</p>
+      </CardContent>
+    </Card>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -419,12 +396,51 @@ function SummaryItem({
 export function PropertyPerformanceWidget() {
   const [activeMetric, setActiveMetric] = useState<MetricKey>('revenue');
   const [activePeriod, setActivePeriod] = useState<TimePeriod>('30d');
+  const [properties, setProperties] = useState<PropertyData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const isInView = useInView(containerRef, { once: true, margin: '-60px' });
 
-  // Generate mock data based on period
-  const properties = useMemo(() => generateMockData(activePeriod), [activePeriod]);
+  // Fetch real data from API
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchProperties() {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch('/api/dashboard/property-comparison');
+        if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
+        const data = await res.json();
+        if (cancelled) return;
+
+        // Normalize API response to PropertyData[]
+        const mapped: PropertyData[] = (Array.isArray(data) ? data : data.properties || []).map((p: Record<string, unknown>) => ({
+          id: p.id || String(p.propertyId || Math.random()),
+          name: p.name || p.propertyName || 'Unknown Property',
+          revenue: Number(p.revenue || p.totalRevenue || 0),
+          occupancy: Number(p.occupancy || p.occupancyRate || 0),
+          adr: Number(p.adr || p.averageDailyRate || 0),
+          revpar: Number(p.revpar || p.revenuePerAvailableRoom || 0),
+          revenueTrend: Number(p.revenueTrend || p.revenueGrowth || 0),
+          occupancyTrend: Number(p.occupancyTrend || p.occupancyGrowth || 0),
+          adrTrend: Number(p.adrTrend || p.adrGrowth || 0),
+          revparTrend: Number(p.revparTrend || p.revparGrowth || 0),
+          sparkline: Array.isArray(p.sparkline) ? p.sparkline : [p.occupancy || 50, (p.occupancy || 50) - 2, (p.occupancy || 50) + 1, (p.occupancy || 50) + 3, (p.occupancy || 50) + 2, (p.occupancy || 50) + 4, (p.occupancy || 50) + 5],
+        }));
+        setProperties(mapped);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load property data');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    fetchProperties();
+    return () => { cancelled = true; };
+  }, [activePeriod]);
 
   // Sorted by current metric
   const sortedProperties = useMemo(() => {
@@ -464,6 +480,22 @@ export function PropertyPerformanceWidget() {
     { key: '30d', label: '30D' },
     { key: '90d', label: '90D' },
   ];
+
+  if (loading) return <LoadingSkeleton />;
+  if (error) {
+    return (
+      <Card className="border border-border/60 rounded-xl shadow-md overflow-hidden">
+        <div className="h-0.5 w-full bg-gradient-to-r from-red-400 to-red-500" />
+        <CardContent className="flex flex-col items-center justify-center py-12 gap-3">
+          <AlertTriangle className="h-8 w-8 text-red-400" />
+          <p className="text-sm text-muted-foreground">Failed to load property performance data.</p>
+          <p className="text-xs text-muted-foreground/60">{error}</p>
+          <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+  if (properties.length === 0) return <EmptyState />;
 
   return (
     <motion.div

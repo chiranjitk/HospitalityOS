@@ -1,0 +1,17 @@
+HTTP/1.1 200 OK
+x-frame-options: ALLOWALL
+x-content-type-options: nosniff
+referrer-policy: strict-origin-when-cross-origin
+permissions-policy: camera=(), microphone=(), geolocation=()
+x-xss-protection: 1; mode=block
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+content-security-policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors '*';
+set-cookie: locale=en; Path=/; Expires=Mon, 17 May 2027 05:02:54 GMT; Max-Age=31536000; SameSite=lax
+set-cookie: session_token=6e46dd6f5116e6c6c7e8e6ea28d43030a025c3022fab0e2c4508e0785cbeb8e3; Path=/; Expires=Mon, 18 May 2026 05:02:54 GMT; Max-Age=86400; HttpOnly; SameSite=lax
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+content-type: application/json
+Date: Sun, 17 May 2026 05:02:54 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+Transfer-Encoding: chunked
+

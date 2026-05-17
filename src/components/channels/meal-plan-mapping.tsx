@@ -160,7 +160,7 @@ const SUPPLEMENT_TYPE_LABELS: Record<string, string> = {
   percentage: 'Percentage',
 };
 
-const SAMPLE_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const CURRENT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
 // ============================================
 // COMPONENT
@@ -216,7 +216,7 @@ export function MealPlanMappingManager() {
     setLoading(true);
     try {
       const [mappingsRes, connectionsRes] = await Promise.all([
-        fetch(`/api/channels/meal-plan-mapping?tenantId=${SAMPLE_TENANT_ID}`),
+        fetch(`/api/channels/meal-plan-mapping?tenantId=${'current'}`),
         fetch(`/api/channels/connections`),
       ]);
 
@@ -315,7 +315,7 @@ export function MealPlanMappingManager() {
     try {
       const connection = connections.find(c => c.id === formData.connectionId);
       const payload = {
-        tenantId: SAMPLE_TENANT_ID,
+        tenantId: 'current',
         connectionId: formData.connectionId || null,
         internalMealPlanId: editingMapping?.internalMealPlanId || crypto.randomUUID(),
         internalMealPlanName: formData.internalMealPlanName.trim(),
@@ -409,7 +409,7 @@ export function MealPlanMappingManager() {
         body: JSON.stringify({
           action: 'bulk-sync',
           connectionId: filterConnection,
-          tenantId: SAMPLE_TENANT_ID,
+          tenantId: 'current',
         }),
       });
 

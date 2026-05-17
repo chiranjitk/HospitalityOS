@@ -55,6 +55,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Clock,
+  Heart,
+  Gift,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -127,8 +129,6 @@ const TX_TYPE_CONFIG: Record<string, { label: string; color: string; icon: React
   tip: { label: 'Tip', color: 'text-violet-600', icon: Heart },
   comp: { label: 'Comp', color: 'text-pink-600', icon: Gift },
 };
-
-import { Heart, Gift } from 'lucide-react';
 
 const formatCurrency = (val: number) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);

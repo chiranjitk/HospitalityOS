@@ -11,6 +11,7 @@ import type { CancellationResult } from '@/lib/cancellation-policy-engine';
 import { emailService } from '@/lib/services/email-service';
 import { notifyBookingConfirmed, notifyBookingCancelled, notifyGuestCheckedIn, notifyGuestCheckedOut, notifyNoShow } from '@/lib/notify';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
+import { fireAutomationEvent } from '@/lib/automation/hooks';
 
 // Helper: auto-close folio and generate invoice on checkout (must be called within a transaction)
 async function autoCloseFolioAndGenerateInvoice(bookingId: string, tx: Parameters<Parameters<typeof db.$transaction>[0]>[0]) {
@@ -605,6 +606,22 @@ export async function PUT(
         roomNumber: booking.room?.number || effectiveRoomId ? 'N/A' : undefined,
         confirmationCode: booking.confirmationCode,
       });
+
+      // Fire automation trigger for guest check-in
+      fireAutomationEvent('guest.check_in', {
+        tenantId: booking.tenantId,
+        propertyId: booking.propertyId,
+        entityId: booking.id,
+        data: {
+          bookingId: booking.id,
+          guestId: booking.primaryGuestId,
+          guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim(),
+          roomId: effectiveRoomId,
+          roomNumber: booking.room?.number,
+          checkIn: booking.checkIn,
+          checkOut: booking.checkOut,
+        },
+      });
     } else if (status === 'checked_out' && effectiveRoomId) {
       // Wrap ALL checkout database side-effects in a single transaction for data integrity.
       // This ensures room status, folio close, invoice generation, WiFi fees, and loyalty
@@ -804,6 +821,22 @@ export async function PUT(
         roomNumber: booking.room?.number,
         confirmationCode: booking.confirmationCode,
       });
+
+      // Fire automation trigger for guest check-out
+      fireAutomationEvent('guest.check_out', {
+        tenantId: booking.tenantId,
+        propertyId: booking.propertyId,
+        entityId: booking.id,
+        data: {
+          bookingId: booking.id,
+          guestId: booking.primaryGuestId,
+          guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim(),
+          roomId: effectiveRoomId,
+          roomNumber: booking.room?.number,
+          checkIn: booking.checkIn,
+          checkOut: booking.checkOut,
+        },
+      });
     }
     
     // Emit WebSocket event for booking cancelled
@@ -858,6 +891,20 @@ export async function PUT(
         confirmationCode: booking.confirmationCode,
         guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
         reason: cancellationReason,
+      });
+
+      // Fire automation trigger for booking cancelled
+      fireAutomationEvent('booking.cancelled', {
+        tenantId: booking.tenantId,
+        propertyId: booking.propertyId,
+        entityId: booking.id,
+        data: {
+          bookingId: booking.id,
+          confirmationCode: booking.confirmationCode,
+          guestId: booking.primaryGuestId,
+          guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim(),
+          cancellationReason,
+        },
       });
     }
     
@@ -1420,6 +1467,22 @@ export async function PATCH(
         roomNumber: booking.room?.number || effectivePatchRoomId ? 'N/A' : undefined,
         confirmationCode: booking.confirmationCode,
       });
+
+      // Fire automation trigger for guest check-in (PATCH)
+      fireAutomationEvent('guest.check_in', {
+        tenantId: booking.tenantId,
+        propertyId: booking.propertyId,
+        entityId: booking.id,
+        data: {
+          bookingId: booking.id,
+          guestId: booking.primaryGuestId,
+          guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim(),
+          roomId: effectivePatchRoomId,
+          roomNumber: booking.room?.number,
+          checkIn: booking.checkIn,
+          checkOut: booking.checkOut,
+        },
+      });
     } else if (status === 'checked_out' && effectivePatchRoomId) {
       // Wrap ALL checkout database side-effects in a single transaction for data integrity.
       try {
@@ -1604,6 +1667,22 @@ export async function PATCH(
         roomNumber: booking.room?.number,
         confirmationCode: booking.confirmationCode,
       });
+
+      // Fire automation trigger for guest check-out (PATCH)
+      fireAutomationEvent('guest.check_out', {
+        tenantId: booking.tenantId,
+        propertyId: booking.propertyId,
+        entityId: booking.id,
+        data: {
+          bookingId: booking.id,
+          guestId: booking.primaryGuestId,
+          guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim(),
+          roomId: effectivePatchRoomId,
+          roomNumber: booking.room?.number,
+          checkIn: booking.checkIn,
+          checkOut: booking.checkOut,
+        },
+      });
     }
 
     // Emit WebSocket event for booking cancelled
@@ -1658,6 +1737,20 @@ export async function PATCH(
         confirmationCode: booking.confirmationCode,
         guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
         reason: cancellationReason,
+      });
+
+      // Fire automation trigger for booking cancelled (PATCH)
+      fireAutomationEvent('booking.cancelled', {
+        tenantId: booking.tenantId,
+        propertyId: booking.propertyId,
+        entityId: booking.id,
+        data: {
+          bookingId: booking.id,
+          confirmationCode: booking.confirmationCode,
+          guestId: booking.primaryGuestId,
+          guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim(),
+          cancellationReason,
+        },
       });
     }
 

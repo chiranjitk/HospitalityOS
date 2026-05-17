@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
+import { hasPermission } from '@/lib/auth-helpers';
 
 // ──────────────────────────────────────────────
 // GET /api/financials/profit-loss — P&L Statement
@@ -11,6 +12,11 @@ export async function GET(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Permission check: restrict P&L to users with financial reporting access
+    if (!hasPermission(user, 'financials:read') && !hasPermission(user, 'reports:financial') && !hasPermission(user, 'financials.*') && user.roleName !== 'admin') {
+      return NextResponse.json({ success: false, error: 'Forbidden: insufficient permissions to view P&L' }, { status: 403 });
     }
 
     const sp = request.nextUrl.searchParams;

@@ -236,11 +236,11 @@ async function syncToChannel(
   try {
     switch (message.type) {
       case 'inventory_update':
-        return await syncInventory(channelCode, credentials, message);
+        return await syncInventory(connection.id, channelCode, credentials, message);
       case 'rate_update':
-        return await syncRates(channelCode, credentials, message);
+        return await syncRates(connection.id, channelCode, credentials, message);
       case 'restriction_update':
-        return await syncRestrictions(channelCode, credentials, message);
+        return await syncRestrictions(connection.id, channelCode, credentials, message);
       default:
         return { channelCode, success: false, error: 'Unknown message type' };
     }
@@ -257,6 +257,7 @@ async function syncToChannel(
  * Sync inventory to channel
  */
 async function syncInventory(
+  connectionId: string,
   channelCode: string,
   credentials: Record<string, unknown>,
   message: SyncMessage
@@ -285,9 +286,19 @@ async function syncInventory(
       };
     }
 
+    // Look up the actual external room ID from channel mapping
+    const mapping = await db.channelMapping.findFirst({
+      where: {
+        connectionId,
+        roomTypeId: message.roomTypeId || '',
+        status: 'active',
+      },
+    });
+    const externalRoomId = mapping?.externalRoomId || message.roomTypeId || '';
+
     const updates = dates.map((date) => ({
       roomTypeId: message.roomTypeId || '',
-      externalRoomId: message.roomTypeId || '',
+      externalRoomId,
       date,
       availableRooms: availability,
       totalRooms: availability,
@@ -323,6 +334,7 @@ async function syncInventory(
  * Sync rates to channel
  */
 async function syncRates(
+  connectionId: string,
   channelCode: string,
   credentials: Record<string, unknown>,
   message: SyncMessage
@@ -352,11 +364,21 @@ async function syncRates(
       };
     }
 
+    // Look up the actual external room ID from channel mapping
+    const mapping = await db.channelMapping.findFirst({
+      where: {
+        connectionId,
+        roomTypeId: message.roomTypeId || '',
+        status: 'active',
+      },
+    });
+    const externalRoomId = mapping?.externalRoomId || message.roomTypeId || '';
+
     const updates = dates.map((date) => ({
       roomTypeId: message.roomTypeId || '',
       ratePlanId: (data.ratePlanId as string) || '',
-      externalRoomId: message.roomTypeId || '',
-      externalRatePlanId: (data.externalRatePlanId as string) || '',
+      externalRoomId,
+      externalRatePlanId: mapping?.externalRateId || (data.externalRatePlanId as string) || '',
       date,
       baseRate: rate,
       currency,
@@ -392,6 +414,7 @@ async function syncRates(
  * Sync restrictions to channel
  */
 async function syncRestrictions(
+  connectionId: string,
   channelCode: string,
   credentials: Record<string, unknown>,
   message: SyncMessage
@@ -418,9 +441,19 @@ async function syncRestrictions(
       };
     }
 
+    // Look up the actual external room ID from channel mapping
+    const mapping = await db.channelMapping.findFirst({
+      where: {
+        connectionId,
+        roomTypeId: message.roomTypeId || '',
+        status: 'active',
+      },
+    });
+    const externalRoomId = mapping?.externalRoomId || message.roomTypeId || '';
+
     const updates = dates.map((date) => ({
       roomTypeId: message.roomTypeId || '',
-      externalRoomId: message.roomTypeId || '',
+      externalRoomId,
       date,
       closedToArrival: (restrictions?.closedToArrival as boolean) || false,
       closedToDeparture: (restrictions?.closedToDeparture as boolean) || false,

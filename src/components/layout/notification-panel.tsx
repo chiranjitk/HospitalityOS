@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
@@ -117,94 +118,19 @@ function formatRelativeTime(date: Date): string {
   return date.toLocaleDateString();
 }
 
-// ============================================
-// Mock notification data
-// ============================================
+const VALID_TYPES = new Set<NotificationType>(['alert', 'booking', 'housekeeping', 'system']);
 
-function generateMockNotifications(): Notification[] {
-  const now = new Date();
-  return [
-    {
-      id: 'notif-1',
-      type: 'housekeeping',
-      title: 'Room 305 checkout clean pending',
-      message: 'Guest checked out at 11:00. Room requires deep cleaning before next arrival at 15:00.',
-      timestamp: new Date(now.getTime() - 5 * 60 * 1000),
-      read: false,
-    },
-    {
-      id: 'notif-2',
-      type: 'booking',
-      title: 'New booking from Booking.com',
-      message: 'James Mitchell booked a Deluxe Suite for Dec 20–23. Confirmation #BK-4829.',
-      timestamp: new Date(now.getTime() - 12 * 60 * 1000),
-      read: false,
-    },
-    {
-      id: 'notif-3',
-      type: 'alert',
-      title: 'WiFi voucher expired for Room 102',
-      message: 'Guest internet access expired 30 minutes ago. Auto-renewal failed — manual extension needed.',
-      timestamp: new Date(now.getTime() - 35 * 60 * 1000),
-      read: false,
-    },
-    {
-      id: 'notif-4',
-      type: 'system',
-      title: 'Night audit completed successfully',
-      message: 'All financial reconciliations processed. 142 transactions verified. No discrepancies found.',
-      timestamp: new Date(now.getTime() - 2 * 3600 * 1000),
-      read: true,
-    },
-    {
-      id: 'notif-5',
-      type: 'housekeeping',
-      title: 'Room 412 maintenance request',
-      message: 'AC unit reported faulty by housekeeping. Maintenance team dispatched — ETA 45 minutes.',
-      timestamp: new Date(now.getTime() - 3 * 3600 * 1000),
-      read: true,
-    },
-    {
-      id: 'notif-6',
-      type: 'booking',
-      title: 'Early check-in request — Room 208',
-      message: 'Guest Sarah Chen requested early check-in for 10:00 instead of 14:00. Room is available.',
-      timestamp: new Date(now.getTime() - 4 * 3600 * 1000),
-      read: false,
-    },
-    {
-      id: 'notif-7',
-      type: 'alert',
-      title: 'High occupancy warning — 96% capacity',
-      message: 'Property is nearing full capacity. 3 rooms remaining for tonight. Consider overbooking rules.',
-      timestamp: new Date(now.getTime() - 5 * 3600 * 1000),
-      read: true,
-    },
-    {
-      id: 'notif-8',
-      type: 'system',
-      title: 'Backup completed — 2.4 GB synced',
-      message: 'Daily database backup finished. All guest records and transactions securely stored.',
-      timestamp: new Date(now.getTime() - 8 * 3600 * 1000),
-      read: true,
-    },
-    {
-      id: 'notif-9',
-      type: 'housekeeping',
-      title: 'Mini-bar restocking required — Floor 3',
-      message: '6 rooms on Floor 3 report low or empty mini-bar inventory. Restocking scheduled for tomorrow.',
-      timestamp: new Date(now.getTime() - 12 * 3600 * 1000),
-      read: true,
-    },
-    {
-      id: 'notif-10',
-      type: 'alert',
-      title: 'Payment declined for Room 501',
-      message: 'Authorization failed for incidental charges of $127.50. Guest notified via in-room tablet.',
-      timestamp: new Date(now.getTime() - 18 * 3600 * 1000),
-      read: true,
-    },
-  ];
+function mapApiNotification(n: { id: string; type: string; title: string; description?: string; timestamp: string; read: boolean }): Notification | null {
+  const type = n.type as NotificationType;
+  if (!VALID_TYPES.has(type)) return null;
+  return {
+    id: n.id,
+    type,
+    title: n.title,
+    message: n.description || '',
+    timestamp: new Date(n.timestamp),
+    read: n.read,
+  };
 }
 
 // ============================================
@@ -309,8 +235,32 @@ function NotificationRow({ notification }: { notification: Notification }) {
 export function NotificationPanel({ isOpen, onClose }: NotificationPanelProps) {
   const t = useTranslations('notifications');
   const panelRef = useRef<HTMLDivElement>(null);
-  const [notifications, setNotifications] = useState<Notification[]>(generateMockNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<NotificationCategory>('all');
+
+  // Fetch notifications from API
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setIsLoading(true);
+    fetch('/api/notifications/list?limit=50')
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled) return;
+        if (data?.success && Array.isArray(data.data?.notifications)) {
+          const mapped = data.data.notifications
+            .map((n: Record<string, unknown>) => mapApiNotification(n as Parameters<typeof mapApiNotification>[0]))
+            .filter(Boolean) as Notification[];
+          setNotifications(mapped);
+        } else {
+          setNotifications([]);
+        }
+      })
+      .catch(() => setNotifications([]))
+      .finally(() => { if (!cancelled) setIsLoading(false); });
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   // Close on Escape
   useEffect(() => {
@@ -486,7 +436,11 @@ export function NotificationPanel({ isOpen, onClose }: NotificationPanelProps) {
             {/* Notification list */}
             <div className="flex-1 min-h-0">
               <ScrollArea className="h-full max-h-[340px]">
-                {filteredNotifications.length === 0 ? (
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : filteredNotifications.length === 0 ? (
                   <EmptyState />
                 ) : (
                   <div className="py-1">

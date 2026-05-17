@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   FEATURES, 
   FEATURE_CATEGORIES, 
@@ -42,14 +43,29 @@ interface FeatureFlagsContextType {
 const FeatureFlagsContext = createContext<FeatureFlagsContextType | null>(null);
 
 export function FeatureFlagsProvider({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
   const [enabledFeatures, setEnabledFeaturesState] = useState<string[]>([]);
   const [tenantPlan, setTenantPlan] = useState<string>('trial');
   const [isLoading, setIsLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Initial load and refresh via trigger
+  // Track previous auth state to detect login transitions
+  const prevAuthenticatedRef = useRef(isAuthenticated);
+
+  // Initial load and re-fetch when auth state changes
+  // Key fix: re-fetches feature flags when user logs in (isAuthenticated changes false→true)
+  // and keeps isLoading=true when not authenticated so sidebar stays in loading state
   useEffect(() => {
     let cancelled = false;
+
+    // When user is not authenticated, keep loading state true
+    // so the sidebar shows skeleton instead of incomplete menu items
+    if (!isAuthenticated) {
+      setIsLoading(true);
+      prevAuthenticatedRef.current = false;
+      return;
+    }
+
     const load = async () => {
       try {
         const response = await fetch('/api/settings/feature-flags');
@@ -82,7 +98,7 @@ export function FeatureFlagsProvider({ children }: { children: React.ReactNode }
     };
     load();
     return () => { cancelled = true; };
-  }, [refreshTrigger]);
+  }, [refreshTrigger, isAuthenticated]);
 
   // Refresh function for manual re-fetch
   const refresh = useCallback(async () => {

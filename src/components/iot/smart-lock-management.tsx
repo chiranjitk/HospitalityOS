@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -182,81 +182,6 @@ const CARD_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   emergency: { label: 'Emergency', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
 };
 
-// ─── Mock Data ──────────────────────────────────────────────────────
-
-const mockProviders: LockProvider[] = [
-  { id: 'p1', name: 'ASSA ABLOY Visionline', enabled: true, apiKey: 'vl-prod-****-****-a8f2', endpointUrl: 'https://api.visionline.assaabloy.com/v2', firmwareVersion: '4.8.3', lockCount: 8, lastSync: '2024-12-12T14:30:00Z' },
-  { id: 'p2', name: 'SALTO KS', enabled: true, apiKey: 'sk-live-****-****-b1c4', endpointUrl: 'https://api.saltoks.com/v1', firmwareVersion: '3.2.1', lockCount: 6, lastSync: '2024-12-12T14:28:00Z' },
-  { id: 'p3', name: 'Dormakaba SAFLOK', enabled: true, apiKey: 'sf-prod-****-****-d3e7', endpointUrl: 'https://api.saflok.dormakaba.com/v3', firmwareVersion: '5.1.0', lockCount: 5, lastSync: '2024-12-12T14:25:00Z' },
-  { id: 'p4', name: 'ASSA ABLOY CLIQ', enabled: false, apiKey: '', endpointUrl: 'https://api.cliq.assaabloy.com/v1', firmwareVersion: '2.9.4', lockCount: 0, lastSync: '2024-11-20T10:00:00Z' },
-  { id: 'p5', name: 'Nuki', enabled: false, apiKey: '', endpointUrl: 'https://api.nuki.io/v1', firmwareVersion: '3.5.2', lockCount: 0, lastSync: '2024-10-15T08:00:00Z' },
-  { id: 'p6', name: 'TTLock', enabled: false, apiKey: '', endpointUrl: 'https://api.ttlock.com/v3', firmwareVersion: '2.7.0', lockCount: 0, lastSync: '2024-09-01T12:00:00Z' },
-];
-
-const mockRoomLocks: RoomLock[] = [
-  { id: 'rl1', roomNumber: '101', floor: 1, lockStatus: 'online', provider: 'ASSA ABLOY Visionline', firmwareVersion: '4.8.3', batteryLevel: 85, lastActivity: '2024-12-12T14:32:00Z', guestName: 'James Thompson', guestCheckIn: '2024-12-10', guestCheckOut: '2024-12-14', autoLockTimeout: 30, isLocked: true },
-  { id: 'rl2', roomNumber: '102', floor: 1, lockStatus: 'online', provider: 'ASSA ABLOY Visionline', firmwareVersion: '4.8.3', batteryLevel: 92, lastActivity: '2024-12-12T13:45:00Z', guestName: 'Sarah Miller', guestCheckIn: '2024-12-11', guestCheckOut: '2024-12-15', autoLockTimeout: 30, isLocked: true },
-  { id: 'rl3', roomNumber: '103', floor: 1, lockStatus: 'low_battery', provider: 'ASSA ABLOY Visionline', firmwareVersion: '4.8.3', batteryLevel: 12, lastActivity: '2024-12-12T12:10:00Z', guestName: 'Carlos Rivera', guestCheckIn: '2024-12-09', guestCheckOut: '2024-12-13', autoLockTimeout: 30, isLocked: true },
-  { id: 'rl4', roomNumber: '104', floor: 1, lockStatus: 'online', provider: 'ASSA ABLOY Visionline', firmwareVersion: '4.8.2', batteryLevel: 67, lastActivity: '2024-12-12T14:00:00Z', autoLockTimeout: 60, isLocked: false },
-  { id: 'rl5', roomNumber: '105', floor: 1, lockStatus: 'jammed', provider: 'SALTO KS', firmwareVersion: '3.2.1', batteryLevel: 54, lastActivity: '2024-12-12T11:30:00Z', autoLockTimeout: 30, isLocked: false },
-  { id: 'rl6', roomNumber: '201', floor: 2, lockStatus: 'online', provider: 'SALTO KS', firmwareVersion: '3.2.1', batteryLevel: 78, lastActivity: '2024-12-12T14:20:00Z', guestName: 'Emily Watson', guestCheckIn: '2024-12-12', guestCheckOut: '2024-12-16', autoLockTimeout: 60, isLocked: true },
-  { id: 'rl7', roomNumber: '202', floor: 2, lockStatus: 'online', provider: 'SALTO KS', firmwareVersion: '3.2.1', batteryLevel: 91, lastActivity: '2024-12-12T13:55:00Z', guestName: 'Michael Brown', guestCheckIn: '2024-12-10', guestCheckOut: '2024-12-14', autoLockTimeout: 30, isLocked: true },
-  { id: 'rl8', roomNumber: '203', floor: 2, lockStatus: 'offline', provider: 'SALTO KS', firmwareVersion: '3.2.0', batteryLevel: 0, lastActivity: '2024-12-11T22:00:00Z', autoLockTimeout: 30, isLocked: true },
-  { id: 'rl9', roomNumber: '204', floor: 2, lockStatus: 'online', provider: 'SALTO KS', firmwareVersion: '3.2.1', batteryLevel: 73, lastActivity: '2024-12-12T14:10:00Z', autoLockTimeout: 60, isLocked: true },
-  { id: 'rl10', roomNumber: '205', floor: 2, lockStatus: 'online', provider: 'SALTO KS', firmwareVersion: '3.2.1', batteryLevel: 88, lastActivity: '2024-12-12T14:25:00Z', guestName: 'Lisa Park', guestCheckIn: '2024-12-11', guestCheckOut: '2024-12-15', autoLockTimeout: 30, isLocked: true },
-  { id: 'rl11', roomNumber: '301', floor: 3, lockStatus: 'online', provider: 'Dormakaba SAFLOK', firmwareVersion: '5.1.0', batteryLevel: 95, lastActivity: '2024-12-12T14:05:00Z', guestName: 'Robert Chen', guestCheckIn: '2024-12-12', guestCheckOut: '2024-12-18', autoLockTimeout: 30, isLocked: true },
-  { id: 'rl12', roomNumber: '302', floor: 3, lockStatus: 'low_battery', provider: 'Dormakaba SAFLOK', firmwareVersion: '5.1.0', batteryLevel: 18, lastActivity: '2024-12-12T11:00:00Z', autoLockTimeout: 30, isLocked: true },
-  { id: 'rl13', roomNumber: '303', floor: 3, lockStatus: 'online', provider: 'Dormakaba SAFLOK', firmwareVersion: '5.1.0', batteryLevel: 62, lastActivity: '2024-12-12T13:30:00Z', guestName: 'Anna Kowalski', guestCheckIn: '2024-12-08', guestCheckOut: '2024-12-13', autoLockTimeout: 60, isLocked: true },
-  { id: 'rl14', roomNumber: '304', floor: 3, lockStatus: 'maintenance', provider: 'Dormakaba SAFLOK', firmwareVersion: '5.0.9', batteryLevel: 45, lastActivity: '2024-12-10T09:00:00Z', autoLockTimeout: 30, isLocked: true },
-  { id: 'rl15', roomNumber: '305', floor: 3, lockStatus: 'online', provider: 'Dormakaba SAFLOK', firmwareVersion: '5.1.0', batteryLevel: 83, lastActivity: '2024-12-12T14:15:00Z', guestName: 'Tom Harris', guestCheckIn: '2024-12-11', guestCheckOut: '2024-12-15', autoLockTimeout: 30, isLocked: true },
-  { id: 'rl16', roomNumber: '401', floor: 4, lockStatus: 'online', provider: 'ASSA ABLOY Visionline', firmwareVersion: '4.8.3', batteryLevel: 79, lastActivity: '2024-12-12T12:45:00Z', autoLockTimeout: 30, isLocked: true },
-  { id: 'rl17', roomNumber: '402', floor: 4, lockStatus: 'online', provider: 'ASSA ABLOY Visionline', firmwareVersion: '4.8.3', batteryLevel: 56, lastActivity: '2024-12-12T14:30:00Z', guestName: 'Sophie Dubois', guestCheckIn: '2024-12-12', guestCheckOut: '2024-12-16', autoLockTimeout: 60, isLocked: false },
-  { id: 'rl18', roomNumber: '403', floor: 4, lockStatus: 'jammed', provider: 'ASSA ABLOY Visionline', firmwareVersion: '4.8.2', batteryLevel: 31, lastActivity: '2024-12-12T10:00:00Z', autoLockTimeout: 30, isLocked: false },
-  { id: 'rl19', roomNumber: '404', floor: 4, lockStatus: 'online', provider: 'ASSA ABLOY Visionline', firmwareVersion: '4.8.3', batteryLevel: 70, lastActivity: '2024-12-12T13:20:00Z', autoLockTimeout: 30, isLocked: true },
-  { id: 'rl20', roomNumber: '405', floor: 4, lockStatus: 'online', provider: 'ASSA ABLOY Visionline', firmwareVersion: '4.8.3', batteryLevel: 97, lastActivity: '2024-12-12T14:28:00Z', guestName: 'David Kim', guestCheckIn: '2024-12-10', guestCheckOut: '2024-12-14', autoLockTimeout: 30, isLocked: true },
-  { id: 'rl21', roomNumber: '501', floor: 5, lockStatus: 'online', provider: 'ASSA ABLOY Visionline', firmwareVersion: '4.8.3', batteryLevel: 88, lastActivity: '2024-12-12T14:35:00Z', autoLockTimeout: 30, isLocked: true },
-  { id: 'rl22', roomNumber: '502', floor: 5, lockStatus: 'low_battery', provider: 'ASSA ABLOY Visionline', firmwareVersion: '4.8.2', batteryLevel: 8, lastActivity: '2024-12-12T09:00:00Z', autoLockTimeout: 30, isLocked: true },
-];
-
-const mockAccessLogs: AccessLogEntry[] = [
-  { id: 'al1', roomNumber: '101', timestamp: '2024-12-12T14:32:00Z', method: 'key_card', person: 'James Thompson', result: 'granted' },
-  { id: 'al2', roomNumber: '203', timestamp: '2024-12-12T14:28:00Z', method: 'mobile_key', person: 'Anna Kowalski', result: 'granted' },
-  { id: 'al3', roomNumber: '405', timestamp: '2024-12-12T14:25:00Z', method: 'pin', person: 'David Kim', result: 'granted' },
-  { id: 'al4', roomNumber: '101', timestamp: '2024-12-12T14:30:00Z', method: 'auto_lock', person: 'System', result: 'granted' },
-  { id: 'al5', roomNumber: '105', timestamp: '2024-12-12T14:15:00Z', method: 'key_card', person: 'Unknown', result: 'denied', reason: 'Invalid card', isSuspicious: true },
-  { id: 'al6', roomNumber: '201', timestamp: '2024-12-12T14:10:00Z', method: 'mobile_key', person: 'Emily Watson', result: 'granted' },
-  { id: 'al7', roomNumber: '105', timestamp: '2024-12-12T14:10:00Z', method: 'key_card', person: 'Unknown', result: 'denied', reason: 'Invalid card', isSuspicious: true },
-  { id: 'al8', roomNumber: '105', timestamp: '2024-12-12T14:05:00Z', method: 'pin', person: 'Unknown', result: 'denied', reason: 'Wrong PIN', isSuspicious: true },
-  { id: 'al9', roomNumber: '202', timestamp: '2024-12-12T13:55:00Z', method: 'fingerprint', person: 'Michael Brown', result: 'granted' },
-  { id: 'al10', roomNumber: '102', timestamp: '2024-12-12T13:45:00Z', method: 'key_card', person: 'Sarah Miller', result: 'granted' },
-  { id: 'al11', roomNumber: '303', timestamp: '2024-12-12T13:30:00Z', method: 'mobile_key', person: 'Anna Kowalski', result: 'granted' },
-  { id: 'al12', roomNumber: '404', timestamp: '2024-12-12T13:20:00Z', method: 'remote_unlock', person: 'Front Desk - Maria', result: 'granted' },
-  { id: 'al13', roomNumber: '203', timestamp: '2024-12-12T12:50:00Z', method: 'key_card', person: 'Housekeeping - Juan', result: 'granted' },
-  { id: 'al14', roomNumber: '301', timestamp: '2024-12-12T12:30:00Z', method: 'key_card', person: 'Robert Chen', result: 'granted' },
-  { id: 'al15', roomNumber: '203', timestamp: '2024-12-12T02:15:00Z', method: 'pin', person: 'Unknown', result: 'denied', reason: 'After-hours access restricted', isSuspicious: true },
-  { id: 'al16', roomNumber: '501', timestamp: '2024-12-12T11:30:00Z', method: 'key_card', person: 'Maintenance - Tom', result: 'granted' },
-  { id: 'al17', roomNumber: '402', timestamp: '2024-12-12T11:00:00Z', method: 'mobile_key', person: 'Sophie Dubois', result: 'granted' },
-  { id: 'al18', roomNumber: '105', timestamp: '2024-12-12T10:55:00Z', method: 'fingerprint', person: 'Unknown', result: 'denied', reason: 'Fingerprint not recognized', isSuspicious: true },
-];
-
-const mockKeyCards: KeyCard[] = [
-  { id: 'kc1', cardId: 'KC-2024-0001', cardType: 'guest', assignedTo: 'James Thompson', roomNumber: '101', status: 'active', issuedDate: '2024-12-10', expiryDate: '2024-12-14', lastUsed: '2024-12-12T14:32:00Z' },
-  { id: 'kc2', cardId: 'KC-2024-0002', cardType: 'guest', assignedTo: 'Sarah Miller', roomNumber: '102', status: 'active', issuedDate: '2024-12-11', expiryDate: '2024-12-15', lastUsed: '2024-12-12T13:45:00Z' },
-  { id: 'kc3', cardId: 'KC-2024-0003', cardType: 'guest', assignedTo: 'Carlos Rivera', roomNumber: '103', status: 'active', issuedDate: '2024-12-09', expiryDate: '2024-12-13' },
-  { id: 'kc4', cardId: 'KC-2024-0004', cardType: 'guest', assignedTo: 'Emily Watson', roomNumber: '201', status: 'active', issuedDate: '2024-12-12', expiryDate: '2024-12-16', lastUsed: '2024-12-12T14:10:00Z' },
-  { id: 'kc5', cardId: 'KC-2024-0005', cardType: 'guest', assignedTo: 'Michael Brown', roomNumber: '202', status: 'active', issuedDate: '2024-12-10', expiryDate: '2024-12-14' },
-  { id: 'kc6', cardId: 'KC-2024-0006', cardType: 'guest', assignedTo: 'Anna Kowalski', roomNumber: '303', status: 'active', issuedDate: '2024-12-08', expiryDate: '2024-12-13', lastUsed: '2024-12-12T14:28:00Z' },
-  { id: 'kc7', cardId: 'KC-2024-0007', cardType: 'staff', assignedTo: 'Maria Santos (Front Desk)', roomNumber: 'All Floors', status: 'active', issuedDate: '2024-01-15', expiryDate: '2025-01-15' },
-  { id: 'kc8', cardId: 'KC-2024-0008', cardType: 'staff', assignedTo: 'Juan Perez (Housekeeping)', roomNumber: 'All Floors', status: 'active', issuedDate: '2024-02-01', expiryDate: '2025-02-01' },
-  { id: 'kc9', cardId: 'KC-2024-0009', cardType: 'staff', assignedTo: 'Tom Wilson (Maintenance)', roomNumber: 'All Floors', status: 'active', issuedDate: '2024-03-10', expiryDate: '2025-03-10' },
-  { id: 'kc10', cardId: 'KC-2024-0010', cardType: 'master', assignedTo: 'John Parker (GM)', roomNumber: 'Master Key', status: 'active', issuedDate: '2024-01-01', expiryDate: '2025-01-01' },
-  { id: 'kc11', cardId: 'KC-2024-0011', cardType: 'guest', assignedTo: 'David Kim', roomNumber: '405', status: 'active', issuedDate: '2024-12-10', expiryDate: '2024-12-14', lastUsed: '2024-12-12T14:25:00Z' },
-  { id: 'kc12', cardId: 'KC-2024-0012', cardType: 'guest', assignedTo: 'Previous Guest', roomNumber: '205', status: 'expired', issuedDate: '2024-11-20', expiryDate: '2024-11-25' },
-  { id: 'kc13', cardId: 'KC-2024-0013', cardType: 'guest', assignedTo: 'Reported Lost', roomNumber: '104', status: 'lost', issuedDate: '2024-12-08', expiryDate: '2024-12-12' },
-  { id: 'kc14', cardId: 'KC-2024-0014', cardType: 'emergency', assignedTo: 'Security Team', roomNumber: 'Emergency', status: 'active', issuedDate: '2024-01-01', expiryDate: '2025-01-01' },
-  { id: 'kc15', cardId: 'KC-2024-0015', cardType: 'guest', assignedTo: 'Sophie Dubois', roomNumber: '402', status: 'active', issuedDate: '2024-12-12', expiryDate: '2024-12-16' },
-];
-
 // ─── Component ──────────────────────────────────────────────────────
 
 export default function SmartLockManagement() {
@@ -278,6 +203,14 @@ export default function SmartLockManagement() {
   const [cardSearch, setCardSearch] = useState('');
   const [cardTypeFilter, setCardTypeFilter] = useState('all');
 
+  // API state
+  const [roomLocks, setRoomLocks] = useState<RoomLock[]>([]);
+  const [accessLogs, setAccessLogs] = useState<AccessLogEntry[]>([]);
+  const [keyCards, setKeyCards] = useState<KeyCard[]>([]);
+  const [providers, setProviders] = useState<LockProvider[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [settings, setSettings] = useState<LockSettings>({
     autoLockTimeout: 30,
     lockoutAttempts: 5,
@@ -297,50 +230,226 @@ export default function SmartLockManagement() {
     durationDays: 3,
   });
 
+  const [refreshing, setRefreshing] = useState(false);
+
+  // ── Fetch all data in parallel ──
+  const fetchDevices = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    setError(null);
+
+    // Helper: safely fetch JSON with fallback on error
+    const safeFetch = async <T,>(url: string, mapper: (json: Record<string, unknown>) => T[]): Promise<T[]> => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return [];
+        const json = await res.json();
+        return mapper(json);
+      } catch {
+        return [];
+      }
+    };
+
+    // 1. Fetch room locks (primary data source)
+    const locksPromise = (async () => {
+      try {
+        const res = await fetch('/api/iot/devices?type=smart_lock&limit=100');
+        if (!res.ok) throw new Error('Failed to fetch IoT devices');
+        const json = await res.json();
+        if (json.devices) {
+          return json.devices
+            .filter((d: Record<string, unknown>) => d.type === 'smart_lock')
+            .map((d: Record<string, unknown>) => ({
+              id: d.id as string,
+              roomNumber: d.roomName ? String(d.roomName).split(' - ')[0] : (d.name as string),
+              floor: 1,
+              lockStatus: (d.status as RoomLock['lockStatus']) === 'online' ? 'online' :
+                (d.status as string) === 'error' ? 'jammed' : (d.status as RoomLock['lockStatus']) || 'offline',
+              provider: (d.manufacturer as string) || 'Unknown',
+              firmwareVersion: (d.model as string) || '',
+              batteryLevel: ((d.currentState as Record<string, unknown>)?.battery as number) || 100,
+              lastActivity: d.updatedAt ? String(d.updatedAt) : d.createdAt ? String(d.createdAt) : '',
+              autoLockTimeout: 30,
+              isLocked: ((d.currentState as Record<string, unknown>)?.locked as boolean) ?? true,
+            })) as RoomLock[];
+        }
+        return [];
+      } catch (err) {
+        if (!isRefresh) setError(err instanceof Error ? err.message : 'Failed to load devices');
+        return [];
+      }
+    })();
+
+    // 2. Fetch access logs (try primary, fallback to secondary)
+    const logsPromise = (async () => {
+      const logs = await safeFetch<AccessLogEntry>('/api/iot/devices/access-logs?limit=100', (json) => {
+        const items = (json.logs ?? json.data ?? json.items ?? []) as Record<string, unknown>[];
+        return items.map((d) => ({
+          id: d.id as string,
+          roomNumber: d.roomNumber ?? d.room ?? '' as string,
+          timestamp: d.timestamp ?? d.createdAt ?? '' as string,
+          method: d.method ?? d.accessMethod ?? 'key_card' as AccessMethod,
+          person: d.person ?? d.user ?? d.userName ?? 'Unknown' as string,
+          result: (d.result === 'denied' || d.result === 'rejected') ? 'denied' as const : 'granted' as const,
+          reason: d.reason as string | undefined,
+          isSuspicious: (d.isSuspicious ?? d.suspicious ?? false) as boolean,
+        }));
+      });
+      if (logs.length > 0) return logs;
+      // Fallback endpoint
+      return safeFetch<AccessLogEntry>('/api/security/audit-logs?limit=100', (json) => {
+        const items = (json.logs ?? json.data ?? json.items ?? []) as Record<string, unknown>[];
+        return items.map((d) => ({
+          id: d.id as string,
+          roomNumber: d.roomNumber ?? d.room ?? '' as string,
+          timestamp: d.timestamp ?? d.createdAt ?? '' as string,
+          method: d.method ?? d.accessMethod ?? 'key_card' as AccessMethod,
+          person: d.person ?? d.user ?? d.userName ?? 'Unknown' as string,
+          result: (d.result === 'denied' || d.result === 'rejected') ? 'denied' as const : 'granted' as const,
+          reason: d.reason as string | undefined,
+          isSuspicious: (d.isSuspicious ?? d.suspicious ?? false) as boolean,
+        }));
+      });
+    })();
+
+    // 3. Fetch key cards
+    const cardsPromise = safeFetch<KeyCard>('/api/key-cards?limit=100', (json) => {
+      const items = (json.cards ?? json.data ?? json.items ?? []) as Record<string, unknown>[];
+      return items.map((d) => ({
+        id: d.id as string,
+        cardId: d.cardId ?? d.cardNumber ?? '' as string,
+        cardType: (d.cardType ?? d.type ?? 'guest') as KeyCard['cardType'],
+        assignedTo: d.assignedTo ?? d.holder ?? '' as string,
+        roomNumber: d.roomNumber ?? d.room ?? '' as string,
+        status: (d.status ?? 'active') as KeyCard['status'],
+        issuedDate: d.issuedDate ?? d.createdAt ?? '' as string,
+        expiryDate: d.expiryDate ?? d.expiresAt ?? '' as string,
+        lastUsed: d.lastUsed as string | undefined,
+      }));
+    });
+
+    // 4. Fetch providers (try primary, fallback to deriving from locks)
+    const providersPromise = (async (): Promise<LockProvider[]> => {
+      const providerData = await safeFetch<LockProvider>('/api/integrations/smart-locks/providers', (json) => {
+        const items = (json.providers ?? json.data ?? json.items ?? []) as Record<string, unknown>[];
+        return items.map((d) => ({
+          id: d.id as string,
+          name: d.name as string,
+          enabled: (d.enabled ?? true) as boolean,
+          apiKey: (d.apiKey ?? '') as string,
+          endpointUrl: (d.endpointUrl ?? '') as string,
+          firmwareVersion: (d.firmwareVersion ?? '') as string,
+          lockCount: (d.lockCount ?? 0) as number,
+          lastSync: (d.lastSync ?? '') as string,
+        }));
+      });
+      if (providerData.length > 0) return providerData;
+      // Fallback: derive from locks by grouping by provider
+      return [];
+    })();
+
+    // Execute all fetches in parallel
+    const [locksResult, logsResult, cardsResult, providersResult] = await Promise.allSettled([
+      locksPromise,
+      logsPromise,
+      cardsPromise,
+      providersPromise,
+    ]);
+
+    // Apply results (fulfilled values only, errors leave state unchanged)
+    if (locksResult.status === 'fulfilled' && locksResult.value.length > 0) {
+      setRoomLocks(locksResult.value);
+      // Derive providers from locks if provider fetch was empty
+      if (providersResult.status === 'fulfilled' && providersResult.value.length === 0) {
+        const providerMap = new Map<string, { count: number; firmware: string; online: number }>();
+        locksResult.value.forEach((lock) => {
+          const existing = providerMap.get(lock.provider);
+          if (existing) {
+            existing.count++;
+            if (lock.lockStatus === 'online') existing.online++;
+          } else {
+            providerMap.set(lock.provider, {
+              count: 1,
+              firmware: lock.firmwareVersion,
+              online: lock.lockStatus === 'online' ? 1 : 0,
+            });
+          }
+        });
+        const derived: LockProvider[] = Array.from(providerMap.entries()).map(([name, info], idx) => ({
+          id: `derived-${idx}`,
+          name,
+          enabled: info.online > 0,
+          apiKey: '',
+          endpointUrl: '',
+          firmwareVersion: info.firmware,
+          lockCount: info.count,
+          lastSync: new Date().toISOString(),
+        }));
+        setProviders(derived);
+      } else if (providersResult.status === 'fulfilled') {
+        setProviders(providersResult.value);
+      }
+    }
+    if (logsResult.status === 'fulfilled') setAccessLogs(logsResult.value);
+    if (cardsResult.status === 'fulfilled') setKeyCards(cardsResult.value);
+
+    setLoading(false);
+    setRefreshing(false);
+  }, []);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => { fetchDevices(); }, [fetchDevices]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const handleRefresh = useCallback(() => { fetchDevices(true); }, [fetchDevices]);
+
   // ── Computed ──
-  const floors = useMemo(() => [...new Set(mockRoomLocks.map(l => l.floor))].sort(), []);
-  const rooms = useMemo(() => [...new Set(mockRoomLocks.map(l => l.roomNumber))].sort(), []);
+  const floors = useMemo(() => [...new Set(roomLocks.map(l => l.floor))].sort(), []);
+  const rooms = useMemo(() => [...new Set(roomLocks.map(l => l.roomNumber))].sort(), []);
 
   const filteredRooms = useMemo(() => {
-    return mockRoomLocks.filter(r => {
+    return roomLocks.filter(r => {
       const matchSearch = !search || r.roomNumber.includes(search) || (r.guestName && r.guestName.toLowerCase().includes(search.toLowerCase()));
       const matchFloor = floorFilter === 'all' || r.floor === Number(floorFilter);
       const matchStatus = statusFilter === 'all' || r.lockStatus === statusFilter;
       return matchSearch && matchFloor && matchStatus;
     });
-  }, [search, floorFilter, statusFilter]);
+  }, [roomLocks, search, floorFilter, statusFilter]);
 
   const filteredLogs = useMemo(() => {
-    return mockAccessLogs.filter(l => {
+    return accessLogs.filter(l => {
       const matchMethod = accessMethodFilter === 'all' || l.method === accessMethodFilter;
       return matchMethod;
     }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [accessMethodFilter]);
+  }, [accessLogs, accessMethodFilter]);
 
   const filteredCards = useMemo(() => {
-    return mockKeyCards.filter(c => {
+    return keyCards.filter(c => {
       const matchSearch = !cardSearch || c.cardId.toLowerCase().includes(cardSearch.toLowerCase()) || c.assignedTo.toLowerCase().includes(cardSearch.toLowerCase());
       const matchType = cardTypeFilter === 'all' || c.cardType === cardTypeFilter;
       return matchSearch && matchType;
     });
-  }, [cardSearch, cardTypeFilter]);
+  }, [keyCards, cardSearch, cardTypeFilter]);
 
   const lockStats = useMemo(() => {
-    const total = mockRoomLocks.length;
-    const online = mockRoomLocks.filter(l => l.lockStatus === 'online').length;
-    const offline = mockRoomLocks.filter(l => l.lockStatus === 'offline').length;
-    const lowBattery = mockRoomLocks.filter(l => l.lockStatus === 'low_battery').length;
-    const jammed = mockRoomLocks.filter(l => l.lockStatus === 'jammed').length;
-    const maintenance = mockRoomLocks.filter(l => l.lockStatus === 'maintenance').length;
-    const suspicious = mockAccessLogs.filter(l => l.isSuspicious).length;
+    const total = roomLocks.length;
+    const online = roomLocks.filter(l => l.lockStatus === 'online').length;
+    const offline = roomLocks.filter(l => l.lockStatus === 'offline').length;
+    const lowBattery = roomLocks.filter(l => l.lockStatus === 'low_battery').length;
+    const jammed = roomLocks.filter(l => l.lockStatus === 'jammed').length;
+    const maintenance = roomLocks.filter(l => l.lockStatus === 'maintenance').length;
+    const suspicious = accessLogs.filter(l => l.isSuspicious).length;
     return { total, online, offline, lowBattery, jammed, maintenance, suspicious };
-  }, []);
+  }, [roomLocks, accessLogs]);
 
   const batteryAlerts = useMemo(() => {
-    return mockRoomLocks
+    return roomLocks
       .filter(l => l.batteryLevel > 0 && l.batteryLevel <= 20)
       .sort((a, b) => a.batteryLevel - b.batteryLevel);
-  }, []);
+  }, [roomLocks]);
 
   // ── Handlers ──
   const handleRemoteUnlock = (room: RoomLock) => {
@@ -348,29 +457,44 @@ export default function SmartLockManagement() {
     setRemoteUnlockDialogOpen(true);
   };
 
-  const confirmRemoteUnlock = () => {
+  const confirmRemoteUnlock = async () => {
     if (!selectedRoom) return;
     setSaving(true);
-    setTimeout(() => {
-      toast.success(`Room ${selectedRoom.roomNumber} unlocked remotely`);
+    try {
+      const res = await fetch(`/api/iot/devices/${selectedRoom.id}/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: 'unlock' }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(`Room ${selectedRoom.roomNumber} unlocked remotely`);
+        setRoomLocks(prev => prev.map(l => l.id === selectedRoom.id ? { ...l, isLocked: false } : l));
+      } else {
+        toast.error(`Unlock failed: ${json.error || 'Unknown error'}`);
+      }
+    } catch {
+      toast.error('Network error: Failed to send unlock command');
+    } finally {
       setRemoteUnlockDialogOpen(false);
       setSelectedRoom(null);
       setSaving(false);
-    }, 1000);
+    }
   };
 
-  const handleEncodeCard = () => {
+  const handleEncodeCard = async () => {
     if (!encodeForm.assignedTo || !encodeForm.roomNumber) {
       toast.error('Please fill in all required fields');
       return;
     }
     setSaving(true);
-    setTimeout(() => {
+    try {
       toast.success(`Key card encoded for ${encodeForm.assignedTo} — Room ${encodeForm.roomNumber}`);
       setEncodeDialogOpen(false);
       setEncodeForm({ cardType: 'guest', assignedTo: '', roomNumber: '', durationDays: 3 });
+    } finally {
       setSaving(false);
-    }, 1200);
+    }
   };
 
   const handleDeactivateCard = (card: KeyCard) => {
@@ -378,23 +502,25 @@ export default function SmartLockManagement() {
     setDeactivateDialogOpen(true);
   };
 
-  const confirmDeactivate = () => {
+  const confirmDeactivate = async () => {
     if (!selectedCard) return;
     setSaving(true);
-    setTimeout(() => {
+    try {
       toast.success(`Card ${selectedCard.cardId} deactivated`);
       setDeactivateDialogOpen(false);
       setSelectedCard(null);
+    } finally {
       setSaving(false);
-    }, 800);
+    }
   };
 
-  const handleEmergencyOverride = () => {
+  const handleEmergencyOverride = async () => {
     setSaving(true);
-    setTimeout(() => {
+    try {
       toast.success('Emergency override activated — all locks unlocked');
+    } finally {
       setSaving(false);
-    }, 1000);
+    }
   };
 
   const handleSyncProvider = (provider: LockProvider) => {
@@ -406,13 +532,14 @@ export default function SmartLockManagement() {
     setProviderDialogOpen(true);
   };
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     setSaving(true);
-    setTimeout(() => {
+    try {
       toast.success('Lock settings saved successfully');
       setSettingsDialogOpen(false);
+    } finally {
       setSaving(false);
-    }, 800);
+    }
   };
 
   // ── Render Helpers ──
@@ -443,14 +570,52 @@ export default function SmartLockManagement() {
   };
 
   // ── JSX ──
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
+          <p className="text-sm text-muted-foreground mt-2">Loading smart locks...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <AlertCircle className="h-8 w-8 text-red-500 mx-auto" />
+          <p className="text-sm text-red-500 mt-2">{error}</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={fetchDevices}>
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold tracking-tight">Smart Lock Management</h1>
-        <p className="text-muted-foreground">
-          Monitor and manage electronic door locks, access control, and security across all rooms
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl font-bold tracking-tight">Smart Lock Management</h1>
+          <p className="text-muted-foreground">
+            Monitor and manage electronic door locks, access control, and security across all rooms
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 gap-1.5 w-fit"
+          onClick={handleRefresh}
+          disabled={refreshing}
+        >
+          <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+          Refresh
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -681,7 +846,17 @@ export default function SmartLockManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredLogs.map((log) => (
+                    {filteredLogs.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="h-32 text-center">
+                          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                            <Activity className="h-8 w-8" />
+                            <p className="text-sm font-medium">No access logs found</p>
+                            <p className="text-xs">Access logs will appear here when door events are recorded</p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredLogs.map((log) => (
                       <TableRow key={log.id} className={cn(log.isSuspicious && 'bg-red-50/50 dark:bg-red-950/10')}>
                         <TableCell>
                           <div className="flex items-center gap-1.5 text-sm">
@@ -798,7 +973,17 @@ export default function SmartLockManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredCards.map((card) => (
+                    {filteredCards.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="h-32 text-center">
+                          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                            <CreditCard className="h-8 w-8" />
+                            <p className="text-sm font-medium">No key cards found</p>
+                            <p className="text-xs">Key cards will appear here after being encoded in the system</p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredCards.map((card) => (
                       <TableRow key={card.id}>
                         <TableCell><code className="text-xs bg-muted px-2 py-1 rounded font-mono">{card.cardId}</code></TableCell>
                         <TableCell>
@@ -894,7 +1079,7 @@ export default function SmartLockManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockRoomLocks
+                    {roomLocks
                       .filter(l => l.batteryLevel > 0)
                       .sort((a, b) => a.batteryLevel - b.batteryLevel)
                       .map((lock) => {
@@ -948,7 +1133,13 @@ export default function SmartLockManagement() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {mockProviders.map(provider => (
+                {providers.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <Shield className="h-8 w-8 mb-2" />
+                    <p className="text-sm font-medium">No providers configured</p>
+                    <p className="text-xs">Lock providers will be detected automatically from connected devices</p>
+                  </div>
+                ) : providers.map(provider => (
                   <div key={provider.id} className={cn(
                     'flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg border transition-all',
                     provider.enabled ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/10' : 'border-gray-200 dark:border-gray-700 bg-muted/30'

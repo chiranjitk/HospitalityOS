@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,10 +46,8 @@ import {
   Sparkles,
   Eye,
   Pencil,
-  Trash2,
   ChevronLeft,
   ChevronRight,
-  MoreHorizontal,
   Filter,
   RefreshCw,
   MapPin,
@@ -57,17 +55,12 @@ import {
   UserCircle,
   Award,
   ThumbsUp,
+  AlertTriangle,
 } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useToast } from '@/hooks/use-toast';
-import { format, addDays, startOfWeek, addHours } from 'date-fns';
+import { format } from 'date-fns';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -118,60 +111,7 @@ interface RevenueByType {
   growth: number;
 }
 
-// ── Mock Data ──────────────────────────────────────────────────────────
-
-const MOCK_APPOINTMENTS: SpaAppointment[] = [
-  { id: 'apt-001', time: '08:00', guestName: 'Sarah Mitchell', guestRoom: '301', treatment: 'Swedish Massage (60min)', therapist: 'Anya Sharma', room: 'Zen Room 1', duration: 60, status: 'completed', price: 4500 },
-  { id: 'apt-002', time: '08:30', guestName: 'James Wilson', guestRoom: '412', treatment: 'Deep Tissue Massage (90min)', therapist: 'Raj Patel', room: 'Zen Room 2', duration: 90, status: 'in_progress', price: 6500 },
-  { id: 'apt-003', time: '09:00', guestName: 'Elena Rodriguez', guestRoom: '205', treatment: 'Aromatherapy Facial', therapist: 'Priya Menon', room: 'Glow Suite', duration: 60, status: 'scheduled', price: 3800 },
-  { id: 'apt-004', time: '09:30', guestName: 'David Chen', guestRoom: '518', treatment: 'Hot Stone Therapy', therapist: 'Anya Sharma', room: 'Zen Room 1', duration: 75, status: 'scheduled', price: 5500 },
-  { id: 'apt-005', time: '10:00', guestName: 'Amara Okafor', guestRoom: '307', treatment: 'Couples Retreat Package', therapist: 'Raj Patel & Priya Menon', room: 'Couples Suite', duration: 120, status: 'scheduled', price: 12000 },
-  { id: 'apt-006', time: '10:00', guestName: 'Robert Taylor', guestRoom: '422', treatment: 'Sports Recovery Massage', therapist: 'Vikram Singh', room: 'Zen Room 3', duration: 60, status: 'scheduled', price: 5000 },
-  { id: 'apt-007', time: '11:00', guestName: 'Lina Johansson', guestRoom: '110', treatment: 'Balinese Massage', therapist: 'Anya Sharma', room: 'Zen Room 1', duration: 90, status: 'scheduled', price: 6200 },
-  { id: 'apt-008', time: '11:30', guestName: 'Marco Rossi', guestRoom: '603', treatment: 'Anti-Aging Facial', therapist: 'Priya Menon', room: 'Glow Suite', duration: 75, status: 'scheduled', price: 4500 },
-  { id: 'apt-009', time: '13:00', guestName: 'Yuki Tanaka', guestRoom: '208', treatment: 'Body Scrub & Wrap', therapist: 'Raj Patel', room: 'Zen Room 2', duration: 90, status: 'scheduled', price: 5800 },
-  { id: 'apt-010', time: '14:00', guestName: 'Olivia Brown', guestRoom: '315', treatment: 'Prenatal Massage', therapist: 'Anya Sharma', room: 'Zen Room 1', duration: 60, status: 'scheduled', price: 4800 },
-  { id: 'apt-011', time: '15:00', guestName: 'Henrik Larsson', guestRoom: '421', treatment: 'Thai Massage', therapist: 'Vikram Singh', room: 'Zen Room 3', duration: 90, status: 'scheduled', price: 5800 },
-  { id: 'apt-012', time: '16:00', guestName: 'Sophie Dubois', guestRoom: '502', treatment: 'Signature Wellness Ritual', therapist: 'Anya Sharma & Priya Menon', room: 'Royal Suite', duration: 150, status: 'scheduled', price: 15000 },
-  { id: 'apt-013', time: '08:00', guestName: 'Michael Park', guestRoom: '305', treatment: 'Shiatsu Massage', therapist: 'Vikram Singh', room: 'Zen Room 3', duration: 60, status: 'no_show', price: 4200 },
-  { id: 'apt-014', time: '12:00', guestName: 'Anna Kowalski', guestRoom: '209', treatment: 'Hydra Facial', therapist: 'Priya Menon', room: 'Glow Suite', duration: 45, status: 'cancelled', price: 3500 },
-];
-
-const MOCK_TREATMENTS: SpaTreatment[] = [
-  { id: 'tr-001', name: 'Swedish Massage', category: 'massage', duration: 60, price: 4500, description: 'Classic full-body relaxation massage with long, flowing strokes', therapistCount: 1, rating: 4.8, totalBookings: 342, isActive: true },
-  { id: 'tr-002', name: 'Deep Tissue Massage', category: 'massage', duration: 90, price: 6500, description: 'Intensive pressure targeting deep muscle layers and knots', therapistCount: 1, rating: 4.7, totalBookings: 285, isActive: true },
-  { id: 'tr-003', name: 'Hot Stone Therapy', category: 'massage', duration: 75, price: 5500, description: 'Heated basalt stones placed on key energy points for deep relaxation', therapistCount: 1, rating: 4.9, totalBookings: 198, isActive: true },
-  { id: 'tr-004', name: 'Balinese Massage', category: 'massage', duration: 90, price: 6200, description: 'Traditional Balinese technique combining acupressure, reflexology, and aromatherapy', therapistCount: 1, rating: 4.6, totalBookings: 156, isActive: true },
-  { id: 'tr-005', name: 'Thai Massage', category: 'massage', duration: 90, price: 5800, description: 'Ancient Thai stretching and compression technique for flexibility', therapistCount: 1, rating: 4.5, totalBookings: 128, isActive: true },
-  { id: 'tr-006', name: 'Sports Recovery Massage', category: 'massage', duration: 60, price: 5000, description: 'Targeted therapy for athletes focusing on muscle recovery and injury prevention', therapistCount: 1, rating: 4.7, totalBookings: 167, isActive: true },
-  { id: 'tr-007', name: 'Aromatherapy Facial', category: 'facial', duration: 60, price: 3800, description: 'Customized facial using essential oils for deep skin nourishment', therapistCount: 1, rating: 4.8, totalBookings: 223, isActive: true },
-  { id: 'tr-008', name: 'Anti-Aging Facial', category: 'facial', duration: 75, price: 4500, description: 'Advanced collagen-boosting treatment with lifting massage techniques', therapistCount: 1, rating: 4.9, totalBookings: 189, isActive: true },
-  { id: 'tr-009', name: 'Hydra Facial', category: 'facial', duration: 45, price: 3500, description: 'Medical-grade hydradermabrasion for instant glow and hydration', therapistCount: 1, rating: 4.6, totalBookings: 301, isActive: true },
-  { id: 'tr-010', name: 'Body Scrub & Wrap', category: 'body', duration: 90, price: 5800, description: 'Exfoliating salt scrub followed by a nourishing body wrap', therapistCount: 1, rating: 4.7, totalBookings: 142, isActive: true },
-  { id: 'tr-011', name: 'Detox Body Ritual', category: 'body', duration: 120, price: 7500, description: 'Full-body detox with dry brushing, clay mask, and lymphatic drainage', therapistCount: 1, rating: 4.8, totalBookings: 98, isActive: true },
-  { id: 'tr-012', name: 'Couples Retreat Package', category: 'wellness', duration: 120, price: 12000, description: 'Side-by-side massage in private suite with champagne and rose petals', therapistCount: 2, rating: 4.9, totalBookings: 87, isActive: true },
-  { id: 'tr-013', name: 'Signature Wellness Ritual', category: 'wellness', duration: 150, price: 15000, description: 'Ultimate spa journey: body scrub, massage, facial, and scalp treatment', therapistCount: 2, rating: 5.0, totalBookings: 64, isActive: true },
-  { id: 'tr-014', name: 'Stress Relief Program', category: 'wellness', duration: 90, price: 6000, description: 'Guided meditation, aromatherapy massage, and calming tea ceremony', therapistCount: 1, rating: 4.6, totalBookings: 112, isActive: true },
-  { id: 'tr-015', name: 'Prenatal Massage', category: 'massage', duration: 60, price: 4800, description: 'Gentle massage designed specifically for expectant mothers', therapistCount: 1, rating: 4.9, totalBookings: 76, isActive: true },
-  { id: 'tr-016', name: 'Shiatsu Massage', category: 'massage', duration: 60, price: 4200, description: 'Japanese pressure-point therapy to balance energy flow', therapistCount: 1, rating: 4.4, totalBookings: 91, isActive: false },
-];
-
-const MOCK_THERAPISTS: SpaTherapist[] = [
-  { id: 'th-001', name: 'Anya Sharma', avatar: 'AS', specialties: ['Swedish', 'Hot Stone', 'Balinese', 'Prenatal'], schedule: '08:00 - 17:00', rating: 4.9, totalSessions: 1245, availability: 'busy', todayAppointments: 5, revenue: 48500 },
-  { id: 'th-002', name: 'Raj Patel', avatar: 'RP', specialties: ['Deep Tissue', 'Sports Recovery', 'Thai'], schedule: '09:00 - 18:00', rating: 4.8, totalSessions: 1087, availability: 'busy', todayAppointments: 4, revenue: 42300 },
-  { id: 'th-003', name: 'Priya Menon', avatar: 'PM', specialties: ['Aromatherapy Facial', 'Anti-Aging Facial', 'Hydra Facial'], schedule: '08:00 - 16:00', rating: 4.9, totalSessions: 967, availability: 'available', todayAppointments: 3, revenue: 35800 },
-  { id: 'th-004', name: 'Vikram Singh', avatar: 'VS', specialties: ['Thai', 'Shiatsu', 'Sports Recovery'], schedule: '10:00 - 19:00', rating: 4.7, totalSessions: 834, availability: 'available', todayAppointments: 3, revenue: 29600 },
-  { id: 'th-005', name: 'Nadia Kourková', avatar: 'NK', specialties: ['Body Scrub', 'Detox Ritual', 'Wellness Packages'], schedule: 'Off Today', rating: 4.8, totalSessions: 654, availability: 'off', todayAppointments: 0, revenue: 0 },
-  { id: 'th-006', name: 'Kenji Watanabe', avatar: 'KW', specialties: ['Shiatsu', 'Thai', 'Deep Tissue'], schedule: '07:00 - 14:00', rating: 4.6, totalSessions: 521, availability: 'break', todayAppointments: 2, revenue: 18400 },
-];
-
-const MOCK_REVENUE: RevenueByType[] = [
-  { type: 'Massage', revenue: 285000, percentage: 42, sessions: 187, growth: 12.5 },
-  { type: 'Facial', revenue: 142000, percentage: 21, sessions: 112, growth: 8.3 },
-  { type: 'Body Treatments', revenue: 98000, percentage: 14, sessions: 68, growth: 15.2 },
-  { type: 'Wellness Packages', revenue: 89000, percentage: 13, sessions: 42, growth: 22.1 },
-  { type: 'Beauty & Add-ons', revenue: 65000, percentage: 10, sessions: 95, growth: 5.7 },
-];
+// ── Mock Data removed — now fetched from API ──
 
 // ── Constants ──────────────────────────────────────────────────────────
 
@@ -216,22 +156,158 @@ export default function SpaWellness() {
   const [selectedTreatment, setSelectedTreatment] = useState<SpaTreatment | null>(null);
   const [revenuePeriod, setRevenuePeriod] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
 
+  // ── API Data State ────────────────────────────────────────────────
+  const [appointments, setAppointments] = useState<SpaAppointment[]>([]);
+  const [treatments, setTreatments] = useState<SpaTreatment[]>([]);
+  const [therapists, setTherapists] = useState<SpaTherapist[]>([]);
+  const [revenue, setRevenue] = useState<RevenueByType[]>([]);
+  const [spaLoading, setSpaLoading] = useState(true);
+  const [spaError, setSpaError] = useState<string | null>(null);
+
+  // Top-level stats from API
+  const [apiStats, setApiStats] = useState<Record<string, number> | null>(null);
+  // Full revenue stats (today/week/month) from API
+  interface ApiPeriodStats {
+    bookings: number;
+    revenue: number;
+    avgSpendPerGuest: number;
+    occupancy: number;
+    topTreatment: string;
+    noShows: number;
+    cancellations: number;
+    revenueVsLastMonth?: number;
+  }
+  interface ApiRevenueStats {
+    today: ApiPeriodStats;
+    thisWeek: ApiPeriodStats;
+    thisMonth: ApiPeriodStats;
+    byCategory: RevenueByType[];
+    revenueTrend: Array<{ date: string; revenue: number; bookings: number; avgRating: number }>;
+  }
+  const [apiRevenueStats, setApiRevenueStats] = useState<ApiRevenueStats | null>(null);
+
+  const fetchSpaData = useCallback(async () => {
+    setSpaLoading(true);
+    setSpaError(null);
+    try {
+      const res = await fetch('/api/experience/spa');
+      if (!res.ok) throw new Error('Failed to fetch spa data');
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error?.message || 'Failed to fetch spa data');
+
+      const { appointments: apiApts, treatments: apiTrts, therapists: apiThs, revenueStats } = json.data;
+
+      // Map appointments
+      const mappedApts: SpaAppointment[] = (apiApts || []).map((a: Record<string, unknown>) => ({
+        id: a.id,
+        time: a.startTime || '',
+        guestName: a.guestName || 'Guest',
+        guestRoom: a.roomNumber || '',
+        treatment: a.treatmentName || '',
+        therapist: a.therapistName || '',
+        room: a.location || '',
+        duration: a.duration || 60,
+        status: (a.status || 'scheduled') as SpaAppointment['status'],
+        price: a.price || 0,
+      }));
+
+      // Map treatments
+      const mappedTrts: SpaTreatment[] = (apiTrts || []).map((t: Record<string, unknown>) => ({
+        id: t.id,
+        name: t.name || '',
+        category: (t.category || 'massage').toLowerCase() as SpaTreatment['category'],
+        duration: t.duration || 60,
+        price: t.price || 0,
+        description: t.description || '',
+        therapistCount: 1,
+        rating: t.rating || 4.5,
+        totalBookings: t.popularity || 0,
+        isActive: t.status === 'active',
+      }));
+
+      // Map therapists
+      const mappedThs: SpaTherapist[] = (apiThs || []).map((t: Record<string, unknown>) => {
+        const specs = Array.isArray(t.specialization) ? t.specialization : [];
+        return {
+          id: t.id,
+          name: t.name || '',
+          avatar: (t.name || '').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2),
+          specialties: specs as string[],
+          schedule: `${t.shiftStart || '09:00'} - ${t.shiftEnd || '18:00'}`,
+          rating: t.rating || 4.5,
+          totalSessions: 0,
+          availability: (t.status || 'available') as SpaTherapist['availability'],
+          todayAppointments: 0,
+          revenue: 0,
+        };
+      });
+
+      // Map revenue by category
+      const mappedRev: RevenueByType[] = (revenueStats?.byCategory || []).map((c: Record<string, unknown>) => {
+        const cat = (c.category || 'Other').charAt(0).toUpperCase() + (c.category || 'Other').slice(1);
+        return {
+          type: cat,
+          revenue: Number(c.revenue) || 0,
+          percentage: Number(c.percentage) || 0,
+          sessions: Number(c.bookings) || 0,
+          growth: 0,
+        };
+      });
+
+      setAppointments(mappedApts);
+      setTreatments(mappedTrts);
+      setTherapists(mappedThs);
+      setRevenue(mappedRev);
+
+      // Store top-level stats
+      if (json.stats) setApiStats(json.stats);
+      // Store full revenue period stats
+      if (revenueStats) setApiRevenueStats(revenueStats);
+    } catch (err) {
+      console.error('Error fetching spa data:', err);
+      setSpaError(err instanceof Error ? err.message : 'Failed to load spa data');
+    } finally {
+      setSpaLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchSpaData(); }, [fetchSpaData]);
+
   // ── Computed values ─────────────────────────────────────────────────
 
   const today = new Date();
-  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
   const calendarDate = format(today, 'EEEE, MMMM d, yyyy');
 
+  if (spaLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (spaError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <AlertTriangle className="h-8 w-8 text-amber-500" />
+        <p className="text-muted-foreground">{spaError}</p>
+        <Button variant="outline" onClick={fetchSpaData}>Try Again</Button>
+      </div>
+    );
+  }
+
   const stats = useMemo(() => {
-    const todayBookings = MOCK_APPOINTMENTS.length;
-    const availableTherapists = MOCK_THERAPISTS.filter(t => t.availability === 'available').length;
-    const weekRevenue = 742000;
-    const satisfaction = 4.8;
+    const todayBookings = apiStats?.todayBookings ?? appointments.length;
+    const availableTherapists = therapists.filter(t => t.availability === 'available').length;
+    const weekRevenue = apiRevenueStats?.thisWeek?.revenue ?? 0;
+    const satisfaction = therapists.length > 0
+      ? parseFloat((therapists.reduce((sum, t) => sum + t.rating, 0) / therapists.length).toFixed(1))
+      : 0;
     return { todayBookings, availableTherapists, weekRevenue, satisfaction };
-  }, []);
+  }, [appointments, therapists, apiStats, apiRevenueStats]);
 
   const filteredAppointments = useMemo(() => {
-    return MOCK_APPOINTMENTS.filter(a => {
+    return appointments.filter(a => {
       if (statusFilter !== 'all' && a.status !== statusFilter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -239,10 +315,10 @@ export default function SpaWellness() {
       }
       return true;
     });
-  }, [searchQuery, statusFilter]);
+  }, [searchQuery, statusFilter, appointments]);
 
   const filteredTreatments = useMemo(() => {
-    return MOCK_TREATMENTS.filter(t => {
+    return treatments.filter(t => {
       if (categoryFilter !== 'all' && t.category !== categoryFilter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -250,19 +326,19 @@ export default function SpaWellness() {
       }
       return true;
     });
-  }, [searchQuery, categoryFilter]);
+  }, [searchQuery, categoryFilter, treatments]);
 
   const filteredTherapists = useMemo(() => {
-    if (!searchQuery) return MOCK_THERAPISTS;
+    if (!searchQuery) return therapists;
     const q = searchQuery.toLowerCase();
-    return MOCK_THERAPISTS.filter(t =>
+    return therapists.filter(t =>
       t.name.toLowerCase().includes(q) ||
       t.specialties.some(s => s.toLowerCase().includes(q))
     );
-  }, [searchQuery]);
+  }, [searchQuery, therapists]);
 
-  const totalRevenue = useMemo(() => MOCK_REVENUE.reduce((s, r) => s + r.revenue, 0), []);
-  const maxRevenue = useMemo(() => Math.max(...MOCK_REVENUE.map(r => r.revenue)), []);
+  const totalRevenue = useMemo(() => revenue.reduce((s, r) => s + r.revenue, 0), [revenue]);
+  const maxRevenue = useMemo(() => revenue.length > 0 ? Math.max(...revenue.map(r => r.revenue)) : 1, [revenue]);
 
   // ── Handlers ───────────────────────────────────────────────────────
 
@@ -519,6 +595,13 @@ export default function SpaWellness() {
         </Select>
       </div>
 
+      {filteredTreatments.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <Heart className="h-10 w-10 mb-3 opacity-40" />
+          <p className="font-medium">No treatments found</p>
+          <p className="text-sm">Try adjusting your search or filter criteria</p>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {filteredTreatments.map(treatment => {
           const cat = CATEGORY_CONFIG[treatment.category];
@@ -603,6 +686,7 @@ export default function SpaWellness() {
           );
         })}
       </div>
+      )}
     </div>
   );
 
@@ -625,7 +709,16 @@ export default function SpaWellness() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTherapists.map(therapist => {
+              {filteredTherapists.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                    <Users className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                    <p>No therapists found</p>
+                    <p className="text-xs">Try adjusting your search</p>
+                  </TableCell>
+                </TableRow>
+              ) : (
+              filteredTherapists.map(therapist => {
                 const avail = THERAPIST_AVAILABILITY[therapist.availability];
                 return (
                   <TableRow key={therapist.id}>
@@ -679,7 +772,7 @@ export default function SpaWellness() {
                     </TableCell>
                   </TableRow>
                 );
-              })}
+              }))}
             </TableBody>
           </Table>
         </ScrollArea>
@@ -690,7 +783,12 @@ export default function SpaWellness() {
   // ── Render: Revenue tab ──────────────────────────────────────────
 
   const renderRevenue = () => {
-    const periodMultiplier = revenuePeriod === 'daily' ? 1 : revenuePeriod === 'weekly' ? 7 : 30;
+    const periodRevenue = revenuePeriod === 'daily'
+      ? (apiRevenueStats?.today?.revenue ?? 0)
+      : revenuePeriod === 'weekly'
+        ? (apiRevenueStats?.thisWeek?.revenue ?? 0)
+        : (apiRevenueStats?.thisMonth?.revenue ?? totalRevenue);
+    const periodLabel = revenuePeriod === 'daily' ? 'Today' : revenuePeriod === 'weekly' ? 'This Week' : 'This Month';
     return (
       <div className="space-y-6">
         {/* Period selector + summary */}
@@ -710,10 +808,10 @@ export default function SpaWellness() {
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold bg-gradient-to-r from-amber-600 to-orange-400 bg-clip-text text-transparent">
-              {formatCurrency(totalRevenue * periodMultiplier)}
+              {formatCurrency(periodRevenue)}
             </p>
             <p className="text-xs text-muted-foreground">
-              {revenuePeriod === 'daily' ? 'Today' : revenuePeriod === 'weekly' ? 'This Week' : 'This Month'} Total
+              {periodLabel} Total
             </p>
           </div>
         </div>
@@ -727,7 +825,14 @@ export default function SpaWellness() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
-            {MOCK_REVENUE.map(item => (
+            {revenue.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <DollarSign className="h-8 w-8 mb-2 opacity-40" />
+                <p className="font-medium">No revenue data available</p>
+                <p className="text-sm">Revenue data will appear as bookings are completed</p>
+              </div>
+            ) : (
+            revenue.map(item => (
               <div key={item.type} className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
@@ -738,7 +843,7 @@ export default function SpaWellness() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-muted-foreground">{item.percentage}%</span>
-                    <span className="font-semibold">{formatCurrency(item.revenue * periodMultiplier)}</span>
+                    <span className="font-semibold">{formatCurrency(item.revenue)}</span>
                     <Badge
                       variant="secondary"
                       className={cn(
@@ -760,7 +865,7 @@ export default function SpaWellness() {
                   />
                 </div>
               </div>
-            ))}
+            )))}
           </CardContent>
         </Card>
 
@@ -772,7 +877,7 @@ export default function SpaWellness() {
                 <Sparkles className="h-4 w-4 text-violet-500 dark:text-violet-400" />
               </div>
               <div>
-                <div className="text-xl font-bold">504</div>
+                <div className="text-xl font-bold">{revenue.reduce((s, r) => s + r.sessions, 0)}</div>
                 <div className="text-[10px] text-muted-foreground">Total Sessions</div>
               </div>
             </div>
@@ -783,7 +888,7 @@ export default function SpaWellness() {
                 <DollarSign className="h-4 w-4 text-amber-500 dark:text-amber-400" />
               </div>
               <div>
-                <div className="text-xl font-bold">{formatCurrency(1472)}</div>
+                <div className="text-xl font-bold">{formatCurrency(apiRevenueStats?.thisMonth?.avgSpendPerGuest ?? 0)}</div>
                 <div className="text-[10px] text-muted-foreground">Avg Revenue/Session</div>
               </div>
             </div>
@@ -794,7 +899,9 @@ export default function SpaWellness() {
                 <ThumbsUp className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
               </div>
               <div>
-                <div className="text-xl font-bold">96.2%</div>
+                <div className="text-xl font-bold">{apiRevenueStats?.thisMonth
+                  ? Math.round(((apiRevenueStats.thisMonth.bookings - (apiRevenueStats.thisMonth.noShows ?? 0)) / Math.max(apiRevenueStats.thisMonth.bookings, 1)) * 100) + '%'
+                  : '—'}</div>
                 <div className="text-[10px] text-muted-foreground">Show-Up Rate</div>
               </div>
             </div>
@@ -805,8 +912,10 @@ export default function SpaWellness() {
                 <Award className="h-4 w-4 text-pink-500 dark:text-pink-400" />
               </div>
               <div>
-                <div className="text-xl font-bold">38%</div>
-                <div className="text-[10px] text-muted-foreground">Repeat Guests</div>
+                <div className="text-xl font-bold">{apiRevenueStats?.thisMonth?.occupancy
+                  ? Math.min(apiRevenueStats.thisMonth.occupancy, 100) + '%'
+                  : '—'}</div>
+                <div className="text-[10px] text-muted-foreground">Occupancy Rate</div>
               </div>
             </div>
           </Card>
@@ -971,7 +1080,7 @@ export default function SpaWellness() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={fetchSpaData}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
@@ -1070,7 +1179,7 @@ export default function SpaWellness() {
               <Select>
                 <SelectTrigger><SelectValue placeholder="Select treatment" /></SelectTrigger>
                 <SelectContent>
-                  {MOCK_TREATMENTS.filter(t => t.isActive).map(t => (
+                  {treatments.filter(t => t.isActive).map(t => (
                     <SelectItem key={t.id} value={t.id}>
                       {t.name} — {formatCurrency(t.price)} ({formatDuration(t.duration)})
                     </SelectItem>
@@ -1100,7 +1209,7 @@ export default function SpaWellness() {
               <Select>
                 <SelectTrigger><SelectValue placeholder="Auto-assign or select" /></SelectTrigger>
                 <SelectContent>
-                  {MOCK_THERAPISTS.filter(t => t.availability === 'available').map(t => (
+                  {therapists.filter(t => t.availability === 'available').map(t => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                   ))}
                 </SelectContent>

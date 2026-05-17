@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { consumeTempSecret } from '@/lib/two-factor-temp-store';
 
 // In-memory rate limiting for 2FA verify
 const twoFAVerifyRateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -134,7 +135,13 @@ export async function POST(request: NextRequest) {
 
     const user = session.user;
 
-    if (!user.twoFactorSecret) {
+    // Determine the secret to validate against:
+    // 1) Check the temp in-memory store first (setup flow — secret not yet in DB)
+    // 2) Fall back to the persisted secret (already-enabled 2FA verification)
+    const tempData = consumeTempSecret(user.id);
+    const secretToVerify = tempData?.secret || user.twoFactorSecret;
+
+    if (!secretToVerify) {
       return NextResponse.json(
         { success: false, error: '2FA not set up. Please setup 2FA first.' },
         { status: 400 }
@@ -142,7 +149,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify the code using native crypto
-    const isValid = verifyTOTP(user.twoFactorSecret, code);
+    const isValid = verifyTOTP(secretToVerify, code);
 
     // Check if the code matches a backup code (if TOTP didn't match)
     let usedBackupCode = false;
@@ -173,9 +180,14 @@ export async function POST(request: NextRequest) {
 
     // If this is part of setup flow, enable 2FA
     if (enableSetup && !user.twoFactorEnabled) {
+      // Persist the secret and backup codes to DB ONLY after successful verification
       await db.user.update({
         where: { id: user.id },
-        data: { twoFactorEnabled: true },
+        data: {
+          twoFactorSecret: secretToVerify,
+          twoFactorEnabled: true,
+          backupCodes: tempData?.hashedBackupCodes || user.backupCodes || null,
+        },
       });
 
       // Create audit log

@@ -144,6 +144,11 @@ export const useUIStore = create<UIState>()(
   })
 );
 
+// Expose store on window for E2E testing (Playwright can call window.__UI_STORE__)
+if (typeof window !== 'undefined') {
+  (window as any).__UI_STORE__ = useUIStore;
+}
+
 // ============================================
 // Dashboard Store
 // ============================================

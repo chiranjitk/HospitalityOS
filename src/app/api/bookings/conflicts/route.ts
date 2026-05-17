@@ -984,12 +984,88 @@ export async function PUT(request: NextRequest) {    const user = await requireP
         }
         break;
 
-      case 'modify_dates':
-        // This would require additional date parameters
-        return NextResponse.json(
-          { success: false, error: { code: 'NOT_IMPLEMENTED', message: 'Date modification requires additional parameters' } },
-          { status: 400 }
-        );
+      case 'modify_dates': {
+        // Modify dates of a booking
+        const { newCheckIn: putNewCheckIn, newCheckOut: putNewCheckOut } = body;
+
+        if (!putNewCheckIn || !putNewCheckOut) {
+          return NextResponse.json(
+            { success: false, error: { code: 'DATES_REQUIRED', message: 'New check-in and check-out dates are required' } },
+            { status: 400 }
+          );
+        }
+
+        const bookingId = bookingIds[bookingIds.length - 1];
+
+        // Verify booking belongs to user's tenant
+        const modifyBookingCheck = await db.booking.findUnique({ where: { id: bookingId } });
+        if (!modifyBookingCheck || modifyBookingCheck.tenantId !== user.tenantId) {
+          return NextResponse.json(
+            { success: false, error: { code: 'NOT_FOUND', message: 'Booking not found' } },
+            { status: 404 }
+          );
+        }
+
+        const putNewCheckInDate = new Date(putNewCheckIn);
+        const putNewCheckOutDate = new Date(putNewCheckOut);
+
+        if (isNaN(putNewCheckInDate.getTime()) || isNaN(putNewCheckOutDate.getTime())) {
+          return NextResponse.json(
+            { success: false, error: { code: 'INVALID_DATES', message: 'Invalid date format provided' } },
+            { status: 400 }
+          );
+        }
+
+        if (putNewCheckInDate >= putNewCheckOutDate) {
+          return NextResponse.json(
+            { success: false, error: { code: 'INVALID_DATES', message: 'Check-out must be after check-in' } },
+            { status: 400 }
+          );
+        }
+
+        // Check for new conflicts with the modified dates in the same room
+        const existingBooking = await db.booking.findUnique({ where: { id: bookingId } });
+        if (existingBooking && existingBooking.roomId) {
+          const dateConflicts = await db.booking.findMany({
+            where: {
+              roomId: existingBooking.roomId,
+              status: { in: ['confirmed', 'checked_in'] },
+              deletedAt: null,
+              id: { not: bookingId },
+              AND: [
+                { checkIn: { lt: putNewCheckOutDate } },
+                { checkOut: { gt: putNewCheckInDate } },
+              ],
+            },
+          });
+
+          if (dateConflicts.length > 0) {
+            return NextResponse.json(
+              { success: false, error: { code: 'DATE_CONFLICT', message: 'The modified dates conflict with an existing booking in the same room', conflictCount: dateConflicts.length } },
+              { status: 409 }
+            );
+          }
+        }
+
+        const booking = await db.booking.update({
+          where: { id: bookingId },
+          data: {
+            checkIn: putNewCheckInDate,
+            checkOut: putNewCheckOutDate,
+          },
+        });
+
+        await db.bookingAuditLog.create({
+          data: {
+            bookingId,
+            action: 'date_change',
+            notes: `Dates modified to resolve conflict via PUT. New dates: ${putNewCheckIn} to ${putNewCheckOut}`,
+          },
+        });
+
+        results.push(booking);
+        break;
+      }
 
       default:
         return NextResponse.json(

@@ -14,12 +14,13 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   GitBranch, Zap, Clock, Mail, MessageSquare, Bell, Tag, Users,
   BarChart3, Play, Pause, RotateCcw, Plus, ChevronRight, ChevronDown,
   MousePointer, Eye, CheckCircle2, XCircle, ArrowRight, Star,
   CalendarDays, Hotel, Send, Filter, Target, Split, Timer,
-  TrendingUp, DollarSign, Activity, Copy, MoreHorizontal, Search,
+  TrendingUp, DollarSign, Activity, Copy, MoreHorizontal, Search, AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -153,7 +154,7 @@ const CHANNEL_ICONS: Record<ActionChannel, React.ComponentType<{ className?: str
   segment: Users,
 };
 
-// ─── Mock Data ────────────────────────────────────────────────────────────
+// ─── Templates ────────────────────────────────────────────────────────────
 const JOURNEY_TEMPLATES: JourneyTemplate[] = [
   {
     id: 't1', name: 'Welcome Series', description: '3-email pre-arrival sequence to build excitement and reduce no-shows',
@@ -177,237 +178,13 @@ const JOURNEY_TEMPLATES: JourneyTemplate[] = [
   },
 ];
 
-const MOCK_JOURNEYS: JourneyAutomation[] = [
-  {
-    id: 'j1', name: 'Pre-Arrival Welcome Series', description: 'Automated welcome emails starting 14 days before check-in',
-    status: 'active', stage: 'Pre-arrival',
-    totalEnrolled: 4820, activeContacts: 234, completedContacts: 3942,
-    conversionRate: 72.3, revenueAttributed: 186400,
-    touchpoints: [
-      { id: 'tp1', name: 'Booking Confirmation Email', channel: 'email', sent: 4120, opened: 3462, clicked: 1523, converted: 876 },
-      { id: 'tp2', name: 'Pre-Arrival Guide (7 days)', channel: 'email', sent: 3890, opened: 3104, clicked: 1245, converted: 567 },
-      { id: 'tp3', name: 'Day-Before Reminder', channel: 'sms', sent: 3650, opened: 3418, clicked: 892, converted: 423 },
-    ],
-    nodes: [
-      { id: 'n1', type: 'trigger', label: 'Booking Confirmed', icon: CheckCircle2, config: { trigger: 'booking_confirmed' } },
-      { id: 'n2', type: 'delay', label: 'Wait 7 Days', icon: Clock, config: { duration: '7d' } },
-      { id: 'n3', type: 'action', label: 'Send Pre-Arrival Guide', icon: Mail, config: { action: 'send_email' } },
-      { id: 'n4', type: 'delay', label: 'Wait 6 Days', icon: Clock, config: { duration: '6d' } },
-      { id: 'n5', type: 'condition', label: 'Has Room Upgrade?', icon: Filter, config: { condition: 'loyalty_tier' } },
-      { id: 'n6', type: 'action', label: 'Send Upgrade Offer', icon: Mail, config: { action: 'send_email' } },
-    ],
-    createdAt: '2025-09-15T10:00:00Z', lastTriggered: '2026-05-07T08:30:00Z',
-  },
-  {
-    id: 'j2', name: 'In-Stay Upsell Engine', description: 'Mid-stay service offers based on guest segment and spending behavior',
-    status: 'active', stage: 'In-stay',
-    totalEnrolled: 3150, activeContacts: 187, completedContacts: 2740,
-    conversionRate: 58.1, revenueAttributed: 324800,
-    touchpoints: [
-      { id: 'tp4', name: 'Welcome to Your Room', channel: 'push', sent: 3100, opened: 2635, clicked: 1420, converted: 789 },
-      { id: 'tp5', name: 'Spa & Dining Offers', channel: 'email', sent: 2890, opened: 2023, clicked: 834, converted: 412 },
-      { id: 'tp6', name: 'Mid-Stay Feedback', channel: 'sms', sent: 2650, opened: 2385, clicked: 1244, converted: 567 },
-    ],
-    nodes: [
-      { id: 'n10', type: 'trigger', label: 'Check-in Completed', icon: Hotel, config: { trigger: 'checkin_completed' } },
-      { id: 'n11', type: 'delay', label: 'Wait 2 Hours', icon: Clock, config: { duration: '2h' } },
-      { id: 'n12', type: 'action', label: 'Send Welcome Push', icon: Bell, config: { action: 'send_push' } },
-      { id: 'n13', type: 'condition', label: 'Spending Level?', icon: Filter, config: { condition: 'spending_level' } },
-      { id: 'n14', type: 'action', label: 'Send Premium Offers', icon: Mail, config: { action: 'send_email' } },
-    ],
-    createdAt: '2025-10-01T10:00:00Z', lastTriggered: '2026-05-07T09:15:00Z',
-  },
-  {
-    id: 'j3', name: 'Post-Stay Review Campaign', description: 'Automated review requests and follow-up offers after checkout',
-    status: 'active', stage: 'Post-stay',
-    totalEnrolled: 5670, activeContacts: 89, completedContacts: 5230,
-    conversionRate: 45.8, revenueAttributed: 97200,
-    touchpoints: [
-      { id: 'tp7', name: 'Thank You Email', channel: 'email', sent: 5580, opened: 4185, clicked: 2012, converted: 945 },
-      { id: 'tp8', name: 'Review Request (Day 2)', channel: 'email', sent: 5310, opened: 3717, clicked: 1278, converted: 634 },
-      { id: 'tp9', name: 'Return Offer (Day 5)', channel: 'email', sent: 4980, opened: 2988, clicked: 894, converted: 312 },
-    ],
-    nodes: [
-      { id: 'n20', type: 'trigger', label: 'Checkout Completed', icon: ArrowRight, config: { trigger: 'checkout_completed' } },
-      { id: 'n21', type: 'delay', label: 'Wait 1 Day', icon: Clock, config: { duration: '1d' } },
-      { id: 'n22', type: 'action', label: 'Send Thank You', icon: Mail, config: { action: 'send_email' } },
-      { id: 'n23', type: 'delay', label: 'Wait 1 Day', icon: Clock, config: { duration: '1d' } },
-      { id: 'n24', type: 'branch', label: 'Positive Review?', icon: GitBranch, config: {} },
-    ],
-    createdAt: '2025-08-20T10:00:00Z', lastTriggered: '2026-05-07T07:45:00Z',
-  },
-  {
-    id: 'j4', name: 'Loyalty Tier Celebration', description: 'Celebrate loyalty milestones with exclusive rewards and upgrades',
-    status: 'active', stage: 'Re-engage',
-    totalEnrolled: 1240, activeContacts: 56, completedContacts: 1089,
-    conversionRate: 81.2, revenueAttributed: 267000,
-    touchpoints: [
-      { id: 'tp10', name: 'Tier Upgrade Congrats', channel: 'email', sent: 1180, opened: 1062, clicked: 778, converted: 456 },
-      { id: 'tp11', name: 'Exclusive Benefits Offer', channel: 'email', sent: 1100, opened: 935, clicked: 572, converted: 389 },
-      { id: 'tp12', name: 'Anniversary Reward', channel: 'push', sent: 890, opened: 801, clicked: 423, converted: 234 },
-    ],
-    nodes: [
-      { id: 'n30', type: 'trigger', label: 'Loyalty Tier Change', icon: Star, config: { trigger: 'loyalty_tier' } },
-      { id: 'n31', type: 'action', label: 'Send Congrats Email', icon: Mail, config: { action: 'send_email' } },
-      { id: 'n32', type: 'delay', label: 'Wait 3 Days', icon: Clock, config: { duration: '3d' } },
-      { id: 'n33', type: 'action', label: 'Send Exclusive Offer', icon: Mail, config: { action: 'send_email' } },
-    ],
-    createdAt: '2025-11-05T10:00:00Z', lastTriggered: '2026-05-06T14:20:00Z',
-  },
-  {
-    id: 'j5', name: 'Win-Back Dormant Guests', description: 'Re-engage guests who haven\'t booked in 6+ months',
-    status: 'active', stage: 'Re-engage',
-    totalEnrolled: 8920, activeContacts: 342, completedContacts: 7456,
-    conversionRate: 23.4, revenueAttributed: 145600,
-    touchpoints: [
-      { id: 'tp13', name: 'We Miss You Email', channel: 'email', sent: 8760, opened: 3504, clicked: 1051, converted: 312 },
-      { id: 'tp14', name: 'Special Discount Offer', channel: 'email', sent: 6230, opened: 2492, clicked: 748, converted: 234 },
-      { id: 'tp15', name: 'Final Offer (30% Off)', channel: 'email', sent: 4120, opened: 1648, clicked: 494, converted: 178 },
-    ],
-    nodes: [
-      { id: 'n40', type: 'trigger', label: '180 Days Since Last Stay', icon: Clock, config: { trigger: 'days_since_stay' } },
-      { id: 'n41', type: 'condition', label: 'VIP Guest?', icon: Filter, config: { condition: 'loyalty_tier' } },
-      { id: 'n42', type: 'action', label: 'Send VIP Offer', icon: Mail, config: { action: 'send_email' } },
-      { id: 'n43', type: 'delay', label: 'Wait 14 Days', icon: Clock, config: { duration: '14d' } },
-      { id: 'n44', type: 'action', label: 'Send Discount', icon: Mail, config: { action: 'send_email' } },
-    ],
-    createdAt: '2025-07-10T10:00:00Z', lastTriggered: '2026-05-07T06:00:00Z',
-  },
-  {
-    id: 'j6', name: 'Negative Feedback Recovery', description: 'Immediate follow-up when negative feedback is received',
-    status: 'active', stage: 'In-stay',
-    totalEnrolled: 890, activeContacts: 23, completedContacts: 834,
-    conversionRate: 67.5, revenueAttributed: 45600,
-    touchpoints: [
-      { id: 'tp16', name: 'Apology & Resolution', channel: 'sms', sent: 875, opened: 831, clicked: 375, converted: 245 },
-      { id: 'tp17', name: 'Service Recovery Offer', channel: 'email', sent: 812, opened: 649, clicked: 276, converted: 189 },
-      { id: 'tp18', name: 'Follow-up Satisfaction', channel: 'email', sent: 780, opened: 546, clicked: 218, converted: 134 },
-    ],
-    nodes: [
-      { id: 'n50', type: 'trigger', label: 'Negative Feedback', icon: XCircle, config: { trigger: 'negative_feedback' } },
-      { id: 'n51', type: 'delay', label: 'Wait 30 Min', icon: Clock, config: { duration: '30m' } },
-      { id: 'n52', type: 'action', label: 'Send Apology SMS', icon: MessageSquare, config: { action: 'send_sms' } },
-      { id: 'n53', type: 'action', label: 'Create Follow-up Task', icon: Target, config: { action: 'create_task' } },
-    ],
-    createdAt: '2025-12-01T10:00:00Z', lastTriggered: '2026-05-06T22:10:00Z',
-  },
-  {
-    id: 'j7', name: 'Pre-Departure Checkout Flow', description: 'Express checkout, folio review, and departure-day reminders',
-    status: 'paused', stage: 'Pre-departure',
-    totalEnrolled: 2340, activeContacts: 0, completedContacts: 2190,
-    conversionRate: 61.2, revenueAttributed: 78900,
-    touchpoints: [
-      { id: 'tp19', name: 'Folio Review Reminder', channel: 'email', sent: 2280, opened: 1824, clicked: 912, converted: 567 },
-      { id: 'tp20', name: 'Express Checkout Offer', channel: 'push', sent: 2100, opened: 1890, clicked: 840, converted: 523 },
-    ],
-    nodes: [
-      { id: 'n60', type: 'trigger', label: '1 Day Before Checkout', icon: CalendarDays, config: { trigger: 'days_before_checkout' } },
-      { id: 'n61', type: 'action', label: 'Send Folio Review', icon: Mail, config: { action: 'send_email' } },
-      { id: 'n62', type: 'delay', label: 'Wait 12 Hours', icon: Clock, config: { duration: '12h' } },
-      { id: 'n63', type: 'action', label: 'Send Express Checkout', icon: Bell, config: { action: 'send_push' } },
-    ],
-    createdAt: '2026-01-15T10:00:00Z', lastTriggered: '2026-05-05T08:00:00Z',
-  },
-  {
-    id: 'j8', name: 'High-Spender VIP Path', description: 'Premium journey for guests whose spending exceeds $2,000 threshold',
-    status: 'active', stage: 'In-stay',
-    totalEnrolled: 456, activeContacts: 34, completedContacts: 389,
-    conversionRate: 74.8, revenueAttributed: 412000,
-    touchpoints: [
-      { id: 'tp21', name: 'VIP Welcome Package', channel: 'email', sent: 448, opened: 426, clicked: 298, converted: 212 },
-      { id: 'tp22', name: 'Exclusive Upsell Offer', channel: 'email', sent: 412, opened: 354, clicked: 212, converted: 167 },
-      { id: 'tp23', name: 'Personalized Thank You', channel: 'email', sent: 389, opened: 350, clicked: 198, converted: 145 },
-    ],
-    nodes: [
-      { id: 'n70', type: 'trigger', label: 'Spend > $2,000', icon: DollarSign, config: { trigger: 'spend_threshold' } },
-      { id: 'n71', type: 'action', label: 'Tag as VIP', icon: Tag, config: { action: 'assign_tag' } },
-      { id: 'n72', type: 'delay', label: 'Wait 4 Hours', icon: Clock, config: { duration: '4h' } },
-      { id: 'n73', type: 'action', label: 'Send VIP Package', icon: Mail, config: { action: 'send_email' } },
-    ],
-    createdAt: '2026-02-20T10:00:00Z', lastTriggered: '2026-05-07T03:45:00Z',
-  },
-  {
-    id: 'j9', name: 'Check-in Day Experience', description: 'Streamlined check-in communication with digital key and room info',
-    status: 'draft', stage: 'Check-in',
-    totalEnrolled: 0, activeContacts: 0, completedContacts: 0,
-    conversionRate: 0, revenueAttributed: 0,
-    touchpoints: [
-      { id: 'tp24', name: 'Check-in Day Welcome', channel: 'push', sent: 0, opened: 0, clicked: 0, converted: 0 },
-      { id: 'tp25', name: 'Digital Key Delivery', channel: 'push', sent: 0, opened: 0, clicked: 0, converted: 0 },
-      { id: 'tp26', name: 'Room Upgrade Offer', channel: 'email', sent: 0, opened: 0, clicked: 0, converted: 0 },
-    ],
-    nodes: [
-      { id: 'n80', type: 'trigger', label: 'Check-in Day', icon: CalendarDays, config: { trigger: 'checkin_day' } },
-      { id: 'n81', type: 'action', label: 'Send Digital Key', icon: Bell, config: { action: 'send_push' } },
-      { id: 'n82', type: 'delay', label: 'Wait 1 Hour', icon: Clock, config: { duration: '1h' } },
-      { id: 'n83', type: 'condition', label: 'Upgrade Available?', icon: Filter, config: { condition: 'room_type' } },
-      { id: 'n84', type: 'action', label: 'Send Upgrade Offer', icon: Mail, config: { action: 'send_email' } },
-    ],
-    createdAt: '2026-05-01T10:00:00Z', lastTriggered: '',
-  },
-  {
-    id: 'j10', name: 'Group Booking Coordinator', description: 'Automated coordination for group bookings with pre/post communications',
-    status: 'completed', stage: 'Pre-arrival',
-    totalEnrolled: 670, activeContacts: 0, completedContacts: 670,
-    conversionRate: 89.1, revenueAttributed: 534000,
-    touchpoints: [
-      { id: 'tp27', name: 'Group Welcome Package', channel: 'email', sent: 665, opened: 612, clicked: 489, converted: 398 },
-      { id: 'tp28', name: 'Group Itinerary', channel: 'email', sent: 650, opened: 585, clicked: 412, converted: 367 },
-      { id: 'tp29', name: 'Group Feedback Survey', channel: 'email', sent: 640, opened: 512, clicked: 326, converted: 278 },
-    ],
-    nodes: [
-      { id: 'n90', type: 'trigger', label: 'Group Booking Created', icon: Users, config: { trigger: 'group_booking' } },
-      { id: 'n91', type: 'action', label: 'Send Group Welcome', icon: Mail, config: { action: 'send_email' } },
-      { id: 'n92', type: 'delay', label: 'Wait 3 Days', icon: Clock, config: { duration: '3d' } },
-      { id: 'n93', type: 'action', label: 'Send Itinerary', icon: Mail, config: { action: 'send_email' } },
-    ],
-    createdAt: '2025-06-01T10:00:00Z', lastTriggered: '2026-04-28T16:30:00Z',
-  },
-];
-
-const MOCK_GUEST_TIMELINE: GuestTimelineEntry[] = [
-  {
-    id: 'gt1', guestName: 'Sarah Mitchell', email: 'sarah.m@email.com', journeyName: 'Pre-Arrival Welcome Series',
-    touchpoints: [
-      { name: 'Booking Confirmation', channel: 'email', sentAt: '2026-04-23T10:00:00Z', status: 'opened' },
-      { name: 'Pre-Arrival Guide', channel: 'email', sentAt: '2026-04-30T10:00:00Z', status: 'clicked' },
-      { name: 'Day-Before Reminder', channel: 'sms', sentAt: '2026-05-06T10:00:00Z', status: 'converted' },
-    ],
-  },
-  {
-    id: 'gt2', guestName: 'James Cooper', email: 'j.cooper@email.com', journeyName: 'In-Stay Upsell Engine',
-    touchpoints: [
-      { name: 'Welcome to Your Room', channel: 'push', sentAt: '2026-05-05T14:00:00Z', status: 'opened' },
-      { name: 'Spa & Dining Offers', channel: 'email', sentAt: '2026-05-06T09:00:00Z', status: 'converted' },
-    ],
-  },
-  {
-    id: 'gt3', guestName: 'Elena Rodriguez', email: 'elena.r@email.com', journeyName: 'Loyalty Tier Celebration',
-    touchpoints: [
-      { name: 'Tier Upgrade Congrats', channel: 'email', sentAt: '2026-05-01T10:00:00Z', status: 'converted' },
-      { name: 'Exclusive Benefits Offer', channel: 'email', sentAt: '2026-05-04T10:00:00Z', status: 'clicked' },
-    ],
-  },
-  {
-    id: 'gt4', guestName: 'David Park', email: 'd.park@email.com', journeyName: 'Win-Back Dormant Guests',
-    touchpoints: [
-      { name: 'We Miss You Email', channel: 'email', sentAt: '2026-04-15T10:00:00Z', status: 'opened' },
-      { name: 'Special Discount Offer', channel: 'email', sentAt: '2026-04-29T10:00:00Z', status: 'opened' },
-      { name: 'Final Offer (30% Off)', channel: 'email', sentAt: '2026-05-05T10:00:00Z', status: 'failed' },
-    ],
-  },
-  {
-    id: 'gt5', guestName: 'Maria Chen', email: 'm.chen@email.com', journeyName: 'Negative Feedback Recovery',
-    touchpoints: [
-      { name: 'Apology & Resolution', channel: 'sms', sentAt: '2026-05-06T15:30:00Z', status: 'converted' },
-      { name: 'Service Recovery Offer', channel: 'email', sentAt: '2026-05-06T16:30:00Z', status: 'sent' },
-    ],
-  },
-];
 
 // ─── Component ────────────────────────────────────────────────────────────
 export default function JourneyAutomation() {
-  const [journeys, setJourneys] = useState<JourneyAutomation[]>(MOCK_JOURNEYS);
+  const [journeys, setJourneys] = useState<JourneyAutomation[]>([]);
+  const [guestTimeline, setGuestTimeline] = useState<GuestTimelineEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedJourney, setSelectedJourney] = useState<JourneyAutomation | null>(null);
   const [activeTab, setActiveTab] = useState('journeys');
   const [stageFilter, setStageFilter] = useState('all');
@@ -416,6 +193,65 @@ export default function JourneyAutomation() {
   const [expandedJourney, setExpandedJourney] = useState<string | null>(null);
   const [builderDialogOpen, setBuilderDialogOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+
+  // Fetch real automation rules and execution logs
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchData() {
+      setLoading(true);
+      setError(null);
+      try {
+        const rulesRes = await fetch('/api/automation/rules?type=journey');
+        if (rulesRes.ok && !cancelled) {
+          const data = await rulesRes.json();
+          const items = Array.isArray(data) ? data : data.rules || [];
+          if (items.length > 0) {
+            setJourneys(items.map((r: Record<string, unknown>) => ({
+              id: r.id || `j-${Date.now()}`,
+              name: r.name || r.title || 'Unnamed Journey',
+              description: r.description || '',
+              status: (r.status || 'draft') as JourneyStatus,
+              stage: r.stage || r.category || 'General',
+              totalEnrolled: Number(r.totalEnrolled || r.enrolledContacts || 0),
+              activeContacts: Number(r.activeContacts || r.currentActive || 0),
+              completedContacts: Number(r.completedContacts || 0),
+              conversionRate: Number(r.conversionRate || r.conversion || 0),
+              revenueAttributed: Number(r.revenueAttributed || r.revenue || 0),
+              touchpoints: Array.isArray(r.touchpoints) ? r.touchpoints.map((tp: Record<string, unknown>) => ({
+                id: tp.id || `tp-${Date.now()}`, name: String(tp.name || tp.title || 'Touchpoint'),
+                channel: (tp.channel || 'email') as ActionChannel,
+                sent: Number(tp.sent || 0), opened: Number(tp.opened || tp.opens || 0),
+                clicked: Number(tp.clicked || tp.clicks || 0), converted: Number(tp.converted || tp.conversions || 0),
+              })) : [],
+              nodes: [], createdAt: r.createdAt || new Date().toISOString(),
+              lastTriggered: r.lastTriggeredAt || r.lastTriggered || r.updatedAt || '',
+            })));
+          } else { setJourneys([]); }
+        } else { setJourneys([]); }
+        const logsRes = await fetch('/api/automation/execution-logs?limit=20');
+        if (logsRes.ok && !cancelled) {
+          const logsData = await logsRes.json();
+          const logs = Array.isArray(logsData) ? logsData : logsData.logs || logsData.entries || [];
+          setGuestTimeline(logs.slice(0, 10).map((log: Record<string, unknown>) => ({
+            id: log.id || `gt-${Date.now()}`,
+            guestName: log.guestName || `${log.guestFirstName || ''} ${log.guestLastName || ''}`.trim() || 'Guest',
+            email: log.email || log.guestEmail || '',
+            journeyName: log.journeyName || log.ruleName || log.automationName || 'Journey',
+            touchpoints: Array.isArray(log.touchpoints) ? log.touchpoints.map((tp: Record<string, unknown>) => ({
+              name: String(tp.name || tp.action || 'Action'),
+              channel: (tp.channel || 'email') as ActionChannel,
+              sentAt: tp.sentAt || tp.createdAt || tp.executedAt || '',
+              status: (tp.status || tp.result || 'sent') as 'sent' | 'opened' | 'clicked' | 'converted' | 'failed',
+            })) : [],
+          })));
+        }
+      } catch (err) {
+        if (!cancelled) { setError(err instanceof Error ? err.message : 'Failed to load automation data'); setJourneys([]); }
+      } finally { if (!cancelled) setLoading(false); }
+    }
+    fetchData();
+    return () => { cancelled = true; };
+  }, []);
 
   const filteredJourneys = journeys.filter((j) => {
     const matchSearch = j.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -427,8 +263,10 @@ export default function JourneyAutomation() {
 
   const totalActive = journeys.filter(j => j.status === 'active').length;
   const totalEnrolled = journeys.reduce((a, j) => a + j.totalEnrolled, 0);
-  const avgConversion = journeys.filter(j => j.conversionRate > 0)
-    .reduce((a, j) => a + j.conversionRate, 0) / journeys.filter(j => j.conversionRate > 0).length;
+  const journeysWithConversion = journeys.filter(j => j.conversionRate > 0);
+  const avgConversion = journeysWithConversion.length > 0
+    ? journeysWithConversion.reduce((a, j) => a + j.conversionRate, 0) / journeysWithConversion.length
+    : 0;
   const totalRevenue = journeys.reduce((a, j) => a + j.revenueAttributed, 0);
 
   const getFunnelData = (journey: JourneyAutomation) => {
@@ -555,6 +393,28 @@ export default function JourneyAutomation() {
         </div>
       </div>
 
+      {/* Loading */}
+      {loading && (
+        <div className="grid gap-2 sm:gap-4 grid-cols-2 md:grid-cols-4">
+          {[1,2,3,4].map(i => <Card key={i}><CardContent className="p-4"><Skeleton className="h-16 w-24" /></CardContent></Card>)}
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <Card className="border-red-200">
+          <CardContent className="flex items-center gap-3 p-6">
+            <AlertTriangle className="h-5 w-5 text-red-500" />
+            <div>
+              <p className="text-sm font-medium text-red-700">Failed to load automation data</p>
+              <p className="text-xs text-muted-foreground">{error}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {!loading && !error && (<>
       {/* Overview Stats */}
       <div className="grid gap-2 sm:gap-4 grid-cols-2 md:grid-cols-4">
         <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950">
@@ -794,6 +654,32 @@ export default function JourneyAutomation() {
                 </Card>
               );
             })}
+            {filteredJourneys.length === 0 && (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                    <GitBranch className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-semibold text-lg">No journeys found</h3>
+                  <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                    {searchQuery || stageFilter !== 'all' || statusFilter !== 'all'
+                      ? 'No journeys match your current filters. Try adjusting your search or filter criteria.'
+                      : "You haven't created any automation journeys yet. Start by choosing a template or building one from scratch."}
+                  </p>
+                  <div className="flex gap-2 mt-4">
+                    {(searchQuery || stageFilter !== 'all' || statusFilter !== 'all') && (
+                      <Button variant="outline" size="sm" onClick={() => { setSearchQuery(''); setStageFilter('all'); setStatusFilter('all'); }}>
+                        Clear Filters
+                      </Button>
+                    )}
+                    <Button size="sm" className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white" onClick={() => setBuilderDialogOpen(true)}>
+                      <Plus className="h-4 w-4 mr-1.5" />
+                      Create Journey
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </TabsContent>
 
@@ -966,7 +852,7 @@ export default function JourneyAutomation() {
             <CardContent>
               <ScrollArea className="max-h-[600px]">
                 <div className="space-y-4">
-                  {MOCK_GUEST_TIMELINE.map((entry) => (
+                  {guestTimeline.length > 0 && guestTimeline.map((entry) => (
                     <div key={entry.id} className="p-4 rounded-xl border bg-muted/20 space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -1012,6 +898,17 @@ export default function JourneyAutomation() {
                       </div>
                     </div>
                   ))}
+                  {guestTimeline.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                        <Clock className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                      <h3 className="font-semibold text-lg">No contact activity yet</h3>
+                      <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                        Timeline entries will appear here once your journeys start sending automated touchpoints to guests.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </ScrollArea>
             </CardContent>
@@ -1062,6 +959,7 @@ export default function JourneyAutomation() {
           </div>
         </TabsContent>
       </Tabs>
+      </>)}
 
       {/* ─── Journey Detail Dialog ────────────────────────────────────── */}
       <Dialog open={!!selectedJourney} onOpenChange={() => setSelectedJourney(null)}>

@@ -112,7 +112,7 @@ const statusConfig = {
   off_duty: { label: 'Off', color: 'bg-slate-400', ring: 'ring-slate-400/30', badgeBg: 'bg-slate-100 dark:bg-slate-800/50', badgeText: 'text-slate-500 dark:text-slate-400' },
 };
 
-// ─── Mock Data ──────────────────────────────────────────────────────────
+// ─── Utility Helpers ──────────────────────────────────────────────────────
 
 const avatarColors = [
   'from-emerald-400 to-teal-500',
@@ -128,74 +128,7 @@ function getInitials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
-function generateMockDepartments(): DepartmentGroup[] {
-  const departments: DepartmentGroup[] = [
-    {
-      id: 'front-office',
-      name: 'Front Office',
-      icon: Hotel,
-      color: 'text-emerald-600 dark:text-emerald-400',
-      bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
-      borderColor: 'border-emerald-200/50 dark:border-emerald-800/30',
-      staff: [
-        { id: 's1', name: 'Priya Sharma', initials: 'PS', department: 'Front Office', position: 'Front Desk Manager', shift: 'Morning (7AM-3PM)', status: 'active', phone: '+91 98765 43210', avatarColor: avatarColors[0] },
-        { id: 's2', name: 'Arjun Patel', initials: 'AP', department: 'Front Office', position: 'Receptionist', shift: 'Morning (7AM-3PM)', status: 'active', avatarColor: avatarColors[1] },
-        { id: 's3', name: 'Deepa Reddy', initials: 'DR', department: 'Front Office', position: 'Night Auditor', shift: 'Night (11PM-7AM)', status: 'break', avatarColor: avatarColors[2] },
-      ],
-    },
-    {
-      id: 'housekeeping',
-      name: 'Housekeeping',
-      icon: Shield,
-      color: 'text-cyan-600 dark:text-cyan-400',
-      bgColor: 'bg-cyan-50 dark:bg-cyan-950/30',
-      borderColor: 'border-cyan-200/50 dark:border-cyan-800/30',
-      staff: [
-        { id: 's4', name: 'Lakshmi Iyer', initials: 'LI', department: 'Housekeeping', position: 'HK Supervisor', shift: 'Morning (6AM-2PM)', status: 'active', avatarColor: avatarColors[3] },
-        { id: 's5', name: 'Sunita Devi', initials: 'SD', department: 'Housekeeping', position: 'Room Attendant', shift: 'Morning (6AM-2PM)', status: 'active', avatarColor: avatarColors[4] },
-        { id: 's6', name: 'Kavitha Nair', initials: 'KN', department: 'Housekeeping', position: 'Room Attendant', shift: 'Morning (6AM-2PM)', status: 'active', avatarColor: avatarColors[5] },
-        { id: 's7', name: 'Meera Joshi', initials: 'MJ', department: 'Housekeeping', position: 'Laundry', shift: 'Afternoon (2PM-10PM)', status: 'off_duty', avatarColor: avatarColors[6] },
-      ],
-    },
-    {
-      id: 'maintenance',
-      name: 'Maintenance',
-      icon: Wrench,
-      color: 'text-amber-600 dark:text-amber-400',
-      bgColor: 'bg-amber-50 dark:bg-amber-950/30',
-      borderColor: 'border-amber-200/50 dark:border-amber-800/30',
-      staff: [
-        { id: 's8', name: 'Ravi Kumar', initials: 'RK', department: 'Maintenance', position: 'Maintenance Lead', shift: 'Morning (7AM-3PM)', status: 'active', phone: '+91 87654 32109', avatarColor: avatarColors[0] },
-        { id: 's9', name: 'Suresh Babu', initials: 'SB', department: 'Maintenance', position: 'Technician', shift: 'Morning (7AM-3PM)', status: 'active', avatarColor: avatarColors[1] },
-      ],
-    },
-    {
-      id: 'food-beverage',
-      name: 'Food & Beverage',
-      icon: ChefHat,
-      color: 'text-rose-600 dark:text-rose-400',
-      bgColor: 'bg-rose-50 dark:bg-rose-950/30',
-      borderColor: 'border-rose-200/50 dark:border-rose-800/30',
-      staff: [
-        { id: 's10', name: 'Chef Anand', initials: 'CA', department: 'Food & Beverage', position: 'Executive Chef', shift: 'Split (10AM-10PM)', status: 'active', avatarColor: avatarColors[2] },
-        { id: 's11', name: 'Neha Gupta', initials: 'NG', department: 'Food & Beverage', position: 'Restaurant Manager', shift: 'Morning (8AM-4PM)', status: 'break', avatarColor: avatarColors[3] },
-      ],
-    },
-    {
-      id: 'security',
-      name: 'Security',
-      icon: CircleDot,
-      color: 'text-slate-600 dark:text-slate-400',
-      bgColor: 'bg-slate-50 dark:bg-slate-900/30',
-      borderColor: 'border-slate-200/50 dark:border-slate-700/30',
-      staff: [
-        { id: 's12', name: 'Vikram Singh', initials: 'VS', department: 'Security', position: 'Security Supervisor', shift: 'Day (6AM-6PM)', status: 'active', avatarColor: avatarColors[4] },
-        { id: 's13', name: 'Ranjan Das', initials: 'RD', department: 'Security', position: 'Guard', shift: 'Day (6AM-6PM)', status: 'active', avatarColor: avatarColors[5] },
-      ],
-    },
-  ];
-  return departments;
-}
+
 
 // ─── Skeleton ───────────────────────────────────────────────────────────
 
@@ -331,6 +264,7 @@ export function StaffDutyRosterWidget() {
   const t = useTranslations('dashboard');
   const [departments, setDepartments] = useState<DepartmentGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
   const fetchStaff = useCallback(async () => {
@@ -369,15 +303,19 @@ export function StaffDutyRosterWidget() {
             });
           });
           const depts = Object.values(deptMap);
-          setDepartments(depts.length > 0 ? depts : generateMockDepartments());
+          setDepartments(depts);
+          setError(false);
         } else {
-          setDepartments(generateMockDepartments());
+          setDepartments([]);
+          setError(true);
         }
       } else {
-        setDepartments(generateMockDepartments());
+        setDepartments([]);
+        setError(true);
       }
     } catch {
-      setDepartments(generateMockDepartments());
+      setDepartments([]);
+      setError(true);
     } finally {
       setIsLoading(false);
     }
@@ -433,6 +371,14 @@ export function StaffDutyRosterWidget() {
         {/* Content */}
         {isLoading ? (
           <RosterSkeleton />
+        ) : error && departments.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <div className="rounded-full bg-red-50 dark:bg-red-950/30 p-3 mb-2">
+              <UserMinus className="h-6 w-6 text-red-400 dark:text-red-300" />
+            </div>
+            <p className="text-sm font-medium text-muted-foreground">Unable to load data.</p>
+            <Button variant="ghost" size="sm" className="mt-2" onClick={() => { setError(false); fetchStaff(); }}>Retry</Button>
+          </div>
         ) : departments.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <div className="rounded-full bg-muted/50 p-3 mb-2">
