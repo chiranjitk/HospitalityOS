@@ -467,7 +467,7 @@ export default function WebsiteBuilder() {
           googleTagManagerId: gtmId || undefined,
           facebookPixelId: fbPixel || undefined,
           metaPixelId: metaPixel || undefined,
-          linkedInsightTag: linkedInsight || undefined,
+          linkedInsightTag: linkedinInsight || undefined,
           twitterPixelId: twitterPixel || undefined,
         }),
       });
