@@ -23,6 +23,7 @@ import { motion } from 'framer-motion';
 type RoomStatus = 'available' | 'occupied' | 'maintenance' | 'vip';
 
 interface RoomData {
+  id: string;
   number: string;
   floor: number;
   status: RoomStatus;
@@ -328,6 +329,7 @@ export function RoomStatusOverview() {
         const result = await response.json();
         if (result.success) {
           const mapped: RoomData[] = (result.data as ApiRoom[]).map((room) => ({
+            id: room.id,
             number: room.number,
             floor: room.floor,
             status: mapApiStatus(room.status),
@@ -441,9 +443,9 @@ export function RoomStatusOverview() {
               <React.Fragment key={floor}>
                 <FloorSeparator floor={floor} />
                 {floorRooms.map((room) => {
-                  const globalIndex = rooms.findIndex(r => r.number === room.number);
+                  const globalIndex = (room as RoomData & { _index: number })._index;
                   return (
-                    <RoomCell key={room.number} room={room} index={globalIndex} />
+                    <RoomCell key={room.id} room={room} index={globalIndex} />
                   );
                 })}
               </React.Fragment>
