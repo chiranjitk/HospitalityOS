@@ -313,7 +313,7 @@ export default function VipRecognition() {
   const [vipGuests, setVipGuests] = useState<VipGuest[]>([]);
   const [vipLoading, setVipLoading] = useState(true);
   const [alertsLoading, setAlertsLoading] = useState(true);
-  const [apiGuests, setApiGuests] = useState<VipGuest[]>([]);
+
   const [error, setError] = useState<string | null>(null);
 
   // Fetch real VIP guests and alert log
@@ -391,7 +391,7 @@ export default function VipRecognition() {
   }, []);
 
   // PRODUCTION: Use API guests only — no fallback to hardcoded data
-  const activeGuests = apiGuests;
+  const activeGuests = vipGuests;
 
   // Filter guests
   const filteredGuests = useMemo(() => {
@@ -437,7 +437,7 @@ export default function VipRecognition() {
     setIsGuestDialogOpen(true);
   };
 
-  if (vipLoading && apiGuests.length === 0) {
+  if (vipLoading && vipGuests.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">

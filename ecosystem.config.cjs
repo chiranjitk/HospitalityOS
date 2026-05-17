@@ -26,6 +26,8 @@ module.exports = {
         RRD_DATA_PATH: `${APP_DIR}/data/rrd`,
         CRON_SECRET: 'staysuite-cron-secret-2025',
       },
+      // PM2 cron: Restart daily at 3:00 AM IST (21:30 UTC previous day) for memory cleanup
+      cron_restart: '30 21 * * *',
       error_file: '/home/z/my-project/.pm2/logs/staysuite-main-error.log',
       out_file: '/home/z/my-project/.pm2/logs/staysuite-main-out.log',
     },

@@ -156,6 +156,19 @@ interface LockSettings {
   afterHoursEnd: string;
 }
 
+interface AccessSchedule {
+  id: string;
+  name: string;
+  description?: string;
+  type: 'guest' | 'staff' | 'maintenance' | 'emergency';
+  roomNumbers: string[];
+  daysOfWeek: number[]; // 0=Sun, 1=Mon, ..., 6=Sat
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  isActive: boolean;
+  priority: number;
+}
+
 // ─── Config ─────────────────────────────────────────────────────────
 
 const LOCK_STATUS_CONFIG: Record<LockStatus, { label: string; color: string; bgColor: string; icon: typeof Lock }> = {
@@ -208,6 +221,7 @@ export default function SmartLockManagement() {
   const [accessLogs, setAccessLogs] = useState<AccessLogEntry[]>([]);
   const [keyCards, setKeyCards] = useState<KeyCard[]>([]);
   const [providers, setProviders] = useState<LockProvider[]>([]);
+  const [accessSchedules, setAccessSchedules] = useState<AccessSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -351,12 +365,30 @@ export default function SmartLockManagement() {
       return [];
     })();
 
+    // 5. Fetch access schedules/policies
+    const schedulesPromise = safeFetch<AccessSchedule>('/api/iot/access-schedules', (json) => {
+      const items = (json.schedules ?? json.data ?? json.items ?? []) as Record<string, unknown>[];
+      return items.map((d) => ({
+        id: d.id as string,
+        name: (d.name ?? d.scheduleName ?? '') as string,
+        description: d.description as string | undefined,
+        type: (d.type ?? d.scheduleType ?? 'guest') as AccessSchedule['type'],
+        roomNumbers: (d.roomNumbers ?? d.rooms ?? []) as string[],
+        daysOfWeek: (d.daysOfWeek ?? d.days ?? [0,1,2,3,4,5,6]) as number[],
+        startTime: (d.startTime ?? d.start ?? '00:00') as string,
+        endTime: (d.endTime ?? d.end ?? '23:59') as string,
+        isActive: (d.isActive ?? d.active ?? true) as boolean,
+        priority: (d.priority ?? 0) as number,
+      }));
+    });
+
     // Execute all fetches in parallel
-    const [locksResult, logsResult, cardsResult, providersResult] = await Promise.allSettled([
+    const [locksResult, logsResult, cardsResult, providersResult, schedulesResult] = await Promise.allSettled([
       locksPromise,
       logsPromise,
       cardsPromise,
       providersPromise,
+      schedulesPromise,
     ]);
 
     // Apply results (fulfilled values only, errors leave state unchanged)
@@ -395,6 +427,7 @@ export default function SmartLockManagement() {
     }
     if (logsResult.status === 'fulfilled') setAccessLogs(logsResult.value);
     if (cardsResult.status === 'fulfilled') setKeyCards(cardsResult.value);
+    if (schedulesResult.status === 'fulfilled') setAccessSchedules(schedulesResult.value);
 
     setLoading(false);
     setRefreshing(false);

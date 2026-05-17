@@ -89,6 +89,21 @@ export async function POST(request: NextRequest) {
 
     const data = parsed.data;
 
+    // SECURITY FIX (H-6): Cross-validate TDS amount ≈ paymentAmount × tdsRate
+    if (data.tdsAmount > 0 && data.paymentAmount > 0 && data.tdsRate > 0) {
+      const expectedAmount = Math.round(data.paymentAmount * data.tdsRate * 100) / 100;
+      const tolerance = 1.00; // ₹1 tolerance for rounding differences
+      if (Math.abs(data.tdsAmount - expectedAmount) > tolerance) {
+        return NextResponse.json({
+          success: false,
+          error: {
+            code: 'TDS_AMOUNT_MISMATCH',
+            message: `TDS amount (${data.tdsAmount}) does not match expected amount (${expectedAmount}) based on payment amount (${data.paymentAmount}) × TDS rate (${data.tdsRate}). Difference: ${Math.abs(data.tdsAmount - expectedAmount).toFixed(2)} exceeds tolerance of ₹${tolerance.toFixed(2)}.`,
+          },
+        }, { status: 400 });
+      }
+    }
+
     const record = await db.tdsRecord.create({
       data: {
         tenantId: user.tenantId,

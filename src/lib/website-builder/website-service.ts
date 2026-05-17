@@ -4,6 +4,7 @@
  */
 
 import { db } from '@/lib/db';
+import { renderFullPage, type WebsiteTheme, type WebsitePage, type PropertyData, type RoomTypeData, type ReviewData, type TemplateType } from '@/lib/website-builder/renderer';
 
 export interface HotelWebsite {
   id: string;
@@ -247,17 +248,130 @@ export async function removePage(websiteId: string, pageId: string) {
 }
 
 export async function publishWebsite(websiteId: string) {
-  const website = await db.hotelWebsite.update({
+  // 1. Fetch the website with property data
+  const website = await db.hotelWebsite.findUnique({
     where: { id: websiteId },
-    data: { status: 'published', publishedAt: new Date() },
+    include: { property: true },
   });
-  return parseWebsite(website);
+  if (!website) throw new Error('Website not found');
+
+  const theme: WebsiteTheme = typeof website.theme === 'string'
+    ? JSON.parse(website.theme) : website.theme || {};
+  const pages: WebsitePage[] = typeof website.pages === 'string'
+    ? JSON.parse(website.pages) : website.pages || [];
+  const seo: Record<string, unknown> = typeof website.seo === 'string'
+    ? JSON.parse(website.seo) : website.seo || {};
+  const analytics: Record<string, unknown> = typeof website.analytics === 'string'
+    ? JSON.parse(website.analytics) : website.analytics || {};
+  const template = (website.template || 'modern') as TemplateType;
+
+  // 2. Fetch room types
+  const roomTypesRaw = await db.roomType.findMany({
+    where: { propertyId: website.propertyId, status: 'active', deletedAt: null },
+    orderBy: { sortOrder: 'asc' },
+  });
+  const rooms: RoomTypeData[] = roomTypesRaw.map(rt => ({
+    id: rt.id,
+    name: rt.name,
+    description: rt.description,
+    basePrice: rt.basePrice,
+    currency: rt.currency,
+    maxOccupancy: rt.maxOccupancy,
+    maxAdults: rt.maxAdults,
+    maxChildren: rt.maxChildren,
+    amenities: rt.amenities,
+    images: rt.images,
+    totalRooms: rt.totalRooms,
+    sizeSqMeters: rt.sizeSqMeters,
+  }));
+
+  // 3. Fetch guest reviews
+  const reviewsRaw = await db.guestReview.findMany({
+    where: { propertyId: website.propertyId },
+    include: { guest: { select: { firstName: true, lastName: true } } },
+    orderBy: { createdAt: 'desc' },
+    take: 12,
+  });
+  const reviews: ReviewData[] = reviewsRaw.map(r => ({
+    id: r.id,
+    overallRating: r.overallRating,
+    title: r.title,
+    comment: r.comment,
+    source: r.source,
+    createdAt: r.createdAt,
+    guest: { firstName: r.guest.firstName, lastName: r.guest.lastName },
+  }));
+
+  // 4. Prepare property data
+  const property: PropertyData = {
+    id: website.property.id,
+    name: website.property.name,
+    slug: website.property.slug,
+    description: website.property.description,
+    type: website.property.type,
+    address: website.property.address,
+    city: website.property.city,
+    state: website.property.state,
+    country: website.property.country,
+    postalCode: website.property.postalCode,
+    latitude: website.property.latitude,
+    longitude: website.property.longitude,
+    email: website.property.email,
+    phone: website.property.phone,
+    logo: website.property.logo,
+    primaryColor: website.property.primaryColor,
+    checkInTime: website.property.checkInTime,
+    checkOutTime: website.property.checkOutTime,
+    currency: website.property.currency,
+    totalRooms: website.property.totalRooms,
+    amenities: website.property.amenities,
+  };
+
+  // 5. Render HTML for each published page
+  const publishedPages = pages.filter(p => p.published);
+  const renderedPages: Record<string, string> = {};
+
+  for (const page of publishedPages) {
+    const html = renderFullPage({
+      property,
+      rooms,
+      reviews,
+      theme,
+      template,
+      pages,
+      currentPage: page,
+      seo,
+      analytics,
+      domain: website.domain,
+      preview: false,
+    });
+    renderedPages[page.slug] = html;
+  }
+
+  // 6. Store rendered HTML and update status
+  const updated = await db.hotelWebsite.update({
+    where: { id: websiteId },
+    data: {
+      status: 'published',
+      publishedAt: new Date(),
+      publishedHtml: JSON.stringify(renderedPages),
+    },
+  });
+
+  const result = parseWebsite(updated);
+  return {
+    ...result,
+    url: `https://${website.customDomain || website.domain}`,
+  };
 }
 
 export async function unpublishWebsite(websiteId: string) {
   const website = await db.hotelWebsite.update({
     where: { id: websiteId },
-    data: { status: 'unpublished' },
+    data: {
+      status: 'draft',
+      publishedHtml: null,
+    },
   });
   return parseWebsite(website);
 }

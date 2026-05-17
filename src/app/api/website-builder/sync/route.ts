@@ -396,7 +396,7 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    // Rooms grid section
+    // Rooms grid section – include full room data with photos, amenities, pricing, descriptions
     if (result.rooms) {
       const rooms = result.rooms as Array<Record<string, unknown>>;
       sectionUpdates.rooms_grid = {
@@ -405,6 +405,34 @@ export async function POST(request: NextRequest) {
         showPrices: true,
         showAmenities: true,
       };
+
+      // ── Persist room data into the website's rooms_grid sections in DB ──
+      const pages: Array<{ id: string; slug: string; title: string; sections: Array<{ id: string; type: string; content: Record<string, unknown>; order: number; visible: boolean; published: boolean }>; published: boolean }> =
+        typeof website.pages === 'string' ? JSON.parse(website.pages) : (website.pages as unknown as Array<any>) || [];
+
+      let pagesModified = false;
+      for (const page of pages) {
+        for (const section of page.sections) {
+          if (section.type === 'rooms_grid') {
+            // Inject room data, photos, amenities, pricing, and descriptions
+            section.content = {
+              ...section.content,
+              heading: section.content.heading || 'Our Rooms & Suites',
+              rooms,
+              showPrices: true,
+              showAmenities: true,
+            };
+            pagesModified = true;
+          }
+        }
+      }
+
+      if (pagesModified) {
+        await db.hotelWebsite.update({
+          where: { id: websiteId },
+          data: { pages: JSON.stringify(pages) },
+        });
+      }
     }
 
     // Amenities section

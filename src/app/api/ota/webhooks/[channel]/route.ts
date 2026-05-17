@@ -97,19 +97,52 @@ export async function POST(
       where: { channel, status: 'active' },
     });
 
-    // If multiple connections exist, narrow by propertyId from payload
+    // ── Single-gateway fallback routing ──
+    // 1. If only 1 connection matches → use it
+    // 2. If multiple connections match, try to identify the correct one by matching payload property ID
+    // 3. If still ambiguous and there's only 1 active gateway → use that as fallback
+    // 4. If still ambiguous → log a warning and process for the first match only (not all)
+
+    let selectedConnections = connections;
+
     if (connections.length > 1) {
-      const payloadPropertyId = (body.propertyId || body.property_id || body.hotelId) as string | undefined;
+      // Step 2: Try to narrow by property ID from payload
+      const payloadPropertyId = (body.propertyId || body.property_id || body.hotelId || body.hotel_id) as string | undefined;
+
       if (payloadPropertyId) {
         const narrowed = connections.filter(c => c.propertyId === payloadPropertyId);
         if (narrowed.length > 0) {
-          connections.length = 0;
-          connections.push(...narrowed);
+          selectedConnections = narrowed;
         }
+      }
+
+      // Step 3: If still ambiguous and there's only 1 active gateway, use that as fallback
+      if (selectedConnections.length > 1) {
+        // Look for a single connection that has a hotelId set (acts as the gateway/master connection)
+        const withHotelId = selectedConnections.filter(c => c.hotelId !== null);
+        if (withHotelId.length === 1) {
+          selectedConnections = [withHotelId[0]];
+        } else {
+          // No clear gateway — if only 1 connection has a non-null propertyId, prefer that
+          const withProperty = selectedConnections.filter(c => c.propertyId !== null);
+          if (withProperty.length === 1) {
+            selectedConnections = [withProperty[0]];
+          }
+        }
+      }
+
+      // Step 4: If still ambiguous → log a warning and use first match only
+      if (selectedConnections.length > 1) {
+        console.warn(
+          `[Webhook:${channel}] Ambiguous routing: ${selectedConnections.length} connections match. ` +
+          `Using first match (${selectedConnections[0].id}) to avoid duplicate processing. ` +
+          `Connection IDs: ${selectedConnections.map(c => c.id).join(', ')}`
+        );
+        selectedConnections = [selectedConnections[0]];
       }
     }
 
-    if (connections.length === 0) {
+    if (selectedConnections.length === 0) {
       return NextResponse.json(
         { success: false, error: 'No active connections for this channel' },
         { status: 404 }
@@ -117,7 +150,7 @@ export async function POST(
     }
 
     // ---- HMAC-SHA256 Signature Verification ----
-    await verifyWebhookSignature(channel, rawBody, headers, connections);
+    await verifyWebhookSignature(channel, rawBody, headers, selectedConnections);
 
     // Get the appropriate OTA client for event parsing
     const client = OTAClientFactory.createClient(channel);
@@ -135,13 +168,13 @@ export async function POST(
     const rawEventType = resolveEventType(channel, body, headers);
     const eventType = normalizeEventType(rawEventType);
 
-    // Log the incoming webhook
-    await logWebhookEvent(connections[0], channel, rawBody, headers, eventType, result);
+    // Log the incoming webhook (use the selected connection)
+    await logWebhookEvent(selectedConnections[0], channel, rawBody, headers, eventType, result);
 
-    // Handle the event
+    // Handle the event (single connection only — no duplicate processing)
     if (result.success && result.data) {
       const eventData = result.data as Record<string, unknown>;
-      await routeWebhookEvent(channel, eventType, eventData, connections);
+      await routeWebhookEvent(channel, eventType, eventData, selectedConnections);
     }
 
     return NextResponse.json(result.response);

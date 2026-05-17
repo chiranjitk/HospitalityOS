@@ -6795,6 +6795,7 @@ model HotelWebsite {
   pages           String   @default("[]") // JSON: HotelWebsitePage[]
   seo             String   @default("{}") // JSON: title, description, keywords, ogImage, faviconUrl
   analytics       String   @default("{}") // JSON: googleAnalyticsId, googleTagManagerId, facebookPixelId, etc.
+  publishedHtml   String?  // Pre-rendered HTML for each page, JSON: { [pageSlug]: string }
   publishedAt     DateTime? @db.Timestamptz
   createdAt       DateTime @default(now()) @db.Timestamptz
   updatedAt       DateTime @updatedAt @db.Timestamptz

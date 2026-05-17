@@ -323,15 +323,93 @@ export class GoogleHotelAdsService {
 
   /**
    * Submit booking data to Google Hotel Ads
+   * Uses the Google Hotel Ads Price Feed / Booking Notification endpoint
+   * to notify Google of confirmed or cancelled bookings.
    */
   async submitBooking(booking: BookingData): Promise<{
     success: boolean;
     error?: string;
   }> {
     try {
-      // In a real implementation, this would call the Google Hotel Ads API
-      // For now, we'll just update our tracking
-      if (this.connection) {
+      if (!this.connection) {
+        return { success: false, error: 'Google Hotel Ads connection not initialized' };
+      }
+
+      // Build the booking notification XML payload per Google Hotel Ads spec
+      const checkInStr = booking.checkIn.toISOString().split('T')[0];
+      const checkOutStr = booking.checkOut.toISOString().split('T')[0];
+      const nights = Math.max(1, Math.ceil(
+        (booking.checkOut.getTime() - booking.checkIn.getTime()) / (1000 * 60 * 60 * 24)
+      ));
+
+      const bookingAction = booking.status === 'cancelled' ? 'cancel' : 'add';
+
+      const payload = `<?xml version="1.0" encoding="UTF-8"?>
+<Transaction timestamp="${new Date().toISOString()}" id="${booking.bookingId}">
+  <Property>${booking.hotelId}</Property>
+  <Booking>
+    <BookingID>${booking.bookingId}</BookingID>
+    <Action>${bookingAction}</Action>
+    <Checkin>${checkInStr}</Checkin>
+    <Checkout>${checkOutStr}</Checkout>
+    <Nights>${nights}</Nights>
+    <RoomID>${booking.roomTypeId}</RoomID>
+    <RatePlanID>${booking.ratePlanId}</RatePlanID>
+    <Guest>
+      <Name>${booking.guestName}</Name>
+      <Email>${booking.guestEmail}</Email>
+    </Guest>
+    <Pricing>
+      <TotalPrice currency="${booking.currency}">${booking.totalPrice.toFixed(2)}</TotalPrice>
+      <Commission currency="${booking.currency}">${booking.commission.toFixed(2)}</Commission>
+    </Pricing>
+  </Booking>
+</Transaction>`;
+
+      // Determine the Google Hotel Ads endpoint
+      // Use the priceFeedUrl from connection if available, otherwise the default endpoint
+      const endpoint = this.connection.priceFeedUrl ||
+        'https://www.google.com/travel/hotels/prices/upload';
+
+      const feedFormat = this.connection.priceFeedFormat || 'xml';
+
+      // Make the actual HTTP request to the Google Hotel Ads API
+      let apiSuccess = false;
+      let apiError: string | undefined;
+
+      try {
+        const credentials = this.connection.credentials as Record<string, string> | undefined;
+        const authToken = credentials?.accessToken || credentials?.apiKey || '';
+
+        const headers: Record<string, string> = {
+          'Content-Type': feedFormat === 'json' ? 'application/json' : 'application/xml',
+        };
+
+        if (authToken) {
+          headers['Authorization'] = `Bearer ${authToken}`;
+        }
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers,
+          body: payload,
+          signal: AbortSignal.timeout(15000), // 15s timeout
+        });
+
+        if (response.ok) {
+          apiSuccess = true;
+        } else {
+          const responseText = await response.text().catch(() => '');
+          apiError = `Google Hotel Ads API returned ${response.status}: ${responseText.slice(0, 200)}`;
+          console.error(`[GoogleHotelAds] Booking submission failed: ${apiError}`);
+        }
+      } catch (fetchError: any) {
+        apiError = `Failed to reach Google Hotel Ads API: ${fetchError.message}`;
+        console.error(`[GoogleHotelAds] Booking submission network error:`, fetchError);
+      }
+
+      // Update tracking in DB (secondary to the API call)
+      if (apiSuccess) {
         await db.googleHotelAdsConnection.update({
           where: { id: this.connection.id },
           data: {
@@ -340,9 +418,18 @@ export class GoogleHotelAdsService {
             lastBookingFeedAt: new Date(),
           },
         });
+      } else {
+        // Record the error in the connection
+        await db.googleHotelAdsConnection.update({
+          where: { id: this.connection.id },
+          data: {
+            lastError: apiError || 'Booking submission failed',
+            lastErrorAt: new Date(),
+          },
+        });
       }
 
-      return { success: true };
+      return { success: apiSuccess, error: apiError };
     } catch (error: any) {
       console.error('Error submitting booking:', error);
       return { success: false, error: error.message };

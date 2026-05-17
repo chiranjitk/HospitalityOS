@@ -523,6 +523,8 @@ export class MetasearchClient {
 
   /**
    * Sync rate data to all connected platforms
+   * Makes actual API calls to each connected metasearch platform
+   * with hotel rates and availability data.
    */
   async syncToAllPlatforms(startDate: Date, endDate: Date): Promise<{
     success: boolean;
@@ -539,9 +541,96 @@ export class MetasearchClient {
       const results = new Map<MetasearchPlatform, { success: boolean; error?: string }>();
 
       for (const [platform, feed] of feedResult.feeds) {
-        // In a real implementation, this would make API calls to each platform
-        // For now, we'll just mark it as successful
-        results.set(platform, { success: true });
+        const connection = this.connections.get(platform);
+        if (!connection) {
+          results.set(platform, { success: false, error: 'No connection found' });
+          continue;
+        }
+
+        const platformConfig = PLATFORM_CONFIGS[platform];
+        const feedUrl = connection.connectionUrl || platformConfig.feedUrl;
+
+        // Determine the payload (XML or JSON based on connection config)
+        const payload = feed.xml || feed.json || '';
+        const contentType = connection.feedFormat === 'json'
+          ? 'application/json'
+          : 'application/xml';
+
+        // Parse connection config for API credentials
+        let connectionConfig: Record<string, string> = {};
+        try {
+          connectionConfig = typeof connection.config === 'string'
+            ? JSON.parse(connection.config)
+            : (connection.config as Record<string, string>) || {};
+        } catch { /* ignore parse errors */ }
+
+        const apiKey = connectionConfig.apiKey || '';
+
+        // Build headers per platform
+        const headers: Record<string, string> = {
+          'Content-Type': contentType,
+        };
+
+        // Platform-specific auth headers
+        switch (platform) {
+          case 'tripadvisor':
+            if (apiKey) headers['X-TripAdvisor-API-Key'] = apiKey;
+            break;
+          case 'trivago':
+            if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+            break;
+          case 'kayak':
+            if (apiKey) headers['X-Kayak-API-Key'] = apiKey;
+            break;
+          case 'skyscanner':
+            if (apiKey) headers['X-Skyscanner-API-Key'] = apiKey;
+            break;
+        }
+
+        // Make the actual API call to the platform
+        let platformSuccess = false;
+        let platformError: string | undefined;
+
+        try {
+          const response = await fetch(feedUrl, {
+            method: 'POST',
+            headers,
+            body: payload,
+            signal: AbortSignal.timeout(30000), // 30s timeout
+          });
+
+          if (response.ok) {
+            platformSuccess = true;
+          } else {
+            const responseText = await response.text().catch(() => '');
+            platformError = `${platformConfig.name} API returned ${response.status}: ${responseText.slice(0, 200)}`;
+          }
+        } catch (fetchError: any) {
+          platformError = `Failed to reach ${platformConfig.name} API: ${fetchError.message}`;
+        }
+
+        // Update the connection's lastSyncAt and error tracking
+        const updateData: Record<string, unknown> = {
+          lastSyncAt: new Date(),
+        };
+        if (!platformSuccess) {
+          updateData.lastError = platformError || 'Sync failed';
+          updateData.lastErrorAt = new Date();
+        } else {
+          updateData.lastError = null;
+          updateData.lastErrorAt = null;
+        }
+
+        try {
+          await db.metasearchConnection.update({
+            where: { id: connection.id },
+            data: updateData,
+          });
+        } catch (dbError) {
+          console.error(`[Metasearch] Failed to update connection for ${platform}:`, dbError);
+        }
+
+        results.set(platform, { success: platformSuccess, error: platformError });
       }
 
       return { success: true, results };

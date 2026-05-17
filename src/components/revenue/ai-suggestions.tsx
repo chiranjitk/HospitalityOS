@@ -187,8 +187,8 @@ const t = useTranslations('revenue');
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold">AI Revenue Suggestions</h2>
-          <p className="text-muted-foreground">Machine learning powered recommendations</p>
+          <h2 className="text-2xl font-bold">Smart Pricing Rules</h2>
+          <p className="text-muted-foreground">Data-driven pricing recommendations</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 mr-2">

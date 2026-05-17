@@ -1,12 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -27,45 +26,46 @@ import {
   Plus,
   ArrowUpRight,
   ArrowDownRight,
-  DollarSign,
-  TrendingUp,
   Clock,
   CheckCircle,
   AlertCircle,
   Printer,
   Calendar,
+  Loader2,
+  Inbox,
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 type Category = 'Opening' | 'Income' | 'Expense' | 'Payment' | 'Refund' | 'Closing';
 
-interface CashTransaction {
-  id: number;
+interface CashEntry {
+  id: string;
   time: string;
   description: string;
   category: Category;
   amount: number;
   balance: number;
-  approvedBy: string | null;
   approvalStatus: 'approved' | 'pending' | 'rejected';
+  approvedBy: string | null;
+  paymentMethod: string;
+  reference: string | null;
 }
 
-const mockTransactions: CashTransaction[] = [
-  { id: 1, time: '06:00 AM', description: 'Opening Balance', category: 'Opening', amount: 12500, balance: 12500, approvedBy: 'Night Auditor', approvalStatus: 'approved' },
-  { id: 2, time: '07:15 AM', description: 'Room 101 — Walk-in payment', category: 'Income', amount: 289, balance: 12789, approvedBy: 'Front Desk', approvalStatus: 'approved' },
-  { id: 3, time: '08:30 AM', description: 'Room 205 — Checkout settlement', category: 'Income', amount: 456, balance: 13245, approvedBy: 'Front Desk', approvalStatus: 'approved' },
-  { id: 4, time: '09:00 AM', description: 'F&B Supplier — Fresh produce', category: 'Expense', amount: -850, balance: 12395, approvedBy: 'F&B Manager', approvalStatus: 'approved' },
-  { id: 5, time: '09:45 AM', description: 'Room 310 — OTA refund (Booking.com)', category: 'Refund', amount: -199, balance: 12196, approvedBy: 'Revenue Mgr', approvalStatus: 'approved' },
-  { id: 6, time: '10:30 AM', description: 'Laundry service — Linens', category: 'Expense', amount: -420, balance: 11776, approvedBy: 'HK Manager', approvalStatus: 'approved' },
-  { id: 7, time: '11:15 AM', description: 'Room 402 — Direct booking payment', category: 'Income', amount: 549, balance: 12325, approvedBy: 'Front Desk', approvalStatus: 'approved' },
-  { id: 8, time: '12:00 PM', description: 'Mini-bar restocking supplies', category: 'Expense', amount: -320, balance: 12005, approvedBy: null, approvalStatus: 'pending' },
-  { id: 9, time: '01:30 PM', description: 'Room 108 — Extension payment', category: 'Payment', amount: 189, balance: 12194, approvedBy: 'Front Desk', approvalStatus: 'approved' },
-  { id: 10, time: '02:00 PM', description: 'Taxi service for guest (Room 215)', category: 'Expense', amount: -75, balance: 12119, approvedBy: 'Concierge', approvalStatus: 'approved' },
-  { id: 11, time: '03:15 PM', description: 'Corporate invoice payment — Acme Corp', category: 'Income', amount: 2400, balance: 14519, approvedBy: 'Accounts', approvalStatus: 'approved' },
-  { id: 12, time: '04:00 PM', description: 'Maintenance supplies — Plumbing', category: 'Expense', amount: -180, balance: 14339, approvedBy: null, approvalStatus: 'pending' },
-  { id: 13, time: '05:30 PM', description: 'Spa revenue deposit', category: 'Income', amount: 680, balance: 15019, approvedBy: 'Spa Manager', approvalStatus: 'approved' },
-  { id: 14, time: '06:00 PM', description: 'Restaurant cash drop', category: 'Payment', amount: 1500, balance: 16519, approvedBy: 'F&B Manager', approvalStatus: 'approved' },
-  { id: 15, time: '10:00 PM', description: 'Closing Balance', category: 'Closing', amount: 0, balance: 16519, approvedBy: null, approvalStatus: 'pending' },
-];
+interface CashBookData {
+  id: string;
+  date: string;
+  openingBalance: number;
+  closingBalance: number;
+  status: 'open' | 'closed' | 'approved';
+  entries: CashEntry[];
+}
+
+interface Property {
+  id: string;
+  name: string;
+  slug: string;
+  type: string;
+}
 
 const categoryColors: Record<Category, string> = {
   Opening: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
@@ -77,15 +77,168 @@ const categoryColors: Record<Category, string> = {
 };
 
 export default function CashBook() {
-  const [selectedDate, setSelectedDate] = useState('2025-01-15');
-  const [selectedProperty, setSelectedProperty] = useState('main');
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [formData, setFormData] = useState({ description: '', amount: '', category: 'Income' as Category });
+  const { toast } = useToast();
 
-  const openingBalance = mockTransactions[0]?.amount || 0;
-  const totalIncome = mockTransactions.filter((t) => t.category === 'Income').reduce((s, t) => s + t.amount, 0);
-  const totalExpense = mockTransactions.filter((t) => t.category === 'Expense' || t.category === 'Refund').reduce((s, t) => s + Math.abs(t.amount), 0);
-  const closingBalance = mockTransactions[mockTransactions.length - 1]?.balance || 0;
+  // State for selectors
+  const today = new Date().toISOString().split('T')[0];
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedProperty, setSelectedProperty] = useState('');
+
+  // State for data
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [cashBook, setCashBook] = useState<CashBookData | null>(null);
+  const [entries, setEntries] = useState<CashEntry[]>([]);
+
+  // State for loading/error
+  const [loadingProperties, setLoadingProperties] = useState(true);
+  const [loadingData, setLoadingData] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Add transaction form
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [formData, setFormData] = useState({
+    description: '',
+    amount: '',
+    category: 'Income' as Category,
+    paymentMethod: 'cash',
+  });
+
+  // Fetch properties on mount
+  useEffect(() => {
+    async function fetchProperties() {
+      setLoadingProperties(true);
+      try {
+        const res = await fetch('/api/properties');
+        const json = await res.json();
+        if (json.success && json.data?.length > 0) {
+          setProperties(json.data);
+          setSelectedProperty(json.data[0].id);
+        } else {
+          setProperties([]);
+        }
+      } catch {
+        toast({
+          title: 'Error',
+          description: 'Failed to load properties. Please refresh the page.',
+          variant: 'destructive',
+        });
+        setProperties([]);
+      } finally {
+        setLoadingProperties(false);
+      }
+    }
+    fetchProperties();
+  }, [toast]);
+
+  // Fetch cash book data
+  const fetchCashBook = useCallback(async () => {
+    if (!selectedProperty || !selectedDate) return;
+
+    setLoadingData(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/accounting/cash-book?propertyId=${encodeURIComponent(selectedProperty)}&date=${encodeURIComponent(selectedDate)}`
+      );
+      const json = await res.json();
+      if (json.success) {
+        setCashBook(json.data);
+        setEntries(json.data?.entries || []);
+      } else {
+        setError(json.error?.message || 'Failed to load cash book data');
+        setCashBook(null);
+        setEntries([]);
+        toast({
+          title: 'Error',
+          description: json.error?.message || 'Failed to load cash book data',
+          variant: 'destructive',
+        });
+      }
+    } catch {
+      const msg = 'Network error. Please check your connection and try again.';
+      setError(msg);
+      setCashBook(null);
+      setEntries([]);
+      toast({
+        title: 'Error',
+        description: msg,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingData(false);
+    }
+  }, [selectedProperty, selectedDate, toast]);
+
+  // Fetch cash book when date or property changes
+  useEffect(() => {
+    if (selectedProperty && selectedDate) {
+      fetchCashBook();
+    }
+  }, [selectedProperty, selectedDate, fetchCashBook]);
+
+  // Computed summary stats from API data
+  const openingBalance = cashBook?.openingBalance ?? (entries.length > 0 ? entries[0].amount : 0);
+  const closingBalance = cashBook?.closingBalance ?? (entries.length > 0 ? entries[entries.length - 1].balance : 0);
+  const totalIncome = entries
+    .filter((t) => t.category === 'Income')
+    .reduce((s, t) => s + t.amount, 0);
+  const totalExpense = entries
+    .filter((t) => t.category === 'Expense' || t.category === 'Refund')
+    .reduce((s, t) => s + Math.abs(t.amount), 0);
+
+  // Add transaction handler
+  const handleAddTransaction = async () => {
+    if (!formData.description || !formData.amount || !cashBook?.id) return;
+
+    setSubmitting(true);
+    try {
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours % 12 || 12;
+      const timeStr = `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+
+      const res = await fetch('/api/accounting/cash-book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cashBookId: cashBook.id,
+          time: timeStr,
+          description: formData.description,
+          category: formData.category,
+          amount: formData.amount,
+          paymentMethod: formData.paymentMethod,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        toast({
+          title: 'Transaction Added',
+          description: `"${formData.description}" has been recorded successfully.`,
+        });
+        setFormData({ description: '', amount: '', category: 'Income', paymentMethod: 'cash' });
+        setShowAddForm(false);
+        fetchCashBook();
+      } else {
+        toast({
+          title: 'Error',
+          description: json.error?.message || 'Failed to add transaction',
+          variant: 'destructive',
+        });
+      }
+    } catch {
+      toast({
+        title: 'Error',
+        description: 'Network error. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -101,7 +254,7 @@ export default function CashBook() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
             <Printer className="h-4 w-4 mr-2" />
             Print
           </Button>
@@ -109,6 +262,7 @@ export default function CashBook() {
             size="sm"
             className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white"
             onClick={() => setShowAddForm(!showAddForm)}
+            disabled={loadingData || !cashBook}
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Transaction
@@ -129,12 +283,14 @@ export default function CashBook() {
         </div>
         <Select value={selectedProperty} onValueChange={setSelectedProperty}>
           <SelectTrigger className="w-48">
-            <SelectValue />
+            <SelectValue placeholder={loadingProperties ? 'Loading...' : 'Select property'} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="main">Grand Hotel — Main</SelectItem>
-            <SelectItem value="annex">Grand Hotel — Annex</SelectItem>
-            <SelectItem value="resort">Beach Resort</SelectItem>
+            {properties.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -144,7 +300,9 @@ export default function CashBook() {
         <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950 dark:to-sky-950">
           <CardContent className="p-4">
             <p className="text-xs font-medium text-muted-foreground">Opening Balance</p>
-            <p className="text-xl font-bold text-blue-900 dark:text-blue-100">${openingBalance.toLocaleString()}</p>
+            <p className="text-xl font-bold text-blue-900 dark:text-blue-100">
+              {loadingData ? <Loader2 className="h-5 w-5 animate-spin text-blue-600" /> : `$${openingBalance.toLocaleString()}`}
+            </p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950 dark:to-green-950">
@@ -152,7 +310,9 @@ export default function CashBook() {
             <p className="text-xs font-medium text-muted-foreground">Total Income</p>
             <div className="flex items-center gap-1">
               <ArrowUpRight className="h-4 w-4 text-emerald-500" />
-              <p className="text-xl font-bold text-emerald-900 dark:text-emerald-100">${totalIncome.toLocaleString()}</p>
+              <p className="text-xl font-bold text-emerald-900 dark:text-emerald-100">
+                {loadingData ? <Loader2 className="h-5 w-5 animate-spin text-emerald-600" /> : `$${totalIncome.toLocaleString()}`}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -161,7 +321,9 @@ export default function CashBook() {
             <p className="text-xs font-medium text-muted-foreground">Total Expense</p>
             <div className="flex items-center gap-1">
               <ArrowDownRight className="h-4 w-4 text-red-500" />
-              <p className="text-xl font-bold text-red-900 dark:text-red-100">${totalExpense.toLocaleString()}</p>
+              <p className="text-xl font-bold text-red-900 dark:text-red-100">
+                {loadingData ? <Loader2 className="h-5 w-5 animate-spin text-red-600" /> : `$${totalExpense.toLocaleString()}`}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -169,14 +331,20 @@ export default function CashBook() {
           <CardContent className="p-4">
             <p className="text-xs font-medium text-muted-foreground">Net Movement</p>
             <p className={`text-xl font-bold ${totalIncome - totalExpense >= 0 ? 'text-emerald-900 dark:text-emerald-100' : 'text-red-900 dark:text-red-100'}`}>
-              ${totalIncome - totalExpense >= 0 ? '+' : ''}{(totalIncome - totalExpense).toLocaleString()}
+              {loadingData ? (
+                <Loader2 className="h-5 w-5 animate-spin text-violet-600" />
+              ) : (
+                `$${totalIncome - totalExpense >= 0 ? '+' : ''}${(totalIncome - totalExpense).toLocaleString()}`
+              )}
             </p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-teal-950 dark:to-emerald-950 col-span-2 sm:col-span-1">
           <CardContent className="p-4">
             <p className="text-xs font-medium text-muted-foreground">Closing Balance</p>
-            <p className="text-xl font-bold text-teal-900 dark:text-teal-100">${closingBalance.toLocaleString()}</p>
+            <p className="text-xl font-bold text-teal-900 dark:text-teal-100">
+              {loadingData ? <Loader2 className="h-5 w-5 animate-spin text-teal-600" /> : `$${closingBalance.toLocaleString()}`}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -189,13 +357,14 @@ export default function CashBook() {
               <Plus className="h-5 w-5 text-teal-600 dark:text-teal-400" />
               <h3 className="font-semibold">New Transaction</h3>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <div className="space-y-2">
                 <Label>Description</Label>
                 <Input
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Transaction description"
+                  disabled={submitting}
                 />
               </div>
               <div className="space-y-2">
@@ -205,12 +374,13 @@ export default function CashBook() {
                   value={formData.amount}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                   placeholder="0.00"
+                  disabled={submitting}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v as Category })}>
-                  <SelectTrigger>
+                  <SelectTrigger disabled={submitting}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -221,11 +391,30 @@ export default function CashBook() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label>Payment Method</Label>
+                <Select value={formData.paymentMethod} onValueChange={(v) => setFormData({ ...formData, paymentMethod: v })}>
+                  <SelectTrigger disabled={submitting}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex items-end gap-2">
-                <Button className="flex-1 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white">
+                <Button
+                  className="flex-1 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white"
+                  onClick={handleAddTransaction}
+                  disabled={submitting || !formData.description || !formData.amount}
+                >
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Add
                 </Button>
-                <Button variant="outline" onClick={() => setShowAddForm(false)}>
+                <Button variant="outline" onClick={() => setShowAddForm(false)} disabled={submitting}>
                   Cancel
                 </Button>
               </div>
@@ -244,61 +433,83 @@ export default function CashBook() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-            <Table>
-              <TableHeader className="sticky top-0 bg-background z-10">
-                <TableRow>
-                  <TableHead className="w-24">Time</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  <TableHead>Approval</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mockTransactions.map((tx) => (
-                  <TableRow key={tx.id} className="hover:bg-muted/50 transition-colors">
-                    <TableCell className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-                      {tx.time}
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium text-sm">{tx.description}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={categoryColors[tx.category]}>{tx.category}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className={`font-semibold ${tx.amount > 0 ? 'text-emerald-600 dark:text-emerald-400' : tx.amount < 0 ? 'text-red-500 dark:text-red-400' : ''}`}>
-                        {tx.amount > 0 ? '+' : ''}${tx.amount.toLocaleString()}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      ${tx.balance.toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      {tx.approvalStatus === 'approved' ? (
-                        <div className="flex items-center gap-1">
-                          <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
-                          <span className="text-xs text-muted-foreground">{tx.approvedBy}</span>
-                        </div>
-                      ) : tx.approvalStatus === 'pending' ? (
-                        <div className="flex items-center gap-1">
-                          <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
-                          <span className="text-xs text-amber-600 dark:text-amber-400">Pending</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <AlertCircle className="h-3.5 w-3.5 text-red-500" />
-                          <span className="text-xs text-red-600 dark:text-red-400">Rejected</span>
-                        </div>
-                      )}
-                    </TableCell>
+            {loadingData ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+                <span className="ml-3 text-muted-foreground">Loading transactions...</span>
+              </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <AlertCircle className="h-10 w-10 text-red-400 mb-3" />
+                <p className="text-sm font-medium text-red-600 dark:text-red-400">Failed to load data</p>
+                <p className="text-xs text-muted-foreground mt-1">{error}</p>
+                <Button variant="outline" size="sm" className="mt-4" onClick={fetchCashBook}>
+                  Retry
+                </Button>
+              </div>
+            ) : entries.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Inbox className="h-10 w-10 text-muted-300 mb-3" />
+                <p className="text-sm font-medium text-muted-foreground">No transactions found for this date</p>
+                <p className="text-xs text-muted-foreground mt-1">Select a different date or add a new transaction.</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader className="sticky top-0 bg-background z-10">
+                  <TableRow>
+                    <TableHead className="w-24">Time</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">Balance</TableHead>
+                    <TableHead>Approval</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {entries.map((tx) => (
+                    <TableRow key={tx.id} className="hover:bg-muted/50 transition-colors">
+                      <TableCell className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                        {tx.time}
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium text-sm">{tx.description}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={categoryColors[tx.category]}>{tx.category}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className={`font-semibold ${tx.amount > 0 ? 'text-emerald-600 dark:text-emerald-400' : tx.amount < 0 ? 'text-red-500 dark:text-red-400' : ''}`}>
+                          {tx.amount > 0 ? '+' : tx.amount < 0 ? '-' : ''}${Math.abs(tx.amount).toLocaleString()}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        ${tx.balance.toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        {tx.approvalStatus === 'approved' ? (
+                          <div className="flex items-center gap-1">
+                            <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+                            <span className="text-xs text-muted-foreground">{tx.approvedBy}</span>
+                          </div>
+                        ) : tx.approvalStatus === 'pending' ? (
+                          <div className="flex items-center gap-1">
+                            <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+                            <span className="text-xs text-amber-600 dark:text-amber-400">Pending</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <AlertCircle className="h-3.5 w-3.5 text-red-500" />
+                            <span className="text-xs text-red-600 dark:text-red-400">Rejected</span>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </div>
         </CardContent>
       </Card>
