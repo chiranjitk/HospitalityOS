@@ -135,3 +135,5 @@ test-w.txt
 # StaySuite runtime data & logs
 .staysuite/
 e2e/.auth/
+tests/pms/.test-state.json
+tests/pms/*.test-state*.json
