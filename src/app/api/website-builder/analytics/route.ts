@@ -44,7 +44,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
-    const body = await request.json();
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON body' } }, { status: 400 });
+    }
     const { websiteId, ...analyticsUpdates } = body;
 
     if (!websiteId) {
