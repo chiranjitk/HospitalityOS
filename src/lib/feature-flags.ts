@@ -106,7 +106,7 @@ export const FEATURES: Record<string, FeatureConfig> = {
       'billing-night-audit', 'billing-city-ledger', 'billing-commissions', 'billing-posting-rules',
       'billing-scheduled-charges', 'billing-tax-settings', 'billing-gst-invoicing', 'billing-gst-returns',
       'billing-tcs-tds', 'billing-ap-workflow', 'billing-profit-loss', 'billing-cash-flow',
-      'billing-budget', 'billing-deposits', 'billing-financing',
+      'billing-budget', 'billing-deposits', 'billing-financing', 'billing-cash-book',
     ],
     apiRoutes: ['/api/folios', '/api/payments', '/api/invoices', '/api/refunds', '/api/discounts'],
   },
@@ -245,7 +245,10 @@ export const FEATURES: Record<string, FeatureConfig> = {
     description: 'Dynamic pricing rules, demand forecasting, competitor pricing, rate shopping, and AI suggestions',
     category: 'addons',
     subcategory: 'Revenue & Channels',
-    menuItems: ['revenue-pricing', 'revenue-forecasting', 'revenue-competitor', 'revenue-ai', 'revenue-rate-shopping'],
+    menuItems: [
+      'revenue-pricing', 'revenue-forecasting', 'revenue-competitor', 'revenue-ai', 'revenue-rate-shopping',
+      'revenue-hourly-pricing', 'revenue-linear-pricing', 'revenue-auto-overbooking', 'revenue-last-minute', 'revenue-automation',
+    ],
     apiRoutes: ['/api/revenue', '/api/revenue/pricing', '/api/revenue/forecasting'],
   },
   channel_manager: {
@@ -263,7 +266,7 @@ export const FEATURES: Record<string, FeatureConfig> = {
       // channel-cancellation-policy removed — duplicate of billing-cancellation-policies (same DB model)
       'channel-settlement', 'channel-allotment-release', 'channel-promo-codes', 'channel-booking-pace',
       'channel-priority', 'channel-inventory-pool', 'channel-derived-rates', 'channel-commission-config',
-      'channel-guest-rates', 'channel-booking-limits',
+      'channel-guest-rates', 'channel-booking-limits', 'channel-messages',
     ],
     apiRoutes: ['/api/channels', '/api/channels/sync', '/api/crs'],
   },
@@ -277,7 +280,7 @@ export const FEATURES: Record<string, FeatureConfig> = {
     description: 'Guest segments, campaigns, loyalty programs, feedback & reviews, and retention analytics',
     category: 'addons',
     subcategory: 'Marketing & CRM',
-    menuItems: ['crm-segments', 'crm-campaigns', 'crm-loyalty', 'crm-feedback', 'crm-retention'],
+    menuItems: ['crm-segments', 'crm-campaigns', 'crm-loyalty', 'crm-feedback', 'crm-retention', 'crm-lead-pipeline'],
     apiRoutes: ['/api/campaigns', '/api/segments', '/api/crm', '/api/loyalty'],
   },
   marketing: {
@@ -288,7 +291,7 @@ export const FEATURES: Record<string, FeatureConfig> = {
     subcategory: 'Marketing & CRM',
     menuItems: [
       'marketing-reputation', 'marketing-sources', 'marketing-booking-engine', 'marketing-promotions',
-      'marketing-upsell', 'marketing-journey-campaigns', 'marketing-abandoned-bookings',
+      'marketing-upsell', 'marketing-journey-campaigns', 'marketing-abandoned-bookings', 'marketing-website-builder',
     ],
     apiRoutes: ['/api/marketing', '/api/reputation', '/api/booking-engine'],
   },

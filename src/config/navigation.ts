@@ -403,6 +403,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'wifi-revenue-dashboard', title: 'Revenue Analytics', href: '#wifi-revenue-dashboard', icon: DollarSign },
       { id: 'wifi-satisfaction-surveys', title: 'Guest Surveys', href: '#wifi-satisfaction-surveys', icon: Star },
       { id: 'wifi-sla-monitoring', title: 'SLA Monitoring', href: '#wifi-sla-monitoring', icon: Gauge },
+      { id: 'wifi-room-vlans', title: 'Room VLAN Isolation', href: '#wifi-room-vlans', icon: Network },
     ],
   },
 
