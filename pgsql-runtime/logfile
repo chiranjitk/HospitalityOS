@@ -703,3 +703,95 @@
 2026-05-17 07:42:27.530 UTC [6626] LOG:  checkpoint complete: wrote 2029 buffers (12.4%); 0 WAL file(s) added, 0 removed, 0 recycled; write=202.587 s, sync=0.006 s, total=202.597 s; sync files=1076, longest=0.001 s, average=0.001 s; distance=2041 kB, estimate=19872 kB; lsn=0/2C46688, redo lsn=0/2C43290
 2026-05-17 07:44:04.584 UTC [6626] LOG:  checkpoint starting: time
 2026-05-17 07:44:08.205 UTC [6626] LOG:  checkpoint complete: wrote 37 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=3.616 s, sync=0.001 s, total=3.623 s; sync files=37, longest=0.001 s, average=0.001 s; distance=35 kB, estimate=17888 kB; lsn=0/2C4C070, redo lsn=0/2C4C018
+2026-05-17 07:49:04.222 UTC [6626] LOG:  checkpoint starting: time
+2026-05-17 07:49:05.430 UTC [6626] LOG:  checkpoint complete: wrote 13 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.205 s, sync=0.001 s, total=1.208 s; sync files=13, longest=0.001 s, average=0.001 s; distance=24 kB, estimate=16102 kB; lsn=0/2C520F8, redo lsn=0/2C520A0
+2026-05-17 07:53:04.665 UTC [9794] ERROR:  operator does not exist: uuid = text at character 185
+2026-05-17 07:53:04.665 UTC [9794] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-17 07:53:04.665 UTC [9794] STATEMENT:  
+	        SELECT DATE(a."startTime") as date, COALESCE(SUM(a."price"), 0)::bigint as revenue, COUNT(a.id)::bigint as bookings
+	        FROM "SpaAppointment" a
+	        WHERE a."tenantId" = $1
+	          AND a."startTime" >= $2
+	        GROUP BY DATE(a."startTime")
+	        ORDER BY date ASC
+	      
+2026-05-17 07:53:04.666 UTC [9793] ERROR:  operator does not exist: uuid = text at character 226
+2026-05-17 07:53:04.666 UTC [9793] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-17 07:53:04.666 UTC [9793] STATEMENT:  
+	        SELECT t."category", COUNT(a.id)::bigint as bookings, COALESCE(SUM(a."price"), 0)::bigint as revenue
+	        FROM "SpaAppointment" a
+	        JOIN "SpaTreatment" t ON a."treatmentId" = t.id
+	        WHERE a."tenantId" = $1
+	          AND a."startTime" >= $2
+	        GROUP BY t."category"
+	        ORDER BY revenue DESC
+	      
+2026-05-17 07:53:06.074 UTC [9792] ERROR:  operator does not exist: uuid = text at character 226
+2026-05-17 07:53:06.074 UTC [9792] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-17 07:53:06.074 UTC [9792] STATEMENT:  
+	        SELECT t."category", COUNT(a.id)::bigint as bookings, COALESCE(SUM(a."price"), 0)::bigint as revenue
+	        FROM "SpaAppointment" a
+	        JOIN "SpaTreatment" t ON a."treatmentId" = t.id
+	        WHERE a."tenantId" = $1
+	          AND a."startTime" >= $2
+	        GROUP BY t."category"
+	        ORDER BY revenue DESC
+	      
+2026-05-17 07:53:06.074 UTC [9791] ERROR:  operator does not exist: uuid = text at character 185
+2026-05-17 07:53:06.074 UTC [9791] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-17 07:53:06.074 UTC [9791] STATEMENT:  
+	        SELECT DATE(a."startTime") as date, COALESCE(SUM(a."price"), 0)::bigint as revenue, COUNT(a.id)::bigint as bookings
+	        FROM "SpaAppointment" a
+	        WHERE a."tenantId" = $1
+	          AND a."startTime" >= $2
+	        GROUP BY DATE(a."startTime")
+	        ORDER BY date ASC
+	      
+2026-05-17 07:53:06.895 UTC [9792] ERROR:  operator does not exist: uuid = text at character 226
+2026-05-17 07:53:06.895 UTC [9792] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-17 07:53:06.895 UTC [9792] STATEMENT:  
+	        SELECT t."category", COUNT(a.id)::bigint as bookings, COALESCE(SUM(a."price"), 0)::bigint as revenue
+	        FROM "SpaAppointment" a
+	        JOIN "SpaTreatment" t ON a."treatmentId" = t.id
+	        WHERE a."tenantId" = $1
+	          AND a."startTime" >= $2
+	        GROUP BY t."category"
+	        ORDER BY revenue DESC
+	      
+2026-05-17 07:53:06.896 UTC [9793] ERROR:  operator does not exist: uuid = text at character 185
+2026-05-17 07:53:06.896 UTC [9793] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-17 07:53:06.896 UTC [9793] STATEMENT:  
+	        SELECT DATE(a."startTime") as date, COALESCE(SUM(a."price"), 0)::bigint as revenue, COUNT(a.id)::bigint as bookings
+	        FROM "SpaAppointment" a
+	        WHERE a."tenantId" = $1
+	          AND a."startTime" >= $2
+	        GROUP BY DATE(a."startTime")
+	        ORDER BY date ASC
+	      
+2026-05-17 07:53:07.398 UTC [9437] ERROR:  operator does not exist: uuid = text at character 185
+2026-05-17 07:53:07.398 UTC [9437] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-17 07:53:07.398 UTC [9437] STATEMENT:  
+	        SELECT DATE(a."startTime") as date, COALESCE(SUM(a."price"), 0)::bigint as revenue, COUNT(a.id)::bigint as bookings
+	        FROM "SpaAppointment" a
+	        WHERE a."tenantId" = $1
+	          AND a."startTime" >= $2
+	        GROUP BY DATE(a."startTime")
+	        ORDER BY date ASC
+	      
+2026-05-17 07:53:07.398 UTC [9459] ERROR:  operator does not exist: uuid = text at character 226
+2026-05-17 07:53:07.398 UTC [9459] HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2026-05-17 07:53:07.398 UTC [9459] STATEMENT:  
+	        SELECT t."category", COUNT(a.id)::bigint as bookings, COALESCE(SUM(a."price"), 0)::bigint as revenue
+	        FROM "SpaAppointment" a
+	        JOIN "SpaTreatment" t ON a."treatmentId" = t.id
+	        WHERE a."tenantId" = $1
+	          AND a."startTime" >= $2
+	        GROUP BY t."category"
+	        ORDER BY revenue DESC
+	      
+2026-05-17 07:54:04.483 UTC [6626] LOG:  checkpoint starting: time
+2026-05-17 07:54:06.692 UTC [6626] LOG:  checkpoint complete: wrote 23 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=2.208 s, sync=0.001 s, total=2.210 s; sync files=18, longest=0.001 s, average=0.001 s; distance=32 kB, estimate=14495 kB; lsn=0/2C5A3F0, redo lsn=0/2C5A398
+2026-05-17 07:59:04.792 UTC [6626] LOG:  checkpoint starting: time
+2026-05-17 07:59:09.605 UTC [6626] LOG:  checkpoint complete: wrote 49 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=4.812 s, sync=0.001 s, total=4.814 s; sync files=41, longest=0.001 s, average=0.001 s; distance=76 kB, estimate=13053 kB; lsn=0/2C6D800, redo lsn=0/2C6D770
+2026-05-17 08:04:04.658 UTC [6626] LOG:  checkpoint starting: time
+2026-05-17 08:04:06.765 UTC [6626] LOG:  checkpoint complete: wrote 22 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=2.106 s, sync=0.001 s, total=2.107 s; sync files=20, longest=0.001 s, average=0.001 s; distance=49 kB, estimate=11753 kB; lsn=0/2C79DF8, redo lsn=0/2C79DA0
