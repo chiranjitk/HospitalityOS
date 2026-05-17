@@ -1,8 +1,8 @@
 {
-  "sessionCookie": "session_token=1026a372203ad59cbc0e78394426e6ac9563a5f30e0885b26203b63c78350a0b",
+  "sessionCookie": "session_token=afc159cb13ba51f4f2b381101df72901ac7ab1e524354723afdd67d1296be2f6",
   "tenantId": "444017d5-e022-4c5f-ac07-ea0d51f4609b",
   "userId": "b763e2df-7bf1-4de8-94f8-97a1f1e7a0ec",
-  "createdAt": "2026-05-17T07:58:59.374Z",
+  "createdAt": "2026-05-17T12:07:41.913Z",
   "propertyId": "71667a0b-1332-4b7c-9e18-8033af8ef73a",
   "propertySlug": "test-property-1778995489784",
   "roomType1Id": "11733034-47cb-4584-82e4-9568067d98e4",
@@ -69,5 +69,11 @@
   "checkoutGuestId": "dbc8fe46-3132-4c22-a750-2f5fb318224e",
   "checkoutRoomId": "40765d05-bdb3-4c6e-ab9a-282784e94730",
   "assignBookingId": "dd443186-ee90-440c-9adc-6451503f18d8",
-  "assignedRoomId": "77ae03ac-e600-42ac-94b2-eacf0916eb78"
+  "assignedRoomId": "77ae03ac-e600-42ac-94b2-eacf0916eb78",
+  "guestModuleTestId": "ef7f705a-d93b-4155-bde0-894370c50fc7",
+  "invVendorId": "57077ad0-4ed1-484d-824e-96e48be3f929",
+  "invStockId": "6dd65557-10b1-45f7-844b-09554ba59356",
+  "invPurchaseOrderId": "df16a9a2-c4a9-49a6-93d4-3fcfbd04fc5f",
+  "expExperienceId": "b283dc26-e66d-4042-a539-f311b8f7b83a",
+  "adsCampaignId": "cc1737fc-9c4b-4971-9d1f-6c8c06444cbf"
 }
