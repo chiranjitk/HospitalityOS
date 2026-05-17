@@ -522,6 +522,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'reports-occupancy', title: 'Occupancy Reports', href: '#reports-occupancy', icon: BarChart3 },
       { id: 'reports-adr', title: 'ADR / RevPAR', href: '#reports-adr', icon: TrendingUp },
       { id: 'reports-guests', title: 'Guest Analytics', href: '#reports-guests', icon: Users },
+      { id: 'reports-guest-stay', title: 'Guest Stay Report', href: '#reports-guest-stay', icon: FileText },
       { id: 'reports-staff', title: 'Staff Performance', href: '#reports-staff', icon: UserCheck },
       { id: 'reports-scheduled', title: 'Scheduled Reports', href: '#reports-scheduled', icon: CalendarClock },
     ],

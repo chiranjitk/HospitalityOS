@@ -883,6 +883,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['reports.view', 'reports.guests', 'reports.*', '*'],
     description: 'View guest analytics'
   },
+  'reports-guest-stay': {
+    permissions: ['reports.view', 'reports.guests', 'reports.export', 'reports.*', '*'],
+    description: 'View and export guest stay reports'
+  },
   'reports-staff': {
     permissions: ['reports.view', 'reports.staff', 'reports.*', '*'],
     description: 'View staff performance reports'

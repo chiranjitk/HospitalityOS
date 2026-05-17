@@ -318,7 +318,7 @@ export const FEATURES: Record<string, FeatureConfig> = {
     description: 'Revenue reports, occupancy reports, ADR/RevPAR, guest analytics, staff performance, and scheduled reports',
     category: 'addons',
     subcategory: 'Analytics',
-    menuItems: ['reports-revenue', 'reports-occupancy', 'reports-adr', 'reports-guests', 'reports-staff', 'reports-scheduled'],
+    menuItems: ['reports-revenue', 'reports-occupancy', 'reports-adr', 'reports-guests', 'reports-guest-stay', 'reports-staff', 'reports-scheduled'],
     apiRoutes: ['/api/reports', '/api/analytics'],
   },
 

@@ -12,6 +12,9 @@ export default async function loadSection(section: string): Promise<{ default: R
     case 'reports-guest':
     case 'reports-guests':
       return import('@/components/reports/guest-analytics-reports');
+    case 'reports-guest-stay':
+    case 'reports-guest-stays':
+      return import('@/components/reports/guest-stay-report');
     case 'reports-staff':
       return import('@/components/reports/staff-performance');
     case 'reports-scheduled':
