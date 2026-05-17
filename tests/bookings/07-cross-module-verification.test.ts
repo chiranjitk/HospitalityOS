@@ -20,6 +20,8 @@ import {
   assertEqual,
   assertNotNull,
   assertGt,
+  delay,
+  DELAY_BETWEEN_CALLS,
 } from '../pms/setup';
 
 async function main() {
@@ -38,6 +40,7 @@ async function main() {
     {
       name: 'Total bookings count matches across /api/bookings and stats',
       fn: async () => {
+        await delay(DELAY_BETWEEN_CALLS);
         const { data: listData } = await api.get(
           `/api/bookings?propertyId=${st.propertyId}&limit=200`,
           cookie(state)
@@ -54,6 +57,7 @@ async function main() {
     {
       name: 'Group bookings reference correct property',
       fn: async () => {
+        await delay(DELAY_BETWEEN_CALLS);
         const updated = loadState();
         if (!updated.groupBookingId) {
           console.log('      (skipped — no group booking ID in state)');
@@ -73,10 +77,11 @@ async function main() {
         }
       },
     },
-    // 3. Waitlist entries reference valid room types
+    // 3. No-show settings persisted correctly
     {
       name: 'No-show settings persisted correctly',
       fn: async () => {
+        await delay(DELAY_BETWEEN_CALLS);
         const { data: settingsData } = await api.get(
           `/api/no-show/settings?propertyId=${st.propertyId}`,
           cookie(state)
@@ -84,7 +89,8 @@ async function main() {
         assert(settingsData.success, 'No-show settings should load');
         assertNotNull(settingsData.data);
 
-        // Cross-verify with property API
+        // Cross-verify with property API (with delay)
+        await delay(DELAY_BETWEEN_CALLS);
         const { data: propData } = await api.get(
           `/api/properties/${st.propertyId}`,
           cookie(state)
@@ -113,6 +119,7 @@ async function main() {
     {
       name: 'Audit logs capture booking operations',
       fn: async () => {
+        await delay(DELAY_BETWEEN_CALLS);
         const { data: auditData } = await api.get(
           '/api/audit-logs?module=bookings&limit=50',
           cookie(state)
@@ -127,6 +134,7 @@ async function main() {
     {
       name: 'BookingAuditLog entries exist for test bookings',
       fn: async () => {
+        await delay(DELAY_BETWEEN_CALLS);
         assertNotNull(st.bookingId, 'Should have PMS booking ID');
         try {
           const { data: pmsAudit } = await api.get(
@@ -147,6 +155,7 @@ async function main() {
     {
       name: 'Folios exist for bookings',
       fn: async () => {
+        await delay(DELAY_BETWEEN_CALLS);
         assertNotNull(st.folioId, 'Should have folio ID from state');
         const { data: folioData } = await api.get(
           `/api/folios/${st.folioId}`,
@@ -160,6 +169,7 @@ async function main() {
     {
       name: 'Room assignments consistent across bookings and rooms',
       fn: async () => {
+        await delay(DELAY_BETWEEN_CALLS);
         assertNotNull(st.room1Id, 'Should have room1 ID');
         const { data: roomData } = await api.get(
           `/api/rooms/${st.room1Id}`,
@@ -168,6 +178,7 @@ async function main() {
         assert(roomData.success, 'Room should load');
         assertEqual(roomData.data.id, st.room1Id);
 
+        await delay(DELAY_BETWEEN_CALLS);
         const { data: roomsList } = await api.get(
           `/api/rooms?propertyId=${st.propertyId}`,
           cookie(state)
@@ -184,6 +195,7 @@ async function main() {
     {
       name: 'FINAL VERIFICATION: All bookings module data consistent',
       fn: async () => {
+        await delay(DELAY_BETWEEN_CALLS);
         const { data: bookingsList } = await api.get(
           `/api/bookings?propertyId=${st.propertyId}&limit=200`,
           cookie(state)
@@ -191,6 +203,7 @@ async function main() {
         assert(bookingsList.success, 'Bookings list should succeed');
         assertGt(bookingsList.data.length, 0, 'Should have bookings');
 
+        await delay(DELAY_BETWEEN_CALLS);
         const { data: groupList } = await api.get(
           `/api/group-bookings?propertyId=${st.propertyId}`,
           cookie(state)

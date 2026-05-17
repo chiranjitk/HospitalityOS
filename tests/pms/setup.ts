@@ -415,3 +415,14 @@ export async function deleteTestBooking(state: TestState) {
     }
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Delay Utility — prevents dev server overload from rapid API calls
+// ─────────────────────────────────────────────────────────────────────
+
+export function delay(ms: number = 500): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export const DELAY_BETWEEN_CALLS = 600;  // ms between sequential API calls
+export const DELAY_AFTER_MUTATION = 800;  // ms after POST/PUT/DELETE

@@ -1,8 +1,8 @@
 {
-  "sessionCookie": "session_token=1d16d7b901ad5299bbd67a72dc45ccb011824fc357a1445e0354decd71cc75a5",
+  "sessionCookie": "session_token=6d8003f0e7db5ac72716efcda973c3ffd83eb6491226b606a628c1e30df18e29",
   "tenantId": "444017d5-e022-4c5f-ac07-ea0d51f4609b",
   "userId": "b763e2df-7bf1-4de8-94f8-97a1f1e7a0ec",
-  "createdAt": "2026-05-17T05:56:52.880Z",
+  "createdAt": "2026-05-17T06:03:29.041Z",
   "propertyId": "71667a0b-1332-4b7c-9e18-8033af8ef73a",
   "propertySlug": "test-property-1778995489784",
   "roomType1Id": "11733034-47cb-4584-82e4-9568067d98e4",
@@ -34,20 +34,20 @@
   "floorPlan2Id": "219dba79-9bd8-48ba-87b2-d6bd66e7d276",
   "packageId": "44268542-57f5-4846-97ea-c14d10cde058",
   "roomTypeChangeId": "d3f42895-da3e-4102-bbe2-eec3da55acd4",
-  "groupBookingId": "8f01eefb-b99e-4f4c-b42c-c4a35261265d",
+  "groupBookingId": "ec7a9b85-2833-468a-ad66-4334ed58fee1",
   "groupBookingIds": [
-    "a092f64d-47c1-47e3-97cc-09b2b82f7090",
-    "7c390eeb-381b-4548-86fb-39f5f065eaeb"
+    "af8b9eef-d416-4467-a5ae-7a46d0d46853",
+    "97d3ce56-a6b7-4d26-a13b-8256663e8133"
   ],
-  "waitlistEntryId": "6a88e61a-efd6-4bf4-bc00-39ccf81e6fe4",
-  "conflictGuestAId": "04195392-caa8-4505-a18b-b6b671a9fc2c",
-  "conflictBooking1Id": "7f71bd2c-b1c1-4a14-923a-cfd5842b6ab2",
-  "conflictGuestBId": "fb052419-6b64-4f4a-85dd-045ddf30315d",
-  "conflictBooking2Id": "af763749-4eef-43b6-8c7b-185b8a422619",
-  "testAuditLogId": "fd06d532-d187-491b-b51e-cbfaa0450cac",
-  "conflictRoomTypeId": "15deba2e-330b-4d37-8da1-cb0e00bfd01d",
-  "conflictRoomAId": "d55ff69a-985e-4de8-b57c-cb3c4d788ea5",
-  "conflictRoomBId": "7a0980bf-0eb6-48e0-8132-a62cd0eb8008",
-  "groupRoomAId": "52fb94b8-3224-4ffe-97c2-a378a97d9184",
-  "groupRoomBId": "77ae03ac-e600-42ac-94b2-eacf0916eb78"
+  "waitlistEntryId": "67a740d8-952c-42bb-b0a2-1c17f85f3b8b",
+  "conflictGuestAId": "84a880ba-2a3e-44a5-94be-eef6ac1bf765",
+  "conflictBooking1Id": "2c73ff18-3572-4e59-befa-66fda41292f0",
+  "conflictGuestBId": "d3f03964-ac1e-4f5e-81bd-402c968f1b20",
+  "conflictBooking2Id": "88c37fbb-26b6-4a8b-b512-405cdcb273b3",
+  "testAuditLogId": "2214be1e-d8a6-48a4-93d0-bab37430318d",
+  "conflictRoomTypeId": "d3eaaaec-4d7f-4c33-85d6-634fcd484a84",
+  "conflictRoomAId": "cb24de54-8606-4ddf-b982-c361bb244655",
+  "conflictRoomBId": "339adf98-acfd-4a14-9b55-618bc0e24055",
+  "groupRoomAId": "40765d05-bdb3-4c6e-ab9a-282784e94730",
+  "groupRoomBId": "12637945-fa2b-40e4-9468-e0752ba62260"
 }
