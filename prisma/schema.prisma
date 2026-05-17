@@ -4773,6 +4773,7 @@ model Property {
   wifiSLAMetrics            WiFiSLAMetric[]
   wifiSettings              WiFiSettings[]
   portalAdCampaigns         PortalAdCampaign[]
+  hotelWebsites             HotelWebsite[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -6789,7 +6790,7 @@ model HotelWebsite {
   domain          String   @unique
   customDomain    String?
   status          String   @default("draft") // draft, published, unpublished
-  template        String   @default("modern") // modern, classic, boutique, resort
+  template        String   @default("modern") // modern, classic, boutique, resort, minimal
   theme           String   @default("{}") // JSON: primaryColor, secondaryColor, fontFamily, borderRadius, logoUrl, heroImageUrl
   pages           String   @default("[]") // JSON: HotelWebsitePage[]
   seo             String   @default("{}") // JSON: title, description, keywords, ogImage, faviconUrl
@@ -6798,7 +6799,9 @@ model HotelWebsite {
   createdAt       DateTime @default(now()) @db.Timestamptz
   updatedAt       DateTime @updatedAt @db.Timestamptz
   tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property        Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
+  @@unique([tenantId, propertyId])
   @@index([tenantId])
   @@index([propertyId])
   @@index([status])

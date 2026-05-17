@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +36,6 @@ import {
   Palette,
   Search,
   BarChart3,
-  Upload,
   Eye,
   CheckCircle,
   Layout,
@@ -46,7 +45,6 @@ import {
   Plus,
   Trash2,
   Edit3,
-  GripVertical,
   Settings,
   ExternalLink,
   Copy,
@@ -56,7 +54,6 @@ import {
   Save,
   Loader2,
   AlertCircle,
-  ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -127,6 +124,56 @@ interface Template {
   popular?: boolean;
 }
 
+// ─── Grouped State Types ────────────────────────────────────────────────────
+
+interface ThemeState {
+  primaryColor: string;
+  secondaryColor: string;
+  fontFamily: string;
+  borderRadius: string;
+  logoUrl: string;
+  heroImageUrl: string;
+}
+
+interface SEOState {
+  title: string;
+  description: string;
+  keywords: string;
+  ogImage: string;
+  favicon: string;
+}
+
+interface AnalyticsState {
+  gaId: string;
+  gtmId: string;
+  fbPixel: string;
+  metaPixel: string;
+  linkedinInsight: string;
+  twitterPixel: string;
+}
+
+interface PageDialogState {
+  isOpen: boolean;
+  page: WebsitePage | null;
+  title: string;
+  slug: string;
+  published: boolean;
+}
+
+interface SectionDialogState {
+  isOpen: boolean;
+  pageId: string;
+  sectionId: string;
+  sectionType: string;
+  content: Record<string, unknown>;
+}
+
+interface NewPageDialogState {
+  isOpen: boolean;
+  title: string;
+  slug: string;
+}
+
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const TEMPLATES: Template[] = [
@@ -172,41 +219,410 @@ const TEMPLATE_THEMES: Record<string, { primaryColor: string; secondaryColor: st
   minimal: { primaryColor: '#18181b', secondaryColor: '#6b7280', fontFamily: 'Inter', borderRadius: '2px' },
 };
 
-const DEFAULT_PAGES: WebsitePage[] = [
-  {
-    id: 'page-home',
-    slug: 'home',
-    title: 'Home',
-    sections: [
-      { id: 's1', type: 'hero', content: { heading: 'Welcome to Our Hotel', subheading: 'Experience luxury and comfort', ctaText: 'Book Now', showBookingWidget: true }, order: 0, visible: true },
-      { id: 's2', type: 'rooms_grid', content: { heading: 'Our Rooms', showPrices: true }, order: 1, visible: true },
-      { id: 's3', type: 'features', content: { heading: 'Why Choose Us' }, order: 2, visible: true },
-      { id: 's4', type: 'testimonials', content: { heading: 'Guest Reviews', maxReviews: 6 }, order: 3, visible: true },
-      { id: 's5', type: 'cta', content: { heading: 'Ready to Book?', subheading: 'Best rates guaranteed', buttonText: 'Reserve Now' }, order: 4, visible: true },
-    ],
-    published: true,
-  },
-  {
-    id: 'page-rooms',
-    slug: 'rooms',
-    title: 'Rooms & Suites',
-    sections: [
-      { id: 's1', type: 'rooms_grid', content: { heading: 'Accommodations', showPrices: true, showAmenities: true }, order: 0, visible: true },
-      { id: 's2', type: 'gallery', content: { heading: 'Gallery' }, order: 1, visible: true },
-    ],
-    published: true,
-  },
-  {
-    id: 'page-contact',
-    slug: 'contact',
-    title: 'Contact Us',
-    sections: [
-      { id: 's1', type: 'contact_form', content: { heading: 'Get in Touch', showMap: true, showPhone: true, showEmail: true }, order: 0, visible: true },
-      { id: 's2', type: 'map', content: {}, order: 1, visible: true },
-    ],
-    published: true,
-  },
-];
+// ─── Section Content Editor Component ───────────────────────────────────────
+
+function SectionContentEditor({
+  sectionType,
+  content,
+  onChange,
+}: {
+  sectionType: string;
+  content: Record<string, unknown>;
+  onChange: (key: string, value: unknown) => void;
+}) {
+  const updateField = (key: string, value: unknown) => onChange(key, value);
+
+  const renderTextField = (key: string, label: string, placeholder?: string) => (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <Input
+        value={(content[key] as string) || ''}
+        onChange={(e) => updateField(key, e.target.value)}
+        placeholder={placeholder}
+      />
+    </div>
+  );
+
+  const renderSwitchField = (key: string, label: string) => (
+    <div className="flex items-center gap-2">
+      <Switch
+        checked={!!content[key]}
+        onCheckedChange={(checked) => updateField(key, checked)}
+      />
+      <Label>{label}</Label>
+    </div>
+  );
+
+  const renderNumberField = (key: string, label: string, placeholder?: string) => (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <Input
+        type="number"
+        value={(content[key] as number) ?? ''}
+        onChange={(e) => updateField(key, e.target.value ? Number(e.target.value) : undefined)}
+        placeholder={placeholder}
+      />
+    </div>
+  );
+
+  switch (sectionType) {
+    case 'hero':
+      return (
+        <div className="space-y-4">
+          {renderTextField('heading', 'Heading', 'Welcome to Our Hotel')}
+          {renderTextField('subheading', 'Subheading', 'Experience luxury and comfort')}
+          {renderTextField('ctaText', 'CTA Button Text', 'Book Now')}
+          {renderSwitchField('showBookingWidget', 'Show Booking Widget')}
+        </div>
+      );
+
+    case 'rooms_grid':
+      return (
+        <div className="space-y-4">
+          {renderTextField('heading', 'Heading', 'Our Rooms')}
+          {renderSwitchField('showPrices', 'Show Prices')}
+          {renderSwitchField('showAmenities', 'Show Amenities')}
+        </div>
+      );
+
+    case 'features':
+      return (
+        <div className="space-y-4">
+          {renderTextField('heading', 'Heading', 'Why Choose Us')}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Feature Items</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const items = (content.items as Record<string, string>[]) || [];
+                  updateField('items', [...items, { icon: 'CheckCircle', title: '', description: '' }]);
+                }}
+              >
+                <Plus className="h-3 w-3 mr-1" /> Add Item
+              </Button>
+            </div>
+            {((content.items as Record<string, string>[]) || []).map((item, idx) => (
+              <div key={idx} className="p-3 border rounded-lg space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Item {idx + 1}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                    onClick={() => {
+                      const items = [...((content.items as Record<string, string>[]) || [])];
+                      items.splice(idx, 1);
+                      updateField('items', items);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <Input
+                  value={item.icon || ''}
+                  onChange={(e) => {
+                    const items = [...((content.items as Record<string, string>[]) || [])];
+                    items[idx] = { ...items[idx], icon: e.target.value };
+                    updateField('items', items);
+                  }}
+                  placeholder="Icon name (e.g., CheckCircle)"
+                />
+                <Input
+                  value={item.title || ''}
+                  onChange={(e) => {
+                    const items = [...((content.items as Record<string, string>[]) || [])];
+                    items[idx] = { ...items[idx], title: e.target.value };
+                    updateField('items', items);
+                  }}
+                  placeholder="Title"
+                />
+                <Input
+                  value={item.description || ''}
+                  onChange={(e) => {
+                    const items = [...((content.items as Record<string, string>[]) || [])];
+                    items[idx] = { ...items[idx], description: e.target.value };
+                    updateField('items', items);
+                  }}
+                  placeholder="Description"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    case 'gallery':
+      return (
+        <div className="space-y-4">
+          {renderTextField('heading', 'Heading', 'Gallery')}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Images</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const images = (content.images as Record<string, string>[]) || [];
+                  updateField('images', [...images, { url: '', alt: '' }]);
+                }}
+              >
+                <Plus className="h-3 w-3 mr-1" /> Add Image
+              </Button>
+            </div>
+            {((content.images as Record<string, string>[]) || []).map((img, idx) => (
+              <div key={idx} className="p-3 border rounded-lg space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Image {idx + 1}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                    onClick={() => {
+                      const images = [...((content.images as Record<string, string>[]) || [])];
+                      images.splice(idx, 1);
+                      updateField('images', images);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <Input
+                  value={img.url || ''}
+                  onChange={(e) => {
+                    const images = [...((content.images as Record<string, string>[]) || [])];
+                    images[idx] = { ...images[idx], url: e.target.value };
+                    updateField('images', images);
+                  }}
+                  placeholder="Image URL"
+                />
+                <Input
+                  value={img.alt || ''}
+                  onChange={(e) => {
+                    const images = [...((content.images as Record<string, string>[]) || [])];
+                    images[idx] = { ...images[idx], alt: e.target.value };
+                    updateField('images', images);
+                  }}
+                  placeholder="Alt text"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    case 'testimonials':
+      return (
+        <div className="space-y-4">
+          {renderTextField('heading', 'Heading', 'Guest Reviews')}
+          {renderNumberField('maxReviews', 'Max Reviews to Show', '6')}
+        </div>
+      );
+
+    case 'cta':
+      return (
+        <div className="space-y-4">
+          {renderTextField('heading', 'Heading', 'Ready to Book?')}
+          {renderTextField('subheading', 'Subheading', 'Best rates guaranteed')}
+          {renderTextField('buttonText', 'Button Text', 'Reserve Now')}
+          {renderTextField('buttonUrl', 'Button URL', '/booking')}
+        </div>
+      );
+
+    case 'amenities':
+      return (
+        <div className="space-y-4">
+          {renderTextField('heading', 'Heading', 'Amenities')}
+        </div>
+      );
+
+    case 'dining':
+      return (
+        <div className="space-y-4">
+          {renderTextField('heading', 'Heading', 'Dining')}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Restaurants</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const restaurants = (content.restaurants as Record<string, string>[]) || [];
+                  updateField('restaurants', [...restaurants, { name: '', description: '', cuisine: '', hours: '' }]);
+                }}
+              >
+                <Plus className="h-3 w-3 mr-1" /> Add Restaurant
+              </Button>
+            </div>
+            {((content.restaurants as Record<string, string>[]) || []).map((r, idx) => (
+              <div key={idx} className="p-3 border rounded-lg space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Restaurant {idx + 1}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                    onClick={() => {
+                      const restaurants = [...((content.restaurants as Record<string, string>[]) || [])];
+                      restaurants.splice(idx, 1);
+                      updateField('restaurants', restaurants);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <Input
+                  value={r.name || ''}
+                  onChange={(e) => {
+                    const restaurants = [...((content.restaurants as Record<string, string>[]) || [])];
+                    restaurants[idx] = { ...restaurants[idx], name: e.target.value };
+                    updateField('restaurants', restaurants);
+                  }}
+                  placeholder="Restaurant name"
+                />
+                <Input
+                  value={r.description || ''}
+                  onChange={(e) => {
+                    const restaurants = [...((content.restaurants as Record<string, string>[]) || [])];
+                    restaurants[idx] = { ...restaurants[idx], description: e.target.value };
+                    updateField('restaurants', restaurants);
+                  }}
+                  placeholder="Description"
+                />
+                <Input
+                  value={r.cuisine || ''}
+                  onChange={(e) => {
+                    const restaurants = [...((content.restaurants as Record<string, string>[]) || [])];
+                    restaurants[idx] = { ...restaurants[idx], cuisine: e.target.value };
+                    updateField('restaurants', restaurants);
+                  }}
+                  placeholder="Cuisine type"
+                />
+                <Input
+                  value={r.hours || ''}
+                  onChange={(e) => {
+                    const restaurants = [...((content.restaurants as Record<string, string>[]) || [])];
+                    restaurants[idx] = { ...restaurants[idx], hours: e.target.value };
+                    updateField('restaurants', restaurants);
+                  }}
+                  placeholder="Hours (e.g., 7am - 10pm)"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    case 'map':
+      return (
+        <div className="space-y-4">
+          {renderTextField('heading', 'Heading', 'Find Us')}
+          {renderNumberField('zoom', 'Zoom Level', '14')}
+        </div>
+      );
+
+    case 'faq':
+      return (
+        <div className="space-y-4">
+          {renderTextField('heading', 'Heading', 'FAQ')}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>FAQ Items</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const items = (content.items as Record<string, string>[]) || [];
+                  updateField('items', [...items, { question: '', answer: '' }]);
+                }}
+              >
+                <Plus className="h-3 w-3 mr-1" /> Add FAQ
+              </Button>
+            </div>
+            {((content.items as Record<string, string>[]) || []).map((item, idx) => (
+              <div key={idx} className="p-3 border rounded-lg space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">FAQ {idx + 1}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                    onClick={() => {
+                      const items = [...((content.items as Record<string, string>[]) || [])];
+                      items.splice(idx, 1);
+                      updateField('items', items);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <Input
+                  value={item.question || ''}
+                  onChange={(e) => {
+                    const items = [...((content.items as Record<string, string>[]) || [])];
+                    items[idx] = { ...items[idx], question: e.target.value };
+                    updateField('items', items);
+                  }}
+                  placeholder="Question"
+                />
+                <Textarea
+                  value={item.answer || ''}
+                  onChange={(e) => {
+                    const items = [...((content.items as Record<string, string>[]) || [])];
+                    items[idx] = { ...items[idx], answer: e.target.value };
+                    updateField('items', items);
+                  }}
+                  placeholder="Answer"
+                  rows={2}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    case 'contact_form':
+      return (
+        <div className="space-y-4">
+          {renderTextField('heading', 'Heading', 'Get in Touch')}
+          {renderSwitchField('showMap', 'Show Map')}
+          {renderSwitchField('showPhone', 'Show Phone')}
+          {renderSwitchField('showEmail', 'Show Email')}
+        </div>
+      );
+
+    case 'booking_widget':
+      return (
+        <div className="space-y-4">
+          {renderTextField('heading', 'Heading', 'Book Your Stay')}
+        </div>
+      );
+
+    case 'html':
+      return (
+        <div className="space-y-2">
+          <Label>Custom HTML</Label>
+          <Textarea
+            value={(content.html as string) || ''}
+            onChange={(e) => updateField('html', e.target.value)}
+            placeholder="Enter custom HTML code..."
+            rows={12}
+            className="font-mono text-sm"
+          />
+        </div>
+      );
+
+    default:
+      return (
+        <div className="p-4 border rounded-lg bg-muted/30 text-center">
+          <p className="text-sm text-muted-foreground">
+            No editor available for section type &quot;{sectionType}&quot;
+          </p>
+        </div>
+      );
+  }
+}
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
@@ -214,59 +630,96 @@ export default function WebsiteBuilder() {
   const { currentProperty } = useAuthStore();
   const propertyId = currentProperty?.id;
 
-  // ─── State ──────────────────────────────────────────────────────────────
+  // ─── Core State ────────────────────────────────────────────────────────
   const [website, setWebsite] = useState<WebsiteData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState('templates');
+  const [previewKey, setPreviewKey] = useState(Date.now());
 
-  // Theme state
-  const [primaryColor, setPrimaryColor] = useState('#0d9488');
-  const [secondaryColor, setSecondaryColor] = useState('#f59e0b');
-  const [fontFamily, setFontFamily] = useState('Inter');
-  const [borderRadius, setBorderRadius] = useState('8px');
-  const [logoUrl, setLogoUrl] = useState('');
-  const [heroImageUrl, setHeroImageUrl] = useState('');
+  // ─── Grouped State ─────────────────────────────────────────────────────
+  const [theme, setTheme] = useState<ThemeState>({
+    primaryColor: '#0d9488',
+    secondaryColor: '#f59e0b',
+    fontFamily: 'Inter',
+    borderRadius: '8px',
+    logoUrl: '',
+    heroImageUrl: '',
+  });
 
-  // SEO state
-  const [seoTitle, setSeoTitle] = useState('');
-  const [seoDescription, setSeoDescription] = useState('');
-  const [seoKeywords, setSeoKeywords] = useState('');
-  const [seoOgImage, setSeoOgImage] = useState('');
-  const [seoFavicon, setSeoFavicon] = useState('');
+  const [seo, setSeo] = useState<SEOState>({
+    title: '',
+    description: '',
+    keywords: '',
+    ogImage: '',
+    favicon: '',
+  });
 
-  // Analytics state
-  const [gaId, setGaId] = useState('');
-  const [gtmId, setGtmId] = useState('');
-  const [fbPixel, setFbPixel] = useState('');
-  const [metaPixel, setMetaPixel] = useState('');
-  const [linkedinInsight, setLinkedinInsight] = useState('');
-  const [twitterPixel, setTwitterPixel] = useState('');
+  const [analytics, setAnalytics] = useState<AnalyticsState>({
+    gaId: '',
+    gtmId: '',
+    fbPixel: '',
+    metaPixel: '',
+    linkedinInsight: '',
+    twitterPixel: '',
+  });
 
-  // Domain state
   const [customDomain, setCustomDomain] = useState('');
-
-  // Pages state
   const [pages, setPages] = useState<WebsitePage[]>([]);
 
-  // Page edit dialog
-  const [editingPage, setEditingPage] = useState<WebsitePage | null>(null);
-  const [editPageTitle, setEditPageTitle] = useState('');
-  const [editPageSlug, setEditPageSlug] = useState('');
-  const [editPagePublished, setEditPagePublished] = useState(true);
-  const [isPageDialogOpen, setIsPageDialogOpen] = useState(false);
+  const [pageDialog, setPageDialog] = useState<PageDialogState>({
+    isOpen: false,
+    page: null,
+    title: '',
+    slug: '',
+    published: true,
+  });
 
-  // Section edit dialog
-  const [editingSection, setEditingSection] = useState<PageSection | null>(null);
-  const [editingSectionPageId, setEditingSectionPageId] = useState('');
-  const [isSectionDialogOpen, setIsSectionDialogOpen] = useState(false);
+  const [sectionDialog, setSectionDialog] = useState<SectionDialogState>({
+    isOpen: false,
+    pageId: '',
+    sectionId: '',
+    sectionType: '',
+    content: {},
+  });
 
-  // Add page dialog
-  const [newPageTitle, setNewPageTitle] = useState('');
-  const [newPageSlug, setNewPageSlug] = useState('');
-  const [isNewPageDialogOpen, setIsNewPageDialogOpen] = useState(false);
+  const [newPageDialog, setNewPageDialog] = useState<NewPageDialogState>({
+    isOpen: false,
+    title: '',
+    slug: '',
+  });
+
+  // ─── Sync local state from API data ─────────────────────────────────────
+
+  const syncLocalState = (data: WebsiteData) => {
+    setTheme({
+      primaryColor: data.theme?.primaryColor || '#0d9488',
+      secondaryColor: data.theme?.secondaryColor || '#f59e0b',
+      fontFamily: data.theme?.fontFamily || 'Inter',
+      borderRadius: data.theme?.borderRadius || '8px',
+      logoUrl: data.theme?.logoUrl || '',
+      heroImageUrl: data.theme?.heroImageUrl || '',
+    });
+    setSeo({
+      title: data.seo?.title || '',
+      description: data.seo?.description || '',
+      keywords: Array.isArray(data.seo?.keywords) ? data.seo.keywords.join(', ') : '',
+      ogImage: data.seo?.ogImage || '',
+      favicon: data.seo?.faviconUrl || '',
+    });
+    setAnalytics({
+      gaId: data.analytics?.googleAnalyticsId || '',
+      gtmId: data.analytics?.googleTagManagerId || '',
+      fbPixel: data.analytics?.facebookPixelId || '',
+      metaPixel: data.analytics?.metaPixelId || '',
+      linkedinInsight: data.analytics?.linkedInsightTag || '',
+      twitterPixel: data.analytics?.twitterPixelId || '',
+    });
+    setCustomDomain(data.customDomain || '');
+    setPages(data.pages || []);
+  };
 
   // ─── API Calls ──────────────────────────────────────────────────────────
 
@@ -290,29 +743,6 @@ export default function WebsiteBuilder() {
     }
   }, [propertyId]);
 
-  // Sync local state from API data
-  const syncLocalState = (data: WebsiteData) => {
-    setPrimaryColor(data.theme?.primaryColor || '#0d9488');
-    setSecondaryColor(data.theme?.secondaryColor || '#f59e0b');
-    setFontFamily(data.theme?.fontFamily || 'Inter');
-    setBorderRadius(data.theme?.borderRadius || '8px');
-    setLogoUrl(data.theme?.logoUrl || '');
-    setHeroImageUrl(data.theme?.heroImageUrl || '');
-    setSeoTitle(data.seo?.title || '');
-    setSeoDescription(data.seo?.description || '');
-    setSeoKeywords(Array.isArray(data.seo?.keywords) ? data.seo.keywords.join(', ') : '');
-    setSeoOgImage(data.seo?.ogImage || '');
-    setSeoFavicon(data.seo?.faviconUrl || '');
-    setGaId(data.analytics?.googleAnalyticsId || '');
-    setGtmId(data.analytics?.googleTagManagerId || '');
-    setFbPixel(data.analytics?.facebookPixelId || '');
-    setMetaPixel(data.analytics?.metaPixelId || '');
-    setLinkedinInsight(data.analytics?.linkedInsightTag || '');
-    setTwitterPixel(data.analytics?.twitterPixelId || '');
-    setCustomDomain(data.customDomain || '');
-    setPages(data.pages || []);
-  };
-
   useEffect(() => {
     fetchWebsite();
   }, [fetchWebsite]);
@@ -324,7 +754,7 @@ export default function WebsiteBuilder() {
       toast.error('No property selected');
       return;
     }
-    setIsCreating(true);
+    setIsSaving(true);
     try {
       const res = await fetch('/api/website-builder', {
         method: 'POST',
@@ -344,7 +774,7 @@ export default function WebsiteBuilder() {
       console.error('Error creating website:', err);
       toast.error('Failed to create website');
     } finally {
-      setIsCreating(false);
+      setIsSaving(false);
     }
   };
 
@@ -360,18 +790,19 @@ export default function WebsiteBuilder() {
         body: JSON.stringify({
           id: website.id,
           theme: {
-            primaryColor,
-            secondaryColor,
-            fontFamily,
-            borderRadius,
-            logoUrl: logoUrl || undefined,
-            heroImageUrl: heroImageUrl || undefined,
+            primaryColor: theme.primaryColor,
+            secondaryColor: theme.secondaryColor,
+            fontFamily: theme.fontFamily,
+            borderRadius: theme.borderRadius,
+            logoUrl: theme.logoUrl || undefined,
+            heroImageUrl: theme.heroImageUrl || undefined,
           },
         }),
       });
       const json = await res.json();
       if (json.success) {
         setWebsite(json.data);
+        setPreviewKey(Date.now());
         toast.success('Theme saved successfully!');
       } else {
         toast.error(json.error?.message || 'Failed to save theme');
@@ -388,7 +819,6 @@ export default function WebsiteBuilder() {
 
   const handleTemplateChange = async (templateId: string) => {
     if (!website) {
-      // No website yet - create one with this template
       await handleCreateWebsite(templateId);
       return;
     }
@@ -408,6 +838,7 @@ export default function WebsiteBuilder() {
       if (json.success) {
         setWebsite(json.data);
         syncLocalState(json.data);
+        setPreviewKey(Date.now());
         toast.success('Template updated!');
       } else {
         toast.error(json.error?.message || 'Failed to update template');
@@ -431,11 +862,11 @@ export default function WebsiteBuilder() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           websiteId: website.id,
-          title: seoTitle,
-          description: seoDescription,
-          keywords: seoKeywords.split(',').map(k => k.trim()).filter(Boolean),
-          ogImage: seoOgImage || undefined,
-          faviconUrl: seoFavicon || undefined,
+          title: seo.title,
+          description: seo.description,
+          keywords: seo.keywords.split(',').map(k => k.trim()).filter(Boolean),
+          ogImage: seo.ogImage || undefined,
+          faviconUrl: seo.favicon || undefined,
         }),
       });
       const json = await res.json();
@@ -463,12 +894,12 @@ export default function WebsiteBuilder() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           websiteId: website.id,
-          googleAnalyticsId: gaId || undefined,
-          googleTagManagerId: gtmId || undefined,
-          facebookPixelId: fbPixel || undefined,
-          metaPixelId: metaPixel || undefined,
-          linkedInsightTag: linkedinInsight || undefined,
-          twitterPixelId: twitterPixel || undefined,
+          googleAnalyticsId: analytics.gaId || undefined,
+          googleTagManagerId: analytics.gtmId || undefined,
+          facebookPixelId: analytics.fbPixel || undefined,
+          metaPixelId: analytics.metaPixel || undefined,
+          linkedInsightTag: analytics.linkedinInsight || undefined,
+          twitterPixelId: analytics.twitterPixel || undefined,
         }),
       });
       const json = await res.json();
@@ -531,6 +962,7 @@ export default function WebsiteBuilder() {
       const json = await res.json();
       if (json.success) {
         setWebsite(json.data);
+        setPreviewKey(Date.now());
         toast.success('Pages saved successfully!');
       } else {
         toast.error(json.error?.message || 'Failed to save pages');
@@ -592,7 +1024,7 @@ export default function WebsiteBuilder() {
   // ─── Page Management ────────────────────────────────────────────────────
 
   const handleAddPage = async () => {
-    if (!website || !newPageTitle.trim() || !newPageSlug.trim()) return;
+    if (!website || !newPageDialog.title.trim() || !newPageDialog.slug.trim()) return;
     try {
       const res = await fetch('/api/website-builder', {
         method: 'POST',
@@ -601,8 +1033,8 @@ export default function WebsiteBuilder() {
           action: 'add-page',
           websiteId: website.id,
           page: {
-            slug: newPageSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-'),
-            title: newPageTitle.trim(),
+            slug: newPageDialog.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+            title: newPageDialog.title.trim(),
             sections: [],
             published: false,
           },
@@ -611,9 +1043,7 @@ export default function WebsiteBuilder() {
       const json = await res.json();
       if (json.success) {
         await fetchWebsite();
-        setNewPageTitle('');
-        setNewPageSlug('');
-        setIsNewPageDialogOpen(false);
+        setNewPageDialog({ isOpen: false, title: '', slug: '' });
         toast.success('Page added!');
       } else {
         toast.error(json.error?.message || 'Failed to add page');
@@ -646,7 +1076,7 @@ export default function WebsiteBuilder() {
   };
 
   const handleUpdatePage = async () => {
-    if (!website || !editingPage) return;
+    if (!website || !pageDialog.page) return;
     try {
       const res = await fetch('/api/website-builder', {
         method: 'PUT',
@@ -654,19 +1084,18 @@ export default function WebsiteBuilder() {
         body: JSON.stringify({
           action: 'update-page',
           websiteId: website.id,
-          pageId: editingPage.id,
+          pageId: pageDialog.page.id,
           updates: {
-            title: editPageTitle,
-            slug: editPageSlug,
-            published: editPagePublished,
+            title: pageDialog.title,
+            slug: pageDialog.slug,
+            published: pageDialog.published,
           },
         }),
       });
       const json = await res.json();
       if (json.success) {
         await fetchWebsite();
-        setIsPageDialogOpen(false);
-        setEditingPage(null);
+        setPageDialog(prev => ({ ...prev, isOpen: false, page: null }));
         toast.success('Page updated!');
       } else {
         toast.error(json.error?.message || 'Failed to update page');
@@ -715,14 +1144,88 @@ export default function WebsiteBuilder() {
     setPages(updated);
   };
 
+  const handleOpenSectionEditor = (pageId: string, section: PageSection) => {
+    setSectionDialog({
+      isOpen: true,
+      pageId,
+      sectionId: section.id,
+      sectionType: section.type,
+      content: JSON.parse(JSON.stringify(section.content)), // deep clone
+    });
+  };
+
+  const handleSaveSectionContent = () => {
+    const { pageId, sectionId, content } = sectionDialog;
+    setPages(prev => prev.map(page => {
+      if (page.id !== pageId) return page;
+      return {
+        ...page,
+        sections: page.sections.map(s =>
+          s.id === sectionId ? { ...s, content } : s
+        ),
+      };
+    }));
+    setSectionDialog(prev => ({ ...prev, isOpen: false }));
+    setPreviewKey(Date.now());
+  };
+
+  const handleSectionContentChange = (key: string, value: unknown) => {
+    setSectionDialog(prev => ({
+      ...prev,
+      content: { ...prev.content, [key]: value },
+    }));
+  };
+
+  // ─── Sync from Property ─────────────────────────────────────────────────
+
+  const handleSyncFromProperty = async () => {
+    if (!website) return;
+    setIsSyncing(true);
+    try {
+      const res = await fetch('/api/website-builder/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          websiteId: website.id,
+          syncTypes: ['rooms', 'amenities', 'reviews', 'property_info'],
+        }),
+      });
+      const json = await res.json();
+      if (json.success && json.data?.sectionUpdates) {
+        const { sectionUpdates } = json.data;
+        // Merge section updates into pages state
+        setPages(prev => prev.map(page => ({
+          ...page,
+          sections: page.sections.map(section => {
+            if (sectionUpdates[section.type]) {
+              return {
+                ...section,
+                content: { ...section.content, ...sectionUpdates[section.type] },
+              };
+            }
+            return section;
+          }),
+        })));
+        toast.success('Property data synced! Save pages to apply.');
+      } else {
+        toast.error(json.error?.message || 'Failed to sync property data');
+      }
+    } catch (err) {
+      console.error('Error syncing property data:', err);
+      toast.error('Failed to sync property data');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // ─── Utility ────────────────────────────────────────────────────────────
+
   const handleCopyDomain = () => {
     if (website?.domain) {
       navigator.clipboard.writeText(website.customDomain || website.domain);
       toast.success('Domain copied to clipboard');
     }
   };
-
-  // ─── Render Helpers ─────────────────────────────────────────────────────
 
   const getStatusBadge = () => {
     if (!website) return <Badge variant="secondary">No Website</Badge>;
@@ -741,6 +1244,11 @@ export default function WebsiteBuilder() {
   const getSectionTypeLabel = (type: string) => {
     return SECTION_TYPES.find(s => s.value === type)?.label || type;
   };
+
+  const previewUrl = useMemo(() => {
+    if (!website) return '';
+    return `/site/${website.customDomain || website.domain}?preview=true`;
+  }, [website]);
 
   // ─── Loading State ──────────────────────────────────────────────────────
 
@@ -883,8 +1391,16 @@ export default function WebsiteBuilder() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Preview button — opens in new tab */}
           <Button variant="outline" size="sm" asChild>
-            <a href={`https://${website.customDomain || website.domain}`} target="_blank" rel="noopener noreferrer">
+            <a href={previewUrl} target="_blank" rel="noopener noreferrer">
+              <Eye className="h-4 w-4 mr-2" />
+              Preview
+            </a>
+          </Button>
+          {/* Visit button — links to /site/{domain} */}
+          <Button variant="outline" size="sm" asChild>
+            <a href={`/site/${website.customDomain || website.domain}`} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="h-4 w-4 mr-2" />
               Visit
             </a>
@@ -1006,11 +1522,24 @@ export default function WebsiteBuilder() {
               <p className="text-sm text-muted-foreground">Manage your website pages and sections</p>
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSyncFromProperty}
+                disabled={isSyncing}
+              >
+                {isSyncing ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Sync from Property
+              </Button>
               <Button onClick={handleSavePages} disabled={isSaving} size="sm">
                 {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                 Save Pages
               </Button>
-              <Dialog open={isNewPageDialogOpen} onOpenChange={setIsNewPageDialogOpen}>
+              <Dialog open={newPageDialog.isOpen} onOpenChange={(open) => setNewPageDialog(prev => ({ ...prev, isOpen: open }))}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Plus className="h-4 w-4 mr-2" />
@@ -1026,23 +1555,26 @@ export default function WebsiteBuilder() {
                     <div className="space-y-2">
                       <Label>Page Title</Label>
                       <Input
-                        value={newPageTitle}
+                        value={newPageDialog.title}
                         onChange={(e) => {
-                          setNewPageTitle(e.target.value);
-                          setNewPageSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-'));
+                          setNewPageDialog(prev => ({
+                            ...prev,
+                            title: e.target.value,
+                            slug: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-'),
+                          }));
                         }}
                         placeholder="e.g., Spa & Wellness"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label>URL Slug</Label>
-                      <Input value={newPageSlug} onChange={(e) => setNewPageSlug(e.target.value)} placeholder="spa-wellness" />
-                      <p className="text-xs text-muted-foreground">/{newPageSlug || 'page-slug'}</p>
+                      <Input value={newPageDialog.slug} onChange={(e) => setNewPageDialog(prev => ({ ...prev, slug: e.target.value }))} placeholder="spa-wellness" />
+                      <p className="text-xs text-muted-foreground">/{newPageDialog.slug || 'page-slug'}</p>
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsNewPageDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={handleAddPage} disabled={!newPageTitle.trim() || !newPageSlug.trim()}>Add Page</Button>
+                    <Button variant="outline" onClick={() => setNewPageDialog({ isOpen: false, title: '', slug: '' })}>Cancel</Button>
+                    <Button onClick={handleAddPage} disabled={!newPageDialog.title.trim() || !newPageDialog.slug.trim()}>Add Page</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
@@ -1072,11 +1604,13 @@ export default function WebsiteBuilder() {
                           size="sm"
                           className="h-8 w-8 p-0"
                           onClick={() => {
-                            setEditingPage(page);
-                            setEditPageTitle(page.title);
-                            setEditPageSlug(page.slug);
-                            setEditPagePublished(page.published);
-                            setIsPageDialogOpen(true);
+                            setPageDialog({
+                              isOpen: true,
+                              page,
+                              title: page.title,
+                              slug: page.slug,
+                              published: page.published,
+                            });
                           }}
                         >
                           <Edit3 className="h-4 w-4" />
@@ -1116,7 +1650,6 @@ export default function WebsiteBuilder() {
                             section.visible ? 'bg-background' : 'bg-muted/30 opacity-60'
                           }`}
                         >
-                          <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium">{getSectionTypeLabel(section.type)}</span>
@@ -1125,6 +1658,15 @@ export default function WebsiteBuilder() {
                               )}
                             </div>
                           </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => handleOpenSectionEditor(page.id, section)}
+                            title="Edit section content"
+                          >
+                            <Settings className="h-3.5 w-3.5" />
+                          </Button>
                           <Switch
                             checked={section.visible}
                             onCheckedChange={() => handleToggleSectionVisibility(pageIdx, sectionIdx)}
@@ -1165,7 +1707,7 @@ export default function WebsiteBuilder() {
           </ScrollArea>
 
           {/* Page Edit Dialog */}
-          <Dialog open={isPageDialogOpen} onOpenChange={setIsPageDialogOpen}>
+          <Dialog open={pageDialog.isOpen} onOpenChange={(open) => setPageDialog(prev => ({ ...prev, isOpen: open }))}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Edit Page</DialogTitle>
@@ -1174,20 +1716,46 @@ export default function WebsiteBuilder() {
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <Label>Page Title</Label>
-                  <Input value={editPageTitle} onChange={(e) => setEditPageTitle(e.target.value)} />
+                  <Input value={pageDialog.title} onChange={(e) => setPageDialog(prev => ({ ...prev, title: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
                   <Label>URL Slug</Label>
-                  <Input value={editPageSlug} onChange={(e) => setEditPageSlug(e.target.value)} />
+                  <Input value={pageDialog.slug} onChange={(e) => setPageDialog(prev => ({ ...prev, slug: e.target.value }))} />
                 </div>
                 <div className="flex items-center gap-2">
-                  <Switch checked={editPagePublished} onCheckedChange={setEditPagePublished} />
+                  <Switch checked={pageDialog.published} onCheckedChange={(checked) => setPageDialog(prev => ({ ...prev, published: checked }))} />
                   <Label>Published</Label>
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsPageDialogOpen(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => setPageDialog(prev => ({ ...prev, isOpen: false, page: null }))}>Cancel</Button>
                 <Button onClick={handleUpdatePage}>Save Changes</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Section Content Editor Dialog */}
+          <Dialog open={sectionDialog.isOpen} onOpenChange={(open) => setSectionDialog(prev => ({ ...prev, isOpen: open }))}>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit Section: {getSectionTypeLabel(sectionDialog.sectionType)}</DialogTitle>
+                <DialogDescription>
+                  Modify the content for this {getSectionTypeLabel(sectionDialog.sectionType).toLowerCase()} section
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <SectionContentEditor
+                  sectionType={sectionDialog.sectionType}
+                  content={sectionDialog.content}
+                  onChange={handleSectionContentChange}
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setSectionDialog(prev => ({ ...prev, isOpen: false }))}>Cancel</Button>
+                <Button onClick={handleSaveSectionContent}>
+                  <Save className="h-4 w-4 mr-2" />
+                  Apply Changes
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -1209,13 +1777,13 @@ export default function WebsiteBuilder() {
                   <div className="flex gap-2 items-center">
                     <Input
                       type="color"
-                      value={primaryColor}
-                      onChange={(e) => setPrimaryColor(e.target.value)}
+                      value={theme.primaryColor}
+                      onChange={(e) => setTheme(prev => ({ ...prev, primaryColor: e.target.value }))}
                       className="w-12 h-10 p-1"
                     />
                     <Input
-                      value={primaryColor}
-                      onChange={(e) => setPrimaryColor(e.target.value)}
+                      value={theme.primaryColor}
+                      onChange={(e) => setTheme(prev => ({ ...prev, primaryColor: e.target.value }))}
                       className="flex-1"
                     />
                   </div>
@@ -1224,10 +1792,10 @@ export default function WebsiteBuilder() {
                       <button
                         key={c}
                         className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${
-                          primaryColor === c ? 'border-gray-900 dark:border-white scale-110' : 'border-transparent'
+                          theme.primaryColor === c ? 'border-gray-900 dark:border-white scale-110' : 'border-transparent'
                         }`}
                         style={{ backgroundColor: c }}
-                        onClick={() => setPrimaryColor(c)}
+                        onClick={() => setTheme(prev => ({ ...prev, primaryColor: c }))}
                       />
                     ))}
                   </div>
@@ -1238,13 +1806,13 @@ export default function WebsiteBuilder() {
                   <div className="flex gap-2 items-center">
                     <Input
                       type="color"
-                      value={secondaryColor}
-                      onChange={(e) => setSecondaryColor(e.target.value)}
+                      value={theme.secondaryColor}
+                      onChange={(e) => setTheme(prev => ({ ...prev, secondaryColor: e.target.value }))}
                       className="w-12 h-10 p-1"
                     />
                     <Input
-                      value={secondaryColor}
-                      onChange={(e) => setSecondaryColor(e.target.value)}
+                      value={theme.secondaryColor}
+                      onChange={(e) => setTheme(prev => ({ ...prev, secondaryColor: e.target.value }))}
                       className="flex-1"
                     />
                   </div>
@@ -1257,11 +1825,11 @@ export default function WebsiteBuilder() {
                       <button
                         key={f.value}
                         className={`p-3 rounded-lg border text-left text-sm transition-colors ${
-                          fontFamily === f.value
+                          theme.fontFamily === f.value
                             ? 'border-teal-500 bg-teal-50 dark:bg-teal-950'
                             : 'hover:border-muted'
                         }`}
-                        onClick={() => setFontFamily(f.value)}
+                        onClick={() => setTheme(prev => ({ ...prev, fontFamily: f.value }))}
                       >
                         <span className="font-medium" style={{ fontFamily: f.value }}>{f.label}</span>
                       </button>
@@ -1276,11 +1844,11 @@ export default function WebsiteBuilder() {
                       <button
                         key={r}
                         className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
-                          borderRadius === r
+                          theme.borderRadius === r
                             ? 'border-teal-500 bg-teal-50 dark:bg-teal-950'
                             : 'hover:border-muted'
                         }`}
-                        onClick={() => setBorderRadius(r)}
+                        onClick={() => setTheme(prev => ({ ...prev, borderRadius: r }))}
                       >
                         {r}
                       </button>
@@ -1293,8 +1861,8 @@ export default function WebsiteBuilder() {
                 <div className="space-y-2">
                   <Label>Logo URL</Label>
                   <Input
-                    value={logoUrl}
-                    onChange={(e) => setLogoUrl(e.target.value)}
+                    value={theme.logoUrl}
+                    onChange={(e) => setTheme(prev => ({ ...prev, logoUrl: e.target.value }))}
                     placeholder="https://example.com/logo.png"
                   />
                 </div>
@@ -1302,8 +1870,8 @@ export default function WebsiteBuilder() {
                 <div className="space-y-2">
                   <Label>Hero Image URL</Label>
                   <Input
-                    value={heroImageUrl}
-                    onChange={(e) => setHeroImageUrl(e.target.value)}
+                    value={theme.heroImageUrl}
+                    onChange={(e) => setTheme(prev => ({ ...prev, heroImageUrl: e.target.value }))}
                     placeholder="https://example.com/hero.jpg"
                   />
                 </div>
@@ -1336,80 +1904,38 @@ export default function WebsiteBuilder() {
               </CardContent>
             </Card>
 
-            {/* Live Preview */}
+            {/* Live Preview iframe */}
             <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Eye className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-                  Live Preview
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Eye className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                    Live Preview
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPreviewKey(Date.now())}
+                    title="Refresh preview"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="border rounded-lg overflow-hidden bg-white dark:bg-gray-900">
-                  {/* Browser chrome */}
-                  <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 flex items-center gap-2">
-                    <div className="flex gap-1.5">
-                      <div className="w-3 h-3 rounded-full bg-red-400" />
-                      <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                      <div className="w-3 h-3 rounded-full bg-green-400" />
-                    </div>
-                    <div className="flex-1 ml-3">
-                      <div className="bg-white dark:bg-gray-700 rounded px-3 py-1 text-xs text-muted-foreground truncate">
-                        {customDomain || website.domain}
-                      </div>
-                    </div>
+                {previewUrl ? (
+                  <iframe
+                    key={previewKey}
+                    src={previewUrl}
+                    className="w-full h-[600px] border rounded-lg bg-white"
+                    title="Website Preview"
+                    sandbox="allow-scripts allow-same-origin"
+                  />
+                ) : (
+                  <div className="h-[600px] border rounded-lg flex items-center justify-center bg-muted/30">
+                    <p className="text-sm text-muted-foreground">No preview available</p>
                   </div>
-                  {/* Preview content */}
-                  <div className="p-4" style={{ fontFamily }}>
-                    <div className="flex items-center gap-2 mb-4">
-                      {logoUrl ? (
-                        <img src={logoUrl} alt="Logo" className="h-8 w-8 rounded object-cover" />
-                      ) : (
-                        <div className="h-8 w-8 rounded" style={{ backgroundColor: primaryColor, borderRadius }} />
-                      )}
-                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded" />
-                      <div className="flex-1" />
-                      <div className="h-3 w-12 bg-gray-200 dark:bg-gray-700 rounded" />
-                      <div className="h-3 w-12 bg-gray-200 dark:bg-gray-700 rounded" />
-                      <div
-                        className="h-8 w-20 text-white text-xs flex items-center justify-center"
-                        style={{ backgroundColor: primaryColor, borderRadius }}
-                      >
-                        Book Now
-                      </div>
-                    </div>
-                    <div
-                      className="h-24 rounded-lg mb-4 relative overflow-hidden"
-                      style={{
-                        background: heroImageUrl
-                          ? `linear-gradient(135deg, ${primaryColor}88, ${primaryColor}44), url(${heroImageUrl}) center/cover`
-                          : `linear-gradient(135deg, ${primaryColor}88, ${primaryColor}44)`,
-                        borderRadius,
-                      }}
-                    >
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="text-white text-center">
-                          <div className="h-3 w-32 bg-white/40 rounded mx-auto mb-2" />
-                          <div className="h-2 w-48 bg-white/30 rounded mx-auto" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
-                      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full" />
-                      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-5/6" />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 mt-4">
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className="bg-gray-50 dark:bg-gray-800 rounded p-2" style={{ borderRadius }}>
-                          <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
-                          <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded w-2/3 mb-1" />
-                          <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -1428,37 +1954,37 @@ export default function WebsiteBuilder() {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="seoTitle">Meta Title</Label>
-                <Input id="seoTitle" value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} />
-                <p className="text-xs text-muted-foreground">{seoTitle.length}/60 characters recommended</p>
+                <Input id="seoTitle" value={seo.title} onChange={(e) => setSeo(prev => ({ ...prev, title: e.target.value }))} />
+                <p className="text-xs text-muted-foreground">{seo.title.length}/60 characters recommended</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="seoDesc">Meta Description</Label>
-                <Textarea id="seoDesc" value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} rows={3} />
-                <p className="text-xs text-muted-foreground">{seoDescription.length}/160 characters recommended</p>
+                <Textarea id="seoDesc" value={seo.description} onChange={(e) => setSeo(prev => ({ ...prev, description: e.target.value }))} rows={3} />
+                <p className="text-xs text-muted-foreground">{seo.description.length}/160 characters recommended</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="seoKeywords">Keywords</Label>
-                <Input id="seoKeywords" value={seoKeywords} onChange={(e) => setSeoKeywords(e.target.value)} />
+                <Input id="seoKeywords" value={seo.keywords} onChange={(e) => setSeo(prev => ({ ...prev, keywords: e.target.value }))} />
                 <p className="text-xs text-muted-foreground">Comma-separated keywords for search engines</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="seoOgImage">Open Graph Image URL</Label>
-                <Input id="seoOgImage" value={seoOgImage} onChange={(e) => setSeoOgImage(e.target.value)} placeholder="https://example.com/og-image.jpg" />
+                <Input id="seoOgImage" value={seo.ogImage} onChange={(e) => setSeo(prev => ({ ...prev, ogImage: e.target.value }))} placeholder="https://example.com/og-image.jpg" />
                 <p className="text-xs text-muted-foreground">Image shown when sharing on social media (1200×630 recommended)</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="seoFavicon">Favicon URL</Label>
-                <Input id="seoFavicon" value={seoFavicon} onChange={(e) => setSeoFavicon(e.target.value)} placeholder="https://example.com/favicon.ico" />
+                <Input id="seoFavicon" value={seo.favicon} onChange={(e) => setSeo(prev => ({ ...prev, favicon: e.target.value }))} placeholder="https://example.com/favicon.ico" />
               </div>
 
               {/* Google Preview */}
               <div className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-900">
                 <p className="text-xs text-muted-foreground mb-1">Google Search Preview</p>
                 <p className="text-blue-700 dark:text-blue-400 text-lg font-medium hover:underline cursor-pointer truncate">
-                  {seoTitle || 'Your Hotel Name'}
+                  {seo.title || 'Your Hotel Name'}
                 </p>
                 <p className="text-sm text-green-700 dark:text-green-500">{customDomain || website.domain}</p>
-                <p className="text-sm text-muted-foreground line-clamp-2">{seoDescription || 'Add a meta description...'}</p>
+                <p className="text-sm text-muted-foreground line-clamp-2">{seo.description || 'Add a meta description...'}</p>
               </div>
 
               <Button className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white" onClick={handleSaveSEO} disabled={isSaving}>
@@ -1482,32 +2008,32 @@ export default function WebsiteBuilder() {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="gaId">Google Analytics ID</Label>
-                <Input id="gaId" value={gaId} onChange={(e) => setGaId(e.target.value)} placeholder="G-XXXXXXXXXX" />
+                <Input id="gaId" value={analytics.gaId} onChange={(e) => setAnalytics(prev => ({ ...prev, gaId: e.target.value }))} placeholder="G-XXXXXXXXXX" />
                 <p className="text-xs text-muted-foreground">Track website visitors and behavior with Google Analytics 4</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="gtmId">Google Tag Manager ID</Label>
-                <Input id="gtmId" value={gtmId} onChange={(e) => setGtmId(e.target.value)} placeholder="GTM-XXXXXXX" />
+                <Input id="gtmId" value={analytics.gtmId} onChange={(e) => setAnalytics(prev => ({ ...prev, gtmId: e.target.value }))} placeholder="GTM-XXXXXXX" />
                 <p className="text-xs text-muted-foreground">Manage all tracking tags from one place</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="fbPixel">Facebook Pixel ID</Label>
-                <Input id="fbPixel" value={fbPixel} onChange={(e) => setFbPixel(e.target.value)} placeholder="XXXXXXXXXX" />
+                <Input id="fbPixel" value={analytics.fbPixel} onChange={(e) => setAnalytics(prev => ({ ...prev, fbPixel: e.target.value }))} placeholder="XXXXXXXXXX" />
                 <p className="text-xs text-muted-foreground">Track conversions and build retargeting audiences</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="metaPixel">Meta Pixel ID</Label>
-                <Input id="metaPixel" value={metaPixel} onChange={(e) => setMetaPixel(e.target.value)} placeholder="XXXXXXXXXX" />
+                <Input id="metaPixel" value={analytics.metaPixel} onChange={(e) => setAnalytics(prev => ({ ...prev, metaPixel: e.target.value }))} placeholder="XXXXXXXXXX" />
                 <p className="text-xs text-muted-foreground">Meta (Instagram + Facebook) conversion tracking</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="linkedinInsight">LinkedIn Insight Tag</Label>
-                <Input id="linkedinInsight" value={linkedinInsight} onChange={(e) => setLinkedinInsight(e.target.value)} placeholder="XXXXXXXXXX" />
+                <Input id="linkedinInsight" value={analytics.linkedinInsight} onChange={(e) => setAnalytics(prev => ({ ...prev, linkedinInsight: e.target.value }))} placeholder="XXXXXXXXXX" />
                 <p className="text-xs text-muted-foreground">Track LinkedIn ad conversions and B2B analytics</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="twitterPixel">Twitter/X Pixel ID</Label>
-                <Input id="twitterPixel" value={twitterPixel} onChange={(e) => setTwitterPixel(e.target.value)} placeholder="XXXXXXXXXX" />
+                <Input id="twitterPixel" value={analytics.twitterPixel} onChange={(e) => setAnalytics(prev => ({ ...prev, twitterPixel: e.target.value }))} placeholder="XXXXXXXXXX" />
                 <p className="text-xs text-muted-foreground">Track Twitter/X ad campaign conversions</p>
               </div>
 
@@ -1519,12 +2045,12 @@ export default function WebsiteBuilder() {
                 </div>
                 <div className="space-y-2">
                   {[
-                    { name: 'Google Analytics', configured: !!gaId },
-                    { name: 'Google Tag Manager', configured: !!gtmId },
-                    { name: 'Facebook Pixel', configured: !!fbPixel },
-                    { name: 'Meta Pixel', configured: !!metaPixel },
-                    { name: 'LinkedIn Insight', configured: !!linkedinInsight },
-                    { name: 'Twitter/X Pixel', configured: !!twitterPixel },
+                    { name: 'Google Analytics', configured: !!analytics.gaId },
+                    { name: 'Google Tag Manager', configured: !!analytics.gtmId },
+                    { name: 'Facebook Pixel', configured: !!analytics.fbPixel },
+                    { name: 'Meta Pixel', configured: !!analytics.metaPixel },
+                    { name: 'LinkedIn Insight', configured: !!analytics.linkedinInsight },
+                    { name: 'Twitter/X Pixel', configured: !!analytics.twitterPixel },
                   ].map((tracker) => (
                     <div key={tracker.name} className="flex items-center justify-between text-sm">
                       <span>{tracker.name}</span>
