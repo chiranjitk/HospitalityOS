@@ -271,7 +271,7 @@ export default function GuestChat() {
             <MessageSquare className="h-5 w-5" />
             Guest Chat
             {stats.totalUnread > 0 && (
-              <Badge className="ml-2 bg-red-500">{stats.totalUnread}</Badge>
+              <Badge className="ml-2 bg-primary text-primary-foreground">{stats.totalUnread}</Badge>
             )}
           </h2>
           <p className="text-sm text-muted-foreground">

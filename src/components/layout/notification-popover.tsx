@@ -456,7 +456,7 @@ export function NotificationPopover({ collapsed }: NotificationPopoverProps) {
           >
             <Bell className="h-3.5 w-3.5 text-sidebar-foreground group-hover/bell:scale-110 transition-transform duration-200" />
             {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1 shadow-sm shadow-red-500/30">
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary text-primary-foreground text-[9px] font-bold px-1 shadow-sm shadow-primary/30">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
@@ -485,9 +485,9 @@ export function NotificationPopover({ collapsed }: NotificationPopoverProps) {
         >
           <Bell className="h-3.5 w-3.5 group-hover/bell:scale-110 transition-transform duration-200" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1 shadow-sm shadow-red-500/30">
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary text-primary-foreground text-[9px] font-bold px-1 shadow-sm shadow-primary/30">
               {unreadCount > 99 ? '99+' : unreadCount}
-              <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-25" />
+              <span className="absolute inset-0 rounded-full bg-primary animate-ping opacity-25" />
             </span>
           )}
         </button>

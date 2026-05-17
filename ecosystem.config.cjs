@@ -19,7 +19,7 @@ module.exports = {
         PORT: 3000,
         DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
         NODE_ENV: 'development',
-        NODE_OPTIONS: '--max-old-space-size=3072',
+        NODE_OPTIONS: '--max-old-space-size=6144',
         LD_LIBRARY_PATH: `${APP_DIR}/freeradius-install/lib:${APP_DIR}/freeradius-install/lib/freeradius:${APP_DIR}/pgsql-runtime/lib`,
         RRD_BIN_PATH: `${APP_DIR}/rrdtool/bin/rrdtool`,
         RRD_LIB_PATH: `${APP_DIR}/rrdtool/lib`,

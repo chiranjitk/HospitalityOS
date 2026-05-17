@@ -116,16 +116,22 @@ export async function GET(request: NextRequest) {    const user = await requireP
       },
     });
 
+    // Serialize BigInt values for JSON compatibility
+    const serializedSessions = sessions.map((s: Record<string, unknown>) => ({
+      ...s,
+      dataUsed: typeof s.dataUsed === 'bigint' ? Number(s.dataUsed) : s.dataUsed,
+    }));
+
     return NextResponse.json({
       success: true,
-      data: sessions,
+      data: serializedSessions,
       pagination: {
         total,
         limit: limit ? parseInt(limit, 10) : null,
         offset: offset ? parseInt(offset, 10) : null,
       },
       summary: {
-        totalDataUsed: summary._sum.dataUsed || 0,
+        totalDataUsed: typeof summary._sum.dataUsed === 'bigint' ? Number(summary._sum.dataUsed) : (summary._sum.dataUsed || 0),
         totalDuration: summary._sum.duration || 0,
         count: summary._count.id,
         byStatus: statusCounts.reduce((acc, item) => {
