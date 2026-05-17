@@ -231,7 +231,7 @@ export const FEATURES: Record<string, FeatureConfig> = {
     description: 'Dedicated VLAN per hotel room for Layer 2 isolation, per-room bandwidth, auto firewall rules, and PMS-driven provisioning',
     category: 'addons',
     subcategory: 'Connectivity',
-    menuItems: ['wifi-room-vlans'],
+    menuItems: [],
     apiRoutes: ['/api/wifi/network/room-vlans'],
     dependencies: ['wifi'],
   },
