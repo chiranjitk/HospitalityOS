@@ -212,7 +212,8 @@ async function request(
   method: string,
   path: string,
   body?: any,
-  cookie?: string
+  cookie?: string,
+  retries: number = 2,
 ): Promise<{ data: any; status: number; headers: Headers }> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -221,17 +222,30 @@ async function request(
     headers['Cookie'] = cookie;
   }
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(`${BASE_URL}${path}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
 
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    throw new ApiError(res.status, data);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new ApiError(res.status, data);
+      }
+      return { data, status: res.status, headers: res.headers };
+    } catch (err: any) {
+      const msg = (err.message || '').toLowerCase();
+      const isConnectionError = msg.includes('connect') || msg.includes('socket') || msg.includes('econnrefused') || msg.includes('fetch') || msg.includes('closed');
+      if (isConnectionError && attempt < retries) {
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      throw err;
+    }
   }
-  return { data, status: res.status, headers: res.headers };
+  throw new Error('Max retries exceeded');
 }
 
 export const api = {
@@ -424,5 +438,28 @@ export function delay(ms: number = 500): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export const DELAY_BETWEEN_CALLS = 600;  // ms between sequential API calls
-export const DELAY_AFTER_MUTATION = 800;  // ms after POST/PUT/DELETE
+export const DELAY_BETWEEN_CALLS = 800;  // ms between sequential API calls
+export const DELAY_AFTER_MUTATION = 1200; // ms after POST/PUT/DELETE
+
+// Retry wrapper for unreliable dev server connections
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  retryDelay: number = 2000,
+): Promise<T> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const msg = (err.message || '').toLowerCase();
+      const isConnectionError = msg.includes('connect') || msg.includes('socket') || msg.includes('econnrefused') || msg.includes('fetch');
+      if (isConnectionError && attempt < maxRetries) {
+        console.log(`      (connection error, retry ${attempt}/${maxRetries}...)`);
+        await delay(retryDelay);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
