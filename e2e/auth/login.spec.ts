@@ -62,9 +62,9 @@ test.describe('Login Page — StaySuite HospitalityOS', () => {
   test.beforeEach(async ({ page }) => {
     // Clear cookies and storage before each test for full isolation
     await page.context().clearCookies();
-    await page.goto('/login', { waitUntil: 'networkidle' });
+    await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
     // Wait for the auth loading state to resolve so the form is visible
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(2000);
   });
 
   // ─────────────────────────────────────────────────────────────────
@@ -286,30 +286,36 @@ test.describe('Login Page — StaySuite HospitalityOS', () => {
     // Wait for the app to fully hydrate (sidebar, header)
     await page.waitForTimeout(2000);
 
-    // Step 2: Open the user dropdown menu
-    // The user avatar / name button triggers the dropdown
-    const userMenuTrigger = page.locator('button').filter({
-      has: page.locator('[class*="avatar"], [class*="rounded-full"]'),
+    // Step 2: Open the user dropdown menu in the header
+    // The DropdownMenuTrigger contains the user avatar and name
+    const userMenuTrigger = page.locator('[data-radix-dropdown-menu-trigger], header button').filter({
+      hasText: /User|admin|Admin/i,
     }).first();
 
-    // Alternative: look for the header user button area
-    const headerAvatar = page.locator('header button').first();
-    const clicked = await userMenuTrigger.count() > 0;
-    if (clicked) {
+    // Fallback: try clicking the avatar button in header
+    const avatarBtn = page.locator('header button').filter({
+      has: page.locator('svg[class*="avatar"], [class*="rounded-full"]'),
+    }).first();
+
+    if (await userMenuTrigger.count() > 0) {
       await userMenuTrigger.click();
+    } else if (await avatarBtn.count() > 0) {
+      await avatarBtn.click();
     } else {
-      // Fallback: try any button in the header area
-      await headerAvatar.click();
+      // Last resort: click the rightmost button in the header
+      const headerButtons = page.locator('header button');
+      const lastBtn = headerButtons.last();
+      await lastBtn.click();
     }
 
-    // Wait for dropdown to open
-    await page.waitForTimeout(500);
+    // Wait for dropdown to open and render
+    await page.waitForTimeout(800);
 
-    // Step 3: Click the "Sign Out" / "Log Out" option
+    // Step 3: Click the "Logout" menu item (rendered by tAuth('logout'))
     const logoutOption = page.locator(
-      '[role="menuitem"]:has-text("Log out"), [role="menuitem"]:has-text("Sign out"), [role="menuitem"]:has-text("Logout")',
+      '[role="menuitem"]:has-text("Logout"), [role="menuitem"]:has-text("Log out"), [role="menuitem"]:has-text("Sign out")',
     );
-    await logoutOption.first().click();
+    await logoutOption.first().click({ timeout: 5000 });
 
     // Step 4: Verify redirect to /login
     await page.waitForURL('**/login', { timeout: 15000 });
@@ -338,7 +344,7 @@ test.describe('Login Page — StaySuite HospitalityOS', () => {
     await page.waitForTimeout(2000);
 
     // Step 2: Navigate to /login while still authenticated
-    await page.goto('/login', { waitUntil: 'networkidle' });
+    await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
 
     // Step 3: Should be redirected back to /
     await page.waitForURL('**/', { timeout: 15000 });

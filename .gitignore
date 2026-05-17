@@ -134,3 +134,4 @@ test-w.txt
 
 # StaySuite runtime data & logs
 .staysuite/
+e2e/.auth/

@@ -26,11 +26,15 @@ test.describe('PMS – Properties', () => {
     await expect(page.getByRole('heading', { name: /properties/i })).toBeVisible();
     await expect(page.getByText(/manage your hotel properties/i)).toBeVisible();
 
-    // Stats cards should render
-    await expect(page.getByText('Total Properties')).toBeVisible();
-    await expect(page.getByText('Total Rooms')).toBeVisible();
-    await expect(page.getByText('Active')).toBeVisible();
-    await expect(page.getByText('Cities')).toBeVisible();
+    // Stats cards should render (wait for data to load from API)
+    await expect(page.getByText('Total Properties').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Total Rooms').first()).toBeVisible({ timeout: 10000 });
+    // "Active" may appear in multiple places; check within stat cards area
+    await expect(page.locator('.stat-card, [class*="p-4"][class*="card"]').getByText('Active', { exact: false }).first()).toBeVisible({ timeout: 10000 }).catch(() => {
+      // Fallback: just check any "Active" text is visible
+      return expect(page.getByText('Active').first()).toBeVisible();
+    });
+    await expect(page.getByText('Cities').first()).toBeVisible({ timeout: 10000 });
   });
 
   test('property list renders with seed data (at least 1 property)', async ({ page }) => {

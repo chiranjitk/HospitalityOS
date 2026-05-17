@@ -1232,7 +1232,7 @@ test.describe('Inter-Section Navigation', () => {
     await page.waitForTimeout(500);
 
     // Go back
-    await page.goBack({ waitUntil: 'networkidle' });
+    await page.goBack({ waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1000);
 
     // Should be back on folios or at a valid page
