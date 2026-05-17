@@ -1,0 +1,49 @@
+❌ FAIL | Dashboard | Dashboard-Overview | ?section=dashboard-overview | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Dashboard | Command-Center | ?section=dashboard-command-center | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+✅ PASS | Dashboard | Alerts | ?section=dashboard-alerts | 96 interactive elements
+✅ PASS | Dashboard | KPI-Cards | ?section=dashboard-kpi | 83 interactive elements
+✅ PASS | Property Management | Properties | ?section=pms-properties | 83 interactive elements
+❌ FAIL | Property Management | Room-Types | ?section=pms-room-types | Only 1 interactive elements - page likely empty/broken
+❌ FAIL | Property Management | Rooms | ?section=pms-rooms | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+✅ PASS | Property Management | Inventory-Calendar | ?section=pms-inventory-calendar | 78 interactive elements
+✅ PASS | Property Management | Availability | ?section=pms-availability | 72 interactive elements
+✅ PASS | Property Management | Inventory-Locking | ?section=pms-locking | 68 interactive elements
+❌ FAIL | Property Management | Rate-Plans | ?section=pms-rate-plans-pricing | Only 1 interactive elements - page likely empty/broken
+❌ FAIL | Property Management | Overbooking | ?section=pms-overbooking | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Property Management | Floor-Plans | ?section=pms-floor-plans | Only 1 interactive elements - page likely empty/broken
+❌ FAIL | Property Management | Room-Rate-Calendar | ?section=room-rate-calendar | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Property Management | Room-Out-of-Order | ?section=room-out-of-order | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Property Management | Package-Plans | ?section=pms-package-plans | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Property Management | Room-Type-Change | ?section=pms-room-type-change | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Bookings | Booking-Calendar | ?section=bookings-calendar | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Bookings | Group-Bookings | ?section=bookings-groups | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Bookings | Waitlist | ?section=bookings-waitlist | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Bookings | Booking-Conflicts | ?section=bookings-conflicts | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Bookings | NoShow | ?section=bookings-no-show | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Bookings | Booking-Audit | ?section=bookings-audit | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Front Desk | Checkin | ?section=frontdesk-checkin | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Front Desk | Checkout | ?section=frontdesk-checkout | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Front Desk | Kiosk | ?section=express-kiosk | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Front Desk | Registration | ?section=registration-card | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Front Desk | Room-Assignment | ?section=frontdesk-assignment | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21
+❌ FAIL | Front Desk | Room-Move | ?section=room-move | Navigation failed: ✗ Evaluation error: TypeError: Cannot read properties of undefined (reading 'getState')
+    at <anonymous>:1:21

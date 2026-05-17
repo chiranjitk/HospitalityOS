@@ -1,0 +1,100 @@
+✅ PASS | Auth | Admin Login | HTTP 200 - admin@royalstay.in
+✅ PASS | Data | Properties | Found 2 properties
+✅ PASS | API | Properties | HTTP 200 | 2 items
+❌ FAIL | API | Room Types | Error: socket hang up
+❌ FAIL | API | Rooms | Error: 
+❌ FAIL | API | Bookings | Error: 
+❌ FAIL | API | Guests | Error: 
+❌ FAIL | API | Housekeeping Tasks | Error: 
+❌ FAIL | API | Billing Folios | Error: 
+❌ FAIL | API | Billing Payments | Error: 
+❌ FAIL | API | Cash Book | Error: 
+❌ FAIL | API | Revenue Dashboard | Error: 
+❌ FAIL | API | Channel Manager | Error: 
+❌ FAIL | API | CRM Dashboard | Error: 
+❌ FAIL | API | Reports Overview | Error: 
+❌ FAIL | API | Staff | Error: 
+❌ FAIL | API | WiFi Sessions | Error: 
+❌ FAIL | API | Inventory Items | Error: 
+❌ FAIL | API | Facilities | Error: 
+❌ FAIL | API | Service Requests | Error: 
+❌ FAIL | API | Notifications | Error: 
+❌ FAIL | API | OTA Connections | Error: 
+❌ FAIL | API | Website Builder | Error: 
+❌ FAIL | API | Energy Metrics | Error: 
+❌ FAIL | API | Smart Locks | Error: 
+❌ FAIL | API | Tax TDS | Error: 
+❌ FAIL | API | Ad Connections | Error: 
+❌ FAIL | API | Rate Plans | Error: 
+❌ FAIL | API | Maintenance | Error: 
+❌ FAIL | API | POS Orders | Error: 
+❌ FAIL | API | Campaigns | Error: 
+❌ FAIL | API | Loyalty | Error: 
+❌ FAIL | API | Audit Logs | Error: 
+❌ FAIL | API | Cash Flow | Error: 
+❌ FAIL | API | Budgets | Error: 
+❌ FAIL | API | Hourly Pricing | Error: 
+❌ FAIL | API | Automation Rules | Error: 
+❌ FAIL | API | Integrations | Error: 
+❌ FAIL | API | Access Schedules | Error: 
+❌ FAIL | API | VIP Guests | Error: 
+❌ FAIL | API | VIP Rules | Error: 
+❌ FAIL | API | Website Sync | Error: 
+❌ FAIL | API | Ad Test Connection | Error: 
+❌ FAIL | API | Dashboard Stats | Error: 
+❌ FAIL | Page | Login Page | Error: 
+❌ FAIL | Page | Dashboard Overview | Error: 
+❌ FAIL | Page | Properties | Error: 
+❌ FAIL | Page | Rooms | Error: 
+❌ FAIL | Page | Bookings | Error: 
+❌ FAIL | Page | Check-In | Error: 
+❌ FAIL | Page | Guests | Error: 
+❌ FAIL | Page | Housekeeping | Error: 
+❌ FAIL | Page | Billing Folios | Error: 
+❌ FAIL | Page | Cash Book | Error: 
+❌ FAIL | Page | WiFi | Error: 
+❌ FAIL | Page | Revenue | Error: 
+❌ FAIL | Page | Channel Manager | Error: 
+❌ FAIL | Page | CRM | Error: 
+❌ FAIL | Page | Reports | Error: 
+❌ FAIL | Page | Security | Error: 
+❌ FAIL | Page | Website Builder | Error: 
+❌ FAIL | Page | Settings | Error: 
+❌ FAIL | Role | Front Desk | 
+❌ FAIL | Role | Housekeeping | 
+❌ FAIL | Role | Platform Admin | 
+❌ FAIL | Role | Tenant 2 Admin | 
+❌ FAIL | Security | Unauthenticated API | 
+❌ FAIL | Security | Invalid Password | 
+❌ FAIL | Data | Data Integrity | 
+
+
+============================================
+  🏁 StaySuite Comprehensive Test Report
+============================================
+  ✅ Passed:  3
+  ❌ Failed:  66
+  ⚠️  Warnings: 0
+  📊 Total:    69
+  📈 Success:  4.3%
+============================================
+✓ Screenshot saved to /home/z/my-project/gui-test-screenshots/page-floor-plans.png
+✅ PASS | Floor Plans | /?section=floor-plans | 30 interactive elements | StaySuite HospitalityOS - Multi-Tenant SaaS Platform
+❌ FAIL | Package Plans | /?section=package-plans | Navigation failed
+❌ FAIL | Calendar View | /?section=booking-calendar | Navigation failed
+✓ Screenshot saved to /home/z/my-project/gui-test-screenshots/page-group-bookings.png
+✅ PASS | Group Bookings | /?section=group-bookings | 30 interactive elements | StaySuite HospitalityOS - Multi-Tenant SaaS Platform
+❌ FAIL | Waitlist | /?section=waitlist | Navigation failed
+✓ Screenshot saved to /home/z/my-project/gui-test-screenshots/page-no-show-automation.png
+✅ PASS | No-Show Automation | /?section=noshow | 30 interactive elements | StaySuite HospitalityOS - Multi-Tenant SaaS Platform
+✓ Screenshot saved to /home/z/my-project/gui-test-screenshots/page-audit-logs.png
+⚠️ WARN | Audit Logs | /?section=booking-audit | 0 interactive elements | StaySuite HospitalityOS - Multi-Tenant SaaS Platform
+✓ Screenshot saved to /home/z/my-project/gui-test-screenshots/page-check-in.png
+✅ PASS | Check-In | /?section=checkin | 30 interactive elements | StaySuite HospitalityOS - Multi-Tenant SaaS Platform
+❌ FAIL | Check-Out | /?section=checkout | Navigation failed
+✓ Screenshot saved to /home/z/my-project/gui-test-screenshots/page-guests.png
+✅ PASS | Guests | /?section=guests | 30 interactive elements | StaySuite HospitalityOS - Multi-Tenant SaaS Platform
+✓ Screenshot saved to /home/z/my-project/gui-test-screenshots/page-vip-recognition.png
+✅ PASS | VIP Recognition | /?section=vip | 30 interactive elements | StaySuite HospitalityOS - Multi-Tenant SaaS Platform
+✓ Screenshot saved to /home/z/my-project/gui-test-screenshots/page-housekeeping.png
+⚠️ WARN | Housekeeping | /?section=housekeeping | 0 interactive elements | StaySuite HospitalityOS - Multi-Tenant SaaS Platform

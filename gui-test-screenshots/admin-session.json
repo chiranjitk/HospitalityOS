@@ -1,0 +1,59 @@
+{
+  "cookies": [
+    {
+      "name": "locale",
+      "value": "en",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1810578728.809846,
+      "size": 8,
+      "httpOnly": false,
+      "secure": false,
+      "session": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "NID",
+      "value": "531=itX4XjU-Q1mvb_uw0uiieBtayRClXnrQlXS5eXQWS7HwTHZR5tOVLnbJWHyPTh3CpirWFYME0gCmhUI-C8pYBDjp_yhS9PszyJI2NYRD4zmF6MoBWq-DROIu4RJAEtQvpOgMSsVRQTVFTYP3M82CQ4NOWkBIc3Uy9SMiQRRqzNuYFsZ7s86RUMd-5FMF9rHYDK7puA",
+      "domain": ".google.com",
+      "path": "/",
+      "expires": 1794853930.686212,
+      "size": 205,
+      "httpOnly": true,
+      "secure": false,
+      "session": false
+    },
+    {
+      "name": "session_token",
+      "value": "e58582011e1431c53268cf378e20b6943fcc4448692bd88059531593e07d3d66",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1779129138.880999,
+      "size": 77,
+      "httpOnly": true,
+      "secure": false,
+      "session": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "staysuite-theme-mode",
+          "value": "light"
+        },
+        {
+          "name": "staysuite-auth",
+          "value": "{\"state\":{\"user\":{\"id\":\"b763e2df-7bf1-4de8-94f8-97a1f1e7a0ec\",\"email\":\"admin@royalstay.in\",\"firstName\":\"Rajesh\",\"lastName\":\"Sharma\",\"role\":\"admin\",\"permissions\":[\"*\"],\"isPlatformAdmin\":false,\"roleId\":\"510daaa7-e3c1-439b-b779-95494e12b7b9\",\"tenantId\":\"444017d5-e022-4c5f-ac07-ea0d51f4609b\"},\"tenant\":null,\"currentProperty\":{\"id\":\"600daed4-4d6a-4cb2-a07e-46bec7f4c43b\",\"tenantId\":\"444017d5-e022-4c5f-ac07-ea0d51f4609b\",\"name\":\"Royal Stay Darjeeling\",\"slug\":\"royal-stay-darjeeling\",\"description\":\"Boutique hill resort with breathtaking views of the Himalayas and Kanchenjunga.\",\"type\":\"resort\",\"address\":\"456 Mall Road\",\"city\":\"Darjeeling\",\"state\":\"West Bengal\",\"country\":\"India\",\"postalCode\":\"734101\",\"latitude\":null,\"longitude\":null,\"email\":\"darjeeling@royalstay.in\",\"phone\":\"+91-354-2256789\",\"website\":null,\"logo\":null,\"primaryColor\":null,\"secondaryColor\":null,\"checkInTime\":\"14:00\",\"checkOutTime\":\"11:00\",\"timezone\":\"Asia/Kolkata\",\"currency\":\"INR\",\"taxId\":null,\"taxType\":\"gst\",\"defaultTaxRate\":0,\"taxComponents\":\"[]\",\"serviceChargePercent\":0,\"includeTaxInPrice\":false,\"totalRooms\":0,\"totalFloors\":4,\"noShowSettings\":\"{\\\"noShowBufferHours\\\":1,\\\"autoProcessNoShows\\\":false,\\\"noShowNotificationEnabled\\\":true}\",\"status\":\"active\",\"createdAt\":\"2026-05-17T17:24:29.076Z\",\"updatedAt\":\"2026-05-17T17:24:29.076Z\",\"deletedAt\":null,\"brandId\":null,\"_count\":{\"rooms\":0,\"roomTypes\":2},\"totalRoomTypes\":2},\"properties\":[{\"id\":\"600daed4-4d6a-4cb2-a07e-46bec7f4c43b\",\"tenantId\":\"444017d5-e022-4c5f-ac07-ea0d51f4609b\",\"name\":\"Royal Stay Darjeeling\",\"slug\":\"royal-stay-darjeeling\",\"description\":\"Boutique hill resort with breathtaking views of the Himalayas and Kanchenjunga.\",\"type\":\"resort\",\"address\":\"456 Mall Road\",\"city\":\"Darjeeling\",\"state\":\"West Bengal\",\"country\":\"India\",\"postalCode\":\"734101\",\"latitude\":null,\"longitude\":null,\"email\":\"darjeeling@royalstay.in\",\"phone\":\"+91-354-2256789\",\"website\":null,\"logo\":null,\"primaryColor\":null,\"secondaryColor\":null,\"checkInTime\":\"14:00\",\"checkOutTime\":\"11:00\",\"timezone\":\"Asia/Kolkata\",\"currency\":\"INR\",\"taxId\":null,\"taxType\":\"gst\",\"defaultTaxRate\":0,\"taxComponents\":\"[]\",\"serviceChargePercent\":0,\"includeTaxInPrice\":false,\"totalRooms\":0,\"totalFloors\":4,\"noShowSettings\":\"{\\\"noShowBufferHours\\\":1,\\\"autoProcessNoShows\\\":false,\\\"noShowNotificationEnabled\\\":true}\",\"status\":\"active\",\"createdAt\":\"2026-05-17T17:24:29.076Z\",\"updatedAt\":\"2026-05-17T17:24:29.076Z\",\"deletedAt\":null,\"brandId\":null,\"_count\":{\"rooms\":0,\"roomTypes\":2},\"totalRoomTypes\":2},{\"id\":\"281fde73-7836-4511-b644-91f3663d8fcd\",\"tenantId\":\"444017d5-e022-4c5f-ac07-ea0d51f4609b\",\"name\":\"Royal Stay Kolkata\",\"slug\":\"royal-stay-kolkata\",\"description\":\"A luxury 5-star hotel in the heart of Kolkata with stunning views of Victoria Memorial.\",\"type\":\"hotel\",\"address\":\"123 Park Street\",\"city\":\"Kolkata\",\"state\":\"West Bengal\",\"country\":\"India\",\"postalCode\":\"700016\",\"latitude\":null,\"longitude\":null,\"email\":\"kolkata@royalstay.in\",\"phone\":\"+91-33-40012345\",\"website\":\"https://royalstay.in/kolkata\",\"logo\":null,\"primaryColor\":null,\"secondaryColor\":null,\"checkInTime\":\"14:00\",\"checkOutTime\":\"11:00\",\"timezone\":\"Asia/Kolkata\",\"currency\":\"INR\",\"taxId\":null,\"taxType\":\"gst\",\"defaultTaxRate\":0,\"taxComponents\":\"[]\",\"serviceChargePercent\":0,\"includeTaxInPrice\":false,\"totalRooms\":99,\"totalFloors\":10,\"noShowSettings\":\"{\\\"noShowBufferHours\\\":1,\\\"autoProcessNoShows\\\":false,\\\"noShowNotificationEnabled\\\":true}\",\"status\":\"active\",\"createdAt\":\"2026-05-17T17:24:29.076Z\",\"updatedAt\":\"2026-05-17T17:24:29.076Z\",\"deletedAt\":null,\"brandId\":null,\"_count\":{\"rooms\":99,\"roomTypes\":4},\"totalRoomTypes\":4}]},\"version\":0}"
+        },
+        {
+          "name": "staysuite-ui-style",
+          "value": "gradient-modern"
+        }
+      ],
+      "sessionStorage": []
+    }
+  ]
+}
