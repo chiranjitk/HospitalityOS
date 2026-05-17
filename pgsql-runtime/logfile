@@ -695,3 +695,6 @@
 	    END IF;
 	END $$;
 2026-05-17 07:34:04.264 UTC [6626] LOG:  checkpoint starting: time
+2026-05-17 07:35:08.777 UTC [7689] ERROR:  duplicate key value violates unique constraint "ParkingSlot_pkey"
+2026-05-17 07:35:08.777 UTC [7689] DETAIL:  Key (id)=(70781398-9360-4a63-837c-829287bedf0b) already exists.
+2026-05-17 07:35:08.777 UTC [7689] STATEMENT:  INSERT INTO "public"."ParkingSlot" ("id","tenantId","propertyId","number","floor","type","vehicleType","hasCharging","chargerType","status","posX","posY","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,null,$9,$10,$11,$12,$13), ($14,$15,$16,$17,$18,$19,$20,$21,null,$22,$23,$24,$25,$26), ($27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40), ($41,$42,$43,$44,$45,$46,$47,$48,null,$49,$50,$51,$52,$53), ($54,$55,$56,$57,$58,$59,$60,$61,null,$62,$63,$64,$65,$66)
