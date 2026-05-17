@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import Hls from 'hls.js';
+// hls.js is lazy-loaded dynamically to reduce initial bundle size (25MB+)
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -71,7 +71,7 @@ export default function CameraPlayback() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
+  const hlsRef = useRef<typeof import('hls.js').default.prototype | null>(null);
 
   // Camera selection
   const [cameras, setCameras] = useState<CameraInfo[]>([]);
@@ -246,7 +246,7 @@ export default function CameraPlayback() {
 
   // Load video source into the video element
   const loadVideoSource = useCallback(
-    (src: string | null, type: 'recording' | 'live-stream') => {
+    async (src: string | null, type: 'recording' | 'live-stream') => {
       // Destroy previous HLS instance
       if (hlsRef.current) {
         hlsRef.current.destroy();
@@ -269,30 +269,35 @@ export default function CameraPlayback() {
         return;
       }
 
-      // Check if HLS and needs HLS.js
+      // Check if HLS and needs HLS.js — lazy-load the library on demand
       if (src.includes('.m3u8') || currentCamera?.streamType === 'hls') {
-        if (Hls.isSupported()) {
-          const hls = new Hls({
-            enableWorker: true,
-            lowLatencyMode: true,
-          });
-          hls.loadSource(src);
-          hls.attachMedia(video);
-          hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            // Ready to play
-          });
-          hls.on(Hls.Events.ERROR, (_event, data) => {
-            if (data.fatal) {
-
-              toast.error('Failed to load video stream');
-            }
-          });
-          hlsRef.current = hls;
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          // Safari native HLS
-          video.src = src;
-        } else {
-          toast.error('HLS is not supported in this browser');
+        try {
+          const Hls = (await import('hls.js')).default;
+          if (Hls.isSupported()) {
+            const hls = new Hls({
+              enableWorker: true,
+              lowLatencyMode: true,
+            });
+            hls.loadSource(src);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+              // Ready to play
+            });
+            hls.on(Hls.Events.ERROR, (_event, data) => {
+              if (data.fatal) {
+                toast.error('Failed to load video stream');
+              }
+            });
+            hlsRef.current = hls;
+          } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            // Safari native HLS
+            video.src = src;
+          } else {
+            toast.error('HLS is not supported in this browser');
+            return;
+          }
+        } catch {
+          toast.error('Failed to load video player module');
           return;
         }
       } else {

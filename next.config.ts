@@ -37,11 +37,17 @@ const nextConfig: NextConfig = {
     // This dramatically reduces build-time memory for projects with many files
     // importing from large icon / chart / date utility libraries.
     optimizePackageImports: [
-      // 'lucide-react', // Removed: causes stale chunk caching with Turbopack
+      'lucide-react',       // Re-enabled: Next.js 16.2.4 Turbopack handles this correctly
       'date-fns',
+      'date-fns-jalali',
       'recharts',
       'sonner',
       '@radix-ui/react-icons',
+      'framer-motion',      // Heavy animation library — tree-shake unused features
+      'react-syntax-highlighter',
+      '@tanstack/react-table',
+      '@dnd-kit/core',
+      '@dnd-kit/sortable',
     ],
   },
   reactStrictMode: false,
