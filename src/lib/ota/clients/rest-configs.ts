@@ -167,6 +167,23 @@ export const REST_CLIENT_CONFIGS: Map<string, RESTClientConfig> = new Map([
   }],
 
   // ------------------------------------------
+  // Opodo (ODIGEO Group) — EUR, X-ODIGEO-Key
+  // ------------------------------------------
+  ['opodo', {
+    otaId: 'opodo',
+    otaName: 'Opodo',
+    defaultCurrency: 'EUR',
+    defaultCountry: '',
+    authMode: 'api_key_header',
+    authHeaderName: 'X-ODIGEO-Key',
+    authCredentialKey: 'apiKey',
+    webhookHeaderName: 'X-ODIGEO-Event',
+    isMetasearch: false,
+    roomIdField: 'room_id',
+    ratePlanIdField: 'rate_plan_id',
+  }],
+
+  // ------------------------------------------
   // Edreams (ODIGEO Group) — EUR, X-ODIGEO-Key
   // ------------------------------------------
   ['edreams', {

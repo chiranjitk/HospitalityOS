@@ -30,8 +30,8 @@ import { HotelsComClient } from './clients/hotels-com';
 import { TripAdvisorClient } from './clients/tripadvisor';
 
 // Tier-3: single ConfigurableRestClient replaces 28+ identical clone classes
-import { ConfigurableRestClient, REST_CLIENT_CONFIGS } from './clients/configurable-rest-client';
-import { GENERIC_REST_CONFIG } from './clients/rest-configs';
+import { ConfigurableRestClient } from './clients/configurable-rest-client';
+import { REST_CLIENT_CONFIGS, GENERIC_REST_CONFIG } from './clients/rest-configs';
 
 // ============================================
 // OTA CLIENT FACTORY
