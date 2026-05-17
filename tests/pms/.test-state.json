@@ -1,8 +1,8 @@
 {
-  "sessionCookie": "session_token=1142470a68586a45c3e41af2644101d0ce140eb812a8abdc027f77005f6bcbf7",
+  "sessionCookie": "session_token=1d16d7b901ad5299bbd67a72dc45ccb011824fc357a1445e0354decd71cc75a5",
   "tenantId": "444017d5-e022-4c5f-ac07-ea0d51f4609b",
   "userId": "b763e2df-7bf1-4de8-94f8-97a1f1e7a0ec",
-  "createdAt": "2026-05-17T05:25:01.455Z",
+  "createdAt": "2026-05-17T05:56:52.880Z",
   "propertyId": "71667a0b-1332-4b7c-9e18-8033af8ef73a",
   "propertySlug": "test-property-1778995489784",
   "roomType1Id": "11733034-47cb-4584-82e4-9568067d98e4",
@@ -33,5 +33,21 @@
   "floorPlan1Id": "6d0e6125-ec48-4843-8681-754111bff7c8",
   "floorPlan2Id": "219dba79-9bd8-48ba-87b2-d6bd66e7d276",
   "packageId": "44268542-57f5-4846-97ea-c14d10cde058",
-  "roomTypeChangeId": "d3f42895-da3e-4102-bbe2-eec3da55acd4"
+  "roomTypeChangeId": "d3f42895-da3e-4102-bbe2-eec3da55acd4",
+  "groupBookingId": "8f01eefb-b99e-4f4c-b42c-c4a35261265d",
+  "groupBookingIds": [
+    "a092f64d-47c1-47e3-97cc-09b2b82f7090",
+    "7c390eeb-381b-4548-86fb-39f5f065eaeb"
+  ],
+  "waitlistEntryId": "6a88e61a-efd6-4bf4-bc00-39ccf81e6fe4",
+  "conflictGuestAId": "04195392-caa8-4505-a18b-b6b671a9fc2c",
+  "conflictBooking1Id": "7f71bd2c-b1c1-4a14-923a-cfd5842b6ab2",
+  "conflictGuestBId": "fb052419-6b64-4f4a-85dd-045ddf30315d",
+  "conflictBooking2Id": "af763749-4eef-43b6-8c7b-185b8a422619",
+  "testAuditLogId": "fd06d532-d187-491b-b51e-cbfaa0450cac",
+  "conflictRoomTypeId": "15deba2e-330b-4d37-8da1-cb0e00bfd01d",
+  "conflictRoomAId": "d55ff69a-985e-4de8-b57c-cb3c4d788ea5",
+  "conflictRoomBId": "7a0980bf-0eb6-48e0-8132-a62cd0eb8008",
+  "groupRoomAId": "52fb94b8-3224-4ffe-97c2-a378a97d9184",
+  "groupRoomBId": "77ae03ac-e600-42ac-94b2-eacf0916eb78"
 }
