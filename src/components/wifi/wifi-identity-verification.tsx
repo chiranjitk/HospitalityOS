@@ -148,7 +148,7 @@ function getStatusBadge(status: string) {
 }
 
 function getComplianceBadge(rate: number) {
-  if (rate >= 95) return { label: `${rate.toFixed(1)}% Compliant`, className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300', icon: <ShieldCheck className="h-4 w-4 text-emerald-600" /> };
+  if (rate >= 95) return { label: `${rate.toFixed(1)}% Compliant`, className: 'bg-primary/10 dark:bg-primary/10 text-primary', icon: <ShieldCheck className="h-4 w-4 text-primary" /> };
   if (rate >= 80) return { label: `${rate.toFixed(1)}% Compliant`, className: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300', icon: <ShieldAlert className="h-4 w-4 text-amber-600" /> };
   return { label: `${rate.toFixed(1)}% Compliant`, className: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300', icon: <ShieldAlert className="h-4 w-4 text-red-600" /> };
 }
@@ -183,7 +183,7 @@ function getIdTypeLabel(idType: string | null | undefined) {
 }
 
 const METHOD_COLORS: Record<string, string> = {
-  room_number: 'bg-emerald-500',
+  room_number: 'bg-primary',
   otp_sms: 'bg-blue-500',
   otp_email: 'bg-violet-500',
   government_id: 'bg-amber-500',
@@ -552,7 +552,7 @@ export default function WiFiIdentityVerification() {
       <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-md">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-md">
               <ShieldCheck className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -615,7 +615,7 @@ export default function WiFiIdentityVerification() {
               <CardContent>
                 <div className="text-3xl font-bold">{statsLoading ? '...' : stats?.todayTotal || 0}</div>
                 <div className="flex gap-3 mt-2 text-xs">
-                  <span className="text-emerald-600 font-medium">
+                  <span className="text-primary font-medium">
                     <CheckCircle2 className="inline h-3 w-3 mr-0.5" />{stats?.todayVerified || 0} verified
                   </span>
                   <span className="text-amber-600 font-medium">
@@ -681,7 +681,7 @@ export default function WiFiIdentityVerification() {
                             </div>
                             <div className="flex items-center gap-3 text-muted-foreground">
                               <span>{m.count} sessions</span>
-                              <span className="text-emerald-600 font-medium">{m.successRate.toFixed(0)}% success</span>
+                              <span className="text-primary font-medium">{m.successRate.toFixed(0)}% success</span>
                             </div>
                           </div>
                           <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
@@ -849,7 +849,7 @@ export default function WiFiIdentityVerification() {
                                 <Eye className="h-3.5 w-3.5" />
                               </Button>
                               {log.verificationStatus === 'pending' && (
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-600 hover:text-emerald-700" title="Verify" onClick={() => handleVerify(log.id)}>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-primary hover:text-primary/80" title="Verify" onClick={() => handleVerify(log.id)}>
                                   <CheckCircle2 className="h-3.5 w-3.5" />
                                 </Button>
                               )}
@@ -886,7 +886,7 @@ export default function WiFiIdentityVerification() {
         <TabsContent value="compliance" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-emerald-600" />Compliance Report Generator</CardTitle>
+              <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" />Compliance Report Generator</CardTitle>
               <CardDescription>Generate regulatory compliance reports for WiFi identity verification</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -919,9 +919,9 @@ export default function WiFiIdentityVerification() {
                       <p className="text-sm text-muted-foreground">Total WiFi Sessions</p>
                       <p className="text-2xl font-bold">{complianceReport.totalSessions}</p>
                     </div>
-                    <div className="p-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 space-y-1">
+                    <div className="p-4 rounded-lg bg-primary/5 dark:bg-primary/10 space-y-1">
                       <p className="text-sm text-muted-foreground">Verified Sessions</p>
-                      <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{complianceReport.verifiedSessions}</p>
+                      <p className="text-2xl font-bold text-primary">{complianceReport.verifiedSessions}</p>
                     </div>
                     <div className="p-4 rounded-lg bg-red-50 dark:bg-red-950/30 space-y-1">
                       <p className="text-sm text-muted-foreground">Unverified Sessions (Risk)</p>
@@ -929,7 +929,7 @@ export default function WiFiIdentityVerification() {
                     </div>
                     <div className="p-4 rounded-lg space-y-1">
                       <p className="text-sm text-muted-foreground">Compliance Rate</p>
-                      <p className={`text-2xl font-bold ${complianceReport.complianceRate >= 95 ? 'text-emerald-600' : complianceReport.complianceRate >= 80 ? 'text-amber-600' : 'text-red-600'}`}>
+                      <p className={`text-2xl font-bold ${complianceReport.complianceRate >= 95 ? 'text-primary' : complianceReport.complianceRate >= 80 ? 'text-amber-600' : 'text-red-600'}`}>
                         {complianceReport.complianceRate.toFixed(1)}%
                       </p>
                     </div>
@@ -1138,7 +1138,7 @@ export default function WiFiIdentityVerification() {
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-emerald-600" />
+              <ShieldCheck className="h-5 w-5 text-primary" />
               Verification Log Details
             </DialogTitle>
             <DialogDescription>Full details of this identity verification entry</DialogDescription>
@@ -1167,7 +1167,7 @@ export default function WiFiIdentityVerification() {
               <Separator />
               <div className="flex justify-end gap-2">
                 {selectedLog.verificationStatus === 'pending' && (
-                  <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700" onClick={() => { handleVerify(selectedLog.id); setShowDetailsDialog(false); }}>
+                  <Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => { handleVerify(selectedLog.id); setShowDetailsDialog(false); }}>
                     <CheckCircle2 className="h-4 w-4" />Verify Identity
                   </Button>
                 )}

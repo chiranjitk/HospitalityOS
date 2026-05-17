@@ -618,7 +618,7 @@ type DesignerSubTab = (typeof DESIGNER_SUBTABS)[number]['id'];
 // ── Auth Flow Options ─────────────────────────────────────────────────────────
 
 const AUTH_FLOW_OPTIONS = [
-  { value: 'pms_credentials', label: 'PMS Credentials', icon: User, color: 'text-teal-500 dark:text-teal-400' },
+  { value: 'pms_credentials', label: 'PMS Credentials', icon: User, color: 'text-primary' },
   { value: 'room_number', label: 'Room Number', icon: Building, color: 'text-emerald-500 dark:text-emerald-400' },
   { value: 'voucher', label: 'Voucher', icon: Ticket, color: 'text-amber-500 dark:text-amber-400' },
   { value: 'sms_otp', label: 'SMS OTP', icon: Smartphone, color: 'text-rose-500 dark:text-rose-400' },
@@ -719,7 +719,7 @@ export default function PortalPage() {
                 <button key={tab.id} ref={tab.id === activeTab ? activeTabRef : null} onClick={() => setActiveTab(tab.id)}
                   className={cn(
                     'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all duration-150 whitespace-nowrap',
-                    isActive ? 'border-teal-500 text-teal-600 dark:text-teal-400'
+                    isActive ? 'border-primary/30 text-primary'
                       : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                   )}>
                   <Icon className="h-4 w-4" />
@@ -779,7 +779,7 @@ const EMPTY_ZONE = {
 const AUTH_METHODS = [
   { value: 'voucher', label: 'Voucher Code', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
   { value: 'room_number', label: 'Room Number', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
-  { value: 'pms_credentials', label: 'PMS Credentials', color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300' },
+  { value: 'pms_credentials', label: 'PMS Credentials', color: 'bg-primary/10 text-primary dark:bg-primary/10' },
   { value: 'sms_otp', label: 'SMS OTP', color: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' },
   { value: 'open_access', label: 'Open Access', color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300' },
   { value: 'social', label: 'Social Login', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' },
@@ -1068,7 +1068,7 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
       {/* Server Config Banner */}
       <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-teal-100 dark:bg-teal-900/40"><Zap className="h-5 w-5 text-teal-600 dark:text-teal-400" /></div>
+          <div className="p-2 rounded-lg bg-primary/10 dark:bg-primary/10"><Zap className="h-5 w-5 text-primary" /></div>
           <div>
             <p className="font-medium text-sm">Portal Server Active</p>
             <p className="text-xs text-muted-foreground">Single server serves all zones via slug routing. Configure SSL & domain in <span className="font-mono text-foreground">Network → Portal Settings</span></p>
@@ -1086,7 +1086,7 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
             {roamingZones.length > 0 && <span className="ml-2 text-blue-600 dark:text-blue-400">· {roamingZones.length} seamless roaming</span>}
           </p>
         </div>
-        <Button onClick={openAdd} className="bg-teal-600 hover:bg-teal-700"><Plus className="h-4 w-4 mr-2" />Add Zone</Button>
+        <Button onClick={openAdd} className="bg-primary hover:bg-primary/90 text-primary-foreground"><Plus className="h-4 w-4 mr-2" />Add Zone</Button>
       </div>
 
       {/* Zone Cards */}
@@ -1099,8 +1099,8 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={cn('p-2 rounded-lg', zone.enabled ? 'bg-teal-50 dark:bg-teal-900/30' : 'bg-gray-100 dark:bg-gray-800')}>
-                      <Globe className={cn('h-5 w-5', zone.enabled ? 'text-teal-600 dark:text-teal-400' : 'text-gray-400')} />
+                    <div className={cn('p-2 rounded-lg', zone.enabled ? 'bg-primary/5 dark:bg-primary/5' : 'bg-gray-100 dark:bg-gray-800')}>
+                      <Globe className={cn('h-5 w-5', zone.enabled ? 'text-primary' : 'text-gray-400')} />
                     </div>
                     <div>
                       <CardTitle className="text-base">{zone.name}</CardTitle>
@@ -1203,7 +1203,7 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
         <Card className="border-dashed"><CardContent className="py-12 flex flex-col items-center gap-3 text-muted-foreground">
           <Globe className="h-10 w-10 opacity-30" /><p className="text-sm font-medium">No portal zones yet</p>
           <p className="text-xs">Create zones for different areas — lobby, pool, gym, conference — each with unique branding and auth</p>
-          <Button size="sm" className="bg-teal-600 hover:bg-teal-700" onClick={openAdd}><Plus className="h-4 w-4 mr-2" />Create First Zone</Button>
+          <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground" onClick={openAdd}><Plus className="h-4 w-4 mr-2" />Create First Zone</Button>
         </CardContent></Card>
       )}
 
@@ -1212,7 +1212,7 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
         <DialogContent className="max-w-lg max-h-[85vh]">
           <DialogHeader><DialogTitle>Add Portal Zone</DialogTitle><DialogDescription>Create a new zone — each area gets its own portal design, auth method, and bandwidth limits</DialogDescription></DialogHeader>
           <ScrollArea className="max-h-[60vh]"><ZoneFormContent form={form} setForm={setForm} zones={zones} editZone={null} ssidInput={ssidInput} setSsidInput={setSsidInput} /></ScrollArea>
-          <DialogFooter><Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button><Button onClick={createZone} disabled={!form.name || !form.slug} className="bg-teal-600 hover:bg-teal-700">Create Zone</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button><Button onClick={createZone} disabled={!form.name || !form.slug} className="bg-primary hover:bg-primary/90 text-primary-foreground">Create Zone</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

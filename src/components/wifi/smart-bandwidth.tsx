@@ -691,7 +691,7 @@ export default function SmartBandwidth() {
         {policy.throttleAction === 'throttle' && (
           <div className="rounded-md bg-muted/50 p-2 text-xs">
             <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+              <span className="flex items-center gap-1 text-primary">
                 <ArrowDownToLine className="h-3 w-3" />
                 {formatSpeed(policy.throttleDownloadSpeed || 1)}
               </span>
@@ -823,8 +823,8 @@ export default function SmartBandwidth() {
         {/* Total Policies */}
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-teal-500/10">
-              <Shield className="h-4 w-4 text-teal-500 dark:text-teal-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Shield className="h-4 w-4 text-primary" />
             </div>
             <div>
               <div className="text-2xl font-bold tabular-nums">{policies.length}</div>
@@ -836,11 +836,11 @@ export default function SmartBandwidth() {
         {/* Active Policies */}
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <ShieldCheck className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <ShieldCheck className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+              <div className="text-2xl font-bold tabular-nums text-primary">
                 {activePolicies.length}
               </div>
               <div className="text-xs text-muted-foreground">Active Policies</div>
@@ -1003,7 +1003,7 @@ export default function SmartBandwidth() {
                             {policy.throttleAction === 'throttle' ? (
                               <div className="text-xs space-y-0.5">
                                 <div className="flex items-center gap-1">
-                                  <ArrowDownToLine className="h-3 w-3 text-emerald-500" />
+                                  <ArrowDownToLine className="h-3 w-3 text-primary" />
                                   <span>{formatSpeed(policy.throttleDownloadSpeed || 1)}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
@@ -1132,14 +1132,14 @@ export default function SmartBandwidth() {
                 'mt-4 p-4 rounded-lg border',
                 usageResult.isThrottled
                   ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
-                  : 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800',
+                  : 'bg-primary/5 dark:bg-primary/10 border-primary/20 dark:border-primary/20',
               )}
             >
               <div className="flex items-start gap-3">
                 {usageResult.isThrottled ? (
                   <XCircle className="h-5 w-5 text-red-500 dark:text-red-400 mt-0.5 shrink-0" />
                 ) : (
-                  <CheckCircle className="h-5 w-5 text-emerald-500 dark:text-emerald-400 mt-0.5 shrink-0" />
+                  <CheckCircle className="h-5 w-5 text-primary mt-0.5 shrink-0" />
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1180,7 +1180,7 @@ export default function SmartBandwidth() {
                             ? 'bg-red-500'
                             : usageResult.percentageUsed >= 80
                               ? 'bg-amber-500'
-                              : 'bg-emerald-500',
+                              : 'bg-primary',
                         )}
                         style={{
                           width: `${Math.min(usageResult.percentageUsed, 100)}%`,

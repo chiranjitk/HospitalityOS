@@ -84,7 +84,7 @@ const DhcpAdvancedTabs = dynamic(() => import('./dhcp-advanced-tabs').then(mod =
   ssr: false,
   loading: () => (
     <div className="flex items-center justify-center py-12">
-      <div className="animate-spin h-6 w-6 border-2 border-teal-600 border-t-transparent rounded-full" />
+      <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
     </div>
   ),
 });
@@ -245,19 +245,19 @@ type SortDir = 'asc' | 'desc';
 function getUtilColor(pct: number) {
   if (pct >= 85) return 'from-red-500 to-rose-600';
   if (pct >= 60) return 'from-amber-400 to-amber-600';
-  return 'from-emerald-400 to-emerald-600';
+  return 'from-primary to-primary/70';
 }
 
 function getUtilBorder(pct: number) {
   if (pct >= 85) return 'border-l-red-500';
   if (pct >= 60) return 'border-l-amber-400';
-  return 'border-l-emerald-400';
+  return 'border-l-primary';
 }
 
 function getUtilText(pct: number) {
   if (pct >= 85) return 'text-red-600 dark:text-red-400';
   if (pct >= 60) return 'text-amber-600 dark:text-amber-400';
-  return 'text-emerald-600 dark:text-emerald-400';
+  return 'text-primary';
 }
 
 function getLeaseStateBadge(state: DhcpLease['state']) {
@@ -406,7 +406,7 @@ function TabButton({ active, icon: Icon, label, count, onClick }: {
       className={cn(
         'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap',
         active
-          ? 'bg-teal-600 text-white shadow-md shadow-teal-600/25'
+          ? 'bg-primary text-primary-foreground shadow-md shadow-primary/25'
           : 'text-muted-foreground hover:text-foreground hover:bg-muted'
       )}
     >
@@ -476,7 +476,7 @@ const SUBNET_TEMPLATES: SubnetTemplate[] = [
     name: 'guest',
     label: 'Guest WiFi',
     icon: Wifi,
-    color: 'text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/30',
+    color: 'text-primary bg-primary/5 dark:bg-primary/10',
     values: {
       name: 'Guest WiFi',
       iface: 'eth0.10',
@@ -1281,7 +1281,7 @@ export default function DhcpPage() {
   const renderStatusHeader = () => {
     if (statusLoading) {
       return (
-        <Card className="border-teal-200 dark:border-teal-900">
+        <Card className="border-primary/20 dark:border-primary/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -1305,7 +1305,7 @@ export default function DhcpPage() {
       <Card className={cn(
         'border',
         status.running
-          ? 'border-teal-200 dark:border-teal-900 bg-gradient-to-r from-teal-50/50 to-transparent dark:from-teal-950/20'
+          ? 'border-primary/20 dark:border-primary/30 bg-gradient-to-r from-primary/5 to-transparent dark:from-primary/5'
           : 'border-red-200 dark:border-red-900 bg-gradient-to-r from-red-50/50 to-transparent dark:from-red-950/20'
       )}>
         <CardContent className="p-4">
@@ -1315,10 +1315,10 @@ export default function DhcpPage() {
               <div className={cn(
                 'p-2 rounded-lg',
                 status.running
-                  ? 'bg-teal-500/15'
+                  ? 'bg-primary/15'
                   : 'bg-red-500/15'
               )}>
-                <Server className={cn('h-4 w-4', status.running ? 'text-teal-600 dark:text-teal-400' : 'text-red-600 dark:text-red-400')} />
+                <Server className={cn('h-4 w-4', status.running ? 'text-primary' : 'text-red-600 dark:text-red-400')} />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -1474,7 +1474,7 @@ export default function DhcpPage() {
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Server className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+              <Server className="h-5 w-5 text-primary" />
               DHCP Subnets
             </h2>
             <p className="text-sm text-muted-foreground">{subnets.length} subnet(s) configured</p>
@@ -1721,9 +1721,9 @@ export default function DhcpPage() {
 
               {/* Auto-fill info banner */}
               {subnetForm.iface && eligibleInterfaces.some(i => i.deviceName === subnetForm.iface) && (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900 text-sm">
-                  <CheckCircle2 className="h-4 w-4 text-teal-600 dark:text-teal-400 shrink-0" />
-                  <span className="text-teal-700 dark:text-teal-400">
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 dark:bg-primary/5 border border-primary/20 text-sm">
+                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                  <span className="text-primary">
                     Form auto-filled from <span className="font-mono font-medium">{subnetForm.iface}</span> network config. You can edit any field manually.
                   </span>
                 </div>
@@ -1888,7 +1888,7 @@ export default function DhcpPage() {
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Hash className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+              <Hash className="h-5 w-5 text-primary" />
               DHCP Reservations
             </h2>
             <p className="text-sm text-muted-foreground">{reservations.length} static reservation(s) configured</p>
@@ -1958,13 +1958,13 @@ export default function DhcpPage() {
                   </TableHeader>
                   <TableBody>
                     {filteredReservations.map((r) => (
-                      <TableRow key={r.id} className={cn(selectedRes.has(r.id) && 'bg-teal-50/50 dark:bg-teal-950/20')}>
+                      <TableRow key={r.id} className={cn(selectedRes.has(r.id) && 'bg-primary/5 dark:bg-primary/5')}>
                         <TableCell>
                           <Checkbox checked={selectedRes.has(r.id)} onCheckedChange={() => toggleResSelect(r.id)} />
                         </TableCell>
                         <TableCell>
                           <span
-                            className="font-mono text-sm cursor-pointer hover:text-teal-600 dark:text-teal-400 transition-colors"
+                            className="font-mono text-sm cursor-pointer hover:text-primary transition-colors"
                             onClick={() => copyToClipboard(r.macAddress, 'MAC address')}
                             title="Click to copy"
                           >
@@ -1973,7 +1973,7 @@ export default function DhcpPage() {
                         </TableCell>
                         <TableCell>
                           <span
-                            className="font-mono text-sm font-medium cursor-pointer hover:text-teal-600 dark:text-teal-400 transition-colors"
+                            className="font-mono text-sm font-medium cursor-pointer hover:text-primary transition-colors"
                             onClick={() => copyToClipboard(r.ipAddress, 'IP address')}
                             title="Click to copy"
                           >
@@ -2173,7 +2173,7 @@ export default function DhcpPage() {
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Wifi className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+              <Wifi className="h-5 w-5 text-primary" />
               DHCP Leases
               <span className="inline-flex items-center gap-1 text-sm font-normal text-muted-foreground ml-2">
                 <span className="relative flex h-2 w-2">
@@ -2200,11 +2200,11 @@ export default function DhcpPage() {
         <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
           <Card className="p-4">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-emerald-500/10">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+              <div className="p-2 rounded-lg bg-primary/10">
+                <CheckCircle2 className="h-4 w-4 text-primary" />
               </div>
               <div>
-                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{activeLeaseCount}</div>
+                <div className="text-2xl font-bold text-primary">{activeLeaseCount}</div>
                 <div className="text-xs text-muted-foreground">Active</div>
               </div>
             </div>
@@ -2233,8 +2233,8 @@ export default function DhcpPage() {
           </Card>
           <Card className="p-4">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-teal-500/10">
-                <Server className="h-4 w-4 text-teal-500 dark:text-teal-400" />
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Server className="h-4 w-4 text-primary" />
               </div>
               <div>
                 <div className="text-2xl font-bold">{subnets.length}</div>
@@ -2328,7 +2328,7 @@ export default function DhcpPage() {
                       >
                         <TableCell>
                           <span
-                            className="font-mono text-sm font-medium cursor-pointer hover:text-teal-600 dark:text-teal-400 transition-colors"
+                            className="font-mono text-sm font-medium cursor-pointer hover:text-primary transition-colors"
                             onClick={() => copyToClipboard(l.ipAddress, 'IP address')}
                             title="Click to copy"
                           >
@@ -2337,7 +2337,7 @@ export default function DhcpPage() {
                         </TableCell>
                         <TableCell>
                           <span
-                            className="font-mono text-xs cursor-pointer hover:text-teal-600 dark:text-teal-400 transition-colors"
+                            className="font-mono text-xs cursor-pointer hover:text-primary transition-colors"
                             onClick={() => copyToClipboard(l.macAddress, 'MAC address')}
                             title="Click to copy"
                           >
@@ -2364,7 +2364,7 @@ export default function DhcpPage() {
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 cursor-help">
+                                    <span className="text-xs font-medium text-primary cursor-help">
                                       {getCountdown(l.leaseExpires)}
                                     </span>
                                   </TooltipTrigger>
@@ -2410,7 +2410,7 @@ export default function DhcpPage() {
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <LayoutGrid className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+          <LayoutGrid className="h-5 w-5 text-primary" />
           Quick Templates
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
@@ -2425,7 +2425,7 @@ export default function DhcpPage() {
           return (
             <Card
               key={t.name}
-              className="cursor-pointer hover:shadow-md transition-all duration-200 hover:border-teal-300 dark:hover:border-teal-800 group"
+              className="cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/30 dark:hover:border-primary/30 group"
               onClick={() => applyTemplate(t)}
             >
               <CardContent className="p-5">
@@ -2466,7 +2466,7 @@ export default function DhcpPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="mt-3 text-teal-600 dark:text-teal-400 hover:text-teal-700 group-hover:opacity-100 opacity-0 transition-opacity"
+                      className="mt-3 text-primary hover:text-primary/80 group-hover:opacity-100 opacity-0 transition-opacity"
                     >
                       <Plus className="h-3.5 w-3.5 mr-1.5" />
                       Use Template

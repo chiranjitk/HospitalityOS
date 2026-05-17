@@ -240,7 +240,7 @@ export default function DnsPage() {
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Server className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <Server className="h-5 w-5 text-primary" />
             DNS Server
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -253,7 +253,7 @@ export default function DnsPage() {
             className={cn(
               'text-[10px] font-semibold px-2 py-0.5 rounded-full',
               status?.running
-                ? 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:bg-emerald-950/30'
+                ? 'border-primary/30 text-primary bg-primary/5 dark:bg-primary/10'
                 : 'border-red-300 text-red-700 bg-red-50 dark:border-red-700 dark:text-red-400 dark:bg-red-950/30'
             )}
           >
@@ -285,7 +285,7 @@ export default function DnsPage() {
               className={cn(
                 'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200',
                 activeTab === tab.id
-                  ? 'bg-teal-600 text-white shadow-lg shadow-teal-600/25'
+                  ? 'bg-primary text-white shadow-lg shadow-primary/25'
                   : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
@@ -432,7 +432,7 @@ function ServerTab() {
             </div>
             <Dialog open={addFwdOpen} onOpenChange={setAddFwdOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" className="bg-teal-600 hover:bg-teal-700"><Plus className="h-4 w-4 mr-1" /> Add Forwarder</Button>
+                <Button size="sm" className="bg-primary hover:bg-primary/90"><Plus className="h-4 w-4 mr-1" /> Add Forwarder</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -455,7 +455,7 @@ function ServerTab() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setAddFwdOpen(false)}>Cancel</Button>
-                  <Button onClick={handleAddForwarder} disabled={!newFwd.address} className="bg-teal-600 hover:bg-teal-700">Add</Button>
+                  <Button onClick={handleAddForwarder} disabled={!newFwd.address} className="bg-primary hover:bg-primary/90">Add</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -474,8 +474,8 @@ function ServerTab() {
               {forwarders.map((fwd) => (
                 <div key={fwd.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/30 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-lg bg-teal-50 dark:bg-teal-950 flex items-center justify-center">
-                      <Server className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                    <div className="h-9 w-9 rounded-lg bg-primary/5 dark:bg-primary/5 flex items-center justify-center">
+                      <Server className="h-4 w-4 text-primary" />
                     </div>
                     <div>
                       <p className="font-medium font-mono text-sm">{fwd.address}:{fwd.port}</p>
@@ -627,7 +627,7 @@ function ZonesTab() {
               <Trash className="h-4 w-4 mr-1" /> Delete ({selectedIds.size})
             </Button>
           )}
-          <Button size="sm" onClick={openNew} className="bg-teal-600 hover:bg-teal-700"><Plus className="h-4 w-4 mr-1" /> Add Zone</Button>
+          <Button size="sm" onClick={openNew} className="bg-primary hover:bg-primary/90"><Plus className="h-4 w-4 mr-1" /> Add Zone</Button>
         </div>
       </div>
 
@@ -636,7 +636,7 @@ function ZonesTab() {
           icon={Globe}
           title="No DNS zones configured"
           description="Create a zone like hotel.local or guest.wifi to manage DNS records"
-          action={<Button size="sm" onClick={openNew} className="bg-teal-600 hover:bg-teal-700"><Plus className="h-4 w-4 mr-1" /> Add Zone</Button>}
+          action={<Button size="sm" onClick={openNew} className="bg-primary hover:bg-primary/90"><Plus className="h-4 w-4 mr-1" /> Add Zone</Button>}
         />
       ) : (
         <div className="space-y-2">
@@ -651,7 +651,7 @@ function ZonesTab() {
             const isExpanded = expandedZone === zone.id;
 
             return (
-              <Card key={zone.id} className={`overflow-hidden transition-all ${selectedIds.has(zone.id) ? 'ring-2 ring-teal-500/50' : ''}`}>
+              <Card key={zone.id} className={`overflow-hidden transition-all ${selectedIds.has(zone.id) ? 'ring-2 ring-primary/50' : ''}`}>
                 <CardContent className="p-0">
                   <div className="flex items-center gap-3 p-4">
                     <Checkbox checked={selectedIds.has(zone.id)} onCheckedChange={() => toggleSelect(zone.id)} />
@@ -661,8 +661,8 @@ function ZonesTab() {
                     >
                       {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     </button>
-                    <div className="h-9 w-9 rounded-lg bg-teal-50 dark:bg-teal-950 flex items-center justify-center flex-shrink-0">
-                      <Globe className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                    <div className="h-9 w-9 rounded-lg bg-primary/5 dark:bg-primary/5 flex items-center justify-center flex-shrink-0">
+                      <Globe className="h-4 w-4 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium">{zone.domain}</p>
@@ -752,7 +752,7 @@ function ZonesTab() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={!form.domain} className="bg-teal-600 hover:bg-teal-700">{editZone ? 'Update' : 'Create'}</Button>
+            <Button onClick={handleSave} disabled={!form.domain} className="bg-primary hover:bg-primary/90">{editZone ? 'Update' : 'Create'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -936,7 +936,7 @@ function RecordsTab() {
               <Trash className="h-4 w-4 mr-1" /> Delete ({selectedIds.size})
             </Button>
           )}
-          <Button size="sm" onClick={openNew} className="bg-teal-600 hover:bg-teal-700"><Plus className="h-4 w-4 mr-1" /> Add Record</Button>
+          <Button size="sm" onClick={openNew} className="bg-primary hover:bg-primary/90"><Plus className="h-4 w-4 mr-1" /> Add Record</Button>
         </div>
       </div>
 
@@ -945,7 +945,7 @@ function RecordsTab() {
           icon={Network}
           title="No DNS records found"
           description="Create A, AAAA, CNAME, MX, TXT, SRV, or PTR records for your zones"
-          action={<Button size="sm" onClick={openNew} className="bg-teal-600 hover:bg-teal-700"><Plus className="h-4 w-4 mr-1" /> Add Record</Button>}
+          action={<Button size="sm" onClick={openNew} className="bg-primary hover:bg-primary/90"><Plus className="h-4 w-4 mr-1" /> Add Record</Button>}
         />
       ) : (
         <Card>
@@ -967,7 +967,7 @@ function RecordsTab() {
               </thead>
               <tbody>
                 {filteredRecords.map((record, idx) => (
-                  <tr key={record.id} className={`border-b hover:bg-muted/30 transition-colors ${idx % 2 === 1 ? 'bg-muted/10' : ''} ${selectedIds.has(record.id) ? 'bg-teal-50/50 dark:bg-teal-950/20' : ''}`}>
+                  <tr key={record.id} className={`border-b hover:bg-muted/30 transition-colors ${idx % 2 === 1 ? 'bg-muted/10' : ''} ${selectedIds.has(record.id) ? 'bg-primary/5 dark:bg-primary/5' : ''}`}>
                     <td className="p-3"><Checkbox checked={selectedIds.has(record.id)} onCheckedChange={() => toggleSelect(record.id)} /></td>
                     <td className="p-3 font-mono text-xs">{record.name}</td>
                     <td className="p-3"><Badge variant="outline" className="font-mono text-xs">{record.type}</Badge></td>
@@ -1044,7 +1044,7 @@ function RecordsTab() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={!form.zoneId || !form.name || !form.value} className="bg-teal-600 hover:bg-teal-700">
+            <Button onClick={handleSave} disabled={!form.zoneId || !form.name || !form.value} className="bg-primary hover:bg-primary/90">
               {editRecord ? 'Update' : 'Create'}
             </Button>
           </DialogFooter>
@@ -1148,7 +1148,7 @@ function RedirectsTab() {
           <h3 className="text-lg font-semibold">DNS Redirects</h3>
           <p className="text-sm text-muted-foreground">Redirect domains for captive portal or content filtering</p>
         </div>
-        <Button size="sm" onClick={() => { setEditRedirect(null); setForm({ domain: '', targetIp: '', wildcard: false, priority: 100, description: '', enabled: true }); setDialogOpen(true); }} className="bg-teal-600 hover:bg-teal-700">
+        <Button size="sm" onClick={() => { setEditRedirect(null); setForm({ domain: '', targetIp: '', wildcard: false, priority: 100, description: '', enabled: true }); setDialogOpen(true); }} className="bg-primary hover:bg-primary/90">
           <Plus className="h-4 w-4 mr-1" /> Add Redirect
         </Button>
       </div>
@@ -1158,7 +1158,7 @@ function RedirectsTab() {
           icon={ArrowUpDown}
           title="No DNS redirects configured"
           description="Redirect domains to your captive portal IP for guest network control"
-          action={<Button size="sm" onClick={() => setDialogOpen(true)} className="bg-teal-600 hover:bg-teal-700"><Plus className="h-4 w-4 mr-1" /> Add Redirect</Button>}
+          action={<Button size="sm" onClick={() => setDialogOpen(true)} className="bg-primary hover:bg-primary/90"><Plus className="h-4 w-4 mr-1" /> Add Redirect</Button>}
         />
       ) : (
         <Card>
@@ -1235,7 +1235,7 @@ function RedirectsTab() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={!form.domain || !form.targetIp} className="bg-teal-600 hover:bg-teal-700">{editRedirect ? 'Update' : 'Create'}</Button>
+            <Button onClick={handleSave} disabled={!form.domain || !form.targetIp} className="bg-primary hover:bg-primary/90">{editRedirect ? 'Update' : 'Create'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1320,7 +1320,7 @@ function DhcpDnsTab() {
                   <tr key={`${entry.macAddress}-${idx}`} className={`border-b hover:bg-muted/30 transition-colors ${idx % 2 === 1 ? 'bg-muted/10' : ''}`}>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        <MonitorSmartphone className="h-3.5 w-3.5 text-teal-500 dark:text-teal-400" />
+                        <MonitorSmartphone className="h-3.5 w-3.5 text-primary" />
                         <span className="font-mono text-xs">{entry.macAddress}</span>
                       </div>
                     </td>
@@ -1338,7 +1338,7 @@ function DhcpDnsTab() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <Wifi className="h-5 w-5 text-teal-500 dark:text-teal-400" />
+            <Wifi className="h-5 w-5 text-primary" />
             How DHCP-DNS Integration Works
           </CardTitle>
         </CardHeader>
@@ -1407,8 +1407,8 @@ function CacheTab() {
       {/* Top stats cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Cache Capacity', value: cacheStats?.capacity || 0, icon: Database, color: 'text-teal-500 dark:text-teal-400', bg: 'bg-teal-50 dark:bg-teal-950', suffix: ' entries' },
-          { label: 'Cache Status', value: cacheStats?.status || 'N/A', icon: Activity, color: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950', isText: true },
+          { label: 'Cache Capacity', value: cacheStats?.capacity || 0, icon: Database, color: 'text-primary', bg: 'bg-primary/5 dark:bg-primary/5', suffix: ' entries' },
+          { label: 'Cache Status', value: cacheStats?.status || 'N/A', icon: Activity, color: 'text-primary', bg: 'bg-primary/5 dark:bg-primary/5', isText: true },
           { label: 'Upstream Queries', value: cacheStats?.upstreamQueries || 0, icon: ArrowUpRight, color: 'text-blue-500 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950', suffix: '' },
           { label: 'Avg Latency', value: cacheStats?.avgLatencyMs || 0, icon: Clock, color: 'text-amber-500 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950', suffix: 'ms', isText: true },
         ].map((stat) => (
@@ -1460,7 +1460,7 @@ function CacheTab() {
               </p>
               <p className="text-xs text-muted-foreground">Cache speedup</p>
             </div>
-            <div className="text-center p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950">
+            <div className="text-center p-3 rounded-lg bg-primary/5 dark:bg-primary/5">
               <p className="text-xs text-muted-foreground">Status</p>
               <Badge variant={cacheStats?.serviceRunning ? 'default' : 'secondary'} className={`mt-1 ${cacheStats?.serviceRunning ? 'bg-emerald-500' : ''}`}>
                 {cacheStats?.status || 'Unknown'}
@@ -1492,7 +1492,7 @@ function CacheTab() {
                       {fw.failed > 0 && <Badge variant="destructive" className="text-xs">{fw.failed} failures</Badge>}
                       {fw.failed === 0 && <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 dark:text-emerald-300">Healthy</Badge>}
                     </div>
-                    <span className="text-sm text-muted-foreground">Avg: {fw.latency}ms</span>
+                    <span className="text-sm text-muted-foreground">Avg: <span className="text-primary font-medium">{fw.latency}ms</span></span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
                     <div>
@@ -1512,7 +1512,7 @@ function CacheTab() {
                       <p className="text-xs text-muted-foreground">NXDomain</p>
                     </div>
                     <div>
-                      <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{fw.latency}ms</p>
+                      <p className="text-lg font-bold text-primary">{fw.latency}ms</p>
                       <p className="text-xs text-muted-foreground">Avg Latency</p>
                     </div>
                   </div>
@@ -1748,7 +1748,7 @@ function ConfigTab() {
           <Button size="sm" variant="outline" onClick={handleSync}>
             <RefreshCw className="h-4 w-4 mr-1" /> Sync from DB
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving} className="bg-teal-600 hover:bg-teal-700">
+          <Button size="sm" onClick={handleSave} disabled={saving} className="bg-primary hover:bg-primary/90">
             <Save className="h-4 w-4 mr-1" /> {saving ? 'Saving...' : 'Save & Reload'}
           </Button>
         </div>
@@ -1757,7 +1757,7 @@ function ConfigTab() {
       <Card>
         <CardContent className="p-4">
           <textarea
-            className="w-full h-96 font-mono text-xs bg-muted/50 p-4 rounded-lg border resize-y focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className="w-full h-96 font-mono text-xs bg-muted/50 p-4 rounded-lg border resize-y focus:outline-none focus:ring-2 focus:ring-primary"
             value={config}
             onChange={(e) => setConfig(e.target.value)}
             spellCheck={false}

@@ -219,7 +219,7 @@ function ProtocolBadge({ protocol }: { protocol: string }) {
       );
     case 'tls':
       return (
-        <Badge variant="secondary" className="text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 hover:bg-emerald-100">
+        <Badge variant="secondary" className="text-xs font-medium bg-primary/10 text-primary dark:bg-primary/10 hover:bg-primary/10">
           <Lock className="h-3 w-3 mr-1" />
           TLS
         </Badge>
@@ -611,7 +611,7 @@ export default function SyslogTab() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Radio className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            <Radio className="h-5 w-5 text-primary" />
             <h2 className="text-2xl font-bold tracking-tight">Syslog Forwarding</h2>
           </div>
           <p className="text-sm text-muted-foreground">
@@ -640,12 +640,12 @@ export default function SyslogTab() {
         {/* Active Servers */}
         <Card className="p-4">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
               <CheckCircle2 className="h-5 w-5" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs text-muted-foreground">Active Servers</p>
-              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+              <p className="text-2xl font-bold text-primary">
                 {activeServers.length}
               </p>
             </div>
@@ -673,7 +673,7 @@ export default function SyslogTab() {
             <div className={cn(
               'p-2.5 rounded-lg',
               isForwardingActive
-                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                ? 'bg-primary/10 text-primary'
                 : 'bg-gray-500/10 text-gray-400'
             )}>
               <Wifi className="h-5 w-5" />
@@ -684,7 +684,7 @@ export default function SyslogTab() {
                 <p className={cn(
                   'text-lg font-bold',
                   isForwardingActive
-                    ? 'text-emerald-600 dark:text-emerald-400'
+                    ? 'text-primary'
                     : 'text-gray-400'
                 )}>
                   {isForwardingActive ? 'Active' : 'Inactive'}
@@ -706,7 +706,7 @@ export default function SyslogTab() {
             <div className={cn(
               'p-2 rounded-lg',
               bridgeHealth?.status === 'ok'
-                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                ? 'bg-primary/10 text-primary'
                 : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
             )}>
               <Shield className="h-4 w-4" />
@@ -721,7 +721,7 @@ export default function SyslogTab() {
             </div>
           </div>
           {bridgeHealth?.status === 'ok' && (
-            <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800">
+            <Badge variant="outline" className="text-xs bg-primary/5 text-primary border-primary/20 dark:bg-primary/10 dark:text-primary dark:border-primary/20">
               <CheckCircle2 className="h-3 w-3 mr-1" />
               Connected
             </Badge>
@@ -1044,7 +1044,7 @@ export default function SyslogTab() {
                       className={cn(
                         'flex items-start gap-2.5 rounded-lg border p-2.5 cursor-pointer transition-colors',
                         formData.categories.includes(cat.value)
-                          ? 'border-emerald-300 bg-emerald-50/50 dark:border-emerald-700 dark:bg-emerald-900/10'
+                          ? 'border-primary/30 bg-primary/5 dark:border-primary/30 dark:bg-primary/10'
                           : 'border-border hover:border-muted-foreground/30 hover:bg-muted/30'
                       )}
                     >
@@ -1268,7 +1268,7 @@ function ServerCard({
                   className={cn(
                     'text-[10px] font-medium',
                     isNat
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800'
+                      ? 'bg-primary/5 text-primary border-primary/20 dark:bg-primary/10 dark:text-primary dark:border-primary/20'
                       : 'text-muted-foreground'
                   )}
                 >

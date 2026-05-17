@@ -133,8 +133,8 @@ function SessionTermsInfoContent() {
       {/* Session Time */}
       <div className="flex gap-2.5">
         <div className="shrink-0 mt-0.5">
-          <div className="p-1.5 rounded-md bg-emerald-500/10">
-            <Timer className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+          <div className="p-1.5 rounded-md bg-primary/10">
+            <Timer className="h-3.5 w-3.5 text-primary" />
           </div>
         </div>
         <div className="min-w-0">
@@ -633,7 +633,7 @@ export default function LiveSessions() {
     <Card className={cn(
       'border',
       selectedIds.has(session.id) && 'border-primary ring-2 ring-primary/20',
-      session.status === 'active' && !selectedIds.has(session.id) && 'border-emerald-200 dark:border-emerald-800',
+      session.status === 'active' && !selectedIds.has(session.id) && 'border-primary/30 dark:border-primary/30',
       session.status === 'idle' && !selectedIds.has(session.id) && 'border-amber-200 dark:border-amber-800'
     )}>
       <CardContent className="p-4 space-y-3">
@@ -709,7 +709,7 @@ export default function LiveSessions() {
           <div className="rounded-md bg-muted/50 p-2">
             <p className="text-muted-foreground mb-1">Bandwidth</p>
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
+              <span className="flex items-center gap-0.5 text-primary">
                 <ArrowDownToLine className="h-3 w-3" />
                 {session.bandwidthDown || '—'}
                 {session.bandwidthBurstDown && (
@@ -729,7 +729,7 @@ export default function LiveSessions() {
             <p className="text-muted-foreground mb-1">Data Usage</p>
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-0.5">
-                <ArrowDownToLine className="h-3 w-3 text-emerald-500" />
+                <ArrowDownToLine className="h-3 w-3 text-primary" />
                 {formatBytes(session.dataDownload || 0)}
               </span>
               <span className="flex items-center gap-0.5">
@@ -746,7 +746,7 @@ export default function LiveSessions() {
             <p className="text-muted-foreground mb-1 text-xs">Speed</p>
             <div className="flex items-center gap-2 text-xs">
               <div className="flex items-center gap-0.5">
-                <ArrowDownToLine className="h-3 w-3 text-emerald-500" />
+                <ArrowDownToLine className="h-3 w-3 text-primary" />
                 {formatSpeed(session.liveSpeedDown ?? session.avgSpeedDown ?? 0)}
               </div>
               <div className="flex items-center gap-0.5">
@@ -833,11 +833,11 @@ export default function LiveSessions() {
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <CircleDot className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <CircleDot className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+              <div className="text-2xl font-bold tabular-nums text-primary">
                 {stats.totalActive}
               </div>
               <div className="text-xs text-muted-foreground">Total Active</div>
@@ -1031,7 +1031,7 @@ export default function LiveSessions() {
                       {uniqueSessions.map((session, idx) => (
                         <TableRow key={`${session.id}_${idx}`} className={cn(
                           selectedIds.has(session.id) && 'bg-primary/5',
-                          session.status === 'active' && !selectedIds.has(session.id) && 'bg-emerald-50/50 dark:bg-emerald-950/10',
+                          session.status === 'active' && !selectedIds.has(session.id) && 'bg-primary/5 dark:bg-primary/10',
                           session.status === 'idle' && !selectedIds.has(session.id) && 'bg-amber-50/30 dark:bg-amber-950/10'
                         )}>
                           <TableCell>
@@ -1082,7 +1082,7 @@ export default function LiveSessions() {
                           <TableCell>
                             <div className="text-xs space-y-0.5">
                               <div className="flex items-center gap-1">
-                                <ArrowDownToLine className="h-3 w-3 text-emerald-500" />
+                                <ArrowDownToLine className="h-3 w-3 text-primary" />
                                 <span>{session.bandwidthDown || '—'}</span>
                                 {session.bandwidthBurstDown && (
                                   <span className="text-[10px] text-muted-foreground ml-0.5">→ {session.bandwidthBurstDown}</span>
@@ -1106,7 +1106,7 @@ export default function LiveSessions() {
                           <TableCell>
                             <div className="text-xs space-y-0.5">
                               <div className="flex items-center gap-1">
-                                <ArrowDownToLine className="h-3 w-3 text-emerald-500" />
+                                <ArrowDownToLine className="h-3 w-3 text-primary" />
                                 <span>{formatBytes(session.dataDownload || 0)}</span>
                               </div>
                               <div className="flex items-center gap-1">
@@ -1118,7 +1118,7 @@ export default function LiveSessions() {
                           <TableCell>
                             <div className="text-xs space-y-0.5 tabular-nums">
                               <div className="flex items-center gap-1">
-                                <ArrowDownToLine className="h-3 w-3 text-emerald-500" />
+                                <ArrowDownToLine className="h-3 w-3 text-primary" />
                                 <span>{formatSpeed(session.liveSpeedDown ?? session.avgSpeedDown ?? 0)}</span>
                               </div>
                               <div className="flex items-center gap-1">

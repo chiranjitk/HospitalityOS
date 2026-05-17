@@ -324,11 +324,11 @@ export default function ProvisioningLogs() {
         {/* Success Count */}
         <Card className="p-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <CheckCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <CheckCircle className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+              <div className="text-2xl font-bold tabular-nums text-primary">
                 {stats.successCount}
               </div>
               <div className="text-xs text-muted-foreground">Successful</div>

@@ -257,13 +257,13 @@ type TabEntry = TabItem | GroupHeader;
 
 const tabs: TabEntry[] = [
   // ── Live ──
-  { type: 'header', label: 'Live', indicatorColor: 'bg-emerald-500' },
+  { type: 'header', label: 'Live', indicatorColor: 'bg-primary' },
   { type: 'tab', id: 'live-sessions', label: 'Active Users', icon: <Activity className="h-4 w-4" />, group: 'live' },
   { type: 'tab', id: 'users', label: 'Users', icon: <UserPlus className="h-4 w-4" />, group: 'live' },
   { type: 'tab', id: 'auth-logs', label: 'Auth Logs', icon: <ShieldCheck className="h-4 w-4" />, group: 'live' },
 
   // ── History ──
-  { type: 'header', label: 'History', indicatorColor: 'bg-teal-500' },
+  { type: 'header', label: 'History', indicatorColor: 'bg-primary' },
   { type: 'tab', id: 'session-history', label: 'Session History', icon: <History className="h-4 w-4" />, group: 'history' },
   { type: 'tab', id: 'user-usage', label: 'User Usage', icon: <TrendingUp className="h-4 w-4" />, group: 'history' },
 
@@ -310,7 +310,7 @@ export function WifiAccessPage() {
       <div className="flex flex-col sm:flex-row justify-between gap-4 relative z-10">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Wifi className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <Wifi className="h-5 w-5 text-primary" />
             <span className="gradient-text">WiFi Access</span>
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -321,7 +321,7 @@ export function WifiAccessPage() {
         {properties.length > 1 && (
           <div className="wifi-property-container">
             <div className="wifi-property-icon">
-              <Building2 className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+              <Building2 className="h-3.5 w-3.5 text-primary" />
             </div>
             <span className="wifi-property-dot" />
             <Select value={propertyId} onValueChange={handlePropertyChange}>
@@ -382,7 +382,7 @@ export function WifiAccessPage() {
                 className={cn(
                   'relative flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-300',
                   isActive
-                    ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-lg shadow-teal-600/20 dark:shadow-teal-500/15'
+                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
                     : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
                 )}
               >

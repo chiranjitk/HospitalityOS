@@ -207,7 +207,7 @@ const MATCH_LABELS: Record<string, string> = {
 const LEASE_EVENTS = ['add', 'del', 'old', 'arp-add', 'arp-del'];
 
 const EVENT_BADGE_COLORS: Record<string, string> = {
-  add: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700',
+  add: 'bg-primary/10 text-primary border-primary/20',
   del: 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-300 dark:border-red-700',
   old: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700',
   'arp-add': 'bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-300 dark:border-sky-700',
@@ -215,7 +215,7 @@ const EVENT_BADGE_COLORS: Record<string, string> = {
 };
 
 const RA_TYPE_BADGES: Record<string, string> = {
-  slaac: 'bg-teal-500/15 text-teal-700 dark:text-teal-400 border-teal-300 dark:border-teal-700',
+  slaac: 'bg-primary/10 text-primary border-primary/20',
   stateful: 'bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-300 dark:border-sky-700',
   'ra-only': 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700',
   'ra-stateless': 'bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-300 dark:border-purple-700',
@@ -594,7 +594,7 @@ export function DhcpAdvancedTabs({
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Ban className="h-5 w-5 text-teal-600 dark:text-teal-400" />MAC Blacklist</h2>
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Ban className="h-5 w-5 text-primary" />MAC Blacklist</h2>
             <p className="text-sm text-muted-foreground">{blacklist.length} blocked MAC address(es)</p>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -612,9 +612,9 @@ export function DhcpAdvancedTabs({
             <TableHead>MAC Address</TableHead><TableHead>Subnet</TableHead><TableHead>Reason</TableHead><TableHead>Enabled</TableHead><TableHead className="text-right">Actions</TableHead>
           </TableRow></TableHeader><TableBody>
             {filteredBlacklist.map(b => (
-              <TableRow key={b.id} className={cn(blSelected.has(b.id) && 'bg-teal-50/50 dark:bg-teal-950/20')}>
+              <TableRow key={b.id} className={cn(blSelected.has(b.id) && 'bg-primary/5 dark:bg-primary/5')}>
                 <TableCell><Checkbox checked={blSelected.has(b.id)} onCheckedChange={() => setBlSelected(p => { const n = new Set(p); if (n.has(b.id)) n.delete(b.id); else n.add(b.id); return n; })} /></TableCell>
-                <TableCell><span className="font-mono text-sm cursor-pointer hover:text-teal-600 dark:text-teal-400 transition-colors" onClick={() => copyToClipboard(b.macAddress, 'MAC address')} title="Click to copy">{b.macAddress}</span></TableCell>
+                <TableCell><span className="font-mono text-sm cursor-pointer hover:text-primary transition-colors" onClick={() => copyToClipboard(b.macAddress, 'MAC address')} title="Click to copy">{b.macAddress}</span></TableCell>
                 <TableCell><Badge variant="outline" className="text-xs">{b.subnetName || 'All Subnets'}</Badge></TableCell>
                 <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate">{b.reason || '—'}</TableCell>
                 <TableCell><Badge variant="outline" className={b.enabled ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700' : 'bg-gray-500/15 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-700'}>{b.enabled ? 'Yes' : 'No'}</Badge></TableCell>
@@ -659,7 +659,7 @@ export function DhcpAdvancedTabs({
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Settings className="h-5 w-5 text-teal-600 dark:text-teal-400" />Custom DHCP Options</h2>
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Settings className="h-5 w-5 text-primary" />Custom DHCP Options</h2>
             <p className="text-sm text-muted-foreground">{dhcpOptions.length} custom option(s) configured</p>
           </div>
           <Button onClick={openAddOpt}><Plus className="h-4 w-4 mr-2" />Add Option</Button>
@@ -721,7 +721,7 @@ export function DhcpAdvancedTabs({
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between gap-4">
-          <div><h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Tag className="h-5 w-5 text-teal-600 dark:text-teal-400" />Tag Rules</h2><p className="text-sm text-muted-foreground">{tagRules.length} rule(s) configured</p></div>
+          <div><h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Tag className="h-5 w-5 text-primary" />Tag Rules</h2><p className="text-sm text-muted-foreground">{tagRules.length} rule(s) configured</p></div>
           <Button onClick={openAddTr}><Plus className="h-4 w-4 mr-2" />Add Rule</Button>
         </div>
         <Card><CardContent className="p-4"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search by name, tag, or pattern..." value={trSearch} onChange={e => setTrSearch(e.target.value)} className="pl-9" /></div></CardContent></Card>
@@ -736,7 +736,7 @@ export function DhcpAdvancedTabs({
                 <TableCell className="font-medium text-sm">{t.name}</TableCell>
                 <TableCell><Badge variant="secondary" className="text-xs">{MATCH_LABELS[t.matchType] || t.matchType}</Badge></TableCell>
                 <TableCell><span className="font-mono text-xs">{t.matchPattern}</span></TableCell>
-                <TableCell><Badge variant="outline" className="bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-300">{t.setTag}</Badge></TableCell>
+                <TableCell><Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">{t.setTag}</Badge></TableCell>
                 <TableCell><Badge variant="outline" className="text-xs">{t.subnetName || 'All'}</Badge></TableCell>
                 <TableCell><Badge variant="outline" className={t.enabled ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700' : 'bg-gray-500/15 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-700'}>{t.enabled ? 'Yes' : 'No'}</Badge></TableCell>
                 <TableCell className="text-right"><div className="flex justify-end gap-1">
@@ -775,13 +775,13 @@ export function DhcpAdvancedTabs({
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between gap-4">
-          <div><h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Filter className="h-5 w-5 text-teal-600 dark:text-teal-400" />Hostname Filter</h2><p className="text-sm text-muted-foreground">{hostnameFilters.length} filter(s) configured</p></div>
+          <div><h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Filter className="h-5 w-5 text-primary" />Hostname Filter</h2><p className="text-sm text-muted-foreground">{hostnameFilters.length} filter(s) configured</p></div>
           <Button onClick={openAddHf}><Plus className="h-4 w-4 mr-2" />Add Filter</Button>
         </div>
         {/* Info Banner */}
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900 text-sm">
-          <Info className="h-4 w-4 text-teal-600 dark:text-teal-400 shrink-0 mt-0.5" />
-          <div className="text-teal-700 dark:text-teal-400">
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20 dark:border-primary/30 text-sm">
+          <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <div className="text-primary">
             <strong>Ignore Name:</strong> Device gets a DHCP lease but hostname is not registered in DNS. <strong>Deny Lease:</strong> Device is completely blocked from getting a lease.
           </div>
         </div>
@@ -832,7 +832,7 @@ export function DhcpAdvancedTabs({
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between gap-4">
-          <div><h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Terminal className="h-5 w-5 text-teal-600 dark:text-teal-400" />Event Scripts</h2><p className="text-sm text-muted-foreground">{leaseScripts.length} script(s) configured</p></div>
+          <div><h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Terminal className="h-5 w-5 text-primary" />Event Scripts</h2><p className="text-sm text-muted-foreground">{leaseScripts.length} script(s) configured</p></div>
           <Button onClick={openAddLs}><Plus className="h-4 w-4 mr-2" />Add Script</Button>
         </div>
         {leaseScripts.length === 0 ? (
@@ -844,7 +844,7 @@ export function DhcpAdvancedTabs({
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="p-2 rounded-lg bg-teal-500/10"><Terminal className="h-4 w-4 text-teal-600 dark:text-teal-400" /></div>
+                      <div className="p-2 rounded-lg bg-primary/10"><Terminal className="h-4 w-4 text-primary" /></div>
                       <div><h3 className="font-semibold text-base">{s.name}</h3><p className="font-mono text-xs text-muted-foreground">{s.scriptPath}</p></div>
                     </div>
                     <div className="flex gap-1">
@@ -884,16 +884,16 @@ export function DhcpAdvancedTabs({
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between gap-4">
-          <div><h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Globe className="h-5 w-5 text-teal-600 dark:text-teal-400" />IPv6 Dual-Stack</h2><p className="text-sm text-muted-foreground">Configure IPv6 per subnet for DHCPv6 support</p></div>
+          <div><h2 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Globe className="h-5 w-5 text-primary" />IPv6 Dual-Stack</h2><p className="text-sm text-muted-foreground">Configure IPv6 per subnet for DHCPv6 support</p></div>
         </div>
         {/* Info Banner */}
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900 text-sm">
-          <Info className="h-4 w-4 text-teal-600 dark:text-teal-400 shrink-0 mt-0.5" />
-          <div className="text-teal-700 dark:text-teal-400">IPv6 is a feature flag. Enable per subnet below to activate DHCPv6 dual-stack. Supports SLAAC, Stateful, RA-Only, and RA-Stateless modes.</div>
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20 dark:border-primary/30 text-sm">
+          <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <div className="text-primary">IPv6 is a feature flag. Enable per subnet below to activate DHCPv6 dual-stack. Supports SLAAC, Stateful, RA-Only, and RA-Stateless modes.</div>
         </div>
         {/* Summary Cards */}
         <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
-          <Card className="p-4"><div className="flex items-center gap-2"><div className="p-2 rounded-lg bg-teal-500/10"><Server className="h-4 w-4 text-teal-500 dark:text-teal-400" /></div><div><div className="text-2xl font-bold">{subnets.length}</div><div className="text-xs text-muted-foreground">Total Subnets</div></div></div></Card>
+          <Card className="p-4"><div className="flex items-center gap-2"><div className="p-2 rounded-lg bg-primary/10"><Server className="h-4 w-4 text-primary" /></div><div><div className="text-2xl font-bold">{subnets.length}</div><div className="text-xs text-muted-foreground">Total Subnets</div></div></div></Card>
           <Card className="p-4"><div className="flex items-center gap-2"><div className="p-2 rounded-lg bg-emerald-500/10"><CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" /></div><div><div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{ipv6EnabledCount}</div><div className="text-xs text-muted-foreground">IPv6 Enabled</div></div></div></Card>
           <Card className="p-4"><div className="flex items-center gap-2"><div className="p-2 rounded-lg bg-gray-500/10"><XCircle className="h-4 w-4 text-gray-500" /></div><div><div className="text-2xl font-bold text-gray-600">{ipv6DisabledCount}</div><div className="text-xs text-muted-foreground">IPv6 Disabled</div></div></div></Card>
         </div>
@@ -909,7 +909,7 @@ export function DhcpAdvancedTabs({
                 <TableCell className="font-medium text-sm">{s.name}</TableCell>
                 <TableCell><span className="font-mono text-xs">{s.cidr}</span></TableCell>
                 <TableCell>
-                  <button onClick={() => toggleIpv6Enabled(s)} className={cn('relative inline-flex h-5 w-9 items-center rounded-full transition-colors', s.ipv6Enabled ? 'bg-teal-500' : 'bg-gray-300 dark:bg-gray-600')}>
+                  <button onClick={() => toggleIpv6Enabled(s)} className={cn('relative inline-flex h-5 w-9 items-center rounded-full transition-colors', s.ipv6Enabled ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600')}>
                     <span className={cn('inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-sm', s.ipv6Enabled ? 'translate-x-4.5' : 'translate-x-0.5')} />
                   </button>
                 </TableCell>

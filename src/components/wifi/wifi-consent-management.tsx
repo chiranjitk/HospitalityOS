@@ -397,7 +397,7 @@ export default function WiFiConsentManagement() {
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Shield className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <Shield className="h-5 w-5 text-primary" />
             WiFi Privacy & GDPR Consent
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -414,8 +414,8 @@ export default function WiFiConsentManagement() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-teal-50 dark:bg-teal-950/30 p-2.5">
-              <FileText className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-2.5">
+              <FileText className="h-5 w-5 text-primary" />
             </div>
             <div>
               <p className="text-2xl font-bold tabular-nums">{stats?.totalConsents ?? '—'}</p>
@@ -425,8 +425,8 @@ export default function WiFiConsentManagement() {
         </Card>
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2.5">
-              <Activity className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-2.5">
+              <Activity className="h-5 w-5 text-primary" />
             </div>
             <div>
               <p className="text-2xl font-bold tabular-nums">{stats?.marketingOptInRate ?? 0}%</p>
@@ -640,7 +640,7 @@ export default function WiFiConsentManagement() {
             <Card className="border-0 shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-teal-600" />
+                  <FileText className="h-4 w-4 text-primary" />
                   Consent Text
                 </CardTitle>
                 <CardDescription>
@@ -669,7 +669,7 @@ export default function WiFiConsentManagement() {
             <Card className="border-0 shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Settings className="h-4 w-4 text-teal-600" />
+                  <Settings className="h-4 w-4 text-primary" />
                   Consent Configuration
                 </CardTitle>
                 <CardDescription>
@@ -869,14 +869,14 @@ export default function WiFiConsentManagement() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Wifi className="h-4 w-4 text-teal-600" />
+              <Wifi className="h-4 w-4 text-primary" />
               Consent Screen Preview
             </DialogTitle>
             <DialogDescription>How the consent screen appears to guests</DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
             <div className="flex items-center gap-2 mb-4">
-              <Wifi className="h-5 w-5 text-teal-600" />
+              <Wifi className="h-5 w-5 text-primary" />
               <span className="font-medium text-sm">Hotel WiFi — Terms & Privacy</span>
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">{consentText}</p>
@@ -892,7 +892,7 @@ export default function WiFiConsentManagement() {
               <Label className="text-xs">I have read and agree to the terms and privacy policy</Label>
             </div>
             {cookiePolicyUrl && (
-              <a href={cookiePolicyUrl} className="text-xs text-teal-600 underline" target="_blank" rel="noopener noreferrer">
+              <a href={cookiePolicyUrl} className="text-xs text-primary underline" target="_blank" rel="noopener noreferrer">
                 Read our Cookie Policy
               </a>
             )}

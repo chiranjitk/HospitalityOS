@@ -383,8 +383,8 @@ export default function WiFiBandwidthUpsell() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2.5">
-              <DollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-2.5">
+              <DollarSign className="h-5 w-5 text-primary" />
             </div>
             <div>
               <p className="text-2xl font-bold tabular-nums">{stats?.currency || '₹'}{stats?.totalRevenue?.toLocaleString() ?? '0'}</p>
@@ -394,8 +394,8 @@ export default function WiFiBandwidthUpsell() {
         </Card>
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-teal-50 dark:bg-teal-950/30 p-2.5">
-              <TrendingUp className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-2.5">
+              <TrendingUp className="h-5 w-5 text-primary" />
             </div>
             <div>
               <p className="text-2xl font-bold tabular-nums">{stats?.totalUpgradesSold ?? 0}</p>

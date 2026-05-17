@@ -173,12 +173,12 @@ function CircularGauge({ value, label, color, size = 120 }: { value: number; lab
   const offset = circumference - (value / 100) * circumference;
 
   const colorMap: Record<string, { stroke: string; text: string }> = {
-    teal: { stroke: 'stroke-teal-500', text: 'text-teal-600 dark:text-teal-400' },
+    teal: { stroke: 'stroke-primary', text: 'text-primary' },
     amber: { stroke: 'stroke-amber-500', text: 'text-amber-600 dark:text-amber-400' },
-    emerald: { stroke: 'stroke-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
+    emerald: { stroke: 'stroke-primary', text: 'text-primary' },
     red: { stroke: 'stroke-red-500', text: 'text-red-600 dark:text-red-400' },
   };
-  const c = colorMap[color] || colorMap.teal;
+  const c = colorMap[color] || colorMap['teal'];
 
   return (
     <div className="flex flex-col items-center gap-1">
@@ -456,7 +456,7 @@ function BandwidthUsageTab() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Daily Bandwidth</CardTitle>
             <div className="flex items-center gap-4 text-xs">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-teal-500" /> Download</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-primary" /> Download</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-500" /> Upload</span>
             </div>
           </div>
@@ -542,7 +542,7 @@ function BandwidthUsageTab() {
                 {filteredData.map((day) => (
                   <TableRow key={day.date} className="hover:bg-muted/30">
                     <TableCell className="text-xs sm:text-sm font-medium whitespace-nowrap">{formatDate(day.date)}</TableCell>
-                    <TableCell className="text-right text-teal-600 dark:text-teal-400 font-mono text-xs sm:text-sm hidden sm:table-cell">{day.download.toLocaleString()}</TableCell>
+                    <TableCell className="text-right text-primary font-mono text-xs sm:text-sm hidden sm:table-cell">{day.download.toLocaleString()}</TableCell>
                     <TableCell className="text-right text-amber-600 dark:text-amber-400 font-mono text-xs sm:text-sm hidden sm:table-cell">{day.upload.toLocaleString()}</TableCell>
                     <TableCell className="text-right font-mono text-xs sm:text-sm font-medium whitespace-nowrap">{day.total.toLocaleString()}</TableCell>
                     <TableCell className="text-right text-xs sm:text-sm hidden md:table-cell">{day.users}</TableCell>
@@ -569,9 +569,9 @@ function BandwidthUsageTab() {
 
 function SummaryCard({ icon: Icon, label, value, trend, color }: { icon: React.ElementType; label: string; value: string; trend?: number; color: string }) {
   const colorClasses: Record<string, string> = {
-    teal: 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
+    teal: 'bg-primary/10 text-primary',
     amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-    emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    emerald: 'bg-primary/10 text-primary',
   };
 
   return (
@@ -585,7 +585,7 @@ function SummaryCard({ icon: Icon, label, value, trend, color }: { icon: React.E
           <p className="text-lg font-bold truncate">{value}</p>
         </div>
         {trend !== undefined && (
-          <div className={cn('flex items-center gap-0.5 text-xs font-medium', trend >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
+          <div className={cn('flex items-center gap-0.5 text-xs font-medium', trend >= 0 ? 'text-primary' : 'text-red-500 dark:text-red-400')}>
             {trend >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
             {Math.abs(trend)}%
           </div>
@@ -752,7 +752,7 @@ function UserBandwidthTab() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Download className="h-4 w-4 text-teal-500 dark:text-teal-400" /> Top 10 by Download
+              <Download className="h-4 w-4 text-primary" /> Top 10 by Download
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -813,11 +813,11 @@ function UserBandwidthTab() {
                   <p className="text-xs text-muted-foreground">{data.count} user{data.count !== 1 ? 's' : ''}</p>
                   <div className="mt-2 space-y-1">
                     <div className="flex justify-between text-xs">
-                      <span className="text-teal-600 dark:text-teal-400">↓ {formatMB(avgDown)}</span>
+                      <span className="text-primary">↓ {formatMB(avgDown)}</span>
                       <span className="text-amber-600 dark:text-amber-400">↑ {formatMB(avgUp)}</span>
                     </div>
                     <div className="flex gap-0.5 h-2">
-                      <div className="bg-gradient-to-r from-teal-400 to-emerald-400 rounded-l-sm transition-all" style={{ width: `${downPct}%` }} />
+                      <div className="bg-gradient-to-r from-primary to-primary/70 rounded-l-sm transition-all" style={{ width: `${downPct}%` }} />
                       <div className="bg-gradient-to-r from-amber-400 to-orange-400 rounded-r-sm transition-all" style={{ width: `${100 - downPct}%` }} />
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground">
@@ -866,7 +866,7 @@ function UserBandwidthTab() {
                       <TableCell className="font-mono text-[10px] sm:text-xs text-muted-foreground hidden md:table-cell">{user.mac}</TableCell>
                       <TableCell className="hidden lg:table-cell"><Badge variant="outline" className="text-[10px] sm:text-xs">{user.plan}</Badge></TableCell>
                       <TableCell className="text-right text-xs sm:text-sm hidden md:table-cell">{user.sessions}</TableCell>
-                      <TableCell className="text-right text-teal-600 dark:text-teal-400 font-mono text-xs sm:text-sm">{formatMB(user.totalDown)}</TableCell>
+                      <TableCell className="text-right text-primary font-mono text-xs sm:text-sm">{formatMB(user.totalDown)}</TableCell>
                       <TableCell className="text-right text-amber-600 dark:text-amber-400 font-mono text-xs sm:text-sm">{formatMB(user.totalUp)}</TableCell>
                       <TableCell className="text-right text-xs sm:text-sm hidden lg:table-cell">{formatDuration(user.avgDuration)}</TableCell>
                       <TableCell className="text-[10px] sm:text-xs text-muted-foreground hidden lg:table-cell">{user.lastSeen ? new Date(user.lastSeen).toLocaleDateString() : '—'}</TableCell>
@@ -897,7 +897,7 @@ function UserBandwidthTab() {
                                         <TableCell className="text-[10px] sm:text-xs whitespace-nowrap">{s.start ? new Date(s.start).toLocaleString() : '—'}</TableCell>
                                         <TableCell className="text-[10px] sm:text-xs whitespace-nowrap">{s.end ? new Date(s.end).toLocaleString() : 'Active'}</TableCell>
                                         <TableCell className="font-mono text-[10px] sm:text-xs text-muted-foreground hidden sm:table-cell">{s.nas || '—'}</TableCell>
-                                        <TableCell className="text-[10px] sm:text-xs text-right text-teal-600 dark:text-teal-400 font-mono whitespace-nowrap">{formatMB(s.download)}</TableCell>
+                                        <TableCell className="text-[10px] sm:text-xs text-right text-primary font-mono whitespace-nowrap">{formatMB(s.download)}</TableCell>
                                         <TableCell className="text-[10px] sm:text-xs text-right text-amber-600 dark:text-amber-400 font-mono whitespace-nowrap">{formatMB(s.upload)}</TableCell>
                                         <TableCell className="text-[10px] sm:text-xs text-right whitespace-nowrap">{formatDuration(s.duration)}</TableCell>
                                       </TableRow>
@@ -967,11 +967,11 @@ function WebSurfingTab() {
     shopping: 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30',
     tech: 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30',
     communication: 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30',
-    news: 'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30',
+    news: 'text-primary bg-primary/10',
     food: 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
     entertainment: 'text-fuchsia-600 dark:text-fuchsia-400 bg-fuchsia-100 dark:bg-fuchsia-900/30',
     education: 'text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-900/30',
-    travel: 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30',
+    travel: 'text-primary bg-primary/10',
     gaming: 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30',
     other: 'text-gray-600 bg-gray-100 dark:bg-gray-800/30',
   };
@@ -1081,7 +1081,7 @@ function WebSurfingTab() {
         <Eye className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
         <div className="flex-1">
           <p className="text-sm text-muted-foreground">Domain-level access logs only. Full URL tracking disabled for guest privacy (GDPR/PIPL).</p>
-          <Badge variant={dataSource === 'clickhouse' ? 'default' : 'secondary'} className={cn('mt-1 text-xs', dataSource === 'clickhouse' && 'bg-emerald-600')}>
+          <Badge variant={dataSource === 'clickhouse' ? 'default' : 'secondary'} className={cn('mt-1 text-xs', dataSource === 'clickhouse' && 'bg-primary')}>
             <Database className="h-3 w-3 mr-1" />
             {dataSource === 'clickhouse' ? 'ClickHouse Live' : dataSource === 'ulogd2' ? 'ulogd2 Live' : 'Demo Data'}
           </Badge>
@@ -1092,7 +1092,7 @@ function WebSurfingTab() {
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Globe className="h-6 w-6 sm:h-8 sm:w-8 text-violet-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Domains</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.totalDomains || 0).toLocaleString()}</p></div></div></Card>
-          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Activity className="h-6 w-6 sm:h-8 sm:w-8 text-teal-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Traffic</p><p className="text-lg sm:text-xl font-bold truncate">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Activity className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Traffic</p><p className="text-lg sm:text-xl font-bold truncate">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Users className="h-6 w-6 sm:h-8 sm:w-8 text-amber-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Unique Users</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.uniqueUsers || 0).toLocaleString()}</p></div></div></Card>
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-rose-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Top Category</p><p className="text-lg sm:text-xl font-bold capitalize truncate">{(summary.topCategory || 'other').replace('_', ' ')}</p></div></div></Card>
         </div>
@@ -1130,7 +1130,7 @@ function WebSurfingTab() {
                     <span className="text-[10px] sm:text-xs text-muted-foreground w-4 sm:w-5 flex-shrink-0">{i + 1}</span>
                     <span className="text-[10px] sm:text-xs font-mono w-20 sm:w-36 truncate flex-shrink-0">{d.domain}</span>
                     <div className="flex-1 h-2.5 sm:h-3 bg-muted rounded-sm overflow-hidden min-w-0">
-                      <div className="h-full bg-gradient-to-r from-teal-400 to-emerald-500 rounded-sm" style={{ width: `${(d.bytes / maxDomainBytes) * 100}%` }} />
+                      <div className="h-full bg-gradient-to-r from-primary to-primary/70 rounded-sm" style={{ width: `${(d.bytes / maxDomainBytes) * 100}%` }} />
                     </div>
                     <span className="text-[10px] sm:text-xs text-muted-foreground w-12 sm:w-16 text-right flex-shrink-0">{formatBytes(d.bytes)}</span>
                   </div>
@@ -1192,7 +1192,7 @@ function WebSurfingTab() {
                     <TableRow key={log.id || `${log.domain}-${log.sourceIp || log.source_ip}-${idx}`} className="hover:bg-muted/30">
                       <TableCell className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">{new Date(log.timestamp || log.lastAccess || log.last_access).toLocaleString()}</TableCell>
                       <TableCell className="font-mono text-xs sm:text-sm max-w-[100px] sm:max-w-[180px] truncate">{log.domain}</TableCell>
-                      <TableCell className="font-mono text-[10px] sm:text-xs text-teal-600 dark:text-teal-400 whitespace-nowrap">{log.sourceIp || log.source_ip}</TableCell>
+                      <TableCell className="font-mono text-[10px] sm:text-xs text-primary whitespace-nowrap">{log.sourceIp || log.source_ip}</TableCell>
                       <TableCell className="font-mono text-[10px] sm:text-xs text-muted-foreground hidden lg:table-cell">{log.srcPort || <span className="text-muted-foreground/50">—</span>}</TableCell>
                       <TableCell className="font-mono text-[10px] sm:text-xs text-muted-foreground hidden lg:table-cell">{log.destIp || <span className="text-muted-foreground/50">—</span>}</TableCell>
                       <TableCell className="font-mono text-[10px] sm:text-xs text-muted-foreground hidden lg:table-cell">{log.destPort || 443}</TableCell>
@@ -1306,7 +1306,7 @@ function NATLogsTab() {
         <div className="flex-1">
           <p className="text-sm text-muted-foreground">NAT connection logs for IPDR compliance (TRAI). Data retained for minimum 1 year.</p>
           <div className="flex gap-2 mt-1">
-            <Badge variant={dataSource === 'clickhouse' ? 'default' : 'secondary'} className={cn('text-xs', dataSource === 'clickhouse' && 'bg-emerald-600')}>
+            <Badge variant={dataSource === 'clickhouse' ? 'default' : 'secondary'} className={cn('text-xs', dataSource === 'clickhouse' && 'bg-primary')}>
               <Database className="h-3 w-3 mr-1" />
               {dataSource === 'clickhouse' ? 'ClickHouse Live' : dataSource === 'ulogd2' ? 'ulogd2 Live' : 'Demo Data'}
             </Badge>
@@ -1319,7 +1319,7 @@ function NATLogsTab() {
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Activity className="h-6 w-6 sm:h-8 sm:w-8 text-sky-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Connections</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.totalConnections || 0).toLocaleString()}</p></div></div></Card>
-          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Download className="h-6 w-6 sm:h-8 sm:w-8 text-teal-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Traffic</p><p className="text-lg sm:text-xl font-bold truncate">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Download className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Traffic</p><p className="text-lg sm:text-xl font-bold truncate">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Users className="h-6 w-6 sm:h-8 sm:w-8 text-amber-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Unique Sources</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.uniqueSources || 0).toLocaleString()}</p></div></div></Card>
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Network className="h-6 w-6 sm:h-8 sm:w-8 text-violet-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Top Protocol</p><p className="text-lg sm:text-xl font-bold uppercase truncate">{summary.topProtocol || 'tcp'}</p></div></div></Card>
         </div>
@@ -1353,7 +1353,7 @@ function NATLogsTab() {
             <Button
               variant={guestOnly ? 'default' : 'outline'}
               size="sm"
-              className={cn('w-full sm:w-auto', guestOnly && 'bg-emerald-600 hover:bg-emerald-700')}
+              className={cn('w-full sm:w-auto', guestOnly && 'bg-primary hover:bg-primary/90')}
               onClick={() => setGuestOnly(!guestOnly)}
             >
               <Users className="h-3.5 w-3.5 mr-1.5" />
@@ -1393,7 +1393,7 @@ function NATLogsTab() {
                         {formatTimestamp(log.timestamp)}
                       </TableCell>
                       <TableCell className="font-mono text-[10px] sm:text-xs whitespace-nowrap">
-                        <span className="text-teal-600 dark:text-teal-400">{log.source_ip || log.sourceIp}</span>:<span className="text-muted-foreground">{log.src_port || log.sourcePort}</span>
+                        <span className="text-primary">{log.source_ip || log.sourceIp}</span>:<span className="text-muted-foreground">{log.src_port || log.sourcePort}</span>
                       </TableCell>
                       <TableCell className="font-mono text-[10px] sm:text-xs whitespace-nowrap hidden sm:table-cell">
                         {log.nat_src_ip ? (
@@ -1412,12 +1412,12 @@ function NATLogsTab() {
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">
                         {(log.event_type || log.eventType) && (
-                          <Badge variant="outline" className={cn('text-[10px] sm:text-xs font-mono', (log.event_type || log.eventType) === 'DESTROY' && 'text-red-500 border-red-200 dark:border-red-800', (log.event_type || log.eventType) === 'NEW' && 'text-emerald-500 border-emerald-200 dark:border-emerald-800')}>
+                          <Badge variant="outline" className={cn('text-[10px] sm:text-xs font-mono', (log.event_type || log.eventType) === 'DESTROY' && 'text-red-500 border-red-200 dark:border-red-800', (log.event_type || log.eventType) === 'NEW' && 'text-primary border-primary/20')}>
                             {log.event_type || log.eventType}
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-right text-[10px] sm:text-xs font-mono text-teal-600 dark:text-teal-400 whitespace-nowrap">{formatBytes(log.bytes_orig || 0)}</TableCell>
+                      <TableCell className="text-right text-[10px] sm:text-xs font-mono text-primary whitespace-nowrap">{formatBytes(log.bytes_orig || 0)}</TableCell>
                       <TableCell className="text-right text-[10px] sm:text-xs font-mono text-amber-600 dark:text-amber-400 whitespace-nowrap">{formatBytes(log.bytes_reply || 0)}</TableCell>
                       <TableCell className="text-right text-[10px] sm:text-xs font-mono hidden md:table-cell">{(log.packets || 0).toLocaleString()}</TableCell>
                       <TableCell className="text-[10px] sm:text-xs font-mono max-w-[100px] sm:max-w-[120px] truncate hidden md:table-cell">{log.domain || '—'}</TableCell>
@@ -1473,8 +1473,8 @@ interface PlanBreakdown {
 }
 
 const statusColors: Record<string, string> = {
-  active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  used: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+  active: 'bg-primary/10 text-primary',
+  used: 'bg-primary/10 text-primary',
   expired: 'bg-gray-100 text-gray-600 dark:bg-gray-800/40 dark:text-gray-400',
   revoked: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
 };
@@ -1620,13 +1620,13 @@ function VoucherReportTab() {
                     </div>
                     <div className="flex h-2 rounded-full bg-muted overflow-hidden">
                       <div
-                        className="bg-gradient-to-r from-teal-400 to-emerald-400 transition-all rounded-full"
+                        className="bg-gradient-to-r from-primary to-primary/70 transition-all rounded-full"
                         style={{ width: `${plan.redemptionRate}%` }}
                       />
                     </div>
                   </div>
                   <div className="flex gap-3 text-xs">
-                    <span className="text-emerald-600 dark:text-emerald-400">{plan.used} used</span>
+                    <span className="text-primary">{plan.used} used</span>
                     <span className="text-gray-500">{plan.expired} expired</span>
                   </div>
                 </div>
@@ -1730,9 +1730,9 @@ function VoucherReportTab() {
 
 // --- Helper: Color coding for metric thresholds ---
 function getMetricColor(value: number): { bg: string; text: string; icon: string; spark: string } {
-  if (value > 80) return { bg: 'bg-red-500/10 dark:bg-red-500/15', text: 'text-red-600 dark:text-red-400', icon: 'text-red-500 dark:text-red-400', spark: '#f43f5e' };
+  if (value > 80) return { bg: 'bg-red-500/10', text: 'text-red-600 dark:text-red-400', icon: 'text-red-500 dark:text-red-400', spark: '#f43f5e' };
   if (value > 60) return { bg: 'bg-amber-500/10 dark:bg-amber-500/15', text: 'text-amber-600 dark:text-amber-400', icon: 'text-amber-500 dark:text-amber-400', spark: '#f59e0b' };
-  return { bg: 'bg-teal-500/10 dark:bg-teal-500/15', text: 'text-teal-600 dark:text-teal-400', icon: 'text-teal-500 dark:text-teal-400', spark: '#14b8a6' };
+  return { bg: 'bg-primary/10', text: 'text-primary', icon: 'text-primary', spark: 'var(--primary)' };
 }
 
 // --- Helper: SVG sparkline ---
@@ -1791,7 +1791,7 @@ function formatSessionTime(seconds: number): string {
 function formatBytesColored(bytes: number): { text: string; color: string } {
   const gb = bytes / (1024 * 1024 * 1024);
   const mb = bytes / (1024 * 1024);
-  if (gb >= 1) return { text: `${gb.toFixed(1)} GB`, color: gb > 10 ? 'text-amber-600 dark:text-amber-400' : 'text-teal-600 dark:text-teal-400' };
+  if (gb >= 1) return { text: `${gb.toFixed(1)} GB`, color: gb > 10 ? 'text-amber-600 dark:text-amber-400' : 'text-primary' };
   return { text: `${mb.toFixed(1)} MB`, color: 'text-muted-foreground' };
 }
 
@@ -2356,7 +2356,7 @@ function SystemHealthTab() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {metricCards.map(card => {
             const mc = card.label === 'Active Alerts'
-              ? (card.value > 0 ? { bg: 'bg-red-500/10 dark:bg-red-500/15', text: 'text-red-600 dark:text-red-400', icon: 'text-red-500 dark:text-red-400', spark: '#f43f5e' } : { bg: 'bg-teal-500/10 dark:bg-teal-500/15', text: 'text-teal-600 dark:text-teal-400', icon: 'text-teal-500 dark:text-teal-400', spark: '#14b8a6' })
+              ? (card.value > 0 ? { bg: 'bg-red-500/10', text: 'text-red-600 dark:text-red-400', icon: 'text-red-500 dark:text-red-400', spark: '#f43f5e' } : { bg: 'bg-primary/10', text: 'text-primary', icon: 'text-primary', spark: 'var(--primary)' })
               : getMetricColor(card.value);
             const Icon = card.icon;
             return (
@@ -2454,7 +2454,7 @@ function SystemHealthTab() {
           <CardContent>
             {activeAlerts.length === 0 ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                <CheckCircle2 className="h-4 w-4 text-primary" />
                 No active alerts — everything looks good!
               </div>
             ) : (
@@ -2574,7 +2574,7 @@ function SystemHealthTab() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground">Current ↓</p>
-                  <p className="text-lg font-bold tabular-nums text-teal-600 dark:text-teal-400">{formatMbps(iface.rxSpeed || 0)}</p>
+                  <p className="text-lg font-bold tabular-nums text-primary">{formatMbps(iface.rxSpeed || 0)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Current ↑</p>
@@ -2603,14 +2603,14 @@ function SystemHealthTab() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Cpu className="h-4 w-4 text-teal-500 dark:text-teal-400" /> CPU
+                  <Cpu className="h-4 w-4 text-primary" /> CPU
                 </CardTitle>
                 <span className={cn('text-2xl font-bold tabular-nums', getMetricColor(cpuPct).text)}>{Math.round(cpuPct)}%</span>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="h-2 rounded-full bg-muted overflow-hidden">
-                <div className="h-full rounded-full bg-gradient-to-r from-teal-400 to-emerald-500 transition-all duration-700" style={{ width: `${cpuPct}%` }} />
+                <div className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-700" style={{ width: `${cpuPct}%` }} />
               </div>
               <div className="flex items-center justify-between">
                 <RangeSelector value={cpuRange} onChange={setCpuRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
@@ -2716,10 +2716,10 @@ function SystemHealthTab() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-teal-500 dark:text-teal-400" /> Load Average
+                  <Activity className="h-4 w-4 text-primary" /> Load Average
                 </CardTitle>
                 <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
-                  <span className="text-teal-600 dark:text-teal-400">{loadAvg[0]?.toFixed(2)}</span>
+                  <span className="text-primary">{loadAvg[0]?.toFixed(2)}</span>
                   <span className="text-orange-600 dark:text-orange-400">{loadAvg[1]?.toFixed(2)}</span>
                   <span className="text-rose-600 dark:text-rose-400">{loadAvg[2]?.toFixed(2)}</span>
                 </div>
@@ -2795,10 +2795,10 @@ function SystemHealthTab() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Database className="h-4 w-4 text-teal-500 dark:text-teal-400" /> Disk I/O
+                  <Database className="h-4 w-4 text-primary" /> Disk I/O
                 </CardTitle>
                 <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
-                  <span className="text-teal-600 dark:text-teal-400">R: {formatBandwidth(diskIoReads)}</span>
+                  <span className="text-primary">R: {formatBandwidth(diskIoReads)}</span>
                   <span className="text-orange-600 dark:text-orange-400">W: {formatBandwidth(diskIoWrites)}</span>
                 </div>
               </div>
@@ -2906,9 +2906,9 @@ function SystemHealthTab() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Network className="h-4 w-4 text-teal-500 dark:text-teal-400" /> TCP Connections
+                  <Network className="h-4 w-4 text-primary" /> TCP Connections
                 </CardTitle>
-                <span className="text-2xl font-bold tabular-nums text-teal-600 dark:text-teal-400">{tcpStates.established?.toLocaleString() ?? 0}</span>
+                <span className="text-2xl font-bold tabular-nums text-primary">{tcpStates.established?.toLocaleString() ?? 0}</span>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -2995,7 +2995,7 @@ function SystemHealthTab() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <Users className="h-4 w-4 text-teal-500 dark:text-teal-400" /> Active Sessions — History
+                <Users className="h-4 w-4 text-primary" /> Active Sessions — History
               </CardTitle>
               <RangeSelector value={sessionHistRange} onChange={setSessionHistRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
             </div>
@@ -3028,7 +3028,7 @@ function SystemHealthTab() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <Shield className="h-4 w-4 text-emerald-500 dark:text-emerald-400" /> Authentication Stats
+                <Shield className="h-4 w-4 text-primary" /> Authentication Stats
               </CardTitle>
               <RangeSelector value={authHistRange} onChange={setAuthHistRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
             </div>
@@ -3193,7 +3193,7 @@ function SystemHealthTab() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <Layers className="h-4 w-4 text-teal-500 dark:text-teal-400" /> Per-Pool Bandwidth
+                <Layers className="h-4 w-4 text-primary" /> Per-Pool Bandwidth
               </CardTitle>
               <RangeSelector value={poolBwRange} onChange={setPoolBwRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
             </div>
@@ -3242,7 +3242,7 @@ function SystemHealthTab() {
                             }}
                             className="text-xs gap-2 py-1.5"
                           >
-                            <Layers className="h-3.5 w-3.5 shrink-0 text-teal-500 dark:text-teal-400" />
+                            <Layers className="h-3.5 w-3.5 shrink-0 text-primary" />
                             <div className="flex-1 min-w-0 flex items-center gap-1.5">
                               <span className="truncate font-medium">{pool.name}</span>
                               {pool.subnet && <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 font-mono">{pool.subnet}</Badge>}
@@ -3259,7 +3259,7 @@ function SystemHealthTab() {
               )}
               {selectedPool && (
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1"><span className="text-teal-600 dark:text-teal-400">↓</span>{formatBps(selectedPool.totalDownloadKbps * 1000)}</span>
+                  <span className="flex items-center gap-1"><span className="text-primary">↓</span>{formatBps(selectedPool.totalDownloadKbps * 1000)}</span>
                   <span className="flex items-center gap-1"><span className="text-orange-600 dark:text-orange-400">↑</span>{formatBps(selectedPool.totalUploadKbps * 1000)}</span>
                 </div>
               )}
@@ -3364,7 +3364,7 @@ function SystemHealthTab() {
           <CardContent>
             {activeAlerts.length === 0 ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                <CheckCircle2 className="h-4 w-4 text-primary" />
                 All clear — no active alerts
               </div>
             ) : (
@@ -3411,7 +3411,7 @@ function SystemHealthTab() {
                 <div className="space-y-1.5">
                   {alertHistory.map((item: any, idx: number) => (
                     <div key={idx} className="flex items-center gap-3 rounded-md border border-border/50 px-3 py-2 text-sm">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                      <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="truncate">{item.label || `${item.metric} ${item.operator} ${item.threshold}`}</p>
                         <p className="text-xs text-muted-foreground">

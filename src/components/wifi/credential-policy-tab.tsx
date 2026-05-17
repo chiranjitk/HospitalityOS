@@ -103,7 +103,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CATEGORY_COLORS: Record<string, string> = {
   room: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-  name: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
+  name: 'bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary',
   contact: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300',
   system: 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-300',
   document: 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300',
@@ -721,13 +721,13 @@ export default function CredentialPolicyTab({ config, onChange, saving, onSave, 
 
         {/* Test Result: Live Database Verification */}
         {testResult && (
-          <Card className={testResult.policy.usernameFormat !== config.usernameFormat ? 'border-destructive' : 'border-emerald-300 dark:border-emerald-700'}>
+          <Card className={testResult.policy.usernameFormat !== config.usernameFormat ? 'border-destructive' : 'border-primary/30 dark:border-primary/30'}>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Database className="h-4 w-4" />
                 Live Database Test Result
                 {testResult.policy.usernameFormat === config.usernameFormat ? (
-                  <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300 border-0">MATCH</Badge>
+                  <Badge className="bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary border-0">MATCH</Badge>
                 ) : (
                   <Badge variant="destructive">MISMATCH</Badge>
                 )}
@@ -753,13 +753,13 @@ export default function CredentialPolicyTab({ config, onChange, saving, onSave, 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">UI Setting:</span>
-                  <code className={testResult.policy.usernameFormat === config.usernameFormat ? 'text-emerald-700 dark:text-emerald-400 font-mono font-bold' : 'text-destructive font-mono font-bold'}>
+                  <code className={testResult.policy.usernameFormat === config.usernameFormat ? 'text-primary font-mono font-bold' : 'text-destructive font-mono font-bold'}>
                     {config.usernameFormat}
                   </code>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">DB Value:</span>
-                  <code className={testResult.policy.usernameFormat === config.usernameFormat ? 'text-emerald-700 dark:text-emerald-400 font-mono font-bold' : 'text-destructive font-mono font-bold'}>
+                  <code className={testResult.policy.usernameFormat === config.usernameFormat ? 'text-primary font-mono font-bold' : 'text-destructive font-mono font-bold'}>
                     {testResult.policy.usernameFormat}
                   </code>
                 </div>

@@ -86,7 +86,7 @@ const planStatuses = [
 const getPlanTier = (downloadSpeed: number) => {
   if (downloadSpeed >= 100) return { label: 'Ultra', gradient: 'from-rose-500 via-pink-500 to-amber-500', accent: 'text-rose-500', bg: 'bg-rose-50 dark:bg-rose-950/30', border: 'border-rose-200 dark:border-rose-800/50', glow: 'shadow-rose-500/10' };
   if (downloadSpeed >= 50) return { label: 'Premium', gradient: 'from-amber-500 via-orange-500 to-rose-500', accent: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-800/50', glow: 'shadow-amber-500/10' };
-  if (downloadSpeed >= 20) return { label: 'Pro', gradient: 'from-teal-500 via-emerald-500 to-cyan-500', accent: 'text-teal-500', bg: 'bg-teal-50 dark:bg-teal-950/30', border: 'border-teal-200 dark:border-teal-800/50', glow: 'shadow-teal-500/10' };
+  if (downloadSpeed >= 20) return { label: 'Pro', gradient: 'from-primary via-primary/80 to-primary/60', accent: 'text-primary', bg: 'bg-primary/5 dark:bg-primary/5', border: 'border-primary/20 dark:border-primary/20', glow: 'shadow-primary/10' };
   return { label: 'Basic', gradient: 'from-slate-400 via-slate-500 to-slate-600', accent: 'text-slate-500', bg: 'bg-slate-50 dark:bg-slate-950/30', border: 'border-slate-200 dark:border-slate-800/50', glow: 'shadow-slate-500/10' };
 };
 
@@ -553,9 +553,9 @@ export default function WifiPlans() {
       {/* Stats — Premium stat cards */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
         <div className="relative overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
-          <div className="absolute -right-2 -top-2 h-16 w-16 rounded-full bg-teal-500/5" />
+          <div className="absolute -right-2 -top-2 h-16 w-16 rounded-full bg-primary/5" />
           <div className="relative flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-emerald-600 shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/70 shadow-sm">
               <Settings className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -565,9 +565,9 @@ export default function WifiPlans() {
           </div>
         </div>
         <div className="relative overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
-          <div className="absolute -right-2 -top-2 h-16 w-16 rounded-full bg-emerald-500/5" />
+          <div className="absolute -right-2 -top-2 h-16 w-16 rounded-full bg-primary/5" />
           <div className="relative flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/70 shadow-sm">
               <CheckCircle2 className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -589,9 +589,9 @@ export default function WifiPlans() {
           </div>
         </div>
         <div className="relative overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
-          <div className="absolute -right-2 -top-2 h-16 w-16 rounded-full bg-cyan-500/5" />
+          <div className="absolute -right-2 -top-2 h-16 w-16 rounded-full bg-primary/5" />
           <div className="relative flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-teal-600 shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/70 shadow-sm">
               <DollarSign className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -686,7 +686,7 @@ export default function WifiPlans() {
                     ? 'opacity-50 grayscale-[30%]'
                     : 'hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/20',
                   isFeatured && plan.status === 'active' && 'ring-1 ring-amber-400/40 dark:ring-amber-500/30 hover:shadow-amber-500/5',
-                  isDefault && plan.status === 'active' && !isFeatured && 'ring-1 ring-teal-400/40 dark:ring-teal-500/30 hover:shadow-teal-500/5',
+                  isDefault && plan.status === 'active' && !isFeatured && 'ring-1 ring-primary/40 dark:ring-primary/30 hover:shadow-primary/5',
                 )}
               >
                 {/* Top gradient accent bar */}
@@ -714,7 +714,7 @@ export default function WifiPlans() {
                         {isDefault && !isFeatured && plan.status === 'active' && (
                           <span className={cn(
                             'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                            'bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-sm'
+                            'bg-gradient-to-r from-primary to-primary/70 text-primary-foreground shadow-sm'
                           )}>
                             <ShieldCheck className="h-3 w-3" />
                             Default
@@ -723,7 +723,7 @@ export default function WifiPlans() {
                         {isDefault && isFeatured && plan.status === 'active' && (
                           <span className={cn(
                             'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                            'bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-sm'
+                            'bg-gradient-to-r from-primary to-primary/70 text-primary-foreground shadow-sm'
                           )}>
                             <ShieldCheck className="h-3 w-3" />
                             Default
@@ -755,14 +755,14 @@ export default function WifiPlans() {
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-1.5 font-medium">
-                        <ArrowDownToLine className="h-3.5 w-3.5 text-emerald-500" />
+                        <ArrowDownToLine className="h-3.5 w-3.5 text-primary" />
                         Download
                       </div>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{plan.downloadSpeed} Mbps{plan.burstDownloadSpeed ? ` → ${plan.burstDownloadSpeed} burst` : ''}</span>
+                      <span className="font-bold text-primary">{plan.downloadSpeed} Mbps{plan.burstDownloadSpeed ? ` → ${plan.burstDownloadSpeed} burst` : ''}</span>
                     </div>
-                    <div className="h-1.5 w-full rounded-full bg-emerald-500/10 overflow-hidden">
+                    <div className="h-1.5 w-full rounded-full bg-primary/10 overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-700 ease-out"
+                        className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-700 ease-out"
                         style={{ width: `${dlPct}%` }}
                       />
                     </div>
@@ -839,7 +839,7 @@ export default function WifiPlans() {
                     </div>
                     <div className={cn(
                       'text-right',
-                      isFree ? 'text-emerald-600 dark:text-emerald-400' : ''
+                      isFree ? 'text-primary' : ''
                     )}>
                       {isFree ? (
                         <div className="flex items-center gap-1.5">

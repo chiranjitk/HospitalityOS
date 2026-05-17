@@ -170,7 +170,7 @@ function getDeviceTypeColor(type?: string | null): string {
     case 'phone': return 'text-blue-500';
     case 'laptop': return 'text-purple-500';
     case 'tablet': return 'text-orange-500';
-    case 'watch': return 'text-emerald-500';
+    case 'watch': return 'text-primary';
     case 'tv': return 'text-rose-500';
     default: return 'text-gray-500';
   }
@@ -181,7 +181,7 @@ function getDeviceTypeBg(type?: string | null): string {
     case 'phone': return 'bg-blue-50 dark:bg-blue-950/30';
     case 'laptop': return 'bg-purple-50 dark:bg-purple-950/30';
     case 'tablet': return 'bg-orange-50 dark:bg-orange-950/30';
-    case 'watch': return 'bg-emerald-50 dark:bg-emerald-950/30';
+    case 'watch': return 'bg-primary/10 dark:bg-primary/10';
     case 'tv': return 'bg-rose-50 dark:bg-rose-950/30';
     default: return 'bg-gray-50 dark:bg-gray-950/30';
   }
@@ -561,7 +561,7 @@ export default function WiFiDeviceManagement() {
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Wifi className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <Wifi className="h-5 w-5 text-primary" />
             Multi-Device Management
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -584,8 +584,8 @@ export default function WiFiDeviceManagement() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-teal-50 dark:bg-teal-950/30 p-2.5">
-              <Smartphone className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-2.5">
+              <Smartphone className="h-5 w-5 text-primary" />
             </div>
             <div>
               <p className="text-2xl font-bold tabular-nums">{stats.totalDevices}</p>
@@ -595,8 +595,8 @@ export default function WiFiDeviceManagement() {
         </Card>
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2.5">
-              <Users className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-2.5">
+              <Users className="h-5 w-5 text-primary" />
             </div>
             <div>
               <p className="text-2xl font-bold tabular-nums">{stats.activeGuests}</p>
@@ -824,7 +824,7 @@ export default function WiFiDeviceManagement() {
                                   {device.isApproved ? (
                                     <Ban className="h-3.5 w-3.5 text-amber-500" />
                                   ) : (
-                                    <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+                                    <CheckCircle className="h-3.5 w-3.5 text-primary" />
                                   )}
                                 </Button>
                                 <Button
@@ -915,7 +915,7 @@ export default function WiFiDeviceManagement() {
                     <CollapsibleTrigger className="w-full">
                       <CardContent className="p-4 flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="rounded-full bg-gradient-to-br from-teal-400 to-emerald-500 p-2 text-white font-bold text-xs">
+                          <div className="rounded-full bg-gradient-to-br from-primary to-primary/70 p-2 text-white font-bold text-xs">
                             {group.guestName.charAt(0)}
                           </div>
                           <div className="text-left">
@@ -1156,8 +1156,8 @@ export default function WiFiDeviceManagement() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="rounded-lg border p-3 space-y-1.5">
                   <div className="flex items-center gap-2">
-                    <div className="rounded-full bg-emerald-500/10 p-1">
-                      <Smartphone className="h-3.5 w-3.5 text-emerald-500" />
+                    <div className="rounded-full bg-primary/10 p-1">
+                      <Smartphone className="h-3.5 w-3.5 text-primary" />
                     </div>
                     <span className="text-xs font-medium">1. Device Connects</span>
                   </div>

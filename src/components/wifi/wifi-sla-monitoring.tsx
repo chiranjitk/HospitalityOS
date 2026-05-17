@@ -143,7 +143,7 @@ interface ComplianceData {
 
 function getComplianceColor(compliant: boolean | null): string {
   if (compliant === null) return 'bg-gray-400';
-  return compliant ? 'bg-emerald-500' : 'bg-red-500';
+  return compliant ? 'bg-primary' : 'bg-red-500';
 }
 
 function getComplianceBadgeVariant(compliant: boolean | null): 'default' | 'secondary' | 'destructive' | 'outline' {
@@ -183,7 +183,7 @@ function ComplianceIndicator({
         <div className="flex items-center gap-1.5">
           {compliant !== null && (
             compliant ? (
-              <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+              <CheckCircle className="h-3.5 w-3.5 text-primary" />
             ) : (
               <XCircle className="h-3.5 w-3.5 text-red-500" />
             )
@@ -428,7 +428,7 @@ export default function WiFiSLAMonitoring() {
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Shield className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <Shield className="h-5 w-5 text-primary" />
             WiFi SLA Monitoring
           </h2>
           <p className="text-sm text-muted-foreground mt-1">Track service level agreement compliance</p>
@@ -543,12 +543,12 @@ export default function WiFiSLAMonitoring() {
 
           {/* Overall Compliance Score */}
           {complianceData?.overallCompliance && complianceData.overallCompliance.overallScore !== null && (
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-teal-950/20 dark:to-emerald-950/20">
+            <Card className="border-0 shadow-sm bg-primary/5 dark:bg-primary/5">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">Overall SLA Compliance</p>
-                    <p className="text-3xl font-bold tabular-nums text-teal-600 dark:text-teal-400">
+                    <p className="text-3xl font-bold tabular-nums text-primary">
                       {complianceData.overallCompliance.overallScore}%
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -565,7 +565,7 @@ export default function WiFiSLAMonitoring() {
                       <div key={item.label} className="text-center p-3 rounded-lg bg-white/60 dark:bg-gray-900/40">
                         <p className="text-[10px] text-muted-foreground">{item.label}</p>
                         <p className={`text-lg font-bold tabular-nums ${
-                          item.val !== null && item.val >= 90 ? 'text-emerald-600' :
+                          item.val !== null && item.val >= 90 ? 'text-primary' :
                           item.val !== null && item.val >= 70 ? 'text-amber-600' :
                           item.val !== null ? 'text-red-600' : 'text-muted-foreground'
                         }`}>
@@ -599,7 +599,7 @@ export default function WiFiSLAMonitoring() {
                       >
                         <div
                           className={`w-full rounded-t-sm min-h-[2px] ${
-                            day.count === 0 ? 'bg-emerald-400/60' :
+                            day.count === 0 ? 'bg-primary/60' :
                             day.count <= 2 ? 'bg-amber-400' :
                             'bg-red-400'
                           }`}
@@ -616,7 +616,7 @@ export default function WiFiSLAMonitoring() {
                 </div>
                 <div className="flex items-center gap-4 mt-3">
                   <div className="flex items-center gap-1.5">
-                    <div className="h-2 w-2 rounded-full bg-emerald-400/60" />
+                    <div className="h-2 w-2 rounded-full bg-primary/60" />
                     <span className="text-[10px] text-muted-foreground">No breaches</span>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -657,8 +657,8 @@ export default function WiFiSLAMonitoring() {
                         <div className="flex-1 space-y-3">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <div className="rounded-lg bg-teal-50 dark:bg-teal-950/30 p-2">
-                                <Shield className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                              <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-2">
+                                <Shield className="h-4 w-4 text-primary" />
                               </div>
                               <div>
                                 <p className="text-sm font-semibold">{config.property.name}</p>
@@ -800,7 +800,7 @@ export default function WiFiSLAMonitoring() {
           ) : (
             <Card className="border-0 shadow-sm">
               <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                <CheckCircle className="h-10 w-10 text-emerald-400/40 mb-3" />
+                <CheckCircle className="h-10 w-10 text-primary/40 mb-3" />
                 <p className="text-sm text-muted-foreground">No breach data available</p>
               </CardContent>
             </Card>

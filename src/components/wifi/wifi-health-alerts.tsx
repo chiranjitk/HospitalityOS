@@ -500,8 +500,8 @@ export default function WiFiHealthAlerts() {
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <CheckCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <CheckCircle className="h-4 w-4 text-primary" />
             </div>
             <div>
               <div className="text-2xl font-bold tabular-nums">{counts.resolved}</div>
@@ -538,7 +538,7 @@ export default function WiFiHealthAlerts() {
                 'gap-1 border-0',
                 stats.trend.change > 0
                   ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400'
-                  : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
+                  : 'bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary',
               )}
             >
               {stats.trend.change > 0 ? (
@@ -782,7 +782,7 @@ export default function WiFiHealthAlerts() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                  className="h-7 w-7 p-0 text-primary hover:text-primary hover:bg-primary/10 dark:hover:bg-primary/10"
                                   title="Resolve"
                                   onClick={() => handleOpenResolve(alert)}
                                 >
@@ -849,7 +849,7 @@ export default function WiFiHealthAlerts() {
                                 {alert.resolveNote && (
                                   <div>
                                     <p className="text-xs font-medium text-muted-foreground mb-1">Resolution Note</p>
-                                    <div className="bg-emerald-50 dark:bg-emerald-950/20 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
+                                    <div className="bg-primary/5 dark:bg-primary/10 rounded-lg p-3 border border-primary/20 dark:border-primary/20">
                                       <p className="text-sm">{alert.resolveNote}</p>
                                     </div>
                                   </div>
@@ -872,7 +872,7 @@ export default function WiFiHealthAlerts() {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      className="gap-1.5 text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:border-emerald-800 dark:hover:bg-emerald-950/30"
+                                      className="gap-1.5 text-primary border-primary/20 hover:bg-primary/10 dark:border-primary/20 dark:hover:bg-primary/10"
                                       onClick={() => handleOpenResolve(alert)}
                                     >
                                       <CheckCircle className="h-3.5 w-3.5" />
@@ -965,7 +965,7 @@ export default function WiFiHealthAlerts() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-emerald-500" />
+              <CheckCircle className="h-5 w-5 text-primary" />
               Resolve Alert
             </DialogTitle>
             <DialogDescription>
@@ -990,7 +990,7 @@ export default function WiFiHealthAlerts() {
             <Button
               onClick={handleResolve}
               disabled={isResolving}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {isResolving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Resolve Alert

@@ -121,7 +121,7 @@ const ROLE_OPTIONS = [
 ];
 
 const ROLE_BADGE: Record<string, string> = {
-  guest: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300 border-teal-200 dark:border-teal-700',
+  guest: 'bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary border-primary/20 dark:border-primary/30',
   wan: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-orange-200 dark:border-orange-700',
   lan: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-700',
   wifi: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 border-violet-200 dark:border-violet-700',
@@ -598,15 +598,15 @@ export default function RoomVlanManager() {
       title: 'Total Room VLANs',
       value: totalCount,
       icon: Building,
-      color: 'text-teal-600 dark:text-teal-400',
-      bg: 'bg-teal-500/10',
+      color: 'text-primary',
+      bg: 'bg-primary/10',
     },
     {
       title: 'Active',
       value: activeCount,
       icon: CheckCircle2,
-      color: 'text-emerald-600 dark:text-emerald-400',
-      bg: 'bg-emerald-500/10',
+      color: 'text-primary',
+      bg: 'bg-primary/10',
       badge: activeCount > 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : '',
     },
     {
@@ -621,8 +621,8 @@ export default function RoomVlanManager() {
       title: 'Firewall Rules',
       value: firewallRulesGenerated ? 'Generated' : 'None',
       icon: Shield,
-      color: firewallRulesGenerated ? 'text-teal-600 dark:text-teal-400' : 'text-muted-foreground',
-      bg: firewallRulesGenerated ? 'bg-teal-500/10' : 'bg-muted',
+      color: firewallRulesGenerated ? 'text-primary' : 'text-muted-foreground',
+      bg: firewallRulesGenerated ? 'bg-primary/10' : 'bg-muted',
     },
   ];
 
@@ -653,7 +653,7 @@ export default function RoomVlanManager() {
           const Icon = stat.icon;
           return (
             <Card key={stat.title} className="relative overflow-hidden">
-              <div className={cn('absolute top-0 left-0 right-0 h-1', stat.badge ? '' : 'bg-gradient-to-r from-teal-500 to-emerald-500')} />
+              <div className={cn('absolute top-0 left-0 right-0 h-1', stat.badge ? '' : 'bg-gradient-to-r from-primary to-primary/70')} />
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -754,7 +754,7 @@ export default function RoomVlanManager() {
         />
       ) : (
         <Card className="overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-teal-500 to-emerald-500" />
+          <div className="h-1 bg-gradient-to-r from-primary to-primary/70" />
           <CardContent className="p-0">
             <div className="max-h-[32rem] overflow-y-auto">
               <Table>
@@ -1307,7 +1307,7 @@ export default function RoomVlanManager() {
         <DialogContent className="max-w-3xl max-h-[85vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+              <Shield className="h-5 w-5 text-primary" />
               Firewall Rule Preview
             </DialogTitle>
             <DialogDescription>

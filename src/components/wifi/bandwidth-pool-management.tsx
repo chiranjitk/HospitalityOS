@@ -409,7 +409,7 @@ export default function BandwidthPoolManagement() {
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Gauge className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <Gauge className="h-5 w-5 text-primary" />
             Bandwidth Pools
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -438,18 +438,18 @@ export default function BandwidthPoolManagement() {
       </div>
 
       {/* Info Banner */}
-      <Card className="border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20 rounded-xl border-0 shadow-sm">
+      <Card className="border-primary/20 dark:border-primary/20 bg-primary/5 rounded-xl border-0 shadow-sm">
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="h-4 w-4 text-teal-600 dark:text-teal-400 mt-0.5 shrink-0" />
+            <AlertTriangle className="h-4 w-4 text-primary mt-0.5 shrink-0" />
             <div className="text-sm">
-              <p className="font-medium text-teal-800 dark:text-teal-200">TC HTB Bandwidth Shaping</p>
-              <p className="text-teal-700 dark:text-teal-300 mt-0.5">
+              <p className="font-medium text-primary">TC HTB Bandwidth Shaping</p>
+              <p className="text-primary/80 mt-0.5">
                 Each bandwidth pool corresponds to a <span className="font-semibold">TC HTB class 1:N</span> on{' '}
-                <span className="font-mono text-xs bg-teal-100 dark:bg-teal-900 px-1 py-0.5 rounded">ifb0</span> (download) and{' '}
-                <span className="font-mono text-xs bg-teal-100 dark:bg-teal-900 px-1 py-0.5 rounded">ifb1</span> (upload).
+                <span className="font-mono text-xs bg-primary/10 px-1 py-0.5 rounded">ifb0</span> (download) and{' '}
+                <span className="font-mono text-xs bg-primary/10 px-1 py-0.5 rounded">ifb1</span> (upload).
               </p>
-              <p className="text-teal-600 dark:text-teal-400 mt-1">
+              <p className="text-primary/60 mt-1">
                 Use &quot;Reinitialize All&quot; to rebuild TC classes after changes. This will recreate the full class hierarchy.
               </p>
             </div>
@@ -617,7 +617,7 @@ export default function BandwidthPoolManagement() {
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Gauge className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+              <Gauge className="h-5 w-5 text-primary" />
               {dialogMode === 'create' ? 'Create Bandwidth Pool' : 'Edit Bandwidth Pool'}
             </DialogTitle>
             <DialogDescription>

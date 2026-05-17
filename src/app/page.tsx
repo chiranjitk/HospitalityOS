@@ -83,7 +83,7 @@ function SectionLoadError({
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:justify-center pt-1">
             <Button
               onClick={onGoToDashboard}
-              className="gap-2 bg-teal-600 hover:bg-teal-700 text-white shadow-md shadow-teal-600/20 dark:bg-teal-500 dark:hover:bg-teal-600 dark:shadow-teal-500/10 w-full sm:w-auto"
+              className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20 w-full sm:w-auto"
             >
               <HomeIcon className="h-4 w-4" />
               Go to Dashboard
@@ -187,7 +187,7 @@ export default function Home() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-teal-600 dark:text-teal-400" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-muted-foreground text-sm">{tCommon('loading')}</p>
         </div>
       </div>

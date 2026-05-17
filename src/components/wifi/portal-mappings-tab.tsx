@@ -377,11 +377,11 @@ export default function PortalMappingsTab() {
   return (
     <div className="space-y-5">
       {/* Info Banner */}
-      <div className="flex items-start gap-3 rounded-lg border border-teal-200 bg-teal-50/50 p-4 dark:border-teal-800 dark:bg-teal-950/30">
-        <Info className="h-5 w-5 text-teal-600 dark:text-teal-400 mt-0.5 shrink-0" />
+      <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 dark:border-primary/20 dark:bg-primary/5">
+        <Info className="h-5 w-5 text-primary mt-0.5 shrink-0" />
         <div>
-          <p className="text-sm font-medium text-teal-800 dark:text-teal-300">IP Pool → Portal Mappings</p>
-          <p className="text-xs text-teal-700/80 dark:text-teal-400/70 mt-1">
+          <p className="text-sm font-medium">IP Pool → Portal Mappings</p>
+          <p className="text-xs text-muted-foreground mt-1">
             Each IP Pool from <span className="font-semibold">WiFi Access → IP Pool Management</span> is listed below.
             Map pools to captive portal instances so the RADIUS server knows which portal page to serve
             for clients in each subnet.
@@ -399,7 +399,7 @@ export default function PortalMappingsTab() {
           <div className="h-8 w-px bg-border" />
           <div className="flex items-center gap-3 text-xs">
             <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span className="h-2 w-2 rounded-full bg-primary" />
               {mappedCount} mapped
             </span>
             <span className="flex items-center gap-1">
@@ -475,11 +475,11 @@ export default function PortalMappingsTab() {
                             <div className="flex items-center gap-2 min-w-[130px]">
                               <div className={cn(
                                 'p-1.5 rounded-md',
-                                mapping ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-muted'
+                                mapping ? 'bg-primary/5 dark:bg-primary/10' : 'bg-muted'
                               )}>
                                 <Network className={cn(
                                   'h-3.5 w-3.5',
-                                  mapping ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+                                  mapping ? 'text-primary' : 'text-muted-foreground'
                                 )} />
                               </div>
                               <div>
@@ -491,7 +491,7 @@ export default function PortalMappingsTab() {
                                     </Badge>
                                   )}
                                   {pool.captivePortal && (
-                                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-teal-500/10 text-teal-600 border-teal-200 dark:border-teal-700">
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-primary/10 text-primary border-primary/20">
                                       <ShieldCheck className="h-2.5 w-2.5 mr-0.5" />
                                       Portal
                                     </Badge>
@@ -525,7 +525,7 @@ export default function PortalMappingsTab() {
                           <TableCell>
                             {mapping?.captivePortal?.name ? (
                               <div className="flex items-center gap-1.5">
-                                <Monitor className="h-3.5 w-3.5 text-teal-500 shrink-0" />
+                                <Monitor className="h-3.5 w-3.5 text-primary shrink-0" />
                                 <span className="text-sm">{mapping.captivePortal.name}</span>
                               </div>
                             ) : (
@@ -601,7 +601,7 @@ export default function PortalMappingsTab() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => openCreate(pool)}
-                                  className="text-teal-600 hover:text-teal-700"
+                                  className="text-primary hover:text-primary"
                                 >
                                   <Plus className="h-4 w-4 mr-1" />
                                   Map
@@ -625,18 +625,18 @@ export default function PortalMappingsTab() {
                       <div className="flex items-center gap-2 min-w-0">
                         <div className={cn(
                           'p-1.5 rounded-md',
-                          mapping ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-muted'
+                          mapping ? 'bg-primary/5 dark:bg-primary/10' : 'bg-muted'
                         )}>
                           <Network className={cn(
                             'h-4 w-4',
-                            mapping ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+                            mapping ? 'text-primary' : 'text-muted-foreground'
                           )} />
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{pool.name}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             {mapping ? (
-                              <Badge className="text-[9px] px-1 py-0 bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-700">
+                              <Badge className="text-[9px] px-1 py-0 bg-primary/10 text-primary border-primary/20 dark:border-primary/20">
                                 <Monitor className="h-2.5 w-2.5 mr-0.5" />
                                 {mapping.captivePortal?.name}
                               </Badge>
@@ -659,7 +659,7 @@ export default function PortalMappingsTab() {
                             </Button>
                           </>
                         ) : (
-                          <Button variant="ghost" size="sm" className="h-8 px-2 text-teal-600" onClick={() => openCreate(pool)}>
+                          <Button variant="ghost" size="sm" className="h-8 px-2 text-primary" onClick={() => openCreate(pool)}>
                             <Plus className="h-4 w-4 mr-0.5" />Map
                           </Button>
                         )}
@@ -814,7 +814,7 @@ export default function PortalMappingsTab() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { resetForm(); setDialogOpen(false); }}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving || (!editingMapping && !form.portalId)} className="bg-teal-600 hover:bg-teal-700 text-white">
+            <Button onClick={handleSave} disabled={saving || (!editingMapping && !form.portalId)} className="bg-primary hover:bg-primary/90 text-primary-foreground">
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {editingMapping ? 'Update Mapping' : 'Create Mapping'}
             </Button>

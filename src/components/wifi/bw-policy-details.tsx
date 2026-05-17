@@ -316,7 +316,7 @@ export default function BwPolicyDetails() {
 
   const getPriorityBadge = (priority?: number) => {
     if (!priority) return <Badge variant="outline" className="text-xs">Default</Badge>;
-    if (priority <= 3) return <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-xs">P{priority}</Badge>;
+    if (priority <= 3) return <Badge className="bg-primary hover:bg-primary/80 text-white border-0 text-xs">P{priority}</Badge>;
     if (priority <= 6) return <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-xs">P{priority}</Badge>;
     return <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 text-xs">P{priority}</Badge>;
   };
@@ -435,7 +435,7 @@ export default function BwPolicyDetails() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1 text-sm">
-                          <ArrowDownToLine className="h-3 w-3 text-emerald-500 dark:text-emerald-400" />
+                          <ArrowDownToLine className="h-3 w-3 text-primary" />
                           <span className="font-medium tabular-nums">{detail.downloadLimit} Mbps</span>
                         </div>
                       </TableCell>
@@ -523,7 +523,7 @@ export default function BwPolicyDetails() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="flex items-center gap-1">
-                  <ArrowDownToLine className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
+                  <ArrowDownToLine className="h-3.5 w-3.5 text-primary" />
                   Download Limit (Mbps) *
                 </Label>
                 <Input

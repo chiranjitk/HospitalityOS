@@ -129,7 +129,7 @@ function TerminalOutput({
           maxHeight,
         )}
       >
-        <pre className="p-4 text-xs font-mono text-emerald-400 leading-relaxed whitespace-pre-wrap break-all">
+        <pre className="p-4 text-xs font-mono text-primary leading-relaxed whitespace-pre-wrap break-all">
           {content || '(no output)'}
         </pre>
       </div>
@@ -265,7 +265,7 @@ function PingTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={CircleDot} title="Live Ping" description="Send ICMP echo requests to test host reachability and measure latency" gradient="from-teal-500 to-emerald-600" />
+        <ToolHeader icon={CircleDot} title="Live Ping" description="Send ICMP echo requests to test host reachability and measure latency" gradient="from-primary to-primary/70" />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="lg:col-span-2">
@@ -319,7 +319,7 @@ function PingTool() {
                   label: 'Packet Loss',
                   value: `${lossPct}%`,
                   color: lossPct === 0
-                    ? 'text-emerald-600 dark:text-emerald-400'
+                    ? 'text-primary'
                     : lossPct < 50
                       ? 'text-amber-600 dark:text-amber-400'
                       : 'text-red-600 dark:text-red-400',
@@ -359,7 +359,7 @@ function PingTool() {
                     <TableCell className="font-mono text-xs">{p.seq}</TableCell>
                     <TableCell className="font-mono text-xs">{p.from || host}</TableCell>
                     <TableCell className="text-xs">{p.ttl ?? '--'}</TableCell>
-                    <TableCell className="text-right text-xs tabular-nums font-medium text-emerald-600 dark:text-emerald-400">
+                    <TableCell className="text-right text-xs tabular-nums font-medium text-primary">
                       {p.rtt} ms
                     </TableCell>
                   </TableRow>
@@ -574,7 +574,7 @@ function DnsLookupTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Globe} title="DNS Lookup" description="Query DNS records (A, AAAA, CNAME, MX, NS, TXT, SOA) from any DNS server" gradient="from-cyan-500 to-teal-600" />
+        <ToolHeader icon={Globe} title="DNS Lookup" description="Query DNS records (A, AAAA, CNAME, MX, NS, TXT, SOA) from any DNS server" gradient="from-primary to-primary/70" />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="lg:col-span-2">
@@ -764,7 +764,7 @@ function ArpTableTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Hash} title="ARP Table" description="View the system ARP cache — MAC to IP address mappings from the gateway" gradient="from-emerald-500 to-cyan-600" />
+        <ToolHeader icon={Hash} title="ARP Table" description="View the system ARP cache — MAC to IP address mappings from the gateway" gradient="from-primary to-primary/70" />
 
         <div className="flex items-end gap-3 flex-wrap">
           <div className="flex-1 min-w-[180px] max-w-sm">
@@ -791,7 +791,7 @@ function ArpTableTool() {
           <Button
             size="sm"
             variant="outline"
-            className="h-8 px-3 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
+            className="h-8 px-3 border-primary/30 text-primary hover:text-primary hover:bg-primary/5 dark:hover:bg-primary/5"
             onClick={() => setShowAddForm(!showAddForm)}
           >
             <Plus className="h-3.5 w-3.5 mr-1.5" />
@@ -984,7 +984,7 @@ function NetworkScanTool() {
         {aliveHosts.length > 0 && (
           <div className="mt-4">
             <div className="flex items-center gap-2 mb-2">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
               <span className="text-xs font-medium">{aliveHosts.length} hosts alive</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
@@ -1066,7 +1066,7 @@ function PacketCaptureTool() {
   const topDestPorts = (analysis?.topDestPorts as Array<Record<string, unknown>>) || [];
 
   const protoColors: Record<string, string> = {
-    TCP: 'bg-teal-500',
+    TCP: 'bg-primary',
     UDP: 'bg-cyan-500',
     ICMP: 'bg-amber-500',
     ARP: 'bg-orange-500',
@@ -1151,7 +1151,7 @@ function PacketCaptureTool() {
               { label: 'Interface', value: String(data?.interface || iface) },
               { label: 'Filter', value: String(data?.filter || 'none') },
               { label: 'Captured', value: `${packets.length} packets` },
-              ...(pcapSaved ? [{ label: 'PCAP', value: 'Saved', color: 'text-emerald-600 dark:text-emerald-400' }] : []),
+              ...(pcapSaved ? [{ label: 'PCAP', value: 'Saved', color: 'text-primary' }] : []),
             ]}
           />
         )}
@@ -1697,10 +1697,10 @@ function SpeedTestTool() {
                 variant="outline"
                 className={cn(
                   'text-xs transition-colors',
-                  phase === 'download' && !isTransitioning && 'border-teal-500/50 text-teal-600 dark:text-teal-400',
+                  phase === 'download' && !isTransitioning && 'border-primary/50 text-primary',
                   phase === 'upload' && !isTransitioning && 'border-orange-500/50 text-orange-600 dark:text-orange-400',
                   phase === 'ping' && 'border-cyan-500/50 text-cyan-600 dark:text-cyan-400',
-                  phase === 'complete' && 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400',
+                  phase === 'complete' && 'border-primary/50 text-primary',
                   isTransitioning && 'border-amber-500/50 text-amber-600 dark:text-amber-400',
                 )}
               >
@@ -1734,13 +1734,13 @@ function SpeedTestTool() {
           <div className="mt-6 space-y-5">
             {/* 3-card metrics */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="rounded-xl border bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-teal-950/20 dark:to-emerald-950/20 p-5 text-center">
+              <div className="rounded-xl border bg-primary/5 dark:bg-primary/5 p-5 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  <Download className="h-4 w-4 text-teal-500" />
+                  <Download className="h-4 w-4 text-primary" />
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Download</span>
                 </div>
                 <div className="flex items-end justify-center gap-1">
-                  <span className="text-3xl font-bold tabular-nums text-teal-600 dark:text-teal-400">{dlMbps.toFixed(2)}</span>
+                  <span className="text-3xl font-bold tabular-nums text-primary">{dlMbps.toFixed(2)}</span>
                   <span className="text-sm text-muted-foreground mb-0.5">Mbps</span>
                 </div>
                 {download && (
@@ -1805,7 +1805,7 @@ function SpeedTestTool() {
                   {packetLoss !== null && packetLoss !== undefined && (
                     <div>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Packet Loss</p>
-                      <p className={cn('text-xs font-medium mt-1', packetLoss === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400')}>
+                      <p className={cn('text-xs font-medium mt-1', packetLoss === 0 ? 'text-primary' : 'text-red-600 dark:text-red-400')}>
                         {packetLoss.toFixed(1)}%
                       </p>
                     </div>
@@ -1920,8 +1920,8 @@ function PortCheckTool() {
               <div className="flex-1 rounded-xl border bg-muted/30 p-6 text-center">
                 {data.status === 'open' ? (
                   <>
-                    <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-500 mb-2" />
-                    <p className="font-semibold text-sm text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="h-10 w-10 mx-auto text-primary mb-2" />
+                    <p className="font-semibold text-sm text-primary">
                       OPEN
                     </p>
                   </>
@@ -2025,8 +2025,8 @@ function ConntrackTool() {
 
   const getStateBadge = (connState: string) => {
     switch (connState) {
-      case 'ESTABLISHED': return <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-[10px]">{connState}</Badge>;
-      case 'LISTEN': return <Badge className="bg-teal-500 hover:bg-teal-600 text-white border-0 text-[10px]">{connState}</Badge>;
+      case 'ESTABLISHED': return <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 text-[10px]">{connState}</Badge>;
+      case 'LISTEN': return <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 text-[10px]">{connState}</Badge>;
       case 'TIME_WAIT': return <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-[10px]">{connState}</Badge>;
       case 'CLOSE_WAIT': return <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-0 text-[10px]">{connState}</Badge>;
       case 'SYN_SENT': case 'SYN_RECV': return <Badge className="bg-cyan-500 hover:bg-cyan-600 text-white border-0 text-[10px]">{connState}</Badge>;
@@ -2098,10 +2098,10 @@ function ConntrackTool() {
                 <span className="text-muted-foreground mr-1">Total</span>
                 <span className="font-bold tabular-nums">{totalConns}</span>
               </Badge>
-              <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-xs px-3 py-1">
+              <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 text-xs px-3 py-1">
                 ESTABLISHED: {established}
               </Badge>
-              <Badge className="bg-teal-500 hover:bg-teal-600 text-white border-0 text-xs px-3 py-1">
+              <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 text-xs px-3 py-1">
                 LISTEN: {listening}
               </Badge>
               <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-xs px-3 py-1">
@@ -2122,10 +2122,10 @@ function ConntrackTool() {
                 {totalConns > 0 && (
                   <>
                     {established > 0 && (
-                      <div className="bg-emerald-500 h-full transition-all" style={{ width: `${(established / totalConns) * 100}%` }} title={`ESTABLISHED: ${established}`} />
+                      <div className="bg-primary h-full transition-all" style={{ width: `${(established / totalConns) * 100}%` }} title={`ESTABLISHED: ${established}`} />
                     )}
                     {listening > 0 && (
-                      <div className="bg-teal-500 h-full transition-all" style={{ width: `${(listening / totalConns) * 100}%` }} title={`LISTEN: ${listening}`} />
+                      <div className="bg-primary h-full transition-all" style={{ width: `${(listening / totalConns) * 100}%` }} title={`LISTEN: ${listening}`} />
                     )}
                     {timeWait > 0 && (
                       <div className="bg-amber-500 h-full transition-all" style={{ width: `${(timeWait / totalConns) * 100}%` }} title={`TIME_WAIT: ${timeWait}`} />
@@ -2140,8 +2140,8 @@ function ConntrackTool() {
                 )}
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
-                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> ESTABLISHED</span>
-                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-teal-500" /> LISTEN</span>
+                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" /> ESTABLISHED</span>
+                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" /> LISTEN</span>
                 <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> TIME_WAIT</span>
                 <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" /> CLOSE_WAIT</span>
                 <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-cyan-500" /> SYN_RECV</span>
@@ -2265,7 +2265,7 @@ function RouteTableTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Route} title="Route Table" description="Display the system routing table — kernel IP routing table entries" gradient="from-teal-500 to-emerald-600" />
+        <ToolHeader icon={Route} title="Route Table" description="Display the system routing table — kernel IP routing table entries" gradient="from-primary to-primary/70" />
 
         <div className="flex items-center gap-2">
           <RunButton loading={state === 'loading'} onClick={run} label="Show Routes" />
@@ -2380,7 +2380,7 @@ function InterfaceStatsTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={HardDrive} title="Interface Stats" description="Network interface statistics — RX/TX bytes, packets, errors, and drops" gradient="from-teal-500 to-cyan-600" />
+        <ToolHeader icon={HardDrive} title="Interface Stats" description="Network interface statistics — RX/TX bytes, packets, errors, and drops" gradient="from-primary to-primary/70" />
 
         <div className="flex items-center gap-2">
           <RunButton loading={state === 'loading'} onClick={run} label="Refresh Stats" />
@@ -2418,7 +2418,7 @@ function InterfaceStatsTool() {
                 return (
                   <div key={i} className="rounded-lg border bg-muted/20 p-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <HardDrive className="h-4 w-4 text-teal-500" />
+                      <HardDrive className="h-4 w-4 text-primary" />
                       <span className="text-sm font-semibold font-mono">{String(iface.name)}</span>
                       {iface.operstate && (
                         <Badge variant={String(iface.operstate) === 'UP' ? 'default' : 'outline'} className="text-[10px] ml-1">
@@ -2441,7 +2441,7 @@ function InterfaceStatsTool() {
                               <span className="font-mono tabular-nums">{formatBytes(rxBytes)}</span>
                             </div>
                             <div className="h-2 bg-muted rounded-full overflow-hidden">
-                              <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${Math.max(rxPct, 0.5)}%` }} />
+                              <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.max(rxPct, 0.5)}%` }} />
                             </div>
                           </div>
                           <div className="grid grid-cols-3 gap-2 text-[11px]">
@@ -2705,7 +2705,7 @@ function ServerConsoleTool() {
             variant="outline"
             className={cn(
               'text-[10px] ml-1',
-              connected && 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20',
+              connected && 'border-primary/50 text-primary bg-primary/5 dark:bg-primary/5',
               connecting && 'border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20',
               !connected && !connecting && 'border-slate-400/50 text-slate-500',
             )}

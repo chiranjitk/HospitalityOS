@@ -661,7 +661,7 @@ export default function RadiusUsersTab() {
       if (downMbps >= 100) return <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0">{matchingPlan.name}</Badge>;
       if (downMbps >= 50) return <Badge className="bg-violet-500 hover:bg-violet-600 text-white border-0">{matchingPlan.name}</Badge>;
       if (downMbps >= 20) return <Badge className="bg-sky-500 hover:bg-sky-600 text-white border-0">{matchingPlan.name}</Badge>;
-      return <Badge className="bg-teal-500 hover:bg-teal-600 text-white border-0">{matchingPlan.name}</Badge>;
+      return <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0">{matchingPlan.name}</Badge>;
     }
     // No matching plan — display cleaned-up name (without plan_ prefix, title-cased)
     const displayName = cleanGroup.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -798,8 +798,8 @@ export default function RadiusUsersTab() {
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <UserCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <UserCircle className="h-4 w-4 text-primary" />
             </div>
             <div>
               <div className="text-2xl font-bold tabular-nums">{users.filter(u => u.status === 'active').length}</div>
@@ -957,7 +957,7 @@ export default function RadiusUsersTab() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 text-xs font-mono">
-                            <ArrowDownToLine className="h-3 w-3 text-emerald-500 dark:text-emerald-400" />
+                            <ArrowDownToLine className="h-3 w-3 text-primary" />
                             <span>{getUserBandwidthDisplay(user)}</span>
                           </div>
                         </TableCell>
@@ -999,7 +999,7 @@ export default function RadiusUsersTab() {
                         </TableCell>
                         <TableCell>
                           {user.ipPoolName ? (
-                            <Badge variant="outline" className="text-[10px] bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-700">
+                            <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">
                               <Network className="h-2.5 w-2.5 mr-0.5" />
                               {user.ipPoolName}
                             </Badge>
@@ -1024,7 +1024,7 @@ export default function RadiusUsersTab() {
                                 </Button>
                               </>
                             ) : (
-                              <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" title="Activate User" onClick={() => openStatusDialog(user, 'active')}>
+                              <Button variant="ghost" size="sm" className="text-primary hover:text-primary/80 hover:bg-primary/5" title="Activate User" onClick={() => openStatusDialog(user, 'active')}>
                                 <UserCheck className="h-4 w-4" />
                               </Button>
                             )}

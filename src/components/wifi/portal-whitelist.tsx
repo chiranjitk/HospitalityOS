@@ -518,7 +518,7 @@ export default function PortalWhitelist() {
             size="sm"
             onClick={handleApplyWg}
             disabled={wgApplying}
-            className={!wgStatus?.active ? 'bg-teal-600 hover:bg-teal-700 text-white' : undefined}
+            className={!wgStatus?.active ? 'bg-primary hover:bg-primary/90 text-primary-foreground' : undefined}
           >
             {wgApplying ? (
               <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
@@ -542,7 +542,7 @@ export default function PortalWhitelist() {
             <Download className="h-4 w-4 mr-1.5" />
             Export DNS
           </Button>
-          <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white" onClick={openCreate}>
+          <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground" onClick={openCreate}>
             <Plus className="h-4 w-4 mr-1.5" />
             Add Domain
           </Button>
@@ -554,7 +554,7 @@ export default function PortalWhitelist() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Hotel className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+              <Hotel className="h-4 w-4 text-primary" />
               <p className="text-sm font-medium">Hotel Service Presets</p>
               <span className="text-xs text-muted-foreground">— Quick-add common hotel services</span>
             </div>
@@ -572,7 +572,7 @@ export default function PortalWhitelist() {
                   >
                     <span>{preset.icon}</span>
                     {preset.description}
-                    {alreadyExists && <CheckCircle className="h-3 w-3 text-emerald-500" />}
+                    {alreadyExists && <CheckCircle className="h-3 w-3 text-primary" />}
                   </Button>
                 );
               })}
@@ -826,7 +826,7 @@ export default function PortalWhitelist() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { resetForm(); setDialogOpen(false); }}>Cancel</Button>
-            <Button onClick={handleSave} disabled={savingEntry} className="bg-teal-600 hover:bg-teal-700 text-white">
+            <Button onClick={handleSave} disabled={savingEntry} className="bg-primary hover:bg-primary/90 text-primary-foreground">
               {savingEntry && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {editingEntry ? 'Update' : 'Add Entry'}
             </Button>

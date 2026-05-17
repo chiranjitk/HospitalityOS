@@ -604,8 +604,8 @@ export default function WifiFupPolicy() {
         {/* Active Policies */}
         <Card className="p-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <Shield className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Shield className="h-5 w-5 text-primary" />
             </div>
             <div>
               <div className="text-2xl font-bold tabular-nums">{activePolicies.length}</div>
@@ -617,8 +617,8 @@ export default function WifiFupPolicy() {
         {/* Active Policies */}
         <Card className="p-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-teal-500/10">
-              <Gauge className="h-5 w-5 text-teal-500 dark:text-teal-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Gauge className="h-5 w-5 text-primary" />
             </div>
             <div>
               <div className="text-2xl font-bold tabular-nums">{activePolicies.length}<span className="text-sm font-normal text-muted-foreground">/{policies.length}</span></div>

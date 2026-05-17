@@ -331,8 +331,8 @@ export default function WifiPreArrival() {
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-teal-500/10">
-              <Send className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Send className="h-5 w-5 text-primary" />
             </div>
             Pre-Arrival WiFi Credentials
           </h2>
@@ -350,32 +350,32 @@ export default function WifiPreArrival() {
 
       {/* ── Stats Cards ────────────────────────────────────────────── */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
-        <Card className="p-4 border-0 shadow-sm bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-teal-950/30 dark:to-emerald-950/30">
+        <Card className="p-4 border-0 shadow-sm bg-primary/5 dark:bg-primary/5">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-teal-500/15">
-              <Send className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <div className="p-2.5 rounded-xl bg-primary/15">
+              <Send className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-teal-700 dark:text-teal-300">
+              <div className="text-2xl font-bold text-primary">
                 {logsSummary?.sent ?? 0}
               </div>
-              <div className="text-xs text-teal-600/70 dark:text-teal-400/70 font-medium">
+              <div className="text-xs text-primary/60 font-medium">
                 Total Deliveries Sent
               </div>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30">
+        <Card className="p-4 border-0 shadow-sm bg-primary/5 dark:bg-primary/5">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-emerald-500/15">
-              <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            <div className="p-2.5 rounded-xl bg-primary/15">
+              <TrendingUp className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+              <div className="text-2xl font-bold text-primary">
                 {logsSummary?.successRate ?? 0}%
               </div>
-              <div className="text-xs text-emerald-600/70 dark:text-emerald-400/70 font-medium">
+              <div className="text-xs text-primary/60 font-medium">
                 Delivery Success Rate
               </div>
             </div>
@@ -443,7 +443,7 @@ export default function WifiPreArrival() {
           <div className="flex flex-col sm:flex-row justify-between gap-3">
             <div>
               <CardTitle className="text-lg flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                <BarChart3 className="h-5 w-5 text-primary" />
                 Delivery Logs
               </CardTitle>
               <CardDescription className="mt-1">
@@ -517,7 +517,7 @@ export default function WifiPreArrival() {
                             {log.channel === 'email' ? (
                               <Mail className="h-3.5 w-3.5 text-blue-500" />
                             ) : (
-                              <MessageSquare className="h-3.5 w-3.5 text-green-500" />
+                              <MessageSquare className="h-3.5 w-3.5 text-primary" />
                             )}
                             <span className="text-sm capitalize">{log.channel}</span>
                           </div>
@@ -594,7 +594,7 @@ export default function WifiPreArrival() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Eye className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+              <Eye className="h-5 w-5 text-primary" />
               Message Preview
             </DialogTitle>
             <DialogDescription>
@@ -640,10 +640,10 @@ export default function WifiPreArrival() {
               {previewConfig.sendSms && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm font-medium">
-                    <MessageSquare className="h-4 w-4 text-green-500" />
+                    <MessageSquare className="h-4 w-4 text-primary" />
                     SMS Preview
                   </div>
-                  <div className="rounded-lg border bg-green-50/50 dark:bg-green-950/20 p-4">
+                  <div className="rounded-lg border bg-primary/5 dark:bg-primary/5 p-4">
                     <div className="rounded-lg bg-white dark:bg-muted p-3 shadow-sm border">
                       <p className="text-sm whitespace-pre-wrap">
                         {renderPreviewText(previewConfig.smsTemplate || DEFAULT_SMS_TEMPLATE)}
@@ -720,7 +720,7 @@ function PropertyConfigCard({
     <Card className={cn(
       'border transition-all',
       config.enabled
-        ? 'border-teal-200 dark:border-teal-800/50 shadow-sm'
+        ? 'border-primary/20 dark:border-primary/20 shadow-sm'
         : 'border-border',
     )}>
       <CardHeader className="pb-3">
@@ -729,7 +729,7 @@ function PropertyConfigCard({
             <div className={cn(
               'w-10 h-10 rounded-lg flex items-center justify-center',
               config.enabled
-                ? 'bg-gradient-to-br from-teal-500 to-emerald-500'
+                ? 'bg-gradient-to-br from-primary to-primary/70'
                 : 'bg-muted',
             )}>
               <Building2 className={cn('h-5 w-5', config.enabled ? 'text-white' : 'text-muted-foreground')} />
@@ -822,7 +822,7 @@ function PropertyConfigCard({
               disabled={isSaving}
             />
             <ToggleSetting
-              icon={<MessageSquare className="h-4 w-4 text-green-500" />}
+              icon={<MessageSquare className="h-4 w-4 text-primary" />}
               label="SMS"
               checked={localConfig.sendSms}
               onChange={(v) => handleChange('sendSms', v)}
@@ -889,7 +889,7 @@ function PropertyConfigCard({
               variant="ghost"
               size="sm"
               onClick={onPreview}
-              className="text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 gap-1.5"
+              className="text-primary hover:text-primary/80 gap-1.5"
             >
               <Eye className="h-3.5 w-3.5" />
               Preview Message
@@ -898,7 +898,7 @@ function PropertyConfigCard({
               size="sm"
               onClick={handleSave}
               disabled={!hasChanges || isSaving}
-              className="bg-teal-600 hover:bg-teal-700 text-white shadow-sm"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
             >
               {isSaving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
               Save Changes
@@ -941,11 +941,11 @@ function ToggleSetting({
 function StatusBadge({ status }: { status: string }) {
   const variants: Record<string, { color: string; icon: React.ReactNode }> = {
     sent: {
-      color: 'bg-gradient-to-r from-emerald-500 to-green-500 text-white',
+      color: 'bg-gradient-to-r from-primary to-primary/70 text-primary-foreground',
       icon: <CheckCircle className="h-3 w-3 mr-1" />,
     },
     enabled: {
-      color: 'bg-gradient-to-r from-teal-500 to-emerald-500 text-white',
+      color: 'bg-primary text-primary-foreground',
       icon: <CheckCircle className="h-3 w-3 mr-1" />,
     },
     failed: {

@@ -149,7 +149,7 @@ function getCategoryIcon(key: string) {
 
 function getCategoryColor(key: string) {
   switch (key) {
-    case 'speed': return 'bg-emerald-500';
+    case 'speed': return 'bg-primary';
     case 'coverage': return 'bg-blue-500';
     case 'easeOfConnect': return 'bg-purple-500';
     default: return 'bg-gray-500';
@@ -346,13 +346,13 @@ export default function WiFiSatisfactionSurveys() {
                 </p>
                 <div className="flex items-center gap-1">
                   {stats && stats.trend > 0 ? (
-                    <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                    <TrendingUp className="h-3.5 w-3.5 text-primary" />
                   ) : stats && stats.trend < 0 ? (
                     <TrendingDown className="h-3.5 w-3.5 text-red-500" />
                   ) : (
                     <Minus className="h-3.5 w-3.5 text-muted-foreground" />
                   )}
-                  <span className={`text-xs font-medium ${stats && stats.trend > 0 ? 'text-emerald-600' : stats && stats.trend < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                  <span className={`text-xs font-medium ${stats && stats.trend > 0 ? 'text-primary' : stats && stats.trend < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
                     {stats && stats.trend > 0 ? '+' : ''}{stats?.trend || 0} vs prev
                   </span>
                 </div>
@@ -379,7 +379,7 @@ export default function WiFiSatisfactionSurveys() {
                         <div className="h-2 bg-muted/50 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all duration-500 ${
-                              rating >= 4 ? 'bg-emerald-400' : rating === 3 ? 'bg-amber-400' : 'bg-red-400'
+                              rating >= 4 ? 'bg-primary' : rating === 3 ? 'bg-amber-400' : 'bg-red-400'
                             }`}
                             style={{ width: `${Math.max(pct, 0.5)}%` }}
                           />
@@ -614,7 +614,7 @@ export default function WiFiSatisfactionSurveys() {
               <CardContent>
                 {(!stats?.lowRatedAps || stats.lowRatedAps.length === 0) ? (
                   <div className="text-center py-8">
-                    <Radio className="h-8 w-8 text-emerald-400/40 mx-auto mb-2" />
+                    <Radio className="h-8 w-8 text-primary/40 mx-auto mb-2" />
                     <p className="text-xs text-muted-foreground">All APs are performing well!</p>
                   </div>
                 ) : (
@@ -648,7 +648,7 @@ export default function WiFiSatisfactionSurveys() {
               <CardContent>
                 {(!stats?.lowRatedRooms || stats.lowRatedRooms.length === 0) ? (
                   <div className="text-center py-8">
-                    <Shield className="h-8 w-8 text-emerald-400/40 mx-auto mb-2" />
+                    <Shield className="h-8 w-8 text-primary/40 mx-auto mb-2" />
                     <p className="text-xs text-muted-foreground">All rooms have acceptable ratings!</p>
                   </div>
                 ) : (

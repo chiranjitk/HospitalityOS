@@ -257,7 +257,7 @@ export default function UserStatusHistory() {
                       entry.newStatus === 'deactivated' || entry.newStatus === 'revoked' || entry.newStatus === 'expired'
                         ? 'bg-red-50/30 dark:bg-red-950/10'
                         : entry.newStatus === 'active'
-                          ? 'bg-emerald-50/30 dark:bg-emerald-950/10'
+                          ? 'bg-primary/5 dark:bg-primary/10'
                           : entry.newStatus === 'suspended'
                           ? 'bg-amber-50/30 dark:bg-amber-950/10'
                           : ''

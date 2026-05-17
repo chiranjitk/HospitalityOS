@@ -267,11 +267,11 @@ export default function AuthLogs() {
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <CheckCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <CheckCircle className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{stats.acceptCount}</div>
+              <div className="text-2xl font-bold tabular-nums text-primary">{stats.acceptCount}</div>
               <div className="text-xs text-muted-foreground">Accepted</div>
             </div>
           </div>
@@ -289,11 +289,11 @@ export default function AuthLogs() {
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-teal-500/10">
-              <TrendingUp className="h-4 w-4 text-teal-500 dark:text-teal-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <TrendingUp className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <div className="text-2xl font-bold tabular-nums text-teal-600 dark:text-teal-400">{stats.successRate}%</div>
+              <div className="text-2xl font-bold tabular-nums text-primary">{stats.successRate}%</div>
               <div className="text-xs text-muted-foreground">Success Rate</div>
             </div>
           </div>
@@ -410,7 +410,7 @@ export default function AuthLogs() {
                       return msg ? (
                         <div className={cn(
                           'text-xs leading-tight',
-                          isReject ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
+                          isReject ? 'text-red-600 dark:text-red-400' : 'text-primary'
                         )}>{msg}</div>
                       ) : null;
                     })()}
@@ -459,7 +459,7 @@ export default function AuthLogs() {
                           </TableCell>
                           <TableCell>
                             {sourceIp ? (
-                              <Badge variant="outline" className="font-mono text-[11px] bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800 whitespace-nowrap">
+                              <Badge variant="outline" className="font-mono text-[11px] bg-primary/5 dark:bg-primary/5 text-primary border-primary/20 dark:border-primary/30 whitespace-nowrap">
                                 <Monitor className="h-2.5 w-2.5 mr-1" />
                                 {sourceIp}
                               </Badge>
@@ -470,7 +470,7 @@ export default function AuthLogs() {
                           <TableCell>
                             <span className={cn(
                               'text-xs leading-tight block',
-                              isReject ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
+                              isReject ? 'text-red-600 dark:text-red-400' : 'text-primary'
                             )}>
                               {getEnhancedReplyMessage(log)}
                             </span>
@@ -526,7 +526,7 @@ export default function AuthLogs() {
                     {(() => {
                       const ip = getSourceIp(selectedLog);
                       return ip ? (
-                        <Badge variant="outline" className="mt-1 font-mono text-xs bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800">
+                        <Badge variant="outline" className="mt-1 font-mono text-xs bg-primary/5 dark:bg-primary/5 text-primary border-primary/20 dark:border-primary/30">
                           <Monitor className="h-3 w-3 mr-1" />
                           {ip}
                         </Badge>
@@ -551,7 +551,7 @@ export default function AuthLogs() {
                   'text-sm px-3 py-2 rounded-lg',
                   (selectedLog.authResult || '').toLowerCase().includes('reject')
                     ? 'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400'
-                    : 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-primary/5 dark:bg-primary/5 text-primary'
                 )}>
                   {getEnhancedReplyMessage(selectedLog)}
                 </div>

@@ -312,16 +312,16 @@ const ROLE_DESCRIPTIONS: Record<string, string> = {
 };
 
 const typeBadgeColor: Record<string, string> = {
-  ethernet: 'bg-teal-500/15 text-teal-700 dark:text-teal-400 border-teal-500/30',
+  ethernet: 'bg-primary/10 text-primary dark:text-primary border-primary/30',
   vlan: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30',
-  bridge: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30',
+  bridge: 'bg-primary/10 text-primary dark:text-primary border-primary/30',
   bond: 'bg-violet-500/15 text-violet-700 dark:text-violet-400 border-violet-500/30',
   wireless: 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30',
 };
 
 const roleBadgeColor: Record<string, string> = {
   wan: 'bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30',
-  lan: 'bg-gradient-to-r from-teal-500/20 to-emerald-500/20 text-teal-700 dark:text-teal-400 border-teal-500/30',
+  lan: 'bg-gradient-to-r from-primary/10 to-primary/5 text-primary border-primary/30',
   dmz: 'bg-gradient-to-r from-red-500/20 to-rose-500/20 text-red-700 dark:text-red-400 border-red-500/30',
   management: 'bg-gradient-to-r from-violet-500/20 to-purple-500/20 text-violet-700 dark:text-violet-400 border-violet-500/30',
   wifi: 'bg-gradient-to-r from-cyan-500/20 to-sky-500/20 text-cyan-700 dark:text-cyan-400 border-cyan-500/30',
@@ -331,13 +331,13 @@ const roleBadgeColor: Record<string, string> = {
 // Nettype label to badge color mapping (Rocky 10 nmcli architecture)
 const nettypeBadgeColor: Record<string, string> = {
   'WAN': 'bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30',
-  'LAN': 'bg-gradient-to-r from-emerald-500/20 to-green-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/30',
+  'LAN': 'bg-gradient-to-r from-primary/10 to-primary/5 text-primary border-primary/30',
   'VLAN': 'bg-gradient-to-r from-purple-500/20 to-violet-500/20 text-purple-700 dark:text-purple-400 border-purple-500/30',
   'Bridge': 'bg-gradient-to-r from-cyan-500/20 to-sky-500/20 text-cyan-700 dark:text-cyan-400 border-cyan-500/30',
   'Bond': 'bg-gradient-to-r from-pink-500/20 to-rose-500/20 text-pink-700 dark:text-pink-400 border-pink-500/30',
   'Management': 'bg-gradient-to-r from-slate-500/20 to-gray-500/20 text-slate-700 dark:text-slate-400 border-slate-500/30',
   'Guest': 'bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30',
-  'IoT': 'bg-gradient-to-r from-teal-500/20 to-cyan-500/20 text-teal-700 dark:text-teal-400 border-teal-500/30',
+  'IoT': 'bg-gradient-to-r from-primary/10 to-primary/5 text-primary border-primary/30',
   'DMZ': 'bg-gradient-to-r from-red-500/20 to-rose-500/20 text-red-700 dark:text-red-400 border-red-500/30',
   'WiFi': 'bg-gradient-to-r from-blue-500/20 to-indigo-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30',
   'Unused': 'bg-muted text-muted-foreground border-muted-foreground/20',
@@ -345,9 +345,9 @@ const nettypeBadgeColor: Record<string, string> = {
 };
 
 const protocolBadgeColor: Record<string, string> = {
-  'TCP': 'bg-teal-500/15 text-teal-700 dark:text-teal-400',
+  'TCP': 'bg-primary/10 text-primary',
   'UDP': 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
-  'TCP/UDP': 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
+  'TCP/UDP': 'bg-primary/10 text-primary',
 };
 
 
@@ -367,7 +367,7 @@ function TrafficGraph({ rx, tx }: { rx: number; tx: number }) {
       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
         <span className="w-8">RX</span>
         <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-          <div className="h-full rounded-full bg-gradient-to-r from-teal-500 to-emerald-400" style={{ width: `${rxPct}%` }} />
+          <div className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70" style={{ width: `${rxPct}%` }} />
         </div>
         <span className="w-16 text-right font-mono">{formatBytes(rx)}</span>
       </div>
@@ -1673,7 +1673,7 @@ export default function NetworkPage() {
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Network className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <Network className="h-5 w-5 text-primary" />
             Network Management
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -1727,7 +1727,7 @@ export default function NetworkPage() {
               </div>
             </div>
             {osDataLoaded && (
-              <div className="flex items-center gap-1.5 text-[10px] text-emerald-600 dark:text-emerald-400 mt-2 pt-2 border-t">
+              <div className="flex items-center gap-1.5 text-[10px] text-primary mt-2 pt-2 border-t">
                 <CheckCircle2 className="h-3 w-3" />
                 Live data from OS · Auto-refresh every 30s
               </div>
@@ -1746,7 +1746,7 @@ export default function NetworkPage() {
               className={cn(
                 'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200',
                 activeTab === tab.id
-                  ? 'bg-teal-600 text-white shadow-lg shadow-teal-600/25'
+                  ? 'bg-primary text-white shadow-lg shadow-primary/25'
                   : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
@@ -1784,7 +1784,7 @@ export default function NetworkPage() {
                   </Button>
                 </div>
               </div>
-              <Button onClick={() => setAddInterfaceOpen(true)} className="bg-teal-600 hover:bg-teal-700">
+              <Button onClick={() => setAddInterfaceOpen(true)} className="bg-primary hover:bg-primary/90">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Interface
               </Button>
@@ -1792,7 +1792,7 @@ export default function NetworkPage() {
 
             {loadingInterfaces ? (
               <div className="flex items-center justify-center py-20">
-                <Loader2 className="h-8 w-8 animate-spin text-teal-500 dark:text-teal-400" />
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <span className="ml-3 text-sm text-muted-foreground">Loading interfaces…</span>
               </div>
             ) : interfaces.length === 0 ? (
@@ -1803,7 +1803,7 @@ export default function NetworkPage() {
                 return (
                 <Card
                   key={iface.id}
-                  className="cursor-pointer transition-all duration-200 hover:scale-[1.01] hover:shadow-md border-border/50 hover:border-teal-500/30"
+                  className="cursor-pointer transition-all duration-200 hover:scale-[1.01] hover:shadow-md border-border/50 hover:border-primary/30"
                   onClick={() => handleOpenEditInterface(iface)}
                 >
                   <CardHeader className="pb-3">
@@ -1812,14 +1812,14 @@ export default function NetworkPage() {
                         <div className={cn(
                           'p-2 rounded-lg',
                           iface.type === 'wireless' ? 'bg-rose-500/10' :
-                          iface.type === 'bridge' ? 'bg-emerald-500/10' :
+                          iface.type === 'bridge' ? 'bg-primary/10' :
                           iface.type === 'bond' ? 'bg-violet-500/10' :
-                          iface.type === 'vlan' ? 'bg-amber-500/10' : 'bg-teal-500/10'
+                          iface.type === 'vlan' ? 'bg-amber-500/10' : 'bg-primary/10'
                         )}>
                           {iface.type === 'wireless' ? <Wifi className="h-4 w-4 text-rose-500 dark:text-rose-400" /> :
-                           iface.type === 'bridge' ? <ArrowRightLeft className="h-4 w-4 text-emerald-500 dark:text-emerald-400" /> :
+                           iface.type === 'bridge' ? <ArrowRightLeft className="h-4 w-4 text-primary" /> :
                            iface.type === 'bond' ? <Server className="h-4 w-4 text-violet-500 dark:text-violet-400" /> :
-                           <Network className="h-4 w-4 text-teal-500 dark:text-teal-400" />}
+                           <Network className="h-4 w-4 text-primary" />}
                         </div>
                         <div>
                           <CardTitle className="text-base font-semibold">{iface.name}</CardTitle>
@@ -1917,14 +1917,14 @@ export default function NetworkPage() {
                               <div className={cn(
                                 'p-1.5 rounded-md',
                                 iface.type === 'wireless' ? 'bg-rose-500/10' :
-                                iface.type === 'bridge' ? 'bg-emerald-500/10' :
+                                iface.type === 'bridge' ? 'bg-primary/10' :
                                 iface.type === 'bond' ? 'bg-violet-500/10' :
-                                iface.type === 'vlan' ? 'bg-amber-500/10' : 'bg-teal-500/10'
+                                iface.type === 'vlan' ? 'bg-amber-500/10' : 'bg-primary/10'
                               )}>
                                 {iface.type === 'wireless' ? <Wifi className="h-3.5 w-3.5 text-rose-500 dark:text-rose-400" /> :
-                                 iface.type === 'bridge' ? <ArrowRightLeft className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" /> :
+                                 iface.type === 'bridge' ? <ArrowRightLeft className="h-3.5 w-3.5 text-primary" /> :
                                  iface.type === 'bond' ? <Server className="h-3.5 w-3.5 text-violet-500 dark:text-violet-400" /> :
-                                 <Network className="h-3.5 w-3.5 text-teal-500 dark:text-teal-400" />}
+                                 <Network className="h-3.5 w-3.5 text-primary" />}
                               </div>
                               <div>
                                 <p className="font-medium text-sm">{iface.name}</p>
@@ -2027,7 +2027,7 @@ export default function NetworkPage() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setAddInterfaceOpen(false)}>Cancel</Button>
-                  <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleAddInterface}>Add Interface</Button>
+                  <Button className="bg-primary hover:bg-primary/90" onClick={handleAddInterface}>Add Interface</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -2257,7 +2257,7 @@ export default function NetworkPage() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setEditInterfaceOpen(false)}>Cancel</Button>
-                  <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleSaveEditInterface}>Save Changes</Button>
+                  <Button className="bg-primary hover:bg-primary/90" onClick={handleSaveEditInterface}>Save Changes</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -2269,7 +2269,7 @@ export default function NetworkPage() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <p className="text-sm text-muted-foreground">{vlans.length} VLANs configured</p>
-              <Button onClick={() => setAddVlanOpen(true)} className="bg-teal-600 hover:bg-teal-700">
+              <Button onClick={() => setAddVlanOpen(true)} className="bg-primary hover:bg-primary/90">
                 <Plus className="h-4 w-4 mr-2" />
                 Add VLAN
               </Button>
@@ -2277,7 +2277,7 @@ export default function NetworkPage() {
 
             {loadingVlans ? (
               <div className="flex items-center justify-center py-20">
-                <Loader2 className="h-8 w-8 animate-spin text-teal-500 dark:text-teal-400" />
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <span className="ml-3 text-sm text-muted-foreground">Loading VLANs…</span>
               </div>
             ) : vlans.length === 0 ? (
@@ -2390,7 +2390,7 @@ export default function NetworkPage() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setAddVlanOpen(false)}>Cancel</Button>
-                  <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleAddVlan}>Add VLAN</Button>
+                  <Button className="bg-primary hover:bg-primary/90" onClick={handleAddVlan}>Add VLAN</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -2406,7 +2406,7 @@ export default function NetworkPage() {
                 onClick={() => setBridgeBondSubTab('bridges')}
                 className={cn(
                   'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                  bridgeBondSubTab === 'bridges' ? 'bg-teal-600 text-white' : 'bg-muted text-muted-foreground hover:text-foreground'
+                  bridgeBondSubTab === 'bridges' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground hover:text-foreground'
                 )}
               >
                 <ArrowRightLeft className="h-4 w-4 inline mr-2" />
@@ -2416,7 +2416,7 @@ export default function NetworkPage() {
                 onClick={() => setBridgeBondSubTab('bonds')}
                 className={cn(
                   'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                  bridgeBondSubTab === 'bonds' ? 'bg-teal-600 text-white' : 'bg-muted text-muted-foreground hover:text-foreground'
+                  bridgeBondSubTab === 'bonds' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground hover:text-foreground'
                 )}
               >
                 <Server className="h-4 w-4 inline mr-2" />
@@ -2432,7 +2432,7 @@ export default function NetworkPage() {
                       <CardTitle className="text-base">Network Bridges</CardTitle>
                       <CardDescription>Group interfaces into a single logical bridge</CardDescription>
                     </div>
-                    <Button size="sm" className="bg-teal-600 hover:bg-teal-700" onClick={() => setAddBridgeOpen(true)}>
+                    <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => setAddBridgeOpen(true)}>
                       <Plus className="h-3.5 w-3.5 mr-1.5" /> Create Bridge
                     </Button>
                   </div>
@@ -2456,7 +2456,7 @@ export default function NetworkPage() {
                           <TableCell>
                             <div className="flex gap-1.5 flex-wrap">
                               {bridge.members.map((m) => (
-                                <Badge key={m} variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 font-mono text-xs">
+                                <Badge key={m} variant="outline" className="bg-primary/10 text-primary border-primary/30 font-mono text-xs">
                                   {m}
                                 </Badge>
                               ))}
@@ -2464,7 +2464,7 @@ export default function NetworkPage() {
                           </TableCell>
                           <TableCell>
                             {bridge.stp ? (
-                              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-xs">Enabled</Badge>
+                              <Badge className="bg-primary/10 text-primary text-xs">Enabled</Badge>
                             ) : (
                               <Badge variant="secondary" className="text-xs">Disabled</Badge>
                             )}
@@ -2494,7 +2494,7 @@ export default function NetworkPage() {
                       <CardTitle className="text-base">Network Bonds</CardTitle>
                       <CardDescription>Aggregate multiple interfaces for redundancy or throughput</CardDescription>
                     </div>
-                    <Button size="sm" className="bg-teal-600 hover:bg-teal-700" onClick={() => setAddBondOpen(true)}>
+                    <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => setAddBondOpen(true)}>
                       <Plus className="h-3.5 w-3.5 mr-1.5" /> Create Bond
                     </Button>
                   </div>
@@ -2561,12 +2561,12 @@ export default function NetworkPage() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <p className="text-sm text-muted-foreground">{routes.length} routes configured</p>
-              <Button onClick={() => setAddRouteOpen(true)} className="bg-teal-600 hover:bg-teal-700">
+              <Button onClick={() => setAddRouteOpen(true)} className="bg-primary hover:bg-primary/90">
                 <Plus className="h-4 w-4 mr-2" /> Add Route
               </Button>
             </div>
             {loadingRoutes ? (
-              <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-teal-500 dark:text-teal-400" /></div>
+              <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
             ) : routes.length === 0 ? (
               <Card className="border-dashed"><CardContent className="p-12 text-center"><Route className="h-10 w-10 mx-auto mb-3 text-muted-foreground" /><p className="text-sm text-muted-foreground">No routes configured. Add a default route or custom static routes.</p></CardContent></Card>
             ) : (
@@ -2589,7 +2589,7 @@ export default function NetworkPage() {
                     {routes.map((route) => (
                       <TableRow key={route.id}>
                         <TableCell>
-                          <Badge className={route.isDefault ? 'bg-orange-500/15 text-orange-700 dark:text-orange-400 text-[10px]' : 'bg-teal-500/15 text-teal-700 dark:text-teal-400 text-[10px]'}>
+                          <Badge className={route.isDefault ? 'bg-orange-500/15 text-orange-700 dark:text-orange-400 text-[10px]' : 'bg-primary/10 text-primary text-[10px]'}>
                             {route.isDefault ? 'Default' : 'Custom'}
                           </Badge>
                         </TableCell>
@@ -2660,7 +2660,7 @@ export default function NetworkPage() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setAddRouteOpen(false)}>Cancel</Button>
-                  <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleAddRoute}>Add Route</Button>
+                  <Button className="bg-primary hover:bg-primary/90" onClick={handleAddRoute}>Add Route</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -2671,15 +2671,15 @@ export default function NetworkPage() {
         {activeTab === 'multiwan' && (
           <div className="space-y-6">
             {loadingMultiWan ? (
-              <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-teal-500 dark:text-teal-400" /></div>
+              <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
             ) : (
             <>
             {/* Status Banner */}
-            <Card className={multiWanConfig?.enabled ? 'border-emerald-500/30 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20' : 'border-muted'}>
+            <Card className={multiWanConfig?.enabled ? 'border-primary/30 bg-primary/5 dark:bg-primary/5' : 'border-muted'}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={cn('p-2.5 rounded-xl', multiWanConfig?.enabled ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white' : 'bg-muted text-muted-foreground')}>
+                    <div className={cn('p-2.5 rounded-xl', multiWanConfig?.enabled ? 'bg-gradient-to-br from-primary to-primary/70 text-primary-foreground' : 'bg-muted text-muted-foreground')}>
                       <Workflow className="h-5 w-5" />
                     </div>
                     <div>
@@ -2855,7 +2855,7 @@ export default function NetworkPage() {
                                 {/* Health Check Rules */}
                                 <div>
                                   <div className="flex items-center justify-between mb-2">
-                                    <Label className="text-xs font-semibold flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Health Check Rules</Label>
+                                    <Label className="text-xs font-semibold flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Health Check Rules</Label>
                                     <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => addHealthRule(gw.id)}><Plus className="h-3 w-3 mr-1" /> Add Rule</Button>
                                   </div>
                                   {gw.healthRules.length === 0 ? (
@@ -2959,7 +2959,7 @@ export default function NetworkPage() {
               {multiWanConfig.gateways.filter(g => g.enabled && !g.isBackup).length > 0 && (
                 <div className="flex items-center justify-center gap-3 py-2 flex-wrap">
                   <div className="flex items-center gap-1.5"><Globe className="h-4 w-4 text-orange-500" /><span className="text-[10px] font-semibold text-orange-700 dark:text-orange-300">INTERNET</span></div>
-                  <div className="h-0.5 w-6 bg-gradient-to-r from-orange-500 to-teal-500 rounded-full" />
+                  <div className="h-0.5 w-6 bg-gradient-to-r from-orange-500 to-primary rounded-full" />
                   <div className="flex items-center gap-1 flex-wrap">
                     {multiWanConfig.gateways.filter(g => g.enabled).map((g, i, arr) => (
                       <React.Fragment key={g.id}>
@@ -2970,16 +2970,16 @@ export default function NetworkPage() {
                       </React.Fragment>
                     ))}
                   </div>
-                  <div className="h-0.5 w-6 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-full" />
-                  <div className="flex items-center gap-1.5"><Server className="h-4 w-4 text-teal-600" /><span className="text-[10px] font-semibold text-teal-700 dark:text-teal-300">TABLE 221</span></div>
-                  <div className="h-0.5 w-6 bg-emerald-500 rounded-full" />
-                  <div className="flex items-center gap-1.5"><Monitor className="h-4 w-4 text-emerald-500" /><span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">LAN</span></div>
+                  <div className="h-0.5 w-6 bg-gradient-to-r from-primary to-primary/70 rounded-full" />
+                  <div className="flex items-center gap-1.5"><Server className="h-4 w-4 text-primary" /><span className="text-[10px] font-semibold text-primary">TABLE 221</span></div>
+                  <div className="h-0.5 w-6 bg-primary rounded-full" />
+                  <div className="flex items-center gap-1.5"><Monitor className="h-4 w-4 text-primary" /><span className="text-[10px] font-semibold text-primary">LAN</span></div>
                 </div>
               )}
 
               {/* Action Buttons */}
               <div className="flex gap-3">
-                <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleApplyMultiWan} disabled={!multiWanConfig.enabled || multiWanConfig.gateways.filter(g => g.enabled).length < 2}>
+                <Button className="bg-primary hover:bg-primary/90" onClick={handleApplyMultiWan} disabled={!multiWanConfig.enabled || multiWanConfig.gateways.filter(g => g.enabled).length < 2}>
                   <Zap className="h-4 w-4 mr-2" /> Apply DGD Configuration
                 </Button>
                 <Button variant="outline" onClick={handleResetMultiWan}>
@@ -3011,7 +3011,7 @@ export default function NetworkPage() {
                   {interfaces.filter(i => i.type === 'ethernet' && !bridges.some(b => b.members.includes(i.name))).map(i => (
                     <label key={i.id} className="flex items-center gap-2 p-2 rounded-md border hover:bg-muted/50 cursor-pointer">
                       <input type="checkbox" checked={newBridge.members.includes(i.name)}
-                        onChange={e => setNewBridge(p => ({ ...p, members: e.target.checked ? [...p.members, i.name] : p.members.filter(m => m !== i.name) }))} className="accent-teal-600" />
+                        onChange={e => setNewBridge(p => ({ ...p, members: e.target.checked ? [...p.members, i.name] : p.members.filter(m => m !== i.name) }))} className="accent-primary" />
                       <span className="text-sm font-mono">{i.name}</span>
                     </label>
                   ))}
@@ -3034,7 +3034,7 @@ export default function NetworkPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setAddBridgeOpen(false)}>Cancel</Button>
-              <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleCreateBridge}>Create Bridge</Button>
+              <Button className="bg-primary hover:bg-primary/90" onClick={handleCreateBridge}>Create Bridge</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -3082,7 +3082,7 @@ export default function NetworkPage() {
                       {available.map(i => (
                         <label key={i.id} className="flex items-center gap-2 p-2 rounded-md border hover:bg-muted/50 cursor-pointer">
                           <input type="checkbox" checked={newBond.members.includes(i.name)}
-                            onChange={e => setNewBond(p => ({ ...p, members: e.target.checked ? [...p.members, i.name] : p.members.filter(m => m !== i.name) }))} className="accent-teal-600" />
+                            onChange={e => setNewBond(p => ({ ...p, members: e.target.checked ? [...p.members, i.name] : p.members.filter(m => m !== i.name) }))} className="accent-primary" />
                           <span className="text-sm font-mono">{i.name}</span>
                           <span className="text-[10px] text-muted-foreground truncate">{i.description}</span>
                         </label>
@@ -3129,7 +3129,7 @@ export default function NetworkPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setAddBondOpen(false)}>Cancel</Button>
-              <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleCreateBond}>Create Bond</Button>
+              <Button className="bg-primary hover:bg-primary/90" onClick={handleCreateBond}>Create Bond</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -3139,7 +3139,7 @@ export default function NetworkPage() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <p className="text-sm text-muted-foreground">{schedules.length} schedules configured</p>
-              <Button onClick={() => setAddScheduleOpen(true)} className="bg-teal-600 hover:bg-teal-700">
+              <Button onClick={() => setAddScheduleOpen(true)} className="bg-primary hover:bg-primary/90">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Schedule
               </Button>
@@ -3147,7 +3147,7 @@ export default function NetworkPage() {
 
             {loadingSchedules ? (
               <div className="flex items-center justify-center py-20">
-                <Loader2 className="h-8 w-8 animate-spin text-teal-500 dark:text-teal-400" />
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <span className="ml-3 text-sm text-muted-foreground">Loading schedules…</span>
               </div>
             ) : schedules.length === 0 ? (
@@ -3179,7 +3179,7 @@ export default function NetworkPage() {
                                 className={cn(
                                   'w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-medium transition-colors',
                                   sch.days[idx]
-                                    ? 'bg-teal-500/15 text-teal-700 dark:text-teal-400 border border-teal-500/30'
+                                    ? 'bg-primary/10 text-primary border border-primary/30'
                                     : 'bg-muted text-muted-foreground/50 border border-transparent'
                                 )}
                               >
@@ -3201,7 +3201,7 @@ export default function NetworkPage() {
                           <Badge className={cn(
                             'text-xs',
                             sch.action.includes('Allow') || sch.action.includes('Full')
-                              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+                              ? 'bg-primary/10 text-primary'
                               : sch.action.includes('Block')
                               ? 'bg-red-500/15 text-red-700 dark:text-red-400'
                               : 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
@@ -3260,8 +3260,8 @@ export default function NetworkPage() {
                           className={cn(
                             'w-10 h-10 rounded-lg border text-xs font-medium transition-colors',
                             newSchedule.days[idx]
-                              ? 'border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-400'
-                              : 'border-border bg-muted/50 text-muted-foreground hover:bg-teal-500/10 hover:border-teal-500/30 hover:text-teal-700 dark:text-teal-300 dark:hover:text-teal-400'
+                              ? 'border-primary/30 bg-primary/10 text-primary'
+                              : 'border-border bg-muted/50 text-muted-foreground hover:bg-primary/10 hover:border-primary/30 hover:text-primary'
                           )}
                         >
                           {day}
@@ -3323,7 +3323,7 @@ export default function NetworkPage() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setAddScheduleOpen(false)}>Cancel</Button>
-                  <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleAddSchedule}>Create Schedule</Button>
+                  <Button className="bg-primary hover:bg-primary/90" onClick={handleAddSchedule}>Create Schedule</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -3332,7 +3332,7 @@ export default function NetworkPage() {
 
         {/* ═══════ TAB 7: ROOM VLANs (Feature-Gated) ═══════ */}
         {activeTab === 'room-vlans' && roomVlanEnabled && (
-          <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-teal-500" /></div>}>
+          <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
             <RoomVlansTab />
           </Suspense>
         )}
@@ -3347,7 +3347,7 @@ export default function NetworkPage() {
                   <Upload className="h-4 w-4 mr-2" />
                   Import Config
                 </Button>
-                <Button className="bg-teal-600 hover:bg-teal-700" onClick={handleCreateBackup}>
+                <Button className="bg-primary hover:bg-primary/90" onClick={handleCreateBackup}>
                   <Download className="h-4 w-4 mr-2" />
                   Create Backup
                 </Button>
@@ -3356,7 +3356,7 @@ export default function NetworkPage() {
 
             {loadingBackups ? (
               <div className="flex items-center justify-center py-20">
-                <Loader2 className="h-8 w-8 animate-spin text-teal-500 dark:text-teal-400" />
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <span className="ml-3 text-sm text-muted-foreground">Loading backups…</span>
               </div>
             ) : (
@@ -3371,12 +3371,12 @@ export default function NetworkPage() {
                       <div className="flex items-center gap-3">
                         <div className={cn(
                           'p-2 rounded-lg',
-                          backup.type === 'auto' ? 'bg-amber-500/10' : 'bg-teal-500/10'
+                          backup.type === 'auto' ? 'bg-amber-500/10' : 'bg-primary/10'
                         )}>
                           {backup.type === 'auto' ? (
                             <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                           ) : (
-                            <Copy className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                            <Copy className="h-4 w-4 text-primary" />
                           )}
                         </div>
                         <div>
@@ -3395,7 +3395,7 @@ export default function NetworkPage() {
                           'text-[10px]',
                           backup.type === 'auto'
                             ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
-                            : 'bg-teal-500/15 text-teal-700 dark:text-teal-400'
+                            : 'bg-primary/10 text-primary'
                         )}>
                           {backup.type === 'auto' ? (
                             <><Clock className="h-3 w-3 mr-1" />Automatic</>
@@ -3432,8 +3432,8 @@ export default function NetworkPage() {
             {/* Empty state hint */}
             <Card className="bg-muted/30 border-dashed border-2 border-border/50">
               <CardContent className="p-6 flex flex-col items-center text-center">
-                <div className="p-3 rounded-full bg-teal-500/10 mb-3">
-                  <Download className="h-6 w-6 text-teal-600 dark:text-teal-400" />
+                <div className="p-3 rounded-full bg-primary/10 mb-3">
+                  <Download className="h-6 w-6 text-primary" />
                 </div>
                 <p className="font-medium text-sm">Automated backups run weekly</p>
                 <p className="text-xs text-muted-foreground mt-1">

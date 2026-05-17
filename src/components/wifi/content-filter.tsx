@@ -1092,7 +1092,7 @@ export default function ContentFilterPage() {
               variant="outline"
               className={`text-xs px-2.5 py-1 ${
                 e2guardianConnected
-                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
+                  ? 'bg-primary/10 text-primary border-primary/20'
                   : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/25'
               }`}
             >
@@ -1179,7 +1179,7 @@ export default function ContentFilterPage() {
                         : 'Comprehensive domain blocklists compiled from industry-leading security sources'}
                     </p>
                     {seedInfo && seedInfo.seededCategories > 0 && (
-                      <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                      <p className="text-xs text-primary mt-1">
                         <CheckCircle2 className="h-3 w-3 inline mr-1" />
                         {seedInfo.seededCategories} categories already loaded
                         {seedInfo.unseededCategories > 0 && ` · ${seedInfo.unseededCategories} remaining`}

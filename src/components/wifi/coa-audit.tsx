@@ -82,16 +82,16 @@ const COA_TYPE_CONFIG: Record<string, { color: string; label: string }> = {
   'bandwidth':            { color: 'bg-cyan-500',            label: 'Bandwidth Change' },
   'disconnect':           { color: 'bg-red-500',             label: 'Disconnect' },
   'data_cap_disconnect':  { color: 'bg-amber-500',          label: 'Data Cap DC' },
-  'session_timeout':      { color: 'bg-emerald-500',        label: 'Session Timeout' },
+  'session_timeout':      { color: 'bg-primary',        label: 'Session Timeout' },
   'bandwidth_change':     { color: 'bg-violet-500',         label: 'Bandwidth Change' },
-  'policy_update':        { color: 'bg-teal-500',           label: 'Policy Update' },
+  'policy_update':        { color: 'bg-primary',           label: 'Policy Update' },
 };
 
 const TRIGGER_CONFIG: Record<string, { color: string; icon: typeof Zap; label: string }> = {
   'api':       { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',     icon: Zap,        label: 'API' },
   'manual':    { color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400', icon: User,   label: 'Manual' },
   'system':    { color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',         icon: Server,    label: 'System' },
-  'auto':      { color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', icon: Activity, label: 'Auto' },
+  'auto':      { color: 'bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary', icon: Activity, label: 'Auto' },
   'data_cap':  { color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',  icon: AlertTriangle, label: 'Data Cap' },
   'checkout':  { color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', icon: FileText, label: 'Checkout' },
 };
@@ -284,9 +284,9 @@ export default function CoaAudit() {
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         {[
           { icon: Activity, color: 'text-cyan-500', bg: 'bg-cyan-500/10', value: stats.totalToday, label: 'Total Operations' },
-          { icon: CheckCircle, color: 'text-emerald-500', bg: 'bg-emerald-500/10', value: stats.successCount, label: 'Successful', valueColor: 'text-emerald-600' },
+          { icon: CheckCircle, color: 'text-primary', bg: 'bg-primary/10', value: stats.successCount, label: 'Successful', valueColor: 'text-primary' },
           { icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10', value: stats.failedCount, label: 'Failed', valueColor: 'text-red-600' },
-          { icon: TrendingUp, color: 'text-teal-500', bg: 'bg-teal-500/10', value: `${stats.successRate}%`, label: 'Success Rate', valueColor: 'text-teal-600' },
+          { icon: TrendingUp, color: 'text-primary', bg: 'bg-primary/10', value: `${stats.successRate}%`, label: 'Success Rate', valueColor: 'text-primary' },
         ].map((s) => (
           <Card key={s.label} className="p-3.5">
             <div className="flex items-center gap-2.5">

@@ -449,7 +449,7 @@ export default function SessionHistory() {
           <div><p className="text-muted-foreground mb-0.5">Duration</p><p className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatDuration(session.acctsessiontime)}</p></div>
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-md bg-muted/50 p-2"><p className="text-muted-foreground mb-1">Upload</p><div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400"><ArrowUpFromLine className="h-3 w-3" />{formatBytes(session.acctinputoctets)}</div></div>
+          <div className="rounded-md bg-muted/50 p-2"><p className="text-muted-foreground mb-1">Upload</p><div className="flex items-center gap-1 text-primary"><ArrowUpFromLine className="h-3 w-3" />{formatBytes(session.acctinputoctets)}</div></div>
           <div className="rounded-md bg-muted/50 p-2"><p className="text-muted-foreground mb-1">Download</p><div className="flex items-center gap-1 text-amber-600 dark:text-amber-400"><ArrowDownToLine className="h-3 w-3" />{formatBytes(session.acctoutputoctets)}</div></div>
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs">
@@ -513,7 +513,7 @@ export default function SessionHistory() {
                   key={s.value}
                   variant={dateShortcut === s.value ? 'default' : 'outline'}
                   size="sm"
-                  className={cn('text-xs h-8 px-3', dateShortcut === s.value && 'bg-teal-600 hover:bg-teal-700 text-white')}
+                  className={cn('text-xs h-8 px-3', dateShortcut === s.value && 'bg-primary hover:bg-primary/90 text-primary-foreground')}
                   onClick={() => handleDateShortcutChange(s.value)}
                 >
                   {s.label}
@@ -554,9 +554,9 @@ export default function SessionHistory() {
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10"><CircleDot className="h-4 w-4 text-emerald-500 dark:text-emerald-400" /></div>
+            <div className="p-2 rounded-lg bg-primary/10"><CircleDot className="h-4 w-4 text-primary" /></div>
             <div>
-              <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{summary.active}</div>
+              <div className="text-2xl font-bold tabular-nums text-primary">{summary.active}</div>
               <div className="text-xs text-muted-foreground">Active Now</div>
             </div>
           </div>
@@ -658,14 +658,14 @@ export default function SessionHistory() {
                         return (
                           <TableRow
                             key={session.radacctid}
-                            className={cn('cursor-pointer hover:bg-muted/50 transition-colors', isActive && 'bg-emerald-50/50 dark:bg-emerald-950/10')}
+                            className={cn('cursor-pointer hover:bg-muted/50 transition-colors', isActive && 'bg-primary/5 dark:bg-primary/5')}
                             onClick={() => setSelectedSession(session)}
                           >
                             <TableCell>{getStatusBadge(session)}</TableCell>
                             <TableCell>
                               <div className="space-y-0.5">
                                 <button
-                                  className="font-medium text-sm truncate max-w-[140px] block text-left hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+                                  className="font-medium text-sm truncate max-w-[140px] block text-left hover:text-primary transition-colors"
                                   title={`${session.username} — Click to filter`}
                                   onClick={(e) => { e.stopPropagation(); setDrillDownUser(session.username); setPagination(prev => ({ ...prev, offset: 0 })); }}
                                 >
@@ -719,7 +719,7 @@ export default function SessionHistory() {
                   if (endPage - startPage < maxVisible - 1) startPage = Math.max(1, endPage - maxVisible + 1);
                   for (let i = startPage; i <= endPage; i++) pages.push(i);
                   return pages.map(p => (
-                    <Button key={p} variant={p === currentPage ? 'default' : 'outline'} size="sm" className={cn('h-8 w-8 p-0 text-xs', p === currentPage && 'bg-teal-600 hover:bg-teal-700 text-white')} onClick={() => goToPage((p - 1) * PAGE_SIZE)}>
+                    <Button key={p} variant={p === currentPage ? 'default' : 'outline'} size="sm" className={cn('h-8 w-8 p-0 text-xs', p === currentPage && 'bg-primary hover:bg-primary/90 text-primary-foreground')} onClick={() => goToPage((p - 1) * PAGE_SIZE)}>
                       {p}
                     </Button>
                   ));
@@ -752,7 +752,7 @@ export default function SessionHistory() {
                 <p className="text-xs font-medium text-muted-foreground mb-3">User Information</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div><p className="text-xs text-muted-foreground">Username</p>
-                    <button className="text-sm font-medium hover:text-teal-600 dark:hover:text-teal-400 transition-colors text-left" onClick={() => { setDrillDownUser(selectedSession.username); setSelectedSession(null); setPagination(prev => ({ ...prev, offset: 0 })); }}>
+                    <button className="text-sm font-medium hover:text-primary transition-colors text-left" onClick={() => { setDrillDownUser(selectedSession.username); setSelectedSession(null); setPagination(prev => ({ ...prev, offset: 0 })); }}>
                       {selectedSession.username || '—'}
                     </button>
                   </div>

@@ -288,7 +288,7 @@ function TableSkeleton({ cols = 6, rows = 5 }: { cols?: number; rows?: number })
 
 function ActionBadge({ action }: { action: string }) {
   const colors: Record<string, string> = {
-    accept: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700',
+    accept: 'bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary border-primary/20',
     drop: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-700',
     reject: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-orange-200 dark:border-orange-700',
     log: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-700',
@@ -334,7 +334,7 @@ function RuleCounterCell({
     <Tooltip>
       <TooltipTrigger asChild>
         <span className="text-xs font-mono tabular-nums cursor-default">
-          <span className="text-emerald-600 dark:text-emerald-400">{counter.totalPackets.toLocaleString()}</span>
+          <span className="text-primary">{counter.totalPackets.toLocaleString()}</span>
           <span className="text-muted-foreground"> pkts</span>
           <span className="mx-1 text-muted-foreground">/</span>
           <span className="text-amber-600 dark:text-amber-400">{formatBytes(counter.totalBytes)}</span>
@@ -381,7 +381,7 @@ function IpTypeBadge({ type }: { type: string }) {
 
 function CategoryBadge({ category }: { category: string }) {
   const colors: Record<string, string> = {
-    networking: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300 border-teal-200 dark:border-teal-700',
+    networking: 'bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary border-primary/20',
     'remote-access': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-700',
     security: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-700',
     'content-filter': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-700',
@@ -395,8 +395,8 @@ function CategoryBadge({ category }: { category: string }) {
 
 function ChainBadge({ chain }: { chain: string }) {
   const colors: Record<string, string> = {
-    firewallchains: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300 border-teal-200 dark:border-teal-700',
-    firewallchainsdn: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700',
+    firewallchains: 'bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary border-primary/20',
+    firewallchainsdn: 'bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary border-primary/20',
     frchainspre: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-700',
     frchainspost: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-orange-200 dark:border-orange-700',
     firewallchains_conn: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700',
@@ -695,7 +695,7 @@ export default function FirewallPage() {
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <Shield className="h-6 w-6 text-teal-600 dark:text-teal-400" />
+          <Shield className="h-6 w-6 text-primary" />
           Firewall Management
         </h2>
         <p className="text-muted-foreground">
@@ -1119,7 +1119,7 @@ function RulesTab() {
       ) : (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
           <Card className="overflow-hidden">
-            <div className="h-1 bg-gradient-to-r from-teal-500 to-emerald-500" />
+            <div className="h-1 bg-gradient-to-r from-primary to-primary/70" />
           <CardContent className="p-0">
             <DndContext
               sensors={sensors}
@@ -1359,7 +1359,7 @@ function RulesTab() {
                   <Badge variant="outline" className={cn(
                     'text-[10px] font-medium',
                     nftablesMode === 'production'
-                      ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400'
+                      ? 'bg-primary/5 text-primary dark:bg-primary/10'
                       : 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400'
                   )}>
                     {nftablesMode}
@@ -1398,7 +1398,7 @@ function RulesTab() {
                       nftables.conf &middot; {new Date().toLocaleTimeString()}
                     </span>
                     <Button variant="ghost" size="sm" onClick={copyConfig} className="h-7 text-xs">
-                      {configCopied ? <Check className="h-3 w-3 mr-1 text-emerald-500" /> : <Copy className="h-3 w-3 mr-1" />}
+                      {configCopied ? <Check className="h-3 w-3 mr-1 text-primary" /> : <Copy className="h-3 w-3 mr-1" />}
                       {configCopied ? 'Copied!' : 'Copy'}
                     </Button>
                   </div>
@@ -1685,8 +1685,8 @@ function PortForwardTab() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
         <Card className="p-3">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
-              <Route className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Route className="h-4 w-4 text-primary" />
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Total</p>
@@ -1696,12 +1696,12 @@ function PortForwardTab() {
         </Card>
         <Card className="p-3">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-              <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Check className="h-4 w-4 text-primary" />
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Active</p>
-              <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{stats.enabled}</p>
+              <p className="text-lg font-bold text-primary">{stats.enabled}</p>
             </div>
           </div>
         </Card>
@@ -1860,7 +1860,7 @@ function PortForwardTab() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Terminal className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                    <Terminal className="h-4 w-4 text-primary" />
                     <CardTitle className="text-sm">nftables Config Preview — Port Forward DNAT Rules</CardTitle>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -1903,7 +1903,7 @@ function PortForwardTab() {
       ) : (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
           <Card className="overflow-hidden">
-            <div className="h-1 bg-gradient-to-r from-teal-500 to-emerald-500" />
+            <div className="h-1 bg-gradient-to-r from-primary to-primary/70" />
             <CardContent className="p-0">
               <div className="max-h-[500px] overflow-y-auto">
                 <Table>
@@ -1940,9 +1940,9 @@ function PortForwardTab() {
                             >
                               {fwd.protocol.toUpperCase()}
                             </Badge>
-                            <span className="text-teal-600 dark:text-teal-400 font-bold">:{fwd.externalPort}</span>
+                            <span className="text-primary font-bold">:{fwd.externalPort}</span>
                             <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                            <span className="text-emerald-600 dark:text-emerald-400">{fwd.internalIp}</span>
+                            <span className="text-primary">{fwd.internalIp}</span>
                             <span className="text-muted-foreground">:</span>
                             <span className="font-bold">{fwd.internalPort}</span>
                           </div>
@@ -2318,7 +2318,7 @@ function RateLimitTab() {
                       <TableCell className="font-mono text-sm">{limit.targetIp}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5">
-                          <ArrowDown className="h-3 w-3 text-emerald-500 dark:text-emerald-400" />
+                          <ArrowDown className="h-3 w-3 text-primary" />
                           <span className="text-sm font-mono">{limit.downloadRate}</span>
                         </div>
                       </TableCell>
@@ -3251,7 +3251,7 @@ function PresetsTab() {
             return (
               <Card
                 key={preset.id}
-                className="transition-all hover:shadow-md hover:border-teal-300 dark:hover:border-teal-700"
+                className="transition-all hover:shadow-md hover:border-primary/30"
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
@@ -3611,7 +3611,7 @@ function ChainArchitectureTab() {
         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
       >
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg shadow-teal-500/20">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-lg shadow-primary/20">
             <GitBranch className="h-5 w-5" />
           </div>
           <div>
@@ -3629,7 +3629,7 @@ function ChainArchitectureTab() {
             {flushing ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Trash className="h-3.5 w-3.5 mr-1.5" />}
             Flush GUI
           </Button>
-          <Button size="sm" onClick={applyConfig} disabled={applying} className="text-xs bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white shadow-sm">
+          <Button size="sm" onClick={applyConfig} disabled={applying} className="text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
             {applying ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Play className="h-3.5 w-3.5 mr-1.5" />}
             Apply Config
           </Button>
@@ -3639,8 +3639,8 @@ function ChainArchitectureTab() {
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'GUI Chains', value: Object.values(archData.tables).reduce((s, t) => s + t.guiChains.length, 0), icon: Unlock, color: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-50 dark:bg-teal-950/40' },
-          { label: 'GUI Rules', value: totalGuiRules, icon: ShieldCheck, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40' },
+          { label: 'GUI Chains', value: Object.values(archData.tables).reduce((s, t) => s + t.guiChains.length, 0), icon: Unlock, color: 'text-primary', bg: 'bg-primary/5' },
+          { label: 'GUI Rules', value: totalGuiRules, icon: ShieldCheck, color: 'text-primary', bg: 'bg-primary/5' },
           { label: 'Security Hooks', value: archData.securityHooks.length, icon: ShieldAlert, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/40' },
           { label: 'nftables Sets', value: totalSets, icon: Server, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-950/40' },
         ].map((card, i) => (
@@ -3673,14 +3673,14 @@ function ChainArchitectureTab() {
       {archData.tables['inet mangle'] && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
           <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden hover:shadow-lg transition-shadow">
-            <div className="h-1 bg-gradient-to-r from-teal-500 to-emerald-400" />
+            <div className="h-1 bg-gradient-to-r from-primary to-primary/70" />
             <CardHeader className="pb-2">
               <button
                 onClick={() => toggleSection('mangle')}
                 className="flex items-center justify-between w-full text-left"
               >
                 <CardTitle className="text-sm tracking-tight flex items-center gap-2">
-                  <span className="font-mono px-2 py-0.5 rounded text-xs font-bold bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 border border-teal-200 dark:border-teal-700">
+                  <span className="font-mono px-2 py-0.5 rounded text-xs font-bold bg-primary/10 text-primary dark:bg-primary/10 dark:text-primary border border-primary/20">
                     inet mangle
                   </span>
                   <Badge variant="outline" className="text-[10px] font-medium">
@@ -3707,7 +3707,7 @@ function ChainArchitectureTab() {
                     {/* prerouting hook */}
                     <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-teal-500" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">prerouting hook</span>
                         <Badge variant="outline" className="text-[10px] font-mono">priority: mangle</Badge>
                       </div>
@@ -3721,7 +3721,7 @@ function ChainArchitectureTab() {
                     {/* postrouting hook */}
                     <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">postrouting hook</span>
                         <Badge variant="outline" className="text-[10px] font-mono">priority: mangle</Badge>
                       </div>
@@ -3734,8 +3734,8 @@ function ChainArchitectureTab() {
 
                     {/* Regular GUI chains (conn chains) */}
                     {archData.tables['inet mangle'].guiChains.filter((c) => c.includes('_conn')).length > 0 && (
-                      <div className="mt-2 rounded-lg border border-dashed border-teal-300 dark:border-teal-700 bg-teal-50/50 dark:bg-teal-950/20 p-3">
-                        <p className="text-xs font-semibold text-teal-700 dark:text-teal-300 mb-2 flex items-center gap-1.5">
+                      <div className="mt-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 dark:bg-primary/5 p-3">
+                        <p className="text-xs font-semibold text-primary mb-2 flex items-center gap-1.5">
                           <GitBranch className="h-3 w-3" />
                           Regular Chains (GUI conntrack)
                         </p>
@@ -3743,15 +3743,15 @@ function ChainArchitectureTab() {
                           {archData.tables['inet mangle'].guiChains.filter((c) => c.includes('_conn')).map((chainName) => {
                             const liveCount = getLiveRuleCount(chainName);
                             return (
-                              <div key={chainName} className="flex items-center justify-between px-3 py-1.5 rounded-md bg-teal-100/50 dark:bg-teal-900/20">
+                              <div key={chainName} className="flex items-center justify-between px-3 py-1.5 rounded-md bg-primary/10 dark:bg-primary/10">
                                 <div className="flex items-center gap-2">
-                                  <div className={cn('w-2 h-2 rounded-full', liveCount > 0 ? 'bg-emerald-500' : 'bg-muted-foreground/30')} />
-                                  <span className="font-mono text-xs font-semibold text-teal-700 dark:text-teal-300">{chainName}</span>
+                                  <div className={cn('w-2 h-2 rounded-full', liveCount > 0 ? 'bg-primary' : 'bg-muted-foreground/30')} />
+                                  <span className="font-mono text-xs font-semibold text-primary">{chainName}</span>
                                   <Badge variant="outline" className="text-[10px] bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 border-cyan-200 dark:border-cyan-700">
                                     GUI
                                   </Badge>
                                 </div>
-                                <span className={cn('text-xs font-mono font-semibold', liveCount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>{liveCount} rules</span>
+                                <span className={cn('text-xs font-mono font-semibold', liveCount > 0 ? 'text-primary' : 'text-muted-foreground')}>{liveCount} rules</span>
                               </div>
                             );
                           })}
@@ -3992,7 +3992,7 @@ function ChainArchitectureTab() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm tracking-tight flex items-center gap-2">
-                <Eye className="h-4 w-4 text-teal-500" />
+                <Eye className="h-4 w-4 text-primary" />
                 Generated nftables Configuration
               </CardTitle>
               <div className="flex items-center gap-2">
@@ -4019,7 +4019,7 @@ function ChainArchitectureTab() {
                         Generated at: {new Date().toLocaleTimeString()} &middot; {statusData?.mode ?? 'simulation'} mode
                       </span>
                       <Button variant="ghost" size="sm" onClick={copyConfig} className="h-7 text-xs">
-                        {copied ? <Check className="h-3 w-3 mr-1 text-emerald-500" /> : <Copy className="h-3 w-3 mr-1" />}
+                        {copied ? <Check className="h-3 w-3 mr-1 text-primary" /> : <Copy className="h-3 w-3 mr-1" />}
                         {copied ? 'Copied!' : 'Copy'}
                       </Button>
                     </div>
@@ -4039,11 +4039,11 @@ function ChainArchitectureTab() {
       {/* ════════════════════════════════════════════════════════════ */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }}>
         <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden hover:shadow-lg transition-shadow">
-          <div className="h-1 bg-gradient-to-r from-emerald-500 to-teal-400" />
+          <div className="h-1 bg-gradient-to-r from-primary to-primary/70" />
           <CardHeader className="pb-2">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <CardTitle className="text-sm tracking-tight flex items-center gap-2">
-                <Eye className="h-4 w-4 text-emerald-500" />
+                <Eye className="h-4 w-4 text-primary" />
                 Live Chain Viewer
               </CardTitle>
               <div className="flex items-center gap-2">
@@ -4064,7 +4064,7 @@ function ChainArchitectureTab() {
                           <div className="flex items-center gap-2">
                             <span>{chain.label}</span>
                             <div className="flex items-center gap-1">
-                              <div className={cn('w-1.5 h-1.5 rounded-full', liveCount > 0 ? 'bg-emerald-500' : 'bg-muted-foreground/30')} />
+                              <div className={cn('w-1.5 h-1.5 rounded-full', liveCount > 0 ? 'bg-primary' : 'bg-muted-foreground/30')} />
                               <span className="text-[10px] font-mono text-muted-foreground">{liveCount}</span>
                             </div>
                           </div>
@@ -4091,7 +4091,7 @@ function ChainArchitectureTab() {
               >
                 <CardContent className="pt-0 pb-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className={cn('w-2 h-2 rounded-full', getLiveRuleCount(selectedLiveChain) > 0 ? 'bg-emerald-500' : 'bg-muted-foreground/30')} />
+                    <div className={cn('w-2 h-2 rounded-full', getLiveRuleCount(selectedLiveChain) > 0 ? 'bg-primary' : 'bg-muted-foreground/30')} />
                     <span className="text-[11px] text-muted-foreground">
                       Chain <span className="font-mono font-semibold">{selectedLiveChain}</span> &middot; {getLiveRuleCount(selectedLiveChain)} live rule{getLiveRuleCount(selectedLiveChain) !== 1 ? 's' : ''}
                     </span>
@@ -4115,7 +4115,7 @@ function ChainArchitectureTab() {
       >
         <span className="font-medium text-foreground/70">Legend:</span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-teal-500" /> GUI Chain
+          <span className="w-2 h-2 rounded-full bg-primary" /> GUI Chain
         </span>
         <span className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-muted-foreground/40" /> System Chain
@@ -4142,13 +4142,13 @@ function ChainFlowItem({ item, ruleCount }: { item: ChainArchFlowItem; ruleCount
       className={cn(
         'flex items-center gap-2.5 px-3 py-1.5 rounded-md border transition-colors',
         isGui
-          ? 'border-l-4 border-l-teal-500 bg-teal-50/80 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 hover:bg-teal-100/80 dark:hover:bg-teal-950/50'
+          ? 'border-l-4 border-l-primary bg-primary/5 dark:bg-primary/5 border border-primary/20 dark:border-primary/30 hover:bg-primary/10 dark:hover:bg-primary/10'
           : isSet
             ? 'border-l-4 border-l-violet-400 bg-violet-50/60 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800'
             : 'bg-muted/30 border border-border/60 hover:bg-muted/50'
       )}
     >
-      <ArrowRight className={cn('h-3 w-3 shrink-0', isGui ? 'text-teal-500' : isSet ? 'text-violet-400' : 'text-muted-foreground/40')} />
+      <ArrowRight className={cn('h-3 w-3 shrink-0', isGui ? 'text-primary' : isSet ? 'text-violet-400' : 'text-muted-foreground/40')} />
 
       {isSet && (
         <Badge variant="outline" className="text-[10px] font-mono bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 border-violet-200 dark:border-violet-700 shrink-0">
@@ -4158,13 +4158,13 @@ function ChainFlowItem({ item, ruleCount }: { item: ChainArchFlowItem; ruleCount
 
       <span className={cn(
         'font-mono text-xs font-medium truncate',
-        isGui ? 'text-teal-700 dark:text-teal-300' : isSet ? 'text-violet-700 dark:text-violet-300' : 'text-muted-foreground'
+        isGui ? 'text-primary' : isSet ? 'text-violet-700 dark:text-violet-300' : 'text-muted-foreground'
       )}>
         {isSet ? item.set : item.chain}
       </span>
 
       {isGui && (
-        <Badge className="text-[10px] bg-teal-600 text-white border-0 hover:bg-teal-600 shrink-0">
+        <Badge className="text-[10px] bg-primary text-primary-foreground border-0 hover:bg-primary shrink-0">
           GUI
         </Badge>
       )}
@@ -4175,8 +4175,8 @@ function ChainFlowItem({ item, ruleCount }: { item: ChainArchFlowItem; ruleCount
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="flex items-center gap-1 shrink-0">
-              <div className={cn('w-1.5 h-1.5 rounded-full', ruleCount > 0 ? 'bg-emerald-500' : 'bg-muted-foreground/30')} />
-              <span className={cn('text-[11px] font-mono font-semibold', ruleCount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
+              <div className={cn('w-1.5 h-1.5 rounded-full', ruleCount > 0 ? 'bg-primary' : 'bg-muted-foreground/30')} />
+              <span className={cn('text-[11px] font-mono font-semibold', ruleCount > 0 ? 'text-primary' : 'text-muted-foreground')}>
                 {ruleCount}
               </span>
             </div>

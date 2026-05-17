@@ -681,8 +681,8 @@ export default function GatewayIntegration() {
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <CheckCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <CheckCircle className="h-4 w-4 text-primary" />
             </div>
             <div>
               <div className="text-2xl font-bold">{stats.connected}</div>
@@ -806,7 +806,7 @@ export default function GatewayIntegration() {
                         <div className="flex-1 p-4">
                           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                             <div className="flex items-start gap-3">
-                              <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-cyan-500/20 to-teal-500/20 flex items-center justify-center">
+                              <div className="h-12 w-12 rounded-lg bg-primary/5 flex items-center justify-center">
                                 <Router className="h-6 w-6 text-cyan-500 dark:text-cyan-400" />
                               </div>
                               <div>
@@ -1464,16 +1464,16 @@ export default function GatewayIntegration() {
             ) : (
               <div className={cn(
                 'text-center p-6 rounded-lg',
-                testResult === 'success' ? 'bg-emerald-50 dark:bg-emerald-950/30' : 'bg-red-50 dark:bg-red-950/30'
+                testResult === 'success' ? 'bg-primary/5 dark:bg-primary/10' : 'bg-red-50 dark:bg-red-950/30'
               )}>
                 {testResult === 'success' ? (
-                  <CheckCircle className="h-12 w-12 mx-auto mb-4 text-emerald-500 dark:text-emerald-400" />
+                  <CheckCircle className="h-12 w-12 mx-auto mb-4 text-primary" />
                 ) : (
                   <XCircle className="h-12 w-12 mx-auto mb-4 text-red-500 dark:text-red-400" />
                 )}
                 <p className={cn(
                   'font-medium',
-                  testResult === 'success' ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'
+                  testResult === 'success' ? 'text-primary' : 'text-red-700 dark:text-red-300'
                 )}>
                   {testResult === 'success' ? 'Connection Successful' : 'Connection Failed'}
                 </p>

@@ -665,7 +665,7 @@ export default function IpPoolManagement() {
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Network className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <Network className="h-5 w-5 text-primary" />
             IP Pool Management
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -688,8 +688,8 @@ export default function IpPoolManagement() {
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-teal-500/10">
-              <Network className="h-4 w-4 text-teal-500 dark:text-teal-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Network className="h-4 w-4 text-primary" />
             </div>
             <div>
               <div className="text-2xl font-bold">{summary.totalPools}</div>
@@ -699,8 +699,8 @@ export default function IpPoolManagement() {
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <ShieldCheck className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <ShieldCheck className="h-4 w-4 text-primary" />
             </div>
             <div>
               <div className="text-2xl font-bold">{summary.activePools}</div>
@@ -733,16 +733,16 @@ export default function IpPoolManagement() {
       </div>
 
       {/* Info Banner */}
-      <Card className="border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-950/20">
+      <Card className="border-primary/20 dark:border-primary/20 bg-primary/5 dark:bg-primary/5">
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="h-4 w-4 text-teal-600 dark:text-teal-400 mt-0.5 shrink-0" />
+            <AlertTriangle className="h-4 w-4 text-primary mt-0.5 shrink-0" />
             <div className="text-sm">
-              <p className="font-medium text-teal-800 dark:text-teal-200">IP Pool Priority Chain</p>
-              <p className="text-teal-700 dark:text-teal-300 mt-0.5">
+              <p className="font-medium text-foreground">IP Pool Priority Chain</p>
+              <p className="text-muted-foreground mt-0.5">
                 <span className="font-semibold">User Override</span> → <span className="font-semibold">Plan Pool</span> → <span className="font-semibold">Default Pool</span> → No restriction (allow all)
               </p>
-              <p className="text-teal-600 dark:text-teal-400 mt-1">
+              <p className="text-muted-foreground mt-1">
                 Assign pools to Plans for bulk assignment. Users can override their plan&apos;s pool for individual exceptions.
                 RADIUS checks the user&apos;s IP on every authentication attempt.
               </p>
@@ -828,7 +828,7 @@ export default function IpPoolManagement() {
                             </Badge>
                           )}
                           {bwPool && (
-                            <Badge variant="outline" className="bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-700 text-[10px] px-1.5 py-0">
+                            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 dark:border-primary/20 text-[10px] px-1.5 py-0">
                               <Gauge className="h-2.5 w-2.5 mr-0.5" />
                               {formatBandwidthKbps(bwPool.totalDownloadKbps)}
                             </Badge>
@@ -1193,11 +1193,11 @@ export default function IpPoolManagement() {
             </div>
 
             {/* ─── Bandwidth Container (TC HTB Pool) ──────────────────────── */}
-            <Collapsible open={bwSectionOpen} onOpenChange={setBwSectionOpen} className="rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50/30 dark:bg-teal-950/20 overflow-hidden">
+            <Collapsible open={bwSectionOpen} onOpenChange={setBwSectionOpen} className="rounded-lg border border-primary/20 bg-primary/5 dark:bg-primary/5 overflow-hidden">
               <CollapsibleTrigger asChild>
-                <button type="button" className="flex items-center justify-between w-full px-4 py-3 hover:bg-teal-100/40 dark:hover:bg-teal-900/30 transition-colors cursor-pointer">
+                <button type="button" className="flex items-center justify-between w-full px-4 py-3 hover:bg-primary/5 dark:hover:bg-primary/5 transition-colors cursor-pointer">
                   <div className="flex items-center gap-2">
-                    <Gauge className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                    <Gauge className="h-4 w-4 text-primary" />
                     <span className="text-sm font-semibold">Bandwidth Container (TC HTB Pool)</span>
                     <span className="text-[10px] text-muted-foreground hidden sm:inline">
                       {formatBandwidthKbps(formData.totalDownloadKbps)}↓ / {formatBandwidthKbps(formData.totalUploadKbps)}↑

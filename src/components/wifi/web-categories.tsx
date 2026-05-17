@@ -526,7 +526,7 @@ export default function WebCategories() {
                                 <ShieldBan className="h-3 w-3 mr-1" /> Block
                               </Badge>
                             ) : (
-                              <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-xs">
+                              <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 text-xs">
                                 <ShieldCheck className="h-3 w-3 mr-1" /> Allow
                               </Badge>
                             )}
@@ -622,7 +622,7 @@ export default function WebCategories() {
                                 <ShieldBan className="h-3 w-3 mr-1" /> Block
                               </Badge>
                             ) : (
-                              <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-xs">
+                              <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 text-xs">
                                 <ShieldCheck className="h-3 w-3 mr-1" /> Allow
                               </Badge>
                             )}

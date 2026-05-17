@@ -468,7 +468,7 @@ export default function UserUsageDashboard() {
               <div className="flex-1 flex items-center gap-0.5">
                 <div className="flex-1 h-5 rounded-sm bg-muted overflow-hidden flex">
                   <div
-                    className="h-full bg-emerald-500 transition-all duration-500 rounded-sm"
+                    className="h-full bg-primary transition-all duration-500 rounded-sm"
                     style={{ width: `${dlPct}%` }}
                   />
                 </div>
@@ -482,7 +482,7 @@ export default function UserUsageDashboard() {
                 </div>
               </div>
               <span className="w-24 text-right tabular-nums shrink-0">
-                <span className="text-emerald-600 dark:text-emerald-400">{formatBytes(entry.downloadBytes)}</span>
+                <span className="text-primary">{formatBytes(entry.downloadBytes)}</span>
                 {' / '}
                 <span className="text-amber-600 dark:text-amber-400">{formatBytes(entry.uploadBytes)}</span>
               </span>
@@ -491,7 +491,7 @@ export default function UserUsageDashboard() {
         })}
         <div className="flex items-center gap-3 pt-1 text-[10px] text-muted-foreground">
           <div className="flex items-center gap-1">
-            <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+            <div className="w-2.5 h-2.5 rounded-sm bg-primary" />
             <span>Download</span>
           </div>
           <div className="flex items-center gap-1">
@@ -556,7 +556,7 @@ export default function UserUsageDashboard() {
               <Download className="h-3 w-3" />
               Download
             </p>
-            <p className="font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
+            <p className="font-medium tabular-nums text-primary">
               {formatBytes(user.totalDownloadBytes)}
             </p>
           </div>
@@ -618,11 +618,11 @@ export default function UserUsageDashboard() {
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <Users className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Users className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+              <div className="text-2xl font-bold tabular-nums text-primary">
                 {stats.totalUsers}
               </div>
               <div className="text-xs text-muted-foreground">Total Users</div>
@@ -782,7 +782,7 @@ export default function UserUsageDashboard() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1 text-sm">
-                              <Download className="h-3.5 w-3.5 text-emerald-500" />
+                              <Download className="h-3.5 w-3.5 text-primary" />
                               <span className="tabular-nums">{formatBytes(user.totalDownloadBytes)}</span>
                             </div>
                           </TableCell>
@@ -870,7 +870,7 @@ export default function UserUsageDashboard() {
                 </div>
                 <div className="rounded-lg bg-muted/50 p-3 text-center">
                   <p className="text-xs text-muted-foreground mb-1">Total Download</p>
-                  <p className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                  <p className="text-lg font-bold tabular-nums text-primary">
                     {formatBytes(detailUser.totalDownloadBytes)}
                   </p>
                 </div>
@@ -953,7 +953,7 @@ export default function UserUsageDashboard() {
                         className={cn(
                           'flex items-center gap-3 p-3 rounded-lg border text-sm',
                           session.isActive
-                            ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/10'
+                            ? 'border-primary/20 bg-primary/5 dark:bg-primary/5'
                             : 'border-border bg-muted/20'
                         )}
                       >
@@ -1005,7 +1005,7 @@ export default function UserUsageDashboard() {
                           <div>
                             <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Data</p>
                             <div className="flex items-center gap-2 text-xs">
-                              <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
+                              <span className="flex items-center gap-0.5 text-primary">
                                 <Download className="h-2.5 w-2.5" />
                                 {formatBytes(session.downloadBytes)}
                               </span>

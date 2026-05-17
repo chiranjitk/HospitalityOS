@@ -129,7 +129,7 @@ export const PrintCard = forwardRef<PrintCardHandle, PrintCardProps>(({
         </div>
 
         {/* Divider */}
-        <div className="h-0.5 bg-gradient-to-r from-teal-600 to-teal-400 my-3" />
+        <div className="h-0.5 bg-gradient-to-r from-primary to-primary/70 my-3" />
 
         {/* Title */}
         <p className="text-center text-xs text-muted-foreground uppercase tracking-wider mb-3">

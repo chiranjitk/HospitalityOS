@@ -121,7 +121,7 @@ function getSourceIcon(source: string) {
 
 function getSourceColor(source: string) {
   switch (source) {
-    case 'Bandwidth Upsells': return { bg: 'bg-emerald-500', light: 'bg-emerald-100 dark:bg-emerald-950/30', text: 'text-emerald-600 dark:text-emerald-400' };
+    case 'Bandwidth Upsells': return { bg: 'bg-primary', light: 'bg-primary/10 dark:bg-primary/10', text: 'text-primary' };
     case 'Voucher Sales': return { bg: 'bg-blue-500', light: 'bg-blue-100 dark:bg-blue-950/30', text: 'text-blue-600 dark:text-blue-400' };
     case 'Partner Commissions': return { bg: 'bg-amber-500', light: 'bg-amber-100 dark:bg-amber-950/30', text: 'text-amber-600 dark:text-amber-400' };
     case 'Ad Revenue': return { bg: 'bg-purple-500', light: 'bg-purple-100 dark:bg-purple-950/30', text: 'text-purple-600 dark:text-purple-400' };
@@ -188,7 +188,7 @@ export default function WiFiRevenueDashboard() {
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            <DollarSign className="h-5 w-5 text-primary" />
             WiFi Revenue Analytics
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -203,22 +203,22 @@ export default function WiFiRevenueDashboard() {
 
       {/* ── KPI Cards ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20">
+        <Card className="border-0 shadow-sm bg-primary/5 dark:bg-primary/5">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-muted-foreground">Total Revenue (30d)</span>
-              <div className="rounded-md bg-emerald-100 dark:bg-emerald-900/40 p-1.5">
-                <DollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              <div className="rounded-md bg-primary/10 dark:bg-primary/10 p-1.5">
+                <DollarSign className="h-3.5 w-3.5 text-primary" />
               </div>
             </div>
             <p className="text-2xl font-bold tabular-nums">{formatCompact(data.kpis.totalRevenue)}</p>
             <div className="flex items-center gap-1 mt-1">
               {data.revenueForecast.growthRate >= 0 ? (
-                <TrendingUp className="h-3 w-3 text-emerald-500" />
+                <TrendingUp className="h-3 w-3 text-primary" />
               ) : (
                 <TrendingDown className="h-3 w-3 text-red-500" />
               )}
-              <span className={`text-xs font-medium ${data.revenueForecast.growthRate >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              <span className={`text-xs font-medium ${data.revenueForecast.growthRate >= 0 ? 'text-primary' : 'text-red-600'}`}>
                 {data.revenueForecast.growthRate >= 0 ? '+' : ''}{data.revenueForecast.growthRate}%
               </span>
               <span className="text-xs text-muted-foreground">vs prev period</span>
@@ -335,7 +335,7 @@ export default function WiFiRevenueDashboard() {
                 const barColor = day.revenue === 0
                   ? 'bg-muted/30'
                   : isUp
-                    ? 'bg-emerald-400 dark:bg-emerald-500'
+                    ? 'bg-primary'
                     : 'bg-red-400 dark:bg-red-500';
                 return (
                   <div
@@ -358,7 +358,7 @@ export default function WiFiRevenueDashboard() {
             </div>
             <div className="flex items-center gap-4 mt-3">
               <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-emerald-400" />
+                <div className="h-2 w-2 rounded-full bg-primary" />
                 <span className="text-[10px] text-muted-foreground">Up vs prev</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -453,10 +453,10 @@ export default function WiFiRevenueDashboard() {
           </Card>
 
           {/* Revenue Forecast */}
-          <Card className="border-0 shadow-sm bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-teal-950/20 dark:to-emerald-950/20">
+          <Card className="border-0 shadow-sm bg-primary/5 dark:bg-primary/5">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
-                <TrendingUp className="h-3.5 w-3.5 text-teal-500" />
+                <TrendingUp className="h-3.5 w-3.5 text-primary" />
                 Revenue Forecast
               </CardTitle>
             </CardHeader>
@@ -472,11 +472,11 @@ export default function WiFiRevenueDashboard() {
               <Separator />
               <div className="flex items-center gap-2">
                 {data.revenueForecast.growthRate >= 0 ? (
-                  <TrendingUp className="h-4 w-4 text-emerald-500" />
+                  <TrendingUp className="h-4 w-4 text-primary" />
                 ) : (
                   <TrendingDown className="h-4 w-4 text-red-500" />
                 )}
-                <span className={`text-sm font-semibold ${data.revenueForecast.growthRate >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                <span className={`text-sm font-semibold ${data.revenueForecast.growthRate >= 0 ? 'text-primary' : 'text-red-600'}`}>
                   {data.revenueForecast.growthRate >= 0 ? '+' : ''}{data.revenueForecast.growthRate}%
                 </span>
                 <span className="text-xs text-muted-foreground">growth rate</span>

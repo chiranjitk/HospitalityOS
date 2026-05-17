@@ -396,7 +396,7 @@ function FupSwitchLog() {
               {logs.map((log, i) => (
                 <TableRow key={log.id} className={cn(
                   log.action === 'throttle' && 'bg-amber-50/30 dark:bg-amber-950/10',
-                  log.action === 'unthrottle' && 'bg-emerald-50/30 dark:bg-emerald-950/10',
+                  log.action === 'unthrottle' && 'bg-primary/5 dark:bg-primary/5',
                 )}>
                   <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
                   <TableCell>
@@ -804,8 +804,8 @@ export default function FupDashboard() {
           {/* Active Policies */}
           <Card className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-500/10">
-                <Shield className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Shield className="h-5 w-5 text-primary" />
               </div>
               <div>
                 <div className="text-2xl font-bold tabular-nums">{stats.activePolicies}</div>
@@ -817,8 +817,8 @@ export default function FupDashboard() {
           {/* Users Monitored */}
           <Card className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-teal-500/10">
-                <Users className="h-5 w-5 text-teal-500 dark:text-teal-400" />
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Users className="h-5 w-5 text-primary" />
               </div>
               <div>
                 <div className="text-2xl font-bold tabular-nums">{stats.usersMonitored}</div>

@@ -300,8 +300,8 @@ export default function ConcurrentSessions() {
         <Card className="py-4">
           <CardContent className="px-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-500/10">
-                <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Shield className="h-4 w-4 text-primary" />
               </div>
               <div>
                 <div className="text-2xl font-bold">
@@ -485,8 +485,8 @@ export default function ConcurrentSessions() {
             </div>
           ) : !hasViolations ? (
             <div className="flex flex-col items-center justify-center py-12 text-center px-6">
-              <div className="rounded-full bg-emerald-500/10 p-4 mb-3">
-                <Shield className="h-8 w-8 text-emerald-500 dark:text-emerald-400/60" />
+              <div className="rounded-full bg-primary/10 p-4 mb-3">
+                <Shield className="h-8 w-8 text-primary/60" />
               </div>
               <h3 className="text-sm font-medium text-muted-foreground">
                 No active violations

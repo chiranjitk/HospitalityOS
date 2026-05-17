@@ -317,8 +317,8 @@ export default function UsageLogs() {
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <Wifi className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Wifi className="h-4 w-4 text-primary" />
             </div>
             <div>
               <div className="text-2xl font-bold">{activeSessions}</div>

@@ -510,8 +510,8 @@ export default function WifiVouchers() {
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <CheckCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <CheckCircle className="h-4 w-4 text-primary" />
             </div>
             <div>
               <div className="text-2xl font-bold">{activeVouchers}</div>
@@ -643,7 +643,7 @@ export default function WifiVouchers() {
                             onClick={() => copyToClipboard(voucher.code)}
                           >
                             {copiedCode === voucher.code ? (
-                              <CheckCircle className="h-3 w-3 text-emerald-500 dark:text-emerald-400" />
+                              <CheckCircle className="h-3 w-3 text-primary" />
                             ) : (
                               <Copy className="h-3 w-3" />
                             )}
@@ -656,7 +656,7 @@ export default function WifiVouchers() {
                             <p className="font-medium text-sm">{voucher.plan.name}</p>
                             <Badge variant="outline" className={cn(
                               'text-[10px] px-1.5 py-0',
-                              voucher.plan.price === 0 && 'border-emerald-300 text-emerald-700 dark:text-emerald-300 bg-emerald-50',
+                              voucher.plan.price === 0 && 'border-primary/30 text-primary bg-primary/5',
                               voucher.plan.price > 0 && voucher.plan.price < 100 && 'border-blue-300 text-blue-700 dark:text-blue-300 bg-blue-50',
                               voucher.plan.price >= 100 && 'border-violet-300 text-violet-700 dark:text-violet-300 bg-violet-50'
                             )}>
@@ -726,7 +726,7 @@ export default function WifiVouchers() {
                       <TableCell>
                         {voucher.isUsed ? (
                           <div>
-                            <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                            <div className="flex items-center gap-1 text-primary">
                               <CheckCircle className="h-3 w-3" />
                               <span className="text-sm">Yes</span>
                             </div>
@@ -1059,7 +1059,7 @@ export default function WifiVouchers() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5 text-teal-500" />
+              <Globe className="h-5 w-5 text-primary" />
               Captive Portal URL Settings
             </DialogTitle>
             <DialogDescription>
@@ -1085,7 +1085,7 @@ export default function WifiVouchers() {
               {portalUrl ? (
                 <div className="text-sm font-mono break-all">
                   <span className="text-foreground">{portalUrl}</span>
-                  <span className="text-teal-600 dark:text-teal-400">?code=<span className="text-muted-foreground">VOUCHER-CODE</span></span>
+                  <span className="text-primary">?code=<span className="text-muted-foreground">VOUCHER-CODE</span></span>
                 </div>
               ) : (
                 <p className="text-sm text-amber-600 dark:text-amber-400">

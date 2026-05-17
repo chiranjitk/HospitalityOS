@@ -294,7 +294,7 @@ export function UserQuotas() {
             size="sm"
             onClick={handleEnforceLimits}
             disabled={isEnforcing}
-            className="bg-teal-600 hover:bg-teal-700 text-white"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             {isEnforcing ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />

@@ -327,11 +327,11 @@ export default function WifiSessions() {
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <CircleDot className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <CircleDot className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{activeCount}</div>
+              <div className="text-2xl font-bold tabular-nums text-primary">{activeCount}</div>
               <div className="text-xs text-muted-foreground">Active Now</div>
             </div>
           </div>
@@ -487,7 +487,7 @@ export default function WifiSessions() {
                 <TableBody>
                   {filteredSessions.map((session, index) => (
                     <TableRow key={`${session.sessionId}-${index}`} className={cn(
-                      session.status === 'active' && 'bg-emerald-50/50 dark:bg-emerald-950/10',
+                      session.status === 'active' && 'bg-primary/5 dark:bg-primary/5',
                       session.status === 'stale' && 'bg-amber-50/30 dark:bg-amber-950/10'
                     )}>
                       <TableCell>
@@ -535,7 +535,7 @@ export default function WifiSessions() {
                       <TableCell>
                         <div>
                           <div className="flex items-center gap-1 text-xs">
-                            <ArrowDownToLine className="h-3 w-3 text-emerald-500 dark:text-emerald-400" />
+                            <ArrowDownToLine className="h-3 w-3 text-primary" />
                             <span>{formatBytes(session.inputOctets || 0)}</span>
                           </div>
                           <div className="flex items-center gap-1 text-xs">

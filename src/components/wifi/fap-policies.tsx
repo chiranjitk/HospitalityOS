@@ -465,13 +465,13 @@ export default function FapPolicies() {
               'mt-3 p-3 rounded-lg border',
               usageResult.isExceeded
                 ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
-                : 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'
+                : 'bg-primary/5 dark:bg-primary/5 border-primary/20 dark:border-primary/20'
             )}>
               <div className="flex items-center gap-2">
                 {usageResult.isExceeded ? (
                   <XCircle className="h-4 w-4 text-red-500 dark:text-red-400" />
                 ) : (
-                  <CheckCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                  <CheckCircle className="h-4 w-4 text-primary" />
                 )}
                 <span className="text-sm font-medium">
                   {usageResult.username}: {usageResult.usedData} {usageResult.usedUnit} / {usageResult.limitData} {usageResult.limitUnit} ({usageResult.percentage}%)

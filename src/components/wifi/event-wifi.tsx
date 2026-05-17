@@ -672,11 +672,11 @@ export default function EventWifi() {
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10">
-              <CheckCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <CheckCircle className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{activeEvents.length}</div>
+              <div className="text-2xl font-bold tabular-nums text-primary">{activeEvents.length}</div>
               <div className="text-xs text-muted-foreground">Active Events</div>
             </div>
           </div>
@@ -694,11 +694,11 @@ export default function EventWifi() {
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-teal-500/10">
-              <Wifi className="h-4 w-4 text-teal-500 dark:text-teal-400" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Wifi className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <div className="text-2xl font-bold tabular-nums text-teal-600 dark:text-teal-400">{activeUsers.length}</div>
+              <div className="text-2xl font-bold tabular-nums text-primary">{activeUsers.length}</div>
               <div className="text-xs text-muted-foreground">Active Users</div>
             </div>
           </div>

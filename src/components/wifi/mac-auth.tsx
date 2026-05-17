@@ -452,7 +452,7 @@ export default function MacAuth({ propertyId }: MacAuthProps) {
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Fingerprint className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <Fingerprint className="h-5 w-5 text-primary" />
             MAC Authentication
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -483,8 +483,8 @@ export default function MacAuth({ propertyId }: MacAuthProps) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2">
-              <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-2">
+              <Shield className="h-4 w-4 text-primary" />
             </div>
             <div>
               <p className="text-2xl font-bold tabular-nums">{entries.length}</p>
@@ -494,8 +494,8 @@ export default function MacAuth({ propertyId }: MacAuthProps) {
         </Card>
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2">
-              <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-2">
+              <CheckCircle className="h-4 w-4 text-primary" />
             </div>
             <div>
               <p className="text-2xl font-bold tabular-nums">{statusCounts['active'] || 0}</p>
