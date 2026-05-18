@@ -898,48 +898,42 @@ export default function LiveSessions() {
       )}
 
       {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by username..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </div>
-            <Select value={nasFilter} onValueChange={setNasFilter}>
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="All NAS" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All NAS</SelectItem>
-                {nasList.map(nas => (
-                  <SelectItem key={nas} value={nas}>{nas}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-36">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="idle">Idle</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-2">
-              <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
-              <span className="text-xs text-muted-foreground">Auto (10s)</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col sm:flex-row items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+        <div className="flex-1 w-full relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by username..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 h-8 text-sm bg-background"
+          />
+        </div>
+        <Select value={nasFilter} onValueChange={setNasFilter}>
+          <SelectTrigger className="w-full sm:w-36 h-8 text-sm bg-background">
+            <SelectValue placeholder="All NAS" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All NAS</SelectItem>
+            {nasList.map(nas => (
+              <SelectItem key={nas} value={nas}>{nas}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-full sm:w-32 h-8 text-sm bg-background">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="idle">Idle</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-2 shrink-0">
+          <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
+          <span className="text-xs text-muted-foreground whitespace-nowrap">Auto (10s)</span>
+        </div>
+      </div>
 
       {/* Sessions List */}
       {isLoading ? (

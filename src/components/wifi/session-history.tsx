@@ -582,34 +582,30 @@ export default function SessionHistory() {
       </div>
 
       {/* Search + Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by username..."
-                value={drillDownUser || searchQuery}
-                onChange={(e) => { if (drillDownUser) setDrillDownUser(null); setSearchQuery(e.target.value); setPagination(prev => ({ ...prev, offset: 0 })); }}
-                className="pl-9"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPagination(prev => ({ ...prev, offset: 0 })); }}>
-              <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="All Status" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="stopped">Ended</SelectItem>
-              </SelectContent>
-            </Select>
-            {filterCount > 0 && (
-              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={clearAllFilters}>
-                <FilterX className="h-3.5 w-3.5 mr-1" /> Clear All
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col sm:flex-row items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+        <div className="flex-1 w-full relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by username..."
+            value={drillDownUser || searchQuery}
+            onChange={(e) => { if (drillDownUser) setDrillDownUser(null); setSearchQuery(e.target.value); setPagination(prev => ({ ...prev, offset: 0 })); }}
+            className="pl-9 h-8 text-sm bg-background"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPagination(prev => ({ ...prev, offset: 0 })); }}>
+          <SelectTrigger className="w-full sm:w-32 h-8 text-sm bg-background"><SelectValue placeholder="All Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="stopped">Ended</SelectItem>
+          </SelectContent>
+        </Select>
+        {filterCount > 0 && (
+          <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={clearAllFilters}>
+            <FilterX className="h-3.5 w-3.5 mr-1" /> Clear All
+          </Button>
+        )}
+      </div>
 
       {/* Sessions List */}
       {isLoading ? (
