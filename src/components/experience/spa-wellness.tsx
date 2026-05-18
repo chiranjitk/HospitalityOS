@@ -273,28 +273,10 @@ export default function SpaWellness() {
 
   useEffect(() => { fetchSpaData(); }, [fetchSpaData]);
 
-  // ── Computed values ─────────────────────────────────────────────────
+  // ── Computed values (ALL hooks must be before any conditional returns) ──
 
   const today = new Date();
   const calendarDate = format(today, 'EEEE, MMMM d, yyyy');
-
-  if (spaLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (spaError) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <AlertTriangle className="h-8 w-8 text-amber-500" />
-        <p className="text-muted-foreground">{spaError}</p>
-        <Button variant="outline" onClick={fetchSpaData}>Try Again</Button>
-      </div>
-    );
-  }
 
   const stats = useMemo(() => {
     const todayBookings = apiStats?.todayBookings ?? appointments.length;
@@ -339,6 +321,26 @@ export default function SpaWellness() {
 
   const totalRevenue = useMemo(() => revenue.reduce((s, r) => s + r.revenue, 0), [revenue]);
   const maxRevenue = useMemo(() => revenue.length > 0 ? Math.max(...revenue.map(r => r.revenue)) : 1, [revenue]);
+
+  // ── Loading / Error guards (AFTER all hooks) ──────────────────────
+
+  if (spaLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (spaError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <AlertTriangle className="h-8 w-8 text-amber-500" />
+        <p className="text-muted-foreground">{spaError}</p>
+        <Button variant="outline" onClick={fetchSpaData}>Try Again</Button>
+      </div>
+    );
+  }
 
   // ── Handlers ───────────────────────────────────────────────────────
 
