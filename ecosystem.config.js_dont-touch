@@ -101,10 +101,11 @@ module.exports = {
       ...BASE_DEFAULTS,
       name: 'staysuite-nextjs',
       description: 'Port 3000 — Main PMS Application',
-      // CRITICAL: start-nextjs.sh wrapper sets HOSTNAME=0.0.0.0 to prevent
-      // EINVAL crash on Rocky 10. The standalone server.js reads process.env
-      // .HOSTNAME but ignores --hostname CLI args. PM2 cannot reliably
-      // override the system HOSTNAME env var, so a bash wrapper is needed.
+      // start-nextjs.sh wrapper sets HOSTNAME=0.0.0.0 to prevent EINVAL crash
+      // on Rocky 10. It launches `npx next start` (NOT standalone mode —
+      // standalone was removed due to excessive build memory usage).
+      // PM2 cannot reliably override the system HOSTNAME env var, so a bash
+      // wrapper is needed.
       script: 'start-nextjs.sh',
       interpreter: 'bash',
       cwd: APP_DIR,
