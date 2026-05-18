@@ -248,6 +248,7 @@
     outline-color: oklch(from var(--ring) l c h / 50%);
   }
   html {
+    overflow-y: scroll;
     scrollbar-gutter: stable;
   }
   body {
@@ -256,6 +257,10 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  body[data-scroll-locked] {
+    padding-right: 0 !important;
+    overflow-y: visible !important;
   }
 }
 
