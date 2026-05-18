@@ -92,15 +92,9 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
         ],
       },
-      {
-        // Prevent browser caching of JS chunks during development
-        source: "/_next/static/:path*",
-        headers: [
-          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, proxy-revalidate" },
-          { key: "Pragma", value: "no-cache" },
-          { key: "Expires", value: "0" },
-        ],
-      },
+      // NOTE: Removed custom Cache-Control for /_next/static/* — it breaks
+      // Next.js dev mode (causes recompilation on every request → OOM).
+      // The dev server already handles cache-busting via content hashes.
     ];
   },
   images: {
