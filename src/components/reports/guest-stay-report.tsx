@@ -934,7 +934,7 @@ export default function GuestStayReport() {
     const newFilters = {
       ...filters,
       startDate: days === 0 ? new Date('2020-01-01') : subDays(new Date(), days),
-      endDate: new Date(),
+      endDate: days === 0 ? new Date('2030-12-31') : new Date(),
     };
     setFilters(newFilters);
     setAppliedFilters(newFilters);

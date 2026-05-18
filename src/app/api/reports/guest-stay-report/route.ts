@@ -200,7 +200,7 @@ async function generateXlsx(
   summary: SummaryStats,
   nationalityBreakdown: Record<string, { count: number; revenue: number; roomNights: number }>,
   roomTypeBreakdown: Record<string, { count: number; revenue: number; roomNights: number }>,
-  stays: any[],
+  allRecords: { booking: Record<string, any>; guest: Record<string, any> }[],
 ): Promise<Buffer> {
   const XLSX = await import('xlsx');
 
@@ -362,9 +362,9 @@ async function generateXlsx(
     'Card Type', 'Card Last 4', 'Processed At',
   ];
   const paymentRows: (string | number | null)[][] = [];
-  for (const stay of stays) {
-    const booking = stay.booking;
-    const guestName = `${stay.guest?.firstName ?? ''} ${stay.guest?.lastName ?? ''}`.trim();
+  for (const rec of allRecords) {
+    const booking = rec.booking;
+    const guestName = `${rec.guest?.firstName ?? ''} ${rec.guest?.lastName ?? ''}`.trim();
     for (const folio of booking.folios ?? []) {
       for (const p of folio.payments ?? []) {
         paymentRows.push([
@@ -398,9 +398,9 @@ async function generateXlsx(
     'Total', 'Tax', 'Service Date',
   ];
   const lineItemRows: (string | number | null)[][] = [];
-  for (const stay of stays) {
-    const booking = stay.booking;
-    const guestName = `${stay.guest?.firstName ?? ''} ${stay.guest?.lastName ?? ''}`.trim();
+  for (const rec of allRecords) {
+    const booking = rec.booking;
+    const guestName = `${rec.guest?.firstName ?? ''} ${rec.guest?.lastName ?? ''}`.trim();
     for (const folio of booking.folios ?? []) {
       for (const li of folio.lineItems ?? []) {
         lineItemRows.push([
@@ -629,8 +629,9 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || searchParams.get('bookingStatus');
     const loyaltyTier = searchParams.get('loyaltyTier');
     // Accept both 'isVip' and 'vipOnly' param names
+    // vipOnly=true means "show only VIP guests", anything else means "don't filter"
     const isVipParam = searchParams.get('isVip') || searchParams.get('vipOnly');
-    const isVip = isVipParam === 'true' ? true : isVipParam === 'false' ? false : null;
+    const isVip = isVipParam === 'true' ? true : null;
     const search = searchParams.get('search') || '';
     // ENHANCEMENT 6: Booking source filter
     const bookingSource = searchParams.get('bookingSource') || searchParams.get('source');
@@ -659,11 +660,14 @@ export async function GET(request: NextRequest) {
       ];
     }
 
+    // Use OVERLAP logic instead of containment:
+    // A booking overlaps with [startDate, endDate] if checkIn <= endDate AND checkOut >= startDate
+    // This captures any booking that even partially falls within the selected range
     const bookingWhere: Record<string, unknown> = {
       tenantId,
       deletedAt: null,
-      checkIn: { gte: startDate },
-      checkOut: { lte: endDate },
+      checkIn: { lte: endDate },
+      checkOut: { gte: startDate },
     };
 
     if (propertyId && propertyId !== 'all') {
@@ -677,7 +681,9 @@ export async function GET(request: NextRequest) {
       bookingWhere.source = bookingSource;
     }
 
-    // ---- ENHANCEMENT 1: Fetch data with ALL folio line items and ALL payments ----
+    // ---- Fetch GuestStay records with ALL folio line items and ALL payments ----
+    // NOTE: Don't include booking.primaryGuest here - it can cause Prisma to silently
+    // filter out records. We'll get guest data from the GuestStay.guest relation instead.
     const stays = await db.guestStay.findMany({
       where: {
         guest: guestWhere,
@@ -780,21 +786,209 @@ export async function GET(request: NextRequest) {
         },
       },
       orderBy: { createdAt: 'desc' },
-      skip,
-      take: limit,
     });
+
+    // ---- Also fetch Bookings that DON'T have GuestStay records ----
+    // This ensures ALL bookings appear in the report, not just checked-in ones
+    const stayBookingIds = new Set(stays.map(s => s.bookingId));
+
+    const bookingIncludeObj = {
+      primaryGuest: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          nationality: true,
+          country: true,
+          city: true,
+          dateOfBirth: true,
+          gender: true,
+          idType: true,
+          idNumber: true,
+          loyaltyTier: true,
+          loyaltyPoints: true,
+          totalStays: true,
+          totalSpent: true,
+          isVip: true,
+          vipLevel: true,
+          source: true,
+          kycStatus: true,
+        },
+      },
+      room: {
+        select: {
+          number: true,
+          floor: true,
+          status: true,
+        },
+      },
+      roomType: {
+        select: {
+          name: true,
+          code: true,
+          basePrice: true,
+        },
+      },
+      property: {
+        select: {
+          name: true,
+          slug: true,
+          city: true,
+          country: true,
+        },
+      },
+      folios: {
+        select: {
+          folioNumber: true,
+          subtotal: true,
+          taxes: true,
+          totalAmount: true,
+          paidAmount: true,
+          balance: true,
+          status: true,
+          openedAt: true,
+          closedAt: true,
+          lineItems: {
+            select: {
+              id: true,
+              description: true,
+              category: true,
+              quantity: true,
+              unitPrice: true,
+              totalAmount: true,
+              serviceDate: true,
+              taxRate: true,
+              taxAmount: true,
+            },
+            orderBy: { serviceDate: 'asc' },
+          },
+          payments: {
+            select: {
+              id: true,
+              amount: true,
+              method: true,
+              status: true,
+              gateway: true,
+              cardType: true,
+              cardLast4: true,
+              currency: true,
+              processedAt: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+        orderBy: { openedAt: 'asc' },
+        take: 100,
+      },
+    };
+
+    // Build booking-only where clause (apply guest filters to primaryGuest relation)
+    const bookingOnlyWhere: Record<string, unknown> = {
+      ...bookingWhere,
+      id: { notIn: [...stayBookingIds] },
+    };
+
+    // Apply guest filters to the primaryGuest relation for bookings without stays
+    if (Object.keys(guestWhere).length > 0) {
+      bookingOnlyWhere.primaryGuest = guestWhere;
+    }
+
+    const bookingsWithoutStays = await db.booking.findMany({
+      where: bookingOnlyWhere,
+      include: bookingIncludeObj,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // ---- Combine stays and bookings without stays ----
+    // For bookings without stays, compute roomNights from checkIn/checkOut
+    function computeRoomNights(checkIn: Date | null, checkOut: Date | null): number {
+      if (!checkIn || !checkOut) return 0;
+      const diffMs = new Date(checkOut).getTime() - new Date(checkIn).getTime();
+      return Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
+    // Create a unified "allRecords" array that contains both types
+    type StayWithGuest = typeof stays[number];
+    type BookingWithGuest = typeof bookingsWithoutStays[number];
+
+    interface UnifiedRecord {
+      type: 'stay' | 'booking';
+      stayId: string;
+      roomNights: number;
+      stayTotalAmount: number;
+      feedbackGiven: boolean;
+      reviewGiven: boolean;
+      stayCreatedAt: string;
+      guest: NonNullable<StayWithGuest['guest']>;
+      booking: StayWithGuest['booking'] | BookingWithGuest;
+    }
+
+    const allRecords: UnifiedRecord[] = [
+      ...stays.map(s => ({
+        type: 'stay' as const,
+        stayId: s.id,
+        roomNights: s.roomNights,
+        stayTotalAmount: safeNumber(s.totalAmount) ?? 0,
+        feedbackGiven: s.feedbackGiven,
+        reviewGiven: s.reviewGiven,
+        stayCreatedAt: safeDate(s.createdAt) ?? '',
+        guest: s.guest,
+        booking: s.booking,
+      })),
+      ...bookingsWithoutStays.map(b => {
+        const guest = b.primaryGuest;
+        const roomNights = computeRoomNights(b.checkIn, b.checkOut);
+        return {
+          type: 'booking' as const,
+          stayId: `booking-${b.id}`,
+          roomNights,
+          stayTotalAmount: safeNumber(b.totalAmount) ?? 0,
+          feedbackGiven: false,
+          reviewGiven: false,
+          stayCreatedAt: safeDate(b.createdAt) ?? '',
+          guest: guest ?? {
+            id: b.primaryGuestId ?? '',
+            firstName: 'Unknown',
+            lastName: '',
+            email: null,
+            phone: null,
+            nationality: null,
+            country: null,
+            city: null,
+            dateOfBirth: null,
+            gender: null,
+            idType: null,
+            idNumber: null,
+            loyaltyTier: 'bronze',
+            loyaltyPoints: 0,
+            totalStays: 0,
+            totalSpent: 0,
+            isVip: false,
+            vipLevel: null,
+            source: 'direct',
+            kycStatus: 'pending',
+          },
+          booking: b,
+        };
+      }),
+    ];
+
+    // Sort combined records by createdAt desc, then apply pagination
+    allRecords.sort((a, b) => b.stayCreatedAt.localeCompare(a.stayCreatedAt));
+    const paginatedRecords = allRecords.slice(skip, skip + limit);
 
     // ---- Get total count for pagination ----
-    const totalStaysCount = await db.guestStay.count({
-      where: {
-        guest: guestWhere,
-        booking: bookingWhere,
-      },
-    });
+    const totalStaysCount = allRecords.length;
 
     // ---- ENHANCEMENT 2: Fetch guest feedback and reviews ----
-    const guestIds = [...new Set(stays.map(s => s.guest.id))];
-    const propertyIds = [...new Set(stays.map(s => s.booking.propertyId))];
+    const guestIds = [...new Set(allRecords.map(s => s.guest.id))];
+    const propertyIds = [...new Set(allRecords.map(s => {
+      const b = s.booking as Record<string, unknown>;
+      return b.propertyId as string;
+    }).filter(Boolean))];
 
     const [feedbacks, reviews] = await Promise.all([
       guestIds.length > 0
@@ -848,9 +1042,9 @@ export async function GET(request: NextRequest) {
     ]);
 
     // ---- Flatten rows ----
-    const flatRows: FlatGuestStayRow[] = stays.map((stay) => {
-      const booking = stay.booking;
-      const guest = stay.guest;
+    const flatRows: FlatGuestStayRow[] = paginatedRecords.map((rec) => {
+      const booking = rec.booking as Record<string, any>;
+      const guest = rec.guest;
       const room = booking.room;
       const roomType = booking.roomType;
       const property = booking.property;
@@ -859,12 +1053,12 @@ export async function GET(request: NextRequest) {
 
       return {
         // Stay
-        stayId: stay.id,
-        roomNights: stay.roomNights,
-        stayTotalAmount: safeNumber(stay.totalAmount) ?? 0,
-        feedbackGiven: stay.feedbackGiven,
-        reviewGiven: stay.reviewGiven,
-        stayCreatedAt: safeDate(stay.createdAt) ?? '',
+        stayId: rec.stayId,
+        roomNights: rec.roomNights,
+        stayTotalAmount: rec.stayTotalAmount,
+        feedbackGiven: rec.feedbackGiven,
+        reviewGiven: rec.reviewGiven,
+        stayCreatedAt: rec.stayCreatedAt,
 
         // Guest
         guestId: guest.id,
@@ -1062,8 +1256,8 @@ export async function GET(request: NextRequest) {
 
     // Count cancellation reasons from booking data
     const cancellationReasons: Record<string, number> = {};
-    for (const stay of stays) {
-      const reason = (stay.booking as Record<string, unknown>)?.cancellationReason;
+    for (const rec of allRecords) {
+      const reason = (rec.booking as Record<string, unknown>)?.cancellationReason;
       if (typeof reason === 'string' && reason) {
         cancellationReasons[reason] = (cancellationReasons[reason] ?? 0) + 1;
       }
@@ -1203,9 +1397,9 @@ export async function GET(request: NextRequest) {
 
       // ---- ENHANCEMENT 4: Transform flat rows with extended data ----
       const records = flatRows.map((row) => {
-        // Find the corresponding stay for folio details
-        const matchingStay = stays.find(s => s.id === row.stayId);
-        const booking = matchingStay?.booking;
+        // Find the corresponding record for folio details
+        const matchingRec = paginatedRecords.find(r => r.stayId === row.stayId);
+        const booking = matchingRec?.booking as Record<string, any> | undefined;
 
         return {
           id: row.stayId,
@@ -1379,7 +1573,7 @@ export async function GET(request: NextRequest) {
 
     if (format_ === 'xlsx') {
       // ENHANCEMENT 5: Pass stays for payment/line item sheets
-      const xlsxBuf = await generateXlsx(flatRows, summary, nationalityBreakdown, roomTypeBreakdown, stays);
+      const xlsxBuf = await generateXlsx(flatRows, summary, nationalityBreakdown, roomTypeBreakdown, allRecords);
       return new NextResponse(xlsxBuf, {
         status: 200,
         headers: {
