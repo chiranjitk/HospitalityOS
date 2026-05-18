@@ -424,9 +424,6 @@ async function syncConfigToDisk(): Promise<{ success: boolean; lines: number }> 
   config += `# Listen on all interfaces automatically
 bind-dynamic
 
-# PID file — must match systemd's PIDFile= for reliable start/stop
-pid-file=${DNSMASQ_PID_FILE}
-
 # DNS behavior
 domain-needed          # Don't forward bare hostnames (no dots) to upstream
 bogus-priv             # Never forward private IP ranges to upstream
@@ -484,7 +481,8 @@ edns-packet-max=4096   # Support large DNS responses (DNSSEC, large TXT)
       // Mark this zone as local — dnsmasq will answer from its own records
       // and NOT forward queries for this domain to upstream
       config += `local=/${domain}/\n`;
-      config += `domain=${domain}\n`;
+      // NOTE: Do NOT emit 'domain=' here — dnsmasq only allows ONE 'domain' directive
+      // across ALL config files. Emitting it per-zone causes 'illegal repeated keyword'.
 
       // Read records for this zone
       let hasApexARecord = false;
@@ -543,7 +541,9 @@ edns-packet-max=4096   # Support large DNS responses (DNSSEC, large TXT)
       config += '# DNS Redirects (Captive Portal)\n';
       for (const r of redirResult.rows) {
         const dnsmasqDomain = matchPatternToDnsmasq(r.matchPattern);
-        config += `address=/${dnsmasqDomain}/${r.targetIp}\n`;
+        // dnsmasqDomain already starts with '/' (e.g. '/#', '/.example.com', '/example.com')
+      // so we must NOT add an extra '/' — address=<domain>/<ip>, domain already has leading /
+      config += `address=${dnsmasqDomain}/${r.targetIp}\n`;
       }
       config += '\n';
     }
