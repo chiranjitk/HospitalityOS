@@ -388,7 +388,7 @@ export async function PUT(
         ...(totalAmount !== undefined && { totalAmount }),
         ...(ratePlanId !== undefined && { ratePlanId: ratePlanId || null }),
         ...(promoCode !== undefined && { promoCode }),
-        ...(status !== undefined && status !== '' && { status }),
+        ...(status !== undefined && status !== '' && status !== 'checked_out' && { status }),
         ...(specialRequests !== undefined && { specialRequests }),
         ...(notes !== undefined && { notes }),
         ...(internalNotes !== undefined && { internalNotes }),
@@ -428,6 +428,50 @@ export async function PUT(
         },
       },
     });
+
+    // M-06: Post rate difference charge to folio on room move
+    if (roomId && roomId !== existingBooking.roomId) {
+      try {
+        const newRoom = await db.room.findUnique({
+          where: { id: roomId },
+          include: { roomType: { select: { basePrice: true, name: true } } },
+        });
+        const oldRoomType = existingBooking.roomType;
+        const rateDiff = (newRoom?.roomType?.basePrice ?? 0) - (oldRoomType?.basePrice ?? 0);
+        if (rateDiff !== 0) {
+          const folio = await db.folio.findFirst({
+            where: { bookingId: booking.id, status: { in: ['open', 'partially_paid'] } },
+          });
+          if (folio) {
+            await db.folioLineItem.create({
+              data: {
+                folioId: folio.id,
+                description: `Room upgrade charge (${oldRoomType?.name || 'Old'} → ${newRoom?.roomType?.name || 'New'})`,
+                category: 'room',
+                quantity: 1,
+                unitPrice: Math.abs(rateDiff),
+                totalAmount: Math.abs(rateDiff),
+                serviceDate: new Date(),
+                postedBy: user.id,
+              },
+            });
+            // Recalculate folio
+            const allItems = await db.folioLineItem.findMany({ where: { folioId: folio.id } });
+            const newSubtotal = allItems.reduce((s, li) => s + li.totalAmount, 0);
+            await db.folio.update({
+              where: { id: folio.id },
+              data: {
+                subtotal: newSubtotal,
+                totalAmount: newSubtotal + folio.taxes - folio.discount,
+                balance: Math.max(0, newSubtotal - folio.paidAmount),
+              },
+            });
+          }
+        }
+      } catch (moveError) {
+        console.error('[Room Move] Failed to post rate difference:', moveError);
+      }
+    }
     
     // Create audit log for status changes
     if (status && status !== existingBooking.status) {
@@ -490,10 +534,17 @@ export async function PUT(
     }
     
     if (status === 'checked_in' && effectiveRoomId) {
-      await db.room.update({
-        where: { id: effectiveRoomId },
+      // H-16: Use atomic update with guard to prevent race condition when two admins check in to same room
+      const roomUpdateResult = await db.room.updateMany({
+        where: { id: effectiveRoomId, status: { not: 'occupied' } },
         data: { status: 'occupied' },
       });
+      if (roomUpdateResult.count === 0) {
+        return NextResponse.json(
+          { success: false, error: { code: 'ROOM_ALREADY_OCCUPIED', message: 'Room is already occupied — cannot check in another guest' } },
+          { status: 409 }
+        );
+      }
       
       // Create or update GuestStay record for stay history
       const nights = Math.ceil((booking.checkOut.getTime() - booking.checkIn.getTime()) / (1000 * 60 * 60 * 24));
@@ -623,21 +674,31 @@ export async function PUT(
         },
       });
     } else if (status === 'checked_out' && effectiveRoomId) {
+      // Check for outstanding balance before checkout (log warning, don't block)
+      const openFolio = await db.folio.findFirst({
+        where: { bookingId: booking.id, status: { in: ['open', 'partially_paid'] } },
+        select: { balance: true, totalAmount: true, paidAmount: true },
+      });
+      if (openFolio && openFolio.balance > 0) {
+        console.warn(`[Checkout] Booking ${booking.confirmationCode} checking out with outstanding balance: ${openFolio.balance}`);
+      }
+
       // Wrap ALL checkout database side-effects in a single transaction for data integrity.
       // This ensures room status, folio close, invoice generation, WiFi fees, and loyalty
       // points either all succeed or all roll back — no partial/ghost state.
       try {
         await db.$transaction(async (tx) => {
-          // 1. Update room status to 'dirty'
-          await tx.room.update({
-            where: { id: effectiveRoomId },
-            data: { status: 'dirty' },
+          // 0. Update booking status to checked_out (inside transaction for atomicity)
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: {
+              status: 'checked_out',
+              actualCheckOut: actualCheckOut ? new Date(actualCheckOut) : new Date(),
+              checkedOutBy: checkedOutBy || user.id,
+            },
           });
 
-          // 2. Auto-close folio and generate invoice
-          await autoCloseFolioAndGenerateInvoice(booking.id, tx);
-
-          // 3. Post WiFi usage fees to folio
+          // 1. Post WiFi usage fees to folio BEFORE closing it
           const activeWifiSessions = await tx.wiFiSession.findMany({
             where: {
               OR: [
@@ -672,16 +733,10 @@ export async function PUT(
                 },
               });
 
-              // Find or create folio for the booking
-              let wifiFolio = await tx.folio.findFirst({
+              // Find open folio for the booking
+              const wifiFolio = await tx.folio.findFirst({
                 where: { bookingId: booking.id, tenantId: booking.tenantId, status: { in: ['open', 'partially_paid'] } },
               });
-
-              if (!wifiFolio) {
-                wifiFolio = await tx.folio.findFirst({
-                  where: { bookingId: booking.id, tenantId: booking.tenantId },
-                });
-              }
 
               if (wifiFolio) {
                 await tx.folioLineItem.create({
@@ -716,6 +771,15 @@ export async function PUT(
             }
           }
 
+          // 2. Update room status to 'dirty'
+          await tx.room.update({
+            where: { id: effectiveRoomId },
+            data: { status: 'dirty' },
+          });
+
+          // 3. Auto-close folio and generate invoice (AFTER WiFi fees are posted)
+          await autoCloseFolioAndGenerateInvoice(booking.id, tx);
+
           // 4. Auto-award loyalty points (atomic increment to avoid TOCTOU race)
           const guest = await tx.guest.findUnique({ where: { id: booking.primaryGuestId } });
           if (guest) {
@@ -748,11 +812,25 @@ export async function PUT(
         });
       } catch (checkoutTxError) {
         console.error('Checkout transaction failed, rolling back all side-effects:', checkoutTxError);
-        // The checkout status was already written above; re-throw to return 500
-        // so the caller knows the side-effects did not complete.
+        // Re-throw to return 500 so the caller knows the side-effects did not complete.
         throw checkoutTxError;
       }
-      
+
+      // Update local booking status (set inside transaction)
+      booking.status = 'checked_out';
+      booking.actualCheckOut = actualCheckOut ? new Date(actualCheckOut) : new Date();
+
+      // Recalculate room nights for early/late checkout
+      const actualNights = actualCheckOut
+        ? Math.ceil((new Date(actualCheckOut).getTime() - booking.checkIn.getTime()) / (1000 * 60 * 60 * 24))
+        : Math.ceil((booking.checkOut.getTime() - booking.checkIn.getTime()) / (1000 * 60 * 60 * 24));
+      if (actualNights > 0) {
+        await db.guestStay.updateMany({
+          where: { bookingId: booking.id },
+          data: { roomNights: Math.max(1, actualNights) },
+        });
+      }
+
       // Non-transactional side-effects (notifications, events — safe to retry independently)
       
       // Emit room status change
@@ -838,9 +916,28 @@ export async function PUT(
         },
       });
     }
-    
+
     // Emit WebSocket event for booking cancelled
     if (status === 'cancelled' && existingBooking.status !== 'cancelled') {
+      // Release the room when cancelling via PUT (matches POST cancel endpoint behavior)
+      if (existingBooking.roomId) {
+        const activeRoomBookings = await db.booking.count({
+          where: {
+            roomId: existingBooking.roomId,
+            status: { in: ['confirmed', 'checked_in'] },
+            id: { not: booking.id },
+            deletedAt: null,
+          },
+        });
+        if (activeRoomBookings === 0) {
+          await db.room.update({
+            where: { id: existingBooking.roomId },
+            data: { status: 'available' },
+          });
+          console.log(`[Booking Cancel] Room ${existingBooking.roomId} released (no other active bookings)`);
+        }
+      }
+
       try {
         emitBookingCancelledWS({
           bookingId: booking.id,

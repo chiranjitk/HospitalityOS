@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import crypto from 'crypto';
 import { db } from '@/lib/db';
 import { emitBookingCheckedOut } from '@/lib/events/booking-events';
+import { markRoomDirtyAfterCheckout } from '@/lib/housekeeping-automation';
 
 // POST /api/frontdesk/kiosk-checkout - Process express check-out from kiosk
 export async function POST(request: NextRequest) {
   try {
+    // Basic authentication — kiosk should present a valid token
+    const { getUserFromRequest } = await import('@/lib/auth-helpers');
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
 
     // Zod validation for request body
@@ -74,9 +86,73 @@ export async function POST(request: NextRequest) {
 
     const now = new Date();
 
-    // Process booking/room updates in a transaction
+    // Process ALL checkout side-effects in a single transaction for data integrity
     const updatedBooking = await db.$transaction(async (tx) => {
-      // 1. Update booking status to checked_out
+      // 1. Post WiFi usage fees to folio BEFORE closing it
+      const activeWifiSessions = await tx.wiFiSession.findMany({
+        where: {
+          OR: [
+            { bookingId: booking.id },
+            { guestId: booking.primaryGuestId },
+          ],
+          status: 'active',
+        },
+        include: { plan: true },
+      });
+
+      if (activeWifiSessions.length > 0) {
+        let totalWifiFee = 0;
+        const planDetails: string[] = [];
+
+        for (const session of activeWifiSessions) {
+          if (session.plan && session.plan.price > 0) {
+            totalWifiFee += session.plan.price;
+            planDetails.push(session.plan.name);
+          }
+        }
+
+        if (totalWifiFee > 0) {
+          // Close any active WiFi sessions
+          await tx.wiFiSession.updateMany({
+            where: { id: { in: activeWifiSessions.map(s => s.id) } },
+            data: { status: 'disconnected', endTime: new Date() },
+          });
+
+          // Find open folio for the booking
+          const wifiFolio = await tx.folio.findFirst({
+            where: { bookingId: booking.id, tenantId: booking.tenantId, status: { in: ['open', 'partially_paid'] } },
+          });
+
+          if (wifiFolio) {
+            await tx.folioLineItem.create({
+              data: {
+                folioId: wifiFolio.id,
+                description: `WiFi Usage Charges (${planDetails.join(', ')})`,
+                category: 'wifi',
+                quantity: 1,
+                unitPrice: totalWifiFee,
+                totalAmount: totalWifiFee,
+                serviceDate: new Date(),
+                postedBy: 'kiosk-self-service',
+              },
+            });
+
+            // Recalculate folio totals
+            const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: wifiFolio.id } });
+            const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+            await tx.folio.update({
+              where: { id: wifiFolio.id },
+              data: {
+                subtotal: newSubtotal,
+                totalAmount: newSubtotal + wifiFolio.taxes - wifiFolio.discount,
+                balance: Math.max(0, newSubtotal - wifiFolio.paidAmount),
+              },
+            });
+          }
+        }
+      }
+
+      // 2. Update booking status to checked_out
       const updated = await tx.booking.update({
         where: { id: bookingId },
         data: {
@@ -104,29 +180,104 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // 2. Update room status to vacant and mark for housekeeping
+      // 3. Update room status to dirty and mark for housekeeping
       await tx.room.update({
         where: { id: booking.room.id },
         data: {
-          status: 'vacant',
+          status: 'dirty',
           housekeepingStatus: 'dirty',
         },
       });
 
-      // 3. Create booking audit log
+      // 4. Close folio and generate invoice
+      const folio = await tx.folio.findFirst({
+        where: { bookingId, status: { in: ['open', 'partially_paid'] } },
+      });
+      if (folio) {
+        await tx.folio.update({
+          where: { id: folio.id },
+          data: { status: 'closed', closedAt: new Date() },
+        });
+
+        // Auto-generate invoice
+        const bookingWithGuest = await tx.booking.findUnique({
+          where: { id: bookingId },
+          include: { primaryGuest: true, room: { include: { roomType: true } } },
+        });
+
+        const invoiceNumber = `INV-${new Date().getFullYear().toString().slice(-2)}${(new Date().getMonth() + 1).toString().padStart(2, '0')}-${crypto.randomBytes(4).toString('hex').slice(0, 4)}`;
+
+        await tx.invoice.create({
+          data: {
+            tenantId: folio.tenantId,
+            invoiceNumber,
+            folioId: folio.id,
+            customerName: bookingWithGuest?.primaryGuest ? `${bookingWithGuest.primaryGuest.firstName} ${bookingWithGuest.primaryGuest.lastName}` : 'Guest',
+            customerEmail: bookingWithGuest?.primaryGuest?.email,
+            customerAddress: bookingWithGuest?.primaryGuest ? [bookingWithGuest.primaryGuest.city, bookingWithGuest.primaryGuest.country].filter(Boolean).join(', ') : undefined,
+            subtotal: folio.subtotal,
+            taxes: folio.taxes,
+            totalAmount: folio.totalAmount,
+            currency: folio.currency,
+            issuedAt: new Date(),
+            dueAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            status: 'issued',
+            pdfUrl: `/api/invoices/${folio.id}/pdf`,
+          },
+        });
+
+        await tx.folio.update({
+          where: { id: folio.id },
+          data: { invoiceNumber, invoiceIssuedAt: new Date() },
+        });
+      }
+
+      // 5. Auto-award loyalty points
+      const guest = await tx.guest.findUnique({ where: { id: booking.primaryGuestId } });
+      if (guest) {
+        const pointsToAward = Math.floor(booking.totalAmount / 100);
+        if (pointsToAward > 0) {
+          const updatedGuest = await tx.guest.update({
+            where: { id: guest.id },
+            data: { loyaltyPoints: { increment: pointsToAward } },
+          });
+          await tx.loyaltyPointTransaction.create({
+            data: {
+              tenantId: booking.tenantId,
+              guestId: guest.id,
+              points: pointsToAward,
+              balance: updatedGuest.loyaltyPoints,
+              type: 'earn',
+              source: 'stay_completion',
+              referenceId: booking.id,
+              referenceType: 'booking',
+              description: `Points earned from stay ${booking.confirmationCode}`,
+            },
+          });
+        }
+      }
+
+      // 6. Create booking audit log
       await tx.bookingAuditLog.create({
         data: {
           bookingId,
           action: 'express_checkout',
           oldStatus: 'checked_in',
           newStatus: 'checked_out',
-          notes: 'Express check-out via self-service kiosk',
+          notes: 'Express check-out via self-service kiosk (folio closed, invoice generated, loyalty awarded)',
           performedBy: 'kiosk-self-service',
         },
       });
 
       return updated;
     });
+
+    // Housekeeping automation — trigger OUTSIDE transaction (non-blocking)
+    try {
+      await markRoomDirtyAfterCheckout(booking.room.id, booking.tenantId, booking.id);
+    } catch (hkError) {
+      console.error('[Kiosk Check-out] Failed to trigger housekeeping automation:', hkError);
+    }
 
     // WiFi deactivation — OUTSIDE the transaction (non-blocking, best-effort)
     try {
@@ -153,7 +304,6 @@ export async function POST(request: NextRequest) {
       }
     } catch (wifiError) {
       console.error('[Kiosk Check-out] Failed to deactivate WiFi credentials:', wifiError);
-      // Don't fail the check-out if WiFi deactivation fails
     }
 
     // Emit booking checked-out event for other consumers (realtime, notifications, etc.)

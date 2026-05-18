@@ -1143,7 +1143,8 @@ export async function GET(request: NextRequest) {
 
     // ---- Compute summary statistics ----
     const uniqueGuestIds = new Set(flatRows.map((r) => r.guestId));
-    const totalRevenue = flatRows.reduce((sum, r) => sum + r.totalAmount, 0);
+    // Use folio total (includes late checkout fees, incidentals) when available, fall back to booking total
+    const totalRevenue = flatRows.reduce((sum, r) => sum + (r.folioTotalAmount ?? r.totalAmount), 0);
     const totalRoomNights = flatRows.reduce((sum, r) => sum + r.roomNights, 0);
 
     const guestDistributionByNationality: Record<string, number> = {};
@@ -1196,7 +1197,7 @@ export async function GET(request: NextRequest) {
         nationalityBreakdown[nat] = { count: 0, revenue: 0, roomNights: 0 };
       }
       nationalityBreakdown[nat].count += 1;
-      nationalityBreakdown[nat].revenue += row.totalAmount;
+      nationalityBreakdown[nat].revenue += row.folioTotalAmount ?? row.totalAmount;
       nationalityBreakdown[nat].roomNights += row.roomNights;
 
       // Room type breakdown
@@ -1205,7 +1206,7 @@ export async function GET(request: NextRequest) {
         roomTypeBreakdown[rt] = { count: 0, revenue: 0, roomNights: 0 };
       }
       roomTypeBreakdown[rt].count += 1;
-      roomTypeBreakdown[rt].revenue += row.totalAmount;
+      roomTypeBreakdown[rt].revenue += row.folioTotalAmount ?? row.totalAmount;
       roomTypeBreakdown[rt].roomNights += row.roomNights;
 
       // Revenue by month
@@ -1215,7 +1216,7 @@ export async function GET(request: NextRequest) {
           if (!revenueByMonthMap[monthKey]) {
             revenueByMonthMap[monthKey] = { revenue: 0, stays: 0, roomNights: 0 };
           }
-          revenueByMonthMap[monthKey].revenue += row.totalAmount;
+          revenueByMonthMap[monthKey].revenue += row.folioTotalAmount ?? row.totalAmount;
           revenueByMonthMap[monthKey].stays += 1;
           revenueByMonthMap[monthKey].roomNights += row.roomNights;
         } catch {

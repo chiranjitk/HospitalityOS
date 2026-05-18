@@ -247,7 +247,7 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
       where: {
         tenantId: audit.tenantId,
         propertyId: audit.propertyId,
-        status: { in: ['confirmed', 'in_house'] },
+        status: { in: ['confirmed', 'checked_in'] },
         actualCheckIn: { lte: endOfDay },
         OR: [
           { actualCheckOut: null },
@@ -410,7 +410,7 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
       });
 
       if (booking.roomId) {
-        await tx.room.update({ where: { id: booking.roomId }, data: { status: 'available' } });
+        await tx.room.update({ where: { id: booking.roomId }, data: { status: 'dirty' } });
       }
 
       summary.noShowsProcessed++;
@@ -426,7 +426,7 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
       where: { propertyId: audit.propertyId, deletedAt: null },
       include: {
         bookings: {
-          where: { status: { in: ['confirmed', 'in_house'] }, actualCheckOut: null },
+          where: { status: { in: ['confirmed', 'checked_in'] }, actualCheckOut: null },
           select: { id: true, confirmationCode: true },
         },
       },

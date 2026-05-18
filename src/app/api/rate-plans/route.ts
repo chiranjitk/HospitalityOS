@@ -191,9 +191,9 @@ export async function POST(request: NextRequest) {    const user = await require
       );
     }
 
-    if (basePrice === undefined || basePrice < 0) {
+    if (basePrice === undefined || basePrice <= 0) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Valid base price is required' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Valid base price is required (must be greater than 0)' } },
         { status: 400 }
       );
     }
@@ -234,9 +234,17 @@ export async function POST(request: NextRequest) {    const user = await require
       );
     }
 
-    if (discountAmount && discountAmount < 0) {
+    if (discountAmount !== undefined && discountAmount < 0) {
       return NextResponse.json(
         { success: false, error: { code: 'INVALID_DISCOUNT', message: 'Discount amount cannot be negative' } },
+        { status: 400 }
+      );
+    }
+
+    // Cap discountAmount to basePrice to prevent negative effective price
+    if (discountAmount !== undefined && basePrice !== undefined && discountAmount >= basePrice) {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_DISCOUNT', message: 'Discount amount cannot exceed the base price' } },
         { status: 400 }
       );
     }
@@ -393,6 +401,23 @@ export async function PUT(request: NextRequest) {    const user = await requireP
     if (updates.discountAmount !== undefined && updates.discountAmount < 0) {
       return NextResponse.json(
         { success: false, error: { code: 'INVALID_DISCOUNT', message: 'Discount amount cannot be negative' } },
+        { status: 400 }
+      );
+    }
+
+    // Cap discountAmount to basePrice to prevent negative effective price (on update)
+    const effectiveBase = updates.basePrice ?? existing.basePrice;
+    if (updates.discountAmount !== undefined && effectiveBase !== undefined && updates.discountAmount >= effectiveBase) {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_DISCOUNT', message: 'Discount amount cannot exceed the base price' } },
+        { status: 400 }
+      );
+    }
+
+    // Enforce minimum basePrice > 0 on update
+    if (updates.basePrice !== undefined && updates.basePrice <= 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Base price must be greater than 0' } },
         { status: 400 }
       );
     }

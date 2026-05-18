@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
     const todaysRevenue = bookings
       .filter(b => {
         const checkIn = new Date(b.checkIn);
-        return checkIn >= today && checkIn < tomorrow;
+        return checkIn >= today && checkIn < tomorrow && !['cancelled', 'draft', 'no_show'].includes(b.status);
       })
       .reduce((sum, b) => sum + b.totalAmount, 0);
 
@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
     const weekRevenue = bookings
       .filter(b => {
         const checkIn = new Date(b.checkIn);
-        return checkIn >= weekAgo && b.status !== 'cancelled';
+        return checkIn >= weekAgo && !['cancelled', 'draft', 'no_show'].includes(b.status);
       })
       .reduce((sum, b) => sum + b.totalAmount, 0);
 
@@ -161,12 +161,12 @@ export async function GET(request: NextRequest) {
     const monthRevenue = bookings
       .filter(b => {
         const checkIn = new Date(b.checkIn);
-        return checkIn >= monthAgo && b.status !== 'cancelled';
+        return checkIn >= monthAgo && !['cancelled', 'draft', 'no_show'].includes(b.status);
       })
       .reduce((sum, b) => sum + b.totalAmount, 0);
 
     // Average Daily Rate (ADR)
-    const paidBookings = bookings.filter(b => b.status !== 'cancelled' && b.totalAmount > 0);
+    const paidBookings = bookings.filter(b => !['cancelled', 'draft', 'no_show'].includes(b.status) && b.totalAmount > 0);
     const totalNights = paidBookings.reduce((sum, b) => {
       const nights = Math.ceil((new Date(b.checkOut).getTime() - new Date(b.checkIn).getTime()) / (1000 * 60 * 60 * 24));
       return sum + nights;
@@ -256,14 +256,14 @@ export async function GET(request: NextRequest) {
       
       const dayBookings = bookings.filter(b => {
         const checkIn = new Date(b.checkIn);
-        return checkIn >= date && checkIn < nextDate;
+        return checkIn >= date && checkIn < nextDate && !['cancelled', 'draft', 'no_show'].includes(b.status);
       });
       
       const dayRevenue = dayBookings.reduce((sum, b) => sum + b.totalAmount, 0);
 
       // Calculate per-day occupancy from bookings overlapping this day
       const dayOccupiedRooms = bookings.filter(b => {
-        if (b.status === 'cancelled') return false;
+        if (['cancelled', 'draft', 'no_show'].includes(b.status)) return false;
         const ci = new Date(b.checkIn);
         const co = new Date(b.checkOut);
         return ci < nextDate && co > date;

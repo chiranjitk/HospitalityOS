@@ -2,19 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
 
-// Cache for availability data (keys must include tenantId for isolation: `${tenantId}-${propertyId}` or `${tenantId}-${propertyId}-${date}`)
-const availabilityCache = new Map<string, {
-  data: unknown;
-  timestamp: number;
-  ttl: number;
-}>();
-
-function buildCacheKey(tenantId: string, propertyId: string, suffix?: string): string {
-  return suffix ? `${tenantId}-${propertyId}-${suffix}` : `${tenantId}-${propertyId}`;
-}
-
-const CACHE_TTL = 30000; // 30 seconds cache TTL
-
 /**
  * GET /api/availability
  * Get real-time availability by date range
@@ -61,6 +48,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: false,
         error: { message: 'Invalid date format' }
+      }, { status: 400 });
+    }
+
+    if (start >= end) {
+      return NextResponse.json({
+        success: false,
+        error: { message: 'Start date must be before end date' }
       }, { status: 400 });
     }
 
@@ -115,7 +109,7 @@ export async function GET(request: NextRequest) {
       include: {
         rooms: {
           where: {
-            status: { not: 'out_of_order' }
+            status: { notIn: ['out_of_order', 'maintenance'] }
           }
         },
         ratePlans: {
@@ -198,6 +192,7 @@ export async function GET(request: NextRequest) {
         dayEnd.setHours(23, 59, 59, 999);
 
         const dayBookings = rtBookings.filter(b => {
+          if (!b.roomId) return false; // Skip unassigned bookings
           const checkIn = new Date(b.checkIn);
           const checkOut = new Date(b.checkOut);
           return checkIn <= dayEnd && checkOut > dayStart;
@@ -315,6 +310,9 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/availability/invalidate
  * Invalidate cache for a property's availability
+ *
+ * Note: Server-side caching was removed (L-01). This endpoint is kept for
+ * API compatibility and returns success immediately.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -322,7 +320,7 @@ export async function POST(request: NextRequest) {
     if (user instanceof NextResponse) return user;
 
     const body = await request.json();
-    const { propertyId, roomTypeId } = body;
+    const { propertyId } = body;
 
     if (!propertyId) {
       return NextResponse.json({
@@ -332,7 +330,7 @@ export async function POST(request: NextRequest) {
     }
 
     const property = await db.property.findFirst({
-      where: { 
+      where: {
         id: propertyId,
         tenantId: user.tenantId,
       },
@@ -345,29 +343,10 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
 
-    // Clear cache entries for this property (tenant-isolated)
-    let clearedCount = 0;
-    const cacheKeyPrefix = buildCacheKey(user.tenantId, propertyId);
-    for (const key of availabilityCache.keys()) {
-      if (key.startsWith(cacheKeyPrefix)) {
-        if (roomTypeId) {
-          // Only clear entries for this specific room type
-          if (key.includes(roomTypeId)) {
-            availabilityCache.delete(key);
-            clearedCount++;
-          }
-        } else {
-          // Clear all entries for this property
-          availabilityCache.delete(key);
-          clearedCount++;
-        }
-      }
-    }
-
     return NextResponse.json({
       success: true,
       message: 'Cache invalidated',
-      clearedEntries: clearedCount
+      clearedEntries: 0
     });
 
   } catch (error) {

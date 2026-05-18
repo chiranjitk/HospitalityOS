@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
 import { suggestRoomAssignment } from '@/lib/ai/smart-room-assigner';
 
@@ -9,6 +9,10 @@ export async function GET(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
+    if (!hasAnyPermission(user, ['bookings.manage', 'frontdesk.*', 'admin.*']) && user.roleName !== 'admin') {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const { searchParams } = request.nextUrl;

@@ -124,6 +124,21 @@ export async function completeCleaningAndInspect(roomId: string, taskId: string,
  */
 export async function inspectAndReleaseRoom(roomId: string, userId: string, qualityScore?: number) {
   try {
+    // Safety guard: Check for active checked-in bookings before releasing room
+    const activeBookings = await db.booking.findFirst({
+      where: {
+        roomId,
+        status: { in: ['confirmed', 'checked_in'] },
+        actualCheckOut: null,
+        deletedAt: null,
+      },
+    });
+
+    if (activeBookings) {
+      console.warn(`[HK Automation] Room ${roomId} has active booking(s) — refusing to release room. Booking: ${activeBookings.id}`);
+      return false;
+    }
+
     await db.room.update({
       where: { id: roomId },
       data: {

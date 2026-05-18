@@ -825,12 +825,22 @@ export async function POST(request: NextRequest) {
           return errorResponse('INVALID_VOUCHER', 'Invalid or expired voucher code');
         }
 
+        // Verify voucher belongs to same tenant as portal
+        if (portal && voucher.tenantId !== portal.tenantId) {
+          await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request, 'TENANT_MISMATCH');
+          return errorResponse('INVALID_VOUCHER', 'Invalid voucher code');
+        }
+
         if (voucher.status !== 'active' || voucher.isUsed) {
           await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request, 'VOUCHER_USED');
           return errorResponse('VOUCHER_USED', 'This voucher has already been used');
         }
 
         const now = new Date();
+        if (voucher.validFrom && now < voucher.validFrom) {
+          await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request, 'VOUCHER_NOT_YET_VALID');
+          return errorResponse('VOUCHER_NOT_YET_VALID', 'This voucher is not yet valid. It becomes active at a later date.');
+        }
         if (voucher.validUntil < now) {
           await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request, 'VOUCHER_EXPIRED');
           return errorResponse('VOUCHER_EXPIRED', 'This voucher has expired. Please contact front desk for a new one.');
@@ -853,7 +863,18 @@ export async function POST(request: NextRequest) {
         }
 
         const wifiUsername = `voucher-${voucher.code.toLowerCase()}`;
-        const validUntil = new Date(now.getTime() + portalSessionTimeoutMin * 60 * 1000);
+
+        // Check concurrent session limit BEFORE provisioning (prevents orphan WiFiUser)
+        const maxSessions = voucher.plan?.maxDevices || 1;
+        if (await isSessionLimitReached(wifiUsername, maxSessions)) {
+          await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
+          return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
+        }
+
+        // Use plan validity if available, otherwise portal default
+        const planValidityMin = voucher.plan?.validityMinutes || (voucher.plan?.validityDays ? voucher.plan.validityDays * 1440 : null);
+        const voucherSessionTimeoutMin = planValidityMin || portalSessionTimeoutMin;
+        const validUntil = new Date(now.getTime() + voucherSessionTimeoutMin * 60 * 1000);
         const dataLimitMb = voucher.plan?.dataLimit ?? undefined;
 
         // Use PLAN bandwidth (Mbps → kbps), NOT portal defaults
@@ -871,18 +892,11 @@ export async function POST(request: NextRequest) {
           planName: voucher.plan?.name,
           downloadSpeed: planDnKbps * 1000,  // kbps → bits/sec for RADIUS
           uploadSpeed: planUpKbps * 1000,
-          sessionTimeoutMinutes: portalSessionTimeoutMin,
+          sessionTimeoutMinutes: voucherSessionTimeoutMin,
           idleTimeoutSeconds: portal?.idleTimeout,
           sessionLimit: voucher.plan?.maxDevices,
           dataLimit: dataLimitMb,
         });
-
-        // Check concurrent session limit
-        const maxSessions = voucher.plan?.maxDevices || 1;
-        if (await isSessionLimitReached(wifiUsername, maxSessions)) {
-          await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
-          return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
-        }
 
         const radiusResult = await radiusAuth(wifiUsername, voucher.code);
         if (!radiusResult.accepted) {
@@ -945,7 +959,7 @@ export async function POST(request: NextRequest) {
         return successResponse(
           {
             authenticated: true, method: 'voucher', username: wifiUsername,
-            sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
+            sessionTimeout: voucherSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
             poolName: pool.poolName, message: 'Connected successfully!',
           },
           { username: wifiUsername, password: voucher.code },
@@ -972,7 +986,7 @@ export async function POST(request: NextRequest) {
         }
 
         const bookings = await db.booking.findMany({
-          where: { room: { roomNumber: roomNumber.trim().toUpperCase() }, status: 'in_house' },
+          where: { room: { roomNumber: roomNumber.trim().toUpperCase() }, status: 'checked_in' },
           include: { primaryGuest: true, room: true, roomType: { select: { wifiPlanId: true } } },
           take: 10,
         });

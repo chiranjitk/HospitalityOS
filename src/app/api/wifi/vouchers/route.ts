@@ -172,8 +172,8 @@ export async function POST(request: NextRequest) {    const user = await require
     }
 
     // Verify plan exists
-    const plan = await db.wiFiPlan.findUnique({
-      where: { id: planId },
+    const plan = await db.wiFiPlan.findFirst({
+      where: { id: planId, tenantId },
     });
 
     if (!plan) {
@@ -513,6 +513,25 @@ export async function PUT(request: NextRequest) {    const user = await requireP
       const wifiValidFrom = now;
       const wifiValidUntil = new Date(now.getTime() + (plan.validityMinutes || plan.validityDays * 1440) * 60 * 1000);
 
+      // Enforce max device/session limit before provisioning
+      const maxDevices = (plan as any).maxDevices || plan.sessionLimit || 1;
+      if (maxDevices > 0) {
+        const wifiUserCount = await db.wiFiUser.count({
+          where: {
+            tenantId: voucher.tenantId,
+            guestId: guestId || voucher.guestId,
+            bookingId: bookingId || voucher.bookingId,
+            status: 'active',
+          },
+        });
+        if (wifiUserCount >= maxDevices) {
+          return NextResponse.json(
+            { success: false, error: { code: 'MAX_DEVICES_REACHED', message: `Maximum device limit (${maxDevices}) reached for this guest` } },
+            { status: 400 }
+          );
+        }
+      }
+
       // Provision WiFi user with credentials from plan
       let wifiCredentials: {
         username: string;
@@ -550,9 +569,9 @@ export async function PUT(request: NextRequest) {    const user = await requireP
         );
       }
 
-      // Mark voucher as used ONLY after successful provisioning
-      const updatedVoucher = await db.wiFiVoucher.update({
-        where: { id: voucher.id },
+      // Mark voucher as used ONLY after successful provisioning (atomic check-and-update to prevent race conditions)
+      const updateResult = await db.wiFiVoucher.updateMany({
+        where: { id: voucher.id, isUsed: false },
         data: {
           isUsed: true,
           usedAt: new Date(),
@@ -560,6 +579,12 @@ export async function PUT(request: NextRequest) {    const user = await requireP
           guestId: guestId || voucher.guestId,
           bookingId: bookingId || voucher.bookingId,
         },
+      });
+      if (updateResult.count === 0) {
+        return NextResponse.json({ success: false, error: { code: 'VOUCHER_USED', message: 'Voucher has already been used by another request' } }, { status: 409 });
+      }
+      const updatedVoucher = await db.wiFiVoucher.findFirst({
+        where: { id: voucher.id },
         include: {
           plan: {
             select: {

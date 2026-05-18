@@ -455,10 +455,11 @@ export async function POST(request: NextRequest) {
               select: { id: true, roomId: true, room: { select: { id: true, number: true, floor: true } } },
             });
 
-            // Update room status
+            // Update room status to 'reserved' — NOT 'occupied'.
+            // 'occupied' should only be set at physical check-in to avoid blocking rooms prematurely.
             await tx.room.update({
               where: { id: candidateRoom.id },
-              data: { status: 'occupied' },
+              data: { status: 'reserved' },
             });
 
             return updatedBooking;

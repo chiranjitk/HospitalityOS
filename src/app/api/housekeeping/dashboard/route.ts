@@ -62,24 +62,33 @@ export async function GET(request: NextRequest) {
     const roomsToClean = await db.room.count({
       where: {
         propertyId: { in: propertyIds },
-        status: 'dirty',
-
+        deletedAt: null,
+        OR: [
+          { status: 'dirty' },
+          { housekeepingStatus: 'dirty', status: { not: 'occupied' } },
+        ],
       },
     });
 
     const roomsInProgress = await db.room.count({
       where: {
         propertyId: { in: propertyIds },
-        status: 'cleaning',
-
+        deletedAt: null,
+        OR: [
+          { status: 'cleaning' },
+          { housekeepingStatus: 'cleaning', status: { not: 'occupied' } },
+        ],
       },
     });
 
     const roomsInspected = await db.room.count({
       where: {
         propertyId: { in: propertyIds },
-        status: 'inspected',
-
+        deletedAt: null,
+        OR: [
+          { status: 'inspected' },
+          { housekeepingStatus: 'inspected', status: { not: 'occupied' } },
+        ],
       },
     });
 
