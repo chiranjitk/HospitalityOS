@@ -4,9 +4,8 @@ import crypto from 'crypto';
 
 // Helper to generate transaction ID
 function generateTransactionId(): string {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = crypto.randomBytes(3).toString('hex').toUpperCase();
-  return `TXN-${timestamp}-${random}`;
+  // Generate a proper UUID v4 for the transactionId column (which is UUID type in DB)
+  return crypto.randomUUID();
 }
 
 // GET /api/guest-app/pay - Get payment configuration (gateways available) for a guest booking

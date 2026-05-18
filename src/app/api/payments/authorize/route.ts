@@ -8,9 +8,8 @@ import crypto from 'crypto';
 
 // Helper function to generate transaction ID
 function generateTransactionId(): string {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = crypto.randomBytes(3).toString('hex').toUpperCase();
-  return `TXN-${timestamp}-${random}`;
+  // Generate a proper UUID v4 for the transactionId column (which is UUID type in DB)
+  return crypto.randomUUID();
 }
 
 // POST /api/payments/authorize — Pre-authorize a payment (hold funds, don't capture)

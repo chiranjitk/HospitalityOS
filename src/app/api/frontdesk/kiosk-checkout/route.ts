@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
         roomNumber: updatedBooking.room?.number,
         folioBalance,
         hasBalance: folioBalance > 0,
-        currency: booking.currency || 'USD',
+        currency: booking.currency || 'INR',
         confirmationCode: booking.confirmationCode || '',
         bookingId: booking.id,
       },

@@ -18,7 +18,7 @@ const kioskPaymentSchema = z.object({
   method: z.enum(['cash', 'card', 'upi', 'qr_code'], {
     errorMap: () => ({ message: 'Method must be one of: cash, card, upi, qr_code' }),
   }),
-  currency: z.string().length(3).default('USD'),
+  currency: z.string().length(3).optional(),
 });
 
 // --- Helpers ---
@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
 
             const result = await stripeGateway.processPayment({
               amount,
-              currency: currency || booking.currency || 'USD',
+              currency: currency || booking.currency || 'INR',
               description: `Kiosk payment for booking ${booking.confirmationCode}`,
               token: token as string,
               guestId: booking.primaryGuestId,

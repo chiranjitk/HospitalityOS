@@ -5,9 +5,8 @@ import crypto from 'crypto';
 
 // Generate a transaction ID
 function generateTransactionId(): string {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = crypto.randomBytes(3).toString('hex').toUpperCase();
-  return `TXN-${timestamp}-${random}`;
+  // Generate a proper UUID v4 for the transactionId column (which is UUID type in DB)
+  return crypto.randomUUID();
 }
 
 // POST /api/payments/split - Create multiple payment records in a transaction

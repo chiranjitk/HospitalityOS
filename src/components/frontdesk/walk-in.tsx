@@ -528,6 +528,8 @@ export default function WalkIn() {
         guestId = guestResult.data.id;
       }
 
+      const selectedProperty = properties.find(p => p.id === selectedPropertyId);
+
       const bookingResponse = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -546,6 +548,7 @@ export default function WalkIn() {
           totalAmount,
           taxes,
           fees: serviceCharge,
+          currency: selectedProperty?.currency || 'INR',
           source: 'walk_in',
           status: 'confirmed',
           specialRequests: bookingForm.specialRequests || undefined,

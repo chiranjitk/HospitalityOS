@@ -226,6 +226,7 @@ export default function CheckIn() {
   };
 
   // Fetch booking details with folios for deposit payment creation
+  // If no folio exists, create one automatically
   const fetchBookingDetailsForFolio = async (bookingId: string): Promise<string | null> => {
     try {
       const response = await fetch(`/api/bookings/${bookingId}`);
@@ -237,6 +238,28 @@ export default function CheckIn() {
       if (result.success && result.data.folios && result.data.folios.length > 0) {
         return result.data.folios[0].id;
       }
+
+      // No folio exists — create one automatically
+      if (result.success && result.data) {
+        const booking = result.data;
+        const folioResponse = await fetch('/api/folios', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            propertyId: booking.propertyId,
+            bookingId: booking.id,
+            guestId: booking.primaryGuestId,
+            currency: booking.currency || 'INR',
+          }),
+        });
+        if (folioResponse.ok) {
+          const folioResult = await folioResponse.json();
+          if (folioResult.success && folioResult.data?.id) {
+            return folioResult.data.id;
+          }
+        }
+      }
+
       return null;
     } catch {
       return null;
@@ -289,7 +312,7 @@ export default function CheckIn() {
         folioId,
         guestId: selectedBooking?.primaryGuest.id,
         amount,
-        currency: selectedBooking?.currency || 'USD',
+        currency: selectedBooking?.currency || 'INR',
         method: depositMethod,
         reference: isPreAuth ? 'Pre-Authorization Hold' : 'Check-in Deposit',
         status: isPreAuth ? 'pending' : 'completed',

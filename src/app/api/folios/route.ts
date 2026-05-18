@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
       propertyId,
       bookingId,
       guestId,
-      currency = 'USD',
+      currency = '',
     } = body;
 
     // Validate required fields
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
     // Verify booking exists and belongs to the same tenant
     const booking = await db.booking.findUnique({
       where: { id: bookingId, deletedAt: null },
-      select: { id: true, tenantId: true },
+      select: { id: true, tenantId: true, currency: true },
     });
 
     if (!booking) {
@@ -186,6 +186,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Resolve currency from booking if not provided
+    const resolvedCurrency = currency || booking?.currency || 'INR';
+
     // Check if folio already exists for this booking
     const existingFolio = await db.folio.findFirst({
       where: { bookingId },
@@ -208,7 +211,7 @@ export async function POST(request: NextRequest) {
         bookingId,
         guestId,
         folioNumber,
-        currency,
+        currency: resolvedCurrency,
         status: 'open',
       },
       include: {

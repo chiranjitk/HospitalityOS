@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
       fees = 0,
       discount = 0,
       totalAmount = 0,
-      currency = 'USD',
+      currency = '',
       ratePlanId,
       promoCode,
       source = 'direct',
@@ -304,13 +304,18 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Verify property belongs to tenant
+    // Verify property belongs to tenant and get its currency
     const propCheck = await db.property.findFirst({
       where: { id: propertyId, tenantId },
-      select: { id: true },
+      select: { id: true, currency: true },
     });
     if (!propCheck) {
       return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Property not found for this tenant' } }, { status: 400 });
+    }
+
+    // Resolve currency from property if not explicitly provided
+    if (!currency && propCheck.currency) {
+      finalCurrency = propCheck.currency;
     }
 
     // Get tenant's timezone for timezone-aware date validation

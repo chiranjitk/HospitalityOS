@@ -12,9 +12,8 @@ import { fireAutomationEvent } from '@/lib/automation/hooks';
 
 // Helper function to generate transaction ID
 function generateTransactionId(): string {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = crypto.randomBytes(3).toString('hex').toUpperCase();
-  return `TXN-${timestamp}-${random}`;
+  // Generate a proper UUID v4 for the transactionId column (which is UUID type in DB)
+  return crypto.randomUUID();
 }
 
 // GET /api/payments - List all payments with filtering and pagination
@@ -190,7 +189,7 @@ export async function POST(request: NextRequest) {
       folioId,
       guestId,
       amount,
-      currency = 'USD',
+      currency = '',
       method,
       gateway: preferredGateway,
       cardData,
@@ -248,6 +247,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Resolve currency from folio if not explicitly provided
+    const resolvedCurrency = currency || folio.currency || 'INR';
+
     // SECURITY FIX (P-01): Overpayment guard. Prevent payments that exceed
     // the outstanding folio balance, which would make the balance deeply negative
     // and enable revenue leakage.
@@ -271,7 +273,7 @@ export async function POST(request: NextRequest) {
     const fraudResult = await evaluateTransaction({
       tenantId,
       amount,
-      currency,
+      currency: resolvedCurrency,
       userId: guestId || user.id,
       ip: clientIp,
       paymentMethod: method,
@@ -285,7 +287,7 @@ export async function POST(request: NextRequest) {
           folioId,
           guestId: guestId || null,
           amount,
-          currency,
+          currency: resolvedCurrency,
           method,
           transactionId: generateTransactionId(),
           reference,
@@ -340,7 +342,7 @@ export async function POST(request: NextRequest) {
     if (method === 'card' && (cardData || token)) {
       const paymentRequest: PaymentRequest = {
         amount,
-        currency,
+        currency: resolvedCurrency,
         description: description || `Payment for folio ${folio.folioNumber}`,
         token,
         cardData,
@@ -384,7 +386,7 @@ export async function POST(request: NextRequest) {
             folioId,
             guestId: guestId || null,
             amount,
-            currency,
+            currency: resolvedCurrency,
             method,
             gateway,
             gatewayRef,
@@ -441,7 +443,7 @@ export async function POST(request: NextRequest) {
           folioId,
           guestId: guestId || null,
           amount,
-          currency,
+          currency: resolvedCurrency,
           method,
           gateway,
           gatewayRef,
@@ -523,7 +525,7 @@ export async function POST(request: NextRequest) {
     try {
       await logPayment(request, 'payment', payment.id, {
         amount,
-        currency,
+        currency: resolvedCurrency,
         method,
         gateway,
         transactionId,
