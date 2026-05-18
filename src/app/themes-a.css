@@ -684,7 +684,7 @@ html.dark[data-theme="minimalist"],
     0 0 20px oklch(0.75 0.18 195 / 0.3),
     0 0 40px oklch(0.70 0.25 330 / 0.15),
     inset 0 0 20px oklch(0.75 0.18 195 / 0.05) !important;
-  transition: all 0.3s ease;
+  transition-property: border-color, box-shadow, transform;
   position: relative;
 }
 
@@ -715,7 +715,7 @@ html.dark[data-theme="minimalist"],
 
 /* Buttons - Neon glow */
 [data-theme="cyber-neon"] [data-slot="button"] {
-  transition: all 0.3s ease;
+  transition-property: border-color, box-shadow, transform;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -747,7 +747,7 @@ html.dark[data-theme="minimalist"],
 [data-theme="cyber-neon"] [data-slot="input"] {
   border: 2px solid oklch(0.75 0.18 195 / 0.3) !important;
   background: oklch(0.98 0.01 195 / 0.5) !important;
-  transition: all 0.3s ease;
+  transition-property: border-color, box-shadow, transform;
 }
 
 [data-theme="cyber-neon"] [data-slot="input"]:focus {
@@ -804,7 +804,7 @@ html.dark[data-theme="minimalist"],
 }
 
 [data-theme="cyber-neon"] [data-slot="tabs-trigger"] {
-  transition: all 0.3s ease;
+  transition-property: border-color, box-shadow, transform;
 }
 
 [data-theme="cyber-neon"] [data-slot="tabs-trigger"][data-state="active"] {
@@ -844,7 +844,7 @@ html.dark[data-theme="minimalist"],
   box-shadow: 
     0 4px 20px -4px oklch(0.65 0.14 350 / 0.2),
     0 0 40px oklch(0.70 0.10 40 / 0.1) !important;
-  transition: all 0.3s ease;
+  transition-property: border-color, box-shadow, transform;
 }
 
 [data-theme="sakura-pink"] [data-slot="card"]:hover {
@@ -865,7 +865,7 @@ html.dark[data-theme="minimalist"],
   background: linear-gradient(135deg, oklch(0.65 0.14 350), oklch(0.70 0.10 40)) !important;
   border: none !important;
   box-shadow: 0 4px 15px oklch(0.65 0.14 350 / 0.35) !important;
-  transition: all 0.3s ease;
+  transition-property: border-color, box-shadow, transform;
 }
 
 [data-theme="sakura-pink"] [data-slot="button"]:not([class*="ghost"]):not([class*="link"]):not([class*="outline"]):hover {
@@ -951,7 +951,7 @@ html.dark[data-theme="minimalist"],
 [data-theme="gradient-modern"] [data-slot="card"] {
   border: 1px solid oklch(0.50 0.20 275 / 0.25) !important;
   box-shadow: 0 4px 20px -4px oklch(0.50 0.20 275 / 0.2) !important;
-  transition: all 0.3s ease;
+  transition-property: border-color, box-shadow, transform;
   position: relative;
 }
 
@@ -986,7 +986,7 @@ html.dark[data-theme="minimalist"],
   background: linear-gradient(135deg, oklch(0.50 0.20 275), oklch(0.45 0.18 290)) !important;
   border: none !important;
   box-shadow: 0 4px 15px oklch(0.50 0.20 275 / 0.35) !important;
-  transition: all 0.3s ease;
+  transition-property: border-color, box-shadow, transform;
 }
 
 [data-theme="gradient-modern"] [data-slot="button"]:not([class*="ghost"]):not([class*="link"]):not([class*="outline"]):hover {
@@ -1056,7 +1056,7 @@ html.dark[data-theme="minimalist"],
 [data-theme="dark-premium"] [data-slot="card"] {
   border: 1px solid oklch(0.78 0.15 75 / 0.3) !important;
   box-shadow: 0 4px 20px -4px oklch(0.78 0.15 75 / 0.2) !important;
-  transition: all 0.3s ease;
+  transition-property: border-color, box-shadow, transform;
   position: relative;
 }
 
@@ -1088,7 +1088,7 @@ html.dark[data-theme="minimalist"],
   color: oklch(0.15 0.02 75) !important;
   border: none !important;
   box-shadow: 0 4px 15px oklch(0.78 0.15 75 / 0.35) !important;
-  transition: all 0.3s ease;
+  transition-property: border-color, box-shadow, transform;
 }
 
 [data-theme="dark-premium"] [data-slot="button"]:not([class*="ghost"]):not([class*="link"]):not([class*="outline"]):hover {
@@ -1164,7 +1164,9 @@ html.dark[data-theme="minimalist"],
   border: none !important;
   box-shadow: var(--neu-shadow-outset) !important;
   background: var(--background) !important;
-  transition: all 0.2s ease;
+  transition-property: border-color, box-shadow, transform;
+  transition-duration: 0.2s;
+  transition-timing-function: ease;
 }
 
 [data-theme="neumorphism"] [data-slot="card"]:hover {
@@ -1176,7 +1178,9 @@ html.dark[data-theme="minimalist"],
   border: none !important;
   box-shadow: 4px 4px 10px var(--neu-shadow-dark), -4px -4px 10px var(--neu-shadow-light) !important;
   background: var(--background) !important;
-  transition: all 0.15s ease;
+  transition-property: border-color, box-shadow, transform;
+  transition-duration: 0.15s;
+  transition-timing-function: ease;
 }
 
 [data-theme="neumorphism"] [data-slot="button"]:not([class*="ghost"]):not([class*="link"]):not([class*="outline"]):hover {
@@ -1569,7 +1573,7 @@ html.dark[data-theme="minimalist"] [data-slot="slider-track"],
   -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
   border: 1px solid oklch(1 0 0 / 0.25) !important;
   box-shadow: 0 8px 32px oklch(0 0 0 / 0.08) !important;
-  transition: all 0.3s ease !important;
+  transition-property: border-color, box-shadow, transform !important;
 }
 .dark [data-glass="true"] [data-slot="card"] {
   background: oklch(0.18 0.01 250 / 0.5) !important;
@@ -1618,7 +1622,7 @@ html.dark[data-theme="minimalist"] [data-slot="slider-track"],
 [data-neon="true"] [data-slot="card"] {
   border: 2px solid color-mix(in oklch, var(--primary), transparent 0.5) !important;
   box-shadow: 0 0 20px color-mix(in oklch, var(--primary), transparent 0.2), 0 0 40px color-mix(in oklch, var(--primary), transparent 0.1), inset 0 0 20px color-mix(in oklch, var(--primary), transparent 0.03) !important;
-  transition: all 0.3s ease !important;
+  transition-property: border-color, box-shadow, transform !important;
 }
 [data-neon="true"] [data-slot="card"]:hover {
   border-color: color-mix(in oklch, var(--primary), transparent 0.8) !important;
@@ -1627,7 +1631,7 @@ html.dark[data-theme="minimalist"] [data-slot="slider-track"],
 }
 [data-neon="true"] [data-slot="button"]:not([class*="ghost"]):not([class*="link"]):not([class*="outline"]) {
   box-shadow: 0 0 15px color-mix(in oklch, var(--primary), transparent 0.4), inset 0 1px 0 oklch(1 0 0 / 0.2) !important;
-  transition: all 0.3s ease !important;
+  transition-property: border-color, box-shadow, transform !important;
 }
 [data-neon="true"] [data-slot="button"]:not([class*="ghost"]):not([class*="link"]):not([class*="outline"]):hover {
   box-shadow: 0 0 25px color-mix(in oklch, var(--primary), transparent 0.6), 0 0 50px color-mix(in oklch, var(--primary), transparent 0.3), inset 0 1px 0 oklch(1 0 0 / 0.3) !important;
@@ -1650,7 +1654,7 @@ html.dark[data-theme="minimalist"] [data-slot="slider-track"],
 [data-gradients="true"] [data-slot="card"] {
   border: 1px solid color-mix(in oklch, var(--primary), transparent 0.2) !important;
   box-shadow: 0 4px 20px -4px color-mix(in oklch, var(--primary), transparent 0.15) !important;
-  transition: all 0.3s ease !important;
+  transition-property: border-color, box-shadow, transform !important;
   position: relative;
 }
 [data-gradients="true"] [data-slot="card"]::after {
@@ -1670,7 +1674,7 @@ html.dark[data-theme="minimalist"] [data-slot="slider-track"],
   background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end)) !important;
   border: none !important;
   box-shadow: 0 4px 15px color-mix(in oklch, var(--primary), transparent 0.3) !important;
-  transition: all 0.3s ease !important;
+  transition-property: border-color, box-shadow, transform !important;
 }
 [data-gradients="true"] [data-slot="button"]:not([class*="ghost"]):not([class*="link"]):not([class*="outline"]):hover {
   box-shadow: 0 6px 25px color-mix(in oklch, var(--primary), transparent 0.4) !important;
@@ -1687,7 +1691,7 @@ html.dark[data-theme="minimalist"] [data-slot="slider-track"],
 /* --- SOFT SHADOWS (softShadows: true) --- */
 [data-soft-shadows="true"] [data-slot="card"] {
   box-shadow: 0 4px 24px -4px color-mix(in oklch, var(--primary), transparent 0.12), 0 2px 8px -2px oklch(0 0 0 / 0.06) !important;
-  transition: all 0.3s ease !important;
+  transition-property: border-color, box-shadow, transform !important;
 }
 [data-soft-shadows="true"] [data-slot="card"]:hover {
   box-shadow: 0 12px 40px -8px color-mix(in oklch, var(--primary), transparent 0.18), 0 4px 12px -4px oklch(0 0 0 / 0.08) !important;
@@ -1707,6 +1711,8 @@ html.dark[data-theme="minimalist"] [data-slot="slider-track"],
 
 /* --- GLOBAL CARD HOVER EFFECT (for all themes) --- */
 [data-slot="card"] {
-  transition: all 0.3s ease !important;
+  transition-property: border-color, box-shadow, transform !important;
+  transition-duration: 0.3s !important;
+  transition-timing-function: ease !important;
 }
 
