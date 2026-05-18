@@ -44,16 +44,17 @@ function TabSkeleton() {
   );
 }
 
-// ─── RADIUS Server Status Card ──────────────────────────────────────────────
+// ─── RADIUS + Quick Actions (inline compact) ────────────────────────────────
 
-function RADIUSStatusCard() {
+function RADIUSQuickActions({ onRefresh, onSwitchToVouchers }: { onRefresh: () => void; onSwitchToVouchers: () => void }) {
+  const { toast } = useToast();
+  const [isSyncing, setIsSyncing] = useState(false);
   const [radiusStatus, setRadiusStatus] = useState<{
     connected: boolean;
     usersSynced: number;
     lastSync: string | null;
-    authPort: number;
-  }>({ connected: false, usersSynced: 0, lastSync: null, authPort: 1812 });
-  const [isLoading, setIsLoading] = useState(true);
+  }>({ connected: false, usersSynced: 0, lastSync: null });
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -65,7 +66,6 @@ function RADIUSStatusCard() {
             connected: data.data.installed && data.data.running,
             usersSynced: data.data.userCount || 0,
             lastSync: new Date().toISOString(),
-            authPort: 1812,
           });
         } else {
           setRadiusStatus(prev => ({ ...prev, connected: false }));
@@ -73,7 +73,7 @@ function RADIUSStatusCard() {
       } catch {
         setRadiusStatus(prev => ({ ...prev, connected: false }));
       } finally {
-        setIsLoading(false);
+        setIsChecking(false);
       }
     };
     checkStatus();
@@ -81,99 +81,7 @@ function RADIUSStatusCard() {
     return () => clearInterval(interval);
   }, []);
 
-  const isOnline = radiusStatus.connected && !isLoading;
-
-  return (
-    <div className={cn('relative rounded-xl', isOnline && 'wifi-mesh-bg')}>
-      {/* Animated gradient border — pulses when online */}
-      {isOnline && <div className="wifi-pulse-border rounded-xl" />}
-      {/* Top gradient status bar — flows when online */}
-      {isOnline && <div className="wifi-status-bar rounded-t-xl" />}
-      <Card className={cn(
-        'border-0 rounded-xl transition-all duration-300',
-        isOnline
-          ? 'shadow-md hover:shadow-lg bg-emerald-50/30 dark:bg-emerald-950/10'
-          : 'shadow-sm hover:shadow-md'
-      )}>
-        <CardContent className="p-4 relative z-10">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className={cn(
-                'flex items-center justify-center h-9 w-9 rounded-lg transition-colors',
-                isOnline
-                  ? 'bg-emerald-100 dark:bg-emerald-900/30'
-                  : 'bg-muted'
-              )}>
-                <Server className={cn(
-                  'h-4.5 w-4.5',
-                  isOnline
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-muted-foreground'
-                )} />
-              </div>
-              <div className="flex flex-col gap-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">RADIUS Server</span>
-                  {isOnline && (
-                    <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded-full">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 wifi-live-dot" />
-                      LIVE
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono tabular-nums">
-                  <span>{radiusStatus.usersSynced} users</span>
-                  <span className="text-border/60">·</span>
-                  <span>Port {radiusStatus.authPort}</span>
-                  {radiusStatus.lastSync && (
-                    <>
-                      <span className="text-border/60">·</span>
-                      <span>Last sync {new Date(radiusStatus.lastSync).toLocaleTimeString()}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-            <Badge
-              variant="outline"
-              className={cn(
-                'text-[10px] font-semibold px-2.5 py-1 rounded-full shrink-0 transition-all duration-300',
-                isLoading
-                  ? 'border-muted-foreground/30 text-muted-foreground'
-                  : radiusStatus.connected
-                    ? 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:bg-emerald-950/30 badge-glow-success'
-                    : 'border-red-300 text-red-700 bg-red-50 dark:border-red-700 dark:text-red-400 dark:bg-red-950/30'
-              )}
-            >
-              {isLoading ? (
-                <span className="flex items-center gap-1">
-                  <RefreshCw className="h-2.5 w-2.5 animate-spin" />
-                  Checking
-                </span>
-              ) : radiusStatus.connected ? (
-                <span className="flex items-center gap-1">
-                  <ShieldCheck className="h-2.5 w-2.5" />
-                  Connected
-                </span>
-              ) : (
-                <span className="flex items-center gap-1">
-                  <ShieldAlert className="h-2.5 w-2.5" />
-                  Offline
-                </span>
-              )}
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// ─── WiFi Quick Actions ──────────────────────────────────────────────────────
-
-function WiFiQuickActions({ onRefresh, onSwitchToVouchers }: { onRefresh: () => void; onSwitchToVouchers: () => void }) {
-  const { toast } = useToast();
-  const [isSyncing, setIsSyncing] = useState(false);
+  const isOnline = radiusStatus.connected && !isChecking;
 
   const handleSyncUsers = async () => {
     setIsSyncing(true);
@@ -197,7 +105,36 @@ function WiFiQuickActions({ onRefresh, onSwitchToVouchers }: { onRefresh: () => 
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 mb-4">
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Compact RADIUS status pill */}
+      <div className={cn(
+        'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border',
+        isOnline
+          ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+          : 'bg-muted/50 border-border/50 text-muted-foreground'
+      )}>
+        <Server className="h-3 w-3" />
+        <span className="font-semibold">RADIUS</span>
+        {isChecking ? (
+          <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+        ) : isOnline ? (
+          <>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span>{radiusStatus.usersSynced} users</span>
+            <ShieldCheck className="h-2.5 w-2.5" />
+          </>
+        ) : (
+          <>
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+            <span>Offline</span>
+          </>
+        )}
+      </div>
+
+      {/* Spacer */}
+      <div className="flex-1" />
+
+      {/* Action buttons */}
       <Button
         size="sm"
         className="wifi-btn-sync rounded-lg text-xs font-semibold"
@@ -338,14 +275,9 @@ export function WifiAccessPage() {
         )}
       </div>
 
-      {/* RADIUS Server Status */}
-      <div className="animate-fade-in-up relative z-10">
-        <RADIUSStatusCard />
-      </div>
-
-      {/* Quick Actions */}
+      {/* RADIUS Status + Quick Actions (inline) */}
       <div className="relative z-10">
-        <WiFiQuickActions onRefresh={handleRefresh} onSwitchToVouchers={handleSwitchToVouchers} />
+        <RADIUSQuickActions onRefresh={handleRefresh} onSwitchToVouchers={handleSwitchToVouchers} />
       </div>
 
       {/* Tab Switcher */}
