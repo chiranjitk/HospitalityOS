@@ -1932,7 +1932,7 @@ function PortalContent() {
 
   const [portalConfig, setPortalConfig] = useState<PortalConfig | null>(null);
   const [design, setDesign] = useState<PortalDesignConfig>(DEFAULT_PORTAL_DESIGN);
-  const [state, setState] = useState<PortalState>('auth_form');
+  const [state, setState] = useState<PortalState>('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const [authResult, setAuthResult] = useState<AuthResult | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -2295,8 +2295,20 @@ function PortalContent() {
   }, [bodyBg, design.fontFamily]);
 
   // ── Loading state ──
-  // ── No loading gate — portal renders immediately with DEFAULT_PORTAL_DESIGN, ──
-  // ── then seamlessly transitions to the real config when it arrives.     ──
+  if (state === 'loading') {
+    return (
+      <PortalLanguageContext.Provider value={effectiveLanguage}>
+        <div className="min-h-screen flex items-center justify-center" style={bgStyle}>
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: dark ? '#ffffff' : design.textColor }} />
+            <p className="text-sm" style={{ color: dark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)' }}>
+              {getUIString(effectiveLanguage, 'loadingPortal')}
+            </p>
+          </div>
+        </div>
+      </PortalLanguageContext.Provider>
+    );
+  }
 
   const isVoucherPrefill = codeParam && effectiveAuthMethod === 'voucher';
   const canSubmit = !portalConfig?.termsRequired || termsAccepted;
@@ -2976,10 +2988,10 @@ export function WifiConnectPortal() {
     <Suspense
       fallback={
         <PortalLanguageContext.Provider value="en">
-          <div className="min-h-screen flex items-center justify-center" style={getBackgroundStyle(DEFAULT_PORTAL_DESIGN)}>
+          <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0ea5e9, #065f46)' }}>
             <div className="flex flex-col items-center gap-3">
-              <Loader2 className="w-8 h-8 animate-spin" style={{ color: DEFAULT_PORTAL_DESIGN.textColor }} />
-              <p className="text-sm" style={{ color: 'rgba(0,0,0,0.5)' }}>{getUIString('en', 'loadingPortal')}</p>
+              <Loader2 className="w-8 h-8 text-white animate-spin" />
+              <p className="text-white/80 text-sm">{getUIString('en', 'loadingPortal')}</p>
             </div>
           </div>
         </PortalLanguageContext.Provider>
