@@ -361,71 +361,114 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
       data: { status: 'completed', completedAt: new Date(), performedBy: userId, result: JSON.stringify({ scheduledChargesPosted: summary.scheduledChargesPosted, scheduledChargeTotal: summary.scheduledChargeTotal }) },
     });
 
-    // ── Step 3: Process no-shows ──
+    // ── Step 3: Process no-shows (with configurable buffer from Property.noShowSettings) ──
     const tomorrow = new Date(startOfDay);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const noShows = await tx.booking.findMany({
-      where: {
-        tenantId: audit.tenantId,
-        propertyId: audit.propertyId,
-        status: 'confirmed',
-        checkIn: { gte: startOfDay, lt: tomorrow },
-        actualCheckIn: null,
-        cancelledAt: null,
-      },
-      include: {
-        primaryGuest: { select: { id: true, firstName: true, lastName: true } },
-        folios: { where: { status: 'open' }, select: { id: true } },
-        room: { select: { id: true, number: true } },
-      },
-    });
-
-    for (const booking of noShows) {
-      const policy = await tx.cancellationPolicy.findFirst({
-        where: { tenantId: audit.tenantId, isActive: true, OR: [{ propertyId: audit.propertyId }, { propertyId: null }] },
+    // GAP-002: Read no-show settings from the property
+    let noShowBufferHours = 1;
+    let autoProcessNoShows = true;
+    try {
+      const propertySettings = await tx.property.findUnique({
+        where: { id: audit.propertyId },
+        select: { noShowSettings: true },
       });
-
-      const penaltyPercent = policy?.noShowPenaltyPercent ?? 100;
-      const penaltyAmount = booking.totalAmount * (penaltyPercent / 100);
-
-      if (penaltyAmount > 0 && booking.folios[0]) {
-        await tx.folioLineItem.create({
-          data: {
-            folioId: booking.folios[0].id,
-            description: `No-show penalty (${penaltyPercent}%)`,
-            category: 'penalty',
-            quantity: 1,
-            unitPrice: penaltyAmount,
-            totalAmount: penaltyAmount,
-            serviceDate: audit.businessDayDate,
-            referenceType: 'NightAudit',
-            referenceId: audit.id,
-            postedBy: 'system',
-          },
-        });
-        await tx.folio.update({
-          where: { id: booking.folios[0].id },
-          data: { subtotal: { increment: penaltyAmount }, totalAmount: { increment: penaltyAmount }, balance: { increment: penaltyAmount } },
-        });
-        summary.noShowRevenue += penaltyAmount;
+      if (propertySettings?.noShowSettings) {
+        const parsed = JSON.parse(propertySettings.noShowSettings);
+        noShowBufferHours = parsed.noShowBufferHours ?? 1;
+        autoProcessNoShows = parsed.autoProcessNoShows ?? true;
       }
-
-      await tx.booking.update({
-        where: { id: booking.id },
-        data: { status: 'no_show', cancelledAt: new Date(), cancelledBy: 'system', cancellationReason: 'No-show - auto-processed during night audit' },
-      });
-
-      if (booking.roomId) {
-        await tx.room.update({
-          where: { id: booking.roomId },
-          data: { status: 'dirty', housekeepingStatus: 'dirty' },
-        });
-        noshowRoomIds.push(booking.roomId);
-      }
-
-      summary.noShowsProcessed++;
+    } catch (parseError) {
+      console.warn('[NightAudit] Failed to parse noShowSettings, using defaults:', parseError);
     }
+
+    if (!autoProcessNoShows) {
+      // Skip no-show processing — log that it was skipped
+      console.log(`[NightAudit] No-show processing skipped: autoProcessNoShows is false for property ${audit.propertyId}`);
+      await tx.nightAuditLog.create({
+        data: {
+          nightAuditId: audit.id,
+          action: 'noshow_skipped',
+          entityType: 'Booking',
+          entityId: audit.id,
+          newValue: `No-show processing skipped: autoProcessNoShows is disabled for this property (buffer: ${noShowBufferHours}h)`,
+          performedBy: userId,
+        },
+      });
+    } else {
+      console.log(`[NightAudit] Processing no-shows with buffer: ${noShowBufferHours}h for property ${audit.propertyId}`);
+
+      const noShows = await tx.booking.findMany({
+        where: {
+          tenantId: audit.tenantId,
+          propertyId: audit.propertyId,
+          status: 'confirmed',
+          checkIn: { gte: startOfDay, lt: tomorrow },
+          actualCheckIn: null,
+          cancelledAt: null,
+        },
+        include: {
+          primaryGuest: { select: { id: true, firstName: true, lastName: true } },
+          folios: { where: { status: 'open' }, select: { id: true } },
+          room: { select: { id: true, number: true } },
+        },
+      });
+
+      // Filter: only mark as no-show if checkIn time + buffer has passed
+      const now = new Date();
+      const applicableNoShows = noShows.filter(booking => {
+        const bufferExpiry = new Date(booking.checkIn.getTime() + noShowBufferHours * 60 * 60 * 1000);
+        return bufferExpiry < now;
+      });
+
+      console.log(`[NightAudit] Found ${noShows.length} potential no-shows, ${applicableNoShows.length} past ${noShowBufferHours}h buffer`);
+
+      for (const booking of applicableNoShows) {
+        const policy = await tx.cancellationPolicy.findFirst({
+          where: { tenantId: audit.tenantId, isActive: true, OR: [{ propertyId: audit.propertyId }, { propertyId: null }] },
+        });
+
+        const penaltyPercent = policy?.noShowPenaltyPercent ?? 100;
+        const penaltyAmount = booking.totalAmount * (penaltyPercent / 100);
+
+        if (penaltyAmount > 0 && booking.folios[0]) {
+          await tx.folioLineItem.create({
+            data: {
+              folioId: booking.folios[0].id,
+              description: `No-show penalty (${penaltyPercent}%)`,
+              category: 'penalty',
+              quantity: 1,
+              unitPrice: penaltyAmount,
+              totalAmount: penaltyAmount,
+              serviceDate: audit.businessDayDate,
+              referenceType: 'NightAudit',
+              referenceId: audit.id,
+              postedBy: 'system',
+            },
+          });
+          await tx.folio.update({
+            where: { id: booking.folios[0].id },
+            data: { subtotal: { increment: penaltyAmount }, totalAmount: { increment: penaltyAmount }, balance: { increment: penaltyAmount } },
+          });
+          summary.noShowRevenue += penaltyAmount;
+        }
+
+        await tx.booking.update({
+          where: { id: booking.id },
+          data: { status: 'no_show', cancelledAt: new Date(), cancelledBy: 'system', cancellationReason: 'No-show - auto-processed during night audit' },
+        });
+
+        if (booking.roomId) {
+          await tx.room.update({
+            where: { id: booking.roomId },
+            data: { status: 'dirty', housekeepingStatus: 'dirty' },
+          });
+          noshowRoomIds.push(booking.roomId);
+        }
+
+        summary.noShowsProcessed++;
+      }
+    } // end of else (autoProcessNoShows)
 
     await tx.nightAuditStep.updateMany({
       where: { nightAuditId: audit.id, stepName: 'Process no-shows' },

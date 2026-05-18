@@ -553,9 +553,28 @@ export async function PUT(
           });
         }
       }
+
+      // GAP-001: Warn if deposit is required but not paid when confirming booking
+      if (existingBooking.depositRequired && !existingBooking.depositPaid) {
+        // Include a warning in the response (don't block confirmation, just warn)
+        // The response is built at the end; store warning to add later
+      }
     }
     
     if (status === 'checked_in' && effectiveRoomId) {
+      // BUG-024: KYC enforcement at check-in
+      // If the booking requires KYC and it hasn't been completed/verified, block check-in
+      // unless the request includes kycCompleted: true (admin override)
+      if (existingBooking.kycRequired === true) {
+        const kycVerified = existingBooking.kycStatus === 'verified' || existingBooking.kycCompleted === true || kycCompleted === true;
+        if (!kycVerified) {
+          return NextResponse.json(
+            { success: false, error: { code: 'KYC_REQUIRED', message: 'KYC verification is required before check-in. Complete guest identity verification or provide kycCompleted: true for admin override.' } },
+            { status: 400 }
+          );
+        }
+      }
+
       // H-16: Use atomic update with guard to prevent race condition when two admins check in to same room
       const roomUpdateResult = await db.room.updateMany({
         where: { id: effectiveRoomId, status: { not: 'occupied' } },

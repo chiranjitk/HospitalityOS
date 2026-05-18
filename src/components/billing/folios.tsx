@@ -51,6 +51,7 @@ import {
   Eye,
   Trash2,
   Receipt,
+  Bell,
   Calendar,
   User,
   Building2,
@@ -962,6 +963,76 @@ const t = useTranslations('billing');
                 <Zap className="h-4 w-4 mr-2" />
               )}
               Post Room Charges Now
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* GAP-003: Payment Reminders Section */}
+      <Card className="border-dashed border-amber-200 dark:border-amber-800">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-rose-500/10 shrink-0">
+                <Bell className="h-4 w-4 text-rose-500 dark:text-rose-400" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-medium">Payment Reminders</h3>
+                  <Badge variant="outline" className="text-xs font-normal text-amber-600 dark:text-amber-400">
+                    Outstanding Balances
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Send payment reminders to guests with outstanding folio balances
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/payment-reminders?limit=10');
+                  const result = await res.json();
+                  if (result.success && result.data.length > 0) {
+                    const folioIds = result.data.map((r: { folioId: string }) => r.folioId);
+                    const sendRes = await fetch('/api/payment-reminders', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ folioIds, method: 'email' }),
+                    });
+                    const sendResult = await sendRes.json();
+                    if (sendResult.success) {
+                      toast({
+                        title: 'Reminders Sent',
+                        description: `${sendResult.data.remindersSent} payment reminder(s) sent successfully`,
+                      });
+                    } else {
+                      toast({
+                        title: 'Error',
+                        description: 'Failed to send payment reminders',
+                        variant: 'destructive',
+                      });
+                    }
+                  } else {
+                    toast({
+                      title: 'No Outstanding Balances',
+                      description: 'All folios are fully paid',
+                    });
+                  }
+                } catch {
+                  toast({
+                    title: 'Error',
+                    description: 'Failed to send payment reminders',
+                    variant: 'destructive',
+                  });
+                }
+              }}
+              className="shrink-0"
+            >
+              <Bell className="h-4 w-4 mr-2" />
+              Send Reminders
             </Button>
           </div>
         </CardContent>

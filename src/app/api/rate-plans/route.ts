@@ -390,6 +390,25 @@ export async function PUT(request: NextRequest) {    const user = await requireP
       );
     }
 
+    // GAP-004: Check for duplicate code when code is being changed
+    if (updates.code) {
+      // Check uniqueness across the entire tenant (not just room type)
+      const duplicatePlan = await db.ratePlan.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          code: updates.code,
+          deletedAt: null,
+          id: { not: id },
+        },
+      });
+      if (duplicatePlan) {
+        return NextResponse.json(
+          { success: false, error: { code: 'DUPLICATE_CODE', message: 'A rate plan with this code already exists within this tenant' } },
+          { status: 400 }
+        );
+      }
+    }
+
     // Validate discount values if provided
     if (updates.discountPercent !== undefined && (updates.discountPercent < 0 || updates.discountPercent > 100)) {
       return NextResponse.json(

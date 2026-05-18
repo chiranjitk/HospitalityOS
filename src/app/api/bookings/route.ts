@@ -253,6 +253,7 @@ export async function POST(request: NextRequest) {
       lockSessionId, // Session ID from the lock (if booking from a locked session)
       skipLockCheck = false, // Skip lock check for internal operations
       usePricingEngine = false, // Use pricing engine to calculate prices
+      depositPayment, // GAP-001: Deposit payment at booking confirmation (optional)
     } = data;
 
     // Validate required fields
@@ -710,6 +711,86 @@ export async function POST(request: NextRequest) {
           balance: safeTotal,
         },
       });
+
+      // GAP-001: Deposit collection at booking confirmation
+      // Check if the property requires a deposit (via depositPolicy in property settings)
+      let depositRequired = false;
+      let calculatedDepositAmount = 0;
+      try {
+        const propertyWithSettings = await tx.property.findUnique({
+          where: { id: propertyId },
+          select: { settings: true },
+        });
+        // Parse property settings for deposit policy
+        let depositPercent = 0;
+        if (propertyWithSettings?.settings) {
+          try {
+            const settings = JSON.parse(propertyWithSettings.settings as string);
+            depositPercent = settings?.depositPolicy?.percentage || 0;
+          } catch { /* ignore parse error */ }
+        }
+        if (depositPercent > 0 && safeTotal > 0) {
+          depositRequired = true;
+          calculatedDepositAmount = Math.round(safeTotal * (depositPercent / 100) * 100) / 100;
+        }
+      } catch (depositError) {
+        console.error('[Booking Create] Error checking deposit policy:', depositError);
+      }
+
+      // If deposit is required, add a deposit line item and update booking
+      if (depositRequired && calculatedDepositAmount > 0) {
+        await tx.folioLineItem.create({
+          data: {
+            folioId: folio.id,
+            description: `Deposit Required (${calculatedDepositAmount} due)`,
+            category: 'deposit',
+            quantity: 1,
+            unitPrice: calculatedDepositAmount,
+            totalAmount: calculatedDepositAmount,
+            serviceDate: checkInDate,
+            postedBy: 'system',
+          },
+        });
+
+        await tx.booking.update({
+          where: { id: newBooking.id },
+          data: {
+            depositRequired: true,
+            depositAmount: calculatedDepositAmount,
+            depositDeadline: new Date(checkInDate.getTime() - 24 * 60 * 60 * 1000), // 1 day before check-in
+          },
+        });
+      }
+
+      // If depositPayment is provided, create a payment record and mark deposit as paid
+      if (depositPayment && depositRequired && calculatedDepositAmount > 0) {
+        const paymentAmount = Math.min(Number(depositPayment.amount) || calculatedDepositAmount, calculatedDepositAmount);
+        await tx.payment.create({
+          data: {
+            tenantId,
+            propertyId,
+            folioId: folio.id,
+            amount: paymentAmount,
+            method: depositPayment.method || 'cash',
+            status: 'completed',
+            reference: depositPayment.reference || `Deposit for ${newBooking.confirmationCode}`,
+            processedBy: user.id,
+          },
+        });
+        await tx.booking.update({
+          where: { id: newBooking.id },
+          data: { depositPaid: true },
+        });
+        // Update folio paid amount
+        await tx.folio.update({
+          where: { id: folio.id },
+          data: {
+            paidAmount: { increment: paymentAmount },
+            balance: Math.max(0, safeTotal - paymentAmount),
+            status: paymentAmount >= safeTotal ? 'paid' : (paymentAmount > 0 ? 'partially_paid' : 'open'),
+          },
+        });
+      }
 
       // Auto-create GuestStay record for stay history tracking
       await tx.guestStay.create({

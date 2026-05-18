@@ -72,6 +72,7 @@ export async function GET(request: NextRequest) {
       },
       select: {
         id: true,
+        propertyId: true,
         checkIn: true,
         checkOut: true,
         totalAmount: true,
@@ -541,6 +542,62 @@ export async function GET(request: NextRequest) {
       ? ((occupancyRate / 100) - (prevOccupiedRooms / totalRooms)) * 100 
       : 0;
 
+    // GAP-005: Multi-property dashboard - break down key metrics by property
+    const propertyMetrics = await Promise.all(properties.map(async (prop) => {
+      const propRooms = await db.room.count({ where: { propertyId: prop.id, deletedAt: null } });
+      const propOccupied = await db.room.count({ where: { propertyId: prop.id, status: 'occupied', deletedAt: null } });
+      const propOccupancyRate = propRooms > 0 ? Math.round((propOccupied / propRooms) * 100) : 0;
+
+      // Revenue today (prorated from overlapping bookings)
+      const propBookings = bookings.filter(b => b.propertyId === prop.id);
+      const propRevenueToday = propBookings
+        .filter(b => {
+          const ci = new Date(b.checkIn);
+          const co = new Date(b.checkOut);
+          return ci < tomorrow && co >= today && !['cancelled', 'draft', 'no_show'].includes(b.status);
+        })
+        .reduce((sum, b) => {
+          const ci = new Date(b.checkIn);
+          const co = new Date(b.checkOut);
+          const nights = Math.max(1, Math.round((co.getTime() - ci.getTime()) / (1000 * 60 * 60 * 24)));
+          return sum + (b.totalAmount / nights);
+        }, 0);
+
+      // Arrivals and departures today
+      const propArrivals = propBookings.filter(b => {
+        const ci = new Date(b.checkIn);
+        ci.setHours(0, 0, 0, 0);
+        return ci.getTime() === today.getTime() && ['confirmed', 'checked_in'].includes(b.status);
+      }).length;
+
+      const propDepartures = propBookings.filter(b => {
+        const co = new Date(b.checkOut);
+        co.setHours(0, 0, 0, 0);
+        return co.getTime() === today.getTime() && b.status === 'checked_in';
+      }).length;
+
+      // ADR for this property
+      const propPaidBookings = propBookings.filter(b => !['cancelled', 'draft', 'no_show'].includes(b.status) && b.totalAmount > 0);
+      const propTotalNights = propPaidBookings.reduce((sum, b) => {
+        const nights = Math.ceil((new Date(b.checkOut).getTime() - new Date(b.checkIn).getTime()) / (1000 * 60 * 60 * 24));
+        return sum + nights;
+      }, 0);
+      const propTotalRevenue = propPaidBookings.reduce((sum, b) => sum + b.totalAmount, 0);
+      const propAdr = propTotalNights > 0 ? Math.round(propTotalRevenue / propTotalNights) : 0;
+
+      return {
+        id: prop.id,
+        name: prop.name,
+        totalRooms: propRooms,
+        occupiedRooms: propOccupied,
+        occupancyRate: propOccupancyRate,
+        revenueToday: Math.round(propRevenueToday),
+        arrivalsToday: propArrivals,
+        departuresToday: propDepartures,
+        adr: propAdr,
+      };
+    }));
+
     const responseData = {
       success: true,
       data: {
@@ -620,6 +677,8 @@ export async function GET(request: NextRequest) {
             assignee: t.assignee ? `${t.assignee.firstName} ${t.assignee.lastName}` : null,
           })),
         },
+        // GAP-005: Multi-property breakdown for property comparison view
+        properties: propertyMetrics,
       },
     };
 
