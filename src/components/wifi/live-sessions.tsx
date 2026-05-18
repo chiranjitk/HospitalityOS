@@ -881,24 +881,20 @@ export default function LiveSessions() {
         </Card>
       </div>
 
-      {/* Per-NAS Breakdown */}
+      {/* Per-NAS Breakdown — compact inline */}
       {stats.perNas && stats.perNas.length > 0 && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Router className="h-4 w-4 text-muted-foreground" />
-              <p className="text-sm font-medium">Per-NAS Breakdown</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {stats.perNas.map((nas, idx) => (
-                <Badge key={`${nas.nasIp}_${idx}`} variant="outline" className="text-xs gap-1">
-                  <Router className="h-3 w-3" />
-                  {nas.nasIdentifier || nas.nasIp}: {nas.count}
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center gap-2 flex-wrap text-xs">
+          <span className="flex items-center gap-1 text-muted-foreground font-medium shrink-0">
+            <Router className="h-3.5 w-3.5" />
+            NAS
+          </span>
+          <span className="text-border">|</span>
+          {stats.perNas.map((nas, idx) => (
+            <Badge key={`${nas.nasIp}_${idx}`} variant="outline" className="text-xs gap-1 py-0 px-2 h-6">
+              {nas.nasIdentifier || nas.nasIp}: <span className="font-semibold">{nas.count}</span>
+            </Badge>
+          ))}
+        </div>
       )}
 
       {/* Filters */}
