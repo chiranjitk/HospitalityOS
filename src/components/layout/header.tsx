@@ -169,7 +169,7 @@ export function Header({ className, onMenuClick }: HeaderProps) {
 
   return (
     <header className={cn(
-      "sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b border-border/30 bg-background/80 backdrop-blur-2xl px-3 sm:px-4 transition-all duration-300",
+      "sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b border-border/30 bg-background/80 backdrop-blur-2xl px-3 sm:px-4 transition-[background-color,box-shadow,border-color] duration-300",
       isScrolled && "header-scrolled",
       sidebarCollapsed ? "lg:ml-[68px]" : "lg:ml-[260px]", // Dynamic margin based on sidebar state
       className

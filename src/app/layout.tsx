@@ -86,6 +86,14 @@ export default async function RootLayout({
             __html: `(function(){try{var t=localStorage.getItem('staysuite-theme-mode-next');var d=t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme:dark)').matches);if(d)document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark');document.documentElement.style.setProperty('color-scheme',d?'dark':'light')}catch(e){}})()`,
           }}
         />
+        {/* Prevent layout shift when dropdowns/modals open — neutralizes react-remove-scroll-bar */}
+        <Script
+          id="prevent-scroll-lock-shift"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var m=new MutationObserver(function(mutations){mutations.forEach(function(m){if(m.type==='attributes'&&m.attributeName==='style'){var b=document.body;var pr=b.style.paddingRight;if(pr&&pr!=='0px'&&pr!==''){b.style.paddingRight='';}var mr=b.style.marginRight;if(mr&&mr!=='0px'&&mr!==''){b.style.marginRight='';}}if(m.type==='attributes'&&m.attributeName==='class'){var b2=document.body;if(b2.hasAttribute('data-scroll-locked')){b2.removeAttribute('data-scroll-locked');}}});});m.observe(document.body,{attributes:true,attributeFilter:['style','class']});document.documentElement.style.overflowY='scroll';document.documentElement.style.scrollbarGutter='stable';})();`,
+          }}
+        />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
