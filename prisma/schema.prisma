@@ -5628,26 +5628,47 @@ model ScheduledNotification {
 }
 
 model ScheduledReport {
-  id             String          @id @default(uuid()) @db.Uuid
-  tenantId       String          @db.Uuid
-  name           String
-  type           String
-  frequency      String
-  dayOfWeek      Int?
-  dayOfMonth     Int?
-  time           String
-  recipients     String
-  format         String          @default("pdf")
-  deliveryMethod String          @default("email")
-  filters        String          @default("{}")
-  lastRunAt      DateTime?       @db.Timestamptz
-  nextRunAt      DateTime?       @db.Timestamptz
-  isActive       Boolean         @default(true)
-  createdAt      DateTime        @default(now()) @db.Timestamptz
-  updatedAt      DateTime        @updatedAt @db.Timestamptz
-  history        ReportHistory[]
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  name        String
+  description String?
+  reportType  String   // "guest_stay_report", "revenue_report", etc.
+  frequency   String   // "daily", "weekly", "monthly"
+  dayOfWeek   Int?     // 0-6 (for weekly, 0=Sunday)
+  dayOfMonth  Int?     // 1-31 (for monthly)
+  time        String   // HH:mm format (e.g., "09:00")
+  timezone    String   @default("UTC")
+
+  // Filters (stored as JSON)
+  filters     String   @default("{}")
+
+  // Export format
+  format      String   @default("xlsx") // "csv", "xlsx", "pdf"
+
+  // Recipients
+  recipients  String   // JSON array of email addresses
+
+  // Delivery method
+  deliveryMethod String @default("email")
+
+  // Status
+  isActive      Boolean   @default(true)
+  lastRunAt     DateTime? @db.Timestamptz
+  nextRunAt     DateTime? @db.Timestamptz
+  lastRunStatus String?   // "success", "error"
+  lastError     String?
+
+  // Creation
+  createdBy   String?
+  createdAt   DateTime        @default(now()) @db.Timestamptz
+  updatedAt   DateTime        @updatedAt @db.Timestamptz
+
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  history     ReportHistory[]
 
   @@index([tenantId])
+  @@index([isActive, nextRunAt])
+  @@map("scheduled_reports")
 }
 
 model SecurityEvent {
@@ -6777,6 +6798,7 @@ model Tenant {
   overbookingLogs           OverbookingLog[]
   lastMinuteTriggers        LastMinuteTrigger[]
   lastMinuteTriggerLogs     LastMinuteTriggerLog[]
+  scheduledReports          ScheduledReport[]
 }
 
 // ============================================================

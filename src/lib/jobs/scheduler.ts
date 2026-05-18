@@ -175,7 +175,7 @@ export async function processScheduledReports(): Promise<{
             tenantId: report.tenantId,
             scheduledReportId: report.id,
             name: report.name,
-            type: report.type,
+            type: report.reportType,
             format: report.format,
             generatedAt: new Date(),
             periodStart: executionResult.periodStart,
@@ -195,7 +195,7 @@ export async function processScheduledReports(): Promise<{
             await sendReportEmail({
               to: recipients,
               reportName: report.name,
-              reportType: report.type,
+              reportType: report.reportType,
               fileUrl: executionResult.fileUrl,
               fileContent: executionResult.fileContent,
               format: report.format,
@@ -211,6 +211,8 @@ export async function processScheduledReports(): Promise<{
           where: { id: report.id },
           data: {
             lastRunAt: now,
+            lastRunStatus: 'success',
+            lastError: null,
             nextRunAt,
           },
         });
@@ -228,13 +230,25 @@ export async function processScheduledReports(): Promise<{
             tenantId: report.tenantId,
             scheduledReportId: report.id,
             name: report.name,
-            type: report.type,
+            type: report.reportType,
             format: report.format,
             generatedAt: new Date(),
             status: 'failed',
             errorMessage,
             recipientCount: 0,
           },
+        });
+
+        // Update the scheduled report with error status
+        await db.scheduledReport.update({
+          where: { id: report.id },
+          data: {
+            lastRunAt: now,
+            lastRunStatus: 'error',
+            lastError: errorMessage,
+          },
+        }).catch((err) => {
+          console.error('[Scheduler] Failed to update error status:', err);
         });
 
         console.error(`[Scheduler] Failed to execute report ${report.name}:`, errorMessage);
@@ -341,7 +355,7 @@ export async function triggerReport(reportId: string): Promise<{
         tenantId: report.tenantId,
         scheduledReportId: report.id,
         name: report.name,
-        type: report.type,
+        type: report.reportType,
         format: report.format,
         generatedAt: new Date(),
         periodStart: executionResult.periodStart,
@@ -361,7 +375,7 @@ export async function triggerReport(reportId: string): Promise<{
         await sendReportEmail({
           to: recipients,
           reportName: report.name,
-          reportType: report.type,
+          reportType: report.reportType,
           fileUrl: executionResult.fileUrl,
           fileContent: executionResult.fileContent,
           format: report.format,
@@ -372,12 +386,31 @@ export async function triggerReport(reportId: string): Promise<{
     // Update last run time
     await db.scheduledReport.update({
       where: { id: reportId },
-      data: { lastRunAt: new Date() },
+      data: {
+        lastRunAt: new Date(),
+        lastRunStatus: 'success',
+        lastError: null,
+      },
     });
 
     return { success: true, historyId: historyRecord.id };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    // Update error status
+    try {
+      await db.scheduledReport.update({
+        where: { id: reportId },
+        data: {
+          lastRunAt: new Date(),
+          lastRunStatus: 'error',
+          lastError: errorMessage,
+        },
+      });
+    } catch {
+      // Ignore update errors
+    }
+
     return { success: false, error: errorMessage };
   }
 }

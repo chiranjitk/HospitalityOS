@@ -200,6 +200,7 @@ export async function POST(request: NextRequest) {
       reference,
       idempotencyKey,
       description,
+      status: requestedStatus,
     } = data;
 
     // Validate required fields
@@ -432,6 +433,26 @@ export async function POST(request: NextRequest) {
       gatewayStatus = 'completed';
     }
 
+    // Resolve payment status: respect client-provided status with validation,
+    // but default to 'completed' for non-card payments (cash, bank_transfer, wallet)
+    // since those are settled immediately.
+    const VALID_STATUSES = ['pending', 'completed', 'authorized'];
+    const isNonCardPayment = method !== 'card' || (!cardData && !token);
+    let paymentStatus: string;
+
+    if (requestedStatus && VALID_STATUSES.includes(requestedStatus)) {
+      // Use the client-provided status if valid
+      paymentStatus = requestedStatus;
+    } else if (isNonCardPayment) {
+      // Cash, bank_transfer, wallet — settled immediately
+      paymentStatus = 'completed';
+    } else {
+      // Card payments processed through gateway — completed if we reached here
+      paymentStatus = 'completed';
+    }
+
+    const isCompletedPayment = paymentStatus === 'completed';
+
     // Generate transaction ID
     const transactionId = paymentResult?.transactionId || generateTransactionId();
 
@@ -457,8 +478,8 @@ export async function POST(request: NextRequest) {
           cardExpiry,
           transactionId,
           reference,
-          status: 'completed',
-          processedAt: new Date(),
+          status: paymentStatus,
+          processedAt: isCompletedPayment ? new Date() : null,
           idempotencyKey,
         },
         include: {
@@ -478,29 +499,33 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Update folio paid amount and balance
-      const updatedFolio = await tx.folio.update({
-        where: { id: folioId },
-        data: {
-          paidAmount: { increment: amount },
-          balance: { decrement: amount },
-        },
-      });
-
-      // Update folio status if fully paid
-      if (updatedFolio.balance <= 0) {
-        await tx.folio.update({
+      // Only update folio paid amount and balance for completed payments.
+      // Pending/authorized payments (e.g., pre-auth holds) should NOT affect the
+      // folio balance until they are captured/completed.
+      if (isCompletedPayment) {
+        const updatedFolio = await tx.folio.update({
           where: { id: folioId },
           data: {
-            status: 'paid',
-            closedAt: new Date(),
+            paidAmount: { increment: amount },
+            balance: { decrement: amount },
           },
         });
-      } else if (updatedFolio.paidAmount > 0) {
-        await tx.folio.update({
-          where: { id: folioId },
-          data: { status: 'partially_paid' },
-        });
+
+        // Update folio status if fully paid
+        if (updatedFolio.balance <= 0) {
+          await tx.folio.update({
+            where: { id: folioId },
+            data: {
+              status: 'paid',
+              closedAt: new Date(),
+            },
+          });
+        } else if (updatedFolio.paidAmount > 0) {
+          await tx.folio.update({
+            where: { id: folioId },
+            data: { status: 'partially_paid' },
+          });
+        }
       }
 
       // Update gateway statistics if used

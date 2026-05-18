@@ -119,7 +119,7 @@ const cardTypes = [
 
 export default function CheckIn() {
   const { toast } = useToast();
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, currency: currencySettings } = useCurrency();
   const { formatDate, formatDateTime } = useTimezone();
   const { user } = useAuth();
   const t = useTranslations('frontdesk');
@@ -249,7 +249,7 @@ export default function CheckIn() {
             propertyId: booking.propertyId,
             bookingId: booking.id,
             guestId: booking.primaryGuestId,
-            currency: booking.currency || 'INR',
+            currency: booking.currency || currencySettings.code || 'INR',
           }),
         });
         if (folioResponse.ok) {
@@ -312,7 +312,7 @@ export default function CheckIn() {
         folioId,
         guestId: selectedBooking?.primaryGuest.id,
         amount,
-        currency: selectedBooking?.currency || 'INR',
+        currency: currencySettings.code || selectedBooking?.currency || 'INR',
         method: depositMethod,
         reference: isPreAuth ? 'Pre-Authorization Hold' : 'Check-in Deposit',
         status: isPreAuth ? 'pending' : 'completed',
@@ -875,7 +875,7 @@ export default function CheckIn() {
                         <Label className="text-xs">Hold Amount</Label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                            {selectedBooking.currency}
+                            {currencySettings.code || selectedBooking.currency}
                           </span>
                           <Input
                             type="number"
@@ -913,7 +913,7 @@ export default function CheckIn() {
                     <Label className="text-xs">Deposit Amount</Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                        {selectedBooking.currency}
+                        {currencySettings.code || selectedBooking.currency}
                       </span>
                       <Input
                         type="number"

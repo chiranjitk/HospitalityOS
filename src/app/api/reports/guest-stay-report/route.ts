@@ -142,6 +142,63 @@ interface SummaryStats {
 }
 
 // ---------------------------------------------------------------------------
+// Enhancement types
+// ---------------------------------------------------------------------------
+
+interface CancellationAnalysis {
+  byReason: Record<string, number>;
+  byLeadTime: { range: string; count: number }[];
+  byRoomType: Record<string, number>;
+  trend: { month: string; count: number }[];
+  riskScore: { avgCancelled: number | null; avgNonCancelled: number | null };
+}
+
+interface RevenueBreakdown {
+  byCategory: { category: string; totalAmount: number; count: number; percentage: number }[];
+  byCategoryByMonth: { month: string; categories: Record<string, number> }[];
+}
+
+interface GuestLifetimeValue {
+  guestId: string;
+  guestName: string;
+  totalLifetimeSpent: number;
+  totalLifetimeStays: number;
+  totalLifetimeNights: number;
+  firstStayDate: string | null;
+  lastStayDate: string | null;
+  avgSpendPerStay: number;
+}
+
+interface LeadTimeAnalysis {
+  average: number;
+  median: number;
+  distribution: { range: string; count: number; percentage: number }[];
+  bySource: Record<string, number>;
+  correlationWithCancellation: { avgLeadTimeCancelled: number | null; avgLeadTimeNonCancelled: number | null };
+}
+
+interface ComparisonPeriod {
+  totalGuests: number;
+  totalStays: number;
+  totalRoomNights: number;
+  totalRevenue: number;
+  averageStayLength: number;
+  adr: number;
+}
+
+interface Comparison {
+  current: ComparisonPeriod;
+  previous: ComparisonPeriod;
+  delta: {
+    revenueChange: number;
+    guestsChange: number;
+    staysChange: number;
+    avgStayLengthChange: number;
+    adrChange: number;
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -201,6 +258,13 @@ async function generateXlsx(
   nationalityBreakdown: Record<string, { count: number; revenue: number; roomNights: number }>,
   roomTypeBreakdown: Record<string, { count: number; revenue: number; roomNights: number }>,
   allRecords: { booking: Record<string, any>; guest: Record<string, any> }[],
+  enhancementData?: {
+    cancellationAnalysis?: CancellationAnalysis;
+    revenueBreakdown?: RevenueBreakdown;
+    guestLifetimeValue?: GuestLifetimeValue[];
+    leadTimeAnalysis?: LeadTimeAnalysis;
+    comparison?: Comparison | null;
+  },
 ): Promise<Buffer> {
   const XLSX = await import('xlsx');
 
@@ -355,11 +419,12 @@ async function generateXlsx(
   ws5['!cols'] = [{ wch: 22 }, { wch: 10 }, { wch: 16 }, { wch: 14 }];
   XLSX.utils.book_append_sheet(wb, ws5, 'By Room Type');
 
-  // ---- Sheet 6: Payment Breakdown ----
+  // ---- Sheet 6: Payment Breakdown (Enhanced with Reference, Currency, Refund Amount) ----
   const paymentHeaders = [
     'Booking ID', 'Confirmation', 'Guest Name', 'Folio #',
     'Payment Amount', 'Method', 'Status', 'Gateway',
     'Card Type', 'Card Last 4', 'Processed At',
+    'Reference/Transaction ID', 'Currency', 'Refund Amount',
   ];
   const paymentRows: (string | number | null)[][] = [];
   for (const rec of allRecords) {
@@ -379,6 +444,9 @@ async function generateXlsx(
           p.cardType ?? '',
           p.cardLast4 ?? '',
           safeDate(p.processedAt) ?? safeDate(p.createdAt) ?? '',
+          p.reference ?? p.transactionId ?? '',
+          p.currency ?? 'USD',
+          safeNumber(p.refundAmount) ?? 0,
         ]);
       }
     }
@@ -388,6 +456,7 @@ async function generateXlsx(
     { wch: 36 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
     { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 14 },
     { wch: 12 }, { wch: 12 }, { wch: 22 },
+    { wch: 28 }, { wch: 10 }, { wch: 14 },
   ];
   XLSX.utils.book_append_sheet(wb, ws6, 'Payment Breakdown');
 
@@ -427,6 +496,141 @@ async function generateXlsx(
   ];
   XLSX.utils.book_append_sheet(wb, ws7, 'Folio Line Items');
 
+  // ---- Sheet 8: Payment Summary (aggregated by method) ----
+  const paymentByMethod: Record<string, { count: number; totalAmount: number; completedCount: number; pendingCount: number; refundedCount: number }> = {};
+  for (const rec of allRecords) {
+    for (const folio of rec.booking.folios ?? []) {
+      for (const p of folio.payments ?? []) {
+        const method = p.method ?? 'unknown';
+        if (!paymentByMethod[method]) {
+          paymentByMethod[method] = { count: 0, totalAmount: 0, completedCount: 0, pendingCount: 0, refundedCount: 0 };
+        }
+        paymentByMethod[method].count += 1;
+        paymentByMethod[method].totalAmount += safeNumber(p.amount) ?? 0;
+        if (p.status === 'completed') paymentByMethod[method].completedCount += 1;
+        if (p.status === 'pending' || p.status === 'authorized') paymentByMethod[method].pendingCount += 1;
+        if (p.status === 'refunded' || (p.refundAmount && p.refundAmount > 0)) paymentByMethod[method].refundedCount += 1;
+      }
+    }
+  }
+  const paymentSummaryData = [
+    ['Method', 'Count', 'Total Amount', 'Completed', 'Pending', 'Refunded'],
+    ...Object.entries(paymentByMethod)
+      .sort((a, b) => b[1].totalAmount - a[1].totalAmount)
+      .map(([method, d]) => [method, d.count, round2(d.totalAmount), d.completedCount, d.pendingCount, d.refundedCount]),
+  ];
+  const ws8 = XLSX.utils.aoa_to_sheet(paymentSummaryData);
+  ws8['!cols'] = [{ wch: 18 }, { wch: 8 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, ws8, 'Payment Summary');
+
+  // ---- Sheet 9: Cancellation Analysis ----
+  if (enhancementData?.cancellationAnalysis) {
+    const ca = enhancementData.cancellationAnalysis;
+    const cancelSheetData: (string | number | null)[][] = [
+      ['--- Cancellation by Reason ---'],
+      ['Reason', 'Count'],
+      ...Object.entries(ca.byReason).map(([reason, count]) => [reason, count]),
+      [],
+      ['--- Cancellation by Lead Time ---'],
+      ['Lead Time Range', 'Count'],
+      ...ca.byLeadTime.map(d => [d.range, d.count]),
+      [],
+      ['--- Cancellation by Room Type ---'],
+      ['Room Type', 'Count'],
+      ...Object.entries(ca.byRoomType).map(([rt, count]) => [rt, count]),
+      [],
+      ['--- Monthly Cancellation Trend ---'],
+      ['Month', 'Count'],
+      ...ca.trend.map(d => [d.month, d.count]),
+      [],
+      ['--- Risk Score ---'],
+      ['Metric', 'Value'],
+      ['Avg Risk (Cancelled)', ca.riskScore.avgCancelled ?? 'N/A'],
+      ['Avg Risk (Non-Cancelled)', ca.riskScore.avgNonCancelled ?? 'N/A'],
+    ];
+    const ws9 = XLSX.utils.aoa_to_sheet(cancelSheetData);
+    ws9['!cols'] = [{ wch: 24 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, ws9, 'Cancellation Analysis');
+  }
+
+  // ---- Sheet 10: Revenue Breakdown ----
+  if (enhancementData?.revenueBreakdown) {
+    const rb = enhancementData.revenueBreakdown;
+    const revBreakdownData: (string | number | null)[][] = [
+      ['--- Revenue by Category ---'],
+      ['Category', 'Total Amount', 'Count', 'Percentage'],
+      ...rb.byCategory.map(d => [d.category, round2(d.totalAmount), d.count, round2(d.percentage)]),
+      [],
+      ['--- Revenue by Category by Month ---'],
+    ];
+    if (rb.byCategoryByMonth.length > 0) {
+      const categories = [...new Set(rb.byCategoryByMonth.flatMap(m => Object.keys(m.categories)))];
+      revBreakdownData.push(['Month', ...categories]);
+      for (const m of rb.byCategoryByMonth) {
+        revBreakdownData.push([m.month, ...categories.map(c => round2(m.categories[c] ?? 0))]);
+      }
+    }
+    const ws10 = XLSX.utils.aoa_to_sheet(revBreakdownData);
+    ws10['!cols'] = [{ wch: 18 }, { wch: 16 }, { wch: 10 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, ws10, 'Revenue Breakdown');
+  }
+
+  // ---- Sheet 11: Guest Lifetime Value ----
+  if (enhancementData?.guestLifetimeValue && enhancementData.guestLifetimeValue.length > 0) {
+    const glvData = [
+      ['Guest ID', 'Guest Name', 'Total Lifetime Spent', 'Total Lifetime Stays', 'Total Lifetime Nights', 'First Stay Date', 'Last Stay Date', 'Avg Spend Per Stay'],
+      ...enhancementData.guestLifetimeValue.map(g => [
+        g.guestId, g.guestName, round2(g.totalLifetimeSpent), g.totalLifetimeStays, g.totalLifetimeNights,
+        g.firstStayDate ?? '', g.lastStayDate ?? '', round2(g.avgSpendPerStay),
+      ]),
+    ];
+    const ws11 = XLSX.utils.aoa_to_sheet(glvData);
+    ws11['!cols'] = [{ wch: 36 }, { wch: 22 }, { wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, ws11, 'Guest Lifetime Value');
+  }
+
+  // ---- Sheet 12: Lead Time Analysis ----
+  if (enhancementData?.leadTimeAnalysis) {
+    const lta = enhancementData.leadTimeAnalysis;
+    const ltaData: (string | number | null)[][] = [
+      ['--- Lead Time Distribution ---'],
+      ['Range', 'Count', 'Percentage'],
+      ...lta.distribution.map(d => [d.range, d.count, round2(d.percentage)]),
+      [],
+      ['--- Summary ---'],
+      ['Average Lead Time (days)', round2(lta.average)],
+      ['Median Lead Time (days)', round2(lta.median)],
+      [],
+      ['--- Average Lead Time by Source ---'],
+      ['Source', 'Avg Lead Time (days)'],
+      ...Object.entries(lta.bySource).map(([src, avg]) => [src, round2(avg)]),
+      [],
+      ['--- Cancellation Correlation ---'],
+      ['Metric', 'Value'],
+      ['Avg Lead Time (Cancelled)', lta.correlationWithCancellation.avgLeadTimeCancelled ?? 'N/A'],
+      ['Avg Lead Time (Non-Cancelled)', lta.correlationWithCancellation.avgLeadTimeNonCancelled ?? 'N/A'],
+    ];
+    const ws12 = XLSX.utils.aoa_to_sheet(ltaData);
+    ws12['!cols'] = [{ wch: 30 }, { wch: 14 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, ws12, 'Lead Time Analysis');
+  }
+
+  // ---- Sheet 13: Period Comparison ----
+  if (enhancementData?.comparison) {
+    const comp = enhancementData.comparison;
+    const compData: (string | number | null)[][] = [
+      ['Metric', 'Current Period', 'Previous Period', 'Change (%)'],
+      ['Total Revenue', round2(comp.current.totalRevenue), round2(comp.previous.totalRevenue), round2(comp.delta.revenueChange)],
+      ['Total Guests', comp.current.totalGuests, comp.previous.totalGuests, round2(comp.delta.guestsChange)],
+      ['Total Stays', comp.current.totalStays, comp.previous.totalStays, round2(comp.delta.staysChange)],
+      ['Avg Stay Length', round2(comp.current.averageStayLength), round2(comp.previous.averageStayLength), round2(comp.delta.avgStayLengthChange)],
+      ['ADR', round2(comp.current.adr), round2(comp.previous.adr), round2(comp.delta.adrChange)],
+    ];
+    const ws13 = XLSX.utils.aoa_to_sheet(compData);
+    ws13['!cols'] = [{ wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, ws13, 'Period Comparison');
+  }
+
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   return Buffer.from(buf);
 }
@@ -440,6 +644,13 @@ async function generatePdf(
   summary: SummaryStats,
   startDateStr: string,
   endDateStr: string,
+  enhancementData?: {
+    cancellationAnalysis?: CancellationAnalysis;
+    revenueBreakdown?: RevenueBreakdown;
+    guestLifetimeValue?: GuestLifetimeValue[];
+    leadTimeAnalysis?: LeadTimeAnalysis;
+    comparison?: Comparison | null;
+  },
 ): Promise<Buffer> {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
@@ -565,7 +776,195 @@ async function generatePdf(
     },
   });
 
+  // ---- Enhancement sections for PDF ----
+  if (enhancementData) {
+    const getLastY = () => ((doc as unknown as Record<string, { finalY: number }>).lastAutoTable)?.finalY ?? 100;
+
+    // ENHANCEMENT 3: Cancellation Analysis
+    if (enhancementData.cancellationAnalysis) {
+      const ca = enhancementData.cancellationAnalysis;
+      doc.addPage();
+      doc.setFontSize(13);
+      doc.setTextColor(30, 41, 59);
+      doc.text('Cancellation Analysis', 14, 20);
+
+      // By Reason
+      const cancelReasonRows = Object.entries(ca.byReason).map(([reason, count]) => [reason, String(count)]);
+      if (cancelReasonRows.length > 0) {
+        autoTable(doc, {
+          startY: 28,
+          head: [['Cancellation Reason', 'Count']],
+          body: cancelReasonRows,
+          theme: 'grid',
+          headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 8 },
+          bodyStyles: { fontSize: 7 },
+          margin: { left: 14, right: 14 },
+        });
+      }
+
+      // By Lead Time
+      const cancelLeadTimeRows = ca.byLeadTime.map(d => [d.range, String(d.count)]);
+      autoTable(doc, {
+        startY: getLastY() + 8,
+        head: [['Lead Time', 'Cancelled Count']],
+        body: cancelLeadTimeRows,
+        theme: 'grid',
+        headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 8 },
+        bodyStyles: { fontSize: 7 },
+        margin: { left: 14, right: 14 },
+      });
+
+      // Risk Score
+      autoTable(doc, {
+        startY: getLastY() + 8,
+        head: [['Risk Score Metric', 'Value']],
+        body: [
+          ['Avg Risk (Cancelled)', ca.riskScore.avgCancelled !== null ? String(ca.riskScore.avgCancelled) : 'N/A'],
+          ['Avg Risk (Non-Cancelled)', ca.riskScore.avgNonCancelled !== null ? String(ca.riskScore.avgNonCancelled) : 'N/A'],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 8 },
+        bodyStyles: { fontSize: 7 },
+        margin: { left: 14, right: 14 },
+      });
+    }
+
+    // ENHANCEMENT 4: Revenue Breakdown
+    if (enhancementData.revenueBreakdown) {
+      const rb = enhancementData.revenueBreakdown;
+      doc.addPage();
+      doc.setFontSize(13);
+      doc.setTextColor(30, 41, 59);
+      doc.text('Revenue Breakdown by Category', 14, 20);
+
+      const categoryRows = rb.byCategory.map(d => [d.category, String(round2(d.totalAmount)), String(d.count), String(round2(d.percentage)) + '%']);
+      autoTable(doc, {
+        startY: 28,
+        head: [['Category', 'Total Amount', 'Count', 'Percentage']],
+        body: categoryRows,
+        theme: 'grid',
+        headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 8 },
+        bodyStyles: { fontSize: 7 },
+        margin: { left: 14, right: 14 },
+      });
+    }
+
+    // ENHANCEMENT 5: Guest Lifetime Value (top 20 in PDF)
+    if (enhancementData.guestLifetimeValue && enhancementData.guestLifetimeValue.length > 0) {
+      doc.addPage();
+      doc.setFontSize(13);
+      doc.setTextColor(30, 41, 59);
+      doc.text('Guest Lifetime Value (Top 20)', 14, 20);
+
+      const glvRows = enhancementData.guestLifetimeValue.slice(0, 20).map(g => [
+        g.guestName,
+        String(round2(g.totalLifetimeSpent)),
+        String(g.totalLifetimeStays),
+        String(g.totalLifetimeNights),
+        String(round2(g.avgSpendPerStay)),
+      ]);
+      autoTable(doc, {
+        startY: 28,
+        head: [['Guest Name', 'Total Spent', 'Stays', 'Nights', 'Avg/Stay']],
+        body: glvRows,
+        theme: 'striped',
+        headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 8 },
+        bodyStyles: { fontSize: 7 },
+        margin: { left: 14, right: 14 },
+      });
+    }
+
+    // ENHANCEMENT 6: Lead Time Analysis
+    if (enhancementData.leadTimeAnalysis) {
+      const lta = enhancementData.leadTimeAnalysis;
+      doc.addPage();
+      doc.setFontSize(13);
+      doc.setTextColor(30, 41, 59);
+      doc.text('Booking Lead Time Analysis', 14, 20);
+
+      const ltRows = lta.distribution.map(d => [d.range, String(d.count), String(round2(d.percentage)) + '%']);
+      autoTable(doc, {
+        startY: 28,
+        head: [['Range', 'Count', 'Percentage']],
+        body: [
+          ['Average', String(round2(lta.average)), ''],
+          ['Median', String(round2(lta.median)), ''],
+          ...ltRows,
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 8 },
+        bodyStyles: { fontSize: 7 },
+        margin: { left: 14, right: 14 },
+      });
+
+      // Cancellation correlation
+      autoTable(doc, {
+        startY: getLastY() + 8,
+        head: [['Cancellation Correlation', 'Avg Lead Time (days)']],
+        body: [
+          ['Cancelled', lta.correlationWithCancellation.avgLeadTimeCancelled !== null ? String(round2(lta.correlationWithCancellation.avgLeadTimeCancelled)) : 'N/A'],
+          ['Non-Cancelled', lta.correlationWithCancellation.avgLeadTimeNonCancelled !== null ? String(round2(lta.correlationWithCancellation.avgLeadTimeNonCancelled)) : 'N/A'],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 8 },
+        bodyStyles: { fontSize: 7 },
+        margin: { left: 14, right: 14 },
+      });
+    }
+
+    // ENHANCEMENT 2: Period Comparison
+    if (enhancementData.comparison) {
+      const comp = enhancementData.comparison;
+      doc.addPage();
+      doc.setFontSize(13);
+      doc.setTextColor(30, 41, 59);
+      doc.text('Period Comparison', 14, 20);
+
+      const compRows = [
+        ['Total Revenue', String(round2(comp.current.totalRevenue)), String(round2(comp.previous.totalRevenue)), String(round2(comp.delta.revenueChange)) + '%'],
+        ['Total Guests', String(comp.current.totalGuests), String(comp.previous.totalGuests), String(round2(comp.delta.guestsChange)) + '%'],
+        ['Total Stays', String(comp.current.totalStays), String(comp.previous.totalStays), String(round2(comp.delta.staysChange)) + '%'],
+        ['Avg Stay Length', String(round2(comp.current.averageStayLength)), String(round2(comp.previous.averageStayLength)), String(round2(comp.delta.avgStayLengthChange)) + '%'],
+        ['ADR', String(round2(comp.current.adr)), String(round2(comp.previous.adr)), String(round2(comp.delta.adrChange)) + '%'],
+      ];
+      autoTable(doc, {
+        startY: 28,
+        head: [['Metric', 'Current', 'Previous', 'Change (%)']],
+        body: compRows,
+        theme: 'grid',
+        headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 9 },
+        bodyStyles: { fontSize: 8 },
+        margin: { left: 14, right: 14 },
+      });
+    }
+  }
+
   return Buffer.from(doc.output('arraybuffer'));
+}
+
+// ---------------------------------------------------------------------------
+// Helper: compute summary stats from flat rows (reusable for comparison)
+// ---------------------------------------------------------------------------
+
+function computeSummaryFromRows(flatRows: FlatGuestStayRow[]): {
+  totalGuests: number;
+  totalStays: number;
+  totalRoomNights: number;
+  totalRevenue: number;
+  averageStayLength: number;
+  adr: number;
+} {
+  const uniqueGuestIds = new Set(flatRows.map(r => r.guestId));
+  const totalRevenue = flatRows.reduce((sum, r) => sum + r.totalAmount, 0);
+  const totalRoomNights = flatRows.reduce((sum, r) => sum + r.roomNights, 0);
+  return {
+    totalGuests: uniqueGuestIds.size,
+    totalStays: flatRows.length,
+    totalRoomNights,
+    totalRevenue: round2(totalRevenue),
+    averageStayLength: flatRows.length > 0 ? round2(totalRoomNights / flatRows.length) : 0,
+    adr: totalRoomNights > 0 ? round2(totalRevenue / totalRoomNights) : 0,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -635,6 +1034,20 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || '';
     // ENHANCEMENT 6: Booking source filter
     const bookingSource = searchParams.get('bookingSource') || searchParams.get('source');
+
+    // ENHANCEMENT 2: Comparison period parameters
+    const compareStartDateParam = searchParams.get('compareStartDate');
+    const compareEndDateParam = searchParams.get('compareEndDate');
+    let compareStartDate: Date | null = null;
+    let compareEndDate: Date | null = null;
+    if (compareStartDateParam && compareEndDateParam) {
+      const csd = new Date(compareStartDateParam);
+      const ced = new Date(compareEndDateParam);
+      if (!Number.isNaN(csd.getTime()) && !Number.isNaN(ced.getTime()) && csd <= ced) {
+        compareStartDate = csd;
+        compareEndDate = ced;
+      }
+    }
 
     const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '500', 10), 1), 5000);
@@ -775,6 +1188,9 @@ export async function GET(request: NextRequest) {
                     currency: true,
                     processedAt: true,
                     createdAt: true,
+                    transactionId: true,
+                    reference: true,
+                    refundAmount: true,
                   },
                   orderBy: { createdAt: 'desc' },
                 },
@@ -876,6 +1292,9 @@ export async function GET(request: NextRequest) {
               currency: true,
               processedAt: true,
               createdAt: true,
+              transactionId: true,
+              reference: true,
+              refundAmount: true,
             },
             orderBy: { createdAt: 'desc' },
           },
@@ -1049,7 +1468,20 @@ export async function GET(request: NextRequest) {
       const roomType = booking.roomType;
       const property = booking.property;
       const folio = booking.folios?.[0] ?? null;
-      const payment = folio?.payments?.[0] ?? null;
+
+      // Compute the most relevant payment for the report.
+      // Previously this only used payments[0] (most recent by createdAt desc),
+      // which could show 'pending' for a pre-auth even when a completed cash
+      // deposit exists.  Now we prioritise completed payments first, then
+      // authorized, then pending — and also sum up completed payment totals.
+      const allPayments: Array<{ amount: number; method: string | null; status: string; gateway: string | null; cardType: string | null; createdAt: string | null; processedAt: string | null }> = folio?.payments ?? [];
+      const completedPayment = allPayments.find(p => p.status === 'completed')
+        ?? allPayments.find(p => p.status === 'authorized')
+        ?? allPayments.find(p => p.status === 'pending')
+        ?? null;
+      const totalCompletedAmount = allPayments
+        .filter(p => p.status === 'completed')
+        .reduce((sum, p) => sum + (p.amount ?? 0), 0);
 
       return {
         // Stay
@@ -1131,13 +1563,13 @@ export async function GET(request: NextRequest) {
         folioOpenedAt: safeDate(folio?.openedAt),
         folioClosedAt: safeDate(folio?.closedAt),
 
-        // Payment
-        paymentAmount: safeNumber(payment?.amount),
-        paymentMethod: payment?.method ?? null,
-        paymentStatus: payment?.status ?? null,
-        paymentGateway: payment?.gateway ?? null,
-        paymentCardType: payment?.cardType ?? null,
-        paymentCreatedAt: safeDate(payment?.createdAt),
+        // Payment — use the most relevant payment (completed > authorized > pending)
+        paymentAmount: safeNumber(totalCompletedAmount) || safeNumber(completedPayment?.amount),
+        paymentMethod: completedPayment?.method ?? null,
+        paymentStatus: completedPayment?.status ?? null,
+        paymentGateway: completedPayment?.gateway ?? null,
+        paymentCardType: completedPayment?.cardType ?? null,
+        paymentCreatedAt: safeDate(completedPayment?.processedAt) ?? safeDate(completedPayment?.createdAt),
       };
     });
 
@@ -1363,6 +1795,522 @@ export async function GET(request: NextRequest) {
       feedbackByCategory,
     };
 
+    // =========================================================================
+    // ENHANCEMENT 3: Cancellation Analysis
+    // =========================================================================
+    const cancelledBookings = allRecords.filter(r => {
+      const b = r.booking as Record<string, unknown>;
+      return b.status === 'cancelled';
+    });
+    const nonCancelledBookings = allRecords.filter(r => {
+      const b = r.booking as Record<string, unknown>;
+      return b.status !== 'cancelled';
+    });
+
+    // By Reason
+    const cancelByReason: Record<string, number> = {};
+    for (const rec of cancelledBookings) {
+      const b = rec.booking as Record<string, any>;
+      const reason = b.cancellationReason || b.specialRequests || 'Unspecified';
+      cancelByReason[reason] = (cancelByReason[reason] ?? 0) + 1;
+    }
+
+    // By Lead Time (days between booking creation and check-in for cancelled bookings)
+    const cancelByLeadTimeBuckets: { range: string; count: number }[] = [
+      { range: '0-1 days', count: 0 },
+      { range: '2-7 days', count: 0 },
+      { range: '8-30 days', count: 0 },
+      { range: '30+ days', count: 0 },
+    ];
+    for (const rec of cancelledBookings) {
+      const b = rec.booking as Record<string, any>;
+      if (b.createdAt && b.checkIn) {
+        const created = new Date(b.createdAt);
+        const checkInDate = new Date(b.checkIn);
+        const diffDays = Math.round((checkInDate.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays <= 1) cancelByLeadTimeBuckets[0].count++;
+        else if (diffDays <= 7) cancelByLeadTimeBuckets[1].count++;
+        else if (diffDays <= 30) cancelByLeadTimeBuckets[2].count++;
+        else cancelByLeadTimeBuckets[3].count++;
+      }
+    }
+
+    // By Room Type
+    const cancelByRoomType: Record<string, number> = {};
+    for (const rec of cancelledBookings) {
+      const b = rec.booking as Record<string, any>;
+      const roomType = b.roomType?.name || 'Unknown';
+      cancelByRoomType[roomType] = (cancelByRoomType[roomType] ?? 0) + 1;
+    }
+
+    // Monthly Trend
+    const cancelTrendMap: Record<string, number> = {};
+    for (const rec of cancelledBookings) {
+      const b = rec.booking as Record<string, any>;
+      if (b.cancelledAt) {
+        try {
+          const monthKey = format(new Date(b.cancelledAt as string | Date), 'yyyy-MM');
+          cancelTrendMap[monthKey] = (cancelTrendMap[monthKey] ?? 0) + 1;
+        } catch { /* skip */ }
+      } else if (b.createdAt) {
+        try {
+          const monthKey = format(new Date(b.createdAt as string | Date), 'yyyy-MM');
+          cancelTrendMap[monthKey] = (cancelTrendMap[monthKey] ?? 0) + 1;
+        } catch { /* skip */ }
+      }
+    }
+    const cancelTrend = Object.entries(cancelTrendMap)
+      .map(([month, count]) => ({ month, count }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    // Risk Score
+    const cancelledRiskValues = cancelledBookings
+      .map(r => (r.booking as Record<string, any>).cancellationRisk)
+      .filter((v): v is number => v !== null && v !== undefined && !Number.isNaN(v));
+    const nonCancelledRiskValues = nonCancelledBookings
+      .map(r => (r.booking as Record<string, any>).cancellationRisk)
+      .filter((v): v is number => v !== null && v !== undefined && !Number.isNaN(v));
+
+    const cancellationAnalysis: CancellationAnalysis = {
+      byReason: cancelByReason,
+      byLeadTime: cancelByLeadTimeBuckets,
+      byRoomType: cancelByRoomType,
+      trend: cancelTrend,
+      riskScore: {
+        avgCancelled: cancelledRiskValues.length > 0 ? round2(cancelledRiskValues.reduce((s, v) => s + v, 0) / cancelledRiskValues.length) : null,
+        avgNonCancelled: nonCancelledRiskValues.length > 0 ? round2(nonCancelledRiskValues.reduce((s, v) => s + v, 0) / nonCancelledRiskValues.length) : null,
+      },
+    };
+
+    // =========================================================================
+    // ENHANCEMENT 4: Revenue Breakdown by category
+    // =========================================================================
+    const categoryMap: Record<string, { totalAmount: number; count: number }> = {};
+    const categoryByMonthMap: Record<string, Record<string, number>> = {};
+    for (const rec of allRecords) {
+      const booking = rec.booking as Record<string, any>;
+      for (const folio of booking.folios ?? []) {
+        for (const li of folio.lineItems ?? []) {
+          const cat = li.category ?? 'other';
+          const amt = safeNumber(li.totalAmount) ?? 0;
+          if (!categoryMap[cat]) categoryMap[cat] = { totalAmount: 0, count: 0 };
+          categoryMap[cat].totalAmount += amt;
+          categoryMap[cat].count += 1;
+
+          // By month
+          if (li.serviceDate) {
+            try {
+              const monthKey = format(new Date(li.serviceDate), 'yyyy-MM');
+              if (!categoryByMonthMap[monthKey]) categoryByMonthMap[monthKey] = {};
+              categoryByMonthMap[monthKey][cat] = (categoryByMonthMap[monthKey][cat] ?? 0) + amt;
+            } catch { /* skip */ }
+          }
+        }
+      }
+    }
+    const totalCategoryAmount = Object.values(categoryMap).reduce((s, d) => s + d.totalAmount, 0);
+    const revenueBreakdown: RevenueBreakdown = {
+      byCategory: Object.entries(categoryMap)
+        .sort((a, b) => b[1].totalAmount - a[1].totalAmount)
+        .map(([category, d]) => ({
+          category,
+          totalAmount: round2(d.totalAmount),
+          count: d.count,
+          percentage: totalCategoryAmount > 0 ? round2((d.totalAmount / totalCategoryAmount) * 100) : 0,
+        })),
+      byCategoryByMonth: Object.entries(categoryByMonthMap)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([month, categories]) => ({ month, categories })),
+    };
+
+    // =========================================================================
+    // ENHANCEMENT 5: Guest Lifetime Value (top 100 by lifetime value)
+    // =========================================================================
+    let guestLifetimeValue: GuestLifetimeValue[] = [];
+    if (guestIds.length > 0) {
+      const lifetimeStays = await db.guestStay.findMany({
+        where: {
+          guestId: { in: guestIds },
+        },
+        select: {
+          guestId: true,
+          totalAmount: true,
+          roomNights: true,
+          booking: {
+            select: {
+              checkIn: true,
+              checkOut: true,
+            },
+          },
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      const lifetimeMap: Record<string, {
+        totalSpent: number; totalStays: number; totalNights: number;
+        firstDate: string | null; lastDate: string | null; guestName: string;
+      }> = {};
+
+      // Build guest name lookup from allRecords
+      const guestNameMap: Record<string, string> = {};
+      for (const rec of allRecords) {
+        const name = `${rec.guest.firstName} ${rec.guest.lastName}`.trim();
+        guestNameMap[rec.guest.id] = name;
+      }
+
+      for (const stay of lifetimeStays) {
+        if (!lifetimeMap[stay.guestId]) {
+          lifetimeMap[stay.guestId] = {
+            totalSpent: 0, totalStays: 0, totalNights: 0,
+            firstDate: null, lastDate: null,
+            guestName: guestNameMap[stay.guestId] ?? 'Unknown',
+          };
+        }
+        lifetimeMap[stay.guestId].totalSpent += safeNumber(stay.totalAmount) ?? 0;
+        lifetimeMap[stay.guestId].totalStays += 1;
+        lifetimeMap[stay.guestId].totalNights += stay.roomNights;
+
+        const checkInStr = stay.booking?.checkIn ? safeDate(stay.booking.checkIn) : safeDate(stay.createdAt);
+        if (checkInStr) {
+          if (!lifetimeMap[stay.guestId].firstDate || checkInStr < lifetimeMap[stay.guestId].firstDate!) {
+            lifetimeMap[stay.guestId].firstDate = checkInStr;
+          }
+          if (!lifetimeMap[stay.guestId].lastDate || checkInStr > lifetimeMap[stay.guestId].lastDate!) {
+            lifetimeMap[stay.guestId].lastDate = checkInStr;
+          }
+        }
+      }
+
+      guestLifetimeValue = Object.entries(lifetimeMap)
+        .map(([guestId, data]) => ({
+          guestId,
+          guestName: data.guestName,
+          totalLifetimeSpent: round2(data.totalSpent),
+          totalLifetimeStays: data.totalStays,
+          totalLifetimeNights: data.totalNights,
+          firstStayDate: data.firstDate,
+          lastStayDate: data.lastDate,
+          avgSpendPerStay: data.totalStays > 0 ? round2(data.totalSpent / data.totalStays) : 0,
+        }))
+        .sort((a, b) => b.totalLifetimeSpent - a.totalLifetimeSpent)
+        .slice(0, 100);
+    }
+
+    // =========================================================================
+    // ENHANCEMENT 6: Booking Lead Time Analysis
+    // =========================================================================
+    const leadTimes: { days: number; source: string; isCancelled: boolean }[] = [];
+    for (const rec of allRecords) {
+      const b = rec.booking as Record<string, any>;
+      if (b.createdAt && b.checkIn) {
+        const created = new Date(b.createdAt);
+        const checkInDate = new Date(b.checkIn);
+        const diffDays = Math.round((checkInDate.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+        leadTimes.push({
+          days: diffDays,
+          source: b.source ?? 'unknown',
+          isCancelled: b.status === 'cancelled',
+        });
+      }
+    }
+
+    // Average
+    const avgLeadTime = leadTimes.length > 0
+      ? round2(leadTimes.reduce((s, lt) => s + lt.days, 0) / leadTimes.length)
+      : 0;
+
+    // Median
+    const sortedLeadTimes = leadTimes.map(lt => lt.days).sort((a, b) => a - b);
+    const medianLeadTime = sortedLeadTimes.length > 0
+      ? round2(sortedLeadTimes.length % 2 === 0
+          ? (sortedLeadTimes[sortedLeadTimes.length / 2 - 1]! + sortedLeadTimes[sortedLeadTimes.length / 2]!) / 2
+          : sortedLeadTimes[Math.floor(sortedLeadTimes.length / 2)]!)
+      : 0;
+
+    // Distribution
+    const leadTimeDistribution = [
+      { range: 'Same day', count: 0, percentage: 0 },
+      { range: '1-3 days', count: 0, percentage: 0 },
+      { range: '4-7 days', count: 0, percentage: 0 },
+      { range: '8-30 days', count: 0, percentage: 0 },
+      { range: '31-90 days', count: 0, percentage: 0 },
+      { range: '90+ days', count: 0, percentage: 0 },
+    ];
+    for (const lt of leadTimes) {
+      if (lt.days <= 0) leadTimeDistribution[0].count++;
+      else if (lt.days <= 3) leadTimeDistribution[1].count++;
+      else if (lt.days <= 7) leadTimeDistribution[2].count++;
+      else if (lt.days <= 30) leadTimeDistribution[3].count++;
+      else if (lt.days <= 90) leadTimeDistribution[4].count++;
+      else leadTimeDistribution[5].count++;
+    }
+    for (const d of leadTimeDistribution) {
+      d.percentage = leadTimes.length > 0 ? round2((d.count / leadTimes.length) * 100) : 0;
+    }
+
+    // By Source
+    const leadTimeBySource: Record<string, { total: number; count: number }> = {};
+    for (const lt of leadTimes) {
+      if (!leadTimeBySource[lt.source]) leadTimeBySource[lt.source] = { total: 0, count: 0 };
+      leadTimeBySource[lt.source].total += lt.days;
+      leadTimeBySource[lt.source].count += 1;
+    }
+    const leadTimeBySourceAvg: Record<string, number> = {};
+    for (const [src, data] of Object.entries(leadTimeBySource)) {
+      leadTimeBySourceAvg[src] = round2(data.total / data.count);
+    }
+
+    // Correlation with cancellation
+    const cancelledLeadTimes = leadTimes.filter(lt => lt.isCancelled).map(lt => lt.days);
+    const nonCancelledLeadTimes = leadTimes.filter(lt => !lt.isCancelled).map(lt => lt.days);
+
+    const leadTimeAnalysis: LeadTimeAnalysis = {
+      average: avgLeadTime,
+      median: medianLeadTime,
+      distribution: leadTimeDistribution,
+      bySource: leadTimeBySourceAvg,
+      correlationWithCancellation: {
+        avgLeadTimeCancelled: cancelledLeadTimes.length > 0 ? round2(cancelledLeadTimes.reduce((s, v) => s + v, 0) / cancelledLeadTimes.length) : null,
+        avgLeadTimeNonCancelled: nonCancelledLeadTimes.length > 0 ? round2(nonCancelledLeadTimes.reduce((s, v) => s + v, 0) / nonCancelledLeadTimes.length) : null,
+      },
+    };
+
+    // =========================================================================
+    // ENHANCEMENT 2: Guest Stay Comparison (Two Time Periods)
+    // =========================================================================
+    let comparison: Comparison | null = null;
+    if (compareStartDate && compareEndDate) {
+      const compareBookingWhere: Record<string, unknown> = {
+        tenantId,
+        deletedAt: null,
+        checkIn: { lte: compareEndDate },
+        checkOut: { gte: compareStartDate },
+      };
+      if (propertyId && propertyId !== 'all') compareBookingWhere.propertyId = propertyId;
+      if (status && status !== 'all') compareBookingWhere.status = status;
+      if (bookingSource && bookingSource !== 'all') compareBookingWhere.source = bookingSource;
+
+      const compareStays = await db.guestStay.findMany({
+        where: {
+          guest: guestWhere,
+          booking: compareBookingWhere,
+        },
+        select: {
+          id: true,
+          roomNights: true,
+          totalAmount: true,
+          guest: { select: { id: true } },
+          booking: { select: { totalAmount: true, status: true } },
+        },
+        take: 5000,
+      });
+
+      const compareStayBookingIds = new Set(compareStays.map(s => s.bookingId));
+      const compareBookingOnlyWhere: Record<string, unknown> = {
+        ...compareBookingWhere,
+        id: { notIn: [...compareStayBookingIds] },
+      };
+      if (Object.keys(guestWhere).length > 0) {
+        compareBookingOnlyWhere.primaryGuest = guestWhere;
+      }
+
+      const compareBookingsWithoutStays = await db.booking.findMany({
+        where: compareBookingOnlyWhere,
+        select: {
+          id: true,
+          totalAmount: true,
+          checkIn: true,
+          checkOut: true,
+          primaryGuest: { select: { id: true } },
+        },
+        take: 5000,
+      });
+
+      // Build flat rows for comparison period
+      const compareFlatRows: FlatGuestStayRow[] = [];
+      for (const s of compareStays) {
+        compareFlatRows.push({
+          stayId: s.id,
+          roomNights: s.roomNights,
+          stayTotalAmount: safeNumber(s.totalAmount) ?? 0,
+          feedbackGiven: false,
+          reviewGiven: false,
+          stayCreatedAt: '',
+          guestId: s.guest.id,
+          guestFirstName: '',
+          guestLastName: '',
+          guestEmail: null,
+          guestPhone: null,
+          guestNationality: null,
+          guestCountry: null,
+          guestCity: null,
+          guestDateOfBirth: null,
+          guestGender: null,
+          guestIdType: null,
+          guestIdNumber: null,
+          guestLoyaltyTier: 'bronze',
+          guestLoyaltyPoints: 0,
+          guestTotalStays: 0,
+          guestTotalSpent: 0,
+          guestIsVip: false,
+          guestVipLevel: null,
+          guestSource: 'direct',
+          guestKycStatus: 'pending',
+          bookingId: '',
+          confirmationCode: '',
+          checkIn: '',
+          checkOut: '',
+          actualCheckIn: null,
+          actualCheckOut: null,
+          bookingStatus: s.booking.status,
+          bookingSource: '',
+          adults: 0,
+          children: 0,
+          infants: 0,
+          roomRate: 0,
+          taxes: 0,
+          discount: 0,
+          totalAmount: safeNumber(s.booking.totalAmount) ?? 0,
+          currency: 'USD',
+          guaranteeType: 'none',
+          cancellationRisk: null,
+          specialRequests: null,
+          bookingCreatedAt: '',
+          roomNumber: null,
+          roomFloor: null,
+          roomStatus: null,
+          roomTypeName: null,
+          roomTypeCode: null,
+          roomTypeBaseRate: null,
+          propertyName: null,
+          propertyCode: null,
+          propertyCity: null,
+          propertyCountry: null,
+          folioNumber: null,
+          folioSubtotal: null,
+          folioTaxes: null,
+          folioTotalAmount: null,
+          folioPaidAmount: null,
+          folioBalance: null,
+          folioStatus: null,
+          folioOpenedAt: null,
+          folioClosedAt: null,
+          paymentAmount: null,
+          paymentMethod: null,
+          paymentStatus: null,
+          paymentGateway: null,
+          paymentCardType: null,
+          paymentCreatedAt: null,
+        });
+      }
+      for (const b of compareBookingsWithoutStays) {
+        const rn = computeRoomNights(b.checkIn, b.checkOut);
+        compareFlatRows.push({
+          stayId: `booking-${b.id}`,
+          roomNights: rn,
+          stayTotalAmount: safeNumber(b.totalAmount) ?? 0,
+          feedbackGiven: false,
+          reviewGiven: false,
+          stayCreatedAt: '',
+          guestId: b.primaryGuest?.id ?? '',
+          guestFirstName: '',
+          guestLastName: '',
+          guestEmail: null,
+          guestPhone: null,
+          guestNationality: null,
+          guestCountry: null,
+          guestCity: null,
+          guestDateOfBirth: null,
+          guestGender: null,
+          guestIdType: null,
+          guestIdNumber: null,
+          guestLoyaltyTier: 'bronze',
+          guestLoyaltyPoints: 0,
+          guestTotalStays: 0,
+          guestTotalSpent: 0,
+          guestIsVip: false,
+          guestVipLevel: null,
+          guestSource: 'direct',
+          guestKycStatus: 'pending',
+          bookingId: b.id,
+          confirmationCode: '',
+          checkIn: '',
+          checkOut: '',
+          actualCheckIn: null,
+          actualCheckOut: null,
+          bookingStatus: '',
+          bookingSource: '',
+          adults: 0,
+          children: 0,
+          infants: 0,
+          roomRate: 0,
+          taxes: 0,
+          discount: 0,
+          totalAmount: safeNumber(b.totalAmount) ?? 0,
+          currency: 'USD',
+          guaranteeType: 'none',
+          cancellationRisk: null,
+          specialRequests: null,
+          bookingCreatedAt: '',
+          roomNumber: null,
+          roomFloor: null,
+          roomStatus: null,
+          roomTypeName: null,
+          roomTypeCode: null,
+          roomTypeBaseRate: null,
+          propertyName: null,
+          propertyCode: null,
+          propertyCity: null,
+          propertyCountry: null,
+          folioNumber: null,
+          folioSubtotal: null,
+          folioTaxes: null,
+          folioTotalAmount: null,
+          folioPaidAmount: null,
+          folioBalance: null,
+          folioStatus: null,
+          folioOpenedAt: null,
+          folioClosedAt: null,
+          paymentAmount: null,
+          paymentMethod: null,
+          paymentStatus: null,
+          paymentGateway: null,
+          paymentCardType: null,
+          paymentCreatedAt: null,
+        });
+      }
+
+      const currentStats = computeSummaryFromRows(flatRows);
+      const previousStats = computeSummaryFromRows(compareFlatRows);
+
+      const pctChange = (curr: number, prev: number): number => {
+        if (prev === 0) return curr > 0 ? 100 : 0;
+        return round2(((curr - prev) / prev) * 100);
+      };
+
+      comparison = {
+        current: currentStats,
+        previous: previousStats,
+        delta: {
+          revenueChange: pctChange(currentStats.totalRevenue, previousStats.totalRevenue),
+          guestsChange: pctChange(currentStats.totalGuests, previousStats.totalGuests),
+          staysChange: pctChange(currentStats.totalStays, previousStats.totalStays),
+          avgStayLengthChange: pctChange(currentStats.averageStayLength, previousStats.averageStayLength),
+          adrChange: pctChange(currentStats.adr, previousStats.adr),
+        },
+      };
+    }
+
+    // Enhancement data bundle for XLSX/PDF
+    const enhancementPayload = {
+      cancellationAnalysis,
+      revenueBreakdown,
+      guestLifetimeValue,
+      leadTimeAnalysis,
+      comparison,
+    };
+
     // ---- Return based on format ----
     const startDateStr = format(startDate, 'yyyy-MM-dd');
     const endDateStr = format(endDate, 'yyyy-MM-dd');
@@ -1551,6 +2499,16 @@ export async function GET(request: NextRequest) {
               repeat: { guests: summary.repeatGuestCount, revenue: round2(summary.repeatGuestRevenue) },
             },
           },
+          // ENHANCEMENT 2: Period Comparison
+          comparison: comparison ?? undefined,
+          // ENHANCEMENT 3: Cancellation Analysis
+          cancellationAnalysis,
+          // ENHANCEMENT 4: Revenue Breakdown
+          revenueBreakdown,
+          // ENHANCEMENT 5: Guest Lifetime Value
+          guestLifetimeValue,
+          // ENHANCEMENT 6: Lead Time Analysis
+          leadTimeAnalysis,
           pagination: {
             page,
             limit,
@@ -1574,7 +2532,7 @@ export async function GET(request: NextRequest) {
 
     if (format_ === 'xlsx') {
       // ENHANCEMENT 5: Pass stays for payment/line item sheets
-      const xlsxBuf = await generateXlsx(flatRows, summary, nationalityBreakdown, roomTypeBreakdown, allRecords);
+      const xlsxBuf = await generateXlsx(flatRows, summary, nationalityBreakdown, roomTypeBreakdown, allRecords, enhancementPayload);
       return new NextResponse(xlsxBuf, {
         status: 200,
         headers: {
@@ -1585,7 +2543,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (format_ === 'pdf') {
-      const pdfBuf = await generatePdf(flatRows, summary, startDateStr, endDateStr);
+      const pdfBuf = await generatePdf(flatRows, summary, startDateStr, endDateStr, enhancementPayload);
       return new NextResponse(pdfBuf, {
         status: 200,
         headers: {

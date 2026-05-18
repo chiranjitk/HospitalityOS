@@ -1,249 +1,286 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
-import { triggerReport } from '@/lib/jobs/scheduler';
+import { hasPermission, requireAuth } from '@/lib/auth/tenant-context';
+import { calculateNextRun } from '@/lib/jobs/scheduler';
 
 export const runtime = 'nodejs';
 
-// GET /api/reports/scheduled - List scheduled reports
+// ---------------------------------------------------------------------------
+// Helper: compute nextRunAt from report params
+// ---------------------------------------------------------------------------
+function computeNextRun(params: {
+  frequency: string;
+  time: string;
+  dayOfWeek?: number | null;
+  dayOfMonth?: number | null;
+  timezone?: string;
+}): Date {
+  // Delegate to the scheduler's existing calculateNextRun which handles
+  // daily / weekly / monthly / quarterly / yearly logic correctly.
+  return calculateNextRun({
+    frequency: params.frequency,
+    time: params.time,
+    dayOfWeek: params.dayOfWeek ?? null,
+    dayOfMonth: params.dayOfMonth ?? null,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/reports/scheduled – List all scheduled reports for the tenant
+// ---------------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   try {
-    // Authentication check
-    const user = await getUserFromRequest(request);
-    if (!user) {
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
+
+    if (!hasPermission(context, 'reports.view')) {
       return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
+        { success: false, error: 'Permission denied: reports.view' },
+        { status: 403 },
       );
     }
 
-    // Permission check
-    if (!hasPermission(user, 'reports.scheduled.view') && !hasPermission(user, 'reports.view')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-        { status: 403 }
-      );
-    }
+    const { tenantId } = context;
 
-    const tenantId = user.tenantId; // Use authenticated user's tenant
+    // Optional query filters
+    const sp = request.nextUrl.searchParams;
+    const isActiveFilter = sp.get('isActive');
+    const reportTypeFilter = sp.get('reportType');
 
-    // Get scheduled reports from database
+    const where: Record<string, unknown> = { tenantId };
+    if (isActiveFilter !== null) where.isActive = isActiveFilter === 'true';
+    if (reportTypeFilter) where.reportType = reportTypeFilter;
+
     const scheduledReports = await db.scheduledReport.findMany({
-      where: { tenantId },
+      where,
       orderBy: { createdAt: 'desc' },
     });
 
-    // Get report history (recent executions)
+    // Get recent report history for context
     const reportHistory = await db.reportHistory.findMany({
       where: { tenantId },
       orderBy: { generatedAt: 'desc' },
       take: 20,
     });
 
-    // Calculate stats
     const stats = {
       totalReports: scheduledReports.length,
-      activeReports: scheduledReports.filter(r => r.isActive).length,
-      avgSchedulesPerWeek: 0,
+      activeReports: scheduledReports.filter((r) => r.isActive).length,
+      inactiveReports: scheduledReports.filter((r) => !r.isActive).length,
       lastExecution: reportHistory[0]?.generatedAt || null,
     };
 
     return NextResponse.json({
       success: true,
-      data: scheduledReports.map(r => ({
+      data: scheduledReports.map((r) => ({
         ...r,
         recipients: JSON.parse(r.recipients || '[]'),
+        filters: JSON.parse(r.filters || '{}'),
       })),
       history: reportHistory,
       stats,
     });
   } catch (error) {
-    console.error('Error fetching scheduled reports:', error);
+    console.error('[ScheduledReports] GET error:', error);
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch scheduled reports' } },
-      { status: 500 }
+      { success: false, error: 'Failed to fetch scheduled reports' },
+      { status: 500 },
     );
   }
 }
 
-// POST /api/reports/scheduled - Create a scheduled report
+// ---------------------------------------------------------------------------
+// POST /api/reports/scheduled – Create a new scheduled report
+// ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   try {
-    // Authentication check
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
 
-    // Permission check
-    if (!hasPermission(user, 'reports.scheduled.create') && !hasPermission(user, 'reports.create')) {
+    if (!hasPermission(context, 'reports.manage') && !hasPermission(context, 'reports.*')) {
       return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-        { status: 403 }
+        { success: false, error: 'Permission denied: reports.manage' },
+        { status: 403 },
       );
     }
 
     const body = await request.json();
-
-    // Support "run-now" action to trigger a scheduled report immediately
-    if (body.action === 'run-now' && body.id) {
-      // Verify the report belongs to the user's tenant
-      const existingReport = await db.scheduledReport.findFirst({
-        where: { id: body.id, tenantId: user.tenantId },
-      });
-
-      if (!existingReport) {
-        return NextResponse.json(
-          { success: false, error: { code: 'NOT_FOUND', message: 'Scheduled report not found' } },
-          { status: 404 }
-        );
-      }
-
-      try {
-        const result = await triggerReport(body.id);
-        if (result.success) {
-          return NextResponse.json({
-            success: true,
-            historyId: result.historyId,
-          });
-        } else {
-          return NextResponse.json(
-            { success: false, error: { code: 'EXECUTION_FAILED', message: result.error } },
-            { status: 500 }
-          );
-        }
-      } catch (triggerError) {
-        console.error('Error triggering report:', triggerError);
-        return NextResponse.json(
-          { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to trigger report' } },
-          { status: 500 }
-        );
-      }
-    }
 
     const {
       name,
-      type,
+      description,
+      reportType,
       frequency,
+      dayOfWeek,
+      dayOfMonth,
       time,
-      recipients,
-      format,
-      deliveryMethod,
-      isActive = true,
+      timezone,
       filters,
+      format,
+      recipients,
+      isActive = true,
+      deliveryMethod,
     } = body;
 
-    // Use authenticated user's tenant
-    const tenantId = user.tenantId;
-
-    if (!name || !type || !frequency) {
+    // Validation
+    if (!name || !reportType || !frequency) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Name, type, and frequency are required' } },
-        { status: 400 }
+        { success: false, error: 'name, reportType, and frequency are required' },
+        { status: 400 },
       );
     }
 
-    // Calculate next run time
-    const now = new Date();
-    let nextRun = new Date();
-    const [hours, minutes] = (time || '09:00').split(':').map(Number);
-    nextRun.setHours(hours, minutes, 0, 0);
-
-    if (frequency === 'daily') {
-      if (nextRun <= now) {
-        nextRun.setDate(nextRun.getDate() + 1);
-      }
-    } else if (frequency === 'weekly') {
-      const daysUntilNext = (7 - now.getDay() + 1) % 7 || 7;
-      nextRun.setDate(nextRun.getDate() + daysUntilNext);
-    } else if (frequency === 'monthly') {
-      nextRun.setDate(1);
-      nextRun.setMonth(nextRun.getMonth() + 1);
+    const validFrequencies = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'];
+    if (!validFrequencies.includes(frequency)) {
+      return NextResponse.json(
+        { success: false, error: `frequency must be one of: ${validFrequencies.join(', ')}` },
+        { status: 400 },
+      );
     }
+
+    if (frequency === 'weekly' && (dayOfWeek === undefined || dayOfWeek === null)) {
+      return NextResponse.json(
+        { success: false, error: 'dayOfWeek is required for weekly frequency (0=Sunday)' },
+        { status: 400 },
+      );
+    }
+
+    if (frequency === 'monthly' && (dayOfMonth === undefined || dayOfMonth === null)) {
+      return NextResponse.json(
+        { success: false, error: 'dayOfMonth is required for monthly frequency' },
+        { status: 400 },
+      );
+    }
+
+    const reportTime = time || '09:00';
+    const reportTimezone = timezone || 'UTC';
+
+    // Compute nextRunAt
+    const nextRunAt = computeNextRun({
+      frequency,
+      time: reportTime,
+      dayOfWeek,
+      dayOfMonth,
+      timezone: reportTimezone,
+    });
 
     const report = await db.scheduledReport.create({
       data: {
-        tenantId,
+        tenantId: context.tenantId,
         name,
-        type,
+        description: description || null,
+        reportType,
         frequency,
-        time: time || '09:00',
+        dayOfWeek: dayOfWeek ?? null,
+        dayOfMonth: dayOfMonth ?? null,
+        time: reportTime,
+        timezone: reportTimezone,
+        filters: JSON.stringify(filters || {}),
+        format: format || 'xlsx',
         recipients: JSON.stringify(recipients || []),
-        format: format || 'pdf',
         deliveryMethod: deliveryMethod || 'email',
         isActive,
-        filters: JSON.stringify(filters || {}),
-        nextRunAt: nextRun,
+        nextRunAt,
+        createdBy: context.userId,
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        ...report,
-        recipients: JSON.parse(report.recipients || '[]'),
-      },
-    }, { status: 201 });
-  } catch (error) {
-    console.error('Error creating scheduled report:', error);
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create scheduled report' } },
-      { status: 500 }
+      {
+        success: true,
+        data: {
+          ...report,
+          recipients: JSON.parse(report.recipients || '[]'),
+          filters: JSON.parse(report.filters || '{}'),
+        },
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    console.error('[ScheduledReports] POST error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to create scheduled report' },
+      { status: 500 },
     );
   }
 }
 
-// PUT /api/reports/scheduled - Update a scheduled report
+// ---------------------------------------------------------------------------
+// PUT /api/reports/scheduled – Update a scheduled report (bulk, by id in body)
+// ---------------------------------------------------------------------------
 export async function PUT(request: NextRequest) {
   try {
-    // Authentication check
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
 
-    // Permission check
-    if (!hasPermission(user, 'reports.scheduled.update') && !hasPermission(user, 'reports.update')) {
+    if (!hasPermission(context, 'reports.manage') && !hasPermission(context, 'reports.*')) {
       return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-        { status: 403 }
+        { success: false, error: 'Permission denied: reports.manage' },
+        { status: 403 },
       );
     }
 
     const body = await request.json();
-    const { id, isActive, ...updateData } = body;
+    const { id, ...updateData } = body;
 
     if (!id) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Report ID is required' } },
-        { status: 400 }
+        { success: false, error: 'Report ID is required' },
+        { status: 400 },
       );
     }
 
-    // Verify the report belongs to the user's tenant
-    const existingReport = await db.scheduledReport.findFirst({
-      where: { id, tenantId: user.tenantId },
+    // Verify ownership
+    const existing = await db.scheduledReport.findFirst({
+      where: { id, tenantId: context.tenantId },
     });
 
-    if (!existingReport) {
+    if (!existing) {
       return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Scheduled report not found' } },
-        { status: 404 }
+        { success: false, error: 'Scheduled report not found' },
+        { status: 404 },
       );
     }
 
-    const data: Record<string, unknown> = { ...updateData };
-    if (updateData.recipients) {
-      data.recipients = JSON.stringify(updateData.recipients);
+    // Build update payload
+    const data: Record<string, unknown> = {};
+
+    if (updateData.name !== undefined) data.name = updateData.name;
+    if (updateData.description !== undefined) data.description = updateData.description;
+    if (updateData.reportType !== undefined) data.reportType = updateData.reportType;
+    if (updateData.frequency !== undefined) data.frequency = updateData.frequency;
+    if (updateData.dayOfWeek !== undefined) data.dayOfWeek = updateData.dayOfWeek;
+    if (updateData.dayOfMonth !== undefined) data.dayOfMonth = updateData.dayOfMonth;
+    if (updateData.time !== undefined) data.time = updateData.time;
+    if (updateData.timezone !== undefined) data.timezone = updateData.timezone;
+    if (updateData.format !== undefined) data.format = updateData.format;
+    if (updateData.deliveryMethod !== undefined) data.deliveryMethod = updateData.deliveryMethod;
+    if (updateData.isActive !== undefined) data.isActive = updateData.isActive;
+    if (updateData.recipients !== undefined) data.recipients = JSON.stringify(updateData.recipients);
+    if (updateData.filters !== undefined) data.filters = JSON.stringify(updateData.filters);
+
+    // Recompute nextRunAt if schedule-related fields changed
+    const scheduleFieldsChanged =
+      updateData.frequency !== undefined ||
+      updateData.time !== undefined ||
+      updateData.dayOfWeek !== undefined ||
+      updateData.dayOfMonth !== undefined ||
+      updateData.timezone !== undefined;
+
+    if (scheduleFieldsChanged || updateData.isActive === true) {
+      const merged = {
+        frequency: (data.frequency as string) || existing.frequency,
+        time: (data.time as string) || existing.time,
+        dayOfWeek: (data.dayOfWeek as number | null) ?? existing.dayOfWeek,
+        dayOfMonth: (data.dayOfMonth as number | null) ?? existing.dayOfMonth,
+        timezone: (data.timezone as string) || existing.timezone,
+      };
+      data.nextRunAt = computeNextRun(merged);
     }
-    if (updateData.filters) {
-      data.filters = JSON.stringify(updateData.filters);
+
+    // If deactivated, clear nextRunAt
+    if (updateData.isActive === false) {
+      data.nextRunAt = null;
     }
 
     const report = await db.scheduledReport.update({
@@ -256,72 +293,71 @@ export async function PUT(request: NextRequest) {
       data: {
         ...report,
         recipients: JSON.parse(report.recipients || '[]'),
+        filters: JSON.parse(report.filters || '{}'),
       },
     });
   } catch (error) {
-    console.error('Error updating scheduled report:', error);
+    console.error('[ScheduledReports] PUT error:', error);
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update scheduled report' } },
-      { status: 500 }
+      { success: false, error: 'Failed to update scheduled report' },
+      { status: 500 },
     );
   }
 }
 
-// DELETE /api/reports/scheduled - Delete a scheduled report
+// ---------------------------------------------------------------------------
+// DELETE /api/reports/scheduled – Soft-delete (set isActive = false)
+// ---------------------------------------------------------------------------
 export async function DELETE(request: NextRequest) {
   try {
-    // Authentication check
-    const user = await getUserFromRequest(request);
-    if (!user) {
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
+
+    if (!hasPermission(context, 'reports.manage') && !hasPermission(context, 'reports.*')) {
       return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
+        { success: false, error: 'Permission denied: reports.manage' },
+        { status: 403 },
       );
     }
 
-    // Permission check
-    if (!hasPermission(user, 'reports.scheduled.delete') && !hasPermission(user, 'reports.delete')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-        { status: 403 }
-      );
-    }
-
-    const searchParams = request.nextUrl.searchParams;
-    const id = searchParams.get('id');
-
+    const id = request.nextUrl.searchParams.get('id');
     if (!id) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Report ID is required' } },
-        { status: 400 }
+        { success: false, error: 'Report ID is required' },
+        { status: 400 },
       );
     }
 
-    // Verify the report belongs to the user's tenant
-    const existingReport = await db.scheduledReport.findFirst({
-      where: { id, tenantId: user.tenantId },
+    // Verify ownership
+    const existing = await db.scheduledReport.findFirst({
+      where: { id, tenantId: context.tenantId },
     });
 
-    if (!existingReport) {
+    if (!existing) {
       return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Scheduled report not found' } },
-        { status: 404 }
+        { success: false, error: 'Scheduled report not found' },
+        { status: 404 },
       );
     }
 
-    await db.scheduledReport.delete({
+    // Soft delete – set isActive = false and clear nextRunAt
+    await db.scheduledReport.update({
       where: { id },
+      data: {
+        isActive: false,
+        nextRunAt: null,
+      },
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Scheduled report deleted',
+      message: 'Scheduled report deactivated',
     });
   } catch (error) {
-    console.error('Error deleting scheduled report:', error);
+    console.error('[ScheduledReports] DELETE error:', error);
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete scheduled report' } },
-      { status: 500 }
+      { success: false, error: 'Failed to delete scheduled report' },
+      { status: 500 },
     );
   }
 }
