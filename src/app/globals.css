@@ -266,13 +266,21 @@ html {
   overflow-y: scroll !important;
   scrollbar-gutter: stable !important;
 }
-/* Neutralize react-remove-scroll-bar padding/margin compensation */
+/* Neutralize react-remove-scroll-bar overflow/padding/margin compensation */
 body[data-scroll-locked],
 body[data-radix-scroll-locked] {
+  overflow-y: visible !important;
+  overflow: visible !important;
   padding-right: 0 !important;
   margin-right: 0 !important;
 }
-/* Fallback: catch any inline padding-right on body (from any scroll-lock lib) */
+/* Fallback: catch any inline style changes on body (from any scroll-lock lib) */
+body[style*="overflow: hidden"],
+body[style*="overflow:hidden"] {
+  overflow: visible !important;
+  overflow-y: visible !important;
+  padding-right: 0 !important;
+}
 body[style*="padding-right"] {
   padding-right: 0 !important;
 }
