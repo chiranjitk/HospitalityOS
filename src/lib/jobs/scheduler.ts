@@ -264,7 +264,7 @@ export async function processScheduledReports(): Promise<{
 /**
  * Calculate the next run time based on frequency
  */
-function calculateNextRun(report: {
+export function calculateNextRun(report: {
   frequency: string;
   time: string;
   dayOfWeek: number | null;
