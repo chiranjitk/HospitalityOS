@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
         SELECT t."category", COUNT(a.id)::bigint as bookings, COALESCE(SUM(a."price"), 0)::bigint as revenue
         FROM "SpaAppointment" a
         JOIN "SpaTreatment" t ON a."treatmentId" = t.id
-        WHERE a."tenantId" = ${user.tenantId}
+        WHERE a."tenantId" = ${user.tenantId}::uuid
           AND a."startTime" >= ${monthStart}
         GROUP BY t."category"
         ORDER BY revenue DESC
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
       db.$queryRaw<Array<{ date: string; revenue: bigint; bookings: bigint }>>`
         SELECT DATE(a."startTime") as date, COALESCE(SUM(a."price"), 0)::bigint as revenue, COUNT(a.id)::bigint as bookings
         FROM "SpaAppointment" a
-        WHERE a."tenantId" = ${user.tenantId}
+        WHERE a."tenantId" = ${user.tenantId}::uuid
           AND a."startTime" >= ${new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)}
         GROUP BY DATE(a."startTime")
         ORDER BY date ASC
@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
       SELECT t."name"
       FROM "SpaAppointment" a
       JOIN "SpaTreatment" t ON a."treatmentId" = t.id
-      WHERE a."tenantId" = ${user.tenantId}
+      WHERE a."tenantId" = ${user.tenantId}::uuid
         AND a."startTime" >= ${monthStart}
       GROUP BY t."name"
       ORDER BY COUNT(a.id) DESC
