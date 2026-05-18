@@ -4,7 +4,9 @@ import createNextIntlPlugin from 'next-intl/plugin';
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // NOTE: "output: standalone" removed for dev mode — it adds file-tracing overhead
+  // that increases memory usage. Re-enable only for `next build` in production.
+  // output: "standalone",
   // Exclude native/binary packages and Node.js-only modules from bundling.
   // These are loaded at runtime via dynamic import from instrumentation.ts (Node.js runtime).
   // Without this, Turbopack traces them into the Edge Runtime analysis and emits warnings.
