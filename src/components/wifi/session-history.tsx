@@ -287,7 +287,7 @@ export default function SessionHistory() {
       params.append('limit', String(PAGE_SIZE));
       params.append('offset', String(offset ?? 0));
       if (drillDownUser) params.append('username', drillDownUser);
-      else if (debouncedSearchQuery) params.append('username', debouncedSearchQuery);
+      else if (debouncedSearchQuery) params.append('search', debouncedSearchQuery);
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (effectiveStartDate) params.append('startDate', effectiveStartDate);
       if (effectiveEndDate) params.append('endDate', effectiveEndDate);
@@ -377,7 +377,7 @@ export default function SessionHistory() {
       const params = new URLSearchParams();
       params.append('export', 'csv');
       if (drillDownUser) params.append('username', drillDownUser);
-      else if (searchQuery) params.append('username', searchQuery);
+      else if (searchQuery) params.append('search', searchQuery);
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (effectiveStartDate) params.append('startDate', effectiveStartDate);
       if (effectiveEndDate) params.append('endDate', effectiveEndDate);
@@ -586,7 +586,7 @@ export default function SessionHistory() {
         <div className="flex-1 w-full relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by username..."
+            placeholder="Search User / IP / MAC / Device..."
             value={drillDownUser || searchQuery}
             onChange={(e) => { if (drillDownUser) setDrillDownUser(null); setSearchQuery(e.target.value); setPagination(prev => ({ ...prev, offset: 0 })); }}
             className="pl-9 h-8 text-sm bg-background"

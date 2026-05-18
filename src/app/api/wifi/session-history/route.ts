@@ -40,7 +40,8 @@ type CsvHeader = (typeof CSV_HEADERS)[number]
 
 interface SessionHistoryFilters {
   propertyId?: string
-  username?: string
+  search?: string  // multi-field: username, IP, MAC, device
+  username?: string // kept for backward compat / drill-down
   nasIp?: string
   callingStationId?: string
   status?: 'active' | 'stopped'
@@ -208,10 +209,16 @@ function buildSqlConditions(
   conditions.push(`(acctstarttime <= $${params.length + 1}::timestamptz OR acctstarttime IS NULL)`)
   params.push(dateRange.endDate)
 
-  // Username LIKE search (case-insensitive substring match)
-  if (filters.username) {
-    conditions.push(`username LIKE $${params.length + 1}`)
-    params.push(`%${filters.username}%`)
+  // Multi-field search (username, IP, MAC, device) — takes priority over username-only
+  const searchTerm = filters.search || filters.username
+  if (searchTerm) {
+    const idx = params.length + 1
+    conditions.push(`(
+      username LIKE $${idx}
+      OR framedipaddress LIKE $${idx}
+      OR callingstationid LIKE $${idx}
+    )`)
+    params.push(`%${searchTerm}%`)
   }
 
   // NAS IP exact match
@@ -306,6 +313,7 @@ export async function GET(request: NextRequest) {
 
     // ── Parse query parameters ──────────────────────────────────────────────
     const propertyId = searchParams.get('propertyId') || undefined
+    const search = searchParams.get('search') || undefined
     const username = searchParams.get('username') || undefined
     const nasIp = searchParams.get('nasIp') || undefined
     const callingStationId = searchParams.get('callingStationId') || undefined
@@ -335,6 +343,7 @@ export async function GET(request: NextRequest) {
     // ── Build WHERE clause ──────────────────────────────────────────────────
     const filters: SessionHistoryFilters = {
       propertyId,
+      search,
       username,
       nasIp,
       callingStationId,

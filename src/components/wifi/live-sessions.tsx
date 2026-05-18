@@ -337,7 +337,7 @@ export default function LiveSessions() {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
-      if (debouncedSearchQuery) params.append('username', debouncedSearchQuery);
+      if (debouncedSearchQuery) params.append('search', debouncedSearchQuery);
       if (nasFilter !== 'all') params.append('nasIp', nasFilter);
       if (statusFilter !== 'all') params.append('status', statusFilter);
 
@@ -902,7 +902,7 @@ export default function LiveSessions() {
         <div className="flex-1 w-full relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by username..."
+            placeholder="Search User / IP / MAC / Device..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 h-8 text-sm bg-background"

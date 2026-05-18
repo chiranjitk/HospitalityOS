@@ -68,7 +68,11 @@ export async function GET(request: NextRequest) {    const user = await requireP
     }
 
     if (search) {
-      where.code = { contains: search,  };
+      where.OR = [
+        { code: { contains: search } },
+        { guestName: { contains: search } },
+        { roomNumber: { contains: search } },
+      ];
     }
 
     const vouchers = await db.wiFiVoucher.findMany({

@@ -661,14 +661,29 @@ export async function GET(request: NextRequest) {
       // The view joins radacct with StaySuite tables and filters for active sessions.
       case 'live-sessions-list': {
         try {
-          const username = searchParams.get('username');
+          const search = searchParams.get('search') || searchParams.get('username'); // 'username' kept for backward compat
           const nasIp = searchParams.get('nasIp');
           const status = searchParams.get('status');
 
           // Build SQL conditions on the view
           const conditions: string[] = ["session_status = 'active'"];
           const sqlParams: unknown[] = [];
-          if (username) { conditions.push(`username LIKE $${sqlParams.length + 1}`); sqlParams.push(`%${username}%`); }
+          if (search) {
+            // Multi-field search: username, IP, MAC, device name/type, guest name, room
+            const idx = sqlParams.length + 1;
+            conditions.push(`(
+              username LIKE $${idx}
+              OR framedipaddress LIKE $${idx}
+              OR callingstationid LIKE $${idx}
+              OR "dp_macAddress" LIKE $${idx}
+              OR "deviceName" LIKE $${idx}
+              OR "deviceType" LIKE $${idx}
+              OR guest_first_name LIKE $${idx}
+              OR guest_last_name LIKE $${idx}
+              OR room_number LIKE $${idx}
+            )`);
+            sqlParams.push(`%${search}%`);
+          }
           if (nasIp) { conditions.push(`nasipaddress LIKE $${sqlParams.length + 1}`); sqlParams.push(`%${nasIp}%`); }
           const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
