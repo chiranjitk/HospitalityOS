@@ -728,7 +728,7 @@ function ComparisonMetricCard({
           )}>
             {direction === 'up' && <ArrowUpRight className="h-3 w-3" />}
             {direction === 'down' && <ArrowDownRight className="h-3 w-3" />}
-            {change.toFixed(1)}%
+            {(change ?? 0).toFixed(1)}%
           </div>
         </div>
       </CardContent>
@@ -1551,7 +1551,7 @@ export default function GuestStayReport() {
           <tr><td>Total Guests</td><td>${s.totalGuests.toLocaleString()}</td><td>Total Revenue</td><td>${formatCurrencyValue(s.totalRevenue, currency.symbol)}</td></tr>
           <tr><td>Total Stays</td><td>${s.totalStays.toLocaleString()}</td><td>Avg Revenue/Stay</td><td>${formatCurrencyValue(s.avgRevenuePerStay, currency.symbol)}</td></tr>
           <tr><td>Total Room Nights</td><td>${s.totalRoomNights.toLocaleString()}</td><td>Cancellation Rate</td><td>${s.cancellationRate}%</td></tr>
-          <tr><td>Avg Stay Length</td><td>${s.avgStayLength.toFixed(1)} nights</td><td>ADR</td><td>${formatCurrencyValue(s.adr, currency.symbol)}</td></tr>
+          <tr><td>Avg Stay Length</td><td>${(s.avgStayLength ?? 0).toFixed(1)} nights</td><td>ADR</td><td>${formatCurrencyValue(s.adr, currency.symbol)}</td></tr>
           <tr><td>Collection Rate</td><td>${s.collectionRate}%</td><td>RevPAR</td><td>${formatCurrencyValue(s.revpar, currency.symbol)}</td></tr>
         </table>
         <table class="data-table">
@@ -2043,7 +2043,7 @@ export default function GuestStayReport() {
             />
             <SummaryCard
               title="Avg Stay Length"
-              value={`${summary.avgStayLength.toFixed(1)} nights`}
+              value={`${(summary.avgStayLength ?? 0).toFixed(1)} nights`}
               subtitle="Per booking"
               icon={Clock}
               gradient="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900"
@@ -2526,12 +2526,12 @@ export default function GuestStayReport() {
                 <ComparisonMetricCard label="Total Stays" current={summary.totalStays} previous={compareData.summary.totalStays} />
                 <ComparisonMetricCard label="Total Room Nights" current={summary.totalRoomNights} previous={compareData.summary.totalRoomNights} />
                 <ComparisonMetricCard label="Total Revenue" current={summary.totalRevenue} previous={compareData.summary.totalRevenue} formatFn={v => formatCurrencyValue(v, currency.symbol)} />
-                <ComparisonMetricCard label="Avg Stay Length" current={summary.avgStayLength} previous={compareData.summary.avgStayLength} formatFn={v => `${v.toFixed(1)} nights`} />
+                <ComparisonMetricCard label="Avg Stay Length" current={summary.avgStayLength} previous={compareData.summary.avgStayLength} formatFn={v => `${(v ?? 0).toFixed(1)} nights`} />
                 <ComparisonMetricCard label="Avg Revenue/Stay" current={summary.avgRevenuePerStay} previous={compareData.summary.avgRevenuePerStay} formatFn={v => formatCurrencyValue(v, currency.symbol)} />
-                <ComparisonMetricCard label="Cancellation Rate" current={summary.cancellationRate} previous={compareData.summary.cancellationRate} formatFn={v => `${v.toFixed(1)}%`} />
+                <ComparisonMetricCard label="Cancellation Rate" current={summary.cancellationRate} previous={compareData.summary.cancellationRate} formatFn={v => `${(v ?? 0).toFixed(1)}%`} />
                 <ComparisonMetricCard label="ADR" current={summary.adr} previous={compareData.summary.adr} formatFn={v => formatCurrencyValue(v, currency.symbol)} />
                 <ComparisonMetricCard label="RevPAR" current={summary.revpar} previous={compareData.summary.revpar} formatFn={v => formatCurrencyValue(v, currency.symbol)} />
-                <ComparisonMetricCard label="Collection Rate" current={summary.collectionRate} previous={compareData.summary.collectionRate} formatFn={v => `${v.toFixed(1)}%`} />
+                <ComparisonMetricCard label="Collection Rate" current={summary.collectionRate} previous={compareData.summary.collectionRate} formatFn={v => `${(v ?? 0).toFixed(1)}%`} />
                 <ComparisonMetricCard label="Repeat Guests" current={summary.repeatGuestCount} previous={compareData.summary.repeatGuestCount} />
                 <ComparisonMetricCard label="First-Time Guests" current={summary.firstTimeGuestCount} previous={compareData.summary.firstTimeGuestCount} />
               </div>
@@ -2552,7 +2552,7 @@ export default function GuestStayReport() {
             {extCancellation ? (
               <div className="space-y-4">
                 <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-                  <SummaryCard title="Cancellation Rate" value={`${extCancellation.cancellationRate.toFixed(1)}%`} icon={XCircle}
+                  <SummaryCard title="Cancellation Rate" value={`${(extCancellation.cancellationRate ?? 0).toFixed(1)}%`} icon={XCircle}
                     gradient="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900" iconBg="bg-rose-200 dark:bg-rose-800" iconColor="text-rose-700 dark:text-rose-400" />
                   <SummaryCard title="Cancelled Bookings" value={String(summary.cancelledStays)} icon={XCircle}
                     gradient="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900" iconBg="bg-red-200 dark:bg-red-800" iconColor="text-red-700 dark:text-red-400" />
@@ -2743,9 +2743,9 @@ export default function GuestStayReport() {
             {leadTime ? (
               <div className="space-y-4">
                 <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-                  <SummaryCard title="Avg Lead Time" value={`${leadTime.averageLeadTime.toFixed(1)} days`} icon={Clock}
+                  <SummaryCard title="Avg Lead Time" value={`${(leadTime.averageLeadTime ?? 0).toFixed(1)} days`} icon={Clock}
                     gradient="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900" iconBg="bg-cyan-200 dark:bg-cyan-800" iconColor="text-cyan-700 dark:text-cyan-400" />
-                  <SummaryCard title="Median Lead Time" value={`${leadTime.medianLeadTime.toFixed(1)} days`} icon={Clock4}
+                  <SummaryCard title="Median Lead Time" value={`${(leadTime.medianLeadTime ?? 0).toFixed(1)} days`} icon={Clock4}
                     gradient="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900" iconBg="bg-teal-200 dark:bg-teal-800" iconColor="text-teal-700 dark:text-teal-400" />
                   <SummaryCard title="Same-Day Cancel Rate" value={`${(leadTime.cancellationCorrelation?.sameDayCancellationRate ?? 0).toFixed(1)}%`} icon={AlertTriangle}
                     gradient="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900" iconBg="bg-amber-200 dark:bg-amber-800" iconColor="text-amber-700 dark:text-amber-400" />
