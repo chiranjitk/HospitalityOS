@@ -2720,6 +2720,7 @@ model Guest {
   wifiDevices         WiFiDevice[]
   wifiSatisfactionSurveys WiFiSatisfactionSurvey[]
   wifiPartnerAuths    WiFiPartnerAuth[]
+  spaAppointments     SpaAppointment[]
 
   @@index([tenantId])
   @@index([email])
@@ -10674,6 +10675,7 @@ model SpaTreatment {
   createdAt     DateTime @default(now()) @db.Timestamptz
   updatedAt     DateTime @updatedAt @db.Timestamptz
   tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointments  SpaAppointment[]
 
   @@index([tenantId])
   @@index([propertyId])
@@ -10700,6 +10702,9 @@ model SpaAppointment {
   createdAt     DateTime @default(now()) @db.Timestamptz
   updatedAt     DateTime @updatedAt @db.Timestamptz
   tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  treatment     SpaTreatment  @relation(fields: [treatmentId], references: [id])
+  therapist     SpaTherapist? @relation(fields: [therapistId], references: [id])
+  guest         Guest?        @relation(fields: [guestId], references: [id])
 
   @@index([tenantId])
   @@index([propertyId])
@@ -10725,6 +10730,7 @@ model SpaTherapist {
   createdAt     DateTime @default(now()) @db.Timestamptz
   updatedAt     DateTime @updatedAt @db.Timestamptz
   tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointments  SpaAppointment[]
 
   @@index([tenantId])
   @@index([propertyId])
