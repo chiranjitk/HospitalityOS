@@ -554,6 +554,7 @@ model Booking {
   kycRequired         Boolean           @default(false)
   kycCompleted        Boolean           @default(false)
   kycStatus           String            @default("pending")
+  paymentStatus       String            @default("unpaid") // unpaid, partially_paid, paid
   portalToken         String?           @unique
   portalTokenExpires  DateTime?         @db.Timestamptz
   eSignature          String?
@@ -4741,6 +4742,7 @@ model Property {
   roomVlans              RoomVlan[]
   nightAudits               NightAudit[]
   travelAgents              TravelAgent[]
+  cityLedgerAccounts        CityLedgerAccount[]
   cityLedgerInvoices        CityLedgerInvoice[]
   cityLedgerPayments       CityLedgerPayment[]
   commissionRules           CommissionRule[]
@@ -6693,6 +6695,7 @@ model Tenant {
   commissionRules           CommissionRule[]
   commissionRecords         CommissionRecord[]
   commissionPayments        CommissionPayment[]
+  cityLedgerAccounts        CityLedgerAccount[]
   cityLedgerInvoices        CityLedgerInvoice[]
   cityLedgerPayments       CityLedgerPayment[]
   minibarItems              MinibarItem[]
@@ -8915,35 +8918,77 @@ model TravelAgent {
   @@index([isActive])
 }
 
+/// CityLedgerAccount - Corporate/organization accounts for direct billing
+model CityLedgerAccount {
+  id              String       @id @default(uuid()) @db.Uuid
+  tenantId        String       @db.Uuid
+  propertyId      String       @db.Uuid
+  accountName     String
+  accountCode     String
+  accountType     String       @default("corporate") // corporate, travel_agent, government, embassy, airline, direct_bill
+  contactPerson   String?
+  email           String?
+  phone           String?
+  address         String?
+  city            String?
+  country         String?
+  taxId           String?
+  gstNumber       String?
+  panNumber       String?
+  creditLimit     Float        @default(0)
+  currentBalance  Float        @default(0)
+  paymentTerms    String       @default("net_30") // net_15, net_30, net_45, net_60, cod
+  billingCycle    String       @default("monthly") // weekly, monthly, quarterly
+  discountPercent Float        @default(0)
+  status          String       @default("active") // active, suspended, closed
+  isActive        Boolean      @default(true)
+  notes           String?
+  createdAt       DateTime     @default(now()) @db.Timestamptz
+  updatedAt       DateTime     @updatedAt @db.Timestamptz
+  invoices        CityLedgerInvoice[]
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property        Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, accountCode])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([accountType])
+  @@index([status])
+  @@index([isActive])
+}
+
 model CityLedgerInvoice {
-  id            String       @id @default(uuid()) @db.Uuid
-  tenantId      String       @db.Uuid
-  propertyId    String       @db.Uuid
-  travelAgentId String?      @db.Uuid
-  accountName   String
-  accountType   String       // travel_agent, corporate, direct_bill
-  invoiceNumber String
-  invoiceDate   DateTime     @db.Timestamptz
-  dueDate       DateTime     @db.Timestamptz
-  subtotal      Float        @default(0)
-  tax           Float        @default(0)
-  total         Float        @default(0)
-  currency      String       @default("USD")
-  status        String       @default("draft") // draft, sent, partial, paid, overdue, cancelled
-  paidAmount    Float        @default(0)
-  notes         String?
-  createdAt     DateTime     @default(now()) @db.Timestamptz
-  updatedAt     DateTime     @updatedAt @db.Timestamptz
-  items         CityLedgerItem[]
-  payments      CityLedgerPayment[]
-  travelAgent   TravelAgent? @relation(fields: [travelAgentId], references: [id])
-  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  property      Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  id                  String              @id @default(uuid()) @db.Uuid
+  tenantId            String              @db.Uuid
+  propertyId          String              @db.Uuid
+  travelAgentId       String?             @db.Uuid
+  cityLedgerAccountId String?             @db.Uuid
+  accountName         String
+  accountType         String              // travel_agent, corporate, direct_bill
+  invoiceNumber       String
+  invoiceDate         DateTime            @db.Timestamptz
+  dueDate             DateTime            @db.Timestamptz
+  subtotal            Float               @default(0)
+  tax                 Float               @default(0)
+  total               Float               @default(0)
+  currency            String              @default("USD")
+  status              String              @default("draft") // draft, sent, partial, paid, overdue, cancelled
+  paidAmount          Float               @default(0)
+  notes               String?
+  createdAt           DateTime            @default(now()) @db.Timestamptz
+  updatedAt           DateTime            @updatedAt @db.Timestamptz
+  items               CityLedgerItem[]
+  payments            CityLedgerPayment[]
+  travelAgent         TravelAgent?        @relation(fields: [travelAgentId], references: [id])
+  cityLedgerAccount   CityLedgerAccount?  @relation(fields: [cityLedgerAccountId], references: [id])
+  tenant              Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property            Property            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, invoiceNumber])
   @@index([tenantId])
   @@index([propertyId])
   @@index([travelAgentId])
+  @@index([cityLedgerAccountId])
   @@index([accountType])
   @@index([status])
   @@index([invoiceDate])

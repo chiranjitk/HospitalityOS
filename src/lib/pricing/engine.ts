@@ -87,13 +87,23 @@ export async function calculatePrice(context: PricingContext): Promise<PriceBrea
   // Calculate nights
   const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
 
-  // Get room type for currency
+  // Get room type and property for currency and tax settings
   const roomType = await db.roomType.findUnique({
     where: { id: roomTypeId },
     select: { currency: true, propertyId: true },
   });
 
-  const currency = roomType?.currency || 'USD';
+  const property = await db.property.findUnique({
+    where: { id: propertyId },
+    select: {
+      currency: true,
+      defaultTaxRate: true,
+      taxComponents: true,
+      serviceChargePercent: true,
+    },
+  });
+
+  const currency = roomType?.currency || property?.currency || 'USD';
 
   // Start with base price
   let currentPricePerNight = basePrice;
@@ -171,19 +181,10 @@ export async function calculatePrice(context: PricingContext): Promise<PriceBrea
   // Calculate totals
   const subtotal = currentPricePerNight * nights;
 
-  // Get property tax settings
-  const property = await db.property.findUnique({
-    where: { id: propertyId },
-    select: {
-      defaultTaxRate: true,
-      taxComponents: true,
-      serviceChargePercent: true,
-    },
-  });
-
   // Calculate taxes
   let taxes = 0;
   if (property) {
+    let taxCalculated = false;
     if (property.taxComponents) {
       try {
         const components = JSON.parse(property.taxComponents);
@@ -193,15 +194,15 @@ export async function calculatePrice(context: PricingContext): Promise<PriceBrea
             const rate = Number(component.rate);
             if (subtotal <= 0 || isNaN(rate)) continue;
             taxes += subtotal * (rate / 100);
+            taxCalculated = true;
           }
         }
       } catch {
         // Fall back to default tax rate
-        if (property.defaultTaxRate) {
-          taxes = subtotal * (property.defaultTaxRate / 100);
-        }
       }
-    } else if (property.defaultTaxRate) {
+    }
+    // Fall back to defaultTaxRate if taxComponents was empty/invalid or not set
+    if (!taxCalculated && property.defaultTaxRate && subtotal > 0) {
       taxes = subtotal * (property.defaultTaxRate / 100);
     }
   }

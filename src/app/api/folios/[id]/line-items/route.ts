@@ -135,14 +135,20 @@ export async function POST(
         },
       });
 
-      // Update folio totals
+      // Recalculate folio totals from ALL line items (BUG-009 fix)
+      const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: id } });
+      const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+      const newTaxes = allLineItems.reduce((sum, li) => sum + li.taxAmount, 0);
+      const newTotalAmount = newSubtotal + newTaxes - folio.discount;
+      const newBalance = newTotalAmount - folio.paidAmount;
+
       const updatedFolio = await tx.folio.update({
         where: { id },
         data: {
-          subtotal: { increment: totalAmount },
-          taxes: { increment: taxAmount },
-          totalAmount: { increment: totalAmount + taxAmount },
-          balance: { increment: totalAmount + taxAmount },
+          subtotal: newSubtotal,
+          taxes: newTaxes,
+          totalAmount: newTotalAmount,
+          balance: newBalance,
         },
       });
 
@@ -263,14 +269,20 @@ export async function DELETE(
         where: { id: lineItemId },
       });
 
-      // Update folio totals (subtract the line item amounts)
+      // Recalculate folio totals from ALL remaining line items (BUG-009 fix)
+      const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: id } });
+      const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+      const newTaxes = allLineItems.reduce((sum, li) => sum + li.taxAmount, 0);
+      const newTotalAmount = newSubtotal + newTaxes - folio.discount;
+      const newBalance = newTotalAmount - folio.paidAmount;
+
       const updatedFolio = await tx.folio.update({
         where: { id },
         data: {
-          subtotal: { decrement: lineItem.totalAmount },
-          taxes: { decrement: lineItem.taxAmount },
-          totalAmount: { decrement: lineItem.totalAmount + lineItem.taxAmount },
-          balance: { decrement: lineItem.totalAmount + lineItem.taxAmount },
+          subtotal: newSubtotal,
+          taxes: newTaxes,
+          totalAmount: newTotalAmount,
+          balance: newBalance,
         },
       });
 

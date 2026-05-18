@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { markRoomDirtyAfterCheckout } from '@/lib/housekeeping-automation';
 import { z } from 'zod';
+import crypto from 'crypto';
 
 // ─── Night Audit Steps Template ───
 const NIGHT_AUDIT_STEPS = [
@@ -216,6 +217,7 @@ interface ExecutionSummary {
   roomRevenue: number;
   fbRevenue: number;
   otherRevenue: number;
+  invoicesGenerated: number;
 }
 
 async function executeFullNightAudit(audit: AuditContext, userId: string) {
@@ -234,6 +236,7 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
     roomRevenue: 0,
     fbRevenue: 0,
     otherRevenue: 0,
+    invoicesGenerated: 0,
   };
 
   // Track room IDs released by no-shows for post-transaction housekeeping automation
@@ -482,23 +485,105 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
       data: { status: 'completed', completedAt: new Date(), performedBy: userId, result: JSON.stringify({ roomsReconciled: summary.roomsReconciled, discrepancies: summary.discrepancies }) },
     });
 
+    // ── Step 4b (BUG-012): Auto-generate invoices for folios without invoices (GST compliance) ──
+    // Under Indian GST law, invoices must be generated for all taxable supplies,
+    // not just paid/closed ones. This step ensures every open or partially_paid folio
+    // that doesn't already have an invoice gets one.
+    const foliosNeedingInvoices = await tx.folio.findMany({
+      where: {
+        propertyId: audit.propertyId,
+        tenantId: audit.tenantId,
+        status: { in: ['open', 'partially_paid'] },
+        invoiceNumber: null,
+      },
+      include: {
+        booking: {
+          include: {
+            primaryGuest: { select: { id: true, firstName: true, lastName: true, email: true, city: true, country: true } },
+            room: { include: { roomType: { select: { name: true } } } },
+          },
+        },
+      },
+    });
+
+    for (const folio of foliosNeedingInvoices) {
+      const guest = folio.booking?.primaryGuest;
+      const invoiceNumber = `INV-${new Date().getFullYear().toString().slice(-2)}${(new Date().getMonth() + 1).toString().padStart(2, '0')}-${crypto.randomBytes(4).toString('hex').slice(0, 4)}`;
+
+      await tx.invoice.create({
+        data: {
+          tenantId: folio.tenantId,
+          invoiceNumber,
+          folioId: folio.id,
+          customerName: guest ? `${guest.firstName} ${guest.lastName}` : 'Guest',
+          customerEmail: guest?.email,
+          customerAddress: guest ? [guest.city, guest.country].filter(Boolean).join(', ') : undefined,
+          subtotal: folio.subtotal,
+          taxes: folio.taxes,
+          discount: folio.discount,
+          totalAmount: folio.totalAmount,
+          currency: folio.currency,
+          issuedAt: new Date(),
+          dueAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          status: 'issued',
+          pdfUrl: `/api/invoices/${folio.id}/pdf`,
+        },
+      });
+
+      // Update folio with invoice info
+      await tx.folio.update({
+        where: { id: folio.id },
+        data: { invoiceNumber, invoiceIssuedAt: new Date() },
+      });
+
+      summary.invoicesGenerated++;
+    }
+
+    if (summary.invoicesGenerated > 0) {
+      await tx.nightAuditLog.create({
+        data: {
+          nightAuditId: audit.id,
+          action: 'invoices_generated',
+          entityType: 'Folio',
+          entityId: audit.id,
+          newValue: `Auto-generated ${summary.invoicesGenerated} invoice(s) for folios without invoices (GST compliance)`,
+          performedBy: userId,
+        },
+      });
+    }
+
     // ── Step 5: Generate occupancy and revenue summary ──
     const totalRooms = await tx.room.count({ where: { propertyId: audit.propertyId, deletedAt: null } });
     const occupiedRooms = await tx.room.count({ where: { propertyId: audit.propertyId, status: 'occupied', deletedAt: null } });
 
+    // BUG-017 FIX: Use folio totalAmount as the source of truth for totalRevenue
+    // instead of summing line items (which exclude taxes/discounts and may not
+    // match actual folio totals). Query folios that had activity during the audit day.
     const lineItems = await tx.folioLineItem.findMany({
       where: { folio: { propertyId: audit.propertyId, tenantId: audit.tenantId }, serviceDate: { gte: startOfDay, lte: endOfDay } },
+      select: { category: true, totalAmount: true, folioId: true },
     });
 
-    const totalCharges = lineItems.reduce((s, i) => s + i.totalAmount, 0);
+    // Category breakdown from line items (for reporting granularity)
     summary.roomRevenue = lineItems.filter((i) => i.category === 'room').reduce((s, i) => s + i.totalAmount, 0);
     summary.fbRevenue = lineItems.filter((i) => ['food_beverage', 'restaurant', 'room_service', 'minibar'].includes(i.category)).reduce((s, i) => s + i.totalAmount, 0);
-    summary.otherRevenue = totalCharges - summary.roomRevenue - summary.fbRevenue;
+    summary.otherRevenue = lineItems.filter((i) => i.category !== 'room' && !['food_beverage', 'restaurant', 'room_service', 'minibar'].includes(i.category)).reduce((s, i) => s + i.totalAmount, 0);
+
+    // totalRevenue from folio totalAmount (source of truth) for folios with activity on the audit day
+    const activeFolioIds = [...new Set(lineItems.map((i) => i.folioId))];
+    let folioTotalRevenue = 0;
+    if (activeFolioIds.length > 0) {
+      const activeFolios = await tx.folio.findMany({
+        where: { id: { in: activeFolioIds } },
+        select: { totalAmount: true },
+      });
+      folioTotalRevenue = activeFolios.reduce((s, f) => s + f.totalAmount, 0);
+    }
     summary.occupancyRate = totalRooms > 0 ? `${((occupiedRooms / totalRooms) * 100).toFixed(1)}%` : '0%';
 
     await tx.nightAuditStep.updateMany({
       where: { nightAuditId: audit.id, stepName: 'Run reports' },
-      data: { status: 'completed', completedAt: new Date(), performedBy: userId, result: JSON.stringify({ occupancy: { total: totalRooms, occupied: occupiedRooms, rate: summary.occupancyRate }, revenue: { room: summary.roomRevenue, fb: summary.fbRevenue, other: summary.otherRevenue, total: totalCharges } }) },
+      data: { status: 'completed', completedAt: new Date(), performedBy: userId, result: JSON.stringify({ occupancy: { total: totalRooms, occupied: occupiedRooms, rate: summary.occupancyRate }, revenue: { room: summary.roomRevenue, fb: summary.fbRevenue, other: summary.otherRevenue, total: folioTotalRevenue }, invoicesGenerated: summary.invoicesGenerated }) },
     });
 
     // ── Step 6: Close business day ──
@@ -512,7 +597,7 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
         roomRevenue: summary.roomRevenue,
         fbRevenue: summary.fbRevenue,
         otherRevenue: summary.otherRevenue,
-        totalRevenue: summary.roomRevenue + summary.fbRevenue + summary.otherRevenue,
+        totalRevenue: folioTotalRevenue,
         autoPostedAt: new Date(),
         completedBy: userId,
         status: 'completed',
@@ -532,7 +617,7 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
         action: 'audit_completed',
         entityType: 'NightAudit',
         entityId: audit.id,
-        newValue: `Night audit completed automatically. Room charges: ${summary.roomChargesPosted} ($${summary.roomChargeTotal.toFixed(2)}), No-shows: ${summary.noShowsProcessed} ($${summary.noShowRevenue.toFixed(2)}), Rooms reconciled: ${summary.roomsReconciled}, Occupancy: ${summary.occupancyRate}, Total revenue: $${(summary.roomRevenue + summary.fbRevenue + summary.otherRevenue).toFixed(2)}`,
+        newValue: `Night audit completed automatically. Room charges: ${summary.roomChargesPosted} ($${summary.roomChargeTotal.toFixed(2)}), No-shows: ${summary.noShowsProcessed} ($${summary.noShowRevenue.toFixed(2)}), Rooms reconciled: ${summary.roomsReconciled}, Occupancy: ${summary.occupancyRate}, Total revenue: $${folioTotalRevenue.toFixed(2)}, Invoices generated: ${summary.invoicesGenerated}`,
         performedBy: userId,
       },
     });

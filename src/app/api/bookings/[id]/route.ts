@@ -13,6 +13,14 @@ import { notifyBookingConfirmed, notifyBookingCancelled, notifyGuestCheckedIn, n
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 import { fireAutomationEvent } from '@/lib/automation/hooks';
 
+// Helper: derive paymentStatus from folio data (BUG-010)
+function derivePaymentStatus(folios: Array<{ status: string }>): string {
+  if (folios.some(f => f.status === 'open')) return 'unpaid';
+  if (folios.some(f => f.status === 'partially_paid')) return 'partially_paid';
+  if (folios.every(f => f.status === 'paid' || f.status === 'closed')) return 'paid';
+  return 'unpaid';
+}
+
 // Helper: auto-close folio and generate invoice on checkout (must be called within a transaction)
 async function autoCloseFolioAndGenerateInvoice(bookingId: string, tx: Parameters<Parameters<typeof db.$transaction>[0]>[0]) {
   // 1. Set actualCheckOut if not already set
@@ -278,6 +286,8 @@ export async function PUT(
       preArrivalSent,
       preArrivalCompleted,
       kycCompleted,
+      forceCheckout,
+      forceCheckoutReason,
     } = data;
     
     // Capture old values for audit
@@ -531,6 +541,18 @@ export async function PUT(
         confirmationCode: booking.confirmationCode,
         guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
       });
+
+      // BUG-007 FIX: Update room status to 'reserved' when booking is confirmed and room is assigned
+      const reservedRoomId = roomId || existingBooking.roomId;
+      if (reservedRoomId) {
+        const roomToUpdate = await db.room.findUnique({ where: { id: reservedRoomId } });
+        if (roomToUpdate && roomToUpdate.status === 'available') {
+          await db.room.update({
+            where: { id: reservedRoomId },
+            data: { status: 'reserved' },
+          });
+        }
+      }
     }
     
     if (status === 'checked_in' && effectiveRoomId) {
@@ -680,7 +702,7 @@ export async function PUT(
         select: { balance: true, totalAmount: true, paidAmount: true },
       });
       if (openFolio && openFolio.balance > 0) {
-        if (!body.forceCheckout) {
+        if (!forceCheckout) {
           return NextResponse.json(
             {
               success: false,
@@ -698,7 +720,31 @@ export async function PUT(
             { status: 400 }
           );
         }
-        console.warn(`[Checkout] Booking ${booking.confirmationCode} force-checking out with outstanding balance: ${openFolio.balance}`);
+        // BUG-020 FIX: Require reason for force checkout with outstanding balance
+        if (!forceCheckoutReason) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'FORCE_CHECKOUT_REASON_REQUIRED',
+                message: 'A reason is required when force-checking out with an outstanding balance',
+                details: { balance: openFolio.balance },
+              },
+            },
+            { status: 400 }
+          );
+        }
+        console.warn(`[Checkout] Booking ${booking.confirmationCode} force-checking out with outstanding balance: ${openFolio.balance}. Reason: ${forceCheckoutReason}`);
+
+        // Create audit log for force checkout
+        await db.bookingAuditLog.create({
+          data: {
+            bookingId: booking.id,
+            action: 'force_checkout',
+            notes: `Force checkout with outstanding balance: ${openFolio.balance}. Reason: ${forceCheckoutReason}`,
+            performedBy: user.id,
+          },
+        });
       }
 
       // Wrap ALL checkout database side-effects in a single transaction for data integrity.
@@ -797,6 +843,16 @@ export async function PUT(
 
           // 3. Auto-close folio and generate invoice (AFTER WiFi fees are posted)
           await autoCloseFolioAndGenerateInvoice(booking.id, tx);
+
+          // 3b. BUG-010: Update booking paymentStatus based on folio state after close
+          const bookingFolios = await tx.folio.findMany({
+            where: { bookingId: booking.id },
+            select: { status: true },
+          });
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: { paymentStatus: derivePaymentStatus(bookingFolios) },
+          });
 
           // 4. Auto-award loyalty points (atomic increment to avoid TOCTOU race)
           const guest = await tx.guest.findUnique({ where: { id: booking.primaryGuestId } });
@@ -1183,7 +1239,8 @@ export async function PATCH(
       'roomRate', 'taxes', 'fees', 'discount', 'totalAmount', 'ratePlanId', 'promoCode',
       'status', 'specialRequests', 'notes', 'internalNotes', 'actualCheckIn', 'actualCheckOut',
       'checkedInBy', 'checkedOutBy', 'cancelledAt', 'cancelledBy', 'cancellationReason',
-      'preArrivalSent', 'preArrivalCompleted', 'kycCompleted'
+      'preArrivalSent', 'preArrivalCompleted', 'kycCompleted',
+      'forceCheckout', 'forceCheckoutReason'
     ];
 
     const providedFields = Object.keys(body).filter(key => allowedFields.includes(key));
@@ -1243,6 +1300,8 @@ export async function PATCH(
       preArrivalSent,
       preArrivalCompleted,
       kycCompleted,
+      forceCheckout: patchForceCheckout,
+      forceCheckoutReason: patchForceCheckoutReason,
     } = data;
 
     // Capture old values for audit
@@ -1500,6 +1559,18 @@ export async function PATCH(
         confirmationCode: booking.confirmationCode,
         guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
       });
+
+      // BUG-007 FIX: Update room status to 'reserved' when booking is confirmed and room is assigned
+      const patchReservedRoomId = roomId !== undefined ? roomId : existingBooking.roomId;
+      if (patchReservedRoomId) {
+        const roomToUpdate = await db.room.findUnique({ where: { id: patchReservedRoomId } });
+        if (roomToUpdate && roomToUpdate.status === 'available') {
+          await db.room.update({
+            where: { id: patchReservedRoomId },
+            data: { status: 'reserved' },
+          });
+        }
+      }
     }
 
     if (status === 'checked_in' && effectivePatchRoomId) {
@@ -1630,7 +1701,7 @@ export async function PATCH(
         select: { balance: true, totalAmount: true, paidAmount: true },
       });
       if (patchOpenFolio && patchOpenFolio.balance > 0) {
-        if (!body.forceCheckout) {
+        if (!patchForceCheckout) {
           return NextResponse.json(
             {
               success: false,
@@ -1648,7 +1719,31 @@ export async function PATCH(
             { status: 400 }
           );
         }
-        console.warn(`[Checkout] Booking ${booking.confirmationCode} force-checking out with outstanding balance: ${patchOpenFolio.balance}`);
+        // BUG-020 FIX: Require reason for force checkout with outstanding balance
+        if (!patchForceCheckoutReason) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'FORCE_CHECKOUT_REASON_REQUIRED',
+                message: 'A reason is required when force-checking out with an outstanding balance',
+                details: { balance: patchOpenFolio.balance },
+              },
+            },
+            { status: 400 }
+          );
+        }
+        console.warn(`[Checkout] Booking ${booking.confirmationCode} force-checking out with outstanding balance: ${patchOpenFolio.balance}. Reason: ${patchForceCheckoutReason}`);
+
+        // Create audit log for force checkout
+        await db.bookingAuditLog.create({
+          data: {
+            bookingId: booking.id,
+            action: 'force_checkout',
+            notes: `Force checkout with outstanding balance: ${patchOpenFolio.balance}. Reason: ${patchForceCheckoutReason}`,
+            performedBy: user.id,
+          },
+        });
       }
 
       // Wrap ALL checkout database side-effects in a single transaction for data integrity.

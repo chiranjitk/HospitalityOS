@@ -66,35 +66,44 @@ export async function GET(request: NextRequest) {
       where.floor = parseInt(floor, 10);
     }
     
-    const rooms = await db.room.findMany({
-      where,
-      include: {
-        roomType: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            basePrice: true,
-            currency: true,
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '50', 10), 1), 200);
+    const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10), 0);
+
+    const [rooms, total] = await Promise.all([
+      db.room.findMany({
+        where,
+        include: {
+          roomType: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              basePrice: true,
+              currency: true,
+            },
+          },
+          property: {
+            select: {
+              id: true,
+              name: true,
+              currency: true,
+            },
           },
         },
-        property: {
-          select: {
-            id: true,
-            name: true,
-            currency: true,
-          },
-        },
-      },
-      orderBy: [
-        { floor: 'asc' },
-        { number: 'asc' },
-      ],
-    });
+        orderBy: [
+          { floor: 'asc' },
+          { number: 'asc' },
+        ],
+        take: limit,
+        skip: offset,
+      }),
+      db.room.count({ where }),
+    ]);
     
     return NextResponse.json({
       success: true,
       data: rooms,
+      pagination: { total, limit, offset },
     });
   } catch (error) {
     console.error('Error fetching rooms:', error);

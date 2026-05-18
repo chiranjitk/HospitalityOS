@@ -143,11 +143,48 @@ export async function GET(request: NextRequest) {
     });
     const propertyMap = new Map(properties.map(p => [p.id, p]));
     
-    // Transform bookings to include roomType and property
+    // BUG-010: Fetch folio statuses to compute paymentStatus for each booking
+    const bookingIds = bookings.map(b => b.id);
+    const folios = await db.folio.findMany({
+      where: { bookingId: { in: bookingIds } },
+      select: { bookingId: true, status: true, balance: true, totalAmount: true, paidAmount: true },
+    });
+    // Build a map: bookingId → array of folio statuses
+    const folioMapByBooking = new Map<string, Array<{ status: string; balance: number; totalAmount: number; paidAmount: number }>>();
+    folios.forEach(f => {
+      const arr = folioMapByBooking.get(f.bookingId) || [];
+      arr.push({ status: f.status, balance: f.balance, totalAmount: f.totalAmount, paidAmount: f.paidAmount });
+      folioMapByBooking.set(f.bookingId, arr);
+    });
+
+    // Helper: derive paymentStatus from folio data
+    function derivePaymentStatus(bookingPaymentStatus: string, bookingFolios: Array<{ status: string; balance: number; totalAmount: number; paidAmount: number }>): string {
+      // If the persisted paymentStatus is already set to something other than unpaid, respect it
+      if (bookingPaymentStatus === 'paid') return 'paid';
+      if (bookingPaymentStatus === 'partially_paid') {
+        // But re-check: if all folios are now paid/closed with zero balance, upgrade to paid
+        if (bookingFolios.length > 0 && bookingFolios.every(f => f.status === 'paid' || f.status === 'closed')) return 'paid';
+        return 'partially_paid';
+      }
+      // Derive from folio statuses
+      if (bookingFolios.length === 0) return 'unpaid';
+      if (bookingFolios.some(f => f.status === 'open' && f.balance > 0)) return 'unpaid';
+      if (bookingFolios.some(f => f.status === 'partially_paid')) return 'partially_paid';
+      if (bookingFolios.some(f => f.status === 'open' && f.balance <= 0)) return 'paid';
+      if (bookingFolios.every(f => f.status === 'paid' || f.status === 'closed')) return 'paid';
+      return 'unpaid';
+    }
+    
+    // Transform bookings to include roomType, property, and paymentStatus
     const transformedBookings = bookings.map(booking => ({
       ...booking,
+      guestName: booking.primaryGuest ? `${booking.primaryGuest.firstName} ${booking.primaryGuest.lastName}`.trim() : '',
       roomType: roomTypeMap.get(booking.roomTypeId) || null,
       property: propertyMap.get(booking.propertyId) || null,
+      paymentStatus: derivePaymentStatus(
+        (booking as Record<string, unknown>).paymentStatus as string || 'unpaid',
+        folioMapByBooking.get(booking.id) || [],
+      ),
     }));
     
     const total = await db.booking.count({ where });
@@ -239,8 +276,12 @@ export async function POST(request: NextRequest) {
     let finalCurrency = currency;
     let pricingBreakdown: PriceBreakdown | null = null;
 
-    // Calculate pricing using the pricing engine if requested or if pricing not provided
-    if (usePricingEngine || (roomRate === 0 && totalAmount === 0)) {
+    // Calculate pricing using the pricing engine if:
+    // 1. Explicitly requested via usePricingEngine
+    // 2. No pricing provided at all (roomRate=0 && totalAmount=0)
+    // 3. Taxes are missing (taxes=0 but roomRate>0) — e.g., walk-in bookings where client-side
+    //    tax calculation may fail or produce zero taxes. The pricing engine ensures correct tax amounts.
+    if (usePricingEngine || (roomRate === 0 && totalAmount === 0) || (taxes === 0 && roomRate > 0)) {
       try {
         const roomType = await db.roomType.findUnique({
           where: { id: roomTypeId },
@@ -727,6 +768,22 @@ export async function POST(request: NextRequest) {
     } catch (wsError) {
       // Don't fail the request if WebSocket emission fails
       console.error('Failed to emit booking created event:', wsError);
+    }
+
+    // BUG-007 FIX: Update room status to 'reserved' for confirmed bookings with a room assigned
+    if (booking.roomId && booking.status === 'confirmed') {
+      try {
+        const roomForBooking = await db.room.findUnique({ where: { id: booking.roomId } });
+        if (roomForBooking && roomForBooking.status === 'available') {
+          await db.room.update({
+            where: { id: booking.roomId },
+            data: { status: 'reserved' },
+          });
+        }
+      } catch (roomUpdateError) {
+        console.error('Failed to update room status to reserved on booking creation:', roomUpdateError);
+        // Don't fail the booking if room status update fails
+      }
     }
     
     // Log booking creation to main audit log (non-blocking)

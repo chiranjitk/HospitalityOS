@@ -8,7 +8,8 @@ import { fireAutomationEvent } from '@/lib/automation/hooks';
 
 // Room status transition validation
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  available: ['occupied', 'maintenance', 'out_of_order', 'dirty', 'cleaning'],
+  available: ['occupied', 'maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved'],
+  reserved: ['occupied', 'available', 'maintenance', 'out_of_order'],
   occupied: ['dirty', 'maintenance', 'out_of_order'],
   dirty: ['cleaning', 'maintenance', 'out_of_order'],
   cleaning: ['inspected', 'dirty', 'maintenance', 'available'],

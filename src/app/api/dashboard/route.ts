@@ -263,26 +263,36 @@ export async function GET(request: NextRequest) {
       const nextDate = new Date(date);
       nextDate.setDate(nextDate.getDate() + 1);
       
-      const dayBookings = bookings.filter(b => {
-        const checkIn = new Date(b.checkIn);
-        return checkIn >= date && checkIn < nextDate && !['cancelled', 'draft', 'no_show'].includes(b.status);
-      });
-      
-      const dayRevenue = dayBookings.reduce((sum, b) => sum + b.totalAmount, 0);
-
-      // Calculate per-day occupancy from bookings overlapping this day
-      const dayOccupiedRooms = bookings.filter(b => {
+      // Use overlap-based approach for both revenue and occupancy to ensure consistency
+      const overlappingBookings = bookings.filter(b => {
         if (['cancelled', 'draft', 'no_show'].includes(b.status)) return false;
         const ci = new Date(b.checkIn);
         const co = new Date(b.checkOut);
-        return ci < nextDate && co > date;
-      }).length;
+        return ci < nextDate && co > date;  // Booking overlaps this day
+      });
+
+      // Prorate daily revenue from all bookings overlapping this day
+      const dayRevenue = overlappingBookings.reduce((sum, b) => {
+        const ci = new Date(b.checkIn);
+        const co = new Date(b.checkOut);
+        const totalNights = Math.max(1, Math.round((co.getTime() - ci.getTime()) / (1000 * 60 * 60 * 24)));
+        const dailyRate = b.totalAmount / totalNights;
+        return sum + dailyRate;
+      }, 0);
+
+      // Also count new bookings starting on this day for the bookings count
+      const dayNewBookings = bookings.filter(b => {
+        const checkIn = new Date(b.checkIn);
+        return checkIn >= date && checkIn < nextDate && !['cancelled', 'draft', 'no_show'].includes(b.status);
+      });
+
+      const dayOccupiedRooms = overlappingBookings.length;
       const dayOccupancy = totalRooms > 0 ? Math.round((dayOccupiedRooms / totalRooms) * 100) : 0;
       
       revenueChartData.push({
         date: date.toLocaleDateString('en-US', { weekday: 'short' }),
         revenue: Math.round(dayRevenue),
-        bookings: dayBookings.length,
+        bookings: dayNewBookings.length,
         occupancy: dayOccupancy,
       });
     }
@@ -548,16 +558,17 @@ export async function GET(request: NextRequest) {
             change: Math.round(occupancyChange * 10) / 10,
           },
           bookings: {
-            today: arrivalsToday,
+            today: arrivalsToday,              // Arrivals today (new check-ins)
+            inHouse: checkedIn.length,         // Currently in-house bookings
             thisWeek: bookings.filter(b => new Date(b.checkIn) >= weekAgo).length,
             thisMonth: bookings.filter(b => new Date(b.checkIn) >= monthAgo).length,
             pending: pendingBookings,
           },
           guests: {
-            checkedIn: totalGuests,
+            checkedIn: checkedIn.length,      // Number of checked-in bookings
+            totalGuests: totalGuests,          // Total guests (adults + children) across checked-in bookings
             arriving: arrivalsToday,
             departing: departuresToday,
-            total: checkedIn.length,
           },
           adr,
           revpar,
