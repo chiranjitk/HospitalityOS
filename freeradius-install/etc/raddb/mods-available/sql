@@ -12,14 +12,11 @@ sql {
     password = "Staysuite2025"
     radius_db = "staysuite"
 
-    # Read NAS clients from SQL (nas table)
     read_clients = yes
     client_table = "nas"
 
-    # Map the incoming User-Name to SQL-User-Name for use in queries
     sql_user_name = "%{User-Name}"
 
-    # PostgreSQL handles concurrent connections natively
     pool {
         start = 1
         min = 1
@@ -31,36 +28,27 @@ sql {
         connect_timeout = 5.0
     }
 
-    # Read user check attributes (password, etc.)
     authorize_check_query = "SELECT id, username, attribute, value, op FROM radcheck WHERE username = '%{SQL-User-Name}' ORDER BY id"
 
-    # Read user reply attributes (bandwidth, session timeout, etc.)
     authorize_reply_query = "SELECT id, username, attribute, value, op FROM radreply WHERE username = '%{SQL-User-Name}' ORDER BY id"
 
-    # Read user groups
     group_membership_query = "SELECT groupname, priority FROM radusergroup WHERE username = '%{SQL-User-Name}' ORDER BY priority"
 
-    # Group check attributes
     authorize_group_check_query = "SELECT id, groupname, attribute, value, op FROM radgroupcheck WHERE groupname = '%{Sql-Group}' ORDER BY id"
 
-    # Group reply attributes
     authorize_group_reply_query = "SELECT id, groupname, attribute, value, op FROM radgroupreply WHERE groupname = '%{Sql-Group}' ORDER BY id"
 
-    # Simultaneous session check
     simul_count_query = "SELECT COUNT(*) FROM radacct WHERE username = '%{SQL-User-Name}' AND acctstoptime IS NULL"
     simul_verify_query = "SELECT radacctid, acctsessionid, username, nasipaddress, framedipaddress, calledstationid, callingstationid FROM radacct WHERE username = '%{SQL-User-Name}' AND acctstoptime IS NULL"
 
-    # Accounting — single UPSERT query handles Start/Interim-Update/Stop
     accounting {
-        query = "INSERT INTO radacct (acctsessionid, acctuniqueid, username, realm, nasipaddress, nasportid, nasporttype, acctstarttime, acctupdatetime, acctsessiontime, acctinterval, connectinfo_start, servicetype, framedprotocol, framedipaddress, framedipv6prefix, framedinterfaceid, delegatedipv6prefix, calledstationid, callingstationid, acctinputoctets, acctoutputoctets, acctinputpackets, acctoutputpackets, acctinputgigawords, acctoutputgigawords, class, acctstoptime, acctterminatecause, acctstatus, \"createdAt\", \"updatedAt\") VALUES ('%{Acct-Session-Id}', '%{Acct-Unique-Session-Id}', '%{SQL-User-Name}', '%{Realm}', '%{NAS-IP-Address}', '%{%{NAS-Port-ID}:-%{NAS-Port}}', '%{NAS-Port-Type}', '%S'::timestamptz, '%S'::timestamptz, %{%{Acct-Session-Time}:-0}, %{%{Acct-Interim-Interval}:-0}, '%{Connect-Info}', '%{Service-Type}', '%{Framed-Protocol}', '%{Framed-IP-Address}', '%{Framed-IPv6-Prefix}', '%{Framed-Interface-Id}', '%{Delegated-IPv6-Prefix}', '%{Called-Station-Id}', '%{Calling-Station-Id}', %{%{Acct-Input-Octets}:-0}, %{%{Acct-Output-Octets}:-0}, %{%{Acct-Input-Packets}:-0}, %{%{Acct-Output-Packets}:-0}, %{%{Acct-Input-Gigawords}:-0}, %{%{Acct-Output-Gigawords}:-0}, '%{Class}', CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%S'::timestamptz ELSE NULL END, CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%{Acct-Terminate-Cause}' ELSE '' END, '%{Acct-Status-Type}', '%S'::timestamptz, '%S'::timestamptz) ON CONFLICT(acctuniqueid) DO UPDATE SET acctupdatetime = '%S'::timestamptz, acctsessiontime = %{%{Acct-Session-Time}:-0}, acctinterval = %{%{Acct-Interim-Interval}:-0}, framedipaddress = '%{Framed-IP-Address}', acctinputoctets = %{%{Acct-Input-Octets}:-0}, acctoutputoctets = %{%{Acct-Output-Octets}:-0}, acctinputpackets = %{%{Acct-Input-Packets}:-0}, acctoutputpackets = %{%{Acct-Output-Packets}:-0}, acctinputgigawords = %{%{Acct-Input-Gigawords}:-0}, acctoutputgigawords = %{%{Acct-Output-Gigawords}:-0}, acctstoptime = CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%S'::timestamptz ELSE radacct.acctstoptime END, acctterminatecause = CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%{Acct-Terminate-Cause}' ELSE radacct.acctterminatecause END, acctstatus = '%{Acct-Status-Type}', \"updatedAt\" = '%S'::timestamptz"
+        query = "INSERT INTO radacct (acctsessionid, acctuniqueid, username, realm, nasipaddress, nasportid, nasporttype, acctstarttime, acctupdatetime, acctsessiontime, acctinterval, connectinfo_start, servicetype, framedprotocol, framedipaddress, framedipv6prefix, framedinterfaceid, delegatedipv6prefix, calledstationid, callingstationid, acctinputoctets, acctoutputoctets, acctinputpackets, acctoutputpackets, acctinputgigawords, acctoutputgigawords, class, acctstoptime, acctterminatecause, acctstatus, createdat, updatedat) VALUES ('%{Acct-Session-Id}', '%{Acct-Unique-Session-Id}', '%{SQL-User-Name}', '%{Realm}', '%{NAS-IP-Address}', '%{%{NAS-Port-ID}:-%{NAS-Port}}', '%{NAS-Port-Type}', '%S'::timestamptz, '%S'::timestamptz, %{%{Acct-Session-Time}:-0}, %{%{Acct-Interim-Interval}:-0}, '%{Connect-Info}', '%{Service-Type}', '%{Framed-Protocol}', '%{Framed-IP-Address}', '%{Framed-IPv6-Prefix}', '%{Framed-Interface-Id}', '%{Delegated-IPv6-Prefix}', '%{Called-Station-Id}', '%{Calling-Station-Id}', %{%{Acct-Input-Octets}:-0}, %{%{Acct-Output-Octets}:-0}, %{%{Acct-Input-Packets}:-0}, %{%{Acct-Output-Packets}:-0}, %{%{Acct-Input-Gigawords}:-0}, %{%{Acct-Output-Gigawords}:-0}, '%{Class}', CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%S'::timestamptz ELSE NULL END, CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%{Acct-Terminate-Cause}' ELSE '' END, '%{Acct-Status-Type}', '%S'::timestamptz, '%S'::timestamptz) ON CONFLICT(acctuniqueid) DO UPDATE SET acctupdatetime = '%S'::timestamptz, acctsessiontime = %{%{Acct-Session-Time}:-0}, acctinterval = %{%{Acct-Interim-Interval}:-0}, framedipaddress = '%{Framed-IP-Address}', acctinputoctets = %{%{Acct-Input-Octets}:-0}, acctoutputoctets = %{%{Acct-Output-Octets}:-0}, acctinputpackets = %{%{Acct-Input-Packets}:-0}, acctoutputpackets = %{%{Acct-Output-Packets}:-0}, acctinputgigawords = %{%{Acct-Input-Gigawords}:-0}, acctoutputgigawords = %{%{Acct-Output-Gigawords}:-0}, acctstoptime = CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%S'::timestamptz ELSE radacct.acctstoptime END, acctterminatecause = CASE WHEN '%{Acct-Status-Type}' = 'Stop' THEN '%{Acct-Terminate-Cause}' ELSE radacct.acctterminatecause END, acctstatus = '%{Acct-Status-Type}', updatedat = '%S'::timestamptz"
     }
 
-    # Post-auth: log all authentication attempts
     post-auth {
         query = "INSERT INTO radpostauth (username, pass, reply, authdate, clientipaddress, callingstationid, calledstationid, \"nasIpAddress\", \"replyMessage\") VALUES ('%{SQL-User-Name}', '', '%{reply:Packet-Type}', '%S'::timestamptz, '%{NAS-IP-Address}', '%{Calling-Station-Id}', '%{Called-Station-Id}', '%{NAS-IP-Address}', '%{reply:Reply-Message}')"
     }
 
-    # Session: check for existing active session
     session {
         query = "SELECT * FROM radacct WHERE acctuniqueid = '%{Acct-Unique-Session-Id}' AND acctstoptime IS NULL"
     }
