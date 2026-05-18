@@ -1733,7 +1733,7 @@ export async function GET(request: NextRequest) {
     const daysInPeriod = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
     const totalPropertyRooms = propertyId && propertyId !== 'all'
       ? await db.room.count({ where: { propertyId, deletedAt: null } })
-      : await db.room.count({ where: { tenantId, deletedAt: null } });
+      : await db.room.count({ where: { property: { tenantId }, deletedAt: null } });
     const totalAvailableRoomNights = totalPropertyRooms * daysInPeriod;
     const revpar = totalAvailableRoomNights > 0 ? round2(totalRevenue / totalAvailableRoomNights) : 0;
 
