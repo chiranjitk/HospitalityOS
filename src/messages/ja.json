@@ -380,6 +380,7 @@
     "reports-occupancy": "稼働率レポート",
     "reports-adr": "ADR / RevPAR",
     "reports-guests": "ゲスト分析",
+    "reports-guest-stay": "宿泊レポート",
     "reports-staff": "スタッフパフォーマンス",
     "reports-scheduled": "定期レポート",
     "events": "イベント / MICE",
