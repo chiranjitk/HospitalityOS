@@ -247,10 +247,6 @@
     border-color: var(--border);
     outline-color: oklch(from var(--ring) l c h / 50%);
   }
-  html {
-    overflow-y: scroll;
-    scrollbar-gutter: stable;
-  }
   body {
     background-color: var(--background);
     color: var(--foreground);
@@ -258,10 +254,27 @@
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
-  body[data-scroll-locked] {
-    padding-right: 0 !important;
-    overflow-y: visible !important;
-  }
+}
+
+/* ============================================
+   PREVENT LAYOUT SHIFT WHEN DROPDOWNS OPEN
+   Radix UI / react-remove-scroll-bar adds overflow:hidden + padding-right
+   to body when modals/dropdowns open, which removes the scrollbar and
+   shifts content. These rules prevent that shift.
+   ============================================ */
+html {
+  overflow-y: scroll !important;
+  scrollbar-gutter: stable !important;
+}
+/* Neutralize react-remove-scroll-bar padding/margin compensation */
+body[data-scroll-locked],
+body[data-radix-scroll-locked] {
+  padding-right: 0 !important;
+  margin-right: 0 !important;
+}
+/* Fallback: catch any inline padding-right on body (from any scroll-lock lib) */
+body[style*="padding-right"] {
+  padding-right: 0 !important;
 }
 
 /* ============================================
