@@ -558,8 +558,9 @@ function formatStatusLabel(status: string): string {
   return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }
 
-function formatCurrencyValue(value: number, symbol: string): string {
-  return `${symbol}${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrencyValue(value: number | undefined | null, symbol: string): string {
+  const safeValue = value ?? 0;
+  return `${symbol}${safeValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatDateSafe(dateStr: string): string {
@@ -710,7 +711,7 @@ function ComparisonMetricCard({
   formatFn?: (v: number) => string;
 }) {
   const { change, direction } = getPercentageChange(current, previous);
-  const fmt = formatFn || ((v: number) => v.toLocaleString());
+  const fmt = formatFn || ((v: number) => (v ?? 0).toLocaleString());
   return (
     <Card className="border-0 shadow-sm rounded-xl bg-muted/30">
       <CardContent className="p-4">
