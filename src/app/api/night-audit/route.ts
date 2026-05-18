@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { markRoomDirtyAfterCheckout } from '@/lib/housekeeping-automation';
 import { z } from 'zod';
 
 // ─── Night Audit Steps Template ───
@@ -235,6 +236,9 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
     otherRevenue: 0,
   };
 
+  // Track room IDs released by no-shows for post-transaction housekeeping automation
+  const noshowRoomIds: string[] = [];
+
   await db.$transaction(async (tx) => {
     const businessDay = new Date(audit.businessDayDate);
     const startOfDay = new Date(businessDay);
@@ -410,7 +414,11 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
       });
 
       if (booking.roomId) {
-        await tx.room.update({ where: { id: booking.roomId }, data: { status: 'dirty' } });
+        await tx.room.update({
+          where: { id: booking.roomId },
+          data: { status: 'dirty', housekeepingStatus: 'dirty' },
+        });
+        noshowRoomIds.push(booking.roomId);
       }
 
       summary.noShowsProcessed++;
@@ -422,6 +430,21 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
     });
 
     // ── Step 4: Reconcile rooms ──
+    // Pre-query: find rooms with recent check-ins (last 60 min) to avoid releasing rooms mid check-in
+    const recentCheckinRoomIds = new Set(
+      (
+        await tx.booking.findMany({
+          where: {
+            tenantId: audit.tenantId,
+            propertyId: audit.propertyId,
+            checkIn: { gte: new Date(Date.now() - 60 * 60 * 1000) },
+            roomId: { not: null },
+          },
+          select: { roomId: true },
+        })
+      ).map((b) => b.roomId!),
+    );
+
     const rooms = await tx.room.findMany({
       where: { propertyId: audit.propertyId, deletedAt: null },
       include: {
@@ -439,6 +462,16 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
         summary.discrepancies++;
         await tx.room.update({ where: { id: room.id }, data: { status: 'occupied' } });
       } else if (!activeBooking && room.status === 'occupied') {
+        // Guard: don't release rooms that may have in-progress check-ins/out.
+        // - Skip rooms whose status changed to 'reserved' (race condition: auto-assigned but check-in not yet complete)
+        // - Skip rooms with recent bookings (checkIn within last 60 min) that might be mid check-in
+        // - Only release rooms that have been occupied for more than 30 minutes to avoid race conditions
+        if (
+          recentCheckinRoomIds.has(room.id) ||
+          (room.updatedAt && Date.now() - room.updatedAt.getTime() < 30 * 60 * 1000)
+        ) {
+          continue;
+        }
         summary.discrepancies++;
         await tx.room.update({ where: { id: room.id }, data: { status: 'available' } });
       }
@@ -504,6 +537,15 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
       },
     });
   });
+
+  // After the transaction completes, trigger housekeeping automation for no-show rooms
+  for (const roomId of noshowRoomIds) {
+    try {
+      await markRoomDirtyAfterCheckout(roomId, audit.tenantId);
+    } catch (hkError) {
+      console.error(`[NightAudit] Failed to trigger housekeeping automation for no-show room ${roomId}:`, hkError);
+    }
+  }
 
   // Fetch the completed audit to return
   const completedAudit = await db.nightAudit.findUnique({

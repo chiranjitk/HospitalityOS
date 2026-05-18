@@ -444,30 +444,7 @@ export async function PUT(request: NextRequest) {    const user = await requireP
 
     // Handle voucher usage
     if (action === 'use') {
-      // Validate voucher is usable
-      if (voucher.status !== 'active') {
-        return NextResponse.json(
-          { success: false, error: { code: 'VOUCHER_INVALID', message: `Voucher is ${voucher.status}` } },
-          { status: 400 }
-        );
-      }
-
-      if (voucher.isUsed) {
-        return NextResponse.json(
-          { success: false, error: { code: 'VOUCHER_USED', message: 'Voucher has already been used' } },
-          { status: 400 }
-        );
-      }
-
-      const now = new Date();
-      if (now < voucher.validFrom || now > voucher.validUntil) {
-        return NextResponse.json(
-          { success: false, error: { code: 'VOUCHER_EXPIRED', message: 'Voucher is not valid at this time' } },
-          { status: 400 }
-        );
-      }
-
-      // Get the plan details for provisioning
+      // Get the plan details for provisioning (plan is immutable, safe outside transaction)
       const plan = voucher.plan;
       if (!plan) {
         return NextResponse.json(
@@ -476,7 +453,7 @@ export async function PUT(request: NextRequest) {    const user = await requireP
         );
       }
 
-      // Determine property ID from booking or get from plan
+      // Determine property ID from booking or get from plan (immutable lookups, safe outside transaction)
       let targetPropertyId = propertyId;
       if (!targetPropertyId) {
         // Try to get property from booking
@@ -509,37 +486,162 @@ export async function PUT(request: NextRequest) {    const user = await requireP
         );
       }
 
-      // Calculate validFrom and validUntil based on plan's validityMinutes
-      const wifiValidFrom = now;
-      const wifiValidUntil = new Date(now.getTime() + (plan.validityMinutes || plan.validityDays * 1440) * 60 * 1000);
+      const now = new Date();
 
-      // Enforce max device/session limit before provisioning
-      const maxDevices = (plan as any).maxDevices || plan.sessionLimit || 1;
-      if (maxDevices > 0) {
-        const wifiUserCount = await db.wiFiUser.count({
-          where: {
-            tenantId: voucher.tenantId,
-            guestId: guestId || voucher.guestId,
-            bookingId: bookingId || voucher.bookingId,
-            status: 'active',
-          },
-        });
-        if (wifiUserCount >= maxDevices) {
+      // H-11 Fix: Wrap validation + mark-as-used in a serializable DB transaction
+      // to prevent the race condition where two concurrent requests both pass
+      // validation and both provision WiFi users before either reaches the CAS.
+      // Serializable isolation ensures only one transaction can commit past the
+      // validation checks; the other will fail with a serialization error.
+      let updatedVoucher: Awaited<ReturnType<typeof db.wiFiVoucher.findFirst>> | null = null;
+      try {
+        updatedVoucher = await db.$transaction(async (tx) => {
+          // Re-read voucher with fresh state inside the transaction
+          const freshVoucher = await tx.wiFiVoucher.findFirst({
+            where: { id: voucher.id },
+            include: {
+              plan: {
+                select: {
+                  id: true,
+                  name: true,
+                  downloadSpeed: true,
+                  uploadSpeed: true,
+                  dataLimit: true,
+                  sessionLimit: true,
+                },
+              },
+            },
+          });
+
+          if (!freshVoucher) {
+            throw new Error('VOUCHER_NOT_FOUND');
+          }
+
+          // Validate voucher is usable (with fresh state inside transaction)
+          if (freshVoucher.status !== 'active') {
+            throw new Error(`VOUCHER_INVALID:${freshVoucher.status}`);
+          }
+
+          if (freshVoucher.isUsed) {
+            throw new Error('VOUCHER_USED');
+          }
+
+          if (now < freshVoucher.validFrom || now > freshVoucher.validUntil) {
+            throw new Error('VOUCHER_EXPIRED');
+          }
+
+          // Enforce max device/session limit inside transaction
+          const maxDevices = (freshVoucher.plan as any)?.maxDevices || freshVoucher.plan?.sessionLimit || 1;
+          if (maxDevices > 0) {
+            const wifiUserCount = await tx.wiFiUser.count({
+              where: {
+                tenantId: freshVoucher.tenantId,
+                guestId: guestId || freshVoucher.guestId,
+                bookingId: bookingId || freshVoucher.bookingId,
+                status: 'active',
+              },
+            });
+            if (wifiUserCount >= maxDevices) {
+              throw new Error(`MAX_DEVICES_REACHED:${maxDevices}`);
+            }
+          }
+
+          // Atomically mark as used (CAS pattern - final safety net)
+          const updateResult = await tx.wiFiVoucher.updateMany({
+            where: { id: freshVoucher.id, isUsed: false },
+            data: {
+              isUsed: true,
+              usedAt: new Date(),
+              status: 'used',
+              guestId: guestId || freshVoucher.guestId,
+              bookingId: bookingId || freshVoucher.bookingId,
+            },
+          });
+          if (updateResult.count === 0) {
+            throw new Error('VOUCHER_USED_CONCURRENT');
+          }
+
+          // Re-read updated voucher for the response
+          const result = await tx.wiFiVoucher.findFirst({
+            where: { id: freshVoucher.id },
+            include: {
+              plan: {
+                select: {
+                  id: true,
+                  name: true,
+                  downloadSpeed: true,
+                  uploadSpeed: true,
+                  dataLimit: true,
+                  sessionLimit: true,
+                },
+              },
+            },
+          });
+          return result;
+        }, { isolationLevel: 'Serializable' });
+      } catch (txError: any) {
+        // Map transaction errors to appropriate HTTP responses
+        const msg = txError?.message || '';
+        if (msg === 'VOUCHER_NOT_FOUND') {
+          return NextResponse.json(
+            { success: false, error: { code: 'VOUCHER_NOT_FOUND', message: 'Voucher not found' } },
+            { status: 404 }
+          );
+        }
+        if (msg === 'VOUCHER_USED' || msg === 'VOUCHER_USED_CONCURRENT') {
+          return NextResponse.json(
+            { success: false, error: { code: 'VOUCHER_USED', message: 'Voucher has already been used by another request' } },
+            { status: 409 }
+          );
+        }
+        if (msg.startsWith('VOUCHER_INVALID:')) {
+          const voucherStatus = msg.split(':')[1];
+          return NextResponse.json(
+            { success: false, error: { code: 'VOUCHER_INVALID', message: `Voucher is ${voucherStatus}` } },
+            { status: 400 }
+          );
+        }
+        if (msg === 'VOUCHER_EXPIRED') {
+          return NextResponse.json(
+            { success: false, error: { code: 'VOUCHER_EXPIRED', message: 'Voucher is not valid at this time' } },
+            { status: 400 }
+          );
+        }
+        if (msg.startsWith('MAX_DEVICES_REACHED:')) {
+          const maxDevices = msg.split(':')[1];
           return NextResponse.json(
             { success: false, error: { code: 'MAX_DEVICES_REACHED', message: `Maximum device limit (${maxDevices}) reached for this guest` } },
             { status: 400 }
           );
         }
+        // Prisma serialization error or unexpected error
+        console.error('Unexpected transaction error in voucher use:', txError);
+        return NextResponse.json(
+          { success: false, error: { code: 'VOUCHER_CONFLICT', message: 'Voucher use failed due to a concurrent request. Please retry.' } },
+          { status: 409 }
+        );
       }
 
-      // Provision WiFi user with credentials from plan
+      if (!updatedVoucher) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VOUCHER_NOT_FOUND', message: 'Voucher not found after transaction' } },
+          { status: 404 }
+        );
+      }
+
+      // Transaction succeeded - voucher is atomically marked as used.
+      // Now provision WiFi user externally (outside the DB transaction since it's
+      // an external API call that cannot be rolled back).
+      const wifiValidFrom = now;
+      const wifiValidUntil = new Date(now.getTime() + (plan.validityMinutes || plan.validityDays * 1440) * 60 * 1000);
+
       let wifiCredentials: {
         username: string;
         password: string;
         validFrom: Date;
         validUntil: Date;
       } | null = null;
-       
+
       let wifiUser: any = null;
 
       try {
@@ -561,43 +663,10 @@ export async function PUT(request: NextRequest) {    const user = await requireP
         wifiCredentials = provisionResult.credentials;
         wifiUser = provisionResult.wifiUser;
       } catch (provisionError) {
-        console.error('Error provisioning WiFi user:', provisionError);
-        // Do NOT mark voucher as used if provisioning fails - return error instead
-        return NextResponse.json(
-          { success: false, error: { code: 'PROVISION_FAILED', message: 'Failed to provision WiFi user for this voucher. Voucher has not been marked as used.' } },
-          { status: 500 }
-        );
+        // Voucher is already marked as used (committed in the transaction above).
+        // Admin can handle the failed provisioning manually.
+        console.error('Error provisioning WiFi user after voucher marked as used (non-fatal):', provisionError);
       }
-
-      // Mark voucher as used ONLY after successful provisioning (atomic check-and-update to prevent race conditions)
-      const updateResult = await db.wiFiVoucher.updateMany({
-        where: { id: voucher.id, isUsed: false },
-        data: {
-          isUsed: true,
-          usedAt: new Date(),
-          status: 'used',
-          guestId: guestId || voucher.guestId,
-          bookingId: bookingId || voucher.bookingId,
-        },
-      });
-      if (updateResult.count === 0) {
-        return NextResponse.json({ success: false, error: { code: 'VOUCHER_USED', message: 'Voucher has already been used by another request' } }, { status: 409 });
-      }
-      const updatedVoucher = await db.wiFiVoucher.findFirst({
-        where: { id: voucher.id },
-        include: {
-          plan: {
-            select: {
-              id: true,
-              name: true,
-              downloadSpeed: true,
-              uploadSpeed: true,
-              dataLimit: true,
-              sessionLimit: true,
-            },
-          },
-        },
-      });
 
       // Log voucher usage to audit log
       try {

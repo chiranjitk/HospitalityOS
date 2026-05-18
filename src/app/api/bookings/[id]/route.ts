@@ -674,13 +674,31 @@ export async function PUT(
         },
       });
     } else if (status === 'checked_out' && effectiveRoomId) {
-      // Check for outstanding balance before checkout (log warning, don't block)
+      // Check for outstanding balance before checkout
       const openFolio = await db.folio.findFirst({
         where: { bookingId: booking.id, status: { in: ['open', 'partially_paid'] } },
         select: { balance: true, totalAmount: true, paidAmount: true },
       });
       if (openFolio && openFolio.balance > 0) {
-        console.warn(`[Checkout] Booking ${booking.confirmationCode} checking out with outstanding balance: ${openFolio.balance}`);
+        if (!body.forceCheckout) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'OUTSTANDING_BALANCE',
+                message: 'Cannot check out while the booking has an outstanding balance',
+                details: {
+                  balance: openFolio.balance,
+                  totalAmount: openFolio.totalAmount,
+                  paidAmount: openFolio.paidAmount,
+                  confirmationCode: booking.confirmationCode,
+                },
+              },
+            },
+            { status: 400 }
+          );
+        }
+        console.warn(`[Checkout] Booking ${booking.confirmationCode} force-checking out with outstanding balance: ${openFolio.balance}`);
       }
 
       // Wrap ALL checkout database side-effects in a single transaction for data integrity.
@@ -1581,6 +1599,33 @@ export async function PATCH(
         },
       });
     } else if (status === 'checked_out' && effectivePatchRoomId) {
+      // Check for outstanding balance before checkout
+      const patchOpenFolio = await db.folio.findFirst({
+        where: { bookingId: booking.id, status: { in: ['open', 'partially_paid'] } },
+        select: { balance: true, totalAmount: true, paidAmount: true },
+      });
+      if (patchOpenFolio && patchOpenFolio.balance > 0) {
+        if (!body.forceCheckout) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'OUTSTANDING_BALANCE',
+                message: 'Cannot check out while the booking has an outstanding balance',
+                details: {
+                  balance: patchOpenFolio.balance,
+                  totalAmount: patchOpenFolio.totalAmount,
+                  paidAmount: patchOpenFolio.paidAmount,
+                  confirmationCode: booking.confirmationCode,
+                },
+              },
+            },
+            { status: 400 }
+          );
+        }
+        console.warn(`[Checkout] Booking ${booking.confirmationCode} force-checking out with outstanding balance: ${patchOpenFolio.balance}`);
+      }
+
       // Wrap ALL checkout database side-effects in a single transaction for data integrity.
       try {
         await db.$transaction(async (tx) => {

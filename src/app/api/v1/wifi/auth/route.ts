@@ -825,8 +825,9 @@ export async function POST(request: NextRequest) {
           return errorResponse('INVALID_VOUCHER', 'Invalid or expired voucher code');
         }
 
-        // Verify voucher belongs to same tenant as portal
-        if (portal && voucher.tenantId !== portal.tenantId) {
+        // Verify voucher belongs to same tenant (mandatory security check)
+        const resolvedTenantId = portal?.tenantId;
+        if (!resolvedTenantId || voucher.tenantId !== resolvedTenantId) {
           await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request, 'TENANT_MISMATCH');
           return errorResponse('INVALID_VOUCHER', 'Invalid voucher code');
         }
@@ -1211,6 +1212,12 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // Check concurrent session limit BEFORE provisioning to avoid orphaned users (M-04)
+        if (await isSessionLimitReached(wifiUsername, roomMaxDevices)) {
+          await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
+          return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
+        }
+
         await provisionOrResumeUser(wifiUsername, now, validUntil, {
           tenantId: match.tenantId,
           propertyId: match.propertyId,
@@ -1226,12 +1233,6 @@ export async function POST(request: NextRequest) {
           sessionLimit: roomMaxDevices,
           dataLimit: roomDataLimit,
         });
-
-        // Check concurrent session limit (from resolved plan, not hardcoded)
-        if (await isSessionLimitReached(wifiUsername, roomMaxDevices)) {
-          await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
-          return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
-        }
 
         const radiusResult = await radiusAuth(wifiUsername, userPassword);
         if (!radiusResult.accepted) {
@@ -1557,6 +1558,12 @@ export async function POST(request: NextRequest) {
               }
             }
 
+            // Check concurrent session limit BEFORE provisioning to avoid orphaned users (M-04)
+            if (await isSessionLimitReached(wifiUsername, smsMaxDevices)) {
+              await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
+              return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
+            }
+
             await provisionOrResumeUser(wifiUsername, now, validUntil, {
               tenantId: portal?.tenantId || '',
               propertyId: fallbackPropertyId,
@@ -1570,12 +1577,6 @@ export async function POST(request: NextRequest) {
               sessionLimit: smsMaxDevices,
               dataLimit: smsDataLimit,
             });
-
-            // Check concurrent session limit (from resolved plan, not hardcoded)
-            if (await isSessionLimitReached(wifiUsername, smsMaxDevices)) {
-              await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
-              return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
-            }
 
             const radiusResult = await radiusAuth(wifiUsername, smsOtpPassword);
             if (!radiusResult.accepted) {
@@ -1763,6 +1764,12 @@ export async function POST(request: NextRequest) {
                 }
               }
 
+              // Check concurrent session limit BEFORE provisioning to avoid orphaned users (M-04)
+              if (await isSessionLimitReached(wifiUsername, 1)) {
+                await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
+                return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
+              }
+
               await wifiUserService.provisionUser({
                 tenantId: portal.tenantId,
                 propertyId: resolvedPropertyId,
@@ -1776,12 +1783,6 @@ export async function POST(request: NextRequest) {
                 sessionTimeoutMinutes: portalSessionTimeoutMin,
                 idleTimeoutSeconds: portal?.idleTimeout,
               });
-
-              // Check concurrent session limit (open access users get default 1)
-              if (await isSessionLimitReached(wifiUsername, 1)) {
-                await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
-                return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
-              }
 
               const radiusResult = await radiusAuth(wifiUsername, openPassword);
               if (!radiusResult.accepted) {

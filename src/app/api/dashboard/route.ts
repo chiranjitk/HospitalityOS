@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
     const arrivalsToday = bookings.filter(b => {
       const checkIn = new Date(b.checkIn);
       checkIn.setHours(0, 0, 0, 0);
-      return checkIn.getTime() === today.getTime() && b.status === 'confirmed';
+      return checkIn.getTime() === today.getTime() && ['confirmed', 'checked_in'].includes(b.status);
     }).length;
 
     // Departures today
