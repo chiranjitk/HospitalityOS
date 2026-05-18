@@ -1302,109 +1302,78 @@ export default function DhcpPage() {
     }
 
     return (
-      <Card className={cn(
-        'border',
+      <div className={cn(
+        'flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-lg border px-4 py-2.5',
         status.running
-          ? 'border-primary/20 dark:border-primary/30 bg-gradient-to-r from-primary/5 to-transparent dark:from-primary/5'
-          : 'border-red-200 dark:border-red-900 bg-gradient-to-r from-red-50/50 to-transparent dark:from-red-950/20'
+          ? 'bg-primary/5 border-primary/20'
+          : 'bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-900'
       )}>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            {/* Left: status info */}
-            <div className="flex items-center gap-3">
-              <div className={cn(
-                'p-2 rounded-lg',
-                status.running
-                  ? 'bg-primary/15'
-                  : 'bg-red-500/15'
-              )}>
-                <Server className={cn('h-4 w-4', status.running ? 'text-primary' : 'text-red-600 dark:text-red-400')} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-sm font-semibold">StaySuite DHCP Server</h2>
-                  {status.running ? (
-                    <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-300 hover:bg-emerald-500/25 text-[10px] px-1.5 py-0">
-                      <span className="relative flex h-1.5 w-1.5 mr-1">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-                      </span>
-                      Online
-                    </Badge>
-                  ) : (
-                    <Badge className="bg-red-500/15 text-red-700 dark:text-red-300 border-red-300 hover:bg-red-500/25 text-[10px] px-1.5 py-0">
-                      <XCircle className="h-2.5 w-2.5 mr-1" />
-                      Offline
-                    </Badge>
-                  )}
-                  {status.version && (
-                    <span className="text-[10px] text-muted-foreground font-mono">{status.version}</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
-                  <span className="flex items-center gap-1">
-                    <LayoutGrid className="h-3 w-3" />
-                    {status.subnetCount} subnet{status.subnetCount !== 1 ? 's' : ''}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Wifi className="h-3 w-3" />
-                    {status.activeLeases} active
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Hash className="h-3 w-3" />
-                    {status.reservationCount} reserved
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Monitor className="h-3 w-3" />
-                    {status.currentInterfaces?.length || 0} iface
-                  </span>
-                </div>
-              </div>
-            </div>
+        {/* Left: status info */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="relative flex h-2 w-2">
+            {status.running && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />}
+            <span className={cn('relative inline-flex rounded-full h-2 w-2', status.running ? 'bg-emerald-500' : 'bg-red-500')} />
+          </span>
+          <span className="text-sm font-semibold">DHCP Server</span>
+          {status.running ? (
+            <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-300 text-[10px] px-1.5 py-0 h-4">
+              Online
+            </Badge>
+          ) : (
+            <Badge className="bg-red-500/15 text-red-700 dark:text-red-300 border-red-300 text-[10px] px-1.5 py-0 h-4">
+              Offline
+            </Badge>
+          )}
+          <span className="text-[10px] text-muted-foreground">{status.subnetCount} subnet{status.subnetCount !== 1 ? 's' : ''}</span>
+          <span className="text-border">|</span>
+          <span className="text-[10px] text-muted-foreground">{status.activeLeases} active</span>
+          <span className="text-border">|</span>
+          <span className="text-[10px] text-muted-foreground">{status.reservationCount} reserved</span>
+          <span className="text-border">|</span>
+          <span className="text-[10px] text-muted-foreground">{status.currentInterfaces?.length || 0} iface</span>
+        </div>
 
-            {/* Right: service controls */}
-            <div className="flex items-center gap-1.5">
-              <TooltipProvider>
-                {status.running ? (
-                  <>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => handleServiceAction('reload')}>
-                          <RotateCw className="h-3 w-3 mr-1" />
-                          Reload
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Zero-downtime config reload</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => handleServiceAction('restart')}>
-                          <RefreshCw className="h-3 w-3 mr-1" />
-                          Restart
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Full service restart</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Button variant="destructive" size="sm" className="h-7 text-xs px-2" onClick={() => handleServiceAction('stop')}>
-                      <XCircle className="h-3 w-3 mr-1" />
-                      Stop
+        {/* Right: service controls */}
+        <div className="flex items-center gap-1.5">
+          <TooltipProvider>
+            {status.running ? (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => handleServiceAction('reload')}>
+                      <RotateCw className="h-3 w-3 mr-1" />
+                      Reload
                     </Button>
-                  </>
-                ) : (
-                  <Button size="sm" className="h-7 text-xs px-2" onClick={() => handleServiceAction('start')}>
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Start
-                  </Button>
-                )}
-              </TooltipProvider>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Zero-downtime config reload</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => handleServiceAction('restart')}>
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Restart
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Full service restart</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Button variant="destructive" size="sm" className="h-7 text-xs px-2" onClick={() => handleServiceAction('stop')}>
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Stop
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" className="h-7 text-xs px-2" onClick={() => handleServiceAction('start')}>
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Start
+              </Button>
+            )}
+          </TooltipProvider>
+        </div>
+      </div>
     );
   };
 

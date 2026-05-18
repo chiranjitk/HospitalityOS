@@ -299,7 +299,7 @@ async function handleRequest(request: NextRequest, method: string) {
         success: true,
         data: {
           installed: true, running: false, processRunning: false,
-          version: 'dnsmasq', mode: 'standalone', backend: 'dnsmasq',
+          version: '', mode: 'standalone', backend: 'dnsmasq',
           subnetCount, leaseCount, activeLeases, reservationCount,
           currentInterfaces: [], systemInterfaces: [],
           configFile: DNSMASQ_DHCP_CONF,

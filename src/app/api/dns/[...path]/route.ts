@@ -183,7 +183,7 @@ async function handleRequest(request: NextRequest, method: string) {
       return NextResponse.json({
         success: true,
         data: {
-          installed: true, running: false, version: 'dnsmasq', mode: 'standalone',
+          installed: true, running: false, version: '', mode: 'standalone',
           configPath: DNSMASQ_DNS_CONF,
           zoneCount, recordCount, redirectCount, forwarderCount,
           cacheStats: { size: 10000, maxSize: 10000, inserts: 0, evictions: 0, hitRate: 'N/A' },

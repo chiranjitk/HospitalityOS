@@ -373,54 +373,42 @@ function ServerTab() {
   return (
     <div className="space-y-6">
       {/* Status Card */}
-      <Card className="overflow-hidden">
-        <div className={`h-0.5 ${status?.running ? 'bg-emerald-500' : 'bg-red-500'}`} />
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                {status?.running && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />}
-                <span className={`relative inline-flex rounded-full h-2 w-2 ${status?.running ? 'bg-emerald-500' : 'bg-red-500'}`} />
-              </span>
-              <span className="text-sm font-semibold">StaySuite DNS Server</span>
-              <Badge variant={status?.running ? 'default' : 'destructive'} className={cn('text-[10px] px-1.5 py-0 h-4', status?.running ? 'bg-emerald-500 hover:bg-emerald-600' : '')}>
-                {status?.running ? 'Running' : 'Stopped'}
-              </Badge>
-              <span className="text-[10px] text-muted-foreground font-mono">{status?.version || ''}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => handleAction('start')} disabled={actionLoading || !!status?.running}>
-                <Play className="h-3 w-3 mr-1" /> Start
-              </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => handleAction('stop')} disabled={actionLoading || !status?.running}>
-                <Square className="h-3 w-3 mr-1" /> Stop
-              </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => handleAction('restart')} disabled={actionLoading}>
-                <RotateCw className="h-3 w-3 mr-1" /> Restart
-              </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => handleAction('reload')} disabled={actionLoading || !status?.running}>
-                <RefreshCw className="h-3 w-3 mr-1" /> Reload
-              </Button>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
-            <span className="flex items-center gap-1">
-              <Cpu className="h-3 w-3" />
-              {status?.mode || 'N/A'}
-            </span>
-            <span className="flex items-center gap-1">
-              <Shield className="h-3 w-3" />
-              {status?.installed ? 'Installed' : 'Not installed'}
-            </span>
-            {status?.configPath && (
-              <span className="flex items-center gap-1">
-                <FileText className="h-3 w-3" />
-                <code className="text-foreground/70">{status.configPath.split('/').pop()}</code>
-              </span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <div className={cn(
+        'flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-lg border px-4 py-2.5',
+        status?.running
+          ? 'bg-primary/5 border-primary/20'
+          : 'bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-900'
+      )}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="relative flex h-2 w-2">
+            {status?.running && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />}
+            <span className={cn('relative inline-flex rounded-full h-2 w-2', status?.running ? 'bg-emerald-500' : 'bg-red-500')} />
+          </span>
+          <span className="text-sm font-semibold">DNS Server</span>
+          <Badge variant={status?.running ? 'default' : 'destructive'} className={cn('text-[10px] px-1.5 py-0 h-4', status?.running ? 'bg-emerald-500 hover:bg-emerald-600' : '')}>
+            {status?.running ? 'Running' : 'Stopped'}
+          </Badge>
+          <span className="text-[10px] text-muted-foreground">{status?.zoneCount || 0} zones</span>
+          <span className="text-border">|</span>
+          <span className="text-[10px] text-muted-foreground">{status?.recordCount || 0} records</span>
+          <span className="text-border">|</span>
+          <span className="text-[10px] text-muted-foreground">{status?.forwarderCount || 0} forwarders</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => handleAction('start')} disabled={actionLoading || !!status?.running}>
+            <Play className="h-3 w-3 mr-1" /> Start
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => handleAction('stop')} disabled={actionLoading || !status?.running}>
+            <Square className="h-3 w-3 mr-1" /> Stop
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => handleAction('restart')} disabled={actionLoading}>
+            <RotateCw className="h-3 w-3 mr-1" /> Restart
+          </Button>
+          <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => handleAction('reload')} disabled={actionLoading || !status?.running}>
+            <RefreshCw className="h-3 w-3 mr-1" /> Reload
+          </Button>
+        </div>
+      </div>
 
       {/* Upstream Forwarders */}
       <Card>

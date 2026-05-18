@@ -438,8 +438,10 @@ function isDnsmasqRunning(): boolean {
 function getDnsmasqVersion(): string {
   try {
     const result = execSync(`${DNSMASQ_BIN} -v 2>&1 | head -1`, { encoding: 'utf-8' });
-    return result.trim();
-  } catch { return 'Unknown'; }
+    // Extract just the version number from "Dnsmasq version 2.90 Copyright ..."
+    const match = result.trim().match(/(\d+\.\d+)/);
+    return match ? `v${match[1]}` : result.trim();
+  } catch { return ''; }
 }
 
 async function startDnsmasq(): Promise<{ success: boolean; message: string }> {
@@ -993,7 +995,7 @@ app.get('/health', (c) => {
 
 app.get('/api/status', async (c) => {
   const running = isDnsmasqRunning();
-  const version = running ? getDnsmasqVersion() : 'Not running';
+  const version = running ? getDnsmasqVersion() : '';
 
   let subnetCount = 0, reservationCount = 0, leaseCount = 0, activeLeases = 0;
   let blacklistCount = 0, optionsCount = 0, tagRulesCount = 0, hostnameFiltersCount = 0, leaseScriptsCount = 0;

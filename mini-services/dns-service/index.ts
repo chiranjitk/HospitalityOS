@@ -322,8 +322,10 @@ function getDnsmasqStats(): {
 function getDnsmasqVersion(): string {
   try {
     const result = execSync(`${DNSMASQ_BIN} -v 2>&1 | head -1`, { encoding: 'utf-8' });
-    return result.trim();
-  } catch { return 'Unknown'; }
+    // Extract just the version number from "Dnsmasq version 2.90 Copyright ..."
+    const match = result.trim().match(/(\d+\.\d+)/);
+    return match ? `v${match[1]}` : result.trim();
+  } catch { return ''; }
 }
 
 function startDnsmasq(): { success: boolean; message: string } {
@@ -729,7 +731,7 @@ app.get('/health', async (c) => {
 
 app.get('/api/status', async (c) => {
   const running = isDnsmasqRunning();
-  const version = running ? getDnsmasqVersion() : 'Not running';
+  const version = running ? getDnsmasqVersion() : '';
 
   let zoneCount = 0, recordCount = 0, redirectCount = 0, forwarderCount = 0;
   try { zoneCount = parseInt((await pool.query('SELECT COUNT(*) as c FROM "DnsZone" WHERE enabled = true')).rows[0]?.c) || 0; } catch {}
@@ -750,7 +752,7 @@ app.get('/api/status', async (c) => {
     data: {
       installed: SYSTEM_DNSMASQ,
       running,
-      version: version || 'dnsmasq (StaySuite)',
+      version: version || '',
       mode: running ? 'production' : 'stopped',
       configPath: DNSMASQ_CONFIG,
       pidFile: DNSMASQ_PID_FILE,

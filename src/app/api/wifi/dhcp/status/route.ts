@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
         installed: true,
         running: false,
         processRunning: false,
-        version: 'dnsmasq',
+        version: '',
         mode: 'standalone',
         backend: 'dnsmasq',
         subnetCount,
