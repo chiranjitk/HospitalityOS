@@ -101,6 +101,13 @@ export function AppLayout({ children }: AppLayoutProps) {
         useUIStore.getState().setActiveSection(hash);
       }
     };
+
+    // Read initial hash on mount (deep-linking support)
+    const initialHash = window.location.hash.replace('#', '');
+    if (initialHash && initialHash !== useUIStore.getState().activeSection) {
+      useUIStore.getState().setActiveSection(initialHash);
+    }
+
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);

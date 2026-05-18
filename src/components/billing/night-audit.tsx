@@ -139,7 +139,12 @@ export default function NightAudit() {
         const result = await res.json();
         if (result.success && result.data?.length) {
           setProperties(result.data);
-          setSelectedPropertyId(result.data[0].id);
+          // Prefer the user's currently selected property, fallback to first
+          const currentPropId = typeof window !== 'undefined' ? localStorage.getItem('currentPropertyId') : null;
+          const defaultProp = currentPropId && result.data.find((p: Property) => p.id === currentPropId)
+            ? currentPropId
+            : result.data[0].id;
+          setSelectedPropertyId(defaultProp);
         }
       } catch {
         // silent
@@ -247,7 +252,14 @@ export default function NightAudit() {
   const auditProgress = totalSteps > 0 ? (completedStepsCount / totalSteps) * 100 : 0;
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    try {
+      const currencyCode = typeof window !== 'undefined'
+        ? (localStorage.getItem('tenantCurrency') || 'INR')
+        : 'INR';
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(amount);
+    } catch {
+      return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
+    }
   };
 
   return (

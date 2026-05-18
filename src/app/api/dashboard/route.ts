@@ -112,13 +112,22 @@ export async function GET(request: NextRequest) {
     });
     const roomTypeMap = new Map(roomTypes.map(rt => [rt.id, rt.name]));
 
-    // Today's stats
+    // Today's stats — revenue from all active/paid stays that overlap today
     const todaysRevenue = bookings
       .filter(b => {
         const checkIn = new Date(b.checkIn);
-        return checkIn >= today && checkIn < tomorrow && !['cancelled', 'draft', 'no_show'].includes(b.status);
+        const checkOut = new Date(b.checkOut);
+        // Include bookings that overlap today (checked in today OR currently staying through today)
+        return checkIn < tomorrow && checkOut >= today && !['cancelled', 'draft', 'no_show'].includes(b.status);
       })
-      .reduce((sum, b) => sum + b.totalAmount, 0);
+      .reduce((sum, b) => {
+        // Prorate: calculate daily rate and count only today's portion
+        const checkIn = new Date(b.checkIn);
+        const checkOut = new Date(b.checkOut);
+        const totalNights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+        const dailyRate = b.totalAmount / totalNights;
+        return sum + dailyRate;
+      }, 0);
 
     // Currently checked in
     const checkedIn = bookings.filter(b => b.status === 'checked_in');
@@ -174,8 +183,8 @@ export async function GET(request: NextRequest) {
     const totalRevenue = paidBookings.reduce((sum, b) => sum + b.totalAmount, 0);
     const adr = totalNights > 0 ? Math.round(totalRevenue / totalNights) : 0;
 
-    // RevPAR
-    const revpar = totalRooms > 0 ? Math.round(monthRevenue / (totalRooms * 30)) : 0;
+    // RevPAR = ADR × Occupancy Rate (correct hospitality formula)
+    const revpar = totalRooms > 0 && adr > 0 ? Math.round(adr * (occupancyRate / 100)) : 0;
 
     // Pending bookings
     const pendingBookings = bookings.filter(b => b.status === 'confirmed').length;
