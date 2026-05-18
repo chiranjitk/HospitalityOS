@@ -86,6 +86,7 @@ import {
   BarChart3,
   Filter,
   X,
+  XCircle,
 } from 'lucide-react';
 import { format, subDays, parseISO, isValid } from 'date-fns';
 import { motion } from 'framer-motion';
@@ -101,6 +102,57 @@ type BookingStatus = 'confirmed' | 'checked_in' | 'checked_out' | 'cancelled' | 
 type LoyaltyTier = 'bronze' | 'silver' | 'gold' | 'platinum';
 type PaymentStatus = 'paid' | 'pending' | 'partial' | 'refunded' | 'overdue';
 type BookingSource = 'direct' | 'booking_com' | 'expedia' | 'airbnb' | 'walk_in' | 'phone' | 'corporate' | 'ota';
+
+interface FolioLineItemDetail {
+  id: string;
+  folioNumber: string;
+  description: string;
+  category: string;
+  quantity: number;
+  unitPrice: number;
+  totalAmount: number;
+  serviceDate: string | null;
+}
+
+interface PaymentDetail {
+  id: string;
+  folioNumber: string;
+  amount: number | null;
+  method: string;
+  status: string;
+  gateway: string | null;
+  cardType: string | null;
+  cardLast4: string | null;
+  currency: string;
+  processedAt: string | null;
+  createdAt: string | null;
+}
+
+interface GuestFeedbackDetail {
+  id: string;
+  type: string;
+  category: string;
+  subject: string;
+  description: string;
+  priority: string;
+  status: string;
+  resolvedAt: string | null;
+  createdAt: string | null;
+}
+
+interface GuestReviewDetail {
+  id: string;
+  overallRating: number;
+  cleanlinessRating: number | null;
+  serviceRating: number | null;
+  locationRating: number | null;
+  valueRating: number | null;
+  title: string | null;
+  comment: string | null;
+  sentimentScore: number | null;
+  sentimentLabel: string | null;
+  createdAt: string | null;
+}
 
 interface GuestStayRecord {
   id: string;
@@ -145,6 +197,11 @@ interface GuestStayRecord {
   roomTypeId?: string;
   propertyId?: string;
   bookingId?: string;
+  // NEW extended data
+  allFolioLineItems: FolioLineItemDetail[];
+  allPayments: PaymentDetail[];
+  guestFeedbacks: GuestFeedbackDetail[];
+  guestReviews: GuestReviewDetail[];
 }
 
 interface MonthlyRevenuePoint {
@@ -170,6 +227,26 @@ interface RoomTypeRevenue {
   bookings: number;
 }
 
+interface SourceRevenue {
+  source: string;
+  revenue: number;
+  bookings: number;
+  roomNights: number;
+}
+
+interface CancellationAnalysis {
+  cancelled: number;
+  noShow: number;
+  confirmed: number;
+  checkedIn: number;
+  checkedOut: number;
+}
+
+interface RepeatGuestAnalysis {
+  firstTime: { guests: number; revenue: number };
+  repeat: { guests: number; revenue: number };
+}
+
 interface GuestStayReportData {
   records: GuestStayRecord[];
   summary: {
@@ -179,12 +256,30 @@ interface GuestStayReportData {
     totalRevenue: number;
     avgStayLength: number;
     avgRevenuePerStay: number;
+    cancellationRate: number;
+    cancelledStays: number;
+    cancelledRevenue: number;
+    noShowCount: number;
+    totalOutstanding: number;
+    totalCollected: number;
+    collectionRate: number;
+    repeatGuestCount: number;
+    firstTimeGuestCount: number;
+    repeatGuestRevenue: number;
+    firstTimeGuestRevenue: number;
+    adr: number;
+    revpar: number;
+    averageRating: number | null;
+    totalReviews: number;
   };
   charts: {
     monthlyRevenue: MonthlyRevenuePoint[];
     nationalityDistribution: NationalityDistribution[];
     bookingStatusDistribution: StatusDistribution[];
     revenueByRoomType: RoomTypeRevenue[];
+    revenueBySource: SourceRevenue[];
+    cancellationAnalysis: CancellationAnalysis;
+    repeatGuestAnalysis: RepeatGuestAnalysis;
   };
 }
 
@@ -201,6 +296,7 @@ interface Filters {
   loyaltyTier: string;
   vipOnly: boolean;
   search: string;
+  bookingSource: string;
 }
 
 type SortField = keyof GuestStayRecord;
@@ -236,6 +332,18 @@ const LOYALTY_TIER_OPTIONS: { value: string; label: string }[] = [
   { value: 'silver', label: 'Silver' },
   { value: 'gold', label: 'Gold' },
   { value: 'platinum', label: 'Platinum' },
+];
+
+const BOOKING_SOURCE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'all', label: 'All Sources' },
+  { value: 'direct', label: 'Direct' },
+  { value: 'booking_com', label: 'Booking.com' },
+  { value: 'expedia', label: 'Expedia' },
+  { value: 'airbnb', label: 'Airbnb' },
+  { value: 'walk_in', label: 'Walk-in' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'corporate', label: 'Corporate' },
+  { value: 'ota', label: 'OTA' },
 ];
 
 const QUICK_RANGES: { label: string; days: number }[] = [
@@ -392,6 +500,15 @@ function VIPBadge({ isVIP }: { isVIP: boolean }) {
   );
 }
 
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex justify-between items-start py-1.5">
+      <span className="text-sm text-muted-foreground shrink-0">{label}</span>
+      <span className="text-sm font-medium text-right ml-4">{value || '\u2014'}</span>
+    </div>
+  );
+}
+
 // ============================================================================
 // Detail Dialog Component
 // ============================================================================
@@ -409,13 +526,6 @@ function GuestDetailDialog({
 }) {
   if (!record) return null;
 
-  const InfoRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
-    <div className="flex justify-between items-start py-1.5">
-      <span className="text-sm text-muted-foreground shrink-0">{label}</span>
-      <span className="text-sm font-medium text-right ml-4">{value || '—'}</span>
-    </div>
-  );
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
@@ -431,11 +541,13 @@ function GuestDetailDialog({
 
         <ScrollArea className="max-h-[calc(90vh-120px)] pr-4">
           <Tabs defaultValue="profile" className="w-full">
-            <TabsList className="w-full grid grid-cols-4">
+            <TabsList className="w-full grid grid-cols-6">
               <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="booking">Booking</TabsTrigger>
               <TabsTrigger value="folio">Folio</TabsTrigger>
               <TabsTrigger value="stay">Stay</TabsTrigger>
+              <TabsTrigger value="payments">Payments</TabsTrigger>
+              <TabsTrigger value="feedback">Feedback</TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile" className="space-y-4 mt-4">
@@ -539,10 +651,163 @@ function GuestDetailDialog({
                 <InfoRow label="Room Number" value={record.roomNumber} />
               </div>
             </TabsContent>
+
+            <TabsContent value="payments" className="space-y-4 mt-4">
+              {record.allPayments && record.allPayments.length > 0 ? (
+                <div className="space-y-2">
+                  {record.allPayments.map((p) => (
+                    <Card key={p.id} className="bg-muted/30 border-0">
+                      <CardContent className="p-3">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="text-sm font-medium">{formatStatusLabel(p.method)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Folio: {p.folioNumber} &bull; {p.gateway && `${p.gateway} \u2022 `}{p.cardType && `${p.cardType} `}
+                              {p.cardLast4 && `****${p.cardLast4}`}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold">{formatCurrencyValue(p.amount ?? 0, currencySymbol)}</p>
+                            <PaymentStatusBadge status={(p.status as PaymentStatus) || 'pending'} />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">No payment records found</p>
+              )}
+
+              {record.allFolioLineItems && record.allFolioLineItems.length > 0 && (
+                <>
+                  <Separator />
+                  <p className="text-sm font-medium">Folio Line Items</p>
+                  <div className="max-h-48 overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs">Description</TableHead>
+                          <TableHead className="text-xs">Category</TableHead>
+                          <TableHead className="text-xs text-right">Qty</TableHead>
+                          <TableHead className="text-xs text-right">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {record.allFolioLineItems.map((li) => (
+                          <TableRow key={li.id}>
+                            <TableCell className="text-xs py-1">{li.description}</TableCell>
+                            <TableCell className="text-xs py-1">{li.category}</TableCell>
+                            <TableCell className="text-xs py-1 text-right">{li.quantity}</TableCell>
+                            <TableCell className="text-xs py-1 text-right">{formatCurrencyValue(li.totalAmount, currencySymbol)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              )}
+            </TabsContent>
+
+            <TabsContent value="feedback" className="space-y-4 mt-4">
+              {record.guestReviews && record.guestReviews.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Reviews</p>
+                  {record.guestReviews.map((rv) => (
+                    <Card key={rv.id} className="bg-muted/30 border-0">
+                      <CardContent className="p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-0.5">
+                            {[1,2,3,4,5].map((s) => (
+                              <Star key={s} className={cn('h-3 w-3', s <= rv.overallRating ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground/30')} />
+                            ))}
+                          </div>
+                          <span className="text-xs text-muted-foreground">{formatDateSafe(rv.createdAt ?? '')}</span>
+                          {rv.sentimentLabel && (
+                            <Badge variant="secondary" className={cn('text-xs', rv.sentimentLabel === 'positive' ? 'bg-emerald-100 text-emerald-700' : rv.sentimentLabel === 'negative' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700')}>
+                              {rv.sentimentLabel}
+                            </Badge>
+                          )}
+                        </div>
+                        {rv.title && <p className="text-sm font-medium">{rv.title}</p>}
+                        {rv.comment && <p className="text-xs text-muted-foreground">{rv.comment}</p>}
+                        <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+                          {rv.cleanlinessRating && <span>Cleanliness: {rv.cleanlinessRating}/5</span>}
+                          {rv.serviceRating && <span>Service: {rv.serviceRating}/5</span>}
+                          {rv.locationRating && <span>Location: {rv.locationRating}/5</span>}
+                          {rv.valueRating && <span>Value: {rv.valueRating}/5</span>}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {record.guestFeedbacks && record.guestFeedbacks.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Feedback</p>
+                  {record.guestFeedbacks.map((fb) => (
+                    <Card key={fb.id} className="bg-muted/30 border-0">
+                      <CardContent className="p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="secondary" className={cn('text-xs', fb.type === 'complaint' ? 'bg-red-100 text-red-700' : fb.type === 'suggestion' ? 'bg-cyan-100 text-cyan-700' : 'bg-emerald-100 text-emerald-700')}>
+                            {fb.type}
+                          </Badge>
+                          <Badge variant="secondary" className={cn('text-xs', fb.priority === 'high' ? 'bg-red-100 text-red-700' : fb.priority === 'low' ? 'bg-gray-100 text-gray-700' : 'bg-amber-100 text-amber-700')}>
+                            {fb.priority}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground ml-auto">{fb.status}</span>
+                        </div>
+                        <p className="text-sm font-medium">{fb.subject}</p>
+                        <p className="text-xs text-muted-foreground">{fb.description}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {(!record.guestReviews || record.guestReviews.length === 0) && (!record.guestFeedbacks || record.guestFeedbacks.length === 0) && (
+                <p className="text-sm text-muted-foreground text-center py-8">No feedback or reviews found for this guest</p>
+              )}
+            </TabsContent>
           </Tabs>
         </ScrollArea>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SortableHeader({
+  field,
+  children,
+  sortField,
+  sortDirection,
+  onSort,
+}: {
+  field: SortField;
+  children: React.ReactNode;
+  sortField: SortField;
+  sortDirection: SortDirection;
+  onSort: (field: SortField) => void;
+}) {
+  return (
+    <TableHead
+      className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+      onClick={() => onSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {children}
+        {sortField === field ? (
+          sortDirection === 'asc' ? (
+            <ChevronUp className="h-3.5 w-3.5 text-emerald-500" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5 text-emerald-500" />
+          )
+        ) : (
+          <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/40" />
+        )}
+      </div>
+    </TableHead>
   );
 }
 
@@ -569,6 +834,7 @@ export default function GuestStayReport() {
     loyaltyTier: 'all',
     vipOnly: false,
     search: '',
+    bookingSource: 'all',
   });
   const [appliedFilters, setAppliedFilters] = useState<Filters>({ ...filters });
   const [activeQuickRange, setActiveQuickRange] = useState(30);
@@ -597,6 +863,7 @@ export default function GuestStayReport() {
         loyaltyTier: activeFilters.loyaltyTier,
         vipOnly: String(activeFilters.vipOnly),
         search: activeFilters.search,
+        bookingSource: activeFilters.bookingSource,
       });
       const response = await fetch(`/api/reports/guest-stay-report?${params}`);
       if (!response.ok) {
@@ -653,6 +920,7 @@ export default function GuestStayReport() {
       loyaltyTier: 'all',
       vipOnly: false,
       search: '',
+      bookingSource: 'all',
     };
     setFilters(resetState);
     setAppliedFilters(resetState);
@@ -704,7 +972,7 @@ export default function GuestStayReport() {
       return sortDirection === 'asc' ? comparison : -comparison;
     });
     return sorted;
-  }, [data?.records, sortField, sortDirection]);
+  }, [data, sortField, sortDirection]);
 
   // ---- Pagination ----
   const paginatedRecords = useMemo(() => {
@@ -754,6 +1022,7 @@ export default function GuestStayReport() {
         loyaltyTier: appliedFilters.loyaltyTier,
         vipOnly: String(appliedFilters.vipOnly),
         search: appliedFilters.search,
+        bookingSource: appliedFilters.bookingSource,
       });
       const response = await fetch(`/api/reports/guest-stay-report?${params}`);
       if (!response.ok) {
@@ -761,13 +1030,19 @@ export default function GuestStayReport() {
       }
 
       if (format === 'pdf') {
-        const html = await response.text();
-        const newWindow = window.open('', '_blank');
-        if (newWindow) {
-          newWindow.document.write(html);
-          newWindow.document.close();
-        }
-        toast.success('Report opened for printing');
+        const blob = await response.blob();
+        const contentDisposition = response.headers.get('content-disposition') || '';
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        const downloadFilename = filenameMatch?.[1]?.replace(/['"]/g, '') || 'guest-stay-report.pdf';
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = downloadFilename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        toast.success('PDF exported successfully');
       } else {
         const blob = await response.blob();
         const contentDisposition = response.headers.get('content-disposition') || '';
@@ -791,25 +1066,7 @@ export default function GuestStayReport() {
   }, [appliedFilters]);
 
   // ---- Sortable Column Header ----
-  const SortableHeader = useCallback(({ field, children }: { field: SortField; children: React.ReactNode }) => (
-    <TableHead
-      className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
-      onClick={() => handleSort(field)}
-    >
-      <div className="flex items-center gap-1">
-        {children}
-        {sortField === field ? (
-          sortDirection === 'asc' ? (
-            <ChevronUp className="h-3.5 w-3.5 text-emerald-500" />
-          ) : (
-            <ChevronDown className="h-3.5 w-3.5 text-emerald-500" />
-          )
-        ) : (
-          <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/40" />
-        )}
-      </div>
-    </TableHead>
-  ), [sortField, sortDirection, handleSort]);
+  // (SortableHeader is defined outside this component)
 
   // ---- Loading Skeleton ----
   if (isLoading || !data) {
@@ -830,8 +1087,8 @@ export default function GuestStayReport() {
             <Skeleton key={i} className="h-9 w-28" />
           ))}
         </div>
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {Array.from({ length: 6 }).map((_, i) => (
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 xl:grid-cols-5">
+          {Array.from({ length: 10 }).map((_, i) => (
             <Card key={i} className="border-0 shadow-sm">
               <CardContent className="pt-6">
                 <Skeleton className="h-20 w-full" />
@@ -839,8 +1096,8 @@ export default function GuestStayReport() {
             </Card>
           ))}
         </div>
-        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+          {Array.from({ length: 7 }).map((_, i) => (
             <Card key={i} className="border-0 shadow-sm">
               <CardContent className="pt-6">
                 <Skeleton className="h-[250px] w-full" />
@@ -1007,6 +1264,20 @@ export default function GuestStayReport() {
             </SelectContent>
           </Select>
 
+          <Select
+            value={filters.bookingSource}
+            onValueChange={val => setFilters(prev => ({ ...prev, bookingSource: val }))}
+          >
+            <SelectTrigger className="w-36 h-8 text-sm">
+              <SelectValue placeholder="All Sources" />
+            </SelectTrigger>
+            <SelectContent>
+              {BOOKING_SOURCE_OPTIONS.map(opt => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <div className="flex items-center gap-2">
             <Switch
               id="vip-toggle"
@@ -1044,7 +1315,7 @@ export default function GuestStayReport() {
       {/* ================================================================== */}
       {/* Summary Cards Row */}
       {/* ================================================================== */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 xl:grid-cols-5">
         <SummaryCard
           title="Total Guests"
           value={summary.totalGuests.toLocaleString()}
@@ -1099,12 +1370,48 @@ export default function GuestStayReport() {
           iconBg="bg-teal-200 dark:bg-teal-800"
           iconColor="text-teal-700 dark:text-teal-400"
         />
+        <SummaryCard
+          title="Cancellation Rate"
+          value={`${summary.cancellationRate}%`}
+          subtitle={`${summary.cancelledStays} cancelled, ${summary.noShowCount} no-show`}
+          icon={XCircle}
+          gradient="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900"
+          iconBg="bg-rose-200 dark:bg-rose-800"
+          iconColor="text-rose-700 dark:text-rose-400"
+        />
+        <SummaryCard
+          title="Outstanding"
+          value={formatCurrency(summary.totalOutstanding)}
+          subtitle={`${summary.collectionRate}% collected`}
+          icon={DollarSign}
+          gradient="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900"
+          iconBg="bg-orange-200 dark:bg-orange-800"
+          iconColor="text-orange-700 dark:text-orange-400"
+        />
+        <SummaryCard
+          title="ADR"
+          value={formatCurrency(summary.adr)}
+          subtitle="Avg Daily Rate"
+          icon={BarChart3}
+          gradient="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900"
+          iconBg="bg-teal-200 dark:bg-teal-800"
+          iconColor="text-teal-700 dark:text-teal-400"
+        />
+        <SummaryCard
+          title="RevPAR"
+          value={formatCurrency(summary.revpar)}
+          subtitle={summary.averageRating !== null ? `\u2605 ${summary.averageRating}` : 'No ratings'}
+          icon={TrendingUp}
+          gradient="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900"
+          iconBg="bg-pink-200 dark:bg-pink-800"
+          iconColor="text-pink-700 dark:text-pink-400"
+        />
       </div>
 
       {/* ================================================================== */}
-      {/* Charts Section (2 columns on desktop) */}
+      {/* Charts Section (3 columns on desktop) */}
       {/* ================================================================== */}
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
         {/* Monthly Revenue Trend */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -1300,6 +1607,112 @@ export default function GuestStayReport() {
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* Revenue by Booking Source */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.2 }}
+        >
+          <Card className="border-0 shadow-sm rounded-xl">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Revenue by Source</CardTitle>
+              <CardDescription>Booking channel performance</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {charts.revenueBySource && charts.revenueBySource.length > 0 ? (
+                <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                  <BarChart data={charts.revenueBySource} layout="vertical" margin={{ left: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
+                    <XAxis type="number" tickFormatter={(v) => `${currency.symbol}${(v/1000).toFixed(0)}k`} />
+                    <YAxis type="category" dataKey="source" width={80} tick={{ fontSize: 11 }} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="revenue" fill="#10b981" radius={[0, 4, 4, 0]} name="Revenue" />
+                  </BarChart>
+                </ChartContainer>
+              ) : (
+                <div className="h-[250px] flex items-center justify-center text-muted-foreground">No data available</div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Cancellation Analysis */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.25 }}
+        >
+          <Card className="border-0 shadow-sm rounded-xl">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Cancellation Analysis</CardTitle>
+              <CardDescription>Booking outcome distribution</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {charts.cancellationAnalysis ? (
+                <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                  <PieChart>
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Pie
+                      data={[
+                        { name: 'Checked Out', value: charts.cancellationAnalysis.checkedOut, fill: '#10b981' },
+                        { name: 'Confirmed', value: charts.cancellationAnalysis.confirmed, fill: '#06b6d4' },
+                        { name: 'Checked In', value: charts.cancellationAnalysis.checkedIn, fill: '#f59e0b' },
+                        { name: 'Cancelled', value: charts.cancellationAnalysis.cancelled, fill: '#f43f5e' },
+                        { name: 'No Show', value: charts.cancellationAnalysis.noShow, fill: '#94a3b8' },
+                      ]}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    />
+                  </PieChart>
+                </ChartContainer>
+              ) : (
+                <div className="h-[250px] flex items-center justify-center text-muted-foreground">No data available</div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Guest Retention */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.3 }}
+        >
+          <Card className="border-0 shadow-sm rounded-xl">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Guest Retention</CardTitle>
+              <CardDescription>First-time vs repeat guests</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {charts.repeatGuestAnalysis ? (
+                <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                  <PieChart>
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Pie
+                      data={[
+                        { name: 'First-Time', value: charts.repeatGuestAnalysis.firstTime.guests, fill: '#06b6d4' },
+                        { name: 'Repeat', value: charts.repeatGuestAnalysis.repeat.guests, fill: '#8b5cf6' },
+                      ]}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    />
+                  </PieChart>
+                </ChartContainer>
+              ) : (
+                <div className="h-[250px] flex items-center justify-center text-muted-foreground">No data available</div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
       {/* ================================================================== */}
@@ -1358,21 +1771,21 @@ export default function GuestStayReport() {
                         aria-label="Select all rows"
                       />
                     </TableHead>
-                    <SortableHeader field="guestName">Guest</SortableHeader>
-                    <SortableHeader field="nationality">Nationality</SortableHeader>
+                    <SortableHeader field="guestName" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Guest</SortableHeader>
+                    <SortableHeader field="nationality" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Nationality</SortableHeader>
                     <TableHead>VIP</TableHead>
                     <TableHead>Tier</TableHead>
-                    <SortableHeader field="confirmationCode">Conf. Code</SortableHeader>
-                    <SortableHeader field="propertyName">Property</SortableHeader>
-                    <SortableHeader field="roomNumber">Room</SortableHeader>
-                    <SortableHeader field="roomType">Room Type</SortableHeader>
-                    <SortableHeader field="checkIn">Check-In</SortableHeader>
-                    <SortableHeader field="checkOut">Check-Out</SortableHeader>
-                    <SortableHeader field="nights">Nights</SortableHeader>
-                    <SortableHeader field="totalAmount">Total</SortableHeader>
-                    <SortableHeader field="status">Status</SortableHeader>
-                    <SortableHeader field="paymentStatus">Payment</SortableHeader>
-                    <SortableHeader field="source">Source</SortableHeader>
+                    <SortableHeader field="confirmationCode" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Conf. Code</SortableHeader>
+                    <SortableHeader field="propertyName" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Property</SortableHeader>
+                    <SortableHeader field="roomNumber" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Room</SortableHeader>
+                    <SortableHeader field="roomType" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Room Type</SortableHeader>
+                    <SortableHeader field="checkIn" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Check-In</SortableHeader>
+                    <SortableHeader field="checkOut" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Check-Out</SortableHeader>
+                    <SortableHeader field="nights" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Nights</SortableHeader>
+                    <SortableHeader field="totalAmount" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Total</SortableHeader>
+                    <SortableHeader field="status" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Status</SortableHeader>
+                    <SortableHeader field="paymentStatus" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Payment</SortableHeader>
+                    <SortableHeader field="source" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Source</SortableHeader>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

@@ -109,6 +109,36 @@ interface SummaryStats {
   guestDistributionByVipStatus: { vip: number; nonVip: number };
   bookingStatusDistribution: Record<string, number>;
   revenueByMonth: { month: string; revenue: number; stays: number; roomNights: number }[];
+
+  // NEW: Cancellation analysis
+  cancellationRate: number;
+  cancelledStays: number;
+  cancelledRevenue: number;
+  cancellationReasons: Record<string, number>;
+  noShowCount: number;
+
+  // NEW: Outstanding balance & collection
+  totalOutstanding: number;
+  totalCollected: number;
+  collectionRate: number;
+
+  // NEW: Repeat guest analysis
+  repeatGuestCount: number;
+  firstTimeGuestCount: number;
+  repeatGuestRevenue: number;
+  firstTimeGuestRevenue: number;
+
+  // NEW: Industry KPIs
+  adr: number; // Average Daily Rate = totalRevenue / totalRoomNights
+  revpar: number; // Revenue Per Available Room (approximate)
+
+  // NEW: Booking source breakdown
+  revenueBySource: { source: string; revenue: number; bookings: number; roomNights: number }[];
+
+  // NEW: Guest feedback summary
+  averageRating: number | null;
+  totalReviews: number;
+  feedbackByCategory: Record<string, number>;
 }
 
 // ---------------------------------------------------------------------------
@@ -170,6 +200,7 @@ async function generateXlsx(
   summary: SummaryStats,
   nationalityBreakdown: Record<string, { count: number; revenue: number; roomNights: number }>,
   roomTypeBreakdown: Record<string, { count: number; revenue: number; roomNights: number }>,
+  stays: any[],
 ): Promise<Buffer> {
   const XLSX = await import('xlsx');
 
@@ -263,6 +294,31 @@ async function generateXlsx(
     ['VIP Distribution', ''],
     ['VIP Guests', summary.guestDistributionByVipStatus.vip],
     ['Non-VIP Guests', summary.guestDistributionByVipStatus.nonVip],
+    ['', ''],
+    ['Cancellation Analysis', ''],
+    ['Cancellation Rate (%)', summary.cancellationRate],
+    ['Cancelled Stays', summary.cancelledStays],
+    ['Cancelled Revenue', summary.cancelledRevenue],
+    ['No-Show Count', summary.noShowCount],
+    ['', ''],
+    ['Collection Analysis', ''],
+    ['Total Outstanding', summary.totalOutstanding],
+    ['Total Collected', summary.totalCollected],
+    ['Collection Rate (%)', summary.collectionRate],
+    ['', ''],
+    ['Repeat Guest Analysis', ''],
+    ['First-Time Guests', summary.firstTimeGuestCount],
+    ['Repeat Guests', summary.repeatGuestCount],
+    ['First-Time Revenue', round2(summary.firstTimeGuestRevenue)],
+    ['Repeat Revenue', round2(summary.repeatGuestRevenue)],
+    ['', ''],
+    ['Industry KPIs', ''],
+    ['ADR (Average Daily Rate)', summary.adr],
+    ['RevPAR', summary.revpar],
+    ['', ''],
+    ['Guest Feedback', ''],
+    ['Average Rating', summary.averageRating ?? 'N/A'],
+    ['Total Reviews', summary.totalReviews],
   ];
   const ws2 = XLSX.utils.aoa_to_sheet(summaryData);
   ws2['!cols'] = [{ wch: 30 }, { wch: 18 }];
@@ -298,6 +354,78 @@ async function generateXlsx(
   const ws5 = XLSX.utils.aoa_to_sheet(roomTypeData);
   ws5['!cols'] = [{ wch: 22 }, { wch: 10 }, { wch: 16 }, { wch: 14 }];
   XLSX.utils.book_append_sheet(wb, ws5, 'By Room Type');
+
+  // ---- Sheet 6: Payment Breakdown ----
+  const paymentHeaders = [
+    'Booking ID', 'Confirmation', 'Guest Name', 'Folio #',
+    'Payment Amount', 'Method', 'Status', 'Gateway',
+    'Card Type', 'Card Last 4', 'Processed At',
+  ];
+  const paymentRows: (string | number | null)[][] = [];
+  for (const stay of stays) {
+    const booking = stay.booking;
+    const guestName = `${stay.guest?.firstName ?? ''} ${stay.guest?.lastName ?? ''}`.trim();
+    for (const folio of booking.folios ?? []) {
+      for (const p of folio.payments ?? []) {
+        paymentRows.push([
+          booking.id,
+          booking.confirmationCode,
+          guestName,
+          folio.folioNumber,
+          safeNumber(p.amount) ?? 0,
+          p.method ?? '',
+          p.status ?? '',
+          p.gateway ?? '',
+          p.cardType ?? '',
+          p.cardLast4 ?? '',
+          safeDate(p.processedAt) ?? safeDate(p.createdAt) ?? '',
+        ]);
+      }
+    }
+  }
+  const ws6 = XLSX.utils.aoa_to_sheet([paymentHeaders, ...paymentRows]);
+  ws6['!cols'] = [
+    { wch: 36 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
+    { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 14 },
+    { wch: 12 }, { wch: 12 }, { wch: 22 },
+  ];
+  XLSX.utils.book_append_sheet(wb, ws6, 'Payment Breakdown');
+
+  // ---- Sheet 7: Folio Line Items ----
+  const lineItemHeaders = [
+    'Booking ID', 'Confirmation', 'Guest Name', 'Folio #',
+    'Description', 'Category', 'Qty', 'Unit Price',
+    'Total', 'Tax', 'Service Date',
+  ];
+  const lineItemRows: (string | number | null)[][] = [];
+  for (const stay of stays) {
+    const booking = stay.booking;
+    const guestName = `${stay.guest?.firstName ?? ''} ${stay.guest?.lastName ?? ''}`.trim();
+    for (const folio of booking.folios ?? []) {
+      for (const li of folio.lineItems ?? []) {
+        lineItemRows.push([
+          booking.id,
+          booking.confirmationCode,
+          guestName,
+          folio.folioNumber,
+          li.description ?? '',
+          li.category ?? '',
+          li.quantity ?? 1,
+          safeNumber(li.unitPrice) ?? 0,
+          safeNumber(li.totalAmount) ?? 0,
+          safeNumber(li.taxAmount) ?? 0,
+          safeDate(li.serviceDate) ?? '',
+        ]);
+      }
+    }
+  }
+  const ws7 = XLSX.utils.aoa_to_sheet([lineItemHeaders, ...lineItemRows]);
+  ws7['!cols'] = [
+    { wch: 36 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
+    { wch: 30 }, { wch: 16 }, { wch: 6 }, { wch: 14 },
+    { wch: 14 }, { wch: 12 }, { wch: 14 },
+  ];
+  XLSX.utils.book_append_sheet(wb, ws7, 'Folio Line Items');
 
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   return Buffer.from(buf);
@@ -346,6 +474,20 @@ async function generatePdf(
     ['Avg Revenue / Stay', String(summary.averageRevenuePerStay)],
     ['VIP Guests', String(summary.guestDistributionByVipStatus.vip)],
     ['Non-VIP Guests', String(summary.guestDistributionByVipStatus.nonVip)],
+    ['', ''],
+    ['Cancellation Rate (%)', String(summary.cancellationRate)],
+    ['Cancelled Stays', String(summary.cancelledStays)],
+    ['No-Show Count', String(summary.noShowCount)],
+    ['', ''],
+    ['Total Outstanding', String(summary.totalOutstanding)],
+    ['Total Collected', String(summary.totalCollected)],
+    ['Collection Rate (%)', String(summary.collectionRate)],
+    ['', ''],
+    ['ADR (Avg Daily Rate)', String(summary.adr)],
+    ['RevPAR', String(summary.revpar)],
+    ['', ''],
+    ['Average Rating', summary.averageRating !== null ? String(summary.averageRating) : 'N/A'],
+    ['Total Reviews', String(summary.totalReviews)],
   ];
 
   autoTable(doc, {
@@ -490,13 +632,14 @@ export async function GET(request: NextRequest) {
     const isVipParam = searchParams.get('isVip') || searchParams.get('vipOnly');
     const isVip = isVipParam === 'true' ? true : isVipParam === 'false' ? false : null;
     const search = searchParams.get('search') || '';
+    // ENHANCEMENT 6: Booking source filter
+    const bookingSource = searchParams.get('bookingSource') || searchParams.get('source');
 
     const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '500', 10), 1), 5000);
     const skip = (page - 1) * limit;
 
     // ---- Build where clause ----
-    // We query through GuestStay -> booking -> to filter by tenant and date range
     const guestWhere: Record<string, unknown> = {
       tenantId,
       deletedAt: null,
@@ -529,8 +672,12 @@ export async function GET(request: NextRequest) {
     if (status && status !== 'all') {
       bookingWhere.status = status;
     }
+    // ENHANCEMENT 6: Booking source filter
+    if (bookingSource && bookingSource !== 'all') {
+      bookingWhere.source = bookingSource;
+    }
 
-    // ---- Fetch data with comprehensive includes ----
+    // ---- ENHANCEMENT 1: Fetch data with ALL folio line items and ALL payments ----
     const stays = await db.guestStay.findMany({
       where: {
         guest: guestWhere,
@@ -596,21 +743,38 @@ export async function GET(request: NextRequest) {
                 status: true,
                 openedAt: true,
                 closedAt: true,
+                lineItems: {
+                  select: {
+                    id: true,
+                    description: true,
+                    category: true,
+                    quantity: true,
+                    unitPrice: true,
+                    totalAmount: true,
+                    serviceDate: true,
+                    taxRate: true,
+                    taxAmount: true,
+                  },
+                  orderBy: { serviceDate: 'asc' },
+                },
                 payments: {
                   select: {
+                    id: true,
                     amount: true,
                     method: true,
                     status: true,
                     gateway: true,
                     cardType: true,
+                    cardLast4: true,
+                    currency: true,
+                    processedAt: true,
                     createdAt: true,
                   },
                   orderBy: { createdAt: 'desc' },
-                  take: 1,
                 },
               },
               orderBy: { openedAt: 'asc' },
-              take: 1,
+              take: 100,
             },
           },
         },
@@ -621,12 +785,67 @@ export async function GET(request: NextRequest) {
     });
 
     // ---- Get total count for pagination ----
-    const totalStays = await db.guestStay.count({
+    const totalStaysCount = await db.guestStay.count({
       where: {
         guest: guestWhere,
         booking: bookingWhere,
       },
     });
+
+    // ---- ENHANCEMENT 2: Fetch guest feedback and reviews ----
+    const guestIds = [...new Set(stays.map(s => s.guest.id))];
+    const propertyIds = [...new Set(stays.map(s => s.booking.propertyId))];
+
+    const [feedbacks, reviews] = await Promise.all([
+      guestIds.length > 0
+        ? db.guestFeedback.findMany({
+            where: {
+              guestId: { in: guestIds },
+              propertyId: { in: propertyIds },
+            },
+            select: {
+              id: true,
+              guestId: true,
+              propertyId: true,
+              type: true,
+              category: true,
+              subject: true,
+              description: true,
+              priority: true,
+              status: true,
+              resolvedAt: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 500,
+          })
+        : [],
+      guestIds.length > 0
+        ? db.guestReview.findMany({
+            where: {
+              guestId: { in: guestIds },
+              propertyId: { in: propertyIds },
+            },
+            select: {
+              id: true,
+              guestId: true,
+              propertyId: true,
+              overallRating: true,
+              cleanlinessRating: true,
+              serviceRating: true,
+              locationRating: true,
+              valueRating: true,
+              title: true,
+              comment: true,
+              sentimentScore: true,
+              sentimentLabel: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 500,
+          })
+        : [],
+    ]);
 
     // ---- Flatten rows ----
     const flatRows: FlatGuestStayRow[] = stays.map((stay) => {
@@ -833,6 +1052,87 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => a.month.localeCompare(b.month));
 
+    // ---- ENHANCEMENT 3: Compute enhanced summary stats ----
+
+    // Cancellation analysis
+    const cancelledStays = flatRows.filter(r => r.bookingStatus === 'cancelled').length;
+    const cancelledRevenue = flatRows.filter(r => r.bookingStatus === 'cancelled').reduce((s, r) => s + r.totalAmount, 0);
+    const cancellationRate = flatRows.length > 0 ? round2((cancelledStays / flatRows.length) * 100) : 0;
+    const noShowCount = flatRows.filter(r => r.bookingStatus === 'no_show').length;
+
+    // Count cancellation reasons from booking data
+    const cancellationReasons: Record<string, number> = {};
+    for (const stay of stays) {
+      const reason = (stay.booking as Record<string, unknown>)?.cancellationReason;
+      if (typeof reason === 'string' && reason) {
+        cancellationReasons[reason] = (cancellationReasons[reason] ?? 0) + 1;
+      }
+    }
+
+    // Outstanding balance & collection
+    const totalOutstanding = flatRows.reduce((s, r) => s + (r.folioBalance ?? 0), 0);
+    const totalCollected = flatRows.reduce((s, r) => s + (r.folioPaidAmount ?? 0), 0);
+    const collectionRate = (totalCollected + totalOutstanding) > 0
+      ? round2((totalCollected / (totalCollected + totalOutstanding)) * 100)
+      : 0;
+
+    // Repeat guest analysis
+    const guestStayCount: Record<string, { count: number; revenue: number }> = {};
+    for (const row of flatRows) {
+      if (!guestStayCount[row.guestId]) {
+        guestStayCount[row.guestId] = { count: 0, revenue: 0 };
+      }
+      guestStayCount[row.guestId].count += 1;
+      guestStayCount[row.guestId].revenue += row.totalAmount;
+    }
+    let repeatGuestCount = 0;
+    let firstTimeGuestCount = 0;
+    let repeatGuestRevenue = 0;
+    let firstTimeGuestRevenue = 0;
+    for (const [_, data] of Object.entries(guestStayCount)) {
+      if (data.count > 1) {
+        repeatGuestCount++;
+        repeatGuestRevenue += data.revenue;
+      } else {
+        firstTimeGuestCount++;
+        firstTimeGuestRevenue += data.revenue;
+      }
+    }
+
+    // Industry KPIs
+    const adr = totalRoomNights > 0 ? round2(totalRevenue / totalRoomNights) : 0;
+    const revpar = round2(totalRevenue / Math.max(totalRoomNights, 1));
+
+    // Booking source breakdown
+    const sourceBreakdown: Record<string, { revenue: number; bookings: number; roomNights: number }> = {};
+    for (const row of flatRows) {
+      const src = row.bookingSource || 'unknown';
+      if (!sourceBreakdown[src]) {
+        sourceBreakdown[src] = { revenue: 0, bookings: 0, roomNights: 0 };
+      }
+      sourceBreakdown[src].revenue += row.totalAmount;
+      sourceBreakdown[src].bookings += 1;
+      sourceBreakdown[src].roomNights += row.roomNights;
+    }
+    const revenueBySource = Object.entries(sourceBreakdown)
+      .sort((a, b) => b[1].revenue - a[1].revenue)
+      .map(([source, data]) => ({
+        source,
+        revenue: round2(data.revenue),
+        bookings: data.bookings,
+        roomNights: data.roomNights,
+      }));
+
+    // Guest feedback summary
+    const averageRating = reviews.length > 0
+      ? round2(reviews.reduce((s, r) => s + r.overallRating, 0) / reviews.length)
+      : null;
+    const totalReviews = reviews.length;
+    const feedbackByCategory: Record<string, number> = {};
+    for (const fb of feedbacks) {
+      feedbackByCategory[fb.category] = (feedbackByCategory[fb.category] ?? 0) + 1;
+    }
+
     const summary: SummaryStats = {
       totalGuests: uniqueGuestIds.size,
       totalStays: flatRows.length,
@@ -846,6 +1146,26 @@ export async function GET(request: NextRequest) {
       guestDistributionByVipStatus: { vip: vipCount, nonVip: nonVipCount },
       bookingStatusDistribution,
       revenueByMonth,
+
+      // Enhanced stats
+      cancellationRate,
+      cancelledStays,
+      cancelledRevenue: round2(cancelledRevenue),
+      cancellationReasons,
+      noShowCount,
+      totalOutstanding: round2(totalOutstanding),
+      totalCollected: round2(totalCollected),
+      collectionRate,
+      repeatGuestCount,
+      firstTimeGuestCount,
+      repeatGuestRevenue: round2(repeatGuestRevenue),
+      firstTimeGuestRevenue: round2(firstTimeGuestRevenue),
+      adr,
+      revpar,
+      revenueBySource,
+      averageRating,
+      totalReviews,
+      feedbackByCategory,
     };
 
     // ---- Return based on format ----
@@ -881,48 +1201,113 @@ export async function GET(request: NextRequest) {
         bookings: m.stays,
       }));
 
-      // Transform flat rows to guest stay records for the frontend
-      const records = flatRows.map((row) => ({
-        id: row.stayId,
-        guestName: `${row.guestFirstName} ${row.guestLastName}`.trim(),
-        email: row.guestEmail ?? '',
-        phone: row.guestPhone ?? '',
-        nationality: row.guestNationality ?? 'Unknown',
-        isVIP: row.guestIsVip,
-        loyaltyTier: row.guestLoyaltyTier as string | null,
-        confirmationCode: row.confirmationCode,
-        propertyName: row.propertyName ?? '',
-        roomNumber: row.roomNumber ?? '',
-        roomType: row.roomTypeName ?? '',
-        checkIn: row.checkIn,
-        checkOut: row.checkOut,
-        nights: row.roomNights,
-        roomRate: row.roomRate,
-        taxes: row.taxes,
-        totalAmount: row.totalAmount,
-        status: row.bookingStatus,
-        paymentStatus: row.paymentStatus ?? 'pending',
-        source: row.bookingSource,
-        // Extended detail fields
-        guestId: row.guestId,
-        address: row.guestCity ? `${row.guestCity}, ${row.guestCountry ?? ''}`.trim() : null,
-        city: row.guestCity,
-        country: row.guestCountry,
-        dateOfBirth: row.guestDateOfBirth,
-        idType: row.guestIdType,
-        idNumber: row.guestIdNumber,
-        specialRequests: row.specialRequests,
-        folioNumber: row.folioNumber,
-        paymentMethod: row.paymentMethod,
-        paidAmount: row.folioPaidAmount ?? undefined,
-        outstandingAmount: row.folioBalance ?? undefined,
-        actualCheckIn: row.actualCheckIn,
-        actualCheckOut: row.actualCheckOut,
-        adults: row.adults,
-        children: row.children,
-        propertyId: undefined as string | undefined,
-        bookingId: row.bookingId,
-      }));
+      // ---- ENHANCEMENT 4: Transform flat rows with extended data ----
+      const records = flatRows.map((row) => {
+        // Find the corresponding stay for folio details
+        const matchingStay = stays.find(s => s.id === row.stayId);
+        const booking = matchingStay?.booking;
+
+        return {
+          id: row.stayId,
+          guestName: `${row.guestFirstName} ${row.guestLastName}`.trim(),
+          email: row.guestEmail ?? '',
+          phone: row.guestPhone ?? '',
+          nationality: row.guestNationality ?? 'Unknown',
+          isVIP: row.guestIsVip,
+          loyaltyTier: row.guestLoyaltyTier as string | null,
+          confirmationCode: row.confirmationCode,
+          propertyName: row.propertyName ?? '',
+          roomNumber: row.roomNumber ?? '',
+          roomType: row.roomTypeName ?? '',
+          checkIn: row.checkIn,
+          checkOut: row.checkOut,
+          nights: row.roomNights,
+          roomRate: row.roomRate,
+          taxes: row.taxes,
+          totalAmount: row.totalAmount,
+          status: row.bookingStatus,
+          paymentStatus: row.paymentStatus ?? 'pending',
+          source: row.bookingSource,
+          // Extended detail fields
+          guestId: row.guestId,
+          address: row.guestCity ? `${row.guestCity}, ${row.guestCountry ?? ''}`.trim() : null,
+          city: row.guestCity,
+          country: row.guestCountry,
+          dateOfBirth: row.guestDateOfBirth,
+          idType: row.guestIdType,
+          idNumber: row.guestIdNumber,
+          specialRequests: row.specialRequests,
+          folioNumber: row.folioNumber,
+          paymentMethod: row.paymentMethod,
+          paidAmount: row.folioPaidAmount ?? undefined,
+          outstandingAmount: row.folioBalance ?? undefined,
+          actualCheckIn: row.actualCheckIn,
+          actualCheckOut: row.actualCheckOut,
+          adults: row.adults,
+          children: row.children,
+          propertyId: undefined as string | undefined,
+          bookingId: row.bookingId,
+
+          // ENHANCEMENT 4a: All folio line items
+          allFolioLineItems: booking?.folios?.flatMap(f =>
+            f.lineItems.map(li => ({
+              id: li.id,
+              folioNumber: f.folioNumber,
+              description: li.description,
+              category: li.category,
+              quantity: li.quantity,
+              unitPrice: li.unitPrice,
+              totalAmount: li.totalAmount,
+              serviceDate: safeDate(li.serviceDate),
+            }))
+          ) ?? [],
+
+          // ENHANCEMENT 4b: All payments
+          allPayments: booking?.folios?.flatMap(f =>
+            f.payments.map(p => ({
+              id: p.id,
+              folioNumber: f.folioNumber,
+              amount: safeNumber(p.amount),
+              method: p.method,
+              status: p.status,
+              gateway: p.gateway,
+              cardType: p.cardType,
+              cardLast4: p.cardLast4,
+              currency: p.currency,
+              processedAt: safeDate(p.processedAt),
+              createdAt: safeDate(p.createdAt),
+            }))
+          ) ?? [],
+
+          // ENHANCEMENT 4c: Guest feedbacks for this guest
+          guestFeedbacks: feedbacks.filter(fb => fb.guestId === row.guestId).map(fb => ({
+            id: fb.id,
+            type: fb.type,
+            category: fb.category,
+            subject: fb.subject,
+            description: fb.description,
+            priority: fb.priority,
+            status: fb.status,
+            resolvedAt: safeDate(fb.resolvedAt),
+            createdAt: safeDate(fb.createdAt),
+          })),
+
+          // ENHANCEMENT 4d: Guest reviews for this guest
+          guestReviews: reviews.filter(rv => rv.guestId === row.guestId).map(rv => ({
+            id: rv.id,
+            overallRating: rv.overallRating,
+            cleanlinessRating: rv.cleanlinessRating,
+            serviceRating: rv.serviceRating,
+            locationRating: rv.locationRating,
+            valueRating: rv.valueRating,
+            title: rv.title,
+            comment: rv.comment,
+            sentimentScore: rv.sentimentScore,
+            sentimentLabel: rv.sentimentLabel,
+            createdAt: safeDate(rv.createdAt),
+          })),
+        };
+      });
 
       return NextResponse.json({
         success: true,
@@ -935,18 +1320,47 @@ export async function GET(request: NextRequest) {
             totalRevenue: summary.totalRevenue,
             avgStayLength: summary.averageStayLength,
             avgRevenuePerStay: summary.averageRevenuePerStay,
+            // ENHANCEMENT: New summary fields
+            cancellationRate: summary.cancellationRate,
+            cancelledStays: summary.cancelledStays,
+            cancelledRevenue: summary.cancelledRevenue,
+            noShowCount: summary.noShowCount,
+            totalOutstanding: summary.totalOutstanding,
+            totalCollected: summary.totalCollected,
+            collectionRate: summary.collectionRate,
+            repeatGuestCount: summary.repeatGuestCount,
+            firstTimeGuestCount: summary.firstTimeGuestCount,
+            repeatGuestRevenue: summary.repeatGuestRevenue,
+            firstTimeGuestRevenue: summary.firstTimeGuestRevenue,
+            adr: summary.adr,
+            revpar: summary.revpar,
+            averageRating: summary.averageRating,
+            totalReviews: summary.totalReviews,
           },
           charts: {
             monthlyRevenue,
             nationalityDistribution,
             bookingStatusDistribution: bookingStatusChartData,
             revenueByRoomType: revenueByRoomTypeChartData,
+            // ENHANCEMENT: New chart data
+            revenueBySource: summary.revenueBySource,
+            cancellationAnalysis: {
+              cancelled: summary.cancelledStays,
+              noShow: summary.noShowCount,
+              confirmed: flatRows.filter(r => r.bookingStatus === 'confirmed').length,
+              checkedIn: flatRows.filter(r => r.bookingStatus === 'checked_in').length,
+              checkedOut: flatRows.filter(r => r.bookingStatus === 'checked_out').length,
+            },
+            repeatGuestAnalysis: {
+              firstTime: { guests: summary.firstTimeGuestCount, revenue: round2(summary.firstTimeGuestRevenue) },
+              repeat: { guests: summary.repeatGuestCount, revenue: round2(summary.repeatGuestRevenue) },
+            },
           },
           pagination: {
             page,
             limit,
-            total: totalStays,
-            totalPages: Math.ceil(totalStays / limit),
+            total: totalStaysCount,
+            totalPages: Math.ceil(totalStaysCount / limit),
           },
         },
       });
@@ -964,7 +1378,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (format_ === 'xlsx') {
-      const xlsxBuf = await generateXlsx(flatRows, summary, nationalityBreakdown, roomTypeBreakdown);
+      // ENHANCEMENT 5: Pass stays for payment/line item sheets
+      const xlsxBuf = await generateXlsx(flatRows, summary, nationalityBreakdown, roomTypeBreakdown, stays);
       return new NextResponse(xlsxBuf, {
         status: 200,
         headers: {
