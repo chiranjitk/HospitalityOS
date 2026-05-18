@@ -215,14 +215,11 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </div>
               </div>
 
-              {/* Right — Tech Stack & Version */}
+              {/* Right — Version */}
               <div className="flex items-center gap-2.5">
                 <Badge variant="outline" className="text-[10px] px-2 py-0 h-4.5 font-mono border-primary/15 text-primary/50 bg-primary/5 hover:bg-primary/10 hover:border-primary/25 transition-all duration-200">
                   v1.2.0
                 </Badge>
-                <span className="text-[10px] text-muted-foreground/30 font-mono">
-                  Next.js 16 &middot; PostgreSQL 17 &middot; FreeRADIUS 3.2
-                </span>
               </div>
             </div>
           </div>
