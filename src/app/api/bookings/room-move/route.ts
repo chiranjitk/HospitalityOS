@@ -199,6 +199,66 @@ export async function POST(request: NextRequest) {
       };
     });
 
+    // Post rate difference charge to folio and update booking total
+    if (result.rateDifference !== 0) {
+      try {
+        const remainingNights = Math.max(
+          1,
+          Math.ceil((new Date(result.booking.checkOut).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        );
+
+        const folio = await db.folio.findFirst({
+          where: { bookingId, status: { in: ['open', 'partially_paid'] } },
+        });
+
+        if (folio) {
+          const chargeDescription = result.rateDifference > 0
+            ? `Room upgrade charge - Room ${result.fromRoom.number} to ${result.toRoom.number}`
+            : `Room downgrade credit - Room ${result.fromRoom.number} to ${result.toRoom.number}`;
+
+          await db.folioLineItem.create({
+            data: {
+              folioId: folio.id,
+              description: chargeDescription,
+              category: 'room_move',
+              quantity: remainingNights,
+              unitPrice: Math.abs(result.rateDifference),
+              totalAmount: result.rateDifference * remainingNights,
+              serviceDate: new Date(),
+              postedBy: user.id,
+            },
+          });
+
+          // Recalculate folio totals
+          const allLineItems = await db.folioLineItem.findMany({ where: { folioId: folio.id } });
+          const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+          await db.folio.update({
+            where: { id: folio.id },
+            data: {
+              subtotal: newSubtotal,
+              totalAmount: newSubtotal + folio.taxes - folio.discount,
+              balance: Math.max(0, newSubtotal - folio.paidAmount),
+            },
+          });
+
+          // Update booking totalAmount to reflect the rate difference
+          await db.booking.update({
+            where: { id: bookingId },
+            data: {
+              totalAmount: { increment: result.rateDifference * remainingNights },
+            },
+          });
+
+          console.log(
+            `[Room Move] Posted ${result.rateDifference * remainingNights} rate difference (${remainingNights} nights × ${result.rateDifference}/night) to folio ${folio.id} for booking ${bookingId}`
+          );
+        }
+      } catch (folioError) {
+        console.error('[Room Move] Failed to post rate difference to folio:', folioError);
+        // Non-blocking: room move already committed, log the error
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: {

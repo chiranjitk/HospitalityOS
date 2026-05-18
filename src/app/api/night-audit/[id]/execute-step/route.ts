@@ -188,7 +188,7 @@ async function postRoomCharges(audit: { id: string; propertyId: string; tenantId
     where: {
       tenantId: audit.tenantId,
       propertyId: audit.propertyId,
-      status: { in: ['confirmed', 'in_house'] },
+      status: { in: ['confirmed', 'checked_in'] },
       actualCheckIn: { lte: endOfDay },
       OR: [
         { actualCheckOut: null },
@@ -424,6 +424,21 @@ async function processNoShows(audit: { id: string; propertyId: string; tenantId:
  * Reconcile rooms: verify room status matches booking status.
  */
 async function reconcileRooms(audit: { id: string; propertyId: string; tenantId: string }) {
+  // Pre-query: find rooms with recent check-ins (last 60 min) to avoid releasing rooms mid check-in
+  const recentCheckinRoomIds = new Set(
+    (
+      await db.booking.findMany({
+        where: {
+          tenantId: audit.tenantId,
+          propertyId: audit.propertyId,
+          checkIn: { gte: new Date(Date.now() - 60 * 60 * 1000) },
+          roomId: { not: null },
+        },
+        select: { roomId: true },
+      })
+    ).map((b) => b.roomId!),
+  );
+
   // Get all rooms at this property
   const rooms = await db.room.findMany({
     where: {
@@ -433,7 +448,7 @@ async function reconcileRooms(audit: { id: string; propertyId: string; tenantId:
     include: {
       bookings: {
         where: {
-          status: { in: ['confirmed', 'in_house'] },
+          status: { in: ['confirmed', 'checked_in'] },
           actualCheckOut: null,
         },
         select: { id: true, status: true, confirmationCode: true, actualCheckIn: true },
@@ -463,6 +478,15 @@ async function reconcileRooms(audit: { id: string; propertyId: string; tenantId:
         },
       });
     } else if (!activeBooking && room.status === 'occupied') {
+      // Guard: don't release rooms that may have in-progress check-ins/out.
+      // - Skip rooms with recent bookings (checkIn within last 60 min) that might be mid check-in
+      // - Only release rooms that have been occupied for more than 30 minutes to avoid race conditions
+      if (
+        recentCheckinRoomIds.has(room.id) ||
+        (room.updatedAt && Date.now() - room.updatedAt.getTime() < 30 * 60 * 1000)
+      ) {
+        continue;
+      }
       // Room marked occupied but no active booking
       discrepancyDetails.push(`Room ${room.number}: Marked occupied but no active booking found`);
       discrepancies++;

@@ -6,7 +6,7 @@ import { logBooking } from '@/lib/audit';
 import { emitBookingCheckedIn, emitBookingCheckedOut, emitBookingCancelled as emitBookingCancelledEvent } from '@/lib/events/booking-events';
 import { markRoomDirtyAfterCheckout } from '@/lib/housekeeping-automation';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
-import { evaluateCancellationPolicy } from '@/lib/cancellation-policy-engine';
+import { evaluateCancellationPolicy, applyCancellationPenalty } from '@/lib/cancellation-policy-engine';
 import type { CancellationResult } from '@/lib/cancellation-policy-engine';
 import { emailService } from '@/lib/services/email-service';
 import { notifyBookingConfirmed, notifyBookingCancelled, notifyGuestCheckedIn, notifyGuestCheckedOut, notifyNoShow } from '@/lib/notify';
@@ -937,6 +937,31 @@ export async function PUT(
 
     // Emit WebSocket event for booking cancelled
     if (status === 'cancelled' && existingBooking.status !== 'cancelled') {
+      // Evaluate cancellation policy and apply penalty before releasing the room
+      // (matches POST cancel endpoint behavior)
+      try {
+        const evaluation = await evaluateCancellationPolicy({
+          bookingId: booking.id,
+          tenantId: booking.tenantId,
+        });
+
+        if (evaluation.penaltyAmount > 0) {
+          try {
+            await applyCancellationPenalty({
+              bookingId: booking.id,
+              tenantId: booking.tenantId,
+              performedBy: user.id,
+              reason: cancellationReason || undefined,
+            });
+            console.log(`[Booking Cancel] Applied cancellation penalty of ${evaluation.penaltyAmount} for booking ${booking.confirmationCode} (policy: ${evaluation.policy.name})`);
+          } catch (penaltyErr) {
+            console.warn('[Booking Cancel] Penalty application failed — still cancelling booking:', penaltyErr);
+          }
+        }
+      } catch (policyErr) {
+        console.warn('[Booking Cancel] Cancellation policy evaluation failed — still cancelling booking:', policyErr);
+      }
+
       // Release the room when cancelling via PUT (matches POST cancel endpoint behavior)
       if (existingBooking.roomId) {
         const activeRoomBookings = await db.booking.count({

@@ -1728,7 +1728,14 @@ export async function GET(request: NextRequest) {
 
     // Industry KPIs
     const adr = totalRoomNights > 0 ? round2(totalRevenue / totalRoomNights) : 0;
-    const revpar = round2(totalRevenue / Math.max(totalRoomNights, 1));
+
+    // RevPAR = Total Room Revenue / Total Available Room Nights = totalRevenue / (totalRooms * daysInPeriod)
+    const daysInPeriod = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    const totalPropertyRooms = propertyId && propertyId !== 'all'
+      ? await db.room.count({ where: { propertyId, deletedAt: null } })
+      : await db.room.count({ where: { tenantId, deletedAt: null } });
+    const totalAvailableRoomNights = totalPropertyRooms * daysInPeriod;
+    const revpar = totalAvailableRoomNights > 0 ? round2(totalRevenue / totalAvailableRoomNights) : 0;
 
     // Booking source breakdown
     const sourceBreakdown: Record<string, { revenue: number; bookings: number; roomNights: number }> = {};

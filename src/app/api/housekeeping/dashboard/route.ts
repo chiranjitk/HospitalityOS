@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
       db.task.count({
         where: {
           propertyId: { in: propertyIds },
-          type: 'checkout',
+          category: 'checkout',
           status: { in: ['pending', 'in_progress'] },
   
         },
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
       db.task.count({
         where: {
           propertyId: { in: propertyIds },
-          type: 'stayover',
+          category: 'stayover',
           status: { in: ['pending', 'in_progress'] },
   
         },
@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
       db.task.count({
         where: {
           propertyId: { in: propertyIds },
-          type: 'touchup',
+          category: 'touchup',
           status: { in: ['pending', 'in_progress'] },
   
         },

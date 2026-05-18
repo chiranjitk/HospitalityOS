@@ -206,6 +206,26 @@ export async function PUT(
       }
     }
 
+    // Block transition to 'available' when active bookings exist on this room.
+    // This prevents direct API calls from bypassing the housekeeping inspection flow
+    // (which properly checks out guests before releasing a room).
+    if (status === 'available') {
+      const activeBookings = await db.booking.count({
+        where: {
+          roomId: id,
+          status: { in: ['confirmed', 'checked_in'] },
+          actualCheckOut: null,
+          deletedAt: null,
+        },
+      });
+      if (activeBookings > 0) {
+        return NextResponse.json(
+          { success: false, error: { code: 'ROOM_HAS_ACTIVE_BOOKINGS', message: 'Cannot set room to available — active bookings exist. Use housekeeping inspection to release.' } },
+          { status: 400 }
+        );
+      }
+    }
+
     // If number is being changed, check for conflicts
     if (number && number !== existingRoom.number) {
       const numberConflict = await db.room.findUnique({

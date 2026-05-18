@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     // Zod validation for request body
     const checkoutSchema = z.object({
       bookingId: z.string().uuid('bookingId must be a valid UUID'),
+      forceCheckout: z.boolean().optional(),
     });
 
     const parsed = checkoutSchema.safeParse(body);
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { bookingId } = parsed.data;
+    const { bookingId, forceCheckout } = parsed.data;
 
     // Fetch booking with all needed relations — must be checked_in and not soft-deleted
     const booking = await db.booking.findFirst({
@@ -85,6 +86,33 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date();
+
+    // Check for outstanding balance before checkout (matches admin checkout H-01 fix)
+    const openFolio = await db.folio.findFirst({
+      where: { bookingId: booking.id, status: { in: ['open', 'partially_paid'] } },
+      select: { balance: true, totalAmount: true, paidAmount: true },
+    });
+    if (openFolio && openFolio.balance > 0) {
+      if (!forceCheckout) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'OUTSTANDING_BALANCE',
+              message: 'Cannot check out while the booking has an outstanding balance. Please settle the balance or use force checkout.',
+              details: {
+                balance: openFolio.balance,
+                totalAmount: openFolio.totalAmount,
+                paidAmount: openFolio.paidAmount,
+                confirmationCode: booking.confirmationCode,
+              },
+            },
+          },
+          { status: 400 }
+        );
+      }
+      console.warn(`[Kiosk Check-out] Booking ${booking.confirmationCode} force-checking out with outstanding balance: ${openFolio.balance}`);
+    }
 
     // Process ALL checkout side-effects in a single transaction for data integrity
     const updatedBooking = await db.$transaction(async (tx) => {
