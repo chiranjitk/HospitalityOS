@@ -2298,10 +2298,10 @@ function PortalContent() {
   if (state === 'loading') {
     return (
       <PortalLanguageContext.Provider value={effectiveLanguage}>
-        <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="min-h-screen flex items-center justify-center" style={bgStyle}>
           <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: dark ? '#ffffff' : design.textColor }} />
+            <p className="text-sm" style={{ color: dark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)' }}>
               {getUIString(effectiveLanguage, 'loadingPortal')}
             </p>
           </div>
@@ -2988,10 +2988,10 @@ export function WifiConnectPortal() {
     <Suspense
       fallback={
         <PortalLanguageContext.Provider value="en">
-          <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0ea5e9, #065f46)' }}>
             <div className="flex flex-col items-center gap-3">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              <p className="text-muted-foreground text-sm">{getUIString('en', 'loadingPortal')}</p>
+              <Loader2 className="w-8 h-8 text-white animate-spin" />
+              <p className="text-white/80 text-sm">{getUIString('en', 'loadingPortal')}</p>
             </div>
           </div>
         </PortalLanguageContext.Provider>
