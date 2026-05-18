@@ -6,7 +6,7 @@ module.exports = {
     cwd: '/home/z/my-project',
     env: {
       NODE_ENV: 'development',
-      DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+      DATABASE_URL: 'file:/home/z/my-project/db/custom.db',
       NEXT_DISABLE_TURBOPACK: '1',
       NODE_OPTIONS: '--max-old-space-size=4096',
     },
