@@ -2,6 +2,9 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 import { createHash, randomUUID } from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import sharp from 'sharp';
 
 // Generate deterministic UUIDs from seed strings for PostgreSQL @db.Uuid compatibility.
 // Same input always produces same UUID, so FK references stay consistent across tables.
@@ -72,6 +75,7 @@ async function main() {
     await prisma.staffSkill.deleteMany({});
     await prisma.asset.deleteMany({});
     await prisma.task.deleteMany({});
+    await prisma.roomImage.deleteMany({});
     await prisma.room.deleteMany({});
     await prisma.roomType.deleteMany({});
     await prisma.guest.deleteMany({});
@@ -544,6 +548,122 @@ async function main() {
   }
   
   await prisma.room.createMany({ data: additionalRooms });
+
+  // ─── Seed room images ───
+  // Each room gets 2-3 images based on its room type, with varied categories.
+  // Image files are in upload/rooms/ — falls back to defaults if files don't exist.
+  console.log('Seeding room images...');
+  try {
+    const UPLOAD_DIR = path.resolve(process.cwd(), 'upload/rooms');
+
+    const ROOM_IMAGE_POOL: Record<string, Array<{
+      file: string;
+      url: string;
+      thumbUrl: string;
+      category: string;
+      caption: string;
+    }>> = {
+      'standard room': [
+        { file: 'standard-general.png', url: '/api/files/rooms/standard-general.png', thumbUrl: '/api/files/rooms/thumbs/standard-general.jpg', category: 'general', caption: 'Standard Room - Full View' },
+        { file: 'standard-bedroom.png', url: '/api/files/rooms/standard-bedroom.png', thumbUrl: '/api/files/rooms/thumbs/standard-bedroom.jpg', category: 'bedroom', caption: 'Comfortable Double Bed' },
+        { file: 'standard-bathroom.png', url: '/api/files/rooms/standard-bathroom.png', thumbUrl: '/api/files/rooms/thumbs/standard-bathroom.jpg', category: 'bathroom', caption: 'Clean Modern Bathroom' },
+      ],
+      'deluxe room': [
+        { file: 'deluxe-bedroom.png', url: '/api/files/rooms/deluxe-bedroom.png', thumbUrl: '/api/files/rooms/thumbs/deluxe-bedroom.jpg', category: 'bedroom', caption: 'Spacious King Bed' },
+        { file: 'deluxe-living.png', url: '/api/files/rooms/deluxe-living.png', thumbUrl: '/api/files/rooms/thumbs/deluxe-living.jpg', category: 'living_area', caption: 'Relaxing Living Area' },
+        { file: 'deluxe-bathroom.png', url: '/api/files/rooms/deluxe-bathroom.png', thumbUrl: '/api/files/rooms/thumbs/deluxe-bathroom.jpg', category: 'bathroom', caption: 'Premium Marble Bathroom' },
+      ],
+      'executive suite': [
+        { file: 'executive-bedroom.png', url: '/api/files/rooms/executive-bedroom.png', thumbUrl: '/api/files/rooms/thumbs/executive-bedroom.jpg', category: 'bedroom', caption: 'Luxury King Suite Bedroom' },
+        { file: 'executive-living.png', url: '/api/files/rooms/executive-living.png', thumbUrl: '/api/files/rooms/thumbs/executive-living.jpg', category: 'living_area', caption: 'Executive Lounge & Dining' },
+        { file: 'executive-bathroom.png', url: '/api/files/rooms/executive-bathroom.png', thumbUrl: '/api/files/rooms/thumbs/executive-bathroom.jpg', category: 'bathroom', caption: 'Jacuzzi & Rain Shower' },
+      ],
+      'presidential suite': [
+        { file: 'presidential-bedroom.png', url: '/api/files/rooms/presidential-bedroom.png', thumbUrl: '/api/files/rooms/thumbs/presidential-bedroom.jpg', category: 'bedroom', caption: 'Grand Presidential Bedroom' },
+        { file: 'presidential-living.png', url: '/api/files/rooms/presidential-living.png', thumbUrl: '/api/files/rooms/thumbs/presidential-living.jpg', category: 'living_area', caption: 'Opulent Living Room' },
+        { file: 'presidential-view.png', url: '/api/files/rooms/presidential-view.png', thumbUrl: '/api/files/rooms/thumbs/presidential-view.jpg', category: 'view', caption: 'Breathtaking Panoramic View' },
+      ],
+      'mountain view room': [
+        { file: 'standard-bedroom.png', url: '/api/files/rooms/standard-bedroom.png', thumbUrl: '/api/files/rooms/thumbs/standard-bedroom.jpg', category: 'bedroom', caption: 'Cozy Mountain View Room' },
+        { file: 'standard-general.png', url: '/api/files/rooms/standard-general.png', thumbUrl: '/api/files/rooms/thumbs/standard-general.jpg', category: 'general', caption: 'Room with Mountain View' },
+        { file: 'standard-bathroom.png', url: '/api/files/rooms/standard-bathroom.png', thumbUrl: '/api/files/rooms/thumbs/standard-bathroom.jpg', category: 'bathroom', caption: 'Mountain Retreat Bathroom' },
+      ],
+      'valley view suite': [
+        { file: 'deluxe-bedroom.png', url: '/api/files/rooms/deluxe-bedroom.png', thumbUrl: '/api/files/rooms/thumbs/deluxe-bedroom.jpg', category: 'bedroom', caption: 'Valley View Suite Bedroom' },
+        { file: 'deluxe-living.png', url: '/api/files/rooms/deluxe-living.png', thumbUrl: '/api/files/rooms/thumbs/deluxe-living.jpg', category: 'living_area', caption: 'Suite Living Area with Valley View' },
+        { file: 'deluxe-bathroom.png', url: '/api/files/rooms/deluxe-bathroom.png', thumbUrl: '/api/files/rooms/thumbs/deluxe-bathroom.jpg', category: 'bathroom', caption: 'Suite Bathroom' },
+      ],
+    };
+
+    async function getImageDimensions(filePath: string): Promise<{ width: number; height: number; fileSize: number }> {
+      try {
+        const meta = await sharp(filePath).metadata();
+        const stat = fs.statSync(filePath);
+        return { width: meta.width ?? 1344, height: meta.height ?? 768, fileSize: stat.size };
+      } catch {
+        return { width: 1344, height: 768, fileSize: 0 };
+      }
+    }
+
+    const allRooms = await prisma.room.findMany({
+      where: { deletedAt: null },
+      include: { roomType: { select: { name: true } } },
+      orderBy: [{ floor: 'asc' }, { number: 'asc' }],
+    });
+
+    let totalImages = 0;
+    for (const room of allRooms) {
+      const typeName = room.roomType.name.toLowerCase();
+      let pool = ROOM_IMAGE_POOL[typeName];
+      if (!pool) {
+        const key = Object.keys(ROOM_IMAGE_POOL).find(k => typeName.includes(k) || k.includes(typeName));
+        if (key) { pool = ROOM_IMAGE_POOL[key]; }
+        else { pool = ROOM_IMAGE_POOL['standard room']; }
+      }
+
+      const roomNum = parseInt(room.number) || 0;
+      const imageCount = roomNum % 3 === 0 ? 2 : 3;
+      const primaryOffset = roomNum % pool.length;
+      const roomImages: any[] = [];
+
+      for (let i = 0; i < imageCount; i++) {
+        const imgIndex = (i + primaryOffset) % pool.length;
+        const img = pool[imgIndex];
+        const filePath = path.join(UPLOAD_DIR, img.file);
+        const dims = await getImageDimensions(filePath);
+        const captionSuffix = room.name ? ` - ${room.name}` : ` - Room ${room.number}`;
+
+        roomImages.push({
+          id: randomUUID(),
+          roomId: room.id,
+          url: img.url,
+          thumbnailUrl: img.thumbUrl,
+          caption: img.caption + captionSuffix,
+          category: img.category,
+          isPrimary: i === 0,
+          sortOrder: i,
+          width: dims.width,
+          height: dims.height,
+          fileSize: dims.fileSize,
+          mimeType: 'image/png',
+          otaSyncStatus: '{}',
+        });
+      }
+
+      await prisma.roomImage.createMany({ data: roomImages });
+
+      // Update Room.images JSON for backward compatibility
+      const imageUrls = roomImages
+        .sort((a: any, b: any) => (a.isPrimary !== b.isPrimary ? (a.isPrimary ? -1 : 1) : a.sortOrder - b.sortOrder))
+        .map((img: any) => img.url);
+      await prisma.room.update({ where: { id: room.id }, data: { images: JSON.stringify(imageUrls) } });
+
+      totalImages += roomImages.length;
+    }
+    console.log(`Seeded ${totalImages} images across ${allRooms.length} rooms.`);
+  } catch (e: any) {
+    console.log('Room images seed error:', e.message);
+  }
 
   // Create guests - Indian guests
   console.log('Seeding guests...');
