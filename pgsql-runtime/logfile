@@ -3668,3 +3668,39 @@
 2026-05-19 09:02:15.718 UTC [8065] LOG:  checkpoint complete: wrote 16 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.508 s, sync=0.001 s, total=1.509 s; sync files=12, longest=0.001 s, average=0.001 s; distance=74 kB, estimate=196 kB; lsn=0/2F3ED60, redo lsn=0/2F3ED08
 2026-05-19 09:07:14.818 UTC [8065] LOG:  checkpoint starting: time
 2026-05-19 09:07:16.321 UTC [8065] LOG:  checkpoint complete: wrote 16 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.504 s, sync=0.001 s, total=1.504 s; sync files=11, longest=0.001 s, average=0.001 s; distance=76 kB, estimate=184 kB; lsn=0/2F51DA8, redo lsn=0/2F51D50
+2026-05-19 09:12:14.420 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 09:12:16.526 UTC [8065] LOG:  checkpoint complete: wrote 22 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=2.105 s, sync=0.001 s, total=2.106 s; sync files=13, longest=0.001 s, average=0.001 s; distance=131 kB, estimate=179 kB; lsn=0/2F72C70, redo lsn=0/2F72C18
+2026-05-19 09:17:14.626 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 09:17:16.031 UTC [8065] LOG:  checkpoint complete: wrote 15 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.405 s, sync=0.001 s, total=1.406 s; sync files=11, longest=0.001 s, average=0.001 s; distance=70 kB, estimate=168 kB; lsn=0/2F844E8, redo lsn=0/2F84490
+2026-05-19 09:22:14.129 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 09:22:16.546 UTC [8065] LOG:  checkpoint complete: wrote 25 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=2.412 s, sync=0.001 s, total=2.419 s; sync files=19, longest=0.001 s, average=0.001 s; distance=74 kB, estimate=158 kB; lsn=0/2F97078, redo lsn=0/2F97020
+2026-05-19 09:22:43.403 UTC [3598] ERROR:  column r.roomNumber does not exist at character 14
+2026-05-19 09:22:43.403 UTC [3598] STATEMENT:  SELECT r.id, r."roomNumber", rt.name as type_name, r.images FROM "Room" r JOIN "RoomType" rt ON r."roomTypeId" = rt.id LIMIT 30;
+2026-05-19 09:27:14.646 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 09:27:19.166 UTC [8065] LOG:  checkpoint complete: wrote 46 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=4.515 s, sync=0.001 s, total=4.521 s; sync files=38, longest=0.001 s, average=0.001 s; distance=87 kB, estimate=151 kB; lsn=0/2FAD058, redo lsn=0/2FAD000
+2026-05-19 09:32:14.247 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 09:32:16.453 UTC [8065] LOG:  checkpoint complete: wrote 23 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=2.206 s, sync=0.001 s, total=2.206 s; sync files=13, longest=0.001 s, average=0.001 s; distance=131 kB, estimate=149 kB; lsn=0/2FCDCC8, redo lsn=0/2FCDC70
+2026-05-19 09:37:14.553 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 09:37:20.484 UTC [8065] LOG:  checkpoint complete: wrote 60 buffers (0.4%); 0 WAL file(s) added, 0 removed, 1 recycled; write=5.927 s, sync=0.001 s, total=5.932 s; sync files=37, longest=0.001 s, average=0.001 s; distance=324 kB, estimate=324 kB; lsn=0/3034828, redo lsn=0/301EE20
+2026-05-19 09:42:14.569 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 09:42:17.681 UTC [8065] LOG:  checkpoint complete: wrote 32 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=3.109 s, sync=0.001 s, total=3.114 s; sync files=17, longest=0.001 s, average=0.001 s; distance=162 kB, estimate=308 kB; lsn=0/3047830, redo lsn=0/30477D8
+2026-05-19 09:47:14.778 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 09:47:16.287 UTC [8065] LOG:  checkpoint complete: wrote 16 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.505 s, sync=0.001 s, total=1.509 s; sync files=12, longest=0.001 s, average=0.001 s; distance=64 kB, estimate=283 kB; lsn=0/3057B80, redo lsn=0/3057B28
+2026-05-19 09:52:14.388 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 09:52:17.312 UTC [8065] LOG:  checkpoint complete: wrote 30 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=2.919 s, sync=0.001 s, total=2.926 s; sync files=27, longest=0.001 s, average=0.001 s; distance=81 kB, estimate=263 kB; lsn=0/306C260, redo lsn=0/306C208
+2026-05-19 09:57:14.408 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 09:57:15.920 UTC [8065] LOG:  checkpoint complete: wrote 16 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.509 s, sync=0.001 s, total=1.513 s; sync files=12, longest=0.001 s, average=0.001 s; distance=76 kB, estimate=244 kB; lsn=0/307F518, redo lsn=0/307F4C0
+2026-05-19 10:02:15.015 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 10:02:17.430 UTC [8065] LOG:  checkpoint complete: wrote 25 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=2.414 s, sync=0.001 s, total=2.416 s; sync files=15, longest=0.001 s, average=0.001 s; distance=141 kB, estimate=234 kB; lsn=0/30A29A0, redo lsn=0/30A2948
+2026-05-19 10:07:15.507 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 10:07:17.015 UTC [8065] LOG:  checkpoint complete: wrote 16 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.505 s, sync=0.001 s, total=1.509 s; sync files=13, longest=0.001 s, average=0.001 s; distance=78 kB, estimate=218 kB; lsn=0/30B6418, redo lsn=0/30B63C0
+2026-05-19 10:12:15.116 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 10:12:16.526 UTC [8065] LOG:  checkpoint complete: wrote 15 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.408 s, sync=0.001 s, total=1.411 s; sync files=12, longest=0.001 s, average=0.001 s; distance=64 kB, estimate=203 kB; lsn=0/30C6610, redo lsn=0/30C6580
+2026-05-19 10:19:06.354 UTC [11609] ERROR:  column "roleName" does not exist at character 15
+2026-05-19 10:19:06.354 UTC [11609] STATEMENT:  SELECT email, "roleName" FROM "User" WHERE "roleName" = 'admin' LIMIT 5;
+2026-05-19 10:22:15.726 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 10:22:18.842 UTC [8065] LOG:  checkpoint complete: wrote 32 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=3.114 s, sync=0.001 s, total=3.117 s; sync files=28, longest=0.001 s, average=0.000 s; distance=99 kB, estimate=193 kB; lsn=0/30DF390, redo lsn=0/30DF338
+2026-05-19 10:27:15.942 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 10:27:18.755 UTC [8065] LOG:  checkpoint complete: wrote 29 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=2.811 s, sync=0.001 s, total=2.814 s; sync files=27, longest=0.001 s, average=0.000 s; distance=90 kB, estimate=182 kB; lsn=0/30F5BE8, redo lsn=0/30F5B90
+2026-05-19 10:32:15.858 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 10:32:21.289 UTC [8065] LOG:  checkpoint complete: wrote 55 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=5.427 s, sync=0.001 s, total=5.433 s; sync files=47, longest=0.001 s, average=0.001 s; distance=199 kB, estimate=199 kB; lsn=0/3127BC0, redo lsn=0/3127B68
