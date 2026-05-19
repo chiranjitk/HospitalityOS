@@ -324,7 +324,13 @@ pm2 save
 > | Service | Script | Port | Notes |
 > |---------|--------|------|-------|
 > | staysuite-freeradius | `radiusd -f -d ... -D ...` | 1812/1813 | Foreground, auto-restart |
-> | staysuite-nextjs | `bun run dev` | 3000 | Dev server, auto-restart |
+> | staysuite-nextjs | `scripts/start-nextjs.sh` | 3000 | Wraps `next dev` via `exec` for proper PM2 tracking |
+>
+> **Why `scripts/start-nextjs.sh` instead of `bun run dev`?**
+> PM2 cannot properly track `bun run dev` because it spawns `next dev` as a child process.
+> PM2 kills and restarts the parent (`bun`), but the child (`next`) survives briefly,
+> causing port conflicts and repeated crashes. The startup script uses `exec` to replace
+> the bash process with `node next dev`, giving PM2 a single process to manage.
 >
 > **PostgreSQL is NOT managed by PM2** — it starts via `pg_ctl` (Step 4b).
 
@@ -434,6 +440,7 @@ my-project/
 │   └── share/freeradius/     # Dictionary files
 ├── ecosystem.config.cjs      # PM2 sandbox/dev config
 ├── ecosystem.config.js       # PM2 production config
+├── scripts/start-nextjs.sh   # Next.js startup script (used by PM2)
 └── .env                      # Environment variables
 ```
 
