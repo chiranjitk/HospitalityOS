@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 // GET /api/wifi/network/backups - List config backups
 export async function GET(request: NextRequest) {
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit');
     const offset = searchParams.get('offset');
 
-    const where: Record<string, unknown> = { tenantId: user.tenantId };
+    const where: Record<string, unknown> = tenantWhere(user.tenantId);
 
     if (propertyId) where.propertyId = propertyId;
 
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     // Determine the next version number for this property
     const latestBackup = await db.networkConfigBackup.findFirst({
-      where: { tenantId: user.tenantId, propertyId },
+      where: tenantWhere(user.tenantId, { propertyId }),
       orderBy: { version: 'desc' },
       select: { version: true },
     });
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     const backup = await db.networkConfigBackup.create({
       data: {
-        tenant: { connect: { id: user.tenantId } },
+        ...(isUUID(user.tenantId) && { tenant: { connect: { id: user.tenantId } } }),
         property: { connect: { id: propertyId } },
         name,
         configData: typeof configData === 'string' ? configData : JSON.stringify(configData),
@@ -116,8 +117,15 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    if (!isUUID(backupId)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Config backup not found' } },
+        { status: 404 }
+      );
+    }
+
     const backup = await db.networkConfigBackup.findFirst({
-      where: { id: backupId, tenantId: user.tenantId },
+      where: tenantWhere(user.tenantId, { id: backupId }),
     });
 
     if (!backup) {

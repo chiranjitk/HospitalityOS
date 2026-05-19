@@ -9,6 +9,7 @@ import { execSync } from 'child_process';
 import { db } from '@/lib/db';
 import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
 import { deleteBridge as nmcliDeleteBridge } from '@/lib/network/nmcli';
+import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -25,8 +26,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const body = await request.json();
 
+    if (!isUUID(id)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Bridge config not found' } },
+        { status: 404 },
+      );
+    }
+
     const existing = await db.bridgeConfig.findFirst({
-      where: { id, tenantId },
+      where: tenantWhere(tenantId, { id }),
     });
 
     if (!existing) {
@@ -100,8 +108,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
+    if (!isUUID(id)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Bridge config not found' } },
+        { status: 404 },
+      );
+    }
+
     const existing = await db.bridgeConfig.findFirst({
-      where: { id, tenantId },
+      where: tenantWhere(tenantId, { id }),
     });
 
     if (!existing) {

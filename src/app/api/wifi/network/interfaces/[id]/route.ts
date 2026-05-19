@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -22,8 +23,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
+    if (!isUUID(id)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Network interface not found' } },
+        { status: 404 },
+      );
+    }
+
     const iface = await db.networkInterface.findFirst({
-      where: { id, tenantId },
+      where: tenantWhere(tenantId, { id }),
       include: {
         roles: true,
         vlans: true,
@@ -61,8 +69,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const body = await request.json();
 
+    if (!isUUID(id)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Network interface not found' } },
+        { status: 404 },
+      );
+    }
+
     const existing = await db.networkInterface.findFirst({
-      where: { id, tenantId },
+      where: tenantWhere(tenantId, { id }),
     });
 
     if (!existing) {
@@ -77,7 +92,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Check for duplicate name if renaming
     if (name && name !== existing.name) {
       const duplicate = await db.networkInterface.findFirst({
-        where: { propertyId: existing.propertyId, name, tenantId, id: { not: id } },
+        where: tenantWhere(tenantId, { propertyId: existing.propertyId, name, id: { not: id } }),
       });
       if (duplicate) {
         return NextResponse.json(
@@ -122,8 +137,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
+    if (!isUUID(id)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Network interface not found' } },
+        { status: 404 },
+      );
+    }
+
     const existing = await db.networkInterface.findFirst({
-      where: { id, tenantId },
+      where: tenantWhere(tenantId, { id }),
       include: {
         _count: {
           select: {

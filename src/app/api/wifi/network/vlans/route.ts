@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 // GET /api/wifi/network/vlans - List all VLANs
 export async function GET(request: NextRequest) {
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit');
     const offset = searchParams.get('offset');
 
-    const where: Record<string, unknown> = { tenantId: user.tenantId };
+    const where: Record<string, unknown> = tenantWhere(user.tenantId);
 
     if (propertyId) where.propertyId = propertyId;
     if (parentInterfaceId) where.parentInterfaceId = parentInterfaceId;
@@ -109,26 +110,32 @@ export async function POST(request: NextRequest) {
     }
 
     // Resolve parent interface: try CUID, then by name
-    let parentRecord = await db.networkInterface.findFirst({
-      where: { id: parentInterfaceId || '', tenantId },
-    });
+    // Guard: parentInterfaceId could be an OS interface name (not UUID)
+    let parentRecord: Awaited<ReturnType<typeof db.networkInterface.findFirst>>;
+    if (parentInterfaceId && isUUID(parentInterfaceId)) {
+      parentRecord = await db.networkInterface.findFirst({
+        where: tenantWhere(tenantId, { id: parentInterfaceId }),
+      });
+    } else {
+      parentRecord = null;
+    }
 
     if (!parentRecord && parentInterfaceId) {
       parentRecord = await db.networkInterface.findFirst({
-        where: { name: parentInterfaceId, tenantId },
+        where: tenantWhere(tenantId, { name: parentInterfaceId }),
       });
     }
 
     if (!parentRecord && parentInterfaceName) {
       parentRecord = await db.networkInterface.findFirst({
-        where: { name: parentInterfaceName, tenantId },
+        where: tenantWhere(tenantId, { name: parentInterfaceName }),
       });
     }
 
     if (!parentRecord) {
       const ifaceName = subInterface.split('.')[0];
       parentRecord = await db.networkInterface.findFirst({
-        where: { name: ifaceName, tenantId },
+        where: tenantWhere(tenantId, { name: ifaceName }),
       });
     }
 
@@ -146,7 +153,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate VLAN ID within property
     const existingVlanId = await db.vlanConfig.findFirst({
-      where: { propertyId, vlanId: parseInt(vlanId, 10), tenantId },
+      where: tenantWhere(tenantId, { propertyId, vlanId: parseInt(vlanId, 10) }),
     });
 
     if (existingVlanId) {
@@ -158,7 +165,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate sub-interface name within property
     const existingSub = await db.vlanConfig.findFirst({
-      where: { propertyId, subInterface, tenantId },
+      where: tenantWhere(tenantId, { propertyId, subInterface }),
     });
 
     if (existingSub) {
@@ -178,7 +185,7 @@ export async function POST(request: NextRequest) {
     // NOTE: When using relation connect, do NOT also pass scalar FK fields (tenantId/propertyId)
     const vlan = await db.vlanConfig.create({
       data: {
-        tenant: { connect: { id: tenantId } },
+        ...(isUUID(tenantId) && { tenant: { connect: { id: tenantId } } }),
         property: { connect: { id: propertyId } },
         parentInterface: {
           connectOrCreate: {
@@ -189,7 +196,7 @@ export async function POST(request: NextRequest) {
               },
             },
             create: {
-              tenant: { connect: { id: tenantId } },
+              ...(isUUID(tenantId) && { tenant: { connect: { id: tenantId } } }),
               property: { connect: { id: propertyId } },
               name: parentIfaceName,
               type: 'ethernet',

@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { requireFeature } from '@/lib/api-feature-flags';
+import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 // ─── GET /api/wifi/network/room-vlans ──────────────────────────────────────────
 
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build where clause
-    const where: Record<string, unknown> = { tenantId: user.tenantId, propertyId };
+    const where: Record<string, unknown> = tenantWhere(user.tenantId, { propertyId });
 
     if (floor) where.floor = parseInt(floor, 10);
     if (status) where.status = status;
@@ -135,7 +136,7 @@ export async function POST(request: NextRequest) {
 
     // Check uniqueness – propertyId + roomNumber
     const existingRoom = await db.roomVlan.findFirst({
-      where: { propertyId, roomNumber, tenantId: user.tenantId },
+      where: tenantWhere(user.tenantId, { propertyId, roomNumber }),
     });
     if (existingRoom) {
       return NextResponse.json(
@@ -149,7 +150,7 @@ export async function POST(request: NextRequest) {
 
     // Check uniqueness – propertyId + vlanId
     const existingVlan = await db.roomVlan.findFirst({
-      where: { propertyId, vlanId: parseInt(vlanId, 10), tenantId: user.tenantId },
+      where: tenantWhere(user.tenantId, { propertyId, vlanId: parseInt(vlanId, 10) }),
     });
     if (existingVlan) {
       return NextResponse.json(
@@ -163,7 +164,7 @@ export async function POST(request: NextRequest) {
 
     const record = await db.roomVlan.create({
       data: {
-        tenant: { connect: { id: user.tenantId } },
+        ...(isUUID(user.tenantId) && { tenant: { connect: { id: user.tenantId } } }),
         property: { connect: { id: propertyId } },
         roomNumber,
         vlanId: parseInt(vlanId, 10),

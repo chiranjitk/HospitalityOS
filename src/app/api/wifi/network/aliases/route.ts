@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { addAlias, persistAliasAdd } from '@/lib/network';
+import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 // GET /api/wifi/network/aliases - List all interface aliases
 export async function GET(request: NextRequest) {
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
     const interfaceId = searchParams.get('interfaceId');
     const interfaceName = searchParams.get('interfaceName');
 
-    const where: Record<string, unknown> = { tenantId: user.tenantId };
+    const where: Record<string, unknown> = tenantWhere(user.tenantId);
     if (propertyId) where.propertyId = propertyId;
     if (interfaceId) where.interfaceId = interfaceId;
     if (interfaceName) where.interfaceName = interfaceName;
@@ -70,8 +71,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate interfaceId FK exists in NetworkInterface
+    if (!isUUID(interfaceId)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'interfaceId must be a valid UUID' } },
+        { status: 400 },
+      );
+    }
+
     const networkInterface = await db.networkInterface.findFirst({
-      where: { id: interfaceId, tenantId },
+      where: tenantWhere(tenantId, { id: interfaceId }),
     });
 
     if (!networkInterface) {
@@ -128,7 +136,7 @@ export async function POST(request: NextRequest) {
         enabled,
       },
       create: {
-        tenantId,
+        ...(isUUID(tenantId) && { tenantId }),
         propertyId,
         interfaceId,
         interfaceName,

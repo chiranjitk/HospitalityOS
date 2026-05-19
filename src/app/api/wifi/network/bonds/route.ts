@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 // OS-level bond creation and file persistence are handled by the frontend
 // calling /api/network/os/bonds before this route.
 
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const propertyId = searchParams.get('propertyId');
 
-    const where: Record<string, unknown> = { tenantId: user.tenantId };
+    const where: Record<string, unknown> = tenantWhere(user.tenantId);
     if (propertyId) where.propertyId = propertyId;
 
     const bonds = await db.bondConfig.findMany({
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate name within the property
     const existing = await db.bondConfig.findFirst({
-      where: { propertyId, name, tenantId },
+      where: tenantWhere(tenantId, { propertyId, name }),
     });
 
     if (existing) {
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
     const ifaceNames: string[] = [];
     if (members.length > 0) {
       const ifaceRecords = await db.networkInterface.findMany({
-        where: { id: { in: members }, tenantId },
+        where: tenantWhere(tenantId, { id: { in: members } }),
         select: { name: true },
       });
       ifaceRecords.forEach((r) => ifaceNames.push(r.name));
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
     // Create bond with optional members
     const bond = await db.bondConfig.create({
       data: {
-        tenant: { connect: { id: tenantId } },
+        ...(isUUID(tenantId) && { tenant: { connect: { id: tenantId } } }),
         property: { connect: { id: propertyId } },
         name,
         mode,

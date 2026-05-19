@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 // GET /api/wifi/network/interfaces - List all network interfaces
 export async function GET(request: NextRequest) {
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit');
     const offset = searchParams.get('offset');
 
-    const where: Record<string, unknown> = { tenantId: user.tenantId };
+    const where: Record<string, unknown> = tenantWhere(user.tenantId);
 
     if (propertyId) where.propertyId = propertyId;
     if (status) where.status = status;
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
     // If role filter, find interface IDs that have that role assigned
     if (role) {
       const roleRecords = await db.interfaceRole.findMany({
-        where: { tenantId: user.tenantId, role, enabled: true },
+        where: tenantWhere(user.tenantId, { role, enabled: true }),
         select: { interfaceId: true },
       });
       const interfaceIds = roleRecords.map((r) => r.interfaceId);
@@ -65,13 +66,13 @@ export async function GET(request: NextRequest) {
     // Count by status and type for summary
     const statusCounts = await db.networkInterface.groupBy({
       by: ['status'],
-      where: { tenantId: user.tenantId, ...(propertyId && { propertyId }) },
+      where: tenantWhere(user.tenantId, ...(propertyId ? { propertyId } : {})),
       _count: { status: true },
     });
 
     const typeCounts = await db.networkInterface.groupBy({
       by: ['type'],
-      where: { tenantId: user.tenantId, ...(propertyId && { propertyId }) },
+      where: tenantWhere(user.tenantId, ...(propertyId ? { propertyId } : {})),
       _count: { type: true },
     });
 
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate name within the property
     const existing = await db.networkInterface.findFirst({
-      where: { propertyId, name, tenantId },
+      where: tenantWhere(tenantId, { propertyId, name }),
     });
 
     if (existing) {
@@ -141,7 +142,7 @@ export async function POST(request: NextRequest) {
 
     const iface = await db.networkInterface.create({
       data: {
-        tenant: { connect: { id: tenantId } },
+        ...(isUUID(tenantId) && { tenant: { connect: { id: tenantId } } }),
         property: { connect: { id: propertyId } },
         name,
         type,

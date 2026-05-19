@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
 import { requireFeature } from '@/lib/api-feature-flags';
+import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -31,8 +32,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
+    if (!isUUID(id)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Room VLAN not found' } },
+        { status: 404 },
+      );
+    }
+
     const record = await db.roomVlan.findFirst({
-      where: { id, tenantId },
+      where: tenantWhere(tenantId, { id }),
       include: {
         bandwidthPolicy: { select: { id: true, name: true } },
         parentInterface: { select: { id: true, name: true, type: true, status: true, description: true } },
@@ -73,9 +81,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const body = await request.json();
 
+    if (!isUUID(id)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Room VLAN not found' } },
+        { status: 404 },
+      );
+    }
+
     // Verify record exists
     const existing = await db.roomVlan.findFirst({
-      where: { id, tenantId },
+      where: tenantWhere(tenantId, { id }),
     });
 
     if (!existing) {
@@ -104,7 +119,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Check roomNumber uniqueness if changing
     if (roomNumber && roomNumber !== existing.roomNumber) {
       const dup = await db.roomVlan.findFirst({
-        where: { propertyId: existing.propertyId, roomNumber, tenantId, id: { not: existing.id } },
+        where: tenantWhere(tenantId, { propertyId: existing.propertyId, roomNumber, id: { not: existing.id } }),
       });
       if (dup) {
         return NextResponse.json(
@@ -120,7 +135,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Check vlanId uniqueness if changing
     if (vlanId !== undefined && vlanId !== existing.vlanId) {
       const dup = await db.roomVlan.findFirst({
-        where: { propertyId: existing.propertyId, vlanId: parseInt(vlanId, 10), tenantId, id: { not: existing.id } },
+        where: tenantWhere(tenantId, { propertyId: existing.propertyId, vlanId: parseInt(vlanId, 10), id: { not: existing.id } }),
       });
       if (dup) {
         return NextResponse.json(
@@ -208,8 +223,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
+    if (!isUUID(id)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Room VLAN not found' } },
+        { status: 404 },
+      );
+    }
+
     const existing = await db.roomVlan.findFirst({
-      where: { id, tenantId },
+      where: tenantWhere(tenantId, { id }),
     });
 
     if (!existing) {

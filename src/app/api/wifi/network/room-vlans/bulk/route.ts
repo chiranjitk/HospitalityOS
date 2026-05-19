@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { requireFeature } from '@/lib/api-feature-flags';
+import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 // ─── POST /api/wifi/network/room-vlans/bulk ────────────────────────────────────
 
@@ -141,7 +142,7 @@ async function handleGenerate(tenantId: string, body: GenerateBody) {
       try {
         const record = await db.roomVlan.create({
           data: {
-            tenant: { connect: { id: tenantId } },
+            ...(isUUID(tenantId) && { tenant: { connect: { id: tenantId } } }),
             property: { connect: { id: propertyId } },
             roomNumber,
             vlanId,
@@ -186,7 +187,7 @@ async function handleBulkDelete(tenantId: string, body: { propertyId: string; id
   }
 
   const result = await db.roomVlan.deleteMany({
-    where: { id: { in: ids }, tenantId },
+    where: tenantWhere(tenantId, { id: { in: ids } }),
   });
 
   return NextResponse.json({
@@ -206,7 +207,7 @@ async function handleBulkStatus(tenantId: string, body: { propertyId: string; id
   }
 
   const result = await db.roomVlan.updateMany({
-    where: { id: { in: ids }, tenantId },
+    where: tenantWhere(tenantId, { id: { in: ids } }),
     data: { status },
   });
 
@@ -223,7 +224,7 @@ async function handleGenerateFirewall(tenantId: string, body: { propertyId: stri
 
   // Fetch all active room VLANs for the property
   const rooms = await db.roomVlan.findMany({
-    where: { tenantId, propertyId, status: 'active' },
+    where: tenantWhere(tenantId, { propertyId, status: 'active' }),
     orderBy: [{ floor: 'asc' }, { roomNumber: 'asc' }],
   });
 
@@ -292,7 +293,7 @@ async function handleGenerateFirewall(tenantId: string, body: { propertyId: stri
 
   // Mark all rooms as having firewall rules generated
   await db.roomVlan.updateMany({
-    where: { id: { in: rooms.map((r) => r.id) }, tenantId },
+    where: tenantWhere(tenantId, { id: { in: rooms.map((r) => r.id) } }),
     data: { firewallRulesGenerated: true },
   });
 

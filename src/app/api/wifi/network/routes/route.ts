@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { addRoute, addDefaultRoute, deleteRoute, persistRouteAdd, persistRouteRemove } from '@/lib/network';
+import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 // GET /api/wifi/network/routes - List all static routes
 export async function GET(request: NextRequest) {
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
     const isDefault = searchParams.get('isDefault');
     const enabled = searchParams.get('enabled');
 
-    const where: Record<string, unknown> = { tenantId: user.tenantId };
+    const where: Record<string, unknown> = tenantWhere(user.tenantId);
     if (propertyId) where.propertyId = propertyId;
     if (isDefault !== null) {
       where.isDefault = isDefault === 'true';
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest) {
 
     const route = await db.staticRoute.create({
       data: {
-        tenant: { connect: { id: tenantId } },
+        ...(isUUID(tenantId) && { tenant: { connect: { id: tenantId } } }),
         property: { connect: { id: propertyId } },
         name,
         destination,
@@ -158,7 +159,7 @@ export async function PUT(request: NextRequest) {
           if (!id) return null;
 
           const existing = await db.staticRoute.findFirst({
-            where: { id: id as string, tenantId },
+            where: tenantWhere(tenantId, isUUID(id as string) ? { id: id as string } : {}),
           });
           if (!existing) return null;
 
@@ -198,8 +199,15 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    if (!isUUID(id)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Static route not found' } },
+        { status: 404 },
+      );
+    }
+
     const existing = await db.staticRoute.findFirst({
-      where: { id, tenantId },
+      where: tenantWhere(tenantId, { id }),
     });
 
     if (!existing) {
@@ -251,8 +259,15 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    if (!isUUID(id)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Static route not found' } },
+        { status: 404 },
+      );
+    }
+
     const existing = await db.staticRoute.findFirst({
-      where: { id, tenantId: user.tenantId },
+      where: tenantWhere(user.tenantId, { id }),
     });
 
     if (!existing) {

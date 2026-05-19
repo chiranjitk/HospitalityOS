@@ -12,32 +12,26 @@ import { execSync } from 'child_process';
 import { db } from '@/lib/db';
 import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
 import { deleteVlan as nmcliDeleteVlan } from '@/lib/network/nmcli';
+import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
-
-// UUID validation regex (standard UUID v4 format)
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Shared include for VLAN queries
 const VLAN_INCLUDE = { parentInterface: true, _count: { select: { dhcpSubnets: true } } };
 
 // Helper: resolve [id] — could be UUID or subInterface name (e.g. eth1.100)
 async function resolveVlan(id: string, tenantId: string) {
-  // Only query by `id` column if the input looks like a valid UUID.
-  // Passing a non-UUID string (e.g. "eth1.10") to a @db.Uuid column
-  // causes Prisma P2023 "Inconsistent column data" errors.
-  if (UUID_RE.test(id)) {
+  if (isUUID(id)) {
     const byId = await db.vlanConfig.findFirst({
-      where: { id, tenantId },
+      where: tenantWhere(tenantId, { id }),
       include: VLAN_INCLUDE,
     });
     if (byId) return byId;
   }
-  // Always fall back to subInterface name lookup
   return db.vlanConfig.findFirst({
-    where: { subInterface: id, tenantId },
+    where: tenantWhere(tenantId, { subInterface: id }),
     include: VLAN_INCLUDE,
   });
 }
@@ -105,7 +99,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Check for duplicate VLAN ID if changing
     if (vlanId !== undefined && vlanId !== existing.vlanId) {
       const duplicate = await db.vlanConfig.findFirst({
-        where: { propertyId: existing.propertyId, vlanId: parseInt(vlanId, 10), tenantId, id: { not: existing.id } },
+        where: tenantWhere(tenantId, { propertyId: existing.propertyId, vlanId: parseInt(vlanId, 10), id: { not: existing.id } }),
       });
       if (duplicate) {
         return NextResponse.json(
@@ -118,7 +112,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Check for duplicate sub-interface name if changing
     if (subInterface && subInterface !== existing.subInterface) {
       const duplicate = await db.vlanConfig.findFirst({
-        where: { propertyId: existing.propertyId, subInterface, tenantId, id: { not: existing.id } },
+        where: tenantWhere(tenantId, { propertyId: existing.propertyId, subInterface, id: { not: existing.id } }),
       });
       if (duplicate) {
         return NextResponse.json(

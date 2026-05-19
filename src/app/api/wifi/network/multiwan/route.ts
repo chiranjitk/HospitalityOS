@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 // ─── Helper Types ────────────────────────────────────────────────────────────
 
@@ -79,7 +80,7 @@ export async function GET(request: NextRequest) {
     }
 
     const config = await db.multiWanConfig.findUnique({
-      where: { propertyId, tenantId: user.tenantId },
+      where: { propertyId, tenantId: isUUID(user.tenantId) ? user.tenantId : undefined },
       include: {
         gateways: {
           orderBy: [{ isBackup: 'asc' }, { weight: 'desc' }],
@@ -149,7 +150,7 @@ export async function POST(request: NextRequest) {
         flushConntrackOnFailover,
       },
       create: {
-        tenant: { connect: { id: tenantId } },
+        ...(isUUID(tenantId) && { tenant: { connect: { id: tenantId } } }),
         property: { connect: { id: body.propertyId } },
         enabled,
         mode,

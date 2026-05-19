@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission, getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 // GET /api/wifi/network/roles - List all interface roles
 export async function GET(request: NextRequest) {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const propertyId = searchParams.get('propertyId');
 
-    const where: Record<string, unknown> = { tenantId: user.tenantId };
+    const where: Record<string, unknown> = tenantWhere(user.tenantId);
     if (propertyId) where.propertyId = propertyId;
 
     const roles = await db.interfaceRole.findMany({
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
         enabled,
       },
       create: {
-        tenantId,
+        ...(isUUID(tenantId) && { tenantId }),
         propertyId,
         interfaceId,
         role,
@@ -123,7 +124,7 @@ export async function PUT(request: NextRequest) {
     // Verify all roles belong to this tenant
     const roleIds = updates.map(u => u.id);
     const existingRoles = await db.interfaceRole.findMany({
-      where: { id: { in: roleIds }, tenantId },
+      where: tenantWhere(tenantId, { id: { in: roleIds } }),
     });
 
     if (existingRoles.length !== roleIds.length) {

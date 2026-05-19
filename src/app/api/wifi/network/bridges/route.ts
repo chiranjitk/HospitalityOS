@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 // OS-level bridge creation and file persistence are handled by the frontend
 // calling /api/network/os/bridges before this route.
 
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const propertyId = searchParams.get('propertyId');
 
-    const where: Record<string, unknown> = { tenantId: user.tenantId };
+    const where: Record<string, unknown> = tenantWhere(user.tenantId);
     if (propertyId) where.propertyId = propertyId;
 
     const bridges = await db.bridgeConfig.findMany({
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate name within the property
     const existing = await db.bridgeConfig.findFirst({
-      where: { propertyId, name, tenantId },
+      where: tenantWhere(tenantId, { propertyId, name }),
     });
 
     if (existing) {
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
 
     const bridge = await db.bridgeConfig.create({
       data: {
-        tenant: { connect: { id: tenantId } },
+        ...(isUUID(tenantId) && { tenant: { connect: { id: tenantId } } }),
         property: { connect: { id: propertyId } },
         name,
         memberInterfaces: members,
