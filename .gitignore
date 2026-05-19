@@ -58,6 +58,7 @@ local-*
 .z-ai-config
 # PostgreSQL runtime logs (data stays in repo, logs don't)
 pgsql-runtime/pgsql.log
+pgsql-runtime/logfile
 pgsql-runtime/data/log/
 
 # FreeRADIUS runtime logs (binaries/configs stay, logs don't)
