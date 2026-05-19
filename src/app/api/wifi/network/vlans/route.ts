@@ -2,12 +2,14 @@
  * VLANs API Route
  *
  * List and create VLAN configurations.
+ * OS-level: this box is a single-tenant gateway. Text identifiers
+ * (subInterface name) are the natural key for VLAN lookups.
+ * No UUID validation needed — use interface names directly.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
-import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 // GET /api/wifi/network/vlans - List all VLANs
 export async function GET(request: NextRequest) {
@@ -22,8 +24,7 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit');
     const offset = searchParams.get('offset');
 
-    const where: Record<string, unknown> = tenantWhere(user.tenantId);
-
+    const where: Record<string, unknown> = {};
     if (propertyId) where.propertyId = propertyId;
     if (parentInterfaceId) where.parentInterfaceId = parentInterfaceId;
     if (enabled !== null) where.enabled = enabled === 'true';
@@ -109,33 +110,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Resolve parent interface: try CUID, then by name
-    // Guard: parentInterfaceId could be an OS interface name (not UUID)
-    let parentRecord: Awaited<ReturnType<typeof db.networkInterface.findFirst>>;
-    if (parentInterfaceId && isUUID(parentInterfaceId)) {
+    // Resolve parent interface by name — text identifier is the natural key
+    // on a single-box gateway. Try: explicit parentInterfaceName → parentInterfaceId as name →
+    // derive from subInterface (eth1.100 → eth1)
+    let parentRecord: Awaited<ReturnType<typeof db.networkInterface.findFirst>> | null = null;
+
+    // 1. Try explicit parentInterfaceName
+    if (parentInterfaceName) {
       parentRecord = await db.networkInterface.findFirst({
-        where: tenantWhere(tenantId, { id: parentInterfaceId }),
+        where: { name: parentInterfaceName },
       });
-    } else {
-      parentRecord = null;
     }
 
+    // 2. Try parentInterfaceId as a name (OS interface name, not UUID)
     if (!parentRecord && parentInterfaceId) {
       parentRecord = await db.networkInterface.findFirst({
-        where: tenantWhere(tenantId, { name: parentInterfaceId }),
+        where: { name: parentInterfaceId },
       });
     }
 
-    if (!parentRecord && parentInterfaceName) {
-      parentRecord = await db.networkInterface.findFirst({
-        where: tenantWhere(tenantId, { name: parentInterfaceName }),
-      });
-    }
-
-    if (!parentRecord) {
+    // 3. Derive from subInterface (eth1.100 → eth1)
+    if (!parentRecord && subInterface.includes('.')) {
       const ifaceName = subInterface.split('.')[0];
       parentRecord = await db.networkInterface.findFirst({
-        where: tenantWhere(tenantId, { name: ifaceName }),
+        where: { name: ifaceName },
       });
     }
 
@@ -153,7 +151,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate VLAN ID within property
     const existingVlanId = await db.vlanConfig.findFirst({
-      where: tenantWhere(tenantId, { propertyId, vlanId: parseInt(vlanId, 10) }),
+      where: { propertyId, vlanId: parseInt(vlanId, 10) },
     });
 
     if (existingVlanId) {
@@ -165,7 +163,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate sub-interface name within property
     const existingSub = await db.vlanConfig.findFirst({
-      where: tenantWhere(tenantId, { propertyId, subInterface }),
+      where: { propertyId, subInterface },
     });
 
     if (existingSub) {
@@ -181,11 +179,9 @@ export async function POST(request: NextRequest) {
     // OS-level VLAN creation is handled by the frontend calling /api/network/os/vlans first.
     // This route only persists the VLAN configuration to the database.
 
-    // Create VLAN with connectOrCreate for parent interface
-    // NOTE: When using relation connect, do NOT also pass scalar FK fields (tenantId/propertyId)
     const vlan = await db.vlanConfig.create({
       data: {
-        ...(isUUID(tenantId) && { tenant: { connect: { id: tenantId } } }),
+        tenant: { connect: { id: tenantId } },
         property: { connect: { id: propertyId } },
         parentInterface: {
           connectOrCreate: {
@@ -196,7 +192,7 @@ export async function POST(request: NextRequest) {
               },
             },
             create: {
-              ...(isUUID(tenantId) && { tenant: { connect: { id: tenantId } } }),
+              tenant: { connect: { id: tenantId } },
               property: { connect: { id: propertyId } },
               name: parentIfaceName,
               type: 'ethernet',

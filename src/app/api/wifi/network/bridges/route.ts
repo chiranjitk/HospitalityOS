@@ -2,14 +2,13 @@
  * Bridge Config API Route
  *
  * List and create bridge configurations for a property.
+ * OS-level: this box is a single-tenant gateway. Bridge names are
+ * the natural key. No UUID validation needed for lookups.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
-import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
-// OS-level bridge creation and file persistence are handled by the frontend
-// calling /api/network/os/bridges before this route.
 
 // GET /api/wifi/network/bridges - List all bridge configs
 export async function GET(request: NextRequest) {
@@ -20,7 +19,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const propertyId = searchParams.get('propertyId');
 
-    const where: Record<string, unknown> = tenantWhere(user.tenantId);
+    const where: Record<string, unknown> = {};
     if (propertyId) where.propertyId = propertyId;
 
     const bridges = await db.bridgeConfig.findMany({
@@ -72,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate name within the property
     const existing = await db.bridgeConfig.findFirst({
-      where: tenantWhere(tenantId, { propertyId, name }),
+      where: { propertyId, name },
     });
 
     if (existing) {
@@ -83,14 +82,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse member interfaces
-    const parsedMembers = JSON.parse(members);
+    JSON.parse(members);
 
     // OS-level bridge creation and file persistence are handled by the frontend
     // calling /api/network/os/bridges before this route.
 
     const bridge = await db.bridgeConfig.create({
       data: {
-        ...(isUUID(tenantId) && { tenant: { connect: { id: tenantId } } }),
+        tenant: { connect: { id: tenantId } },
         property: { connect: { id: propertyId } },
         name,
         memberInterfaces: members,

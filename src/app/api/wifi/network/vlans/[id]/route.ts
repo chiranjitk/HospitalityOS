@@ -2,7 +2,10 @@
  * VLAN by ID API Route
  *
  * GET, PUT, DELETE for individual VLAN configurations.
- * [id] can be a DB CUID or a subInterface name (e.g. eth1.100).
+ * [id] can be a DB UUID or a subInterface name (e.g. eth1.100).
+ *
+ * On a single-box gateway, the subInterface name is the natural identifier.
+ * Look up by subInterface (text) first, UUID as fallback. No UUID validation needed.
  */
 
 export const runtime = 'nodejs';
@@ -12,7 +15,6 @@ import { execSync } from 'child_process';
 import { db } from '@/lib/db';
 import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
 import { deleteVlan as nmcliDeleteVlan } from '@/lib/network/nmcli';
-import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -21,17 +23,18 @@ interface RouteParams {
 // Shared include for VLAN queries
 const VLAN_INCLUDE = { parentInterface: true, _count: { select: { dhcpSubnets: true } } };
 
-// Helper: resolve [id] — could be UUID or subInterface name (e.g. eth1.100)
-async function resolveVlan(id: string, tenantId: string) {
-  if (isUUID(id)) {
-    const byId = await db.vlanConfig.findFirst({
-      where: tenantWhere(tenantId, { id }),
-      include: VLAN_INCLUDE,
-    });
-    if (byId) return byId;
-  }
+// Helper: resolve [id] — look up by subInterface (OS name) first, then UUID
+async function resolveVlan(id: string) {
+  // Try subInterface name first (the natural OS identifier)
+  const byName = await db.vlanConfig.findFirst({
+    where: { subInterface: id },
+    include: VLAN_INCLUDE,
+  });
+  if (byName) return byName;
+
+  // Fallback: try as UUID id
   return db.vlanConfig.findFirst({
-    where: tenantWhere(tenantId, { subInterface: id }),
+    where: { id },
     include: VLAN_INCLUDE,
   });
 }
@@ -56,7 +59,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   try {
     const { id } = await params;
-    const vlan = await resolveVlan(id, tenantId);
+    const vlan = await resolveVlan(id);
 
     if (!vlan) {
       return NextResponse.json(
@@ -85,7 +88,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const existing = await resolveVlan(id, tenantId);
+    const existing = await resolveVlan(id);
 
     if (!existing) {
       return NextResponse.json(
@@ -99,7 +102,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Check for duplicate VLAN ID if changing
     if (vlanId !== undefined && vlanId !== existing.vlanId) {
       const duplicate = await db.vlanConfig.findFirst({
-        where: tenantWhere(tenantId, { propertyId: existing.propertyId, vlanId: parseInt(vlanId, 10), id: { not: existing.id } }),
+        where: { propertyId: existing.propertyId, vlanId: parseInt(vlanId, 10), id: { not: existing.id } },
       });
       if (duplicate) {
         return NextResponse.json(
@@ -112,7 +115,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Check for duplicate sub-interface name if changing
     if (subInterface && subInterface !== existing.subInterface) {
       const duplicate = await db.vlanConfig.findFirst({
-        where: tenantWhere(tenantId, { propertyId: existing.propertyId, subInterface, id: { not: existing.id } }),
+        where: { propertyId: existing.propertyId, subInterface, id: { not: existing.id } },
       });
       if (duplicate) {
         return NextResponse.json(
@@ -144,7 +147,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 }
 
 // DELETE /api/wifi/network/vlans/[id] - Delete VLAN
-// [id] can be a DB CUID or a subInterface name (e.g. eth1.100)
+// [id] can be a DB UUID or a subInterface name (e.g. eth1.100)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   const tenantId = await getTenantIdFromSession(request);
   if (!tenantId) {
@@ -153,7 +156,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
   try {
     const { id } = await params;
-    const existing = await resolveVlan(id, tenantId);
+    const existing = await resolveVlan(id);
 
     if (!existing) {
       // Not in DB — try OS-level removal and report

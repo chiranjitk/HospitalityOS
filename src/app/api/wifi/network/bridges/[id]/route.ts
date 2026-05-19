@@ -2,6 +2,10 @@
  * Bridge Config by ID API Route
  *
  * PUT and DELETE for individual bridge configurations.
+ * [id] can be a DB UUID or a bridge name (e.g. br0).
+ *
+ * On a single-box gateway, the bridge name is the natural identifier.
+ * Look up by name (text) first, UUID as fallback. No UUID validation needed.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -9,10 +13,21 @@ import { execSync } from 'child_process';
 import { db } from '@/lib/db';
 import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
 import { deleteBridge as nmcliDeleteBridge } from '@/lib/network/nmcli';
-import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
+}
+
+// Helper: resolve [id] — look up by name (OS identifier) first, then UUID
+async function resolveBridge(id: string) {
+  const byName = await db.bridgeConfig.findFirst({
+    where: { name: id },
+  });
+  if (byName) return byName;
+
+  return db.bridgeConfig.findFirst({
+    where: { id },
+  });
 }
 
 // PUT /api/wifi/network/bridges/[id] - Update bridge config
@@ -25,17 +40,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await request.json();
-
-    if (!isUUID(id)) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Bridge config not found' } },
-        { status: 404 },
-      );
-    }
-
-    const existing = await db.bridgeConfig.findFirst({
-      where: tenantWhere(tenantId, { id }),
-    });
+    const existing = await resolveBridge(id);
 
     if (!existing) {
       return NextResponse.json(
@@ -60,7 +65,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       : undefined;
 
     const bridge = await db.bridgeConfig.update({
-      where: { id },
+      where: { id: existing.id },
       data: {
         ...(name !== undefined && { name }),
         ...(members !== undefined && { memberInterfaces: members }),
@@ -107,17 +112,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
   try {
     const { id } = await params;
-
-    if (!isUUID(id)) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Bridge config not found' } },
-        { status: 404 },
-      );
-    }
-
-    const existing = await db.bridgeConfig.findFirst({
-      where: tenantWhere(tenantId, { id }),
-    });
+    const existing = await resolveBridge(id);
 
     if (!existing) {
       return NextResponse.json(
@@ -139,7 +134,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    await db.bridgeConfig.delete({ where: { id } });
+    await db.bridgeConfig.delete({ where: { id: existing.id } });
 
     return NextResponse.json({ success: true, message: 'Bridge config deleted successfully' });
   } catch (error) {

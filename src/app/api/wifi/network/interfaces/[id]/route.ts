@@ -2,15 +2,42 @@
  * Network Interface by ID API Route
  *
  * GET, PUT, DELETE for individual network interfaces.
+ * [id] can be a DB UUID or an interface name (e.g. eth0, eth1).
+ *
+ * On a single-box gateway, the interface name is the natural identifier.
+ * Look up by name (text) first, UUID as fallback. No UUID validation needed.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
-import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
+}
+
+// Helper: resolve [id] — look up by name (OS identifier) first, then UUID
+async function resolveInterface(id: string) {
+  // Try name first (the natural OS identifier)
+  const byName = await db.networkInterface.findFirst({
+    where: { name: id },
+    include: {
+      roles: true,
+      vlans: true,
+      bondMembers: { include: { bondConfig: true } },
+    },
+  });
+  if (byName) return byName;
+
+  // Fallback: try as UUID id
+  return db.networkInterface.findFirst({
+    where: { id },
+    include: {
+      roles: true,
+      vlans: true,
+      bondMembers: { include: { bondConfig: true } },
+    },
+  });
 }
 
 // GET /api/wifi/network/interfaces/[id] - Get single interface
@@ -22,24 +49,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   try {
     const { id } = await params;
-
-    if (!isUUID(id)) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Network interface not found' } },
-        { status: 404 },
-      );
-    }
-
-    const iface = await db.networkInterface.findFirst({
-      where: tenantWhere(tenantId, { id }),
-      include: {
-        roles: true,
-        vlans: true,
-        bondMembers: {
-          include: { bondConfig: true },
-        },
-      },
-    });
+    const iface = await resolveInterface(id);
 
     if (!iface) {
       return NextResponse.json(
@@ -68,17 +78,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await request.json();
-
-    if (!isUUID(id)) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Network interface not found' } },
-        { status: 404 },
-      );
-    }
-
-    const existing = await db.networkInterface.findFirst({
-      where: tenantWhere(tenantId, { id }),
-    });
+    const existing = await resolveInterface(id);
 
     if (!existing) {
       return NextResponse.json(
@@ -92,7 +92,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Check for duplicate name if renaming
     if (name && name !== existing.name) {
       const duplicate = await db.networkInterface.findFirst({
-        where: tenantWhere(tenantId, { propertyId: existing.propertyId, name, id: { not: id } }),
+        where: { propertyId: existing.propertyId, name, id: { not: existing.id } },
       });
       if (duplicate) {
         return NextResponse.json(
@@ -103,7 +103,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const iface = await db.networkInterface.update({
-      where: { id },
+      where: { id: existing.id },
       data: {
         ...(name && { name }),
         ...(type && { type }),
@@ -136,26 +136,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
   try {
     const { id } = await params;
-
-    if (!isUUID(id)) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Network interface not found' } },
-        { status: 404 },
-      );
-    }
-
-    const existing = await db.networkInterface.findFirst({
-      where: tenantWhere(tenantId, { id }),
-      include: {
-        _count: {
-          select: {
-            roles: true,
-            vlans: true,
-            bondMembers: true,
-          },
-        },
-      },
-    });
+    const existing = await resolveInterface(id);
 
     if (!existing) {
       return NextResponse.json(
@@ -165,7 +146,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Check for active dependencies
-    if (existing._count.vlans > 0 || existing._count.bondMembers > 0) {
+    if (existing._count?.vlans > 0 || existing._count?.bondMembers > 0) {
       return NextResponse.json(
         {
           success: false,
@@ -179,9 +160,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Delete associated roles
-    await db.interfaceRole.deleteMany({ where: { interfaceId: id } });
+    await db.interfaceRole.deleteMany({ where: { interfaceId: existing.id } });
 
-    await db.networkInterface.delete({ where: { id } });
+    await db.networkInterface.delete({ where: { id: existing.id } });
 
     return NextResponse.json({ success: true, message: 'Network interface deleted successfully' });
   } catch (error) {

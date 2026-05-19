@@ -2,6 +2,10 @@
  * Bond Config by ID API Route
  *
  * PUT and DELETE for individual bond configurations.
+ * [id] can be a DB UUID or a bond name (e.g. bond0).
+ *
+ * On a single-box gateway, the bond name is the natural identifier.
+ * Look up by name (text) first, UUID as fallback. No UUID validation needed.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -9,10 +13,27 @@ import { execSync } from 'child_process';
 import { db } from '@/lib/db';
 import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
 import { deleteBond as nmcliDeleteBond } from '@/lib/network/nmcli';
-import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
+}
+
+// Helper: resolve [id] — look up by name (OS identifier) first, then UUID
+async function resolveBond(id: string) {
+  const byName = await db.bondConfig.findFirst({
+    where: { name: id },
+    include: {
+      members: { include: { networkInterface: { select: { id: true, name: true } } } },
+    },
+  });
+  if (byName) return byName;
+
+  return db.bondConfig.findFirst({
+    where: { id },
+    include: {
+      members: { include: { networkInterface: { select: { id: true, name: true } } } },
+    },
+  });
 }
 
 // PUT /api/wifi/network/bonds/[id] - Update bond config
@@ -25,17 +46,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await request.json();
-
-    if (!isUUID(id)) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Bond config not found' } },
-        { status: 404 },
-      );
-    }
-
-    const existing = await db.bondConfig.findFirst({
-      where: tenantWhere(tenantId, { id }),
-    });
+    const existing = await resolveBond(id);
 
     if (!existing) {
       return NextResponse.json(
@@ -56,10 +67,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // If members array is provided, replace all members
     if (Array.isArray(members)) {
-      await db.bondMember.deleteMany({ where: { bondConfigId: id } });
+      await db.bondMember.deleteMany({ where: { bondConfigId: existing.id } });
       await db.bondMember.createMany({
         data: members.map((ifaceId: string, idx: number) => ({
-          bondConfigId: id,
+          bondConfigId: existing.id,
           interfaceId: ifaceId,
           priority: idx,
         })),
@@ -67,7 +78,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const bond = await db.bondConfig.update({
-      where: { id },
+      where: { id: existing.id },
       data: {
         ...(name !== undefined && { name }),
         ...(mode !== undefined && { mode }),
@@ -120,17 +131,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
   try {
     const { id } = await params;
-
-    if (!isUUID(id)) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Bond config not found' } },
-        { status: 404 },
-      );
-    }
-
-    const existing = await db.bondConfig.findFirst({
-      where: tenantWhere(tenantId, { id }),
-    });
+    const existing = await resolveBond(id);
 
     if (!existing) {
       return NextResponse.json(
@@ -153,7 +154,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Members will be cascade-deleted
-    await db.bondConfig.delete({ where: { id } });
+    await db.bondConfig.delete({ where: { id: existing.id } });
 
     return NextResponse.json({ success: true, message: 'Bond config deleted successfully' });
   } catch (error) {

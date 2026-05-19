@@ -2,14 +2,13 @@
  * Bond Config API Route
  *
  * List and create bond configurations for a property.
+ * OS-level: this box is a single-tenant gateway. Bond names are
+ * the natural key. No UUID validation needed for lookups.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
-import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
-// OS-level bond creation and file persistence are handled by the frontend
-// calling /api/network/os/bonds before this route.
 
 // GET /api/wifi/network/bonds - List all bond configs
 export async function GET(request: NextRequest) {
@@ -20,7 +19,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const propertyId = searchParams.get('propertyId');
 
-    const where: Record<string, unknown> = tenantWhere(user.tenantId);
+    const where: Record<string, unknown> = {};
     if (propertyId) where.propertyId = propertyId;
 
     const bonds = await db.bondConfig.findMany({
@@ -74,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate name within the property
     const existing = await db.bondConfig.findFirst({
-      where: tenantWhere(tenantId, { propertyId, name }),
+      where: { propertyId, name },
     });
 
     if (existing) {
@@ -88,7 +87,7 @@ export async function POST(request: NextRequest) {
     const ifaceNames: string[] = [];
     if (members.length > 0) {
       const ifaceRecords = await db.networkInterface.findMany({
-        where: tenantWhere(tenantId, { id: { in: members } }),
+        where: { id: { in: members } },
         select: { name: true },
       });
       ifaceRecords.forEach((r) => ifaceNames.push(r.name));
@@ -106,7 +105,7 @@ export async function POST(request: NextRequest) {
     // Create bond with optional members
     const bond = await db.bondConfig.create({
       data: {
-        ...(isUUID(tenantId) && { tenant: { connect: { id: tenantId } } }),
+        tenant: { connect: { id: tenantId } },
         property: { connect: { id: propertyId } },
         name,
         mode,
