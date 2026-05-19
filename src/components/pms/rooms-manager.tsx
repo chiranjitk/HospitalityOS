@@ -206,6 +206,7 @@ export default function RoomsManager() {
       const params = new URLSearchParams();
       if (propertyFilter !== 'all') params.append('propertyId', propertyFilter);
       if (statusFilter !== 'all') params.append('status', statusFilter);
+      params.append('limit', '200');
       
       const response = await fetch(`/api/rooms?${params.toString()}`);
       if (!response.ok) {

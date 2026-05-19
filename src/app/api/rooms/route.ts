@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
       where.floor = parseInt(floor, 10);
     }
     
-    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '50', 10), 1), 200);
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '200', 10), 1), 500);
     const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10), 0);
 
     const [rooms, total] = await Promise.all([
