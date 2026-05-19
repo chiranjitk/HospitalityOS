@@ -1,17 +1,18 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from 'next-intl/plugin';
+import NodePolyfillPlugin from 'node-polyfill-webpack-plugin';
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 const nextConfig: NextConfig = {
-  // NOTE: "output: standalone" removed for dev mode — it adds file-tracing overhead
-  // that increases memory usage. Re-enable only for `next build` in production.
-  // output: "standalone",
   // Exclude native/binary packages and Node.js-only modules from bundling.
-  // These are loaded at runtime via dynamic import from instrumentation.ts (Node.js runtime).
-  // Without this, Turbopack traces them into the Edge Runtime analysis and emits warnings.
   serverExternalPackages: [
     'node-pre-gyp', '@mapbox/node-pre-gyp', 'node-cron',
+    'nodemailer',       // Node.js-only — requires 'stream', 'net', 'fs'
+    'sharp',            // Native binary — must be external
+    'bcryptjs',         // Native optional dependency
+    'pg',               // Node.js-only — requires 'net'
+    'pg-native',
   ],
   // Exclude non-essential paths from output file tracing.
   // WARNING: Do NOT add 'node_modules/**' here — it breaks standalone mode!
@@ -108,6 +109,20 @@ const nextConfig: NextConfig = {
       // Allow localhost for development
       { protocol: 'http', hostname: 'localhost' },
     ],
+  },
+  // Webpack configuration — adds Node.js polyfills and resolves node-cron properly
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Client-side: add polyfills for Node.js built-ins
+      config.plugins.push(new NodePolyfillPlugin());
+    }
+    // Fix node-cron ESM import that requires 'stream' — force CJS resolution
+    config.resolve = config.resolve || {};
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'node-cron': require.resolve('node-cron'),
+    };
+    return config;
   },
 };
 
