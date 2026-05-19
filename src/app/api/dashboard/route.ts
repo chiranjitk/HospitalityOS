@@ -624,6 +624,7 @@ export async function GET(request: NextRequest) {
           guests: {
             checkedIn: checkedIn.length,      // Number of checked-in bookings
             totalGuests: totalGuests,          // Total guests (adults + children) across checked-in bookings
+            total: totalGuests,                // Alias for backward compat
             arriving: arrivalsToday,
             departing: departuresToday,
           },

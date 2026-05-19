@@ -16,7 +16,8 @@ interface DashboardStats {
     checkedIn: number;
     arriving: number;
     departing: number;
-    total: number;
+    total?: number;
+    totalGuests?: number;
   };
   bookings: {
     today: number;
@@ -211,7 +212,7 @@ function PipelineStage({
                   : undefined
               }
             >
-              {stage.count}
+              {isNaN(stage.count) ? 0 : stage.count}
             </span>
 
             {/* Animated progress bar */}
@@ -238,7 +239,7 @@ function PipelineStage({
         <TooltipContent side="bottom" className="text-xs">
           <p className="font-medium">{t(stage.labelKey)}</p>
           <p className="text-muted-foreground">
-            {stage.count} {t('guestsLabel').toLowerCase()}
+            {isNaN(stage.count) ? 0 : stage.count} {t('guestsLabel').toLowerCase()}
           </p>
         </TooltipContent>
       </Tooltip>
@@ -359,7 +360,7 @@ export function GuestJourneyPipelineWidget() {
       case 'review':
         // Recently completed stays that may need review
         count = stats
-          ? Math.max(0, stats.guests.total - stats.guests.checkedIn - stats.guests.arriving)
+          ? Math.max(0, (stats.guests.total ?? stats.guests.totalGuests ?? 0) - stats.guests.checkedIn - stats.guests.arriving)
           : 0;
         break;
     }
