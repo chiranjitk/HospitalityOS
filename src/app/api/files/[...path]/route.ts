@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-const UPLOAD_DIR = '/home/z/my-project/upload';
+// Resolve upload dir relative to project root (works on any setup)
+const UPLOAD_DIR = path.resolve(process.cwd(), 'upload');
 
 const MIME_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
