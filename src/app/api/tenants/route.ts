@@ -121,6 +121,14 @@ export async function GET(request: NextRequest) {
 
 // In-memory rate limiting for tenant signup
 const tenantSignupRateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of tenantSignupRateLimitMap.entries()) {
+    if (now > val.resetTime) tenantSignupRateLimitMap.delete(key);
+  }
+}, 60_000).unref();
+
 function checkTenantSignupRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
   const now = Date.now();
   const windowMs = 15 * 60 * 1000; // 15 minutes

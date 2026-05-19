@@ -76,6 +76,28 @@ export interface EmailSendResult {
 
 // Email queue (in-memory for development, should use Redis/BullMQ in production)
 const emailQueue: Map<string, QueuedEmail> = new Map();
+
+// Purge sent/failed queue entries older than 1 hour & enforce maxQueueSize
+setInterval(() => {
+  const oneHourAgo = Date.now() - 60 * 60_000;
+  emailQueue.forEach((val, key) => {
+    if (val.status === 'sent' || val.status === 'failed') {
+      const ts = val.status === 'sent' && val.sentAt ? val.sentAt.getTime() : val.createdAt.getTime();
+      if (ts < oneHourAgo) emailQueue.delete(key);
+    }
+  });
+  // Enforce maxQueueSize by evicting oldest terminal entries first
+  if (emailQueue.size > 10000) {
+    const terminalEntries = Array.from(emailQueue.entries())
+      .filter(([, v]) => v.status === 'sent' || v.status === 'failed')
+      .sort(([, a], [, b]) => a.createdAt.getTime() - b.createdAt.getTime());
+    terminalEntries.forEach(([key]) => {
+      if (emailQueue.size <= 10000) return;
+      emailQueue.delete(key);
+    });
+  }
+}, 30 * 60_000).unref();
+
 let queueProcessorRunning = false;
 
 /**

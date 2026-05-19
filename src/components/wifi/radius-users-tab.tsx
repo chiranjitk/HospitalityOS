@@ -84,7 +84,86 @@ import {
   getSessionTimeoutDisplay,
   getValidityDisplay,
 } from '@/lib/wifi/utils/attribute-readers';
-import { parse } from 'csv-parse/sync';
+/**
+ * Browser-compatible CSV parser — replaces csv-parse/sync which is Node.js-only.
+ * Handles quoted fields, escaped quotes, and standard CSV formatting.
+ */
+function parseCSV(text: string, options?: { columns?: boolean; skip_empty_lines?: boolean; trim?: boolean }): Record<string, string>[] {
+  const opts = { columns: false, skip_empty_lines: true, trim: true, ...options };
+  const lines = text.split(/\r?\n/);
+  const rows: string[][] = [];
+
+  let currentRow: string[] = [];
+  let currentField = '';
+  let inQuotes = false;
+
+  for (const line of lines) {
+    let i = 0;
+    // If not in a quoted multiline field, start fresh
+    if (!inQuotes) {
+      currentRow = [];
+      currentField = '';
+    }
+
+    while (i < line.length) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (i + 1 < line.length && line[i + 1] === '"') {
+            currentField += '"';
+            i += 2;
+          } else {
+            inQuotes = false;
+            i++;
+          }
+        } else {
+          currentField += ch;
+          i++;
+        }
+      } else {
+        if (ch === '"') {
+          inQuotes = true;
+          i++;
+        } else if (ch === ',') {
+          currentRow.push(opts.trim ? currentField.trim() : currentField);
+          currentField = '';
+          i++;
+        } else {
+          currentField += ch;
+          i++;
+        }
+      }
+    }
+
+    // End of line
+    if (inQuotes) {
+      // Multiline quoted field — add newline and continue to next line
+      currentField += '\n';
+    } else {
+      currentRow.push(opts.trim ? currentField.trim() : currentField);
+      if (opts.skip_empty_lines && currentRow.every(f => f === '')) {
+        // skip empty line
+      } else {
+        rows.push(currentRow);
+      }
+    }
+  }
+
+  if (!opts.columns) return rows.map(r => {
+    const obj: Record<string, string> = {};
+    r.forEach((v, i) => obj[i.toString()] = v);
+    return obj;
+  });
+
+  // Use first row as headers
+  if (rows.length < 2) return [];
+  const headers = rows[0];
+  return rows.slice(1).map(row => {
+    const obj: Record<string, string> = {};
+    headers.forEach((h, i) => { obj[h] = row[i] || ''; });
+    return obj;
+  });
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -577,7 +656,7 @@ export default function RadiusUsersTab() {
     reader.onload = (evt) => {
       try {
         const text = evt.target?.result as string;
-        const records = parse(text, { columns: true, skip_empty_lines: true, trim: true }) as Record<string, string>[];
+        const records = parseCSV(text, { columns: true, skip_empty_lines: true, trim: true }) as Record<string, string>[];
         if (records.length === 0) {
           toast({ title: 'Error', description: 'CSV file is empty', variant: 'destructive' });
           return;

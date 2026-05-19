@@ -6,6 +6,14 @@ import { consumeTempSecret } from '@/lib/two-factor-temp-store';
 
 // In-memory rate limiting for 2FA verify
 const twoFAVerifyRateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of twoFAVerifyRateLimitMap.entries()) {
+    if (now > val.resetTime) twoFAVerifyRateLimitMap.delete(key);
+  }
+}, 60_000).unref();
+
 function check2FAVerifyRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
   const now = Date.now();
   const windowMs = 15 * 60 * 1000; // 15 minutes

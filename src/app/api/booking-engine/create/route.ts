@@ -11,6 +11,13 @@ import { fireAutomationEvent } from '@/lib/automation/hooks';
 // In-memory rate limiting (5 bookings per IP per 15 minutes)
 const bookingRateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of bookingRateLimitMap.entries()) {
+    if (now > val.resetAt) bookingRateLimitMap.delete(key);
+  }
+}, 60_000).unref();
+
 function checkBookingRateLimit(identifier: string, maxAttempts: number, windowMs: number): boolean {
   const now = Date.now();
   const entry = bookingRateLimitMap.get(identifier);

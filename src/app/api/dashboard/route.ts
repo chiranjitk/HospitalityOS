@@ -6,6 +6,7 @@ import { subDays, startOfDay, endOfDay } from 'date-fns';
 
 // Simple in-memory cache for dashboard data (keyed by tenantId)
 const dashboardCache = new Map<string, { data: any; timestamp: number }>();
+setInterval(() => { const now = Date.now(); for (const [key, val] of dashboardCache.entries()) { if (now - val.timestamp > 15000) dashboardCache.delete(key); } }, 60_000).unref();
 const DASHBOARD_CACHE_TTL = 15000; // 15 seconds
 
 export async function GET(request: NextRequest) {

@@ -7,6 +7,13 @@ import { logAuth } from '@/lib/audit';
 // In-memory rate limiting (5 resets per IP per 15 minutes)
 const resetPasswordRateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of resetPasswordRateLimitMap.entries()) {
+    if (now > val.resetAt) resetPasswordRateLimitMap.delete(key);
+  }
+}, 60_000).unref();
+
 function checkResetPasswordRateLimit(identifier: string, maxAttempts: number, windowMs: number): boolean {
   const now = Date.now();
   const entry = resetPasswordRateLimitMap.get(identifier);

@@ -187,6 +187,7 @@ const rateCache = new Map<string, {
   calculatedAt: Date;
   occupancyAtCalc: number;
 }>();
+setInterval(() => { const now = Date.now(); for (const [key, val] of rateCache.entries()) { if (now - new Date(val.calculatedAt).getTime() > 45 * 60_000) rateCache.delete(key); } }, 45 * 60_000).unref();
 
 // Cache TTL: 45 minutes (re-evaluate before the next hour)
 const CACHE_TTL_MS = 45 * 60 * 1000;

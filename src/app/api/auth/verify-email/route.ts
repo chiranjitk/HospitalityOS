@@ -5,6 +5,13 @@ import { emailVerificationTokenCache } from '@/lib/cache';
 // In-memory rate limiting (10 verifications per IP per 15 minutes)
 const verifyEmailRateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of verifyEmailRateLimitMap.entries()) {
+    if (now > val.resetAt) verifyEmailRateLimitMap.delete(key);
+  }
+}, 60_000).unref();
+
 function checkVerifyEmailRateLimit(identifier: string, maxAttempts: number, windowMs: number): boolean {
   const now = Date.now();
   const entry = verifyEmailRateLimitMap.get(identifier);

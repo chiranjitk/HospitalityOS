@@ -1,14 +1,9 @@
 'use client';
 
 import React, { lazy, useState, Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import { Server, Shield, ScrollText, HeartPulse } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-// Lazy imports for tab content
-const GatewayIntegration = lazy(() => import('@/components/wifi/gateway-integration'));
-const AAAConfig = lazy(() => import('@/components/wifi/aaa-config'));
-const ProvisioningLogs = lazy(() => import('@/components/wifi/provisioning-logs'));
-const NasHealth = lazy(() => import('@/components/wifi/nas-health'));
 
 // ─── Loading Skeleton ─────────────────────────────────────────────────────────
 
@@ -25,6 +20,16 @@ function TabSkeleton() {
     </div>
   );
 }
+
+// ─── Lazy imports for tab content ──────────────────────────────────────────────
+const GatewayIntegration = lazy(() => import('@/components/wifi/gateway-integration'));
+// Phase 3.1: aaa-config converted from React.lazy to next/dynamic with ssr: false
+const AAAConfig = dynamic(
+  () => import('@/components/wifi/aaa-config').then(m => ({ default: m.AAAConfig ?? m.default })),
+  { ssr: false, loading: () => <TabSkeleton /> }
+);
+const ProvisioningLogs = lazy(() => import('@/components/wifi/provisioning-logs'));
+const NasHealth = lazy(() => import('@/components/wifi/nas-health'));
 
 // ─── Tab Config ──────────────────────────────────────────────────────────────
 

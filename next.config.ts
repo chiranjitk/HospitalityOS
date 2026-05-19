@@ -47,7 +47,6 @@ const nextConfig: NextConfig = {
       'sonner',
       '@radix-ui/react-icons',
       'framer-motion',      // Heavy animation library — tree-shake unused features
-      'react-syntax-highlighter',
       '@tanstack/react-table',
       '@dnd-kit/core',
       '@dnd-kit/sortable',

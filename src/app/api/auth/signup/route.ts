@@ -8,6 +8,13 @@ import { emailVerificationTokenCache } from '@/lib/cache';
 // In-memory rate limiting (3 signups per IP per 15 minutes)
 const signupRateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of signupRateLimitMap.entries()) {
+    if (now > val.resetAt) signupRateLimitMap.delete(key);
+  }
+}, 60_000).unref();
+
 function checkSignupRateLimit(identifier: string, maxAttempts: number, windowMs: number): boolean {
   const now = Date.now();
   const entry = signupRateLimitMap.get(identifier);

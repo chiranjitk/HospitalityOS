@@ -7,6 +7,14 @@ import { setTempSecret } from '@/lib/two-factor-temp-store';
 
 // In-memory rate limiting for 2FA setup
 const twoFASetupRateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of twoFASetupRateLimitMap.entries()) {
+    if (now > val.resetTime) twoFASetupRateLimitMap.delete(key);
+  }
+}, 60_000).unref();
+
 function check2FASetupRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
   const now = Date.now();
   const windowMs = 15 * 60 * 1000; // 15 minutes

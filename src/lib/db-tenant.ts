@@ -2,12 +2,26 @@
  * Tenant-Scoped Database Client (Feature #18)
  *
  * Returns a Prisma client with tenant isolation extension applied.
+ * Uses globalThis to persist the cache across HMR reloads in development.
  */
 
 import { PrismaClient } from '@prisma/client';
 import { createTenantPrismaExtension } from './tenant-isolation';
 
-const clientCache = new Map<string, PrismaClient>();
+/**
+ * Persist clientCache across HMR reloads.
+ * Without this, every file save creates new PrismaClient instances per tenant,
+ * each opening its own connection pool that never gets closed.
+ */
+const globalForTenantCache = globalThis as unknown as {
+  tenantClientCache: Map<string, PrismaClient>
+}
+
+if (!globalForTenantCache.tenantClientCache) {
+  globalForTenantCache.tenantClientCache = new Map<string, PrismaClient>()
+}
+
+const clientCache = globalForTenantCache.tenantClientCache
 
 export function getTenantDb(tenantId: string): PrismaClient {
   const cached = clientCache.get(tenantId);

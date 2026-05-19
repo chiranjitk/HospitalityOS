@@ -4,6 +4,13 @@ import { db } from '@/lib/db';
 // In-memory rate limiting (30 searches per IP per 15 minutes)
 const availabilityRateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of availabilityRateLimitMap.entries()) {
+    if (now > val.resetAt) availabilityRateLimitMap.delete(key);
+  }
+}, 60_000).unref();
+
 function checkAvailabilityRateLimit(identifier: string, maxAttempts: number, windowMs: number): boolean {
   const now = Date.now();
   const entry = availabilityRateLimitMap.get(identifier);

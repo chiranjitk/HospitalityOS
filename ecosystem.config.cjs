@@ -16,8 +16,8 @@ module.exports = {
       max_memory_restart: '4G',
       env: {
         PORT: 3000,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-        RADIUS_DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30',
+        RADIUS_DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30',
         NODE_ENV: 'development',
         LD_LIBRARY_PATH: `${APP_DIR}/freeradius-install/lib:${APP_DIR}/freeradius-install/lib/freeradius:${APP_DIR}/pgsql-runtime/lib`,
       },
@@ -46,7 +46,7 @@ module.exports = {
       watch: false,
       autorestart: true,
       env: {
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30',
       },
       error_file: '/home/z/my-project/.pm2/logs/realtime-error.log',
       out_file: '/home/z/my-project/.pm2/logs/realtime-out.log',
@@ -59,7 +59,7 @@ module.exports = {
       watch: false,
       autorestart: true,
       env: {
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30',
       },
       error_file: '/home/z/my-project/.pm2/logs/availability-error.log',
       out_file: '/home/z/my-project/.pm2/logs/availability-out.log',

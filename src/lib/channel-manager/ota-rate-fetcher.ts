@@ -41,6 +41,7 @@ interface RateCacheEntry {
 // ============================================
 
 const rateCache = new Map<string, RateCacheEntry>();
+setInterval(() => { const now = Date.now(); for (const [key, val] of rateCache.entries()) { if (val.expiresAt < now) rateCache.delete(key); } }, 15 * 60_000).unref();
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 /** Default channel variance factors used as fallback when live rates are unavailable */

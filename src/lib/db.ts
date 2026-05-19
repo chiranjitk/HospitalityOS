@@ -13,24 +13,17 @@ const createPrismaClient = () => {
   })
 }
 
-let prismaClient: PrismaClient | undefined = undefined
-let prismaInitialized = false
+/**
+ * Use globalThis to persist PrismaClient across HMR reloads in development.
+ * Without this, every file save creates a new PrismaClient + connection pool,
+ * leaking 50MB+ per reload. This is the officially recommended pattern:
+ * https://www.prisma.io/docs/guides/other/troubleshooting-orm/help-articles/nextjs-prisma-client-dev-practices
+ */
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
 
-export const db = (() => {
-  if (!prismaClient) {
-    prismaClient = createPrismaClient()
-    if (!isProduction) {
-      console.log('[DB] PrismaClient initialized (development mode with query logging)')
-    } else {
-      console.log('[DB] PrismaClient initialized (production mode)')
-    }
+export const db = globalForPrisma.prisma || createPrismaClient()
 
-    if (!prismaInitialized) {
-      prismaInitialized = true
-    }
-  }
-  return prismaClient
-})()
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
 
 export type { PrismaClient as PrismaClientType } from '@prisma/client'
 

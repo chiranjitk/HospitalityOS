@@ -7,6 +7,7 @@ import { FEATURES, PLAN_FEATURES, getFeatureForMenuItem } from '@/lib/feature-fl
 
 // In-memory cache for feature flags (per tenant)
 const featureCache = new Map<string, { features: string[]; timestamp: number }>();
+setInterval(() => { const now = Date.now(); for (const [key, val] of featureCache.entries()) { if (now - val.timestamp > 30000) featureCache.delete(key); } }, 60_000).unref();
 const CACHE_TTL_MS = 30_000; // 30 seconds
 
 /**

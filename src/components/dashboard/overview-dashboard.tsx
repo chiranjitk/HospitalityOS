@@ -1,6 +1,7 @@
 'use client';
 
-import React, { Suspense, useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -49,7 +50,7 @@ import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { KPICards } from './kpi-cards';
 import { QuickActions } from './quick-actions';
-import { DashboardCharts } from './charts';
+
 import { UpcomingArrivals } from './upcoming-arrivals';
 import { RoomStatusWidget } from './room-status-widget';
 import { GuestSatisfactionWidget } from './guest-satisfaction-widget';
@@ -58,7 +59,7 @@ import { RecentActivityFeed } from './recent-activity-feed';
 import { TodaysSchedule } from './todays-schedule';
 import { UpcomingEventsWidget } from './widgets/upcoming-events';
 import { PerformanceScoreWidget } from './widgets/performance-score';
-import { RevenueBreakdownWidget } from './widgets/revenue-breakdown';
+
 import GuestFeedbackWidget from './widgets/guest-feedback';
 import { DashboardHeader } from './dashboard-header';
 import { MiniCalendarWidget } from './widgets/mini-calendar';
@@ -66,7 +67,7 @@ import { ShiftSummaryWidget } from './widgets/shift-summary';
 import { OperationsBoardWidget } from './widgets/operations-board';
 import { MaintenanceTrackerWidget } from './widgets/maintenance-tracker';
 import { LoyaltyWidget } from './widgets/loyalty-widget';
-import { RatePlanComparisonWidget } from './widgets/rate-plan-comparison';
+
 import { GuestSegmentsWidget } from './widgets/guest-segments';
 import { GuestCommunicationWidget } from './widgets/guest-communication';
 import StaffPerformanceWidget from './widgets/staff-performance';
@@ -80,7 +81,7 @@ import { WeatherWidget } from './widgets/weather-widget';
 import { TaskRemindersWidget } from './widgets/task-reminders-widget';
 import { GuestJourneyPipelineWidget } from './widgets/guest-journey-pipeline';
 import { DailyPerformanceScoreWidget } from './widgets/daily-performance-score';
-import { RevenueTrendWidget } from './revenue-trend-widget';
+
 import { PropertyPerformanceWidget } from './widgets/property-performance-widget';
 import { QuickInsightsWidget } from './widgets/quick-insights';
 import { PropertyStatusSummaryWidget } from './widgets/property-status-summary';
@@ -91,7 +92,7 @@ import { StaffDutyRosterWidget } from './widgets/staff-duty-roster';
 import { RevenueForecastWidget } from './widgets/revenue-forecast';
 import { GuestDemographicsWidget } from './widgets/guest-demographics';
 import { MaintenanceTrackerProWidget } from './widgets/maintenance-tracker-pro';
-import { RevenueBreakdownDonutWidget } from './widgets/revenue-breakdown-donut';
+
 import { GuestFeedbackSummaryWidget } from './widgets/guest-feedback-summary';
 import GuestSentimentAnalyticsWidget from './widgets/guest-sentiment-analytics-widget';
 import { WeatherForecastWidget } from './widgets/weather-forecast-widget';
@@ -101,7 +102,35 @@ import { LazySection } from './lazy-section';
 import { RoomFloorPlanWidget } from './widgets/room-floor-plan-widget';
 import { RoomStatusOverview } from './room-status-overview';
 
-const OccupancyHeatmap = React.lazy(() => import('./occupancy-heatmap').then(m => ({ default: m.OccupancyHeatmap })));
+const DashboardCharts = dynamic(
+  () => import('@/components/dashboard/charts').then(m => ({ default: m.DashboardCharts ?? m.default })),
+  { ssr: false, loading: () => <div className="p-6 animate-pulse"><div className="h-8 bg-muted rounded w-48 mb-4" /><div className="h-64 bg-muted rounded" /></div> }
+);
+
+const RevenueTrendWidget = dynamic(
+  () => import('@/components/dashboard/revenue-trend-widget').then(m => ({ default: m.RevenueTrendWidget ?? m.default })),
+  { ssr: false, loading: () => <div className="p-6 animate-pulse"><div className="h-8 bg-muted rounded w-48 mb-4" /><div className="h-64 bg-muted rounded" /></div> }
+);
+
+const RevenueBreakdownWidget = dynamic(
+  () => import('@/components/dashboard/widgets/revenue-breakdown').then(m => ({ default: m.RevenueBreakdownWidget ?? m.default })),
+  { ssr: false, loading: () => <div className="p-6 animate-pulse"><div className="h-8 bg-muted rounded w-48 mb-4" /><div className="h-48 bg-muted rounded" /></div> }
+);
+
+const RatePlanComparisonWidget = dynamic(
+  () => import('@/components/dashboard/widgets/rate-plan-comparison').then(m => ({ default: m.RatePlanComparisonWidget ?? m.default })),
+  { ssr: false, loading: () => <div className="p-6 animate-pulse"><div className="h-8 bg-muted rounded w-48 mb-4" /><div className="h-48 bg-muted rounded" /></div> }
+);
+
+const RevenueBreakdownDonutWidget = dynamic(
+  () => import('@/components/dashboard/widgets/revenue-breakdown-donut').then(m => ({ default: m.RevenueBreakdownDonutWidget ?? m.default })),
+  { ssr: false, loading: () => <div className="p-6 animate-pulse"><div className="h-8 bg-muted rounded w-48 mb-4" /><div className="h-48 bg-muted rounded" /></div> }
+);
+
+const OccupancyHeatmap = dynamic(
+  () => import('@/components/dashboard/occupancy-heatmap').then(m => ({ default: m.OccupancyHeatmap ?? m.default })),
+  { ssr: false, loading: () => <div className="h-48 bg-muted/50 rounded-2xl animate-pulse" /> }
+);
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -1166,9 +1195,7 @@ export default function OverviewDashboard() {
         {/* ── Occupancy Heatmap ── */}
         <LazySection skeletonHeight="h-48">
           <div className="relative z-10">
-            <Suspense fallback={<div className="h-48 bg-muted/50 rounded-2xl animate-pulse" />}>
-              <OccupancyHeatmap />
-            </Suspense>
+            <OccupancyHeatmap />
           </div>
         </LazySection>
 

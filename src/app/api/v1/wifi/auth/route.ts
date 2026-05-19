@@ -167,6 +167,13 @@ const otpStore = new Map<
   { code: string; expiresAt: number; phone: string; attempts: number }
 >();
 
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of otpStore.entries()) {
+    if (now > val.expiresAt) otpStore.delete(key);
+  }
+}, 5 * 60_000).unref();
+
 if (process.env.NODE_ENV === 'production') {
   console.warn('[OTP] In-memory OTP store used in production — migrate to Redis for multi-instance support');
 }
@@ -179,6 +186,13 @@ function generateOtp(): string {
 // OTP Rate Limiter (per-phone, prevents SMS spam / OTP bombing)
 // ────────────────────────────────────────────────────────────
 const otpRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of otpRateLimits.entries()) {
+    if (now > val.resetAt) otpRateLimits.delete(key);
+  }
+}, 60_000).unref();
 
 const OTP_MAX_REQUESTS = 5;   // max OTP sends per phone per window
 const OTP_WINDOW_MS = 15 * 60 * 1000; // 15 minute window
@@ -617,6 +631,14 @@ async function resolveMacAddress(
 // Per-IP Rate Limiter (in-memory — use Redis for production)
 // ────────────────────────────────────────────────────────────
 const authAttempts = new Map<string, { count: number; resetAt: number }>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of authAttempts.entries()) {
+    if (now > val.resetAt) authAttempts.delete(key);
+  }
+}, 60_000).unref();
+
 function checkRateLimit(ip: string, maxAttempts: number = 10, windowMs: number = 60000): boolean {
   const now = Date.now();
   const entry = authAttempts.get(ip);

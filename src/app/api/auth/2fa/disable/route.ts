@@ -5,6 +5,14 @@ import { verifyPassword } from '@/lib/auth';
 
 // In-memory rate limiting for 2FA disable
 const twoFADisableRateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of twoFADisableRateLimitMap.entries()) {
+    if (now > val.resetTime) twoFADisableRateLimitMap.delete(key);
+  }
+}, 60_000).unref();
+
 function check2FADisableRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
   const now = Date.now();
   const windowMs = 15 * 60 * 1000; // 15 minutes

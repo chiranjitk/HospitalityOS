@@ -74,10 +74,40 @@ export interface DeliveryStatus {
 
 // SMS queue (in-memory for development, should use Redis/BullMQ in production)
 const smsQueue: Map<string, QueuedSMS> = new Map();
+
+// Purge sent/failed queue entries older than 1 hour & enforce maxQueueSize
+setInterval(() => {
+  const oneHourAgo = Date.now() - 60 * 60_000;
+  smsQueue.forEach((val, key) => {
+    if (val.status === 'sent' || val.status === 'failed') {
+      const ts = val.status === 'sent' && val.sentAt ? val.sentAt.getTime() : val.createdAt.getTime();
+      if (ts < oneHourAgo) smsQueue.delete(key);
+    }
+  });
+  // Enforce maxQueueSize by evicting oldest terminal entries first
+  if (smsQueue.size > 10000) {
+    const terminalEntries = Array.from(smsQueue.entries())
+      .filter(([, v]) => v.status === 'sent' || v.status === 'failed')
+      .sort(([, a], [, b]) => a.createdAt.getTime() - b.createdAt.getTime());
+    terminalEntries.forEach(([key]) => {
+      if (smsQueue.size <= 10000) return;
+      smsQueue.delete(key);
+    });
+  }
+}, 30 * 60_000).unref();
+
 let queueProcessorRunning = false;
 
 // Delivery tracking
 const deliveryTracker: Map<string, DeliveryStatus> = new Map();
+
+// Purge delivery statuses older than 24 hours
+setInterval(() => {
+  const oneDayAgo = Date.now() - 24 * 60 * 60_000;
+  deliveryTracker.forEach((val, key) => {
+    if (val.timestamp.getTime() < oneDayAgo) deliveryTracker.delete(key);
+  });
+}, 60 * 60_000).unref();
 
 /**
  * SMS Service Class

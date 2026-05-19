@@ -111,6 +111,9 @@ export class OIDCService {
     redirectUri: string;
     expiresAt: Date;
   }>();
+  static {
+    setInterval(() => { const now = new Date(); for (const [key, val] of OIDCService.stateStore.entries()) { if (val.expiresAt < now) OIDCService.stateStore.delete(key); } }, 5 * 60_000).unref();
+  }
 
   /** Warn once at module load if running in production with in-memory state */
   private static _prodWarned = false;
