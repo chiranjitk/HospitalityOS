@@ -65,64 +65,64 @@
   --radius: 0.75rem;
   
   /* Slider variables - MUST be defined here for fallback */
-  --slider-track-bg: oklch(0.92 0.02 275);
-  --slider-range-bg: oklch(0.48 0.18 275);
+  --slider-track-bg: oklch(0.92 0 0);
+  --slider-range-bg: oklch(0.65 0.20 55);
   --slider-thumb-bg: oklch(1 0 0);
-  --slider-thumb-border: oklch(0.48 0.18 275);
+  --slider-thumb-border: oklch(0.65 0.20 55);
   
-  /* Background - Clean white with subtle warmth */
-  --background: oklch(0.99 0.002 270);
-  --foreground: oklch(0.15 0.02 270);
+  /* Background - Pure white */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.15 0 0);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.15 0.02 270);
+  --card-foreground: oklch(0.15 0 0);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.15 0.02 270);
+  --popover-foreground: oklch(0.15 0 0);
   
-  /* Primary - Vibrant Violet Gradient */
-  --primary: oklch(0.48 0.18 275);
+  /* Primary - Vibrant Orange */
+  --primary: oklch(0.65 0.20 55);
   --primary-foreground: oklch(0.99 0 0);
   
-  /* Secondary - Soft purple tint */
-  --secondary: oklch(0.96 0.02 275);
-  --secondary-foreground: oklch(0.25 0.04 275);
+  /* Secondary - Pure neutral */
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.25 0 0);
   
-  /* Muted - Subtle gray with purple tint */
-  --muted: oklch(0.96 0.01 270);
-  --muted-foreground: oklch(0.50 0.02 270);
+  /* Muted - Pure neutral gray */
+  --muted: oklch(0.96 0 0);
+  --muted-foreground: oklch(0.50 0 0);
   
-  /* Accent - Bright indigo */
-  --accent: oklch(0.92 0.04 275);
-  --accent-foreground: oklch(0.25 0.06 275);
+  /* Accent - Pure neutral */
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.25 0 0);
   
   --destructive: oklch(0.55 0.22 25);
-  --border: oklch(0.91 0.01 270);
-  --input: oklch(0.91 0.01 270);
-  --ring: oklch(0.48 0.18 275);
+  --border: oklch(0.92 0 0);
+  --input: oklch(0.92 0 0);
+  --ring: oklch(0.65 0.20 55);
   
-  /* Gradient Colors */
-  --gradient-start: oklch(0.50 0.20 275);
-  --gradient-end: oklch(0.45 0.18 290);
+  /* Gradient Colors - Orange gradient */
+  --gradient-start: oklch(0.68 0.22 55);
+  --gradient-end: oklch(0.62 0.18 40);
   
   /* Premium Accent - Gold/Amber for highlights */
-  --premium: oklch(0.75 0.15 75);
-  --premium-foreground: oklch(0.20 0.02 75);
+  --premium: oklch(0.78 0.14 75);
+  --premium-foreground: oklch(0.15 0.02 75);
   
-  /* Chart Colors - Vibrant gradient palette */
-  --chart-1: oklch(0.50 0.20 275);
-  --chart-2: oklch(0.55 0.18 290);
-  --chart-3: oklch(0.60 0.16 310);
+  /* Chart Colors - Orange/warm palette */
+  --chart-1: oklch(0.65 0.20 55);
+  --chart-2: oklch(0.60 0.16 40);
+  --chart-3: oklch(0.55 0.12 75);
   --chart-4: oklch(0.65 0.14 142);
-  --chart-5: oklch(0.70 0.12 60);
+  --chart-5: oklch(0.70 0.10 280);
   
-  /* Sidebar - Clean Light */
-  --sidebar: oklch(0.98 0.005 275);
-  --sidebar-foreground: oklch(0.22 0.03 275);
-  --sidebar-primary: oklch(0.50 0.20 275);
+  /* Sidebar - Pure white */
+  --sidebar: oklch(0.99 0 0);
+  --sidebar-foreground: oklch(0.20 0 0);
+  --sidebar-primary: oklch(0.68 0.22 55);
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.94 0.015 275);
-  --sidebar-accent-foreground: oklch(0.22 0.03 275);
-  --sidebar-border: oklch(0.91 0.01 275);
-  --sidebar-ring: oklch(0.50 0.20 275);
+  --sidebar-accent: oklch(0.97 0.008 55);
+  --sidebar-accent-foreground: oklch(0.20 0 0);
+  --sidebar-border: oklch(0.92 0 0);
+  --sidebar-ring: oklch(0.65 0.20 55);
 }
 
 /* ============================================
@@ -131,64 +131,64 @@
    ============================================ */
 .dark {
   /* Slider variables for dark mode */
-  --slider-track-bg: oklch(0.22 0.015 270);
-  --slider-range-bg: oklch(0.78 0.15 75);
-  --slider-thumb-bg: oklch(0.78 0.15 75);
-  --slider-thumb-border: oklch(0.90 0.12 75);
+  --slider-track-bg: oklch(0.20 0 0);
+  --slider-range-bg: oklch(0.72 0.20 55);
+  --slider-thumb-bg: oklch(0.72 0.20 55);
+  --slider-thumb-border: oklch(0.90 0.12 55);
   
-  /* Background - Rich dark with subtle warmth */
-  --background: oklch(0.11 0.015 270);
-  --foreground: oklch(0.95 0.01 75);
-  --card: oklch(0.14 0.018 270);
-  --card-foreground: oklch(0.95 0.01 75);
-  --popover: oklch(0.14 0.018 270);
-  --popover-foreground: oklch(0.95 0.01 75);
+  /* Background - Pure dark */
+  --background: oklch(0.10 0 0);
+  --foreground: oklch(0.95 0 0);
+  --card: oklch(0.13 0 0);
+  --card-foreground: oklch(0.95 0 0);
+  --popover: oklch(0.13 0 0);
+  --popover-foreground: oklch(0.95 0 0);
   
-  /* Primary - Gold/Amber Accent */
-  --primary: oklch(0.78 0.15 75);
-  --primary-foreground: oklch(0.12 0.02 75);
+  /* Primary - Vibrant Orange */
+  --primary: oklch(0.72 0.20 55);
+  --primary-foreground: oklch(0.12 0 0);
   
-  /* Secondary - Dark amber tint */
-  --secondary: oklch(0.20 0.02 75);
-  --secondary-foreground: oklch(0.90 0.02 75);
+  /* Secondary - Pure neutral dark */
+  --secondary: oklch(0.20 0 0);
+  --secondary-foreground: oklch(0.90 0 0);
   
-  /* Muted - Subtle dark */
-  --muted: oklch(0.20 0.015 270);
-  --muted-foreground: oklch(0.65 0.02 270);
+  /* Muted - Pure neutral dark */
+  --muted: oklch(0.18 0 0);
+  --muted-foreground: oklch(0.60 0 0);
   
-  /* Accent - Warm gold */
-  --accent: oklch(0.25 0.03 75);
-  --accent-foreground: oklch(0.92 0.02 75);
+  /* Accent - Pure neutral dark */
+  --accent: oklch(0.22 0 0);
+  --accent-foreground: oklch(0.90 0 0);
   
   --destructive: oklch(0.60 0.22 25);
-  --border: oklch(0.25 0.02 270);
-  --input: oklch(0.25 0.02 270);
-  --ring: oklch(0.78 0.15 75);
+  --border: oklch(0.24 0 0);
+  --input: oklch(0.24 0 0);
+  --ring: oklch(0.72 0.20 55);
   
-  /* Gradient Colors - Amber gold */
-  --gradient-start: oklch(0.80 0.14 70);
-  --gradient-end: oklch(0.70 0.12 85);
+  /* Gradient Colors - Orange gradient */
+  --gradient-start: oklch(0.72 0.22 55);
+  --gradient-end: oklch(0.65 0.18 40);
   
   /* Premium Accent */
-  --premium: oklch(0.78 0.15 75);
+  --premium: oklch(0.78 0.14 75);
   --premium-foreground: oklch(0.12 0.02 75);
   
-  /* Chart Colors - Warm gold palette */
-  --chart-1: oklch(0.78 0.15 75);
-  --chart-2: oklch(0.70 0.12 85);
-  --chart-3: oklch(0.65 0.10 50);
-  --chart-4: oklch(0.60 0.12 142);
-  --chart-5: oklch(0.55 0.10 270);
+  /* Chart Colors - Orange/warm palette */
+  --chart-1: oklch(0.72 0.20 55);
+  --chart-2: oklch(0.65 0.16 40);
+  --chart-3: oklch(0.60 0.12 75);
+  --chart-4: oklch(0.70 0.14 142);
+  --chart-5: oklch(0.75 0.10 280);
   
-  /* Sidebar - Premium Dark */
-  --sidebar: oklch(0.09 0.015 270);
-  --sidebar-foreground: oklch(0.97 0.01 75);
-  --sidebar-primary: oklch(0.78 0.15 75);
-  --sidebar-primary-foreground: oklch(0.09 0.015 270);
-  --sidebar-accent: oklch(0.16 0.025 75);
-  --sidebar-accent-foreground: oklch(0.92 0.01 75);
-  --sidebar-border: oklch(0.20 0.02 270);
-  --sidebar-ring: oklch(0.78 0.15 75);
+  /* Sidebar - Pure dark */
+  --sidebar: oklch(0.08 0 0);
+  --sidebar-foreground: oklch(0.92 0 0);
+  --sidebar-primary: oklch(0.72 0.20 55);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.18 0.008 55);
+  --sidebar-accent-foreground: oklch(0.92 0 0);
+  --sidebar-border: oklch(0.20 0 0);
+  --sidebar-ring: oklch(0.72 0.20 55);
 }
 
 /* ============================================
