@@ -109,6 +109,52 @@ class WiFiProvisioningService {
   }
 
   /**
+   * Check if auto-provision on check-in is enabled for a property.
+   * Reads the WiFiAAAConfig.autoProvisionOnCheckin flag.
+   * Falls back to any config if no property-specific config exists.
+   * Default is true (enabled) when no config is found.
+   */
+  private async isAutoProvisionEnabled(propertyId: string): Promise<boolean> {
+    try {
+      let config = await db.wiFiAAAConfig.findUnique({
+        where: { propertyId },
+        select: { autoProvisionOnCheckin: true },
+      });
+      if (!config) {
+        config = await db.wiFiAAAConfig.findFirst({
+          select: { autoProvisionOnCheckin: true },
+        });
+      }
+      return config?.autoProvisionOnCheckin !== false;
+    } catch {
+      return true; // safe default — don't break provisioning on DB error
+    }
+  }
+
+  /**
+   * Check if auto-deprovision on check-out is enabled for a property.
+   * Reads the WiFiAAAConfig.autoDeprovisionOnCheckout flag.
+   * Falls back to any config if no property-specific config exists.
+   * Default is true (enabled) when no config is found.
+   */
+  private async isAutoDeprovisionEnabled(propertyId: string): Promise<boolean> {
+    try {
+      let config = await db.wiFiAAAConfig.findUnique({
+        where: { propertyId },
+        select: { autoDeprovisionOnCheckout: true },
+      });
+      if (!config) {
+        config = await db.wiFiAAAConfig.findFirst({
+          select: { autoDeprovisionOnCheckout: true },
+        });
+      }
+      return config?.autoDeprovisionOnCheckout !== false;
+    } catch {
+      return true; // safe default — don't break deprovisioning on DB error
+    }
+  }
+
+  /**
    * Handle check-in event - provision WiFi access
    * NOTE: This is a FALLBACK handler. The direct check-in routes (bookings/[id] and kiosk)
    * already call provisionWiFiForBooking() directly. This handler only fires if those
@@ -116,6 +162,12 @@ class WiFiProvisioningService {
    */
   private async handleCheckIn(event: BookingCheckedInEvent): Promise<void> {
     console.log(`[WiFi Provisioning] Processing check-in EVENT for booking ${event.bookingId}`);
+
+    // Respect autoProvisionOnCheckin toggle — skip if disabled
+    if (!(await this.isAutoProvisionEnabled(event.propertyId))) {
+      console.log(`[WiFi Provisioning] Auto-provision is DISABLED for property ${event.propertyId} — skipping check-in provisioning for booking ${event.bookingId}`);
+      return;
+    }
 
     // Check if WiFi user already exists for this booking
     const existingUser = await wifiUserService.getUserByBooking(event.bookingId);
@@ -178,6 +230,12 @@ class WiFiProvisioningService {
   private async handleCheckOut(event: BookingCheckedOutEvent): Promise<void> {
     console.log(`[WiFi Provisioning] Processing check-out for booking ${event.bookingId}`);
 
+    // Respect autoDeprovisionOnCheckout toggle — skip if disabled
+    if (!(await this.isAutoDeprovisionEnabled(event.propertyId))) {
+      console.log(`[WiFi Provisioning] Auto-deprovision is DISABLED for property ${event.propertyId} — skipping check-out deprovisioning for booking ${event.bookingId}`);
+      return;
+    }
+
     const result = await this.deprovisionWiFiForBooking(event.bookingId);
 
     if (result.success) {
@@ -192,6 +250,12 @@ class WiFiProvisioningService {
    */
   private async handleCancellation(event: BookingCancelledEvent): Promise<void> {
     console.log(`[WiFi Provisioning] Processing cancellation for booking ${event.bookingId}`);
+
+    // Respect autoDeprovisionOnCheckout toggle — skip if disabled
+    if (!(await this.isAutoDeprovisionEnabled(event.propertyId))) {
+      console.log(`[WiFi Provisioning] Auto-deprovision is DISABLED for property ${event.propertyId} — skipping cancellation deprovisioning for booking ${event.bookingId}`);
+      return;
+    }
 
     const result = await this.deprovisionWiFiForBooking(event.bookingId);
 
