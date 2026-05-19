@@ -1,5 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getUserFromRequest } from '@/lib/auth-helpers';
+
+/** Resolve tenantId: if 'current', look up from session; otherwise validate as UUID */
+async function resolveTenantId(request: NextRequest, tenantId: string | null): Promise<string | null> {
+  if (!tenantId) return null;
+  if (tenantId === 'current') {
+    const user = await getUserFromRequest(request);
+    return user?.tenantId || null;
+  }
+  // Basic UUID format validation
+  const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+  if (!UUID_REGEX.test(tenantId)) return null;
+  return tenantId;
+}
 
 // Content type to field types mapping
 const CONTENT_FIELD_MAP: Record<string, string[]> = {
@@ -46,15 +60,16 @@ const CONTENT_TYPE_LABELS: Record<string, string> = {
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const tenantId = searchParams.get('tenantId');
+    const rawTenantId = searchParams.get('tenantId');
     const connectionId = searchParams.get('connectionId');
     const contentType = searchParams.get('contentType');
     const status = searchParams.get('status');
     const include = searchParams.get('include');
 
+    const tenantId = await resolveTenantId(request, rawTenantId);
     if (!tenantId) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'tenantId is required' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Valid tenantId is required' } },
         { status: 400 }
       );
     }
@@ -145,11 +160,12 @@ export async function POST(request: NextRequest) {
 
     // Handle "preview" action
     if (action === 'preview') {
-      const { tenantId, connectionId, contentType } = body;
+      const { connectionId, contentType } = body;
+      const tenantId = await resolveTenantId(request, body.tenantId);
 
       if (!tenantId) {
         return NextResponse.json(
-          { success: false, error: { code: 'VALIDATION_ERROR', message: 'tenantId is required' } },
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Valid tenantId is required' } },
           { status: 400 }
         );
       }
@@ -254,11 +270,12 @@ export async function POST(request: NextRequest) {
 
     // Handle "update-field" action
     if (action === 'update-field') {
-      const { tenantId, connectionId, fieldId, fieldType, syncEnabled, mappedValue, propertyId } = body;
+      const { connectionId, fieldId, fieldType, syncEnabled, mappedValue, propertyId } = body;
+      const tenantId = await resolveTenantId(request, body.tenantId);
 
       if (!tenantId || !fieldType) {
         return NextResponse.json(
-          { success: false, error: { code: 'VALIDATION_ERROR', message: 'tenantId and fieldType are required' } },
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Valid tenantId and fieldType are required' } },
           { status: 400 }
         );
       }
@@ -293,11 +310,12 @@ export async function POST(request: NextRequest) {
 
     // Handle "sync" action
     if (action === 'sync') {
-      const { tenantId, connectionId, contentTypes, syncType, propertyId } = body;
+      const { connectionId, contentTypes, syncType, propertyId } = body;
+      const tenantId = await resolveTenantId(request, body.tenantId);
 
       if (!tenantId) {
         return NextResponse.json(
-          { success: false, error: { code: 'VALIDATION_ERROR', message: 'tenantId is required' } },
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Valid tenantId is required' } },
           { status: 400 }
         );
       }

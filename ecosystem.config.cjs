@@ -4,14 +4,14 @@ module.exports = {
   apps: [
     {
       name: 'staysuite-nextjs',
-      script: 'bun',
-      args: 'run dev',
+      script: `${APP_DIR}/scripts/start-nextjs.sh`,
+      interpreter: 'bash',
       cwd: APP_DIR,
       watch: false,
       autorestart: true,
-      max_restarts: 30,
-      restart_delay: 15000,
-      kill_timeout: 15000,
+      max_restarts: 10,
+      restart_delay: 10000,
+      kill_timeout: 30000,
       listen_timeout: 120000,
       env: {
         PORT: 3000,

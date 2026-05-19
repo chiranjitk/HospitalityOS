@@ -30,26 +30,35 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Math.max(1, parseInt(searchParams.get('limit') || '50')), 100);
     const statsOnly = searchParams.get('stats') === 'true';
 
-    if (!propertyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'propertyId is required' } },
-        { status: 400 }
-      );
+    // Resolve propertyId: if not provided, use the first property for the tenant
+    let resolvedPropertyId = propertyId;
+    if (!resolvedPropertyId) {
+      const firstProperty = await db.property.findFirst({
+        where: { tenantId: user.tenantId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!firstProperty) {
+        return NextResponse.json(
+          { success: false, error: { code: 'NO_PROPERTY', message: 'No property found for your tenant' } },
+          { status: 400 }
+        );
+      }
+      resolvedPropertyId = firstProperty.id;
+    } else {
+      // Verify property belongs to user's tenant
+      const property = await db.property.findFirst({
+        where: { id: resolvedPropertyId, tenantId: user.tenantId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!property) {
+        return NextResponse.json(
+          { success: false, error: { code: 'INVALID_PROPERTY', message: 'Property not found' } },
+          { status: 400 }
+        );
+      }
     }
 
-    // Verify property belongs to user's tenant
-    const property = await db.property.findFirst({
-      where: { id: propertyId, tenantId: user.tenantId, deletedAt: null },
-      select: { id: true },
-    });
-    if (!property) {
-      return NextResponse.json(
-        { success: false, error: { code: 'INVALID_PROPERTY', message: 'Property not found' } },
-        { status: 400 }
-      );
-    }
-
-    const where: Record<string, unknown> = { propertyId, deletedAt: null };
+    const where: Record<string, unknown> = { propertyId: resolvedPropertyId, deletedAt: null };
 
     if (category && category !== 'all') {
       where.category = category;
