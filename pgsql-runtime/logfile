@@ -3524,3 +3524,7 @@
 2026-05-19 03:58:40.439 UTC [8406] ERROR:  duplicate key value violates unique constraint "ParkingSlot_pkey"
 2026-05-19 03:58:40.439 UTC [8406] DETAIL:  Key (id)=(70781398-9360-4a63-837c-829287bedf0b) already exists.
 2026-05-19 03:58:40.439 UTC [8406] STATEMENT:  INSERT INTO "public"."ParkingSlot" ("id","tenantId","propertyId","number","floor","type","vehicleType","hasCharging","chargerType","status","posX","posY","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,null,$9,$10,$11,$12,$13), ($14,$15,$16,$17,$18,$19,$20,$21,null,$22,$23,$24,$25,$26), ($27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40), ($41,$42,$43,$44,$45,$46,$47,$48,null,$49,$50,$51,$52,$53), ($54,$55,$56,$57,$58,$59,$60,$61,null,$62,$63,$64,$65,$66)
+2026-05-19 04:02:12.495 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 04:06:42.083 UTC [8065] LOG:  checkpoint complete: wrote 4112 buffers (25.1%); 0 WAL file(s) added, 0 removed, 1 recycled; write=269.561 s, sync=0.025 s, total=269.588 s; sync files=3724, longest=0.001 s, average=0.001 s; distance=23149 kB, estimate=23149 kB; lsn=0/2B88070, redo lsn=0/2B87FC8
+2026-05-19 04:57:12.702 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 04:57:14.613 UTC [8065] LOG:  checkpoint complete: wrote 20 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.906 s, sync=0.001 s, total=1.912 s; sync files=14, longest=0.001 s, average=0.001 s; distance=10 kB, estimate=20835 kB; lsn=0/2B8ABB8, redo lsn=0/2B8AB60
