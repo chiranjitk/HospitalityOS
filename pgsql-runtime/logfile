@@ -3635,3 +3635,5 @@
 	
 2026-05-19 07:47:14.594 UTC [8065] LOG:  checkpoint starting: time
 2026-05-19 07:47:18.406 UTC [8065] LOG:  checkpoint complete: wrote 39 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=3.811 s, sync=0.001 s, total=3.812 s; sync files=25, longest=0.001 s, average=0.001 s; distance=141 kB, estimate=677 kB; lsn=0/2E3BA30, redo lsn=0/2E3B9D8
+2026-05-19 07:52:14.470 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 07:52:15.676 UTC [8065] LOG:  checkpoint complete: wrote 13 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.204 s, sync=0.001 s, total=1.207 s; sync files=11, longest=0.001 s, average=0.001 s; distance=61 kB, estimate=616 kB; lsn=0/2E4B090, redo lsn=0/2E4B038
