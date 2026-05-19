@@ -177,11 +177,19 @@ export async function POST(request: NextRequest) {
         take: 1,
       });
 
-      // Get room types for images and amenities
+      // Get room types for amenities and descriptions
       const roomTypes = await db.roomType.findMany({
         where: { property: { tenantId } },
-        select: { id: true, name: true, images: true, amenities: true },
+        select: { id: true, name: true, description: true, amenities: true, images: true },
         take: 10,
+      });
+
+      // Get actual room images from RoomImage table (primary source)
+      const roomImages = await db.roomImage.findMany({
+        where: { room: { property: { tenantId }, deletedAt: null } },
+        select: { url: true, thumbnailUrl: true, caption: true, category: true, isPrimary: true, room: { select: { roomType: { select: { name: true } } } } },
+        orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+        take: 100,
       });
 
       if (properties.length === 0) {
@@ -212,8 +220,15 @@ export async function POST(request: NextRequest) {
         const existing = existingMap.get(fieldType);
         let sourceValue = '';
 
-        // Aggregate room type images and amenities
-        const allImages = roomTypes.flatMap(rt => { try { return JSON.parse(rt.images || '[]'); } catch { return []; } });
+        // Use RoomImage table as primary source for photos (not legacy roomType.images JSON)
+        const allImageUrls = roomImages.map(img => img.url);
+        const primaryImageUrls = roomImages.filter(img => img.isPrimary).map(img => img.url);
+        const imagesByRoomType: Record<string, string[]> = {};
+        for (const img of roomImages) {
+          const rtName = img.room?.roomType?.name || 'Other';
+          if (!imagesByRoomType[rtName]) imagesByRoomType[rtName] = [];
+          imagesByRoomType[rtName].push(img.url);
+        }
         const allAmenities = roomTypes.flatMap(rt => { try { return JSON.parse(rt.amenities || '[]'); } catch { return []; } });
 
         switch (fieldType) {
@@ -224,13 +239,13 @@ export async function POST(request: NextRequest) {
             sourceValue = property.description || '';
             break;
           case 'hotel_photos':
-            sourceValue = JSON.stringify(allImages);
+            sourceValue = JSON.stringify(primaryImageUrls.length > 0 ? primaryImageUrls : allImageUrls);
             break;
           case 'room_description':
-            sourceValue = roomTypes.map(rt => `${rt.name}: ${rt.images}`).join('\n');
+            sourceValue = roomTypes.map(rt => `${rt.name}: ${rt.description || ''}`).join('\n');
             break;
           case 'room_photos':
-            sourceValue = JSON.stringify(allImages);
+            sourceValue = JSON.stringify(imagesByRoomType);
             break;
           case 'amenity':
             sourceValue = JSON.stringify(allAmenities);
@@ -359,8 +374,16 @@ export async function POST(request: NextRequest) {
 
           const roomTypes = await db.roomType.findMany({
             where: { property: { tenantId } },
-            select: { id: true, name: true, images: true, amenities: true },
+            select: { id: true, name: true, description: true, images: true, amenities: true },
             take: 10,
+          });
+
+          // Get actual room images from RoomImage table (primary source)
+          const roomImages = await db.roomImage.findMany({
+            where: { room: { property: { tenantId }, deletedAt: null } },
+            select: { url: true, thumbnailUrl: true, caption: true, category: true, isPrimary: true, room: { select: { roomType: { select: { name: true } } } } },
+            orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+            take: 100,
           });
 
           const property = properties[0];
@@ -407,9 +430,18 @@ export async function POST(request: NextRequest) {
 
             // If no fields exist yet, create default fields and sync them
             if (enabledFields.length === 0) {
+              // Use RoomImage table for photos (primary source)
+              const allImageUrls = roomImages.map(img => img.url);
+              const primaryImageUrls = roomImages.filter(img => img.isPrimary).map(img => img.url);
+              const imagesByRoomType: Record<string, string[]> = {};
+              for (const img of roomImages) {
+                const rtName = img.room?.roomType?.name || 'Other';
+                if (!imagesByRoomType[rtName]) imagesByRoomType[rtName] = [];
+                imagesByRoomType[rtName].push(img.url);
+              }
+
               for (const fieldType of fieldTypes) {
                 let sourceValue = '';
-                const allImages = roomTypes.flatMap(rt => { try { return JSON.parse(rt.images || '[]'); } catch { return []; } });
                 const allAmenities = roomTypes.flatMap(rt => { try { return JSON.parse(rt.amenities || '[]'); } catch { return []; } });
 
                 switch (fieldType) {
@@ -420,8 +452,10 @@ export async function POST(request: NextRequest) {
                     sourceValue = property.description || '';
                     break;
                   case 'hotel_photos':
+                    sourceValue = JSON.stringify(primaryImageUrls.length > 0 ? primaryImageUrls : allImageUrls);
+                    break;
                   case 'room_photos':
-                    sourceValue = JSON.stringify(allImages);
+                    sourceValue = JSON.stringify(imagesByRoomType);
                     break;
                   case 'amenity':
                   case 'facility':
