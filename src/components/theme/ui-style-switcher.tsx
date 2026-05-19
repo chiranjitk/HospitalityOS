@@ -53,8 +53,20 @@ const uiStyleThemes: Array<{
   darkPreview: string;
   features: string[];
   bestFor: string;
-  category: 'original' | 'premium' | 'enterprise';
+  category: 'default' | 'original' | 'premium' | 'enterprise';
 }> = [
+  {
+    id: 'hospitality-sunrise',
+    name: 'Hospitality Sunrise',
+    description: 'Warm hospitality theme with vibrant orange and clean white — designed for hotels and resorts.',
+    icon: Sun,
+    previewGradient: 'linear-gradient(135deg, #F97316 0%, #EA580C 50%, #C2410C 100%)',
+    lightPreview: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 50%, #fed7aa 100%)',
+    darkPreview: 'linear-gradient(135deg, #1c1917 0%, #292524 50%, #1c1917 100%)',
+    features: ['Warm orange', 'Hospitality', 'Clean white'],
+    bestFor: 'Both modes',
+    category: 'default',
+  },
   {
     id: 'gradient-modern',
     name: 'Gradient Modern',
@@ -237,18 +249,6 @@ const uiStyleThemes: Array<{
     bestFor: 'Dark mode',
     category: 'enterprise',
   },
-  {
-    id: 'hospitality-sunrise',
-    name: 'Hospitality Sunrise',
-    description: 'Warm hospitality theme with vibrant orange and clean white — designed for hotels and resorts.',
-    icon: Sun,
-    previewGradient: 'linear-gradient(135deg, #F97316 0%, #EA580C 50%, #C2410C 100%)',
-    lightPreview: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 50%, #fed7aa 100%)',
-    darkPreview: 'linear-gradient(135deg, #1c1917 0%, #292524 50%, #1c1917 100%)',
-    features: ['Warm orange', 'Hospitality', 'Clean white'],
-    bestFor: 'Both modes',
-    category: 'enterprise',
-  },
 ];
 
 interface UIStyleCardProps {
@@ -392,7 +392,7 @@ export function UIStyleSwitcher({ trigger, open, onOpenChange }: UIStyleSwitcher
                 Choose Your Style
               </span>
               <p className="text-xs font-normal text-muted-foreground mt-0.5">
-                16 handcrafted design themes • Original, Premium & Enterprise collections
+                16 handcrafted design themes • Default, Original, Premium & Enterprise collections
               </p>
             </div>
           </DialogTitle>
@@ -526,21 +526,22 @@ export function UIStyleToggle() {
         <div className="max-h-80 overflow-y-auto">
           {groupedThemes.map((group, groupIdx) => {
             const GroupIcon = group.icon;
-            const isEnterprise = group.key === 'enterprise';
+            const isDefault = group.key === 'default';
             return (
               <React.Fragment key={group.key}>
                 {groupIdx > 0 && <DropdownMenuSeparator className="my-1" />}
                 <DropdownMenuLabel className="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-muted-foreground">
                   <GroupIcon className={cn(
                     'h-3.5 w-3.5',
+                    group.key === 'default' && 'text-orange-500 dark:text-orange-400',
                     group.key === 'original' && 'text-violet-500 dark:text-violet-400',
                     group.key === 'premium' && 'text-amber-500 dark:text-amber-400',
                     group.key === 'enterprise' && 'text-slate-500',
                   )} />
                   {group.name}
-                  {isEnterprise && (
+                  {isDefault && (
                     <Badge className="h-4 text-[9px] px-1.5 py-0 leading-none font-bold bg-primary/15 text-primary border-primary/20 hover:bg-primary/25">
-                      NEW
+                      DEFAULT
                     </Badge>
                   )}
                 </DropdownMenuLabel>
@@ -606,6 +607,13 @@ export { uiStyleThemes };
 
 // Category configuration
 const categoryConfig = {
+  default: {
+    name: 'Default Theme',
+    description: 'The recommended theme for StaySuite — optimized for hospitality',
+    icon: Sun,
+    badgeVariant: 'default' as const,
+    badgeColor: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20',
+  },
   original: {
     name: 'Original Collection',
     description: 'Classic themes with vibrant colors and creative effects',
@@ -631,7 +639,7 @@ const categoryConfig = {
 
 type CategoryKey = keyof typeof categoryConfig;
 
-const categoryOrder: CategoryKey[] = ['original', 'premium', 'enterprise'];
+const categoryOrder: CategoryKey[] = ['default', 'original', 'premium', 'enterprise'];
 
 const groupedThemes = categoryOrder.map((cat) => ({
   key: cat,
@@ -642,22 +650,24 @@ const groupedThemes = categoryOrder.map((cat) => ({
 // Category group header for the dialog grid
 function CategoryHeader({ category }: { category: typeof groupedThemes[0] }) {
   const Icon = category.icon;
-  const isNew = category.key === 'enterprise';
+  const isNew = category.key === 'default';
 
   return (
     <div className="col-span-1 md:col-span-2 lg:col-span-3 mt-4 first:mt-0">
       <div className="flex items-center gap-3 py-2">
         <div className={cn(
           'h-8 w-8 rounded-lg flex items-center justify-center shadow-sm',
+          category.key === 'default' && 'bg-orange-500/15',
           category.key === 'original' && 'bg-violet-500/15',
           category.key === 'premium' && 'bg-amber-500/15',
           category.key === 'enterprise' && 'bg-slate-500/15',
         )}>
           <Icon className={cn(
             'h-4 w-4',
+            category.key === 'default' && 'text-orange-600 dark:text-orange-400',
             category.key === 'original' && 'text-violet-600 dark:text-violet-400',
             category.key === 'premium' && 'text-amber-600 dark:text-amber-400',
-          category.key === 'enterprise' && 'text-slate-600 dark:text-slate-400',
+            category.key === 'enterprise' && 'text-slate-600 dark:text-slate-400',
           )} />
         </div>
         <div className="flex-1 min-w-0">
@@ -665,7 +675,7 @@ function CategoryHeader({ category }: { category: typeof groupedThemes[0] }) {
             <h3 className="font-semibold text-sm">{category.name}</h3>
             {isNew && (
               <Badge className="h-5 text-[10px] px-1.5 bg-primary/15 text-primary border-primary/20 hover:bg-primary/25">
-                NEW
+                {category.key === 'default' ? 'DEFAULT' : 'NEW'}
               </Badge>
             )}
             <span className="text-[11px] text-muted-foreground font-normal">

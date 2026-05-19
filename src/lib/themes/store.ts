@@ -1,6 +1,6 @@
 /**
  * UI Style Theme Store - Zustand store for theme management
- * Handles 15 UI style themes (6 Original + 4 Premium Netflix-style + 5 Enterprise)
+ * Handles 16 UI style themes (1 Default + 6 Original + 4 Premium Netflix-style + 5 Enterprise)
  */
 
 import { create } from 'zustand';
@@ -13,6 +13,7 @@ export { themes, DEFAULT_THEME, themeIcons, getThemeConfig, getAllThemes, getThe
 
 // Local type definitions for UI Style - matches ThemeId from config
 export type UIStyleTheme = 
+  | 'hospitality-sunrise'
   | 'gradient-modern' 
   | 'dark-premium' 
   | 'cyber-neon' 
@@ -27,8 +28,7 @@ export type UIStyleTheme =
   | 'sapphire-dash'
   | 'terra-corporate'
   | 'arctic-steel'
-  | 'noir-executive'
-  | 'hospitality-sunrise';
+  | 'noir-executive';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
