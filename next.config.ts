@@ -115,6 +115,33 @@ const nextConfig: NextConfig = {
     if (!isServer) {
       // Client-side: add polyfills for Node.js built-ins
       config.plugins.push(new NodePolyfillPlugin());
+      // Mark server-only modules as empty for client bundle
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        child_process: false,
+        net: false,
+        tls: false,
+        dgram: false,
+        dns: false,
+        crypto: false,
+        os: false,
+        path: false,
+        stream: false,
+        http: false,
+        https: false,
+        zlib: false,
+        util: false,
+        buffer: false,
+        events: false,
+      };
+    } else {
+      // Server-side: mark Node.js built-ins as external so webpack doesn't try to bundle them
+      config.externals = config.externals || [];
+      const nodeBuiltins = ['crypto', 'fs', 'child_process', 'net', 'tls', 'dgram', 'dns', 'os', 'path', 'stream', 'http', 'https', 'zlib', 'util', 'buffer', 'events'];
+      if (Array.isArray(config.externals)) {
+        config.externals.push(...nodeBuiltins);
+      }
     }
     // Fix node-cron ESM import that requires 'stream' — force CJS resolution
     config.resolve = config.resolve || {};
