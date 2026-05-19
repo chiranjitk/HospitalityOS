@@ -299,7 +299,8 @@ async function pushContentToChannel(
 // ============================================
 
 /**
- * Fetch property content from DB and build the PropertyContent object
+ * Fetch property content from DB and build the PropertyContent object.
+ * Uses the rich RoomImage table (not legacy RoomType.images JSON) for photos.
  */
 export async function getPropertyContent(
   tenantId: string,
@@ -318,6 +319,27 @@ export async function getPropertyContent(
     orderBy: { sortOrder: 'asc' },
   });
 
+  // Fetch ALL room images from the RoomImage table (primary source of truth)
+  const roomImages = await db.roomImage.findMany({
+    where: {
+      room: { propertyId, deletedAt: null },
+    },
+    select: {
+      id: true,
+      url: true,
+      caption: true,
+      category: true,
+      isPrimary: true,
+      sortOrder: true,
+      room: {
+        select: {
+          roomType: { select: { id: true, name: true } },
+        },
+      },
+    },
+    orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+  });
+
   // Parse amenities from room type JSON
   const parseAmenities = (amenitiesJson: string): string[] => {
     try {
@@ -327,20 +349,27 @@ export async function getPropertyContent(
     }
   };
 
-  // Parse photos from property/room type images JSON
-  const parsePhotos = (imagesJson: string, primaryIndex = 0): Array<{ url: string; caption: string; category: string; primary: boolean }> => {
-    try {
-      const images = JSON.parse(imagesJson || '[]');
-      return (Array.isArray(images) ? images : []).map((img: Record<string, unknown>, idx: number) => ({
-        url: String(img.url || img.src || ''),
-        caption: String(img.caption || img.alt || ''),
-        category: String(img.category || 'general'),
-        primary: idx === primaryIndex,
-      }));
-    } catch {
-      return [];
+  // Build property-level photos: ALL images across the property
+  const propertyPhotos = roomImages.map(img => ({
+    url: img.url,
+    caption: img.caption || '',
+    category: img.category || 'general',
+    primary: img.isPrimary,
+  }));
+
+  // Group room images by room type for room-level photos
+  const imagesByRoomType = new Map<string, Array<{ url: string; caption: string; primary: boolean }>>();
+  for (const img of roomImages) {
+    const rtId = img.room?.roomType?.id;
+    if (rtId) {
+      if (!imagesByRoomType.has(rtId)) imagesByRoomType.set(rtId, []);
+      imagesByRoomType.get(rtId)!.push({
+        url: img.url,
+        caption: img.caption || '',
+        primary: img.isPrimary,
+      });
     }
-  };
+  }
 
   // Get cancellation policy if available
   const cancellationPolicies = await db.cancellationPolicy.findMany({
@@ -360,7 +389,7 @@ export async function getPropertyContent(
           ? property.description.substring(0, 200) + '...'
           : property.description)
       : '',
-    photos: parsePhotos(property.logo || '[]'),
+    photos: propertyPhotos,
     amenities: parseAmenities('[]'), // Property-level amenities are typically stored elsewhere
     policies: {
       checkInTime: property.checkInTime,
@@ -374,7 +403,7 @@ export async function getPropertyContent(
       roomTypeId: rt.id,
       name: rt.name,
       description: rt.description || '',
-      photos: parsePhotos(rt.images),
+      photos: imagesByRoomType.get(rt.id) || [],
       amenities: parseAmenities(rt.amenities),
       maxOccupancy: rt.maxOccupancy,
       bedTypes: [], // Could be enhanced with bed type data

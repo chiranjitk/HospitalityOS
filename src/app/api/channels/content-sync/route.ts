@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
         where: { room: { property: { tenantId }, deletedAt: null } },
         select: { url: true, thumbnailUrl: true, caption: true, category: true, isPrimary: true, room: { select: { roomType: { select: { name: true } } } } },
         orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
-        take: 100,
+        take: 500,
       });
 
       if (properties.length === 0) {
@@ -221,13 +221,18 @@ export async function POST(request: NextRequest) {
         let sourceValue = '';
 
         // Use RoomImage table as primary source for photos (not legacy roomType.images JSON)
+        // OTA channels need ALL images — primary photos are just ordered first
         const allImageUrls = roomImages.map(img => img.url);
-        const primaryImageUrls = roomImages.filter(img => img.isPrimary).map(img => img.url);
-        const imagesByRoomType: Record<string, string[]> = {};
+        const imagesByRoomType: Record<string, Array<{url: string; caption: string; category: string; isPrimary: boolean}>> = {};
         for (const img of roomImages) {
           const rtName = img.room?.roomType?.name || 'Other';
           if (!imagesByRoomType[rtName]) imagesByRoomType[rtName] = [];
-          imagesByRoomType[rtName].push(img.url);
+          imagesByRoomType[rtName].push({
+            url: img.url,
+            caption: img.caption || '',
+            category: img.category || 'general',
+            isPrimary: img.isPrimary,
+          });
         }
         const allAmenities = roomTypes.flatMap(rt => { try { return JSON.parse(rt.amenities || '[]'); } catch { return []; } });
 
@@ -239,12 +244,14 @@ export async function POST(request: NextRequest) {
             sourceValue = property.description || '';
             break;
           case 'hotel_photos':
-            sourceValue = JSON.stringify(primaryImageUrls.length > 0 ? primaryImageUrls : allImageUrls);
+            // Sync ALL property images (not just primary) — OTA channels need full gallery
+            sourceValue = JSON.stringify(allImageUrls);
             break;
           case 'room_description':
             sourceValue = roomTypes.map(rt => `${rt.name}: ${rt.description || ''}`).join('\n');
             break;
           case 'room_photos':
+            // Sync ALL room images grouped by room type, with metadata
             sourceValue = JSON.stringify(imagesByRoomType);
             break;
           case 'amenity':
@@ -383,7 +390,7 @@ export async function POST(request: NextRequest) {
             where: { room: { property: { tenantId }, deletedAt: null } },
             select: { url: true, thumbnailUrl: true, caption: true, category: true, isPrimary: true, room: { select: { roomType: { select: { name: true } } } } },
             orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
-            take: 100,
+            take: 500,
           });
 
           const property = properties[0];
@@ -430,39 +437,51 @@ export async function POST(request: NextRequest) {
 
             // If no fields exist yet, create default fields and sync them
             if (enabledFields.length === 0) {
-              // Use RoomImage table for photos (primary source)
+              // Use RoomImage table for photos — ALL images (not just primary)
               const allImageUrls = roomImages.map(img => img.url);
-              const primaryImageUrls = roomImages.filter(img => img.isPrimary).map(img => img.url);
-              const imagesByRoomType: Record<string, string[]> = {};
+              const imagesByRoomType: Record<string, Array<{url: string; caption: string; category: string; isPrimary: boolean}>> = {};
               for (const img of roomImages) {
                 const rtName = img.room?.roomType?.name || 'Other';
                 if (!imagesByRoomType[rtName]) imagesByRoomType[rtName] = [];
-                imagesByRoomType[rtName].push(img.url);
+                imagesByRoomType[rtName].push({
+                  url: img.url,
+                  caption: img.caption || '',
+                  category: img.category || 'general',
+                  isPrimary: img.isPrimary,
+                });
               }
 
               for (const fieldType of fieldTypes) {
                 let sourceValue = '';
+                let itemCount = 0; // Track actual item count for photo fields
                 const allAmenities = roomTypes.flatMap(rt => { try { return JSON.parse(rt.amenities || '[]'); } catch { return []; } });
 
                 switch (fieldType) {
                   case 'hotel_name':
                     sourceValue = property.name || '';
+                    itemCount = 1;
                     break;
                   case 'hotel_description':
                     sourceValue = property.description || '';
+                    itemCount = 1;
                     break;
                   case 'hotel_photos':
-                    sourceValue = JSON.stringify(primaryImageUrls.length > 0 ? primaryImageUrls : allImageUrls);
+                    // Sync ALL property images — OTA channels need full gallery
+                    sourceValue = JSON.stringify(allImageUrls);
+                    itemCount = allImageUrls.length;
                     break;
                   case 'room_photos':
                     sourceValue = JSON.stringify(imagesByRoomType);
+                    itemCount = roomImages.length;
                     break;
                   case 'amenity':
                   case 'facility':
                     sourceValue = JSON.stringify(allAmenities);
+                    itemCount = allAmenities.length;
                     break;
                   default:
                     sourceValue = '';
+                    itemCount = 0;
                 }
 
                 await db.channelContentField.create({
@@ -478,8 +497,8 @@ export async function POST(request: NextRequest) {
                     lastSyncedAt: new Date(),
                   },
                 });
-                totalItems++;
-                syncedItems++;
+                totalItems += itemCount;
+                syncedItems += itemCount;
               }
             }
           }

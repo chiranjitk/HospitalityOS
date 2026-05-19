@@ -239,21 +239,12 @@ export async function POST(
         );
       }
     } else {
-      // Default: sync all primary images
+      // Default: sync ALL images (primary first, then by sort order)
+      // OTA channels need all photos — primary images are just ordered first
       imagesToSync = await db.roomImage.findMany({
-        where: {
-          roomId,
-          isPrimary: true,
-        },
+        where: { roomId },
+        orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
       });
-
-      // If no primary images exist, fall back to all images
-      if (imagesToSync.length === 0) {
-        imagesToSync = await db.roomImage.findMany({
-          where: { roomId },
-          orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
-        });
-      }
     }
 
     if (imagesToSync.length === 0) {

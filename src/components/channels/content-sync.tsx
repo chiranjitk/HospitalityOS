@@ -680,6 +680,9 @@ export function ContentSync() {
                             {record.failedItems > 0 && (
                               <span className="text-red-500 ml-1">({record.failedItems} failed)</span>
                             )}
+                            {record.contentType === 'photos' && record.totalItems > 0 && (
+                              <span className="text-muted-foreground ml-1">photos</span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
