@@ -17,21 +17,29 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// Helper: resolve [id] — could be CUID or subInterface name
+// UUID validation regex (standard UUID v4 format)
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Shared include for VLAN queries
+const VLAN_INCLUDE = { parentInterface: true, _count: { select: { dhcpSubnets: true } } };
+
+// Helper: resolve [id] — could be UUID or subInterface name (e.g. eth1.100)
 async function resolveVlan(id: string, tenantId: string) {
-  // Try by CUID first
-  let vlan = await db.vlanConfig.findFirst({
-    where: { id, tenantId },
-    include: { parentInterface: true, _count: { select: { dhcpSubnets: true } } },
-  });
-  // If not found, try by subInterface name
-  if (!vlan) {
-    vlan = await db.vlanConfig.findFirst({
-      where: { subInterface: id, tenantId },
-      include: { parentInterface: true, _count: { select: { dhcpSubnets: true } } },
+  // Only query by `id` column if the input looks like a valid UUID.
+  // Passing a non-UUID string (e.g. "eth1.10") to a @db.Uuid column
+  // causes Prisma P2023 "Inconsistent column data" errors.
+  if (UUID_RE.test(id)) {
+    const byId = await db.vlanConfig.findFirst({
+      where: { id, tenantId },
+      include: VLAN_INCLUDE,
     });
+    if (byId) return byId;
   }
-  return vlan;
+  // Always fall back to subInterface name lookup
+  return db.vlanConfig.findFirst({
+    where: { subInterface: id, tenantId },
+    include: VLAN_INCLUDE,
+  });
 }
 
 /** Inline fallback: delete VLAN via raw nmcli commands — never throws */
