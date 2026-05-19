@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { randomBytes } from 'crypto';
 import { processImage } from '@/lib/image-processing';
+import { checkStorageLimit, updateStorageUsage } from '@/lib/storage-quota';
 import { db } from '@/lib/db';
 
 const UPLOAD_DIR = '/home/z/my-project/upload';
@@ -91,6 +92,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check storage quota if roomId is provided (tenant-scoped upload)
+    if (roomId) {
+      try {
+        const room = await db.room.findUnique({
+          where: { id: roomId, deletedAt: null },
+          select: { property: { select: { tenantId: true } } },
+        });
+        if (room?.property?.tenantId) {
+          const quotaCheck = await checkStorageLimit(room.property.tenantId, file.size);
+          if (!quotaCheck.allowed) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Storage quota exceeded. Using ${quotaCheck.currentUsageMb.toFixed(1)}MB of ${quotaCheck.maxUsageMb}MB limit.`,
+              },
+              { status: 413 },
+            );
+          }
+        }
+      } catch (err) {
+        console.error('Storage quota check failed (non-blocking):', err);
+        // Continue with upload — quota check is non-blocking
+      }
+    }
+
     // Create the target directory
     const targetDir = path.join(UPLOAD_DIR, safeFolder);
     const resolvedTargetDir = path.resolve(targetDir);
@@ -128,6 +154,21 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     fs.writeFileSync(resolvedFilePath, buffer);
+
+    // Update storage usage if this is a tenant-scoped upload
+    if (roomId) {
+      try {
+        const room = await db.room.findUnique({
+          where: { id: roomId, deletedAt: null },
+          select: { property: { select: { tenantId: true } } },
+        });
+        if (room?.property?.tenantId) {
+          await updateStorageUsage(room.property.tenantId, buffer.length);
+        }
+      } catch (err) {
+        console.error('Failed to update storage usage (non-blocking):', err);
+      }
+    }
 
     const fileUrl = `/api/files/${safeFolder}/${uniqueFilename}`;
 
@@ -267,6 +308,19 @@ export async function DELETE(request: NextRequest) {
 
     // Delete the file
     fs.unlinkSync(resolvedFilePath);
+
+    // Decrement storage usage for tenant-scoped deletions
+    try {
+      const roomImage = await db.roomImage.findFirst({
+        where: { url: fileUrl },
+        select: { room: { select: { property: { select: { tenantId: true } } } } },
+      });
+      if (roomImage?.room?.property?.tenantId && stat.size > 0) {
+        await updateStorageUsage(roomImage.room.property.tenantId, -stat.size);
+      }
+    } catch (err) {
+      console.error('Failed to update storage usage on delete (non-blocking):', err);
+    }
 
     // Also try to delete the thumbnail file from disk if it exists
     const folder = parts[0];

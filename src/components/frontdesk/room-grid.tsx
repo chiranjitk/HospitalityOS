@@ -62,6 +62,15 @@ interface Room {
     id: string;
     name: string;
   };
+  images?: string;
+  roomImages?: Array<{
+    id: string;
+    url: string;
+    thumbnailUrl?: string;
+    caption?: string;
+    isPrimary: boolean;
+    sortOrder: number;
+  }>;
 }
 
 interface Booking {
@@ -511,6 +520,27 @@ export default function RoomGrid() {
                             <Activity className="h-4 w-4 text-blue-500 dark:text-blue-400 animate-ping" />
                           </div>
                         )}
+                        {/* Room thumbnail */}
+                        {(room.roomImages && room.roomImages.length > 0) ? (
+                          <img
+                            src={room.roomImages.find(img => img.isPrimary)?.thumbnailUrl || room.roomImages[0]?.thumbnailUrl || room.roomImages[0]?.url}
+                            alt={`Room ${room.number}`}
+                            className="w-full aspect-[4/3] rounded-sm object-cover mb-1"
+                            loading="lazy"
+                          />
+                        ) : room.images ? (() => {
+                          try {
+                            const imgs = JSON.parse(room.images);
+                            return imgs.length > 0 ? (
+                              <img
+                                src={imgs[0]}
+                                alt={`Room ${room.number}`}
+                                className="w-full aspect-[4/3] rounded-sm object-cover mb-1"
+                                loading="lazy"
+                              />
+                            ) : null;
+                          } catch { return null; }
+                        })() : null}
                         <div className="text-lg font-bold">{room.number}</div>
                         <div className="text-[10px] text-muted-foreground truncate">
                           {room.roomType.code}
