@@ -570,14 +570,19 @@ export default function NetworkPage() {
           })));
         }
 
-        // Derive VLANs from scan data ONLY as fallback — do NOT overwrite
-        // DB-sourced VLANs which carry proper UUID `id` fields.
-        // The DB fetch (fetchVlans) is the authoritative source and runs
-        // in a separate useEffect; OS-derived VLANs have interface names
-        // as `id` (e.g. "eth1.10") which are NOT valid UUIDs and would
-        // cause Prisma P2023 errors on subsequent CRUD operations.
-        // The OS scan data is still useful for _interfaces_ state above.
-        // VLANs are populated exclusively by fetchVlans() from the DB API.
+        // Derive VLANs from scan data
+        // NOTE: OS-derived VLANs use interface names as `id` (e.g. "eth1.10"),
+        // NOT UUIDs. The backend resolveVlan() handles both UUID and non-UUID
+        // IDs — non-UUIDs fall through to subInterface name lookup (text column).
+        // fetchVlans() (DB API) may overwrite these with UUID-sourced entries.
+        if (osResult.data.vlans?.length > 0) {
+          setVlans(osResult.data.vlans.map((v: any) => ({
+            id: v.name, vlanId: v.vlanId || 0, subInterface: v.name,
+            parent: v.vlanParent || '', description: v.ipv4Address || '',
+            mtu: v.mtu || 1500, enabled: v.state === 'up',
+            dhcpSubnet: v.ipv4Address ? `${v.ipv4Address}/${v.ipv4Cidr || 24}` : '',
+          })));
+        }
 
         // Derive roles from nettype
         const nettypeToRoleMap: Record<number, string> = { 1: 'wan', 0: 'lan', 5: 'management', 6: 'guest', 3: 'bridge', 4: 'bond', 7: 'iot', 2: 'vlan', 9: 'dmz', 10: 'wifi', 8: 'unused' };
