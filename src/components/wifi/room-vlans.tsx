@@ -291,6 +291,7 @@ export default function RoomVlanManager() {
   const [copied, setCopied] = useState(false);
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [applyingRules, setApplyingRules] = useState(false);
 
   // ── Data fetchers ──
 
@@ -583,13 +584,35 @@ export default function RoomVlanManager() {
     });
   }
 
-  function handleApplyRules() {
-    toast({
-      title: 'Firewall Rules Queued',
-      description: 'Rules would be pushed to the gateway. In production, this applies via the firewall service.',
-    });
-    setFirewallOpen(false);
-  }
+  const handleApplyRules = async () => {
+    setApplyingRules(true);
+    try {
+      const res = await fetch('/api/wifi/network/room-vlans/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ propertyId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({
+          title: 'Firewall Rules Applied',
+          description: `Applied ${data.appliedCount} VLAN rule${data.appliedCount !== 1 ? 's' : ''} successfully`,
+        });
+        setFirewallOpen(false);
+        fetchRoomVlans();
+      } else {
+        toast({
+          title: 'Apply Failed',
+          description: data.output || 'Unknown error',
+          variant: 'destructive',
+        });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to apply rules', variant: 'destructive' });
+    } finally {
+      setApplyingRules(false);
+    }
+  };
 
   // ── Stats cards ──
 
@@ -1345,10 +1368,10 @@ export default function RoomVlanManager() {
             <Button
               onClick={handleApplyRules}
               className="gap-2"
-              disabled={roomVlans.filter((rv) => rv.status === 'active').length === 0}
+              disabled={roomVlans.filter((rv) => rv.status === 'active').length === 0 || applyingRules}
             >
-              <Shield className="h-4 w-4" />
-              Apply Rules
+              {applyingRules ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
+              {applyingRules ? 'Applying…' : 'Apply Rules'}
             </Button>
           </DialogFooter>
         </DialogContent>

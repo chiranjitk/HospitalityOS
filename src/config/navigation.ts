@@ -400,9 +400,12 @@ export const navigationConfig: NavSection[] = [
       { id: 'wifi-identity-verification', title: 'Identity Verification', href: '#wifi-identity-verification', icon: ShieldCheck },
       { id: 'wifi-consent-management', title: 'GDPR Consent', href: '#wifi-consent-management', icon: FileCheck2 },
       { id: 'wifi-bandwidth-upsell', title: 'Bandwidth Upsell', href: '#wifi-bandwidth-upsell', icon: TrendingUp },
+      { id: 'wifi-ad-campaigns', title: 'Ad Campaigns', href: '#wifi-ad-campaigns', icon: Megaphone },
+      { id: 'wifi-partners', title: 'Partner WiFi', href: '#wifi-partners', icon: Handshake },
       { id: 'wifi-revenue-dashboard', title: 'Revenue Analytics', href: '#wifi-revenue-dashboard', icon: DollarSign },
       { id: 'wifi-satisfaction-surveys', title: 'Guest Surveys', href: '#wifi-satisfaction-surveys', icon: Star },
       { id: 'wifi-sla-monitoring', title: 'SLA Monitoring', href: '#wifi-sla-monitoring', icon: Gauge },
+      { id: 'wifi-heatmap', title: 'WiFi Heatmap', href: '#wifi-heatmap', icon: MapPin },
     ],
   },
 

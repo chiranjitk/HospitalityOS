@@ -10,13 +10,15 @@ import { Prisma } from '@prisma/client';
  *   - identity_verification
  *   - consent_management
  *   - bandwidth_upsell
+ *   - satisfaction_survey
  */
 
 export type WifiSettingsKey =
   | 'device_management'
   | 'identity_verification'
   | 'consent_management'
-  | 'bandwidth_upsell';
+  | 'bandwidth_upsell'
+  | 'satisfaction_survey';
 
 // ---- default values per key ----
 
@@ -47,6 +49,13 @@ const DEFAULTS: Record<WifiSettingsKey, Record<string, unknown>> = {
     chargeToRoom: true,
     defaultCurrency: 'INR',
     tiers: [],
+  },
+  satisfaction_survey: {
+    enabled: true,
+    title: 'How was your WiFi experience?',
+    description: 'Help us improve by rating your connection',
+    categories: ['speed', 'coverage', 'easeOfConnect'],
+    showCommentBox: true,
   },
 };
 
@@ -89,11 +98,20 @@ export interface BandwidthTier {
   enabled: boolean;
 }
 
+export interface SatisfactionSurveySettings {
+  enabled: boolean;
+  title: string;
+  description: string;
+  categories: string[];
+  showCommentBox: boolean;
+}
+
 export type WifiSettingsMap = {
   device_management: DeviceManagementSettings;
   identity_verification: IdentityVerificationSettings;
   consent_management: ConsentManagementSettings;
   bandwidth_upsell: BandwidthUpsellSettings;
+  satisfaction_survey: SatisfactionSurveySettings;
 };
 
 // ---- CRUD helpers ----

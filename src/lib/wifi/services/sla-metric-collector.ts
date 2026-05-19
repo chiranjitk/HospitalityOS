@@ -18,6 +18,7 @@
  */
 
 import { db } from '@/lib/db';
+import { bridgeSLABreachesToAlerts } from '@/lib/services/sla-alert-bridge';
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -638,6 +639,26 @@ export async function collectSlaMetrics(): Promise<{
         console.error(
           `[SlaMetricCollector] Error processing config ${config.id} (property ${config.propertyId}):`,
           err instanceof Error ? err.message : String(err)
+        );
+      }
+    }
+
+    // ── Step 3: Bridge SLA breaches to F20 alerts (non-blocking) ──
+    const tenantIds = [...new Set(configs.map((c) => c.tenantId))];
+    for (const tid of tenantIds) {
+      try {
+        const bridgeResult = await bridgeSLABreachesToAlerts(tid);
+        if (bridgeResult.alertsCreated > 0 || bridgeResult.alertsResolved > 0) {
+          console.info(
+            `[SlaMetricCollector] Alert bridge for tenant ${tid}: ` +
+              `${bridgeResult.alertsCreated} created, ${bridgeResult.alertsResolved} resolved`
+          );
+        }
+      } catch (bridgeErr) {
+        // Non-blocking — don't let bridge failures affect metric collection
+        console.error(
+          `[SlaMetricCollector] Alert bridge failed for tenant ${tid}:`,
+          bridgeErr instanceof Error ? bridgeErr.message : String(bridgeErr)
         );
       }
     }

@@ -140,12 +140,18 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/wifi/wifi-consent-management');
     case 'wifi-bandwidth-upsell':
       return import('@/components/wifi/wifi-bandwidth-upsell');
+    case 'wifi-ad-campaigns':
+      return import('@/components/wifi/wifi-ad-campaigns');
     case 'wifi-revenue-dashboard':
       return import('@/components/wifi/wifi-revenue-dashboard');
     case 'wifi-satisfaction-surveys':
       return import('@/components/wifi/wifi-satisfaction-surveys');
     case 'wifi-sla-monitoring':
       return import('@/components/wifi/wifi-sla-monitoring');
+    case 'wifi-partners':
+      return import('@/components/wifi/wifi-partners');
+    case 'wifi-heatmap':
+      return import('@/components/wifi/wifi-heatmap');
     default:
       throw new Error(`Unknown wifi section: ${section}`);
   }

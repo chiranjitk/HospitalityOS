@@ -4779,6 +4779,8 @@ model Property {
   devicePolicies            DevicePolicy[]
   devicePolicyAssignments   DevicePolicyAssignment[]
   ztnaAuditLogs             ZtnaAuditLog[]
+  heatmapReadings           WiFiHeatmapReading[]
+  wifiFloorPlans             WiFiFloorPlan[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -6878,6 +6880,9 @@ model Tenant {
   devicePolicies            DevicePolicy[]
   devicePolicyAssignments   DevicePolicyAssignment[]
   ztnaAuditLogs             ZtnaAuditLog[]
+  otpRecords                WiFiOTP[]
+  heatmapReadings           WiFiHeatmapReading[]
+  wifiFloorPlans             WiFiFloorPlan[]
 }
 
 // ============================================================
@@ -8002,6 +8007,84 @@ model WiFiIdentityLog {
   @@index([verificationMethod])
   @@index([verificationStatus])
   @@index([createdAt])
+}
+
+/// WiFi OTP — Pending OTP codes for guest verification (F14)
+model WiFiOTP {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  propertyId  String?   @db.Uuid
+  sessionId   String?
+  username    String?
+  destination String    // Phone number or email address
+  channel     String    // sms, email
+  codeHash    String    // SHA-256 hash of the OTP code
+  otpLength   Int       @default(6)
+  expiresAt   DateTime  @db.Timestamptz
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  status      String    @default("pending") // pending, verified, expired, failed
+  ipAddress   String?
+  verifiedAt  DateTime? @db.Timestamptz
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([destination])
+  @@index([sessionId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+/// WiFi Heatmap Data (F17) — AP signal strength readings for coverage visualization
+model WiFiHeatmapReading {
+  id             String        @id @default(uuid()) @db.Uuid
+  tenantId       String        @db.Uuid
+  propertyId     String        @db.Uuid
+  floorPlanId    String?       @db.Uuid
+  apName         String
+  apMac          String?
+  apX            Float         // X position on floor plan (0-100%)
+  apY            Float         // Y position on floor plan (0-100%)
+  signalStrength Int           // RSSI in dBm (typically -30 to -90)
+  clientCount    Int           @default(0)
+  band           String        @default("2.4") // 2.4, 5, 6
+  channel        Int?
+  frequency      Int?          // MHz
+  noiseFloor     Int?          // dBm
+  snr            Int?          // Signal to Noise Ratio
+  recordedAt     DateTime      @default(now()) @db.Timestamptz
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property       Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  floorPlan      WiFiFloorPlan? @relation(fields: [floorPlanId], references: [id])
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([floorPlanId])
+  @@index([apName])
+  @@index([recordedAt])
+}
+
+/// WiFi Heatmap Floor Plan Config (F17)
+model WiFiFloorPlan {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  propertyId  String    @db.Uuid
+  floorName   String
+  floorNumber Int       @default(1)
+  svgData     String    // SVG content of the floor plan
+  width       Int       @default(800)
+  height      Int       @default(600)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+  readings    WiFiHeatmapReading[]
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, floorNumber])
+  @@index([tenantId])
+  @@index([propertyId])
 }
 
 /// Bandwidth Upgrade Purchase (F1) — Guest upsell transactions

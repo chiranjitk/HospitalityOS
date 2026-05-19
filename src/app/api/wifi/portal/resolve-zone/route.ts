@@ -139,6 +139,13 @@ async function buildPortalConfig(portalId: string) {
     // Convert bytes/sec to Mbps for guest-friendly display
     maxBandwidthDown: Math.round(portal.maxBandwidthDown / 1000000) || 5,
     maxBandwidthUp: Math.round(portal.maxBandwidthUp / 1000000) || 1,
+    // ── Roaming configuration (F11) ──
+    roamingMode: portal.roamingMode || 'auth_origin',
+    allowsRoamingFrom: (() => {
+      try { return portal.allowsRoamingFrom ? JSON.parse(portal.allowsRoamingFrom) : []; }
+      catch { return []; }
+    })(),
+    bandwidthPolicy: portal.bandwidthPolicy || 'zone',
     design: {
       layoutType: (designSettings.layoutType as string) || 'centered',
       backgroundType: (designSettings.backgroundType as string) || 'gradient',
@@ -269,6 +276,9 @@ export async function GET(request: NextRequest) {
             portalId: defaultPortal.id,
             matchedSubnet: null,
             isDefault: true,
+            roamingMode: config?.roamingMode ?? 'auth_origin',
+            allowsRoamingFrom: config?.allowsRoamingFrom ?? [],
+            bandwidthPolicy: config?.bandwidthPolicy ?? 'zone',
             config,
           },
         });
@@ -314,6 +324,9 @@ export async function GET(request: NextRequest) {
             portalId: defaultPortal.id,
             matchedSubnet: null,
             isDefault: true,
+            roamingMode: config?.roamingMode ?? 'auth_origin',
+            allowsRoamingFrom: config?.allowsRoamingFrom ?? [],
+            bandwidthPolicy: config?.bandwidthPolicy ?? 'zone',
             config,
           },
         });
@@ -337,6 +350,9 @@ export async function GET(request: NextRequest) {
           zone: fallbackConfig?.slug ?? null,
           portalId: matchedMapping.fallbackPortalId,
           matchedSubnet: matchedMapping.subnet,
+          roamingMode: fallbackConfig?.roamingMode ?? 'auth_origin',
+          allowsRoamingFrom: fallbackConfig?.allowsRoamingFrom ?? [],
+          bandwidthPolicy: fallbackConfig?.bandwidthPolicy ?? 'zone',
           config: fallbackConfig,
         },
       });
@@ -348,6 +364,9 @@ export async function GET(request: NextRequest) {
         zone: config?.slug ?? null,
         portalId: matchedMapping.portalId,
         matchedSubnet: matchedMapping.subnet,
+        roamingMode: config?.roamingMode ?? 'auth_origin',
+        allowsRoamingFrom: config?.allowsRoamingFrom ?? [],
+        bandwidthPolicy: config?.bandwidthPolicy ?? 'zone',
         config,
       },
     });
