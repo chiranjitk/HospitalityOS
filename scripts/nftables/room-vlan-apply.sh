@@ -421,7 +421,7 @@ cmd_apply() {
                 ;;
             conference)
                 bw_down="${bw_down:-20971520}"
-                bw_up="${bw_up}-10485760"
+                bw_up="${bw_up:-10485760}"
                 ;;
         esac
 

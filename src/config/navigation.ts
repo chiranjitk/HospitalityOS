@@ -104,6 +104,7 @@ import {
   Timer,
   Calculator,
   Send,
+  MapPin,
 } from 'lucide-react';
 
 export interface NavItem {

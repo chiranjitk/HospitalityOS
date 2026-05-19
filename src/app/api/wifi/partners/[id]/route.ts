@@ -85,6 +85,22 @@ export async function PATCH(
       );
     }
 
+    // Enforce status transition state machine
+    if (status && status !== existing.status) {
+      const VALID_TRANSITIONS: Record<string, string[]> = {
+        active: ['paused'],
+        paused: ['active', 'inactive'],
+        inactive: ['active'],
+      };
+      const allowed = VALID_TRANSITIONS[existing.status];
+      if (!allowed || !allowed.includes(status)) {
+        return NextResponse.json(
+          { success: false, error: `Cannot transition from '${existing.status}' to '${status}'. Allowed: ${allowed ? allowed.join(', ') : 'none'}` },
+          { status: 400 },
+        );
+      }
+    }
+
     // Validate partnerType
     const validPartnerTypes = ['loyalty', 'airline', 'credit_card', 'corporate'];
     if (partnerType && !validPartnerTypes.includes(partnerType)) {
