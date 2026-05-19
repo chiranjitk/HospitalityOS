@@ -4,17 +4,19 @@
  * GET — Returns properties that don't have an SLA config yet
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/sla/available-properties
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     // Get all property IDs that already have an SLA config
     const existingConfigs = await db.wiFiSLAConfig.findMany({
-      where: { tenantId: TENANT_ID },
+      where: { tenantId: auth.tenantId },
       select: { propertyId: true },
     });
 
@@ -23,7 +25,7 @@ export async function GET() {
     // Get all active properties for the tenant that don't have a config
     const properties = await db.property.findMany({
       where: {
-        tenantId: TENANT_ID,
+        tenantId: auth.tenantId,
         deletedAt: null,
         ...(configuredPropertyIds.size > 0 ? { id: { notIn: Array.from(configuredPropertyIds) } } : {}),
       },

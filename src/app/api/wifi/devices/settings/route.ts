@@ -7,13 +7,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getWifiSettings, setWifiSettings, type DeviceManagementSettings } from '@/lib/wifi-settings';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/devices/settings
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
-    const settings = await getWifiSettings(TENANT_ID, 'device_management');
+    const settings = await getWifiSettings(auth.tenantId, 'device_management');
     return NextResponse.json({ success: true, data: settings });
   } catch (error) {
     console.error('Error fetching device management settings:', error);
@@ -26,6 +28,9 @@ export async function GET() {
 
 // PUT /api/wifi/devices/settings
 export async function PUT(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
 
@@ -63,7 +68,7 @@ export async function PUT(request: NextRequest) {
       autoCleanupDays: cleanupDays,
     };
 
-    await setWifiSettings(TENANT_ID, 'device_management', settings);
+    await setWifiSettings(auth.tenantId, 'device_management', settings);
 
     return NextResponse.json({ success: true, data: settings });
   } catch (error) {

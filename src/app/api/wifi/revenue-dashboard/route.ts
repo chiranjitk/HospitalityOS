@@ -6,11 +6,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     thirtyDaysAgo.setHours(0, 0, 0, 0);
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
       // Current period — completed bandwidth upgrades
       db.wiFiBandwidthUpgrade.findMany({
         where: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           paymentStatus: 'completed',
           createdAt: { gte: thirtyDaysAgo },
         },
@@ -45,7 +47,7 @@ export async function GET(request: NextRequest) {
       // Previous period — completed bandwidth upgrades
       db.wiFiBandwidthUpgrade.findMany({
         where: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           paymentStatus: 'completed',
           createdAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo },
         },
@@ -54,7 +56,7 @@ export async function GET(request: NextRequest) {
       // Current period — used vouchers
       db.wiFiVoucher.findMany({
         where: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           isUsed: true,
           usedAt: { gte: thirtyDaysAgo },
         },
@@ -64,7 +66,7 @@ export async function GET(request: NextRequest) {
       // Previous period — used vouchers
       db.wiFiVoucher.findMany({
         where: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           isUsed: true,
           usedAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo },
         },
@@ -74,7 +76,7 @@ export async function GET(request: NextRequest) {
       // Current period — partner auths
       db.wiFiPartnerAuth.findMany({
         where: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           createdAt: { gte: thirtyDaysAgo },
         },
         include: { partner: { select: { id: true, name: true } } },
@@ -83,7 +85,7 @@ export async function GET(request: NextRequest) {
       // Previous period — partner auths
       db.wiFiPartnerAuth.findMany({
         where: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           createdAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo },
         },
       }),
@@ -91,7 +93,7 @@ export async function GET(request: NextRequest) {
       // Ad campaign revenue (current period)
       db.portalAdCampaign.findMany({
         where: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           createdAt: { gte: thirtyDaysAgo },
         },
       }),
@@ -99,7 +101,7 @@ export async function GET(request: NextRequest) {
       // All upgrades in period (for conversion rate)
       db.wiFiBandwidthUpgrade.findMany({
         where: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           createdAt: { gte: thirtyDaysAgo },
         },
       }),
@@ -107,7 +109,7 @@ export async function GET(request: NextRequest) {
       // Active paid subscriptions (not expired)
       db.wiFiBandwidthUpgrade.count({
         where: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           paymentStatus: 'completed',
           expiresAt: { gt: new Date() },
         },
@@ -117,7 +119,7 @@ export async function GET(request: NextRequest) {
       db.wiFiBandwidthUpgrade.groupBy({
         by: ['toPlanId'],
         where: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           paymentStatus: 'completed',
           createdAt: { gte: thirtyDaysAgo },
         },

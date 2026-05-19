@@ -9,20 +9,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 // GET /api/wifi/devices/[id] — Get device details
-export async function GET(_request: NextRequest, context: RouteContext) {
+export async function GET(request: NextRequest, context: RouteContext) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { id } = await context.params;
 
     const device = await db.wiFiDevice.findFirst({
       where: {
         id,
-        tenantId: TENANT_ID,
+        tenantId: auth.tenantId,
       },
       include: {
         guest: {
@@ -56,6 +58,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
 // PATCH /api/wifi/devices/[id] — Update device
 export async function PATCH(request: NextRequest, context: RouteContext) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { id } = await context.params;
     const body = await request.json();
@@ -63,7 +68,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     // Verify the device belongs to this tenant
     const existing = await db.wiFiDevice.findFirst({
-      where: { id, tenantId: TENANT_ID },
+      where: { id, tenantId: auth.tenantId },
     });
 
     if (!existing) {
@@ -113,13 +118,16 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 }
 
 // DELETE /api/wifi/devices/[id] — Remove device registration
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { id } = await context.params;
 
     // Verify the device belongs to this tenant
     const existing = await db.wiFiDevice.findFirst({
-      where: { id, tenantId: TENANT_ID },
+      where: { id, tenantId: auth.tenantId },
     });
 
     if (!existing) {

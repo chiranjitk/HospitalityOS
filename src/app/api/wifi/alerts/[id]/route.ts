@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-
-// ─── Hardcoded tenant for development ──────────────────────────────────────────
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -12,10 +10,13 @@ interface RouteParams {
 // Get a single WiFi alert by ID
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { id } = await params;
 
     const alert = await db.wiFiAlert.findFirst({
-      where: { id, tenantId: TENANT_ID },
+      where: { id, tenantId: auth.tenantId },
       include: {
         property: {
           select: { id: true, name: true },
@@ -44,13 +45,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // Acknowledge or resolve an alert
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { id } = await params;
     const body = await request.json();
     const { status, acknowledgedBy, resolvedBy, resolveNote } = body;
 
     // Verify alert exists and belongs to tenant
     const existing = await db.wiFiAlert.findFirst({
-      where: { id, tenantId: TENANT_ID },
+      where: { id, tenantId: auth.tenantId },
     });
 
     if (!existing) {
@@ -131,11 +135,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 // Delete a WiFi alert
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { id } = await params;
 
     // Verify alert exists and belongs to tenant
     const existing = await db.wiFiAlert.findFirst({
-      where: { id, tenantId: TENANT_ID },
+      where: { id, tenantId: auth.tenantId },
     });
 
     if (!existing) {

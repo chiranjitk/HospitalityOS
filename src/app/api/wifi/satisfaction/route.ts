@@ -8,11 +8,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/satisfaction — List surveys
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const ratingMin = searchParams.get('ratingMin');
@@ -25,7 +27,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    const where: Record<string, unknown> = { tenantId: TENANT_ID };
+    const where: Record<string, unknown> = { tenantId: auth.tenantId };
 
     if (ratingMin) where.rating = { ...((where.rating as Record<string, unknown>) || {}), gte: parseInt(ratingMin) };
     if (ratingMax) where.rating = { ...((where.rating as Record<string, unknown>) || {}), lte: parseInt(ratingMax) };
@@ -79,6 +81,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/wifi/satisfaction — Submit new survey
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
     const data = nullifyEmptyStrings(body);
@@ -117,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     const survey = await db.wiFiSatisfactionSurvey.create({
       data: {
-        tenantId: TENANT_ID,
+        tenantId: auth.tenantId,
         guestId: (guestId as string) || null,
         propertyId: (propertyId as string) || null,
         sessionId: (sessionId as string) || null,

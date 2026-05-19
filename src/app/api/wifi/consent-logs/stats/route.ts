@@ -7,10 +7,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const days = parseInt(searchParams.get('days') || '30');
@@ -22,7 +24,7 @@ export async function GET(request: NextRequest) {
     const until = endDate ? new Date(endDate) : new Date();
 
     const baseWhere = {
-      tenantId: TENANT_ID,
+      tenantId: auth.tenantId,
       createdAt: { gte: since, lte: until },
     };
 
@@ -39,7 +41,7 @@ export async function GET(request: NextRequest) {
       // Marketing opt-in count
       db.wiFiConsentLog.count({ where: { ...baseWhere, optInMarketing: true } }),
       // Total ever (for consent rate)
-      db.wiFiConsentLog.count({ where: { tenantId: TENANT_ID } }),
+      db.wiFiConsentLog.count({ where: { tenantId: auth.tenantId } }),
       // Consent by type
       db.wiFiConsentLog.groupBy({
         by: ['consentType'],
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     // Active consents (non-expired)
     const activeConsents = await db.wiFiConsentLog.count({
-      where: { tenantId: TENANT_ID, expiresAt: { gt: new Date() } },
+      where: { tenantId: auth.tenantId, expiresAt: { gt: new Date() } },
     });
 
     // Build daily trend grouped by date

@@ -7,14 +7,17 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getWifiSettings, setWifiSettings, type BandwidthUpsellSettings } from '@/lib/wifi-settings';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
 const SETTINGS_KEY = 'bandwidth_upsell';
 
 // GET /api/wifi/bandwidth-upgrade/settings
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
-    const settings = await getWifiSettings(TENANT_ID, SETTINGS_KEY);
+    const settings = await getWifiSettings(auth.tenantId, SETTINGS_KEY);
     return NextResponse.json({ success: true, data: settings });
   } catch (error) {
     console.error('Error fetching bandwidth upsell settings:', error);
@@ -27,6 +30,9 @@ export async function GET() {
 
 // PUT /api/wifi/bandwidth-upgrade/settings
 export async function PUT(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json() as BandwidthUpsellSettings;
 
@@ -56,7 +62,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    await setWifiSettings(TENANT_ID, SETTINGS_KEY, body);
+    await setWifiSettings(auth.tenantId, SETTINGS_KEY, body);
 
     return NextResponse.json({ success: true, data: body });
   } catch (error) {

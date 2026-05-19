@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-
-// ─── Hardcoded tenant for development ──────────────────────────────────────────
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // ─── Valid alert types and severities ──────────────────────────────────────────
 const VALID_TYPES = [
@@ -22,6 +20,9 @@ const VALID_STATUSES = ['active', 'acknowledged', 'resolved'] as const;
 // List WiFi alerts with filters and pagination
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status');
     const severity = searchParams.get('severity');
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
 
     // Build where clause
-    const where: Record<string, unknown> = { tenantId: TENANT_ID };
+    const where: Record<string, unknown> = { tenantId: auth.tenantId };
 
     if (status && VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
       where.status = status;
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Count stats
-    const countWhere = { tenantId: TENANT_ID };
+    const countWhere = { tenantId: auth.tenantId };
     const [activeCount, acknowledgedCount, resolvedCount, criticalCount, warningCount, infoCount] =
       await Promise.all([
         db.wiFiAlert.count({ where: { ...countWhere, status: 'active' } }),
@@ -117,6 +118,9 @@ export async function GET(request: NextRequest) {
 // Create a new WiFi alert (for programmatic alert creation from health checks)
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
     const { propertyId, type, severity, title, message, source, metadata } = body;
 
@@ -145,7 +149,7 @@ export async function POST(request: NextRequest) {
     // Create the alert
     const alert = await db.wiFiAlert.create({
       data: {
-        tenantId: TENANT_ID,
+        tenantId: auth.tenantId,
         propertyId: propertyId || null,
         type,
         severity: severity || 'warning',

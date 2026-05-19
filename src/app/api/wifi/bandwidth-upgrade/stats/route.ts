@@ -6,10 +6,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const days = parseInt(searchParams.get('days') || '30');
@@ -20,7 +22,7 @@ export async function GET(request: NextRequest) {
     const until = endDate ? new Date(endDate) : new Date();
 
     const baseWhere = {
-      tenantId: TENANT_ID,
+      tenantId: auth.tenantId,
       createdAt: { gte: since, lte: until },
     };
 
@@ -66,13 +68,13 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: 'asc' },
       }),
       // All-time upgrades for conversion rate
-      db.wiFiBandwidthUpgrade.count({ where: { tenantId: TENANT_ID } }),
+      db.wiFiBandwidthUpgrade.count({ where: { tenantId: auth.tenantId } }),
     ]);
 
     // Estimate total sessions (use identity logs count as proxy)
     let totalSessions = allTimeUpgrades;
     try {
-      totalSessions = await db.wiFiIdentityLog.count({ where: { tenantId: TENANT_ID } }) || allTimeUpgrades;
+      totalSessions = await db.wiFiIdentityLog.count({ where: { tenantId: auth.tenantId } }) || allTimeUpgrades;
     } catch {
       // IdentityLog may not exist, use upgrades as fallback
     }

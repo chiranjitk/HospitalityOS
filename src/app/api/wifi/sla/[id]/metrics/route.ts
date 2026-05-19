@@ -6,13 +6,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { id } = await params;
     const searchParams = request.nextUrl.searchParams;
@@ -22,7 +24,7 @@ export async function GET(
 
     // Verify config exists
     const config = await db.wiFiSLAConfig.findFirst({
-      where: { id, tenantId: TENANT_ID },
+      where: { id, tenantId: auth.tenantId },
     });
 
     if (!config) {
@@ -34,7 +36,7 @@ export async function GET(
 
     const where: Record<string, unknown> = {
       slaConfigId: id,
-      tenantId: TENANT_ID,
+      tenantId: auth.tenantId,
     };
 
     if (dateFrom || dateTo) {

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { randomBytes } from 'crypto';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // Helper: generate a random password
 function generatePassword(length = 10): string {
@@ -23,6 +22,9 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
 // POST /api/wifi/pre-arrival/send — Trigger pre-arrival credential delivery
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
     const { bookingId, propertyId } = body;
 
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (booking.tenantId !== TENANT_ID) {
+    if (booking.tenantId !== auth.tenantId) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Booking not found' } },
         { status: 404 },
@@ -79,7 +81,7 @@ export async function POST(request: NextRequest) {
     const config = await db.wiFiPreArrivalConfig.findUnique({
       where: {
         tenantId_propertyId: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           propertyId,
         },
       },
@@ -144,7 +146,7 @@ export async function POST(request: NextRequest) {
 
       wifiUser = await db.wiFiUser.create({
         data: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           propertyId,
           username: finalUsername,
           password,
@@ -186,7 +188,7 @@ export async function POST(request: NextRequest) {
         // Create notification log
         const emailLog = await db.notificationLog.create({
           data: {
-            tenantId: TENANT_ID,
+            tenantId: auth.tenantId,
             recipientType: 'guest',
             recipientId: guest.id,
             recipientEmail: guest.email,
@@ -203,7 +205,7 @@ export async function POST(request: NextRequest) {
         const errMsg = emailError instanceof Error ? emailError.message : 'Email delivery failed';
         const emailLog = await db.notificationLog.create({
           data: {
-            tenantId: TENANT_ID,
+            tenantId: auth.tenantId,
             recipientType: 'guest',
             recipientId: guest.id,
             recipientEmail: guest.email,
@@ -229,7 +231,7 @@ export async function POST(request: NextRequest) {
         // Create notification log
         const smsLog = await db.notificationLog.create({
           data: {
-            tenantId: TENANT_ID,
+            tenantId: auth.tenantId,
             recipientType: 'guest',
             recipientId: guest.id,
             recipientPhone: guest.phone,
@@ -246,7 +248,7 @@ export async function POST(request: NextRequest) {
         const errMsg = smsError instanceof Error ? smsError.message : 'SMS delivery failed';
         const smsLog = await db.notificationLog.create({
           data: {
-            tenantId: TENANT_ID,
+            tenantId: auth.tenantId,
             recipientType: 'guest',
             recipientId: guest.id,
             recipientPhone: guest.phone,

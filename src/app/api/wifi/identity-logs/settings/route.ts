@@ -1,11 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getWifiSettings, setWifiSettings, type IdentityVerificationSettings } from '@/lib/wifi-settings';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
 
-export async function GET() {
   try {
-    const settings = await getWifiSettings(TENANT_ID, 'identity_verification');
+    const settings = await getWifiSettings(auth.tenantId, 'identity_verification');
     return NextResponse.json({ success: true, data: settings });
   } catch (error) {
     console.error('[GET /api/wifi/identity-logs/settings]', error);
@@ -16,7 +18,10 @@ export async function GET() {
   }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = (await request.json()) as Partial<IdentityVerificationSettings>;
 
@@ -49,13 +54,13 @@ export async function PUT(request: Request) {
     }
 
     // Merge with existing settings so partial updates work
-    const existing = await getWifiSettings(TENANT_ID, 'identity_verification');
+    const existing = await getWifiSettings(auth.tenantId, 'identity_verification');
     const merged: IdentityVerificationSettings = {
       ...existing,
       ...body,
     };
 
-    await setWifiSettings(TENANT_ID, 'identity_verification', merged);
+    await setWifiSettings(auth.tenantId, 'identity_verification', merged);
 
     return NextResponse.json({ success: true, data: merged });
   } catch (error) {

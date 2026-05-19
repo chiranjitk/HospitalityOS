@@ -8,11 +8,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // POST /api/wifi/devices/lookup — Look up MAC address
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
     const { macAddress } = body;
@@ -27,7 +29,7 @@ export async function POST(request: NextRequest) {
     const device = await db.wiFiDevice.findUnique({
       where: {
         tenantId_macAddress: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           macAddress,
         },
       },

@@ -6,17 +6,19 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     // Get all SLA configs and their latest metrics
     const configs = await db.wiFiSLAConfig.findMany({
-      where: { tenantId: TENANT_ID },
+      where: { tenantId: auth.tenantId },
       include: {
         property: { select: { id: true, name: true } },
         metrics: {

@@ -8,19 +8,21 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/sla/[id]
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { id } = await params;
 
     const config = await db.wiFiSLAConfig.findFirst({
-      where: { id, tenantId: TENANT_ID },
+      where: { id, tenantId: auth.tenantId },
       include: {
         property: { select: { id: true, name: true } },
         metrics: {
@@ -52,13 +54,16 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { id } = await params;
     const body = await request.json();
 
     // Verify ownership
     const existing = await db.wiFiSLAConfig.findFirst({
-      where: { id, tenantId: TENANT_ID },
+      where: { id, tenantId: auth.tenantId },
     });
 
     if (!existing) {
@@ -102,12 +107,15 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { id } = await params;
 
     // Verify ownership
     const existing = await db.wiFiSLAConfig.findFirst({
-      where: { id, tenantId: TENANT_ID },
+      where: { id, tenantId: auth.tenantId },
     });
 
     if (!existing) {

@@ -8,15 +8,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/sla — List SLA configs
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const propertyId = request.nextUrl.searchParams.get('propertyId');
 
-    const where: Record<string, unknown> = { tenantId: TENANT_ID };
+    const where: Record<string, unknown> = { tenantId: auth.tenantId };
     if (propertyId) where.propertyId = propertyId;
 
     const configs = await db.wiFiSLAConfig.findMany({
@@ -47,6 +49,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/wifi/sla — Create or update SLA config
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
     const data = nullifyEmptyStrings(body);
@@ -73,7 +78,7 @@ export async function POST(request: NextRequest) {
     const existing = await db.wiFiSLAConfig.findUnique({
       where: {
         tenantId_propertyId: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           propertyId: propertyId as string,
         },
       },
@@ -99,7 +104,7 @@ export async function POST(request: NextRequest) {
       // Create new
       config = await db.wiFiSLAConfig.create({
         data: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           propertyId: propertyId as string,
           uptimeTarget: uptimeTarget ? parseFloat(String(uptimeTarget)) : 99.9,
           speedTargetDown: speedTargetDown ? parseFloat(String(speedTargetDown)) : 50,

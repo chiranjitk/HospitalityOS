@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // PATCH /api/wifi/consent-logs/[id] — Revoke consent by setting expiresAt to now
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { id } = await params;
     const body = await request.json();
@@ -29,7 +31,7 @@ export async function PATCH(
       );
     }
 
-    if (existing.tenantId !== TENANT_ID) {
+    if (existing.tenantId !== auth.tenantId) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Consent log not found' } },
         { status: 404 },
@@ -53,9 +55,12 @@ export async function PATCH(
 
 // DELETE /api/wifi/consent-logs/[id] — Hard-delete a consent log (admin removal)
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { id } = await params;
 
@@ -68,7 +73,7 @@ export async function DELETE(
       );
     }
 
-    if (existing.tenantId !== TENANT_ID) {
+    if (existing.tenantId !== auth.tenantId) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Consent log not found' } },
         { status: 404 },

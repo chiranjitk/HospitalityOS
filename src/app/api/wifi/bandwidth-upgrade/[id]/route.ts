@@ -6,14 +6,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // PATCH /api/wifi/bandwidth-upgrade/[id] — Refund an upgrade
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { id } = await params;
 
@@ -42,7 +44,7 @@ export async function PATCH(
       );
     }
 
-    if (upgrade.tenantId !== TENANT_ID) {
+    if (upgrade.tenantId !== auth.tenantId) {
       return NextResponse.json(
         { success: false, error: 'Bandwidth upgrade not found.' },
         { status: 404 },

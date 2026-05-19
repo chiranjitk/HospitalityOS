@@ -9,11 +9,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 import { createHash } from 'crypto';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/consent-logs — List consent logs
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const consentType = searchParams.get('consentType');
@@ -25,7 +27,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    const where: Record<string, unknown> = { tenantId: TENANT_ID };
+    const where: Record<string, unknown> = { tenantId: auth.tenantId };
 
     if (consentType) where.consentType = consentType;
     if (propertyId) where.propertyId = propertyId;
@@ -80,11 +82,11 @@ export async function GET(request: NextRequest) {
 
     // Count stats
     const [totalConsents, marketingOptIn, activeConsents] = await Promise.all([
-      db.wiFiConsentLog.count({ where: { tenantId: TENANT_ID } }),
-      db.wiFiConsentLog.count({ where: { tenantId: TENANT_ID, optInMarketing: true } }),
+      db.wiFiConsentLog.count({ where: { tenantId: auth.tenantId } }),
+      db.wiFiConsentLog.count({ where: { tenantId: auth.tenantId, optInMarketing: true } }),
       db.wiFiConsentLog.count({
         where: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           expiresAt: { gt: new Date() },
         },
       }),
@@ -124,6 +126,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/wifi/consent-logs — Record a new consent
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
     const data = nullifyEmptyStrings(body);
@@ -150,7 +155,7 @@ export async function POST(request: NextRequest) {
 
     const log = await db.wiFiConsentLog.create({
       data: {
-        tenantId: TENANT_ID,
+        tenantId: auth.tenantId,
         guestId: (guestId as string) || null,
         propertyId: (data.propertyId as string) || null,
         sessionId: sessionId as string,

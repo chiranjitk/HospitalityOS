@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/pre-arrival/[id] — Get single config
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { id } = await params;
 
     const config = await db.wiFiPreArrivalConfig.findUnique({
@@ -28,7 +30,7 @@ export async function GET(
     }
 
     // Tenant isolation
-    if (config.tenantId !== TENANT_ID) {
+    if (config.tenantId !== auth.tenantId) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Pre-arrival config not found' } },
         { status: 404 },
@@ -60,6 +62,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { id } = await params;
     const body = await request.json();
 
@@ -68,7 +73,7 @@ export async function PATCH(
       where: { id },
     });
 
-    if (!existing || existing.tenantId !== TENANT_ID) {
+    if (!existing || existing.tenantId !== auth.tenantId) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Pre-arrival config not found' } },
         { status: 404 },
@@ -154,17 +159,20 @@ export async function PATCH(
 
 // DELETE /api/wifi/pre-arrival/[id] — Delete config
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { id } = await params;
 
     const existing = await db.wiFiPreArrivalConfig.findUnique({
       where: { id },
     });
 
-    if (!existing || existing.tenantId !== TENANT_ID) {
+    if (!existing || existing.tenantId !== auth.tenantId) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Pre-arrival config not found' } },
         { status: 404 },

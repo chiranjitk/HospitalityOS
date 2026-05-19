@@ -8,12 +8,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
 const DEFAULT_MAX_DEVICES = 5;
 
 // GET /api/wifi/devices — List registered devices
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const guestId = searchParams.get('guestId');
@@ -25,7 +28,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
 
     const where: Record<string, unknown> = {
-      tenantId: TENANT_ID,
+      tenantId: auth.tenantId,
     };
 
     if (guestId) where.guestId = guestId;
@@ -86,6 +89,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/wifi/devices — Register a new device
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
     const data = nullifyEmptyStrings(body);
@@ -104,7 +110,7 @@ export async function POST(request: NextRequest) {
     const existingDevice = await db.wiFiDevice.findUnique({
       where: {
         tenantId_macAddress: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           macAddress: macAddress as string,
         },
       },
@@ -139,7 +145,7 @@ export async function POST(request: NextRequest) {
     // Count existing devices for this guest
     const deviceCount = await db.wiFiDevice.count({
       where: {
-        tenantId: TENANT_ID,
+        tenantId: auth.tenantId,
         guestId: guestId as string,
       },
     });
@@ -157,7 +163,7 @@ export async function POST(request: NextRequest) {
     // Create new device — auto-approved by default
     const device = await db.wiFiDevice.create({
       data: {
-        tenantId: TENANT_ID,
+        tenantId: auth.tenantId,
         guestId: guestId as string,
         propertyId: (propertyId as string) || null,
         macAddress: macAddress as string,

@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/pre-arrival — List all pre-arrival configs
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = request.nextUrl;
     const propertyId = searchParams.get('propertyId');
 
-    const where: Record<string, unknown> = { tenantId: TENANT_ID };
+    const where: Record<string, unknown> = { tenantId: auth.tenantId };
     if (propertyId) {
       where.propertyId = propertyId;
     }
@@ -64,6 +66,9 @@ export async function GET(request: NextRequest) {
 // POST /api/wifi/pre-arrival — Create or upsert a pre-arrival config for a property
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
     const {
       propertyId,
@@ -134,12 +139,12 @@ export async function POST(request: NextRequest) {
     const config = await db.wiFiPreArrivalConfig.upsert({
       where: {
         tenantId_propertyId: {
-          tenantId: TENANT_ID,
+          tenantId: auth.tenantId,
           propertyId,
         },
       },
       create: {
-        tenantId: TENANT_ID,
+        tenantId: auth.tenantId,
         propertyId,
         enabled,
         hoursBeforeArrival,

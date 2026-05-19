@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWifiSettings, setWifiSettings, type ConsentManagementSettings } from '@/lib/wifi-settings';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/consent-logs/settings — Retrieve consent management settings
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
-    const settings = await getWifiSettings(TENANT_ID, 'consent_management');
+    const settings = await getWifiSettings(auth.tenantId, 'consent_management');
     return NextResponse.json({ success: true, data: settings });
   } catch (error) {
     console.error('[F13] Error fetching consent settings:', error);
@@ -19,6 +21,9 @@ export async function GET() {
 
 // PUT /api/wifi/consent-logs/settings — Persist consent management settings
 export async function PUT(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
 
@@ -30,7 +35,7 @@ export async function PUT(request: NextRequest) {
       cookiePolicyUrl: typeof body.cookiePolicyUrl === 'string' ? body.cookiePolicyUrl : '',
     };
 
-    await setWifiSettings(TENANT_ID, 'consent_management', settings);
+    await setWifiSettings(auth.tenantId, 'consent_management', settings);
 
     return NextResponse.json({ success: true, data: settings });
   } catch (error) {

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
-
-const TENANT_ID = '444017d5-e022-4c5f-ac07-ea0d51f4609b';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/pre-arrival/delivery-logs — List delivery logs
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = request.nextUrl;
     const propertyId = searchParams.get('propertyId');
     const status = searchParams.get('status');
@@ -17,7 +19,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20', 10);
 
     const where: Record<string, unknown> = {
-      tenantId: TENANT_ID,
+      tenantId: auth.tenantId,
       subject: {
         contains: '[WiFi Pre-Arrival]',
       },
