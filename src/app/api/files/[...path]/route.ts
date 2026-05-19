@@ -2,8 +2,30 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-// Resolve upload dir relative to project root (works on any setup)
-const UPLOAD_DIR = path.resolve(process.cwd(), 'upload');
+// Resolve upload dir — try multiple strategies to find the project root
+// 1. UPLOAD_DIR env var (explicit override)
+// 2. Find package.json walking up from this file
+// 3. Fallback to process.cwd()
+function resolveUploadDir(): string {
+  // Strategy 1: Explicit env var
+  if (process.env.UPLOAD_DIR) return process.env.UPLOAD_DIR;
+
+  // Strategy 2: Walk up from this file to find package.json (project root)
+  let dir = path.resolve(__dirname);
+  for (let i = 0; i < 10; i++) {
+    if (fs.existsSync(path.join(dir, 'package.json')) && fs.existsSync(path.join(dir, 'upload'))) {
+      return path.resolve(dir, 'upload');
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break; // reached root
+    dir = parent;
+  }
+
+  // Strategy 3: Fallback to cwd
+  return path.resolve(process.cwd(), 'upload');
+}
+
+const UPLOAD_DIR = resolveUploadDir();
 
 const MIME_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -11,6 +33,9 @@ const MIME_TYPES: Record<string, string> = {
   '.png': 'image/png',
   '.webp': 'image/webp',
   '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.pdf': 'application/pdf',
 };
 
 export async function GET(
