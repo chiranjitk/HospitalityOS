@@ -6,6 +6,11 @@ import { createGatewayAdapter, DEFAULT_PORTS } from '@/lib/wifi/adapters';
 import type { GatewayConfig, GatewayVendor } from '@/lib/wifi/adapters';
 import { runSessionEngine } from '@/lib/wifi/services/session-engine';
 import { runNasHealthCheck } from '@/lib/wifi/services/nas-health-check';
+import { generateHealthAlerts } from '@/lib/wifi/services/wifi-health-alert-generator';
+import { collectSlaMetrics } from '@/lib/wifi/services/sla-metric-collector';
+import { purgeExpiredConsents } from '@/lib/wifi/services/consent-auto-delete';
+import { cleanupStaleDevices } from '@/lib/wifi/services/device-cleanup';
+import { processPreArrivalDelivery } from '@/lib/wifi/services/pre-arrival-scheduler';
 
 // ---------------------------------------------------------------------------
 // Provider → Vendor mapping (same as API route)
@@ -119,6 +124,66 @@ export function initializeScheduler(): void {
 
   activeJobs.set('nas-health-check', nasHealthJob);
   console.log('[Scheduler] NAS health check job started - runs every minute');
+
+  // Run every 2 minutes to generate WiFi alerts from health check results
+  const healthAlertJob = cron.schedule('*/2 * * * *', async () => {
+    try {
+      await generateHealthAlerts();
+    } catch (err) {
+      console.error('[Scheduler] WiFi health alert generator error:', err);
+    }
+  });
+
+  activeJobs.set('wifi-health-alerts', healthAlertJob);
+  console.log('[Scheduler] WiFi health alert generator started - runs every 2 minutes');
+
+  // Run every 5 minutes to collect SLA metrics and detect breaches
+  const slaMetricJob = cron.schedule('*/5 * * * *', async () => {
+    try {
+      await collectSlaMetrics();
+    } catch (err) {
+      console.error('[Scheduler] SLA metric collector error:', err);
+    }
+  });
+
+  activeJobs.set('sla-metrics', slaMetricJob);
+  console.log('[Scheduler] SLA metric collector started - runs every 5 minutes');
+
+  // Run every hour to purge expired consent records (GDPR compliance)
+  const consentCleanupJob = cron.schedule('0 * * * *', async () => {
+    try {
+      await purgeExpiredConsents();
+    } catch (err) {
+      console.error('[Scheduler] Consent auto-delete error:', err);
+    }
+  });
+
+  activeJobs.set('consent-auto-delete', consentCleanupJob);
+  console.log('[Scheduler] Consent auto-delete started - runs every hour');
+
+  // Run every 6 hours to clean up stale WiFi device records
+  const deviceCleanupJob = cron.schedule('0 */6 * * *', async () => {
+    try {
+      await cleanupStaleDevices();
+    } catch (err) {
+      console.error('[Scheduler] Device cleanup error:', err);
+    }
+  });
+
+  activeJobs.set('device-cleanup', deviceCleanupJob);
+  console.log('[Scheduler] Device cleanup started - runs every 6 hours');
+
+  // Run every 15 minutes to process pre-arrival WiFi credential delivery
+  const preArrivalJob = cron.schedule('*/15 * * * *', async () => {
+    try {
+      await processPreArrivalDelivery();
+    } catch (err) {
+      console.error('[Scheduler] Pre-arrival scheduler error:', err);
+    }
+  });
+
+  activeJobs.set('pre-arrival-delivery', preArrivalJob);
+  console.log('[Scheduler] Pre-arrival delivery started - runs every 15 minutes');
 }
 
 /**
