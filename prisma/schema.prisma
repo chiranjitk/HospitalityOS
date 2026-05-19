@@ -4777,6 +4777,7 @@ model Property {
   wifiSettings              WiFiSettings[]
   portalAdCampaigns         PortalAdCampaign[]
   hotelWebsites             HotelWebsite[]
+  otaChannels               OtaChannel[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -5494,6 +5495,7 @@ model Room {
   keyCards          KeyCard[]
   minibarSetup       MinibarSetup?
   minibarConsumptions MinibarConsumption[]
+  roomImages          RoomImage[]
 
   @@unique([propertyId, number])
   @@index([propertyId])
@@ -5502,6 +5504,73 @@ model Room {
   @@index([housekeepingStatus])
   @@index([propertyId, status])
   @@index([currentTaskId])
+}
+
+/// RoomImage - Rich metadata for room images with captions, categories, and OTA sync
+model RoomImage {
+  id            String   @id @default(uuid()) @db.Uuid
+  roomId        String   @db.Uuid
+  url           String
+  thumbnailUrl  String?
+  caption       String   @default("")
+  category      String   @default("general") // general, bedroom, bathroom, living_area, view, exterior, dining, amenities, other
+  isPrimary     Boolean  @default(false)
+  sortOrder     Int      @default(0)
+  width         Int?
+  height        Int?
+  fileSize      Int?
+  mimeType      String?
+  otaSyncStatus String   @default("{}") // JSON: { channelType: { status, remoteUrl, remoteId, lastSyncedAt, error } }
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  updatedAt     DateTime @updatedAt @db.Timestamptz
+  room          Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  otaSyncs      OtaImageSync[]
+
+  @@index([roomId])
+  @@index([roomId, isPrimary])
+  @@index([roomId, sortOrder])
+}
+
+/// OtaChannel - Connected OTA distribution channels
+model OtaChannel {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  propertyId  String    @db.Uuid
+  name        String
+  type        String    // booking_com, expedia, airbnb, google_hotels, make_my_trip, go_ibibo, agoda, direct
+  apiKey      String?
+  apiSecret   String?
+  hotelId     String?
+  isActive    Boolean   @default(true)
+  lastSyncedAt DateTime? @db.Timestamptz
+  config      String    @default("{}") // JSON
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+  property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  imageSyncs  OtaImageSync[]
+
+  @@index([tenantId])
+  @@index([propertyId])
+}
+
+/// OtaImageSync - Track image sync status per OTA channel
+model OtaImageSync {
+  id          String    @id @default(uuid()) @db.Uuid
+  imageId     String    @db.Uuid
+  channelId   String    @db.Uuid
+  status      String    @default("pending") // pending, synced, failed, outdated
+  remoteUrl   String?
+  remoteId    String?
+  lastSyncedAt DateTime? @db.Timestamptz
+  error       String?
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+  image       RoomImage  @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  channel     OtaChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([imageId, channelId])
+  @@index([status])
 }
 
 /// RoomMoveLog - Track room moves/transfers
@@ -6803,6 +6872,7 @@ model Tenant {
   lastMinuteTriggers        LastMinuteTrigger[]
   lastMinuteTriggerLogs     LastMinuteTriggerLog[]
   scheduledReports          ScheduledReport[]
+  otaChannels               OtaChannel[]
 }
 
 // ============================================================

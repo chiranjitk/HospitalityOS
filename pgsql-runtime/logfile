@@ -3572,3 +3572,66 @@
 2026-05-19 06:42:14.713 UTC [8065] LOG:  checkpoint complete: wrote 17 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.606 s, sync=0.001 s, total=1.609 s; sync files=15, longest=0.001 s, average=0.001 s; distance=51 kB, estimate=2334 kB; lsn=0/2CB1008, redo lsn=0/2CB0FB0
 2026-05-19 06:47:13.781 UTC [8065] LOG:  checkpoint starting: time
 2026-05-19 06:47:16.187 UTC [8065] LOG:  checkpoint complete: wrote 25 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=2.406 s, sync=0.001 s, total=2.407 s; sync files=15, longest=0.001 s, average=0.001 s; distance=117 kB, estimate=2112 kB; lsn=0/2CCE5C0, redo lsn=0/2CCE568
+2026-05-19 06:52:13.244 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 06:52:14.448 UTC [8065] LOG:  checkpoint complete: wrote 13 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.203 s, sync=0.001 s, total=1.204 s; sync files=11, longest=0.001 s, average=0.001 s; distance=49 kB, estimate=1906 kB; lsn=0/2CDA9E8, redo lsn=0/2CDA990
+2026-05-19 06:57:13.548 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 06:57:14.751 UTC [8065] LOG:  checkpoint complete: wrote 13 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.203 s, sync=0.001 s, total=1.204 s; sync files=11, longest=0.001 s, average=0.001 s; distance=55 kB, estimate=1721 kB; lsn=0/2CE8760, redo lsn=0/2CE8708
+2026-05-19 07:02:13.851 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 07:02:15.354 UTC [8065] LOG:  checkpoint complete: wrote 16 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.504 s, sync=0.001 s, total=1.504 s; sync files=12, longest=0.001 s, average=0.001 s; distance=61 kB, estimate=1555 kB; lsn=0/2CF7E88, redo lsn=0/2CF7E30
+2026-05-19 07:07:13.455 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 07:07:24.907 UTC [8065] LOG:  checkpoint complete: wrote 115 buffers (0.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=11.450 s, sync=0.002 s, total=11.453 s; sync files=76, longest=0.001 s, average=0.001 s; distance=653 kB, estimate=1465 kB; lsn=0/2D9B360, redo lsn=0/2D9B308
+2026-05-19 07:12:13.994 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 07:12:16.008 UTC [8065] LOG:  checkpoint complete: wrote 21 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=2.010 s, sync=0.001 s, total=2.014 s; sync files=15, longest=0.001 s, average=0.001 s; distance=112 kB, estimate=1329 kB; lsn=0/2DB7448, redo lsn=0/2DB73F0
+2026-05-19 07:17:13.108 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 07:17:14.717 UTC [8065] LOG:  checkpoint complete: wrote 17 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.607 s, sync=0.001 s, total=1.610 s; sync files=12, longest=0.001 s, average=0.001 s; distance=66 kB, estimate=1203 kB; lsn=0/2DC7E28, redo lsn=0/2DC7DD0
+2026-05-19 07:22:13.818 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 07:22:15.125 UTC [8065] LOG:  checkpoint complete: wrote 14 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.305 s, sync=0.001 s, total=1.308 s; sync files=12, longest=0.001 s, average=0.001 s; distance=56 kB, estimate=1088 kB; lsn=0/2DD6180, redo lsn=0/2DD6128
+2026-05-19 07:27:13.225 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 07:27:14.430 UTC [8065] LOG:  checkpoint complete: wrote 13 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.204 s, sync=0.001 s, total=1.206 s; sync files=12, longest=0.001 s, average=0.001 s; distance=50 kB, estimate=984 kB; lsn=0/2DE2BD8, redo lsn=0/2DE2B80
+2026-05-19 07:32:13.440 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 07:32:15.249 UTC [8065] LOG:  checkpoint complete: wrote 19 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.806 s, sync=0.001 s, total=1.809 s; sync files=15, longest=0.001 s, average=0.001 s; distance=82 kB, estimate=894 kB; lsn=0/2DF7488, redo lsn=0/2DF7430
+2026-05-19 07:37:13.349 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 07:37:14.957 UTC [8065] LOG:  checkpoint complete: wrote 17 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.605 s, sync=0.001 s, total=1.609 s; sync files=13, longest=0.001 s, average=0.001 s; distance=56 kB, estimate=810 kB; lsn=0/2E05810, redo lsn=0/2E057B8
+2026-05-19 07:42:14.058 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 07:42:16.571 UTC [8065] LOG:  checkpoint complete: wrote 26 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=2.509 s, sync=0.001 s, total=2.514 s; sync files=23, longest=0.001 s, average=0.000 s; distance=75 kB, estimate=737 kB; lsn=0/2E18558, redo lsn=0/2E18500
+2026-05-19 07:42:19.342 UTC [25914] ERROR:  invalid input syntax for type json at character 168
+2026-05-19 07:42:19.342 UTC [25914] DETAIL:  Token "hotelId" is invalid.
+2026-05-19 07:42:19.342 UTC [25914] QUERY:  INSERT INTO "OtaChannel" ("tenantId", "propertyId", name, type, "isActive", config)
+	    VALUES 
+	      (v_tenant_id, v_property_id, 'Booking.com', 'booking_com', true, '{hotelId: HOTEL123}'),
+	      (v_tenant_id, v_property_id, 'Expedia', 'expedia', true, '{hotelId: EXP456}'),
+	      (v_tenant_id, v_property_id, 'Airbnb', 'airbnb', true, '{listingId: LST789}'),
+	      (v_tenant_id, v_property_id, 'Google Hotels', 'google_hotels', true, '{hotelId: GH012}'),
+	      (v_tenant_id, v_property_id, 'MakeMyTrip', 'make_my_trip', true, '{hotelId: MMT345}')
+	    ON CONFLICT DO NOTHING
+2026-05-19 07:42:19.342 UTC [25914] CONTEXT:  JSON data, line 1: {hotelId...
+	PL/pgSQL function inline_code_block line 11 at SQL statement
+2026-05-19 07:42:19.342 UTC [25914] STATEMENT:  
+	-- Get the first tenant and property for demo
+	DO $$
+	DECLARE
+	  v_tenant_id UUID;
+	  v_property_id UUID;
+	BEGIN
+	  SELECT id INTO v_tenant_id FROM "Tenant" LIMIT 1;
+	  SELECT id INTO v_property_id FROM "Property" LIMIT 1;
+	  
+	  IF v_tenant_id IS NOT NULL AND v_property_id IS NOT NULL THEN
+	    -- Insert demo OTA channels
+	    INSERT INTO "OtaChannel" ("tenantId", "propertyId", name, type, "isActive", config)
+	    VALUES 
+	      (v_tenant_id, v_property_id, 'Booking.com', 'booking_com', true, '{hotelId: HOTEL123}'),
+	      (v_tenant_id, v_property_id, 'Expedia', 'expedia', true, '{hotelId: EXP456}'),
+	      (v_tenant_id, v_property_id, 'Airbnb', 'airbnb', true, '{listingId: LST789}'),
+	      (v_tenant_id, v_property_id, 'Google Hotels', 'google_hotels', true, '{hotelId: GH012}'),
+	      (v_tenant_id, v_property_id, 'MakeMyTrip', 'make_my_trip', true, '{hotelId: MMT345}')
+	    ON CONFLICT DO NOTHING;
+	    
+	    RAISE NOTICE 'Inserted OTA channels for tenant %, property %', v_tenant_id, v_property_id;
+	  ELSE
+	    RAISE NOTICE 'No tenant or property found';
+	  END IF;
+	END $$;
+	
+2026-05-19 07:47:14.594 UTC [8065] LOG:  checkpoint starting: time
+2026-05-19 07:47:18.406 UTC [8065] LOG:  checkpoint complete: wrote 39 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=3.811 s, sync=0.001 s, total=3.812 s; sync files=25, longest=0.001 s, average=0.001 s; distance=141 kB, estimate=677 kB; lsn=0/2E3BA30, redo lsn=0/2E3B9D8

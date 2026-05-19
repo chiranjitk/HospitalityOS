@@ -50,7 +50,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { RoomImageGallery } from './room-image-gallery';
+import { RoomImageGallery, type RoomImage } from './room-image-gallery';
 import { useTranslations } from 'next-intl';
 
 interface Property {
@@ -81,6 +81,7 @@ interface Room {
   status: string;
   digitalKeyEnabled: boolean;
   images?: string;
+  roomImages?: RoomImage[];
   roomType: RoomType;
 }
 
@@ -143,7 +144,7 @@ export default function RoomsManager() {
     hasMountainView: false,
     status: 'available',
     digitalKeyEnabled: false,
-    images: [] as string[],
+    images: [] as RoomImage[],
   });
 
   // Fetch properties
@@ -252,7 +253,7 @@ export default function RoomsManager() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          images: formData.images,
+          images: formData.images.map(img => img.url),
         }),
       });
       
@@ -298,9 +299,20 @@ export default function RoomsManager() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
-          // Client owns JSON serialization - API stores images as JSON string
-          images: JSON.stringify(formData.images),
+          propertyId: formData.propertyId,
+          roomTypeId: formData.roomTypeId,
+          number: formData.number,
+          name: formData.name,
+          floor: formData.floor,
+          isAccessible: formData.isAccessible,
+          isSmoking: formData.isSmoking,
+          hasBalcony: formData.hasBalcony,
+          hasSeaView: formData.hasSeaView,
+          hasMountainView: formData.hasMountainView,
+          status: formData.status,
+          digitalKeyEnabled: formData.digitalKeyEnabled,
+          // Don't send images in the PUT - the RoomImage API manages them separately
+          // The Room.images JSON is kept in sync by the /api/rooms/[id]/images API
         }),
       });
       
@@ -588,10 +600,31 @@ export default function RoomsManager() {
     }
   };
 
-  const openEditDialog = (room: Room) => {
+  const openEditDialog = async (room: Room) => {
     setSelectedRoom(room);
-    // Client owns JSON deserialization - images stored as JSON string in DB
-    const parsedImages = (() => { try { return JSON.parse(room.images || '[]'); } catch { return []; } })();
+    
+    // Fetch room images from the new API
+    let roomImages: RoomImage[] = [];
+    try {
+      const res = await fetch(`/api/rooms/${room.id}/images`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          roomImages = data.data;
+        }
+      }
+    } catch {
+      // Fallback to parsing the JSON string
+      const parsedUrls = (() => { try { return JSON.parse(room.images || '[]'); } catch { return []; } })();
+      roomImages = parsedUrls.map((url: string, i: number) => ({
+        id: `legacy-${i}`,
+        url,
+        caption: '',
+        category: 'general',
+        isPrimary: i === 0,
+        sortOrder: i,
+      }));
+    }
     
     setFormData({
       propertyId: room.propertyId,
@@ -606,7 +639,7 @@ export default function RoomsManager() {
       hasMountainView: room.hasMountainView,
       status: room.status,
       digitalKeyEnabled: room.digitalKeyEnabled,
-      images: parsedImages,
+      images: roomImages,
     });
     setIsEditOpen(true);
   };
@@ -1091,18 +1124,12 @@ export default function RoomsManager() {
                 <ImageIcon className="h-4 w-4" />
                 Room Photos
               </Label>
-              <div className="flex items-center gap-2">
-                <RoomImageGallery
-                  roomId="new"
-                  images={formData.images}
-                  onImagesChange={(images) => setFormData(prev => ({ ...prev, images }))}
-                />
-                {formData.images.length > 0 && (
-                  <span className="text-sm text-muted-foreground">
-                    {formData.images.length} photo{formData.images.length !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
+              <RoomImageGallery
+                roomId={isCreateOpen ? 'new' : (selectedRoom?.id || '')}
+                images={formData.images}
+                onImagesChange={(images) => setFormData(prev => ({ ...prev, images }))}
+                maxImages={20}
+              />
             </div>
           </div>
           <DialogFooter>
@@ -1138,18 +1165,12 @@ export default function RoomsManager() {
               <ImageIcon className="h-4 w-4" />
               Room Photos
             </Label>
-            <div className="flex items-center gap-2">
-              <RoomImageGallery
-                roomId={selectedRoom?.id || ''}
-                images={formData.images}
-                onImagesChange={(images) => setFormData(prev => ({ ...prev, images }))}
-              />
-              {formData.images.length > 0 && (
-                <span className="text-sm text-muted-foreground">
-                  {formData.images.length} photo{formData.images.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
+            <RoomImageGallery
+              roomId={isCreateOpen ? 'new' : (selectedRoom?.id || '')}
+              images={formData.images}
+              onImagesChange={(images) => setFormData(prev => ({ ...prev, images }))}
+              maxImages={20}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditOpen(false)}>
