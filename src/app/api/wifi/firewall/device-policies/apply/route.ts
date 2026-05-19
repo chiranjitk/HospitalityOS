@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
-import { fullApplyToNftables } from '@/lib/nftables-helper';
+import { applyZtnaRules, TRUST_CLASS_IDS } from '@/lib/network/ztna-script-runner';
+import type { ZtnaApplyInput } from '@/lib/network/ztna-script-runner';
 
 // POST /api/wifi/firewall/device-policies/apply - Generate and apply nftables rules for all active policies
 export async function POST(request: NextRequest) {
-  const user = await requirePermission(request, 'network.manage');
+  const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
       orderBy: { priority: 'desc' },
     });
 
-    // Build the ruleset for nftables
+    // Build the ruleset summary
     const rules: Array<{
       policyId: string;
       policyName: string;
@@ -48,6 +49,9 @@ export async function POST(request: NextRequest) {
       deniedZones: string[];
       contentFilterLevel: string;
     }> = [];
+
+    // Build assignments array for nftables script
+    const ztnaAssignments: ZtnaApplyInput['assignments'] = [];
 
     for (const policy of policies) {
       const allowedZones: string[] = [];
@@ -73,10 +77,31 @@ export async function POST(request: NextRequest) {
         deniedZones,
         contentFilterLevel: policy.contentFilterLevel,
       });
+
+      // Build ZTNA assignment entries for the shell script
+      for (const assignment of policy.assignments) {
+        const trustLevel = assignment.trustLevel || policy.trustLevel;
+        const classId = TRUST_CLASS_IDS[trustLevel] ?? TRUST_CLASS_IDS.standard;
+
+        ztnaAssignments.push({
+          macAddress: assignment.macAddress.toUpperCase().trim(),
+          trustLevel,
+          classId,
+          isActive: true,
+        });
+      }
     }
 
-    // Apply to nftables service (best effort, non-blocking)
-    await fullApplyToNftables(user.tenantId);
+    // Apply rules via shell script (best effort, non-blocking)
+    let scriptResult;
+    try {
+      scriptResult = applyZtnaRules(ztnaAssignments);
+      if (!scriptResult.success) {
+        console.error(`[ZTNA Apply] Script failed: ${scriptResult.stderr}`, scriptResult.stdout);
+      }
+    } catch (err) {
+      console.error('[ZTNA Apply] Script execution error:', err);
+    }
 
     // Audit log
     const auditPropertyId = propertyId || (policies[0]?.propertyId);
@@ -93,6 +118,12 @@ export async function POST(request: NextRequest) {
             acc[p.trustLevel] = (acc[p.trustLevel] || 0) + p.assignments.length;
             return acc;
           }, {}),
+          scriptResult: scriptResult ? {
+            success: scriptResult.success,
+            rulesApplied: scriptResult.parsed?.rulesApplied,
+            errors: scriptResult.parsed?.errors,
+            durationMs: scriptResult.durationMs,
+          } : null,
         }),
         performedBy: user.userId,
       },
@@ -104,6 +135,11 @@ export async function POST(request: NextRequest) {
         totalPolicies: policies.length,
         totalAssignments: policies.reduce((sum, p) => sum + p.assignments.length, 0),
         rules,
+        scriptResult: scriptResult ? {
+          success: scriptResult.success,
+          rulesApplied: scriptResult.parsed?.rulesApplied,
+          errors: scriptResult.parsed?.errors,
+        } : null,
       },
       message: 'ZTNA rules generated and applied',
     });

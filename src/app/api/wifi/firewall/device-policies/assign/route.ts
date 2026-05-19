@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { applyZtnaRules, TRUST_CLASS_IDS } from '@/lib/network/ztna-script-runner';
+import type { ZtnaApplyInput } from '@/lib/network/ztna-script-runner';
 
 // POST /api/wifi/firewall/device-policies/assign - Assign a policy to a MAC address
 export async function POST(request: NextRequest) {
-  const user = await requirePermission(request, 'network.manage');
+  const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {
@@ -40,29 +42,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if MAC already has an active assignment (unique constraint per property+mac)
-    const existingAssignment = await db.devicePolicyAssignment.findFirst({
+    // Hard-delete any existing assignment for same property+mac (not just active ones)
+    await db.devicePolicyAssignment.deleteMany({
       where: {
         tenantId: user.tenantId,
         propertyId: policy.propertyId,
         macAddress: normalizedMac,
-        isActive: true,
       },
     });
-
-    if (existingAssignment) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'ALREADY_ASSIGNED',
-            message: 'Device already has an active policy assignment',
-            data: { existingPolicyId: existingAssignment.policyId },
-          },
-        },
-        { status: 409 },
-      );
-    }
 
     // Create the assignment
     const assignment = await db.devicePolicyAssignment.create({
@@ -76,6 +63,35 @@ export async function POST(request: NextRequest) {
         trustLevel: policy.trustLevel,
       },
     });
+
+    // Re-sync nftables with current DB state (best effort)
+    try {
+      const allAssignments = await db.devicePolicyAssignment.findMany({
+        where: {
+          tenantId: user.tenantId,
+          isActive: true,
+        },
+        include: {
+          policy: {
+            select: { trustLevel: true },
+          },
+        },
+      });
+
+      const ztnaAssignments: ZtnaApplyInput['assignments'] = allAssignments.map((a) => ({
+        macAddress: a.macAddress.toUpperCase().trim(),
+        trustLevel: a.trustLevel || a.policy.trustLevel,
+        classId: TRUST_CLASS_IDS[a.trustLevel || a.policy.trustLevel] ?? TRUST_CLASS_IDS.standard,
+        isActive: true,
+      }));
+
+      const result = applyZtnaRules(ztnaAssignments);
+      if (!result.success) {
+        console.error(`[ZTNA Assign] Re-sync failed: ${result.stderr}`);
+      }
+    } catch (syncErr) {
+      console.error('[ZTNA Assign] Best-effort re-sync error:', syncErr);
+    }
 
     // Audit log
     await db.ztnaAuditLog.create({

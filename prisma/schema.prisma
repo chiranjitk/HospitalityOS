@@ -12420,7 +12420,6 @@ model DevicePolicyAssignment {
   tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   policy        DevicePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
 
-  @@unique([propertyId, macAddress]) // One active policy per device
   @@index([tenantId])
   @@index([propertyId])
   @@index([macAddress])

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { applyZtnaRules, TRUST_CLASS_IDS } from '@/lib/network/ztna-script-runner';
+import type { ZtnaApplyInput } from '@/lib/network/ztna-script-runner';
 
-// POST /api/wifi/firewall/device-policies/revoke - Revoke a device's policy assignment
+// POST /api/wifi/firewall/device-policies/revoke - Revoke (hard-delete) a device's policy assignment
 export async function POST(request: NextRequest) {
-  const user = await requirePermission(request, 'network.manage');
+  const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {
@@ -44,15 +46,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Revoke the assignment
-    const revoked = await db.devicePolicyAssignment.update({
+    // Hard-delete the assignment
+    await db.devicePolicyAssignment.delete({
       where: { id: assignment.id },
-      data: {
-        isActive: false,
-        revokedAt: new Date(),
-        revokedBy: reason || 'admin_revoke',
-      },
     });
+
+    // Re-sync nftables with current DB state (best effort)
+    try {
+      // Fetch all remaining active assignments for the same property
+      const remainingAssignments = await db.devicePolicyAssignment.findMany({
+        where: {
+          tenantId: user.tenantId,
+          isActive: true,
+        },
+        include: {
+          policy: {
+            select: { trustLevel: true },
+          },
+        },
+      });
+
+      const ztnaAssignments: ZtnaApplyInput['assignments'] = remainingAssignments.map((a) => ({
+        macAddress: a.macAddress.toUpperCase().trim(),
+        trustLevel: a.trustLevel || a.policy.trustLevel,
+        classId: TRUST_CLASS_IDS[a.trustLevel || a.policy.trustLevel] ?? TRUST_CLASS_IDS.standard,
+        isActive: true,
+      }));
+
+      const result = applyZtnaRules(ztnaAssignments);
+      if (!result.success) {
+        console.error(`[ZTNA Revoke] Re-sync failed: ${result.stderr}`);
+      }
+    } catch (syncErr) {
+      console.error('[ZTNA Revoke] Best-effort re-sync error:', syncErr);
+    }
 
     // Audit log
     await db.ztnaAuditLog.create({
@@ -75,8 +102,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: revoked,
-      message: 'Policy assignment revoked successfully',
+      data: { id: assignment.id, deleted: true },
+      message: 'Policy assignment revoked and deleted successfully',
     });
   } catch (error) {
     console.error('Error revoking device policy:', error);

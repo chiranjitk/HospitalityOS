@@ -8,7 +8,7 @@ interface RouteParams {
 
 // GET /api/wifi/firewall/device-groups/[id] - Get single device group
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const user = await requirePermission(request, 'network.manage');
+  const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 // PATCH /api/wifi/firewall/device-groups/[id] - Update device group
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
-  const user = await requirePermission(request, 'network.manage');
+  const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {
@@ -131,7 +131,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/wifi/firewall/device-groups/[id] - Delete device group
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const user = await requirePermission(request, 'network.manage');
+  const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {

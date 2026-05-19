@@ -8,7 +8,7 @@ interface RouteParams {
 
 // GET /api/wifi/firewall/device-policies/[id] - Get single policy with assignments
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const user = await requirePermission(request, 'network.manage');
+  const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 // PATCH /api/wifi/firewall/device-policies/[id] - Update policy fields
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
-  const user = await requirePermission(request, 'network.manage');
+  const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {
@@ -141,7 +141,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/wifi/firewall/device-policies/[id] - Soft-delete and revoke assignments
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const user = await requirePermission(request, 'network.manage');
+  const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {

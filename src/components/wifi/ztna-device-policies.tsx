@@ -10,7 +10,7 @@
  * Data source: /api/wifi/firewall/device-policies/*
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -82,20 +82,10 @@ import {
   Play,
   ChevronDown,
   ChevronRight,
-  Clock,
-  Globe,
   Fingerprint,
   Users,
-  Activity,
   FileText,
-  MonitorSmartphone,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  Eye,
   Ban,
-  ArrowUpDown,
-  Copy,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -628,6 +618,14 @@ function PoliciesTab({
       });
       return;
     }
+    if (form.maxDevices < 1) {
+      toast({
+        title: 'Validation Error',
+        description: 'Max devices must be at least 1',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setSaving(true);
     try {
@@ -691,7 +689,10 @@ function PoliciesTab({
     }
   };
 
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
   const handleToggleActive = async (policy: DevicePolicy) => {
+    setTogglingId(policy.id);
     try {
       await apiFetch(`${API_BASE}/device-policies/${policy.id}`, {
         method: 'PATCH',
@@ -708,6 +709,8 @@ function PoliciesTab({
         description: 'Failed to toggle policy',
         variant: 'destructive',
       });
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -851,6 +854,7 @@ function PoliciesTab({
                         <Switch
                           checked={policy.active}
                           onCheckedChange={() => handleToggleActive(policy)}
+                          disabled={togglingId === policy.id}
                         />
                       </TableCell>
                       <TableCell className="text-center">

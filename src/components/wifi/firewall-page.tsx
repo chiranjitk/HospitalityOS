@@ -119,6 +119,7 @@ import {
   GripVertical,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useFeatureFlags } from '@/contexts/FeatureFlagsContext';
 
 // ─── Lazy-loaded tab components ─────────────────────────────────────
 
@@ -680,6 +681,8 @@ function SortableRuleRow({
 
 export default function FirewallPage() {
   const [activeTab, setActiveTab] = useState('rules');
+  const { isFeatureEnabled } = useFeatureFlags();
+  const ztnaEnabled = isFeatureEnabled('ztna');
 
   const tabs = [
     { id: 'rules', label: 'Rules', icon: ShieldCheck },
@@ -692,7 +695,7 @@ export default function FirewallPage() {
     { id: 'bw-policies', label: 'BW Policies', icon: BarChart3 },
     { id: 'web-categories', label: 'Web Categories', icon: ShieldAlert },
     { id: 'chain-architecture', label: 'Chain Architecture', icon: GitBranch },
-    { id: 'ztna', label: 'ZTNA', icon: Fingerprint },
+    ...(ztnaEnabled ? [{ id: 'ztna' as const, label: 'ZTNA', icon: Fingerprint }] : []),
   ];
 
   return (
@@ -743,7 +746,7 @@ export default function FirewallPage() {
       {activeTab === 'bw-policies' && <BwPolicyDetails />}
       {activeTab === 'web-categories' && <WebCategories />}
       {activeTab === 'chain-architecture' && <ChainArchitectureTab />}
-      {activeTab === 'ztna' && <ZtnaDevicePolicies />}
+      {activeTab === 'ztna' && ztnaEnabled && <ZtnaDevicePolicies />}
     </div>
   );
 }
@@ -3465,7 +3468,14 @@ function ChainArchitectureTab() {
         apiFetch<ChainArchData>(`${API_BASE}/chain-architecture`),
         apiFetch<ChainStatusData>(`${API_BASE}/apply-status`),
       ]);
-      if (archRes.success && archRes.data) setArchData(archRes.data);
+      if (archRes.success && archRes.data) {
+        setArchData({
+          tables: archRes.data.tables ?? {},
+          securityHooks: archRes.data.securityHooks ?? [],
+          sets: archRes.data.sets ?? [],
+          systemChains: archRes.data.systemChains ?? {},
+        });
+      }
       if (statusRes.success && statusRes.data) setStatusData(statusRes.data);
     } catch {
       toast({ title: 'Error', description: 'Failed to load chain architecture', variant: 'destructive' });
@@ -3645,9 +3655,9 @@ function ChainArchitectureTab() {
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'GUI Chains', value: Object.values(archData.tables).reduce((s, t) => s + t.guiChains.length, 0), icon: Unlock, color: 'text-primary', bg: 'bg-primary/5' },
+          { label: 'GUI Chains', value: totalGuiChains, icon: Unlock, color: 'text-primary', bg: 'bg-primary/5' },
           { label: 'GUI Rules', value: totalGuiRules, icon: ShieldCheck, color: 'text-primary', bg: 'bg-primary/5' },
-          { label: 'Security Hooks', value: archData.securityHooks.length, icon: ShieldAlert, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/40' },
+          { label: 'Security Hooks', value: archData.securityHooks?.length ?? 0, icon: ShieldAlert, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-950/40' },
           { label: 'nftables Sets', value: totalSets, icon: Server, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-950/40' },
         ].map((card, i) => (
           <motion.div
@@ -3925,7 +3935,7 @@ function ChainArchitectureTab() {
       {/* ════════════════════════════════════════════════════════════ */}
       {/* ── nftables Sets ── */}
       {/* ════════════════════════════════════════════════════════════ */}
-      {archData.sets.length > 0 && (
+      {archData.sets?.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.33 }}>
           <Card className="bg-card/80 backdrop-blur-sm border-border/60 overflow-hidden hover:shadow-lg transition-shadow">
             <div className="h-1 bg-gradient-to-r from-violet-500 to-purple-400" />
@@ -3938,7 +3948,7 @@ function ChainArchitectureTab() {
                   <Server className="h-4 w-4 text-violet-500" />
                   nftables Sets
                   <Badge variant="outline" className="text-[10px] font-medium">
-                    {archData.sets.length} sets
+                    {archData.sets?.length} sets
                   </Badge>
                 </CardTitle>
                 {expandedSections.sets ? (

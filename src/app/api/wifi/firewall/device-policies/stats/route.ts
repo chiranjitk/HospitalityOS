@@ -4,7 +4,7 @@ import { requirePermission } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/firewall/device-policies/stats - ZTNA statistics
 export async function GET(request: NextRequest) {
-  const user = await requirePermission(request, 'network.manage');
+  const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {

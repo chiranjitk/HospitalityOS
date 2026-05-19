@@ -4,7 +4,7 @@ import { requirePermission } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/firewall/device-groups - List device groups
 export async function GET(request: NextRequest) {
-  const user = await requirePermission(request, 'network.manage');
+  const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 
 // POST /api/wifi/firewall/device-groups - Create a device group
 export async function POST(request: NextRequest) {
-  const user = await requirePermission(request, 'network.manage');
+  const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
 
   try {
