@@ -453,35 +453,28 @@ export async function POST(request: NextRequest) {
 
               for (const fieldType of fieldTypes) {
                 let sourceValue = '';
-                let itemCount = 0; // Track actual item count for photo fields
                 const allAmenities = roomTypes.flatMap(rt => { try { return JSON.parse(rt.amenities || '[]'); } catch { return []; } });
 
                 switch (fieldType) {
                   case 'hotel_name':
                     sourceValue = property.name || '';
-                    itemCount = 1;
                     break;
                   case 'hotel_description':
                     sourceValue = property.description || '';
-                    itemCount = 1;
                     break;
                   case 'hotel_photos':
                     // Sync ALL property images — OTA channels need full gallery
                     sourceValue = JSON.stringify(allImageUrls);
-                    itemCount = allImageUrls.length;
                     break;
                   case 'room_photos':
                     sourceValue = JSON.stringify(imagesByRoomType);
-                    itemCount = roomImages.length;
                     break;
                   case 'amenity':
                   case 'facility':
                     sourceValue = JSON.stringify(allAmenities);
-                    itemCount = allAmenities.length;
                     break;
                   default:
                     sourceValue = '';
-                    itemCount = 0;
                 }
 
                 await db.channelContentField.create({
@@ -497,9 +490,13 @@ export async function POST(request: NextRequest) {
                     lastSyncedAt: new Date(),
                   },
                 });
-                totalItems += itemCount;
-                syncedItems += itemCount;
               }
+
+              // Count unique photos (hotel_photos and room_photos are the SAME images
+              // grouped differently — don't double-count)
+              const uniquePhotoCount = allImageUrls.length;
+              totalItems += uniquePhotoCount;
+              syncedItems += uniquePhotoCount;
             }
           }
 
