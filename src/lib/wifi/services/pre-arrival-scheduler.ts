@@ -21,6 +21,10 @@
 
 import { db } from '@/lib/db';
 import { randomBytes } from 'crypto';
+import { sendEmailForTenant } from '@/lib/adapters/email';
+import { sendSMSForTenant } from '@/lib/adapters/sms';
+import type { EmailOptions } from '@/lib/adapters/email';
+import type { SMSOptions } from '@/lib/adapters/sms';
 
 // ─── Return Type ────────────────────────────────────────────────────
 
@@ -280,9 +284,30 @@ async function processBooking(
     }
   }
 
-  // ── 4b: Queue email notification ──────────────────────────────────
+  // ── 4b: Send REAL email notification ─────────────────────────────
   if (config.sendEmail && guest.email) {
     try {
+      // Look up the WiFi user credentials for the email body
+      const wifiUser = await db.wiFiUser.findFirst({
+        where: { bookingId: booking.id, status: 'active' },
+        select: { username: true, password: true },
+      });
+
+      const ssid = `${property.name.replace(/[^a-zA-Z0-9]/g, '')}_Guest`;
+      const emailText = wifiUser
+        ? `Dear ${guest.firstName},\n\nYour WiFi at ${property.name}:\nNetwork: ${ssid}\nUsername: ${wifiUser.username}\nPassword: ${wifiUser.password}\n\nCheck-in: ${new Date(booking.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}\nCheck-out: ${new Date(booking.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}\nConfirmation: ${booking.confirmationCode}\n\nEnjoy your stay!`
+        : `WiFi credentials are being prepared for ${guest.firstName} ${guest.lastName}. They will be available at check-in.`;
+
+      const emailOpts: EmailOptions = {
+        to: guest.email,
+        subject: `Your WiFi Credentials for ${property.name}`,
+        text: emailText,
+        html: `<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:20px"><h2 style="color:#0d9488">${property.name}</h2><p>Dear ${guest.firstName},</p>${wifiUser ? `<div style="background:#f0fdfa;border:1px solid #ccfbf1;border-radius:8px;padding:16px;margin:16px 0"><p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:#0f766e;font-weight:600">WiFi Access Details</p><p style="margin:4px 0">Network: <strong>${ssid}</strong></p><p style="margin:4px 0">Username: <strong>${wifiUser.username}</strong></p><p style="margin:4px 0">Password: <strong>${wifiUser.password}</strong></p></div>` : ''}<p style="color:#6b7280;font-size:13px">Check-in: ${new Date(booking.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} | Check-out: ${new Date(booking.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p><p style="color:#6b7280;font-size:13px">Confirmation: ${booking.confirmationCode}</p></body></html>`,
+      };
+
+      const emailResult = await sendEmailForTenant(config.tenantId, emailOpts);
+      const emailStatus = emailResult.success ? 'sent' : 'failed';
+
       await db.notificationLog.create({
         data: {
           tenantId: config.tenantId,
@@ -290,23 +315,50 @@ async function processBooking(
           recipientId: guest.id,
           recipientEmail: guest.email,
           channel: 'email',
-          subject: `[WiFi Pre-Arrival] Your WiFi Credentials for ${property.name}`,
-          body: `WiFi credentials ready for ${guest.firstName} ${guest.lastName} — booking ${booking.confirmationCode}. Delivery will be triggered by the pre-arrival send worker.`,
-          status: 'pending',
+          subject: emailOpts.subject,
+          body: emailText,
+          status: emailStatus,
+          sentAt: emailResult.success ? new Date() : null,
+          errorMessage: emailResult.error,
+          externalId: emailResult.messageId,
         },
       });
+
       result.notificationsQueued++;
+      console.log(
+        `[PreArrivalScheduler] Email ${emailStatus} to ${guest.email} for booking ${booking.id}` +
+        (emailResult.messageId ? ` (${emailResult.messageId})` : '') +
+        (emailResult.error ? ` — ${emailResult.error}` : ''),
+      );
     } catch (emailError) {
       console.error(
-        `[PreArrivalScheduler] Failed to queue email notification for booking ${booking.id}:`,
+        `[PreArrivalScheduler] Failed to send email for booking ${booking.id}:`,
         emailError,
       );
     }
   }
 
-  // ── 4c: Queue SMS notification ────────────────────────────────────
+  // ── 4c: Send REAL SMS notification ─────────────────────────────────
   if (config.sendSms && guest.phone) {
     try {
+      const wifiUser = await db.wiFiUser.findFirst({
+        where: { bookingId: booking.id, status: 'active' },
+        select: { username: true, password: true },
+      });
+
+      const ssid = `${property.name.replace(/[^a-zA-Z0-9]/g, '')}_Guest`;
+      const smsMessage = wifiUser
+        ? `Your WiFi at ${property.name}: Network: ${ssid}, Username: ${wifiUser.username}, Password: ${wifiUser.password}`
+        : `Your WiFi credentials at ${property.name} will be available at check-in.`;
+
+      const smsOpts: SMSOptions = {
+        to: guest.phone,
+        message: smsMessage,
+      };
+
+      const smsResult = await sendSMSForTenant(config.tenantId, smsOpts);
+      const smsStatus = smsResult.success ? 'sent' : 'failed';
+
       await db.notificationLog.create({
         data: {
           tenantId: config.tenantId,
@@ -315,14 +367,23 @@ async function processBooking(
           recipientPhone: guest.phone,
           channel: 'sms',
           subject: '[WiFi Pre-Arrival] WiFi Credentials',
-          body: `WiFi credentials ready for ${guest.firstName} ${guest.lastName} — booking ${booking.confirmationCode}. Delivery will be triggered by the pre-arrival send worker.`,
-          status: 'pending',
+          body: smsMessage,
+          status: smsStatus,
+          sentAt: smsResult.success ? new Date() : null,
+          errorMessage: smsResult.error,
+          externalId: smsResult.messageId,
         },
       });
+
       result.notificationsQueued++;
+      console.log(
+        `[PreArrivalScheduler] SMS ${smsStatus} to ${guest.phone} for booking ${booking.id}` +
+        (smsResult.messageId ? ` (${smsResult.messageId})` : '') +
+        (smsResult.error ? ` — ${smsResult.error}` : ''),
+      );
     } catch (smsError) {
       console.error(
-        `[PreArrivalScheduler] Failed to queue SMS notification for booking ${booking.id}:`,
+        `[PreArrivalScheduler] Failed to send SMS for booking ${booking.id}:`,
         smsError,
       );
     }
