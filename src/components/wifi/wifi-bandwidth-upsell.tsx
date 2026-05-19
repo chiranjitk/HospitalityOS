@@ -156,6 +156,10 @@ function getCoaBadge(status?: string | null) {
       return <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-[10px]">Pending</Badge>;
     case 'failed':
       return <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 text-[10px]">Failed</Badge>;
+    case 'reverted':
+      return <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-0 text-[10px]">Reverted</Badge>;
+    case 'partial':
+      return <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-[10px]">Partial</Badge>;
     default:
       return <Badge variant="outline" className="text-[10px]">N/A</Badge>;
   }
