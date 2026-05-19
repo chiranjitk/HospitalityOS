@@ -439,7 +439,6 @@ export default function NetworkPage() {
   const [bridgeBondSubTab, setBridgeBondSubTab] = useState<'bridges' | 'bonds'>('bridges');
 
   // Real OS data state
-  const [osSystemInfo, setOsSystemInfo] = useState<{ hostname: string; kernel: string; osRelease: string; uptimeFormatted: string; loadAverage: string; memory: { total: number; used: number; usagePercent: number }; cpuCount: number } | null>(null);
   const [osDataLoaded, setOsDataLoaded] = useState(false);
 
   // Form states
@@ -755,7 +754,7 @@ export default function NetworkPage() {
         ]);
         if (sysRes.status === 'fulfilled') {
           const sysData = await sysRes.value.json();
-          if (sysData.success) setOsSystemInfo(sysData.data);
+          // System info available via osData if needed later
         }
         if (fwdRes.status === 'fulfilled') {
           const fwdData = await fwdRes.value.json();
@@ -1691,54 +1690,6 @@ export default function NetworkPage() {
           </div>
         </div>
       </div>
-
-      {/* Real OS System Info Card */}
-      {osSystemInfo && (
-        <Card className="border-0 shadow-sm rounded-xl">
-          <CardContent className="p-3">
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-[1fr_2fr_2fr_1fr_1fr_1.5fr_1fr] gap-x-4 gap-y-2">
-              <div>
-                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Hostname</p>
-                <p className="text-xs font-semibold mt-0.5 truncate">{osSystemInfo.hostname}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">OS</p>
-                <p className="text-xs font-semibold mt-0.5 truncate" title={osSystemInfo.osRelease + (osSystemInfo.osVersion ? ` v${osSystemInfo.osVersion}` : '')}>{osSystemInfo.osRelease || 'Linux'}{osSystemInfo.osVersion ? <span className="text-muted-foreground font-normal"> v{osSystemInfo.osVersion}</span> : null}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Kernel</p>
-                <p className="text-xs font-mono mt-0.5 truncate" title={osSystemInfo.kernel}>{osSystemInfo.kernel}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Uptime</p>
-                <p className="text-xs font-semibold mt-0.5">{osSystemInfo.uptimeFormatted}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Load Avg</p>
-                <p className="text-xs font-mono mt-0.5">{osSystemInfo.loadAverage}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Memory</p>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <Progress value={osSystemInfo.memory?.usagePercent ?? 0} className="h-1.5 flex-1" />
-                  <span className="text-[10px] font-medium whitespace-nowrap">{osSystemInfo.memory?.usagePercent ?? 0}%</span>
-                </div>
-                <p className="text-[10px] text-muted-foreground">{((osSystemInfo.memory?.used ?? 0) / 1073741824).toFixed(1)}/{((osSystemInfo.memory?.total ?? 0) / 1073741824).toFixed(1)} GB</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">CPU</p>
-                <p className="text-xs font-semibold mt-0.5">{osSystemInfo.cpuCount} cores</p>
-              </div>
-            </div>
-            {osDataLoaded && (
-              <div className="flex items-center gap-1.5 text-[10px] text-primary mt-2 pt-2 border-t">
-                <CheckCircle2 className="h-3 w-3" />
-                Live data from OS · Auto-refresh every 30s
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Custom Tab Switcher */}
       <div className="relative">
