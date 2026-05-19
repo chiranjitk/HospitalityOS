@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-export DATABASE_URL="postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite"
-export RADIUS_DATABASE_URL="postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite"
+export DATABASE_URL="postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30"
+export RADIUS_DATABASE_URL="postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30"
 export NODE_ENV="development"
 export PORT=3000
 
@@ -10,4 +10,6 @@ export PORT=3000
 export NODE_OPTIONS="--max-old-space-size=3072"
 
 cd /home/z/my-project
-exec npx next dev --webpack -p 3000
+# Use Turbopack (default) instead of --webpack for ~40% less memory usage
+# Turbopack compiles incrementally — only what the current page needs
+exec npx next dev -p 3000
