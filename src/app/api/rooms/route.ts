@@ -148,6 +148,7 @@ export async function POST(request: NextRequest) {
       hasMountainView = false,
       status = 'available',
       digitalKeyEnabled = false,
+      images,
     } = body;
     
     // Validate required fields
@@ -219,6 +220,7 @@ export async function POST(request: NextRequest) {
           hasMountainView,
           status,
           digitalKeyEnabled,
+          images: images ? JSON.stringify(images) : undefined,
         },
         include: {
           roomType: {

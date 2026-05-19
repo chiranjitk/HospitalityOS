@@ -60,6 +60,8 @@ const PUBLIC_PATHS = [
   '/api/nftables/',        // nftables service proxy
   '/api/network/os',       // Network interface data (used by DHCP/VLAN pages)
   '/api/kiosk/public-settings', // Kiosk public configuration
+  // File serving (uploaded images need to be publicly accessible for guest portals, OTA, etc.)
+  '/api/files/',           // Serve uploaded files (images, documents)
   // Page routes
   '/login',
   '/signup',

@@ -250,7 +250,10 @@ export default function RoomsManager() {
       const response = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          images: formData.images,
+        }),
       });
       
       if (!response.ok) {
@@ -813,7 +816,33 @@ export default function RoomsManager() {
                           )}
                           onClick={() => openEditDialog(room)}
                         >
-                          <div className="flex flex-col items-center gap-2">
+                          <div className="flex flex-col items-center gap-2 w-full">
+                            {/* Room thumbnail */}
+                            {(() => {
+                              try {
+                                const imgs = JSON.parse(room.images || '[]');
+                                return imgs.length > 0 ? (
+                                  <div className="w-full aspect-[4/3] rounded-md overflow-hidden bg-muted">
+                                    <img
+                                      src={imgs[0]}
+                                      alt={`Room ${room.number}`}
+                                      className="w-full h-full object-cover"
+                                      loading="lazy"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="w-full aspect-[4/3] rounded-md bg-muted/50 flex items-center justify-center">
+                                    <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+                                  </div>
+                                );
+                              } catch {
+                                return (
+                                  <div className="w-full aspect-[4/3] rounded-md bg-muted/50 flex items-center justify-center">
+                                    <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+                                  </div>
+                                );
+                              }
+                            })()}
                             <div className={cn("w-3 h-3 rounded-full", statusInfo.color)} />
                             <span className="font-bold text-lg">{room.number}</span>
                             <span className="text-xs text-muted-foreground text-center truncate w-full">
@@ -848,13 +877,43 @@ export default function RoomsManager() {
             const statusInfo = getStatusInfo(room.status);
             return (
               <Card key={room.id} className="p-3 space-y-2" onClick={() => openEditDialog(room)}>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className={cn("w-3 h-3 rounded-full shrink-0", statusInfo.color)} />
-                    <span className="font-bold text-lg">{room.number}</span>
-                    {room.name && <span className="text-sm text-muted-foreground truncate">({room.name})</span>}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    {/* Room thumbnail */}
+                    {(() => {
+                      try {
+                        const imgs = JSON.parse(room.images || '[]');
+                        return imgs.length > 0 ? (
+                          <div className="w-16 h-12 rounded-md overflow-hidden bg-muted shrink-0">
+                            <img
+                              src={imgs[0]}
+                              alt={`Room ${room.number}`}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-16 h-12 rounded-md bg-muted/50 flex items-center justify-center shrink-0">
+                            <ImageIcon className="h-4 w-4 text-muted-foreground/40" />
+                          </div>
+                        );
+                      } catch {
+                        return (
+                          <div className="w-16 h-12 rounded-md bg-muted/50 flex items-center justify-center shrink-0">
+                            <ImageIcon className="h-4 w-4 text-muted-foreground/40" />
+                          </div>
+                        );
+                      }
+                    })()}
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div className={cn("w-3 h-3 rounded-full shrink-0", statusInfo.color)} />
+                        <span className="font-bold text-lg">{room.number}</span>
+                        {room.name && <span className="text-sm text-muted-foreground truncate">({room.name})</span>}
+                      </div>
+                      <Badge variant="outline">{room.roomType.code}</Badge>
+                    </div>
                   </div>
-                  <Badge variant="outline">{room.roomType.code}</Badge>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {room.hasSeaView && <Badge variant="secondary" className="text-xs"><Waves className="h-3 w-3 mr-1" />Sea</Badge>}
@@ -884,6 +943,7 @@ export default function RoomsManager() {
             <table className="w-full">
               <thead className="border-b bg-muted/50">
                 <tr>
+                  <th className="text-left p-4 font-medium w-16">Photo</th>
                   <th className="text-left p-4 font-medium">Room</th>
                   <th className="text-left p-4 font-medium">Type</th>
                   <th className="text-left p-4 font-medium">Floor</th>
@@ -897,6 +957,33 @@ export default function RoomsManager() {
                   const statusInfo = getStatusInfo(room.status);
                   return (
                     <tr key={room.id} className="border-b hover:bg-muted/50">
+                      <td className="p-4">
+                        {(() => {
+                          try {
+                            const imgs = JSON.parse(room.images || '[]');
+                            return imgs.length > 0 ? (
+                              <div className="w-12 h-9 rounded overflow-hidden bg-muted">
+                                <img
+                                  src={imgs[0]}
+                                  alt={`Room ${room.number}`}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-12 h-9 rounded bg-muted/50 flex items-center justify-center">
+                                <ImageIcon className="h-3 w-3 text-muted-foreground/40" />
+                              </div>
+                            );
+                          } catch {
+                            return (
+                              <div className="w-12 h-9 rounded bg-muted/50 flex items-center justify-center">
+                                <ImageIcon className="h-3 w-3 text-muted-foreground/40" />
+                              </div>
+                            );
+                          }
+                        })()}
+                      </td>
                       <td className="p-4">
                         <div>
                           <span className="font-bold">{room.number}</span>
@@ -991,12 +1078,33 @@ export default function RoomsManager() {
               Create a new room
             </DialogDescription>
           </DialogHeader>
-          <RoomForm 
-            formData={formData}
-            setFormData={setFormData}
-            properties={properties}
-            roomTypes={roomTypes}
-          />
+          <div className="flex-1 overflow-y-auto">
+            <RoomForm 
+              formData={formData}
+              setFormData={setFormData}
+              properties={properties}
+              roomTypes={roomTypes}
+            />
+            {/* Room Images Section */}
+            <div className="space-y-2 pt-4 border-t mt-4">
+              <Label className="flex items-center gap-2">
+                <ImageIcon className="h-4 w-4" />
+                Room Photos
+              </Label>
+              <div className="flex items-center gap-2">
+                <RoomImageGallery
+                  roomId="new"
+                  images={formData.images}
+                  onImagesChange={(images) => setFormData(prev => ({ ...prev, images }))}
+                />
+                {formData.images.length > 0 && (
+                  <span className="text-sm text-muted-foreground">
+                    {formData.images.length} photo{formData.images.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
               Cancel
