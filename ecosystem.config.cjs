@@ -9,10 +9,11 @@ module.exports = {
       cwd: APP_DIR,
       watch: false,
       autorestart: true,
-      max_restarts: 5,
+      max_restarts: 10,
       restart_delay: 10000,
       kill_timeout: 30000,
       listen_timeout: 120000,
+      max_memory_restart: '4G',
       env: {
         PORT: 3000,
         DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
