@@ -235,6 +235,16 @@ export const FEATURES: Record<string, FeatureConfig> = {
     apiRoutes: ['/api/wifi/network/room-vlans'],
     dependencies: ['wifi'],
   },
+  ztna: {
+    id: 'ztna',
+    name: 'Zero Trust Network Access',
+    description: 'Per-device trust tiers, automatic firewall policy enforcement, device groups, guest zone isolation, and ZTNA audit logging',
+    category: 'addons',
+    subcategory: 'Connectivity',
+    menuItems: [],
+    apiRoutes: ['/api/wifi/firewall/device-policies', '/api/wifi/firewall/device-groups'],
+    dependencies: ['wifi'],
+  },
 
   // =====================================================
   // ADDON MODULES - Revenue & Channels

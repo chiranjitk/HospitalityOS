@@ -134,6 +134,10 @@ const WebCategories = dynamic(
   () => import('./web-categories').then((m) => m.default),
   { ssr: false, loading: () => <TableSkeleton cols={6} rows={5} /> }
 );
+const ZtnaDevicePolicies = dynamic(
+  () => import('./ztna-device-policies').then((m) => m.default),
+  { ssr: false, loading: () => <TableSkeleton cols={6} rows={5} /> }
+);
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -688,6 +692,7 @@ export default function FirewallPage() {
     { id: 'bw-policies', label: 'BW Policies', icon: BarChart3 },
     { id: 'web-categories', label: 'Web Categories', icon: ShieldAlert },
     { id: 'chain-architecture', label: 'Chain Architecture', icon: GitBranch },
+    { id: 'ztna', label: 'ZTNA', icon: Fingerprint },
   ];
 
   return (
@@ -738,6 +743,7 @@ export default function FirewallPage() {
       {activeTab === 'bw-policies' && <BwPolicyDetails />}
       {activeTab === 'web-categories' && <WebCategories />}
       {activeTab === 'chain-architecture' && <ChainArchitectureTab />}
+      {activeTab === 'ztna' && <ZtnaDevicePolicies />}
     </div>
   );
 }

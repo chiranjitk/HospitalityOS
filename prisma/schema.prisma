@@ -2383,15 +2383,12 @@ model FirewallSchedule {
   property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  rules      FirewallRule[]
+  rules           FirewallRule[]
+  devicePolicies  DevicePolicy[]
 
   @@index([tenantId])
   @@index([propertyId])
 }
-
-// ============================================================
-// FIREWALL & BANDWIDTH MODULE - nftables + tc management
-// ============================================================
 
 // ============================================================
 // FIREWALL & BANDWIDTH MODULE - nftables + tc management
@@ -4778,6 +4775,10 @@ model Property {
   portalAdCampaigns         PortalAdCampaign[]
   hotelWebsites             HotelWebsite[]
   otaChannels               OtaChannel[]
+  deviceGroups              DeviceGroup[]
+  devicePolicies            DevicePolicy[]
+  devicePolicyAssignments   DevicePolicyAssignment[]
+  ztnaAuditLogs             ZtnaAuditLog[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -6873,6 +6874,10 @@ model Tenant {
   lastMinuteTriggerLogs     LastMinuteTriggerLog[]
   scheduledReports          ScheduledReport[]
   otaChannels               OtaChannel[]
+  deviceGroups              DeviceGroup[]
+  devicePolicies            DevicePolicy[]
+  devicePolicyAssignments   DevicePolicyAssignment[]
+  ztnaAuditLogs             ZtnaAuditLog[]
 }
 
 // ============================================================
@@ -12323,4 +12328,125 @@ model LastMinuteTriggerLog {
   @@index([propertyId])
   @@index([triggerId])
   @@index([date])
+}
+
+// ============================================================
+// ZERO TRUST NETWORK ACCESS (ZTNA) MODULE
+// ============================================================
+
+/// DeviceGroup - Groups devices by type for policy assignment
+/// Match criteria: MAC OUI prefix, VLAN ID, SSID, device type, or manual assignment
+model DeviceGroup {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  propertyId    String   @db.Uuid
+  name          String
+  description   String?
+  matchType     String   @default("manual") // manual, mac_oui, vlan, ssid, device_type
+  matchCriteria String   @default("{}")     // JSON: {"oui": "AA:BB:CC"}, {"vlanId": 10}, {"ssid": "StaffWiFi"}, {"deviceType": "iot"}
+  defaultPolicyId String? @db.Uuid          // Auto-assign this policy to matching devices
+  deviceCount   Int      @default(0)        // Cached count of devices in this group
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  updatedAt     DateTime @updatedAt @db.Timestamptz
+  property       Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  defaultPolicy  DevicePolicy? @relation("GroupDefaultPolicy", fields: [defaultPolicyId], references: [id])
+
+  @@unique([propertyId, name])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([matchType])
+  @@index([enabled])
+}
+
+/// DevicePolicy - Per-device or per-group firewall policy for ZTNA
+/// Defines trust tier, bandwidth limits, allowed/denied zones, content filter level
+model DevicePolicy {
+  id                  String   @id @default(uuid()) @db.Uuid
+  tenantId            String   @db.Uuid
+  propertyId          String   @db.Uuid
+  name                String
+  description         String?
+  trustLevel          String   @default("standard") // trusted, standard, restricted, quarantine
+  bandwidthDownKbps   Int      @default(10240)       // 10 Mbps
+  bandwidthUpKbps     Int      @default(5120)        // 5 Mbps
+  allowedZones        String   @default("[]")        // JSON: zone IDs this policy can access
+  deniedZones         String   @default("[]")        // JSON: zone IDs explicitly blocked
+  contentFilterLevel  String   @default("none")      // none, basic, strict, custom
+  customFilterId      String?  @db.Uuid              // Link to ContentFilterCategory for custom level
+  sessionTimeoutMins  Int      @default(1440)        // 24 hours
+  maxDevices          Int      @default(3)           // Max devices per guest under this policy
+  isActive            Boolean  @default(true)        // Currently enforced
+  autoApplyOnAuth     Boolean  @default(true)        // Auto-apply when device authenticates
+  priority            Int      @default(0)           // Higher = evaluated first
+  scheduleId          String?  @db.Uuid              // Time-based activation
+  createdAt           DateTime @default(now()) @db.Timestamptz
+  updatedAt           DateTime @updatedAt @db.Timestamptz
+  property            Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant              Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deviceGroupsAsDefault DeviceGroup[]  @relation("GroupDefaultPolicy")
+  firewallSchedule    FirewallSchedule? @relation(fields: [scheduleId], references: [id])
+  assignments         DevicePolicyAssignment[]
+
+  @@unique([propertyId, name])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([trustLevel])
+  @@index([isActive])
+  @@index([priority])
+}
+
+/// DevicePolicyAssignment - Links a specific MAC/device to a policy
+/// Records when a policy was applied and the source (manual, auto, group)
+model DevicePolicyAssignment {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @db.Uuid
+  propertyId    String    @db.Uuid
+  policyId      String    @db.Uuid
+  macAddress    String                                    // Device MAC address
+  ipAddress     String?                                   // Current IP (updated on auth)
+  source        String    @default("manual")             // manual, auto_group, auto_trust, admin_override
+  trustLevel    String    @default("standard")            // Current effective trust level
+  isActive      Boolean   @default(true)
+  appliedAt     DateTime  @default(now()) @db.Timestamptz
+  expiresAt     DateTime? @db.Timestamptz
+  lastSeenAt    DateTime? @db.Timestamptz
+  revokedAt     DateTime? @db.Timestamptz
+  revokedBy     String?                                   // Reason for revocation
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @db.Timestamptz
+  property      Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  policy        DevicePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, macAddress]) // One active policy per device
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([macAddress])
+  @@index([policyId])
+  @@index([isActive])
+  @@index([trustLevel])
+}
+
+/// ZtnaAuditLog - Audit trail for ZTNA policy changes
+model ZtnaAuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  propertyId    String   @db.Uuid
+  action        String   // policy_created, policy_updated, policy_deleted, device_assigned, device_revoked, trust_changed, rules_applied
+  entityType    String   // device_policy, device_group, assignment
+  entityId      String?  @db.Uuid
+  macAddress    String?
+  details       String   @default("{}") // JSON: full change details
+  performedBy   String?  @db.Uuid      // User who triggered
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
 }
