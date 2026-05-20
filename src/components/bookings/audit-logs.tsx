@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -20,12 +20,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   FileText,
   Search,
-  Clock,
   User,
   Hash,
   ArrowRight,
@@ -33,8 +31,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, formatDistanceToNow } from 'date-fns';
-import { useTranslations } from 'next-intl';
+import { format } from 'date-fns';
 
 interface BookingInfo {
   id: string;
@@ -78,7 +75,6 @@ const statusColors: Record<string, string> = {
 };
 
 export default function AuditLogs() {
-  const t = useTranslations('bookings');
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -159,7 +155,6 @@ export default function AuditLogs() {
           </p>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Clock className="h-4 w-4" />
           {total} total entries
         </div>
       </div>
@@ -200,18 +195,17 @@ export default function AuditLogs() {
         </CardContent>
       </Card>
 
-      {/* Timeline View */}
+      {/* Table View */}
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-6 space-y-4">
-              {[...Array(5)].map((_, i) => (
+            <div className="p-6 space-y-3">
+              {[...Array(8)].map((_, i) => (
                 <div key={i} className="flex gap-4">
-                  <Skeleton className="h-10 w-10 rounded-full" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-1/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                  </div>
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 flex-1" />
+                  <Skeleton className="h-4 w-36" />
                 </div>
               ))}
             </div>
@@ -222,91 +216,87 @@ export default function AuditLogs() {
               <p className="text-sm">Activity will appear here as bookings are modified</p>
             </div>
           ) : (
-            <ScrollArea className="h-[500px]">
-              <div className="p-3 sm:p-4">
-                {logs.map((log, index) => {
-                  const isLast = index === logs.length - 1;
-
-                  return (
-                    <div key={log.id} className="flex gap-4">
-                      {/* Timeline connector */}
-                      <div className="flex flex-col items-center">
-                        <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                          <Clock className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                        {!isLast && <div className="flex-1 w-0.5 bg-border my-2" />}
-                      </div>
-
-                      {/* Content */}
-                      <div className="flex-1 pb-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
-                          <div className="flex items-center gap-2">
-                            <Hash className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-mono text-sm font-medium">
-                              {log.booking.confirmationCode}
-                            </span>
-                          </div>
-                          {getActionBadge(log.action)}
-                          <span className="text-xs text-muted-foreground">
-                            {formatDistanceToNow(new Date(log.performedAt), { addSuffix: true })}
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[160px]">Timestamp</TableHead>
+                    <TableHead className="w-[130px]">Booking ID</TableHead>
+                    <TableHead className="w-[150px]">Guest</TableHead>
+                    <TableHead className="w-[130px]">Action</TableHead>
+                    <TableHead>Status Change</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead className="w-[130px]">Performed By</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {logs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell className="whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <Calendar className="h-3.5 w-3.5 shrink-0" />
+                          <span className="text-xs">
+                            {format(new Date(log.performedAt), 'MMM d, yyyy')}
+                          </span>
+                          <span className="text-xs text-muted-foreground/70">
+                            {format(new Date(log.performedAt), 'h:mm a')}
                           </span>
                         </div>
-
-                        {/* Status change indicator */}
-                        {log.oldStatus && log.newStatus && (
-                          <div className="flex items-center gap-2 mb-2">
-                            {getStatusBadge(log.oldStatus)}
-                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                            {getStatusBadge(log.newStatus)}
-                          </div>
-                        )}
-
-                        {/* Guest info */}
-                        {log.booking.primaryGuest && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                            <User className="h-3 w-3" />
-                            <span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          <Hash className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="font-mono text-sm font-medium">
+                            {log.booking.confirmationCode}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {log.booking.primaryGuest ? (
+                          <div className="flex items-center gap-1.5">
+                            <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="text-sm">
                               {log.booking.primaryGuest.firstName} {log.booking.primaryGuest.lastName}
                             </span>
                           </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
                         )}
-
-                        {/* Notes */}
-                        {log.notes && (
-                          <p className="text-sm text-muted-foreground bg-muted/50 rounded-md p-2 mt-2">
+                      </TableCell>
+                      <TableCell>{getActionBadge(log.action)}</TableCell>
+                      <TableCell>
+                        {log.oldStatus && log.newStatus ? (
+                          <div className="flex items-center gap-1.5">
+                            {getStatusBadge(log.oldStatus)}
+                            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            {getStatusBadge(log.newStatus)}
+                          </div>
+                        ) : log.newStatus ? (
+                          getStatusBadge(log.newStatus)
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {log.notes ? (
+                          <p className="text-sm text-muted-foreground max-w-xs truncate" title={log.notes}>
                             {log.notes}
                           </p>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
                         )}
-
-                        {/* Timestamp */}
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
-                          <Calendar className="h-3 w-3" />
-                          <span>{format(new Date(log.performedAt), 'MMM d, yyyy h:mm a')}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </ScrollArea>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm text-muted-foreground">
+                          {log.performedBy || 'System'}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Action Legend */}
-      <Card>
-        <CardHeader className="py-3">
-          <CardTitle className="text-sm font-medium">Action Types</CardTitle>
-        </CardHeader>
-        <CardContent className="pb-3">
-          <div className="flex flex-wrap gap-3">
-            {Object.entries(actionTypes).map(([key, { label, color }]) => (
-              <div key={key} className="flex items-center gap-2">
-                <div className={cn('w-3 h-3 rounded', color)} />
-                <span className="text-xs text-muted-foreground">{label}</span>
-              </div>
-            ))}
-          </div>
         </CardContent>
       </Card>
     </div>
