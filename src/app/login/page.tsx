@@ -30,6 +30,8 @@ import {
   AlertCircle,
   Globe,
   Wifi,
+  Crown,
+  KeyRound,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -49,62 +51,62 @@ const slideshowImages = [
 
 const SLIDE_INTERVAL = 6000; // 6 seconds per slide
 
-// Framer-motion variants
+// Framer-motion variants — premium feel with smoother easing
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.1 },
+    transition: { staggerChildren: 0.06, delayChildren: 0.15 },
   },
 };
 
 const cardVariants = {
-  hidden: { opacity: 0, y: 10, scale: 0.97 },
+  hidden: { opacity: 0, y: 16, scale: 0.98 },
   visible: {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { type: 'spring', stiffness: 220, damping: 22, mass: 0.8 },
+    transition: { type: 'spring', stiffness: 200, damping: 24, mass: 0.9 },
   },
 };
 
 const headerVariants = {
-  hidden: { opacity: 0, x: -16 },
+  hidden: { opacity: 0, x: -12 },
   visible: {
     opacity: 1,
     x: 0,
-    transition: { type: 'spring', stiffness: 260, damping: 20 },
+    transition: { type: 'spring', stiffness: 240, damping: 22 },
   },
 };
 
 const fieldVariants = {
-  hidden: { opacity: 0, y: 16 },
+  hidden: { opacity: 0, y: 14 },
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { type: 'spring', stiffness: 300, damping: 24, delay: 0.12 + i * 0.07 },
+    transition: { type: 'spring', stiffness: 280, damping: 22, delay: 0.15 + i * 0.06 },
   }),
 };
 
 const badgeVariants = {
-  hidden: { opacity: 0, scale: 0.85, y: 8 },
+  hidden: { opacity: 0, scale: 0.88, y: 6 },
   visible: (i: number) => ({
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { type: 'spring', stiffness: 400, damping: 22, delay: 0.5 + i * 0.08 },
+    transition: { type: 'spring', stiffness: 380, damping: 22, delay: 0.5 + i * 0.07 },
   }),
 };
 
 const errorVariants = {
-  hidden: { opacity: 0, scale: 0.9, y: -8 },
+  hidden: { opacity: 0, scale: 0.92, y: -6 },
   visible: {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { type: 'spring', stiffness: 500, damping: 25 },
+    transition: { type: 'spring', stiffness: 450, damping: 24 },
   },
-  exit: { opacity: 0, scale: 0.9, y: -8, transition: { duration: 0.15 } },
+  exit: { opacity: 0, scale: 0.92, y: -6, transition: { duration: 0.15 } },
 };
 
 export default function LoginPage() {
@@ -244,20 +246,24 @@ export default function LoginPage() {
     setError('');
   };
 
-  // Show loading while checking auth state
+  // Show loading while checking auth state — premium loader
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-950 via-stone-950 to-orange-950">
         <motion.div
-          className="flex flex-col items-center gap-4"
+          className="flex flex-col items-center gap-5"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ type: 'spring', stiffness: 200, damping: 20 }}
         >
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-500 via-amber-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange-500/30">
-            <Hotel className="h-6 w-6 text-white" />
+          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-orange-500 via-amber-500 to-orange-400 flex items-center justify-center shadow-xl shadow-orange-500/40 ring-2 ring-orange-400/20">
+            <Hotel className="h-7 w-7 text-white" />
           </div>
-          <div className="h-4 w-24 bg-gradient-to-r from-orange-500/30 to-amber-500/30 rounded animate-pulse" />
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-orange-400 animate-bounce [animation-delay:0ms]" />
+            <div className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-bounce [animation-delay:150ms]" />
+            <div className="h-1.5 w-1.5 rounded-full bg-orange-300 animate-bounce [animation-delay:300ms]" />
+          </div>
         </motion.div>
       </div>
     );
@@ -266,16 +272,16 @@ export default function LoginPage() {
   // Demo credentials are only available in development mode
   const showDemoCredentials = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production';
   const demoCredentials = showDemoCredentials ? [
-    { role: 'Admin', email: 'admin@royalstay.in', password: 'admin123', color: 'bg-gradient-to-br from-violet-600 to-purple-600', ring: 'ring-violet-500/30', icon: Shield, barColor: 'bg-amber-400' },
-    { role: 'Front Desk', email: 'frontdesk@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-amber-500 to-orange-500', ring: 'ring-orange-500/30', icon: ConciergeBell, barColor: "bg-amber-400" },
-    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-amber-500 to-orange-500', ring: 'ring-amber-500/30', icon: Bath, barColor: "bg-orange-400" },
+    { role: 'Admin', email: 'admin@royalstay.in', password: 'admin123', color: 'bg-gradient-to-br from-orange-600 to-amber-600', ring: 'ring-orange-500/30', icon: Shield, barColor: 'bg-orange-400' },
+    { role: 'Front Desk', email: 'frontdesk@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-amber-500 to-orange-500', ring: 'ring-amber-500/30', icon: ConciergeBell, barColor: "bg-amber-400" },
+    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-orange-500 to-amber-500', ring: 'ring-orange-500/30', icon: Bath, barColor: "bg-orange-400" },
   ] : [];
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden">
       <div className="flex flex-1 min-h-0">
         {/* ═══════════════════════════════════════════
-            LEFT SIDE - Brand with AI Image Slideshow
+            LEFT SIDE - Premium Brand with Image Slideshow
             ═══════════════════════════════════════════ */}
         <div className="hidden lg:flex lg:w-[55%] xl:w-[60%] relative overflow-hidden">
           {/* Slideshow images - crossfade between them */}
@@ -286,28 +292,28 @@ export default function LoginPage() {
               style={{
                 backgroundImage: `url(${img.src})`,
                 opacity: currentSlide === index ? 1 : 0,
-                transform: currentSlide === index ? 'scale(1.03)' : 'scale(1)',
-                transition: 'opacity 1.5s ease-in-out, transform 8s ease-out',
+                transform: currentSlide === index ? 'scale(1.04)' : 'scale(1)',
+                transition: 'opacity 1.8s ease-in-out, transform 10s ease-out',
               }}
             />
           ))}
 
-          {/* Multi-layer overlay for text readability */}
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-slate-950/30" />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-transparent to-slate-950/50" />
-          <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-slate-950/95 to-transparent" />
+          {/* Multi-layer overlay — warm orange-tinted for premium hospitality feel */}
+          <div className="absolute inset-0 bg-gradient-to-t from-orange-950/90 via-orange-950/40 to-orange-950/20" />
+          <div className="absolute inset-0 bg-gradient-to-r from-orange-950/85 via-orange-950/30 to-orange-950/60" />
+          <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-orange-950/95 to-transparent" />
 
-          {/* Animated glow orbs - colorful */}
+          {/* Warm golden glow orbs */}
           <div
-            className="absolute top-1/4 left-1/3 w-72 h-72 rounded-full bg-orange-400/20 blur-[100px]"
+            className="absolute top-1/4 left-1/3 w-80 h-80 rounded-full bg-orange-400/25 blur-[120px]"
             style={{ animation: 'loginGlowPulse 6s ease-in-out infinite' }}
           />
           <div
-            className="absolute bottom-1/3 right-1/4 w-56 h-56 rounded-full bg-amber-400/15 blur-[80px]"
+            className="absolute bottom-1/3 right-1/4 w-64 h-64 rounded-full bg-amber-300/20 blur-[100px]"
             style={{ animation: 'loginGlowPulse 8s ease-in-out infinite 2s' }}
           />
           <div
-            className="absolute top-[60%] right-[10%] w-40 h-40 rounded-full bg-yellow-400/10 blur-[70px]"
+            className="absolute top-[55%] right-[8%] w-48 h-48 rounded-full bg-yellow-400/15 blur-[80px]"
             style={{ animation: 'loginGlowPulse 7s ease-in-out infinite 4s' }}
           />
 
@@ -319,15 +325,15 @@ export default function LoginPage() {
             variants={containerVariants}
           >
             {/* Logo */}
-            <motion.div className="flex items-center gap-3" variants={headerVariants}>
-              <div className="h-11 w-11 rounded-xl overflow-hidden shadow-lg shadow-orange-500/30 transition-transform hover:scale-110 duration-300">
-                <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={44} height={44} className="object-contain w-full h-full" />
+            <motion.div className="flex items-center gap-3.5" variants={headerVariants}>
+              <div className="h-12 w-12 rounded-xl overflow-hidden shadow-xl shadow-orange-500/40 ring-2 ring-orange-400/20 transition-transform hover:scale-110 duration-300">
+                <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={48} height={48} className="object-contain w-full h-full" />
               </div>
               <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-white via-orange-100 to-amber-100 bg-clip-text text-transparent animate-[subtleShimmer_3s_ease-in-out_infinite]">
+                <h1 className="text-xl font-bold bg-gradient-to-r from-white via-orange-100 to-amber-100 bg-clip-text text-transparent">
                   StaySuite
                 </h1>
-                <p className="text-amber-200/80 text-xs font-medium">by Cryptsk Pvt Ltd</p>
+                <p className="text-amber-200/70 text-xs font-medium tracking-wide">by Cryptsk Pvt Ltd</p>
               </div>
             </motion.div>
 
@@ -346,10 +352,10 @@ export default function LoginPage() {
                   transition={{ duration: 0.6 }}
                   className="space-y-3"
                 >
-                  <p className="text-sm text-slate-300/80 font-medium">
+                  <p className="text-sm text-orange-200/70 font-medium tracking-wide">
                     {slideshowImages[currentSlide].alt}
                   </p>
-                  <h2 className="text-3xl xl:text-4xl font-bold text-white leading-tight">
+                  <h2 className="text-3xl xl:text-5xl font-bold text-white leading-[1.15] tracking-tight">
                     Manage your property
                     <br />
                     <span className="bg-gradient-to-r from-orange-200 via-amber-200 to-yellow-100 bg-clip-text text-transparent">
@@ -359,8 +365,8 @@ export default function LoginPage() {
                 </motion.div>
               </AnimatePresence>
 
-              {/* Feature badges + stats */}
-              <div className="flex flex-wrap items-center gap-3">
+              {/* Feature badges + stats — premium pill design */}
+              <div className="flex flex-wrap items-center gap-2.5">
                 {[
                   { label: 'WiFi AAA Ready', icon: Wifi },
                   { label: 'Guest Management', icon: Globe },
@@ -368,16 +374,16 @@ export default function LoginPage() {
                 ].map(({ label, icon: BadgeIcon }) => (
                   <span
                     key={label}
-                    className="px-3.5 py-1.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/20 text-white text-xs font-medium hover:bg-white/20 hover:border-white/30 transition-all duration-300 cursor-default inline-flex items-center gap-1.5"
+                    className="px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-white/90 text-[11px] font-semibold tracking-wide hover:bg-white/15 hover:border-white/25 transition-all duration-300 cursor-default inline-flex items-center gap-1.5 uppercase"
                   >
                     <BadgeIcon className="h-3 w-3" />
                     {label}
                   </span>
                 ))}
-                <span className="text-slate-300/70 text-xs">|</span>
-                <span className="text-sm text-slate-200 font-medium">2,500+ properties</span>
-                <span className="w-1 h-1 rounded-full bg-slate-500" />
-                <span className="text-sm text-slate-200 font-medium">150 countries</span>
+                <span className="text-orange-300/40 text-xs mx-1">|</span>
+                <span className="text-sm text-orange-100/90 font-semibold">2,500+ properties</span>
+                <span className="w-1 h-1 rounded-full bg-orange-400/40" />
+                <span className="text-sm text-orange-100/90 font-semibold">150 countries</span>
               </div>
 
               {/* Slide navigation dots + arrows */}
@@ -387,7 +393,7 @@ export default function LoginPage() {
                   type="button"
                   aria-label="Previous slide"
                   onClick={() => goToSlide((currentSlide - 1 + slideshowImages.length) % slideshowImages.length)}
-                  className="h-8 w-8 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all duration-300"
+                  className="h-9 w-9 rounded-full bg-white/8 backdrop-blur-md border border-white/15 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/15 transition-all duration-300"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
@@ -406,8 +412,8 @@ export default function LoginPage() {
                         className={cn(
                           'rounded-full transition-all duration-500',
                           currentSlide === index
-                            ? 'w-8 h-2 bg-white/70'
-                            : 'w-2 h-2 bg-white/40 group-hover:bg-white/60'
+                            ? 'w-8 h-2 bg-gradient-to-r from-orange-300 to-amber-300'
+                            : 'w-2 h-2 bg-white/30 group-hover:bg-white/50'
                         )}
                       />
                     </button>
@@ -419,15 +425,15 @@ export default function LoginPage() {
                   type="button"
                   aria-label="Next slide"
                   onClick={() => goToSlide((currentSlide + 1) % slideshowImages.length)}
-                  className="h-8 w-8 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all duration-300"
+                  className="h-9 w-9 rounded-full bg-white/8 backdrop-blur-md border border-white/15 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/15 transition-all duration-300"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
 
                 {/* Progress bar */}
-                <div className="ml-2 w-16 h-1 rounded-full bg-white/15 overflow-hidden">
+                <div className="ml-2 w-20 h-1 rounded-full bg-white/10 overflow-hidden">
                   <motion.div
-                    className="h-full bg-white/50 rounded-full"
+                    className="h-full bg-gradient-to-r from-orange-400/70 to-amber-300/70 rounded-full"
                     initial={{ width: '0%' }}
                     animate={{ width: '100%' }}
                     transition={{ duration: SLIDE_INTERVAL / 1000, ease: 'linear' }}
@@ -439,163 +445,162 @@ export default function LoginPage() {
 
             {/* Left-side Footer */}
             <motion.div
-              className="flex items-center gap-4 text-xs text-slate-400"
+              className="flex items-center gap-4 text-xs text-orange-200/40"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6, duration: 0.5 }}
             >
               <span>&copy; 2026 Cryptsk Pvt Ltd</span>
               <span>&middot;</span>
-              <span className="hover:text-slate-300 transition-colors cursor-pointer">Privacy</span>
+              <span className="hover:text-orange-200/70 transition-colors cursor-pointer">Privacy</span>
               <span>&middot;</span>
-              <span className="hover:text-slate-300 transition-colors cursor-pointer">Terms</span>
+              <span className="hover:text-orange-200/70 transition-colors cursor-pointer">Terms</span>
             </motion.div>
           </motion.div>
         </div>
 
         {/* ═══════════════════════════════════════════
-            RIGHT SIDE - Login Form
+            RIGHT SIDE - Premium Login Form
             ═══════════════════════════════════════════ */}
 
-        {/* Clean professional background */}
         <div className="w-full lg:w-[45%] xl:w-[40%] relative flex-1 min-h-screen lg:min-h-0">
-          {/* Mobile: animated gradient background */}
+          {/* Mobile: warm animated gradient background */}
           <div
             className="lg:hidden absolute inset-0 dark:hidden"
             style={{
-              background: 'linear-gradient(135deg, #fff7ed 0%, #fffbeb 25%, #fff7ed 50%, #fefce8 75%, #fff7ed 100%)',
+              background: 'linear-gradient(135deg, #fff8f0 0%, #fffaf5 25%, #fff7ed 50%, #fefce8 75%, #fff8f0 100%)',
               backgroundSize: '400% 400%',
               animation: 'loginMobileGradient 12s ease infinite',
             }}
           />
-          {/* Mobile dark mode: deeper animated gradient background */}
+          {/* Mobile dark mode: warm deep gradient */}
           <div
             className="lg:hidden hidden dark:block absolute inset-0"
             style={{
-              background: 'linear-gradient(135deg, #1c1917 0%, #292524 25%, #1c1917 50%, #1c1917 75%, #1c1917 100%)',
+              background: 'linear-gradient(135deg, #1c1410 0%, #231a14 25%, #1c1410 50%, #1c1410 75%, #1c1410 100%)',
               backgroundSize: '400% 400%',
               animation: 'loginMobileGradient 12s ease infinite',
             }}
           />
-          {/* Desktop: subtle gradient with glow accents */}
+          {/* Desktop: warm white gradient with golden undertone */}
           <div
-            className="hidden lg:block absolute inset-0 bg-gradient-to-br from-orange-50/80 via-white to-amber-50/60 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900"
+            className="hidden lg:block absolute inset-0 bg-gradient-to-br from-orange-50/90 via-white to-amber-50/70 dark:from-[#1c1410] dark:via-[#1a1210] dark:to-[#1c1410]"
           />
 
-          {/* Mobile-only: floating decorative orb behind the login card */}
+          {/* Mobile-only: warm floating decorative orb */}
           <div
-            className="lg:hidden absolute top-[30%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full pointer-events-none"
+            className="lg:hidden absolute top-[30%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, rgba(234,88,12,0.12) 0%, rgba(217,119,6,0.06) 40%, transparent 70%)',
+              background: 'radial-gradient(circle, rgba(234,88,12,0.10) 0%, rgba(217,119,6,0.05) 40%, transparent 70%)',
               animation: 'loginGlowPulse 8s ease-in-out infinite, floatOrb1 20s ease-in-out infinite',
             }}
           />
 
-          {/* Desktop-only: two very subtle, static, non-animated glow accents */}
+          {/* Desktop-only: warm glow accents */}
           <div
-            className="hidden lg:block absolute top-[10%] left-[5%] w-[400px] h-[400px] rounded-full opacity-20 blur-[120px] pointer-events-none"
+            className="hidden lg:block absolute top-[8%] left-[3%] w-[450px] h-[450px] rounded-full opacity-15 blur-[140px] pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, rgba(234,88,12,0.18) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, rgba(234,88,12,0.15) 0%, transparent 70%)',
             }}
           />
           <div
-            className="hidden lg:block absolute bottom-[10%] right-[5%] w-[350px] h-[350px] rounded-full opacity-15 blur-[100px] pointer-events-none"
+            className="hidden lg:block absolute bottom-[8%] right-[3%] w-[400px] h-[400px] rounded-full opacity-10 blur-[120px] pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, rgba(245,158,11,0.12) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, rgba(245,158,11,0.10) 0%, transparent 70%)',
             }}
           />
 
-          {/* Decorative floating elements on right panel */}
-          <div className="absolute top-[8%] right-[8%] w-3 h-3 rounded-full bg-gradient-to-br from-orange-400/20 to-amber-400/20 animate-pulse pointer-events-none hidden lg:block" />
-          <div className="absolute bottom-[15%] left-[6%] w-2 h-2 rounded-full bg-gradient-to-br from-amber-400/20 to-orange-400/20 animate-bounce [animation-delay:1s] pointer-events-none hidden lg:block" />
-          <div className="absolute top-[45%] right-[4%] w-2.5 h-2.5 rounded-full bg-gradient-to-br from-amber-400/15 to-yellow-400/15 animate-pulse [animation-delay:2s] pointer-events-none hidden lg:block" />
+          {/* Decorative floating elements — subtle warm dots */}
+          <div className="absolute top-[10%] right-[10%] w-2.5 h-2.5 rounded-full bg-orange-300/20 animate-pulse pointer-events-none hidden lg:block" />
+          <div className="absolute bottom-[18%] left-[7%] w-2 h-2 rounded-full bg-amber-300/20 animate-bounce [animation-delay:1s] pointer-events-none hidden lg:block" />
+          <div className="absolute top-[50%] right-[5%] w-2 h-2 rounded-full bg-orange-200/15 animate-pulse [animation-delay:2s] pointer-events-none hidden lg:block" />
 
           <div className="relative z-10 flex flex-col items-center justify-center min-h-screen lg:min-h-screen p-4 sm:p-6 lg:p-8 py-8 lg:py-0 pb-[env(safe-area-inset-bottom)]">
-            <div className="w-full max-w-[400px] lg:max-w-[360px] flex flex-col">
+            <div className="w-full max-w-[420px] lg:max-w-[380px] flex flex-col">
 
-              {/* Mobile Logo */}
+              {/* Mobile Logo — premium treatment */}
               <motion.div
-                className="lg:hidden flex items-center justify-center gap-3 mb-6"
+                className="lg:hidden flex items-center justify-center gap-3.5 mb-8"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: 'spring', stiffness: 200, damping: 20 }}
               >
-                <div className="h-11 w-11 rounded-xl overflow-hidden shadow-lg shadow-orange-500/30 drop-shadow-[0_0_8px_rgba(251,146,60,0.35)]">
-                  <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={44} height={44} className="object-contain w-full h-full" />
+                <div className="h-12 w-12 rounded-xl overflow-hidden shadow-xl shadow-orange-500/30 ring-2 ring-orange-400/20">
+                  <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={48} height={48} className="object-contain w-full h-full" />
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold bg-gradient-to-r from-orange-700 via-amber-600 to-yellow-600 bg-clip-text text-transparent drop-shadow-sm">
+                  <h1 className="text-lg font-bold bg-gradient-to-r from-orange-700 via-amber-600 to-orange-500 bg-clip-text text-transparent">
                     StaySuite
                   </h1>
-                  <p className="text-muted-foreground text-[11px] tracking-wide font-medium">Hospitality OS</p>
+                  <p className="text-muted-foreground text-[11px] tracking-wider font-medium uppercase">Hospitality OS</p>
                 </div>
               </motion.div>
 
-              {/* ── Glass Card with Animated Gradient Border ── */}
-              <div className="relative rounded-[17px] p-[1px] bg-gradient-to-br from-orange-500/30 via-amber-500/10 to-yellow-500/30 overflow-hidden">
-                {/* Animated spinning conic gradient layer for border shimmer */}
-                <div className="absolute inset-0 overflow-hidden rounded-[17px] pointer-events-none">
+              {/* ══ Premium Card with Warm Gradient Border ══ */}
+              <div className="relative rounded-2xl p-[1.5px] bg-gradient-to-br from-orange-400/40 via-amber-300/20 to-orange-400/40 overflow-hidden">
+                {/* Animated conic gradient layer for border shimmer */}
+                <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
                   <div
-                    className="absolute inset-[-200%] animate-[spin_8s_linear_infinite]"
-                    style={{ background: 'conic-gradient(from 0deg, transparent 0%, rgba(234,88,12,0.12) 15%, transparent 30%, rgba(217,119,6,0.08) 45%, transparent 60%, rgba(245,158,11,0.08) 75%, transparent 90%)' }}
+                    className="absolute inset-[-200%] animate-[spin_10s_linear_infinite]"
+                    style={{ background: 'conic-gradient(from 0deg, transparent 0%, rgba(234,88,12,0.15) 12%, transparent 24%, rgba(217,119,6,0.10) 36%, transparent 48%, rgba(245,158,11,0.10) 60%, transparent 72%, rgba(234,88,12,0.08) 84%, transparent 96%)' }}
                   />
                 </div>
               <motion.div
-                className="rounded-2xl bg-white/80 dark:bg-gray-950/80 backdrop-blur-2xl border border-white/20 dark:border-white/10 shadow-lg shadow-[inset_0_0_30px_rgba(255,255,255,0.1)] dark:shadow-[inset_0_0_30px_rgba(255,255,255,0.03),0_8px_40px_-12px_rgba(0,0,0,0.5)] relative overflow-hidden"
+                className="rounded-2xl bg-white/85 dark:bg-[#1a1210]/90 backdrop-blur-2xl border border-orange-100/30 dark:border-orange-900/20 shadow-[0_8px_40px_-12px_rgba(180,83,9,0.12)] dark:shadow-[0_8px_40px_-12px_rgba(0,0,0,0.5)] relative overflow-hidden"
                 variants={cardVariants}
                 initial="hidden"
                 animate="visible"
                 whileHover={{
-                  boxShadow: '0_16px_48px_-12px_rgba(0,0,0,0.12),0_0_24px_rgba(234,88,12,0.08)',
+                  boxShadow: '0_16px_48px_-12px_rgba(180,83,9,0.15),0_0_32px_rgba(234,88,12,0.06)',
                   y: -1,
                   transition: { duration: 0.3, ease: 'easeOut' },
                 }}
               >
-                {/* Animated gradient accent line on top */}
+                {/* Premium gradient accent line on top — warm orange-to-gold */}
                 <div
                   className="absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl z-10"
                   style={{
-                    background: 'linear-gradient(90deg, #ea580c, #d97706, #ca8a04, #dc2626, #ea580c)',
+                    background: 'linear-gradient(90deg, #c2410c, #d97706, #ca8a04, #ea580c, #c2410c)',
                     backgroundSize: '300% 100%',
                     animation: 'loginAccentFlow 4s ease infinite',
                   }}
                 />
 
-                <div className="p-5 sm:p-6 lg:p-8 relative z-10">
+                <div className="p-6 sm:p-7 lg:p-8 relative z-10">
 
-                  {/* Header */}
+                  {/* Header — refined premium look */}
                   <div className="mb-7">
                     <motion.div
-                      className="flex items-center gap-2 mb-2"
+                      className="flex items-center gap-2.5 mb-2"
                       variants={headerVariants}
                       initial="hidden"
                       animate="visible"
                     >
-                      <div className="h-8 w-1 rounded-full bg-gradient-to-b from-orange-500 via-amber-400 to-yellow-500" />
-                      <h2 className="text-xl font-bold text-foreground tracking-tight text-shadow-sm">
+                      <div className="h-7 w-1.5 rounded-full bg-gradient-to-b from-orange-500 via-amber-400 to-orange-300" />
+                      <h2 className="text-xl font-bold text-foreground tracking-tight">
                         {requireTwoFactor ? 'Two-factor authentication' : t('signIn')}
                       </h2>
                     </motion.div>
                     <motion.p
-                      className="text-sm text-muted-foreground/80 font-medium pl-3"
-                      initial={{ opacity: 0, x: -12 }}
+                      className="text-sm text-muted-foreground/70 font-medium pl-[18px]"
+                      initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.08 }}
+                      transition={{ type: 'spring', stiffness: 240, damping: 20, delay: 0.08 }}
                     >
                       {requireTwoFactor
                         ? 'Enter your verification code'
                         : t('signInToYourAccountToContinue')}
                     </motion.p>
-                    {/* Trusted by badge with Shield icon */}
+                    {/* Premium trust badge */}
                     <motion.div
-                      className="mt-3 pl-3"
-                      initial={{ opacity: 0, y: 6 }}
+                      className="mt-3.5 pl-[18px]"
+                      initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 22, delay: 0.15 }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 22, delay: 0.12 }}
                     >
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-50/80 dark:bg-orange-950/30 border border-orange-200/50 dark:border-orange-800/30 text-[11px] font-medium text-orange-700 dark:text-orange-400">
-                        <Shield className="h-3 w-3" />
-                        Trusted by 2,500+ properties
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-950/30 border border-orange-200/60 dark:border-orange-800/30 text-[11px] font-semibold text-orange-700 dark:text-orange-300 tracking-wide">
+                        <Crown className="h-3 w-3" />
+                        Trusted by 2,500+ premium properties
                       </span>
                     </motion.div>
                   </div>
@@ -613,7 +618,7 @@ export default function LoginPage() {
                               animate="visible"
                               exit="exit"
                             >
-                              <Alert variant="destructive" role="alert" className="border-red-200/80 dark:border-red-800/80 bg-red-50/80 dark:bg-red-950/40 backdrop-blur-sm">
+                              <Alert variant="destructive" role="alert" className="border-red-200/70 dark:border-red-800/70 bg-red-50/80 dark:bg-red-950/40 backdrop-blur-sm rounded-xl">
                                 <AlertDescription className="text-red-700 dark:text-red-300 font-medium text-sm flex items-center gap-2">
                                   <AlertCircle className="h-4 w-4 flex-shrink-0" />
                                   {error}
@@ -623,7 +628,7 @@ export default function LoginPage() {
                           )}
                         </AnimatePresence>
 
-                        {/* Email field */}
+                        {/* Email field — premium warm styling */}
                         <motion.div
                           className="space-y-2"
                           variants={fieldVariants}
@@ -631,19 +636,19 @@ export default function LoginPage() {
                           animate="visible"
                           custom={0}
                         >
-                          <Label htmlFor="email" className="text-sm font-semibold text-foreground/80">
+                          <Label htmlFor="email" className="text-sm font-semibold text-foreground/80 tracking-wide">
                             {t('email')}
                           </Label>
                           <div className="relative group/input">
-                            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30 transition-all duration-300 group-focus-within/input:text-orange-500 group-focus-within/input:scale-110" />
-                            <div className="absolute inset-0 rounded-xl bg-orange-500/0 blur-sm transition-all duration-300 group-focus-within/input:bg-orange-500/5 group-focus-within/input:blur-md pointer-events-none" />
+                            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-orange-300/50 dark:text-orange-400/40 transition-all duration-300 group-focus-within/input:text-orange-500 group-focus-within/input:scale-110" />
+                            <div className="absolute inset-0 rounded-xl bg-orange-500/0 blur-sm transition-all duration-300 group-focus-within/input:bg-orange-500/4 group-focus-within/input:blur-md pointer-events-none" />
                             <Input
                               id="email"
                               type="email"
                               placeholder="you@company.com"
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
-                              className="relative pl-11 h-[52px] bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-700/50 rounded-xl transition-all duration-300 focus:bg-white/80 dark:focus:bg-slate-900/80 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/30 hover:border-orange-300/70 dark:hover:border-orange-600/70 hover:shadow-sm text-[15px] placeholder:text-foreground/35"
+                              className="relative pl-11 h-[52px] bg-white/60 dark:bg-[#1a1210]/60 border-orange-100/60 dark:border-orange-900/30 rounded-xl transition-all duration-300 focus:bg-white/90 dark:focus:bg-[#1a1210]/90 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25 hover:border-orange-200/80 dark:hover:border-orange-700/40 hover:shadow-sm text-[15px] placeholder:text-foreground/30"
                               required
                               disabled={isLoading}
                               autoComplete="email"
@@ -651,7 +656,7 @@ export default function LoginPage() {
                           </div>
                         </motion.div>
 
-                        {/* Password field */}
+                        {/* Password field — premium warm styling */}
                         <motion.div
                           className="space-y-2"
                           variants={fieldVariants}
@@ -660,12 +665,12 @@ export default function LoginPage() {
                           custom={1}
                         >
                           <div className="flex items-center">
-                            <Label htmlFor="password" className="text-sm font-semibold text-foreground/80">
+                            <Label htmlFor="password" className="text-sm font-semibold text-foreground/80 tracking-wide">
                               {t('password')}
                             </Label>
                             <button
                               type="button"
-                              className="ml-auto text-xs text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors duration-200 font-medium"
+                              className="ml-auto text-xs text-muted-foreground/60 hover:text-orange-600 dark:hover:text-orange-400 transition-colors duration-200 font-medium"
                               onClick={async () => {
                                 if (!email) {
                                   toast({
@@ -707,22 +712,22 @@ export default function LoginPage() {
                             </button>
                           </div>
                           <div className="mt-1 relative group/input">
-                            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30 transition-all duration-300 group-focus-within/input:text-orange-500 group-focus-within/input:scale-110" />
-                            <div className="absolute inset-0 rounded-xl bg-orange-500/0 blur-sm transition-all duration-300 group-focus-within/input:bg-orange-500/5 group-focus-within/input:blur-md pointer-events-none" />
+                            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-orange-300/50 dark:text-orange-400/40 transition-all duration-300 group-focus-within/input:text-orange-500 group-focus-within/input:scale-110" />
+                            <div className="absolute inset-0 rounded-xl bg-orange-500/0 blur-sm transition-all duration-300 group-focus-within/input:bg-orange-500/4 group-focus-within/input:blur-md pointer-events-none" />
                             <Input
                               id="password"
                               type={showPassword ? 'text' : 'password'}
                               placeholder="Enter password"
                               value={password}
                               onChange={(e) => setPassword(e.target.value)}
-                              className="relative pl-11 pr-11 h-[52px] bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-700/50 rounded-xl transition-all duration-300 focus:bg-white/80 dark:focus:bg-slate-900/80 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/30 hover:border-orange-300/70 dark:hover:border-orange-600/70 hover:shadow-sm text-[15px] placeholder:text-foreground/35"
+                              className="relative pl-11 pr-11 h-[52px] bg-white/60 dark:bg-[#1a1210]/60 border-orange-100/60 dark:border-orange-900/30 rounded-xl transition-all duration-300 focus:bg-white/90 dark:focus:bg-[#1a1210]/90 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25 hover:border-orange-200/80 dark:hover:border-orange-700/40 hover:shadow-sm text-[15px] placeholder:text-foreground/30"
                               required
                               disabled={isLoading}
                               autoComplete="current-password"
                             />
                             <button
                               type="button"
-                              className="absolute right-2.5 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-muted-foreground/30 hover:text-orange-500 transition-all duration-200 hover:scale-110 active:scale-95"
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-orange-300/40 hover:text-orange-500 transition-all duration-200 hover:scale-110 active:scale-95"
                               onClick={() => setShowPassword(!showPassword)}
                               aria-label={showPassword ? 'Hide password' : 'Show password'}
                             >
@@ -730,14 +735,14 @@ export default function LoginPage() {
                             </button>
                           </div>
                           {showDemoCredentials && (
-                            <p className="mt-1.5 text-[11px] text-muted-foreground/50 font-medium pl-1 flex items-center gap-1">
-                              <Zap className="h-3 w-3 text-amber-500/70" />
+                            <p className="mt-1.5 text-[11px] text-orange-600/40 dark:text-orange-400/40 font-medium pl-1 flex items-center gap-1">
+                              <Zap className="h-3 w-3 text-amber-500/60" />
                               Use admin123 for quick demo access
                             </p>
                           )}
                         </motion.div>
 
-                        {/* Remember me */}
+                        {/* Remember me — refined */}
                         <motion.div
                           className="flex items-center justify-between"
                           variants={fieldVariants}
@@ -751,16 +756,16 @@ export default function LoginPage() {
                                 id="remember"
                                 checked={rememberMe}
                                 onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                                className="h-[18px] w-[18px] rounded-md border-slate-300/80 data-[state=checked]:bg-orange-600 data-[state=checked]:border-orange-600 data-[state=checked]:text-white transition-all duration-300 focus-visible:ring-2 focus-visible:ring-orange-500/30 focus-visible:ring-offset-1 hover:border-orange-400/80"
+                                className="h-[18px] w-[18px] rounded-md border-orange-200/80 dark:border-orange-800/50 data-[state=checked]:bg-orange-600 data-[state=checked]:border-orange-600 data-[state=checked]:text-white transition-all duration-300 focus-visible:ring-2 focus-visible:ring-orange-500/25 focus-visible:ring-offset-1 hover:border-orange-400/70"
                               />
                             </div>
-                            <Label htmlFor="remember" className="text-sm text-muted-foreground/80 font-medium cursor-pointer select-none hover:text-muted-foreground transition-colors duration-200">
+                            <Label htmlFor="remember" className="text-sm text-muted-foreground/70 font-medium cursor-pointer select-none hover:text-muted-foreground transition-colors duration-200">
                               {t('rememberMe')}
                             </Label>
                           </div>
                         </motion.div>
 
-                        {/* Sign In Button */}
+                        {/* Sign In Button — premium gradient */}
                         <motion.div
                           variants={fieldVariants}
                           initial="hidden"
@@ -770,12 +775,12 @@ export default function LoginPage() {
                           <Button
                             type="submit"
                             className={cn(
-                              "w-full h-12 rounded-xl font-semibold text-sm transition-all duration-200",
-                              "bg-gradient-to-r from-orange-600 to-amber-600",
-                              "hover:from-orange-500 hover:to-amber-500",
-                              "hover:shadow-[0_0_20px_rgba(234,88,12,0.3)] hover:scale-[1.02]",
-                              "active:scale-[0.98]",
-                              "dark:from-orange-500 dark:to-amber-500",
+                              "w-full h-12 rounded-xl font-semibold text-sm transition-all duration-300",
+                              "bg-gradient-to-r from-orange-600 via-orange-500 to-amber-500",
+                              "hover:from-orange-500 hover:via-orange-400 hover:to-amber-400",
+                              "hover:shadow-[0_0_24px_rgba(234,88,12,0.35)] hover:scale-[1.01]",
+                              "active:scale-[0.99]",
+                              "dark:from-orange-500 dark:via-orange-400 dark:to-amber-400",
                               "text-white",
                               "hover:-translate-y-0.5 active:translate-y-0",
                               "disabled:opacity-70 disabled:hover:translate-y-0 disabled:shadow-none disabled:active:scale-100 disabled:hover:scale-100",
@@ -792,7 +797,7 @@ export default function LoginPage() {
                               <span
                                 className="absolute inset-0"
                                 style={{
-                                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)',
+                                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.20), transparent)',
                                   animation: 'loginBtnShimmer 3s ease-in-out infinite',
                                 }}
                               />
@@ -812,15 +817,15 @@ export default function LoginPage() {
                                 {t('signingIn')}
                               </span>
                             ) : (
-                              <span className="relative flex items-center justify-center gap-1.5">
+                              <span className="relative flex items-center justify-center gap-2">
+                                <KeyRound className="h-4 w-4" />
                                 {t('signIn')}
-                                <ChevronRight className="h-4 w-4" />
                               </span>
                             )}
                           </Button>
                         </motion.div>
 
-                        {/* Quick Admin Login Button */}
+                        {/* Quick Admin Login Button — refined orange outline */}
                         {showDemoCredentials && (
                           <motion.div
                             variants={fieldVariants}
@@ -835,13 +840,13 @@ export default function LoginPage() {
                               disabled={isQuickLogin || isLoading}
                               className={cn(
                                 "w-full h-10 rounded-xl font-medium text-sm transition-all duration-300",
-                                "border-violet-200/60 dark:border-violet-700/40",
-                                "bg-violet-50/50 dark:bg-violet-900/20",
-                                "text-violet-700 dark:text-violet-300",
-                                "hover:bg-violet-100/70 dark:hover:bg-violet-800/30",
-                                "hover:border-violet-300/60 dark:hover:border-violet-600/50",
-                                "hover:shadow-[0_4px_20px_-6px_rgba(139,92,246,0.15)]",
-                                "active:scale-[0.98]",
+                                "border-orange-200/70 dark:border-orange-800/40",
+                                "bg-orange-50/40 dark:bg-orange-950/20",
+                                "text-orange-700 dark:text-orange-300",
+                                "hover:bg-orange-100/60 dark:hover:bg-orange-900/30",
+                                "hover:border-orange-300/70 dark:hover:border-orange-700/50",
+                                "hover:shadow-[0_4px_20px_-6px_rgba(234,88,12,0.12)]",
+                                "active:scale-[0.99]",
                                 "disabled:opacity-60"
                               )}
                             >
@@ -852,7 +857,7 @@ export default function LoginPage() {
                                 </span>
                               ) : (
                                 <span className="flex items-center gap-2">
-                                  <Zap className="h-4 w-4 text-violet-500" />
+                                  <Zap className="h-4 w-4 text-orange-500" />
                                   Quick Admin Login
                                 </span>
                               )}
@@ -862,7 +867,7 @@ export default function LoginPage() {
 
                         {/* Secure connection indicator */}
                         <motion.div
-                          className="flex items-center justify-center gap-1.5 mt-2 text-[11px] text-muted-foreground/60 font-medium"
+                          className="flex items-center justify-center gap-1.5 mt-1 text-[11px] text-muted-foreground/40 font-medium"
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: 0.6, duration: 0.5 }}
@@ -872,7 +877,7 @@ export default function LoginPage() {
                         </motion.div>
                       </form>
                     ) : (
-                      /* ═══ 2FA Form ═══ */
+                      /* ═══ 2FA Form — premium orange ═══ */
                       <form onSubmit={handleTwoFactorSubmit} className="space-y-4">
                         <AnimatePresence mode="wait">
                           {error && (
@@ -883,7 +888,7 @@ export default function LoginPage() {
                               animate="visible"
                               exit="exit"
                             >
-                              <Alert variant="destructive" role="alert" className="border-red-200/80 dark:border-red-800/80 bg-red-50/80 dark:bg-red-950/40 backdrop-blur-sm">
+                              <Alert variant="destructive" role="alert" className="border-red-200/70 dark:border-red-800/70 bg-red-50/80 dark:bg-red-950/40 backdrop-blur-sm rounded-xl">
                                 <AlertDescription className="text-red-700 dark:text-red-300 font-medium text-sm flex items-center gap-2">
                                   <AlertCircle className="h-4 w-4 flex-shrink-0" />
                                   {error}
@@ -894,24 +899,24 @@ export default function LoginPage() {
                         </AnimatePresence>
 
                         <div className="flex justify-center py-4">
-                          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-100 to-amber-200 dark:from-orange-900/40 dark:to-amber-800/40 flex items-center justify-center shadow-md">
-                            <Shield className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-orange-100 to-amber-100 dark:from-orange-900/40 dark:to-amber-800/40 flex items-center justify-center shadow-lg ring-2 ring-orange-200/40 dark:ring-orange-800/30">
+                            <Shield className="h-7 w-7 text-orange-600 dark:text-orange-400" />
                           </div>
                         </div>
 
-                        <p className="text-sm text-center text-muted-foreground">
+                        <p className="text-sm text-center text-muted-foreground/70">
                           Enter the 6-digit code from your authenticator app.
                         </p>
 
                         <div className="space-y-2">
-                          <Label htmlFor="twoFactorCode">Code</Label>
+                          <Label htmlFor="twoFactorCode" className="text-sm font-semibold text-foreground/80 tracking-wide">Code</Label>
                           <Input
                             id="twoFactorCode"
                             type="text"
                             placeholder="000000"
                             value={twoFactorCode}
                             onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            className="text-center text-xl tracking-[0.3em] font-mono h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200/80 dark:border-slate-700/80 transition-all duration-300 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20"
+                            className="text-center text-xl tracking-[0.3em] font-mono h-12 rounded-xl bg-white/60 dark:bg-[#1a1210]/60 border-orange-100/60 dark:border-orange-900/30 transition-all duration-300 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25"
                             maxLength={6}
                             disabled={isLoading}
                             autoFocus
@@ -920,7 +925,7 @@ export default function LoginPage() {
 
                         <Button
                           type="submit"
-                          className="w-full h-11 rounded-xl font-semibold text-sm transition-all duration-300 bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white shadow-lg shadow-amber-500/20 hover:shadow-xl hover:shadow-amber-500/25 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0 relative overflow-hidden"
+                          className="w-full h-11 rounded-xl font-semibold text-sm transition-all duration-300 bg-gradient-to-r from-orange-600 via-orange-500 to-amber-500 hover:from-orange-500 hover:via-orange-400 hover:to-amber-400 text-white shadow-lg shadow-orange-500/20 hover:shadow-xl hover:shadow-orange-500/25 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] disabled:opacity-70 disabled:hover:translate-y-0 relative overflow-hidden"
                           disabled={isLoading || twoFactorCode.length < 6}
                         >
                           {isLoading ? (
@@ -936,7 +941,7 @@ export default function LoginPage() {
                         <Button
                           type="button"
                           variant="ghost"
-                          className="w-full rounded-xl transition-all duration-200"
+                          className="w-full rounded-xl transition-all duration-200 text-muted-foreground/60 hover:text-foreground"
                           onClick={handleBackToLogin}
                           disabled={isLoading}
                         >
@@ -946,7 +951,7 @@ export default function LoginPage() {
                       </form>
                     )}
 
-                    {/* ── Demo Credentials ── */}
+                    {/* ── Demo Credentials — premium orange cards ── */}
                     {!requireTwoFactor && showDemoCredentials && (
                       <motion.div
                         className="pt-5"
@@ -956,7 +961,7 @@ export default function LoginPage() {
                       >
                         {/* Demo Mode badge */}
                         <div className="flex justify-center mb-3">
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/50 dark:border-amber-800/30 text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border border-amber-200/50 dark:border-amber-800/30 text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
                             <Sparkles className="h-3 w-3" />
                             Demo Mode
                           </span>
@@ -964,11 +969,11 @@ export default function LoginPage() {
 
                         <div className="relative">
                           <div className="absolute inset-0 flex items-center">
-                            <Separator className="bg-slate-200/40 dark:bg-slate-700/40" />
+                            <Separator className="bg-orange-100/50 dark:bg-orange-900/30" />
                           </div>
                           <div className="relative flex justify-center">
-                            <span className="bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl px-3 text-xs text-muted-foreground/70 flex items-center gap-1.5 font-medium">
-                              <Sparkles className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                            <span className="bg-white/60 dark:bg-[#1a1210]/60 backdrop-blur-xl px-3 text-xs text-muted-foreground/60 flex items-center gap-1.5 font-medium">
+                              <Sparkles className="h-3 w-3 text-orange-400" />
                               {t('demoAccounts')}
                             </span>
                           </div>
@@ -990,20 +995,20 @@ export default function LoginPage() {
                                 animate="visible"
                                 custom={index}
                                 whileHover={{
-                                  scale: 1.02,
+                                  scale: 1.01,
                                   y: -2,
                                   transition: { type: 'spring', stiffness: 400, damping: 20 },
                                 }}
                                 whileTap={{ scale: 0.99, y: 0 }}
                                 className={cn(
                                   "w-full flex items-center gap-3 p-3.5 rounded-xl border text-left",
-                                  "border-slate-200/50 dark:border-slate-700/50",
-                                  "bg-white/30 dark:bg-slate-900/30",
+                                  "border-orange-100/50 dark:border-orange-900/30",
+                                  "bg-white/30 dark:bg-[#1a1210]/30",
                                   "backdrop-blur-sm",
                                   "transition-all duration-300",
-                                  "hover:bg-white/60 dark:hover:bg-slate-900/60",
-                                  "hover:border-orange-300/60 dark:hover:border-orange-600/40",
-                                  "hover:shadow-[0_8px_24px_-8px_rgba(234,88,12,0.12)]",
+                                  "hover:bg-white/60 dark:hover:bg-[#1a1210]/60",
+                                  "hover:border-orange-200/60 dark:hover:border-orange-700/40",
+                                  "hover:shadow-[0_8px_24px_-8px_rgba(234,88,12,0.10)]",
                                   "group",
                                   "relative overflow-hidden"
                                 )}
@@ -1012,24 +1017,24 @@ export default function LoginPage() {
                                 <div className={cn("absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full transition-all duration-300 group-hover:w-[4px] group-hover:top-0 group-hover:bottom-0", cred.barColor)} />
                                 <motion.div
                                   className={cn(
-                                    "h-10 w-10 rounded-xl flex items-center justify-center shadow-md ring-2 ring-white/30 dark:ring-slate-700/30",
+                                    "h-10 w-10 rounded-xl flex items-center justify-center shadow-md ring-2 ring-white/30 dark:ring-orange-900/30",
                                     cred.color
                                   )}
-                                  whileHover={{ scale: 1.1, rotate: 3 }}
+                                  whileHover={{ scale: 1.08, rotate: 2 }}
                                   transition={{ type: 'spring', stiffness: 400, damping: 15 }}
                                 >
                                   <CredIcon className="h-5 w-5 text-white" />
                                 </motion.div>
                                 <div className="flex-1 min-w-0">
                                   <div className="text-sm font-semibold text-foreground">{cred.role}</div>
-                                  <div className="text-xs text-muted-foreground/50 truncate">{cred.email}</div>
+                                  <div className="text-xs text-muted-foreground/40 truncate">{cred.email}</div>
                                 </div>
                                 <motion.div
-                                  className="h-6 w-6 rounded-lg flex items-center justify-center bg-slate-100/80 dark:bg-slate-800/80"
+                                  className="h-6 w-6 rounded-lg flex items-center justify-center bg-orange-50/80 dark:bg-orange-950/30"
                                   whileHover={{ x: 2 }}
                                   transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                                 >
-                                  <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
+                                  <ChevronRight className="h-3 w-3 text-orange-400/50" />
                                 </motion.div>
                               </motion.button>
                             );
@@ -1049,7 +1054,7 @@ export default function LoginPage() {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.7, duration: 0.5 }}
               >
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground/60">
                   Have a license key?{' '}
                   <button
                     className="text-orange-600 dark:text-orange-400 font-semibold hover:text-orange-700 dark:hover:text-orange-300 transition-colors duration-200 underline-offset-4 hover:underline inline-flex items-center gap-1"
@@ -1059,10 +1064,10 @@ export default function LoginPage() {
                     <ChevronRight className="h-3.5 w-3.5" />
                   </button>
                 </p>
-                <p className="text-xs text-muted-foreground/60">
+                <p className="text-xs text-muted-foreground/40">
                   Don&apos;t have a key?{' '}
                   <button
-                    className="text-muted-foreground/80 hover:text-muted-foreground font-medium transition-colors duration-200 underline-offset-4 hover:underline"
+                    className="text-muted-foreground/60 hover:text-muted-foreground font-medium transition-colors duration-200 underline-offset-4 hover:underline"
                     onClick={() => router.push('/register')}
                   >
                     Register with a trial key
@@ -1072,7 +1077,7 @@ export default function LoginPage() {
 
               {/* ── System Status indicator ── */}
               <motion.div
-                className="flex items-center justify-end gap-1.5 mt-4 text-[11px] text-muted-foreground/60 font-medium"
+                className="flex items-center justify-end gap-1.5 mt-4 text-[11px] text-muted-foreground/40 font-medium"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.8, duration: 0.5 }}
@@ -1084,16 +1089,15 @@ export default function LoginPage() {
                 <span>All systems operational</span>
               </motion.div>
 
-              {/* ── Mobile footer (sticky at bottom when content is short) ── */}
+              {/* ── Mobile footer ── */}
               <div className="flex-1" />
-              {/* Gradient divider above mobile footer */}
-              <div className="lg:hidden h-px bg-gradient-to-r from-transparent via-orange-400/30 dark:via-orange-500/20 to-transparent mt-4" />
+              <div className="lg:hidden h-px bg-gradient-to-r from-transparent via-orange-300/30 dark:via-orange-500/20 to-transparent mt-4" />
 
-              <div className="lg:hidden text-center text-xs text-muted-foreground/80 pt-4 mt-0 border-t border-border/50">
+              <div className="lg:hidden text-center text-xs text-muted-foreground/60 pt-4 mt-0 border-t border-orange-100/30 dark:border-orange-900/20">
                 <p className="flex items-center justify-center gap-1">
-                  <Zap className="h-3 w-3 text-amber-500" />
+                  <Zap className="h-3 w-3 text-orange-400" />
                   Powered by StaySuite HospitalityOS
-                  <span className="px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground/70 font-mono text-[10px]">v2.0</span>
+                  <span className="px-1.5 py-0.5 rounded bg-orange-50/60 dark:bg-orange-950/30 text-orange-600/60 dark:text-orange-400/60 font-mono text-[10px]">v2.0</span>
                 </p>
               </div>
             </div>
@@ -1101,23 +1105,22 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* ═══ Sticky footer for desktop (below the flex row) ═══ */}
-      {/* Subtle gradient divider above desktop footer */}
-      <div className="hidden lg:block h-px bg-gradient-to-r from-transparent via-orange-400/30 dark:via-orange-500/20 to-transparent" />
+      {/* ═══ Desktop sticky footer ═══ */}
+      <div className="hidden lg:block h-px bg-gradient-to-r from-transparent via-orange-300/30 dark:via-orange-500/20 to-transparent" />
 
-      <div className="hidden lg:flex items-center justify-center py-3 px-4 bg-background/80 dark:bg-background/40 backdrop-blur-sm border-t border-border/30 text-xs text-muted-foreground/80">
+      <div className="hidden lg:flex items-center justify-center py-3 px-4 bg-gradient-to-r from-orange-50/40 via-white/60 to-orange-50/40 dark:from-[#1a1210]/80 dark:via-[#1a1210]/60 dark:to-[#1a1210]/80 backdrop-blur-sm border-t border-orange-100/30 dark:border-orange-900/20 text-xs text-muted-foreground/60">
         <span className="flex items-center gap-1">
-          <Zap className="h-3 w-3 text-amber-500" />
+          <Zap className="h-3 w-3 text-orange-400" />
           <span>Powered by StaySuite HospitalityOS</span>
         </span>
-        <span className="mx-2">&middot;</span>
+        <span className="mx-2 text-orange-200/30 dark:text-orange-800/30">&middot;</span>
         <span>&copy; 2026 Cryptsk Pvt Ltd</span>
-        <span className="mx-2">&middot;</span>
+        <span className="mx-2 text-orange-200/30 dark:text-orange-800/30">&middot;</span>
         <span className="hover:text-muted-foreground transition-colors cursor-pointer">Privacy</span>
-        <span className="mx-2">&middot;</span>
+        <span className="mx-2 text-orange-200/30 dark:text-orange-800/30">&middot;</span>
         <span className="hover:text-muted-foreground transition-colors cursor-pointer">Terms</span>
-        <span className="mx-2">&middot;</span>
-        <span className="px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground/70 font-mono text-[10px]">v2.0</span>
+        <span className="mx-2 text-orange-200/30 dark:text-orange-800/30">&middot;</span>
+        <span className="px-1.5 py-0.5 rounded bg-orange-50/60 dark:bg-orange-950/30 text-orange-600/50 dark:text-orange-400/50 font-mono text-[10px]">v2.0</span>
       </div>
     </div>
   );
