@@ -213,7 +213,7 @@ export const FEATURES: Record<string, FeatureConfig> = {
   wifi: {
     id: 'wifi',
     name: 'WiFi & Network',
-    description: 'WiFi access, RADIUS & gateway, network management, DHCP, DNS, captive portal, firewall, content filter, diagnostics, health alerts, pre-arrival, device management, identity verification, GDPR consent, bandwidth upsell, revenue analytics, surveys, and SLA monitoring',
+    description: 'WiFi access, RADIUS & gateway, network management, DHCP, DNS, captive portal, firewall, content filter, diagnostics, health alerts, pre-arrival, device management, identity verification, GDPR consent, bandwidth upsell, revenue analytics, surveys, SLA monitoring, ad campaigns, heatmap, and partner WiFi',
     category: 'addons',
     subcategory: 'Connectivity',
     menuItems: [
@@ -222,6 +222,7 @@ export const FEATURES: Record<string, FeatureConfig> = {
       'wifi-health-alerts', 'wifi-pre-arrival', 'wifi-device-management', 'wifi-identity-verification',
       'wifi-consent-management', 'wifi-bandwidth-upsell', 'wifi-revenue-dashboard',
       'wifi-satisfaction-surveys', 'wifi-sla-monitoring',
+      'wifi-ad-campaigns', 'wifi-heatmap', 'wifi-partners',
     ],
     apiRoutes: ['/api/wifi', '/api/wifi/sessions', '/api/wifi/vouchers'],
   },
