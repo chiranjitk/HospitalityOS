@@ -1003,7 +1003,7 @@ export default function PropertiesList() {
 
       {/* Create Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[90dvh] flex flex-col p-0">
+        <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[90dvh] flex flex-col overflow-hidden p-0">
           <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
             <DialogTitle>Create New Property</DialogTitle>
             <DialogDescription>Add a new property with complete configuration</DialogDescription>
@@ -1042,7 +1042,7 @@ export default function PropertiesList() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[90dvh] flex flex-col p-0">
+        <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[90dvh] flex flex-col overflow-hidden p-0">
           <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
             <DialogTitle>Edit Property</DialogTitle>
             <DialogDescription>Update property configuration</DialogDescription>

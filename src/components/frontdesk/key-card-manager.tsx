@@ -511,7 +511,7 @@ export default function KeyCardManager() {
 
       {/* Issue Key Card Dialog */}
       <Dialog open={isIssueDialogOpen} onOpenChange={setIsIssueDialogOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-md max-h-[85dvh] flex flex-col">
+        <DialogContent className="w-[95vw] sm:max-w-md max-h-[85dvh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Plus className="h-5 w-5 text-teal-600 dark:text-teal-400" />
@@ -642,7 +642,7 @@ export default function KeyCardManager() {
 
       {/* Room History Dialog */}
       <Dialog open={isHistoryDialogOpen} onOpenChange={setIsHistoryDialogOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-md max-h-[85dvh] flex flex-col">
+        <DialogContent className="w-[95vw] sm:max-w-md max-h-[85dvh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />

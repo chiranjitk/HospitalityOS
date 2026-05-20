@@ -964,7 +964,7 @@ export default function RoomAssignment() {
 
       {/* Smart Assign Dialog */}
       <Dialog open={isSmartAssignOpen} onOpenChange={(open) => { if (!open) { setIsSmartAssignOpen(false); setSuggestions([]); } }}>
-        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[85dvh] flex flex-col">
+        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[85dvh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-violet-500" />

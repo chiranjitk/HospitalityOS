@@ -657,7 +657,7 @@ export default function Conflicts() {
 
       {/* Resolve Dialog */}
       <Dialog open={isResolveOpen} onOpenChange={setIsResolveOpen}>
-        <DialogContent className="max-w-lg max-h-[85dvh] flex flex-col">
+        <DialogContent className="max-w-lg max-h-[85dvh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>Resolve Conflict</DialogTitle>
             <DialogDescription>

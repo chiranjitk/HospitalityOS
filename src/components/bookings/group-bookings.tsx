@@ -1142,7 +1142,7 @@ export default function GroupBookings() {
 
       {/* Create Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90dvh] flex flex-col">
+        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90dvh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>Create Group Booking</DialogTitle>
             <DialogDescription>
@@ -1170,7 +1170,7 @@ export default function GroupBookings() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90dvh] flex flex-col">
+        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90dvh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>Edit Group Booking</DialogTitle>
             <DialogDescription>
@@ -1198,7 +1198,7 @@ export default function GroupBookings() {
 
       {/* Book Rooms Dialog */}
       <Dialog open={isBookRoomsOpen} onOpenChange={setIsBookRoomsOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[90dvh] flex flex-col">
+        <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[90dvh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>Book Rooms for {selectedGroup?.name}</DialogTitle>
             <DialogDescription>
@@ -1375,7 +1375,7 @@ export default function GroupBookings() {
 
       {/* Details Dialog */}
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[90dvh] flex flex-col">
+        <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[90dvh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>{selectedGroup?.name}</DialogTitle>
             <DialogDescription>

@@ -740,7 +740,7 @@ export default function CheckIn() {
 
       {/* Check-in Dialog */}
       <Dialog open={isCheckInOpen} onOpenChange={setIsCheckInOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90dvh] flex flex-col">
+        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90dvh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>Check-in Guest</DialogTitle>
             <DialogDescription>

@@ -188,7 +188,7 @@ export function AutoAssignButton({
       </Button>
 
       <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) { setIsDialogOpen(false); setSuggestions([]); } }}>
-        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[85dvh] flex flex-col">
+        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[85dvh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-violet-500" />

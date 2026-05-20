@@ -1037,7 +1037,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
       {/* ─── Create Dialog / Drawer ─────────────────────────────────── */}
       {isDesktop ? (
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">{createFormBody}</DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">{createFormBody}</DialogContent>
         </Dialog>
       ) : (
         <Drawer open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -1048,7 +1048,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
       {/* ─── Edit Dialog / Drawer ───────────────────────────────────── */}
       {isDesktop ? (
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">{editFormBody}</DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">{editFormBody}</DialogContent>
         </Dialog>
       ) : (
         <Drawer open={isEditOpen} onOpenChange={setIsEditOpen}>

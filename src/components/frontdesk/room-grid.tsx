@@ -586,7 +586,7 @@ export default function RoomGrid() {
 
       {/* Room Detail Dialog */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-md max-h-[90dvh] flex flex-col">
+        <DialogContent className="w-[95vw] sm:max-w-md max-h-[90dvh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               Room {selectedRoom?.number}

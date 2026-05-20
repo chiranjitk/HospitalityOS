@@ -1107,7 +1107,7 @@ export default function RoomsManager() {
 
       {/* Create Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90dvh] flex flex-col">
+        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90dvh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>Add New Room</DialogTitle>
             <DialogDescription>
@@ -1149,7 +1149,7 @@ export default function RoomsManager() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90dvh] flex flex-col">
+        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90dvh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>Edit Room</DialogTitle>
             <DialogDescription>
@@ -1210,7 +1210,7 @@ export default function RoomsManager() {
 
       {/* Bulk Import Dialog */}
       <Dialog open={isBulkImportOpen} onOpenChange={setIsBulkImportOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90dvh] flex flex-col">
+        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90dvh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>Bulk Import Rooms</DialogTitle>
             <DialogDescription>

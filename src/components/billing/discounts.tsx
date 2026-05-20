@@ -733,7 +733,7 @@ const t = useTranslations('billing');
           resetForm();
         }
       }}>
-        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>{isEditOpen ? 'Edit Discount' : 'Create Discount'}</DialogTitle>
             <DialogDescription>

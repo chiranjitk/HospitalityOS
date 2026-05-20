@@ -1006,7 +1006,7 @@ export default function OTAConnections() {
   // Desktop Add Dialog
   const AddChannelDialog = () => (
     <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Add Channel Connection</DialogTitle>
           <DialogDescription>

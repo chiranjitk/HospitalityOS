@@ -1163,7 +1163,7 @@ export default function RoomTypesManager() {
 
       {/* Create Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90dvh] flex flex-col p-0">
+        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90dvh] flex flex-col overflow-hidden p-0">
           <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
             <DialogTitle>Create Room Type</DialogTitle>
             <DialogDescription>Define a new room category</DialogDescription>
@@ -1193,7 +1193,7 @@ export default function RoomTypesManager() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90dvh] flex flex-col p-0">
+        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90dvh] flex flex-col overflow-hidden p-0">
           <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
             <DialogTitle>Edit Room Type</DialogTitle>
             <DialogDescription>Update room type details</DialogDescription>
@@ -1223,7 +1223,7 @@ export default function RoomTypesManager() {
 
       {/* View Dialog */}
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90dvh] flex flex-col p-0">
+        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90dvh] flex flex-col overflow-hidden p-0">
           <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
             <DialogTitle>Room Type Details</DialogTitle>
           </DialogHeader>
@@ -1316,7 +1316,7 @@ export default function RoomTypesManager() {
 
       {/* Amenity Manager Dialog */}
       <Dialog open={isAmenityManagerOpen} onOpenChange={setIsAmenityManagerOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90dvh] flex flex-col p-0">
+        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90dvh] flex flex-col overflow-hidden p-0">
           <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
             <DialogTitle>Manage Amenities</DialogTitle>
             <DialogDescription>Add, edit, or remove room amenities</DialogDescription>

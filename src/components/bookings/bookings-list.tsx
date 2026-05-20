@@ -979,7 +979,7 @@ export default function BookingsList() {
 
       {/* Create Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="sm:max-w-2xl w-[95vw] max-h-[90vh] flex flex-col">
+        <DialogContent className="sm:max-w-2xl w-[95vw] max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>Create New Booking</DialogTitle>
             <DialogDescription>

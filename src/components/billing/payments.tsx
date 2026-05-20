@@ -1174,7 +1174,7 @@ export default function Payments() {
 
       {/* ═══════════════════ Create Payment Dialog (Single + Split Tabs) ═══════════════════ */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>{t('processPayment')}</DialogTitle>
             <DialogDescription>{t('recordPayment')}</DialogDescription>

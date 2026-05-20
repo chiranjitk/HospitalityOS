@@ -1228,7 +1228,7 @@ const t = useTranslations('billing');
 
       {/* Folio Details Dialog */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
@@ -1551,7 +1551,7 @@ const t = useTranslations('billing');
 
       {/* Split Folio Dialog */}
       <Dialog open={isSplitOpen} onOpenChange={setIsSplitOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Scissors className="h-5 w-5" />

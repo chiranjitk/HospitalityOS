@@ -1156,7 +1156,7 @@ export default function LiveSessions() {
 
       {/* Session Details Dialog */}
       <Dialog open={!!selectedSession} onOpenChange={(open) => { if (!open) setSelectedSession(null); }}>
-        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>Session Details</DialogTitle>
             <DialogDescription>Detailed information for user session</DialogDescription>

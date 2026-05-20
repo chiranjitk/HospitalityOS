@@ -981,7 +981,7 @@ export default function Waitlist() {
 
       {/* Create Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90dvh] flex flex-col">
+        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90dvh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>Add to Waitlist</DialogTitle>
             <DialogDescription>
@@ -1191,7 +1191,7 @@ export default function Waitlist() {
 
       {/* Convert to Booking Dialog */}
       <Dialog open={isConvertOpen} onOpenChange={setIsConvertOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90dvh] flex flex-col">
+        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90dvh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ArrowRightLeft className="h-5 w-5 text-emerald-500" />

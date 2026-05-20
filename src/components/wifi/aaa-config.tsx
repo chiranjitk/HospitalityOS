@@ -1376,7 +1376,7 @@ export default function AAAConfig() {
                     Add External NAS
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+                <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
                   <DialogHeader className="shrink-0">
                     <DialogTitle>
                       {editingNas ? 'Edit NAS Client' : 'Add NAS Client'}

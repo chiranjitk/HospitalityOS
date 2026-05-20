@@ -918,7 +918,7 @@ const t = useTranslations('billing');
           }
         }}
       >
-        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>{isEditing ? 'Edit Cancellation Policy' : 'Create Cancellation Policy'}</DialogTitle>
             <DialogDescription>
