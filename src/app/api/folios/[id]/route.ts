@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { logBillingEvent } from '@/lib/services/audit-service';
 
 // GET /api/folios/[id] - Get a single folio
 export async function GET(
@@ -207,6 +208,25 @@ export async function PUT(
       },
     });
 
+    // Audit log (non-blocking)
+    try {
+      await logBillingEvent(user.tenantId, user.id, 'update', 'folio', id, {
+        status: existingFolio.status,
+        discount: existingFolio.discount,
+        invoiceNumber: existingFolio.invoiceNumber,
+        totalAmount: existingFolio.totalAmount,
+        balance: existingFolio.balance,
+      } as Record<string, unknown>, {
+        status: folio.status,
+        discount: folio.discount,
+        invoiceNumber: folio.invoiceNumber,
+        totalAmount: folio.totalAmount,
+        balance: folio.balance,
+      } as Record<string, unknown>, request);
+    } catch (auditErr) {
+      console.error('[AUDIT] Failed to log folio update:', auditErr);
+    }
+
     return NextResponse.json({ success: true, data: folio });
   } catch (error) {
     console.error('Error updating folio:', error);
@@ -269,6 +289,18 @@ export async function DELETE(
         closedAt: new Date(),
       },
     });
+
+    // Audit log (non-blocking)
+    try {
+      await logBillingEvent(user.tenantId, user.id, 'delete', 'folio', id, {
+        folioNumber: existingFolio.folioNumber,
+        status: existingFolio.status,
+        totalAmount: existingFolio.totalAmount,
+        balance: existingFolio.balance,
+      } as Record<string, unknown>, undefined, request);
+    } catch (auditErr) {
+      console.error('[AUDIT] Failed to log folio delete:', auditErr);
+    }
 
     return NextResponse.json({
       success: true,

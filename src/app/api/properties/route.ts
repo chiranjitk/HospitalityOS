@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { audit } from '@/lib/audit';
 
 // GET /api/properties - List all properties
 export async function GET(request: NextRequest) {
@@ -93,10 +94,7 @@ export async function GET(request: NextRequest) {
       skip: offset,
     });
     
-    return NextResponse.json({
-      success: true,
-      pagination: { total, limit, offset },
-      data: properties.map((p) => {
+    const responseData = properties.map((p) => {
         const mapped: Record<string, unknown> = {
           ...p,
           totalRooms: p._count.rooms,
@@ -114,7 +112,22 @@ export async function GET(request: NextRequest) {
         delete mapped.userAssignments;
 
         return mapped;
-      }),
+      });
+
+    // Audit log for list/view
+    try {
+      await audit(request, 'settings' as any, 'view', 'property', undefined, undefined, undefined, {
+        tenantId: user.tenantId,
+        userId: user.id,
+      });
+    } catch (auditError) {
+      console.error('[AUDIT] Failed to log property list view:', auditError);
+    }
+
+    return NextResponse.json({
+      success: true,
+      pagination: { total, limit, offset },
+      data: responseData,
     });
   } catch (error) {
     console.error('Error fetching properties:', error);
@@ -242,6 +255,16 @@ export async function POST(request: NextRequest) {
         status,
       },
     });
+
+    // Audit log for property creation
+    try {
+      await audit(request, 'settings' as any, 'create', 'property', property.id, undefined, property as unknown as Record<string, unknown>, {
+        tenantId: user.tenantId,
+        userId: user.id,
+      });
+    } catch (auditError) {
+      console.error('[AUDIT] Failed to log property creation:', auditError);
+    }
     
     return NextResponse.json({ success: true, data: property }, { status: 201 });
   } catch (error) {

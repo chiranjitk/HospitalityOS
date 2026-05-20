@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET /api/guests/[id]/loyalty - Get guest loyalty info
 export async function GET(
@@ -239,6 +240,32 @@ export async function PUT(
       where: { id },
       data: updateData,
     });
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId,
+        userId: user.id,
+        module: 'guests',
+        action: 'update',
+        entityType: 'loyalty_adjustment',
+        entityId: id,
+        oldValue: {
+          loyaltyPoints: guest.loyaltyPoints,
+          loyaltyTier: guest.loyaltyTier,
+          guestName: `${guest.firstName || ''} ${guest.lastName || ''}`.trim() || guest.email,
+        },
+        newValue: {
+          loyaltyPoints: updatedGuest.loyaltyPoints,
+          loyaltyTier: updatedGuest.loyaltyTier,
+          operation,
+          pointsChanged: points !== undefined ? points : null,
+          tierChanged: tier || null,
+        },
+      }, request);
+    } catch (auditError) {
+      console.error('[AUDIT] Failed to log loyalty adjustment:', auditError);
+    }
     
     return NextResponse.json({ 
       success: true, 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
 import { Prisma } from '@prisma/client';
+import { audit } from '@/lib/audit';
 
 // GET /api/packages - List package plans with filters & pagination
 export async function GET(request: NextRequest) {
@@ -169,6 +170,22 @@ export async function POST(request: NextRequest) {
 
       return newPackage;
     });
+
+    // Audit log (non-blocking)
+    try {
+      await audit(request, 'rooms', 'create', 'package', pkg.id, undefined, {
+        propertyId,
+        name,
+        baseRoomTypeId,
+        totalBasePrice: calculatedBasePrice,
+        currency: currency || 'USD',
+        status: status || 'active',
+        startDate,
+        endDate,
+      }, { tenantId: user.tenantId, userId: user.id });
+    } catch (auditError) {
+      console.error('Audit log failed (non-blocking):', auditError);
+    }
 
     return NextResponse.json({ success: true, data: pkg }, { status: 201 });
   } catch (error) {

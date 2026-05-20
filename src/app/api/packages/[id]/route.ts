@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
+import { audit } from '@/lib/audit';
 
 // GET /api/packages/[id] - Get a single package plan
 export async function GET(
@@ -63,6 +64,23 @@ export async function PUT(
       return NextResponse.json({ success: false, error: 'Package plan not found' }, { status: 404 });
     }
 
+    // Capture old values for audit
+    const oldValues = {
+      name: existing.name,
+      description: existing.description,
+      baseRoomTypeId: existing.baseRoomTypeId,
+      roomRateInclusive: existing.roomRateInclusive,
+      startDate: existing.startDate,
+      endDate: existing.endDate,
+      minNights: existing.minNights,
+      maxNights: existing.maxNights,
+      totalBasePrice: existing.totalBasePrice,
+      currency: existing.currency,
+      sortOrder: existing.sortOrder,
+      status: existing.status,
+      propertyId: existing.propertyId,
+    };
+
     const {
       name,
       description,
@@ -104,6 +122,26 @@ export async function PUT(
       },
     });
 
+    // Audit log (non-blocking)
+    try {
+      await audit(request, 'rooms', 'update', 'package', id, oldValues, {
+        name: pkg.name,
+        description: pkg.description,
+        baseRoomTypeId: pkg.baseRoomTypeId,
+        roomRateInclusive: pkg.roomRateInclusive,
+        startDate: pkg.startDate,
+        endDate: pkg.endDate,
+        minNights: pkg.minNights,
+        maxNights: pkg.maxNights,
+        totalBasePrice: pkg.totalBasePrice,
+        currency: pkg.currency,
+        sortOrder: pkg.sortOrder,
+        status: pkg.status,
+      }, { tenantId: user.tenantId, userId: user.id });
+    } catch (auditError) {
+      console.error('Audit log failed (non-blocking):', auditError);
+    }
+
     return NextResponse.json({ success: true, data: pkg });
   } catch (error) {
     console.error('[PUT /api/packages/[id]]', error);
@@ -132,12 +170,30 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Package plan not found' }, { status: 404 });
     }
 
+    // Capture old values for audit
+    const oldValuesForDelete = {
+      name: existing.name,
+      description: existing.description,
+      baseRoomTypeId: existing.baseRoomTypeId,
+      totalBasePrice: existing.totalBasePrice,
+      currency: existing.currency,
+      status: existing.status,
+      propertyId: existing.propertyId,
+    };
+
     // Delete components and rates first (cascade should handle this, but explicit for safety)
     await db.$transaction(async (tx) => {
       await tx.packageComponent.deleteMany({ where: { packagePlanId: id } });
       await tx.packageRate.deleteMany({ where: { packagePlanId: id } });
       await tx.packagePlan.delete({ where: { id } });
     });
+
+    // Audit log (non-blocking)
+    try {
+      await audit(request, 'rooms', 'delete', 'package', id, oldValuesForDelete, undefined, { tenantId: user.tenantId, userId: user.id });
+    } catch (auditError) {
+      console.error('Audit log failed (non-blocking):', auditError);
+    }
 
     return NextResponse.json({ success: true, data: { id } });
   } catch (error) {

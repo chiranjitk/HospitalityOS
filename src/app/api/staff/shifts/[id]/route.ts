@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET /api/staff/shifts/[id] - Get a single shift
 export async function GET(
@@ -206,6 +207,38 @@ export async function PUT(
       },
     };
 
+    // Audit log
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'admin',
+          action: 'update',
+          entityType: 'shift',
+          entityId: id,
+          oldValue: {
+            startTime: existingShift.startTime,
+            endTime: existingShift.endTime,
+            department: existingShift.department,
+            status: existingShift.status,
+            date: existingShift.date.toISOString().split('T')[0],
+            userId: existingShift.userId,
+          },
+          newValue: {
+            startTime: shift.startTime,
+            endTime: shift.endTime,
+            department: shift.department,
+            status: shift.status,
+          },
+          description: `Updated shift ${existingShift.date.toISOString().split('T')[0]} (${existingShift.startTime}–${existingShift.endTime})`,
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('Audit log failed for shift update:', auditError);
+    }
+
     return NextResponse.json({
       success: true,
       shift: formattedShift,
@@ -267,6 +300,32 @@ export async function DELETE(
     await db.staffSchedule.delete({
       where: { id },
     });
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'admin',
+          action: 'delete',
+          entityType: 'shift',
+          entityId: id,
+          oldValue: {
+            startTime: existingShift.startTime,
+            endTime: existingShift.endTime,
+            department: existingShift.department,
+            status: existingShift.status,
+            date: existingShift.date.toISOString().split('T')[0],
+            userId: existingShift.userId,
+          },
+          description: `Deleted shift ${existingShift.date.toISOString().split('T')[0]} (${existingShift.startTime}–${existingShift.endTime})`,
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('Audit log failed for shift delete:', auditError);
+    }
 
     return NextResponse.json({
       success: true,

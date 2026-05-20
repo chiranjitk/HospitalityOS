@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { audit } from '@/lib/audit';
 
 // GET /api/properties/[id] - Get a single property
 export async function GET(
@@ -50,6 +51,16 @@ export async function GET(
 
     if (property.tenantId !== user.tenantId) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Not found' } }, { status: 404 });
+    }
+
+    // Audit log for property view
+    try {
+      await audit(request, 'settings' as any, 'view', 'property', id, undefined, undefined, {
+        tenantId: user.tenantId,
+        userId: user.id,
+      });
+    } catch (auditError) {
+      console.error('[AUDIT] Failed to log property view:', auditError);
     }
     
     return NextResponse.json({
@@ -101,6 +112,9 @@ export async function PUT(
     if (existingProperty.tenantId !== user.tenantId) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Not found' } }, { status: 404 });
     }
+
+    // Capture old values before update for audit log
+    const oldValue = { ...existingProperty } as unknown as Record<string, unknown>;
     
     const {
       name,
@@ -188,6 +202,16 @@ export async function PUT(
         },
       });
     });
+
+    // Audit log for property update
+    try {
+      await audit(request, 'settings' as any, 'update', 'property', id, oldValue, property as unknown as Record<string, unknown>, {
+        tenantId: user.tenantId,
+        userId: user.id,
+      });
+    } catch (auditError) {
+      console.error('[AUDIT] Failed to log property update:', auditError);
+    }
     
     return NextResponse.json({ success: true, data: property });
   } catch (error) {
@@ -236,6 +260,9 @@ export async function DELETE(
     if (existingProperty.tenantId !== user.tenantId) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Not found' } }, { status: 404 });
     }
+
+    // Capture old values before delete for audit log
+    const deletedProperty = { ...existingProperty } as unknown as Record<string, unknown>;
     
     // Check for active rooms and bookings before deleting
     const activeRooms = await db.room.count({
@@ -258,6 +285,16 @@ export async function DELETE(
         data: { deletedAt: new Date() },
       });
     });
+
+    // Audit log for property deletion
+    try {
+      await audit(request, 'settings' as any, 'delete', 'property', id, deletedProperty, undefined, {
+        tenantId: user.tenantId,
+        userId: user.id,
+      });
+    } catch (auditError) {
+      console.error('[AUDIT] Failed to log property deletion:', auditError);
+    }
     
     return NextResponse.json({ success: true, data: { id } });
   } catch (error) {

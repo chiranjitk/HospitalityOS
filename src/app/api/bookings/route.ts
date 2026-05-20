@@ -809,6 +809,7 @@ export async function POST(request: NextRequest) {
           action: 'created',
           newStatus: status,
           notes: lockSessionId ? 'Booking created from locked session' : 'Booking created',
+          performedBy: user.id,
         },
       });
 

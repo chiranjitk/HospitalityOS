@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { z } from 'zod';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // ─── Zod Schemas ───
 const updateRuleSchema = z.object({
@@ -117,18 +118,44 @@ export async function PUT(
     });
 
     // Audit log
-    await db.auditLog.create({
-      data: {
-        tenantId: user.tenantId,
-        userId: user.id,
-        module: 'posting-rules',
-        action: 'update',
-        entityType: 'PostingRule',
-        entityId: id,
-        oldValue: existing.name,
-        newValue: `Updated posting rule: ${rule.name}`,
-      },
-    });
+    try {
+      const oldValue = {
+        name: existing.name,
+        chargeCategory: existing.chargeCategory,
+        chargeType: existing.chargeType,
+        revenueAccountId: existing.revenueAccountId,
+        taxTreatment: existing.taxTreatment,
+        autoPost: existing.autoPost,
+        isActive: existing.isActive,
+        priority: existing.priority,
+      };
+      const newValue = {
+        name: rule.name,
+        chargeCategory: rule.chargeCategory,
+        chargeType: rule.chargeType,
+        revenueAccountId: rule.revenueAccountId,
+        taxTreatment: rule.taxTreatment,
+        autoPost: rule.autoPost,
+        isActive: rule.isActive,
+        priority: rule.priority,
+      };
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'update',
+          entityType: 'posting_rule',
+          entityId: id,
+          oldValue,
+          newValue,
+          description: `Updated posting rule: ${rule.name}`,
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('[PostingRules PUT/:id] Audit log failed:', auditError);
+    }
 
     return NextResponse.json({ success: true, data: rule });
   } catch (error) {
@@ -162,17 +189,30 @@ export async function DELETE(
     await db.postingRule.delete({ where: { id } });
 
     // Audit log
-    await db.auditLog.create({
-      data: {
-        tenantId: user.tenantId,
-        userId: user.id,
-        module: 'posting-rules',
-        action: 'delete',
-        entityType: 'PostingRule',
-        entityId: id,
-        oldValue: `Deleted posting rule: ${existing.name}`,
-      },
-    });
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'delete',
+          entityType: 'posting_rule',
+          entityId: id,
+          oldValue: {
+            name: existing.name,
+            propertyId: existing.propertyId,
+            chargeCategory: existing.chargeCategory,
+            chargeType: existing.chargeType,
+            revenueAccountId: existing.revenueAccountId,
+            isActive: existing.isActive,
+          },
+          description: `Deleted posting rule: ${existing.name}`,
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('[PostingRules DELETE/:id] Audit log failed:', auditError);
+    }
 
     return NextResponse.json({ success: true, data: { id, deleted: true } });
   } catch (error) {

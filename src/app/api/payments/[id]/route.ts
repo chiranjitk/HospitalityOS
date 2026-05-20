@@ -4,6 +4,7 @@ import { createStripeGateway } from '@/lib/payments/gateways/stripe';
 import { createPayPalGateway } from '@/lib/payments/gateways/paypal';
 import { createManualGateway } from '@/lib/payments/gateways/manual';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET /api/payments/[id] - Get a single payment
 export async function GET(
@@ -222,6 +223,46 @@ export async function PUT(
         return updatedPayment;
       });
 
+      // Audit log for refund
+      try {
+        await auditLogService.logWithContext(
+          {
+            tenantId: user.tenantId,
+            userId: user.id,
+            module: 'billing',
+            action: 'update',
+            entityType: 'payment',
+            entityId: id,
+            oldValue: {
+              amount: existingPayment.amount,
+              currency: existingPayment.currency,
+              method: existingPayment.method,
+              status: existingPayment.status,
+              reference: existingPayment.reference,
+              refundAmount: existingPayment.refundAmount,
+              gateway: existingPayment.gateway,
+            },
+            newValue: {
+              refundAmount: totalRefunded,
+              status: newStatus,
+              reason: refundReason,
+              gatewayRefundId: gatewayRefundResult?.refundId,
+            },
+            details: {
+              event: 'refund',
+              refundAmount,
+              totalRefunded,
+              newStatus,
+              gatewayRefundId: gatewayRefundResult?.refundId,
+              folioId: existingPayment.folioId,
+            },
+          },
+          request
+        );
+      } catch (auditError) {
+        console.error('[Audit] Failed to log payment refund:', auditError);
+      }
+
       return NextResponse.json({
         success: true,
         data: {
@@ -232,6 +273,16 @@ export async function PUT(
     }
 
     // Regular update
+    // Capture old values before regular update
+    const oldValues = {
+      amount: existingPayment.amount,
+      currency: existingPayment.currency,
+      method: existingPayment.method,
+      status: existingPayment.status,
+      reference: existingPayment.reference,
+      transactionId: existingPayment.transactionId,
+    };
+
     const payment = await db.payment.update({
       where: { id },
       data: {
@@ -244,6 +295,33 @@ export async function PUT(
         guest: { select: { id: true, firstName: true, lastName: true } },
       },
     });
+
+    // Audit log for regular update
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'update',
+          entityType: 'payment',
+          entityId: id,
+          oldValue: oldValues,
+          newValue: {
+            ...(status && { status }),
+            ...(transactionId !== undefined && { transactionId }),
+            ...(reference !== undefined && { reference }),
+          },
+          details: {
+            event: 'update',
+            folioId: existingPayment.folioId,
+          },
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('[Audit] Failed to log payment update:', auditError);
+    }
 
     return NextResponse.json({ success: true, data: payment });
   } catch (error) {
@@ -291,10 +369,45 @@ export async function DELETE(
       );
     }
 
+    // Capture old values before void
+    const oldValues = {
+      amount: existingPayment.amount,
+      currency: existingPayment.currency,
+      method: existingPayment.method,
+      status: existingPayment.status,
+      reference: existingPayment.reference,
+      transactionId: existingPayment.transactionId,
+      gateway: existingPayment.gateway,
+      folioId: existingPayment.folioId,
+    };
+
     const payment = await db.payment.update({
       where: { id },
       data: { status: 'failed' },
     });
+
+    // Audit log for void
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'delete',
+          entityType: 'payment',
+          entityId: id,
+          oldValue: oldValues,
+          newValue: { status: 'failed' },
+          details: {
+            event: 'void',
+            folioId: existingPayment.folioId,
+          },
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('[Audit] Failed to log payment void:', auditError);
+    }
 
     return NextResponse.json({
       success: true,

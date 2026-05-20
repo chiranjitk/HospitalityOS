@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import crypto from 'crypto';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // Helper function to generate order number
 function generateOrderNumber(): string {
@@ -432,6 +433,37 @@ export async function POST(request: NextRequest) {
       }),
     }).catch(() => {});
 
+    // Audit log
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'create',
+          entityType: 'order',
+          entityId: completeOrder.id,
+          newValue: {
+            orderNumber: completeOrder.orderNumber,
+            propertyId,
+            tableId,
+            guestId,
+            bookingId,
+            guestName,
+            orderType,
+            subtotal,
+            taxes,
+            totalAmount,
+            itemCount: items.length,
+          },
+          description: `Created order ${completeOrder.orderNumber} (${orderType}, ${items.length} items, total: ${totalAmount})`,
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('[Orders POST] Audit log failed:', auditError);
+    }
+
     return NextResponse.json({ success: true, data: completeOrder }, { status: 201 });
   } catch (error) {
     console.error('Error creating order:', error);
@@ -583,6 +615,34 @@ export async function PUT(request: NextRequest) {
       }),
     }).catch(() => {});
 
+    // Audit log
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'update',
+          entityType: 'order',
+          entityId: order.id,
+          oldValue: {
+            status: existingOrder.status,
+            kitchenStatus: existingOrder.kitchenStatus,
+            notes: existingOrder.notes,
+          },
+          newValue: {
+            status: order.status,
+            kitchenStatus: order.kitchenStatus,
+            notes: order.notes,
+          },
+          description: `Updated order ${order.orderNumber}: status ${existingOrder.status} → ${order.status}, kitchen ${existingOrder.kitchenStatus} → ${order.kitchenStatus}`,
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('[Orders PUT] Audit log failed:', auditError);
+    }
+
     return NextResponse.json({ success: true, data: order });
   } catch (error) {
     console.error('Error updating order:', error);
@@ -657,6 +717,31 @@ export async function DELETE(request: NextRequest) {
         where: { id: order.tableId },
         data: { status: 'available' },
       });
+    }
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'delete',
+          entityType: 'order',
+          entityId: order.id,
+          oldValue: {
+            orderNumber: order.orderNumber,
+            status: existingOrder.status,
+            kitchenStatus: existingOrder.kitchenStatus,
+            totalAmount: order.totalAmount,
+            orderType: order.orderType,
+          },
+          description: `Cancelled order ${order.orderNumber} (was ${existingOrder.status}, total: ${order.totalAmount})`,
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('[Orders DELETE] Audit log failed:', auditError);
     }
 
     return NextResponse.json({ success: true, data: order });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { hashPassword, validatePasswordStrength } from '@/lib/auth';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { logUser } from '@/lib/audit';
 
 // Common include for user property assignments
 const userPropertyAssignmentsInclude = {
@@ -419,23 +420,14 @@ export async function POST(request: NextRequest) {
 
     // Create audit log
     try {
-      await db.auditLog.create({
-        data: {
-          tenantId,
-          module: 'admin',
-          action: 'create',
-          entityType: 'user',
-          entityId: user!.id,
-          newValue: JSON.stringify({
-            email: user!.email,
-            firstName: user!.firstName,
-            lastName: user!.lastName,
-            roleId: user!.roleId,
-            isPlatformAdmin: user!.isPlatformAdmin,
-            propertyAssignmentCount: Array.isArray(propertyAssignments) ? propertyAssignments.length : 0,
-          }),
-        },
-      });
+      await logUser(request, 'create', user!.id, undefined, {
+        email: user!.email,
+        firstName: user!.firstName,
+        lastName: user!.lastName,
+        roleId: user!.roleId,
+        isPlatformAdmin: user!.isPlatformAdmin,
+        propertyAssignmentCount: Array.isArray(propertyAssignments) ? propertyAssignments.length : 0,
+      }, { tenantId, userId: currentUser.id });
     } catch {
       // Ignore audit log errors
     }

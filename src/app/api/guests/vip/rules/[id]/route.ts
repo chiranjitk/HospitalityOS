@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // PUT /api/guests/vip/rules/[id] — Toggle rule active/inactive or update rule config
 export async function PUT(
@@ -43,6 +44,17 @@ export async function PUT(
     if (body.tierFilter) mergedConditions.tierFilter = body.tierFilter;
     if (body.triggerCondition) mergedConditions.triggerCondition = body.triggerCondition;
 
+    // Capture old values for audit
+    const oldValues: Record<string, unknown> = {
+      name: existing.name,
+      description: existing.description,
+      ruleType: existing.ruleType,
+      alertLevel: existing.alertLevel,
+      alertMessage: existing.alertMessage,
+      autoUpgrade: existing.autoUpgrade,
+      isActive: existing.isActive,
+    };
+
     const updated = await db.vipRule.update({
       where: { id },
       data: {
@@ -59,6 +71,30 @@ export async function PUT(
         ...(isActive !== undefined && { isActive }),
       },
     });
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId,
+        userId: user.id,
+        module: 'guests',
+        action: 'update',
+        entityType: 'vip_rule',
+        entityId: id,
+        oldValue: oldValues,
+        newValue: {
+          name: updated.name,
+          description: updated.description,
+          ruleType: updated.ruleType,
+          alertLevel: updated.alertLevel,
+          alertMessage: updated.alertMessage,
+          autoUpgrade: updated.autoUpgrade,
+          isActive: updated.isActive,
+        },
+      }, request);
+    } catch (auditError) {
+      console.error('[AUDIT] Failed to log VIP rule update:', auditError);
+    }
 
     return NextResponse.json({ success: true, data: updated });
   } catch (error: unknown) {
@@ -95,6 +131,29 @@ export async function DELETE(
     }
 
     await db.vipRule.delete({ where: { id } });
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId,
+        userId: user.id,
+        module: 'guests',
+        action: 'delete',
+        entityType: 'vip_rule',
+        entityId: id,
+        oldValue: {
+          name: existing.name,
+          description: existing.description,
+          ruleType: existing.ruleType,
+          alertLevel: existing.alertLevel,
+          alertMessage: existing.alertMessage,
+          autoUpgrade: existing.autoUpgrade,
+          isActive: existing.isActive,
+        },
+      }, request);
+    } catch (auditError) {
+      console.error('[AUDIT] Failed to log VIP rule deletion:', auditError);
+    }
 
     return NextResponse.json({ success: true, message: `Rule "${existing.name}" deleted successfully` });
   } catch (error: unknown) {

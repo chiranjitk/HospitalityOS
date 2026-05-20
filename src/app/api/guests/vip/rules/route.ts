@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET /api/guests/vip/rules — List recognition rules with active/inactive status
 export async function GET(request: NextRequest) {
@@ -105,6 +106,29 @@ export async function POST(request: NextRequest) {
         isActive: isActive !== false,
       },
     });
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId,
+        userId: user.id,
+        module: 'guests',
+        action: 'create',
+        entityType: 'vip_rule',
+        entityId: rule.id,
+        newValue: {
+          name,
+          description: description || null,
+          ruleType: alertType || 'check_in',
+          channels: channels || ['front_desk'],
+          tierFilter: tierFilter || ['bronze', 'silver', 'gold', 'platinum'],
+          isActive: isActive !== false,
+          propertyId: propertyId || null,
+        },
+      }, request);
+    } catch (auditError) {
+      console.error('[AUDIT] Failed to log VIP rule creation:', auditError);
+    }
 
     return NextResponse.json({ success: true, data: rule }, { status: 201 });
   } catch (error) {

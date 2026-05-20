@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET /api/group-bookings/[id] - Get a single group booking with details
 export async function GET(
@@ -112,6 +113,22 @@ export async function DELETE(
     await db.groupBooking.delete({
       where: { id },
     });
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId,
+        userId: user.id,
+        module: 'bookings',
+        action: 'delete',
+        entityType: 'group_booking',
+        entityId: existingGroup.id,
+        oldValue: { name: existingGroup.name, status: existingGroup.status, totalRooms: existingGroup.totalRooms, totalAmount: existingGroup.totalAmount },
+        description: `Deleted group booking: ${existingGroup.name}`,
+      }, request);
+    } catch (auditError) {
+      console.error('Audit log failed for group booking delete:', auditError);
+    }
 
     return NextResponse.json({ success: true, message: 'Group booking deleted' });
   } catch (error) {

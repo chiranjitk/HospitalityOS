@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { z } from 'zod';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // ─── Zod Schemas ───
 const createPostingRuleSchema = z.object({
@@ -139,17 +140,33 @@ export async function POST(request: NextRequest) {
     });
 
     // Audit log
-    await db.auditLog.create({
-      data: {
-        tenantId: user.tenantId,
-        userId: user.id,
-        module: 'posting-rules',
-        action: 'create',
-        entityType: 'PostingRule',
-        entityId: rule.id,
-        newValue: `Created posting rule: ${rule.name}`,
-      },
-    });
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'create',
+          entityType: 'posting_rule',
+          entityId: rule.id,
+          newValue: {
+            name: rule.name,
+            propertyId: rule.propertyId,
+            chargeCategory: rule.chargeCategory,
+            chargeType: rule.chargeType,
+            revenueAccountId: rule.revenueAccountId,
+            taxTreatment: rule.taxTreatment,
+            autoPost: rule.autoPost,
+            isActive: rule.isActive,
+            priority: rule.priority,
+          },
+          description: `Created posting rule: ${rule.name}`,
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('[PostingRules POST] Audit log failed:', auditError);
+    }
 
     return NextResponse.json({ success: true, data: rule }, { status: 201 });
   } catch (error) {

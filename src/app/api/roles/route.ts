@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { menuPermissions } from '@/config/permissions';
+import { audit } from '@/lib/audit';
 
 // FIX (M-9): Count unique permission strings across menu config and API routes.
 // This replaces the unsubstantiated "216 permissions" claim with actual counts.
@@ -143,21 +144,11 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      await db.auditLog.create({
-        data: {
-          tenantId,
-          module: 'admin',
-          action: 'create',
-          entityType: 'role',
-          entityId: role.id,
-          userId: user.id,
-          newValue: JSON.stringify({
-            name: role.name,
-            displayName: role.displayName,
-            permissions: permissions || [],
-          }),
-        },
-      });
+      await audit(request, 'users', 'create', 'role', role.id, undefined, {
+        name: role.name,
+        displayName: role.displayName,
+        permissions: permissions || [],
+      }, { tenantId, userId: user.id });
     } catch {
       // Ignore audit log errors
     }
@@ -238,20 +229,16 @@ export async function PUT(request: NextRequest) {
     });
 
     try {
-      await db.auditLog.create({
-        data: {
-          tenantId: existingRole.tenantId,
-          module: 'admin',
-          action: 'update',
-          entityType: 'role',
-          entityId: role.id,
-          userId: user.id,
-          newValue: JSON.stringify({
-            displayName: role.displayName,
-            permissions: permissions || JSON.parse(existingRole.permissions as string || '[]'),
-          }),
-        },
-      });
+      const oldPermissions = JSON.parse(existingRole.permissions as string || '[]');
+      await audit(request, 'users', 'update', 'role', role.id, {
+        name: existingRole.name,
+        displayName: existingRole.displayName,
+        permissions: oldPermissions,
+      }, {
+        name: role.name,
+        displayName: role.displayName,
+        permissions: permissions || oldPermissions,
+      }, { tenantId: existingRole.tenantId, userId: user.id });
     } catch {
       // Ignore audit log errors
     }
@@ -338,20 +325,10 @@ export async function DELETE(request: NextRequest) {
     });
 
     try {
-      await db.auditLog.create({
-        data: {
-          tenantId: existingRole.tenantId,
-          module: 'admin',
-          action: 'delete',
-          entityType: 'role',
-          entityId: id,
-          userId: user.id,
-          oldValue: JSON.stringify({
-            name: existingRole.name,
-            displayName: existingRole.displayName,
-          }),
-        },
-      });
+      await audit(request, 'users', 'delete', 'role', id, {
+        name: existingRole.name,
+        displayName: existingRole.displayName,
+      }, undefined, { tenantId: existingRole.tenantId, userId: user.id });
     } catch {
       // Ignore audit log errors
     }

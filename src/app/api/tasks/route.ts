@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { notifyTaskAssigned } from '@/lib/notify';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET /api/tasks - List all tasks with filtering and pagination
 export async function GET(request: NextRequest) {
@@ -335,6 +336,36 @@ export async function POST(request: NextRequest) {
         taskPriority: task.priority || 'medium',
         roomNumber: task.room?.number,
       });
+    }
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: currentUser.tenantId,
+          userId: currentUser.id,
+          module: 'admin',
+          action: 'create',
+          entityType: 'task',
+          entityId: task.id,
+          newValue: {
+            title: task.title,
+            type: task.type,
+            category: task.category,
+            priority: task.priority,
+            status: task.status,
+            propertyId: task.propertyId,
+            roomId: task.roomId,
+            assignedTo: task.assignedTo,
+            scheduledAt: task.scheduledAt,
+            isRecurring: task.isRecurring,
+          },
+          description: `Created task "${task.title}" (${task.type}/${task.category})`,
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('Audit log failed for task create:', auditError);
     }
 
     return NextResponse.json({ success: true, data: task }, { status: 201 });

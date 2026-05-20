@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET /api/payments/tokens/[id] - Get single token details (masked)
 export async function GET(
@@ -183,6 +184,19 @@ export async function DELETE(
       );
     }
 
+    // Capture old values before soft delete
+    const oldValues = {
+      gateway: existingToken.gateway,
+      tokenType: existingToken.tokenType,
+      cardLast4: existingToken.cardLast4,
+      cardBrand: existingToken.cardBrand,
+      expiryMonth: existingToken.expiryMonth,
+      expiryYear: existingToken.expiryYear,
+      isDefault: existingToken.isDefault,
+      status: existingToken.status,
+      guestId: existingToken.guestId,
+    };
+
     // Soft delete by marking as deleted
     await db.storedToken.update({
       where: { id },
@@ -191,6 +205,32 @@ export async function DELETE(
         isDefault: false,
       },
     });
+
+    // Audit log for token deletion
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'delete',
+          entityType: 'payment_token',
+          entityId: id,
+          oldValue: oldValues,
+          newValue: { status: 'deleted', isDefault: false },
+          details: {
+            event: 'delete_token',
+            gateway: existingToken.gateway,
+            tokenType: existingToken.tokenType,
+            cardLast4: existingToken.cardLast4,
+            guestId: existingToken.guestId,
+          },
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('[Audit] Failed to log payment token deletion:', auditError);
+    }
 
     return NextResponse.json({
       success: true,

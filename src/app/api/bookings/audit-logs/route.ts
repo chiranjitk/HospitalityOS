@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {    const user = await require
       oldStatus,
       newStatus,
       notes,
-      performedBy,
+      performedBy: clientPerformedBy,
     } = body;
 
     if (!bookingId || !action) {
@@ -145,6 +145,11 @@ export async function POST(request: NextRequest) {    const user = await require
         { status: 404 }
       );
     }
+
+    // Security: Always use authenticated user's ID for performedBy.
+    // Allow system labels for automated processes (guest_portal, system, night_audit, scheduler, no_show_engine).
+    const systemLabels = ['guest_portal', 'system', 'night_audit', 'scheduler', 'no_show_engine', 'auto'];
+    const performedBy = systemLabels.includes(clientPerformedBy) ? clientPerformedBy : user.id;
 
     const log = await db.bookingAuditLog.create({
       data: {

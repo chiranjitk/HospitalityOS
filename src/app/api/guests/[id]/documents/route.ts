@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET /api/guests/[id]/documents - Get guest documents
 export async function GET(
@@ -97,6 +98,28 @@ export async function POST(
       },
     });
     
+    // Audit log
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId,
+        userId: user.id,
+        module: 'guests',
+        action: 'create',
+        entityType: 'guest_document',
+        entityId: document.id,
+        newValue: {
+          guestId: id,
+          guestName: `${guest.firstName || ''} ${guest.lastName || ''}`.trim() || guest.email,
+          documentType: type,
+          documentName: name,
+          status: 'pending',
+          expiryDate: expiryDate || null,
+        },
+      }, request);
+    } catch (auditError) {
+      console.error('[AUDIT] Failed to log document creation:', auditError);
+    }
+
     return NextResponse.json({ 
       success: true, 
       data: document 
@@ -225,10 +248,36 @@ export async function DELETE(
         { status: 400 }
       );
     }
+
+    // Capture document before deletion for audit
+    const existingDoc = await db.guestDocument.findFirst({
+      where: { id: documentId, guestId: id },
+    });
     
     await db.guestDocument.delete({
       where: { id: documentId, guestId: id },
     });
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId,
+        userId: user.id,
+        module: 'guests',
+        action: 'delete',
+        entityType: 'guest_document',
+        entityId: documentId,
+        oldValue: existingDoc ? {
+          guestId: id,
+          documentType: existingDoc.type,
+          documentName: existingDoc.name,
+          status: existingDoc.status,
+          fileUrl: existingDoc.fileUrl,
+        } : undefined,
+      }, request);
+    } catch (auditError) {
+      console.error('[AUDIT] Failed to log document deletion:', auditError);
+    }
     
     return NextResponse.json({ 
       success: true, 

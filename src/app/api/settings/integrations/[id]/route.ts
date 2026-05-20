@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 
 export async function DELETE(
   _request: NextRequest,
@@ -45,6 +46,30 @@ export async function DELETE(
     await db.integration.delete({
       where: { id },
     });
+
+    // Audit log (non-blocking)
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'settings',
+          action: 'delete',
+          entityType: 'integration',
+          entityId: id,
+          oldValue: {
+            type: integration.type,
+            provider: integration.provider,
+            name: integration.name,
+            status: integration.status,
+          },
+          description: `Deleted ${integration.type} integration: ${integration.name}`,
+        },
+        _request,
+      );
+    } catch (auditErr) {
+      console.error('[Integrations] DELETE audit log failed:', auditErr);
+    }
 
     return NextResponse.json({
       success: true,

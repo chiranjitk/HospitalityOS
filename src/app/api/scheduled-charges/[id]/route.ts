@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 import { z } from 'zod';
 
 // ─── Zod Schemas ───
@@ -115,19 +116,35 @@ export async function PATCH(
       },
     });
 
-    // Audit log
-    await db.auditLog.create({
-      data: {
-        tenantId: user.tenantId,
-        userId: user.id,
-        module: 'scheduled-charges',
-        action: 'update',
-        entityType: 'ScheduledCharge',
-        entityId: id,
-        oldValue: `$${existing.amount}/${existing.frequency} (${existing.isActive ? 'active' : 'paused'})`,
-        newValue: `$${charge.amount}/${charge.frequency} (${charge.isActive ? 'active' : 'paused'})`,
-      },
-    });
+    // Audit log (non-blocking)
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'update',
+          entityType: 'scheduled_charge',
+          entityId: id,
+          oldValue: {
+            amount: existing.amount,
+            frequency: existing.frequency,
+            isActive: existing.isActive,
+            description: existing.description,
+          },
+          newValue: {
+            amount: charge.amount,
+            frequency: charge.frequency,
+            isActive: charge.isActive,
+            description: charge.description,
+          },
+          description: `Updated scheduled charge: $${existing.amount}/${existing.frequency} (${existing.isActive ? 'active' : 'paused'}) → $${charge.amount}/${charge.frequency} (${charge.isActive ? 'active' : 'paused'})`,
+        },
+        request,
+      );
+    } catch (auditErr) {
+      console.error('[ScheduledCharges PATCH/:id] audit log failed:', auditErr);
+    }
 
     return NextResponse.json({ success: true, data: charge });
   } catch (error) {

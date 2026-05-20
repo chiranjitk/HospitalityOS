@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { notifyServiceRequestCreated } from '@/lib/notify';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET /api/service-requests - List all service requests with filtering and pagination
 export async function GET(request: NextRequest) {
@@ -290,6 +291,36 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       requestType: type || 'General',
     });
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'admin',
+          action: 'create',
+          entityType: 'service_request',
+          entityId: serviceRequest.id,
+          newValue: {
+            type: serviceRequest.type,
+            category: serviceRequest.category,
+            subject: serviceRequest.subject,
+            priority: serviceRequest.priority,
+            status: serviceRequest.status,
+            propertyId: serviceRequest.propertyId,
+            roomId: serviceRequest.roomId,
+            guestId: serviceRequest.guestId,
+            assignedTo: serviceRequest.assignedTo,
+            source: serviceRequest.source,
+          },
+          description: `Created service request "${serviceRequest.subject}" (${serviceRequest.type}/${serviceRequest.priority})`,
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('Audit log failed for service request create:', auditError);
+    }
 
     return NextResponse.json({ success: true, data: serviceRequest }, { status: 201 });
   } catch (error) {

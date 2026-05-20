@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requirePermission } from '@/lib/auth/tenant-context';// GET /api/rate-plans/[id] - Get a single rate plan
+import { requirePermission } from '@/lib/auth/tenant-context';
+import { audit } from '@/lib/audit';
+
+// GET /api/rate-plans/[id] - Get a single rate plan
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -72,7 +75,20 @@ export async function PUT(
         { status: 404 }
       );
     }
-    
+
+    // Capture old values for audit
+    const oldValues = {
+      name: existing.name,
+      code: existing.code,
+      description: existing.description,
+      basePrice: existing.basePrice,
+      currency: existing.currency,
+      mealPlan: existing.mealPlan,
+      status: existing.status,
+      minStay: existing.minStay,
+      maxStay: existing.maxStay,
+    };
+
     const {
       name,
       code,
@@ -152,6 +168,23 @@ export async function PUT(
       },
     });
     
+    // Audit log (non-blocking)
+    try {
+      await audit(request, 'rooms', 'update', 'rate_plan', id, oldValues, {
+        name: ratePlan.name,
+        code: ratePlan.code,
+        description: ratePlan.description,
+        basePrice: ratePlan.basePrice,
+        currency: ratePlan.currency,
+        mealPlan: ratePlan.mealPlan,
+        status: ratePlan.status,
+        minStay: ratePlan.minStay,
+        maxStay: ratePlan.maxStay,
+      }, { tenantId: user.tenantId, userId: user.id });
+    } catch (auditError) {
+      console.error('Audit log failed (non-blocking):', auditError);
+    }
+
     return NextResponse.json({ success: true, data: ratePlan });
   } catch (error) {
     console.error('Error updating rate plan:', error);
@@ -184,13 +217,32 @@ export async function DELETE(
         { status: 404 }
       );
     }
-    
+
+    // Capture old values for audit
+    const oldValuesForDelete = {
+      name: existing.name,
+      code: existing.code,
+      description: existing.description,
+      basePrice: existing.basePrice,
+      currency: existing.currency,
+      mealPlan: existing.mealPlan,
+      status: existing.status,
+      roomTypeId: existing.roomTypeId,
+    };
+
     // Soft delete
     await db.ratePlan.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
-    
+
+    // Audit log (non-blocking)
+    try {
+      await audit(request, 'rooms', 'delete', 'rate_plan', id, oldValuesForDelete, undefined, { tenantId: user.tenantId, userId: user.id });
+    } catch (auditError) {
+      console.error('Audit log failed (non-blocking):', auditError);
+    }
+
     return NextResponse.json({ success: true, message: 'Rate plan deleted successfully' });
   } catch (error) {
     console.error('Error deleting rate plan:', error);

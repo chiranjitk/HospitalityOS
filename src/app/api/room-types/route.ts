@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { audit } from '@/lib/audit';
 
 // Safe JSON parse helper
 function safeJsonParse(str: string | null | undefined, fallback: any = []): any {
@@ -239,6 +240,20 @@ export async function POST(request: NextRequest) {    const user = await getUser
       },
     });
     
+    // Audit log (non-blocking)
+    try {
+      await audit(request, 'rooms', 'create', 'room_type', roomType.id, undefined, {
+        propertyId,
+        name,
+        code,
+        basePrice: parseFloat(basePrice),
+        currency,
+        status,
+      }, { tenantId: user.tenantId, userId: user.id });
+    } catch (auditError) {
+      console.error('Audit log failed (non-blocking):', auditError);
+    }
+
     return NextResponse.json({ 
       success: true, 
       data: {

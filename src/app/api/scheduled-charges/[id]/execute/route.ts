@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // ─── POST: Execute a scheduled charge now (manual trigger) ───
 export async function POST(
@@ -135,18 +136,29 @@ export async function POST(
       });
     }
 
-    // Audit log
-    await db.auditLog.create({
-      data: {
-        tenantId: charge.tenantId,
-        userId: user.id,
-        module: 'scheduled-charges',
-        action: 'execute',
-        entityType: 'ScheduledCharge',
-        entityId: id,
-        newValue: `Manually executed scheduled charge: $${charge.amount} on folio ${charge.folio.folioNumber}`,
-      },
-    });
+    // Audit log (non-blocking)
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: charge.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'payment',
+          entityType: 'scheduled_charge',
+          entityId: id,
+          newValue: {
+            amount: charge.amount,
+            folioNumber: charge.folio.folioNumber,
+            frequency: charge.frequency,
+            executedCount: newExecutedCount,
+          },
+          description: `Manually executed scheduled charge: $${charge.amount} on folio ${charge.folio.folioNumber}`,
+        },
+        request,
+      );
+    } catch (auditErr) {
+      console.error('[ScheduledCharges Execute] audit log failed:', auditErr);
+    }
 
     return NextResponse.json({
       success: true,

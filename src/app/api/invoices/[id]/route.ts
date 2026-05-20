@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { logBillingEvent } from '@/lib/services/audit-service';
 
 // GET /api/invoices/[id] - Get single invoice
 export async function GET(
@@ -100,6 +101,22 @@ export async function PUT(
       lineItems = JSON.parse(invoice.lineItems || '[]');
     } catch { /* empty */ }
 
+    // Audit log (non-blocking)
+    try {
+      await logBillingEvent(user.tenantId, user.id, 'update', 'invoice', id, {
+        invoiceNumber: existing.invoiceNumber,
+        status: existing.status,
+        customerName: existing.customerName,
+        totalAmount: existing.totalAmount,
+      } as Record<string, unknown>, {
+        status: invoice.status,
+        customerName: invoice.customerName,
+        totalAmount: invoice.totalAmount,
+      } as Record<string, unknown>, request);
+    } catch (auditErr) {
+      console.error('[AUDIT] Failed to log invoice update:', auditErr);
+    }
+
     return NextResponse.json({
       success: true,
       data: { ...invoice, lineItems },
@@ -140,6 +157,18 @@ export async function DELETE(
     }
 
     await db.invoice.delete({ where: { id } });
+
+    // Audit log (non-blocking)
+    try {
+      await logBillingEvent(user.tenantId, user.id, 'delete', 'invoice', id, {
+        invoiceNumber: existing.invoiceNumber,
+        status: existing.status,
+        customerName: existing.customerName,
+        totalAmount: existing.totalAmount,
+      } as Record<string, unknown>, undefined, request);
+    } catch (auditErr) {
+      console.error('[AUDIT] Failed to log invoice delete:', auditErr);
+    }
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 import crypto from 'crypto';
 
 // Group Bookings API - Updated 2024
@@ -240,6 +241,22 @@ export async function POST(request: NextRequest) {    const user = await getUser
       return created;
     });
 
+    // Audit log
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId,
+        userId: user.id,
+        module: 'bookings',
+        action: 'create',
+        entityType: 'group_booking',
+        entityId: group.id,
+        newValue: { name: group.name, status: group.status, totalRooms: group.totalRooms, totalAmount: group.totalAmount },
+        description: `Created group booking: ${group.name}`,
+      }, request);
+    } catch (auditError) {
+      console.error('Audit log failed for group booking create:', auditError);
+    }
+
     return NextResponse.json({ success: true, data: group }, { status: 201 });
   } catch (error) {
     console.error('Error creating group booking:', error);
@@ -313,6 +330,23 @@ export async function PUT(request: NextRequest) {    const user = await getUserF
       data,
     });
 
+    // Audit log
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId,
+        userId: user.id,
+        module: 'bookings',
+        action: 'update',
+        entityType: 'group_booking',
+        entityId: group.id,
+        oldValue: { name: existingGroup.name, status: existingGroup.status, totalRooms: existingGroup.totalRooms, totalAmount: existingGroup.totalAmount },
+        newValue: { name: group.name, status: group.status, totalRooms: group.totalRooms, totalAmount: group.totalAmount },
+        description: `Updated group booking: ${group.name}`,
+      }, request);
+    } catch (auditError) {
+      console.error('Audit log failed for group booking update:', auditError);
+    }
+
     return NextResponse.json({ success: true, data: group });
   } catch (error) {
     console.error('Error updating group booking:', error);
@@ -370,6 +404,22 @@ export async function DELETE(request: NextRequest) {    const user = await getUs
     await db.groupBooking.delete({
       where: { id },
     });
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId,
+        userId: user.id,
+        module: 'bookings',
+        action: 'delete',
+        entityType: 'group_booking',
+        entityId: existingGroup.id,
+        oldValue: { name: existingGroup.name, status: existingGroup.status, totalRooms: existingGroup.totalRooms, totalAmount: existingGroup.totalAmount },
+        description: `Deleted group booking: ${existingGroup.name}`,
+      }, request);
+    } catch (auditError) {
+      console.error('Audit log failed for group booking delete:', auditError);
+    }
 
     return NextResponse.json({ success: true, message: 'Group booking deleted' });
   } catch (error) {

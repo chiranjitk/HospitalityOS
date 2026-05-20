@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,9 +25,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, type, value, startTime, endTime, days } = body;
 
-    await db.tenantSettings.create({
+    const discount = await db.tenantSettings.create({
       data: { tenantId: user.tenantId, key: `discount_rule_${Date.now()}`, value: JSON.stringify({ name, type, value, startTime, endTime, days }) },
     });
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId,
+        userId: user.id,
+        module: 'settings',
+        action: 'create',
+        entityType: 'discount',
+        entityId: discount.id,
+        newValue: { name, type, value, startTime, endTime, days },
+        description: `Created discount: ${name}`,
+      }, request);
+    } catch (auditError) {
+      console.error('Audit log failed for discount create:', auditError);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

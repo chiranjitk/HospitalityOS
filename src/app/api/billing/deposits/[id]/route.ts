@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
+import { auditLogService } from '@/lib/services/audit-service';
 import { z } from 'zod';
 
 // ──────────────────────────────────────────────
@@ -120,6 +121,38 @@ export async function PUT(
       },
     });
 
+    // Audit log (non-blocking)
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'update',
+          entityType: 'deposit',
+          entityId: id,
+          oldValue: {
+            name: existing.name,
+            milestoneType: existing.milestoneType,
+            dueAmount: existing.dueAmount,
+            status: existing.status,
+            paidAmount: existing.paidAmount,
+          },
+          newValue: {
+            name: deposit.name,
+            milestoneType: deposit.milestoneType,
+            dueAmount: deposit.dueAmount,
+            status: deposit.status,
+            paidAmount: deposit.paidAmount,
+          },
+          description: `Updated deposit schedule: ${deposit.name}`,
+        },
+        request,
+      );
+    } catch (auditErr) {
+      console.error('[PUT /api/billing/deposits/[id]] audit log failed:', auditErr);
+    }
+
     return NextResponse.json({ success: true, data: deposit });
   } catch (error) {
     console.error('[PUT /api/billing/deposits/[id]]', error);
@@ -152,7 +185,36 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Cannot delete a paid deposit' }, { status: 400 });
     }
 
+    // Capture old values for audit before delete
+    const oldValue = {
+      name: existing.name,
+      milestoneType: existing.milestoneType,
+      dueAmount: existing.dueAmount,
+      paidAmount: existing.paidAmount,
+      status: existing.status,
+      bookingId: existing.bookingId,
+    };
+
     await db.depositSchedule.delete({ where: { id } });
+
+    // Audit log (non-blocking)
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'delete',
+          entityType: 'deposit',
+          entityId: id,
+          oldValue,
+          description: `Deleted deposit schedule: ${existing.name}`,
+        },
+        request,
+      );
+    } catch (auditErr) {
+      console.error('[DELETE /api/billing/deposits/[id]] audit log failed:', auditErr);
+    }
 
     return NextResponse.json({ success: true, message: 'Deposit schedule deleted' });
   } catch (error) {

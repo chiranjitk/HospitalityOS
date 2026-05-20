@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { logBillingEvent } from '@/lib/services/audit-service';
 import crypto from 'crypto';
 
 // Generate invoice number
@@ -209,6 +210,20 @@ export async function POST(request: NextRequest) {
         });
       } catch { /* non-blocking */ }
 
+      // Audit log (non-blocking)
+      try {
+        await logBillingEvent(user.tenantId, user.id, 'create', 'invoice', invoice.id, undefined, {
+          invoiceNumber,
+          folioId: folio.id,
+          customerName: invoice.customerName,
+          totalAmount: invoice.totalAmount,
+          currency: invoice.currency,
+          status: invoice.status,
+        } as Record<string, unknown>, request);
+      } catch (auditErr) {
+        console.error('[AUDIT] Failed to log invoice creation (from folio):', auditErr);
+      }
+
       return NextResponse.json({ success: true, data: { ...invoice, lineItems: folioLineItems }, message: 'Invoice created from folio' }, { status: 201 });
     }
 
@@ -251,6 +266,19 @@ export async function POST(request: NextRequest) {
         recurringEndDate: recurringEndDate ? new Date(recurringEndDate) : null,
       },
     });
+
+    // Audit log (non-blocking)
+    try {
+      await logBillingEvent(user.tenantId, user.id, 'create', 'invoice', invoice.id, undefined, {
+        invoiceNumber,
+        customerName,
+        totalAmount: invoice.totalAmount,
+        currency: invoice.currency,
+        status: invoice.status,
+      } as Record<string, unknown>, request);
+    } catch (auditErr) {
+      console.error('[AUDIT] Failed to log invoice creation (standalone):', auditErr);
+    }
 
     return NextResponse.json({ success: true, data: { ...invoice, lineItems }, message: 'Invoice created successfully' }, { status: 201 });
   } catch (error) {

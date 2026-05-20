@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 import { z } from 'zod';
 
 // ─── Zod Schemas ───
@@ -207,18 +208,33 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Audit log
-    await db.auditLog.create({
-      data: {
-        tenantId: user.tenantId,
-        userId: user.id,
-        module: 'scheduled-charges',
-        action: 'create',
-        entityType: 'ScheduledCharge',
-        entityId: charge.id,
-        newValue: `Created scheduled charge: ${data.description} ($${data.amount}/${data.frequency}) for booking ${booking.confirmationCode}`,
-      },
-    });
+    // Audit log (non-blocking)
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'create',
+          entityType: 'scheduled_charge',
+          entityId: charge.id,
+          newValue: {
+            chargeType: data.chargeType,
+            description: data.description,
+            amount: data.amount,
+            currency: data.currency,
+            frequency: data.frequency,
+            bookingId: data.bookingId,
+            folioId: data.folioId,
+            confirmationCode: booking.confirmationCode,
+          },
+          description: `Created scheduled charge: ${data.description} ($${data.amount}/${data.frequency}) for booking ${booking.confirmationCode}`,
+        },
+        request,
+      );
+    } catch (auditErr) {
+      console.error('[ScheduledCharges POST] audit log failed:', auditErr);
+    }
 
     return NextResponse.json({ success: true, data: charge }, { status: 201 });
   } catch (error) {

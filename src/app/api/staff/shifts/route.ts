@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET /api/staff/shifts - Get shifts for a date
 export async function GET(request: NextRequest) {
@@ -249,6 +250,33 @@ export async function POST(request: NextRequest) {
         status: shift.user.status,
       },
     };
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'admin',
+          action: 'create',
+          entityType: 'shift',
+          entityId: shift.id,
+          newValue: {
+            staffId: shift.userId,
+            date: shift.date.toISOString().split('T')[0],
+            startTime: shift.startTime,
+            endTime: shift.endTime,
+            department: shift.department,
+            status: shift.status,
+            propertyId: shift.propertyId,
+          },
+          description: `Created shift for staff ${shift.user.firstName} ${shift.user.lastName} on ${shift.date.toISOString().split('T')[0]} (${shift.startTime}–${shift.endTime})`,
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('Audit log failed for shift create:', auditError);
+    }
 
     return NextResponse.json({
       success: true,

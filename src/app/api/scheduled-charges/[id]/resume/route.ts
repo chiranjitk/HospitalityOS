@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // ─── POST: Resume a paused scheduled charge ───
 export async function POST(
@@ -46,18 +47,25 @@ export async function POST(
       },
     });
 
-    // Audit log
-    await db.auditLog.create({
-      data: {
-        tenantId: user.tenantId,
-        userId: user.id,
-        module: 'scheduled-charges',
-        action: 'resume',
-        entityType: 'ScheduledCharge',
-        entityId: id,
-        newValue: `Resumed scheduled charge: ${charge.description}`,
-      },
-    });
+    // Audit log (non-blocking)
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'update',
+          entityType: 'scheduled_charge',
+          entityId: id,
+          oldValue: { isActive: false, description: charge.description },
+          newValue: { isActive: true, description: charge.description },
+          description: `Resumed scheduled charge: ${charge.description}`,
+        },
+        request,
+      );
+    } catch (auditErr) {
+      console.error('[ScheduledCharges Resume] audit log failed:', auditErr);
+    }
 
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {

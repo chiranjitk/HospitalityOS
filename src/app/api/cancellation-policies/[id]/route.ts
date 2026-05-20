@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET /api/cancellation-policies/[id] — Get single policy
 export async function GET(
@@ -215,6 +216,23 @@ export async function PUT(
       data: updateData,
     });
 
+    // Audit log
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId,
+        userId: user.id,
+        module: 'settings',
+        action: 'update',
+        entityType: 'cancellation_policy',
+        entityId: policy.id,
+        oldValue: { name: existingPolicy.name, penaltyType: existingPolicy.penaltyType, penaltyPercent: existingPolicy.penaltyPercent, isActive: existingPolicy.isActive },
+        newValue: { name: policy.name, penaltyType: policy.penaltyType, penaltyPercent: policy.penaltyPercent, isActive: policy.isActive },
+        description: `Updated cancellation policy: ${policy.name}`,
+      }, request);
+    } catch (auditError) {
+      console.error('Audit log failed for cancellation policy update:', auditError);
+    }
+
     return NextResponse.json({ success: true, data: policy });
   } catch (error) {
     console.error('Error updating cancellation policy:', error);
@@ -272,6 +290,22 @@ export async function DELETE(
     await db.cancellationPolicy.delete({
       where: { id },
     });
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId,
+        userId: user.id,
+        module: 'settings',
+        action: 'delete',
+        entityType: 'cancellation_policy',
+        entityId: existingPolicy.id,
+        oldValue: { name: existingPolicy.name, penaltyType: existingPolicy.penaltyType, penaltyPercent: existingPolicy.penaltyPercent, isActive: existingPolicy.isActive },
+        description: `Deleted cancellation policy: ${existingPolicy.name}`,
+      }, request);
+    } catch (auditError) {
+      console.error('Audit log failed for cancellation policy delete:', auditError);
+    }
 
     return NextResponse.json({
       success: true,

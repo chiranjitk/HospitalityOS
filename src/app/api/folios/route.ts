@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { logBillingEvent } from '@/lib/services/audit-service';
 import crypto from 'crypto';
 
 // Helper function to generate folio number
@@ -233,6 +234,20 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // Audit log (non-blocking)
+    try {
+      await logBillingEvent(tenantId, user.id, 'create', 'folio', folio.id, undefined, {
+        folioNumber: folio.folioNumber,
+        bookingId: folio.bookingId,
+        guestId: folio.guestId,
+        propertyId: folio.propertyId,
+        currency: folio.currency,
+        status: folio.status,
+      } as Record<string, unknown>, request);
+    } catch (auditErr) {
+      console.error('[AUDIT] Failed to log folio creation:', auditErr);
+    }
 
     return NextResponse.json({ success: true, data: folio }, { status: 201 });
   } catch (error) {

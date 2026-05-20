@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { audit } from '@/lib/audit';
 
 // GET /api/room-types/[id] - Get a single room type
 export async function GET(
@@ -125,6 +126,23 @@ export async function PUT(
         { status: 403 }
       );
     }
+
+    // Capture old values for audit
+    const oldValues = {
+      name: existingRoomType.name,
+      code: existingRoomType.code,
+      description: existingRoomType.description,
+      maxAdults: existingRoomType.maxAdults,
+      maxChildren: existingRoomType.maxChildren,
+      maxOccupancy: existingRoomType.maxOccupancy,
+      basePrice: existingRoomType.basePrice,
+      currency: existingRoomType.currency,
+      status: existingRoomType.status,
+      sortOrder: existingRoomType.sortOrder,
+      overbookingEnabled: existingRoomType.overbookingEnabled,
+      overbookingPercentage: existingRoomType.overbookingPercentage,
+      overbookingLimit: existingRoomType.overbookingLimit,
+    };
     
     const {
       name,
@@ -218,6 +236,27 @@ export async function PUT(
       },
     });
     
+    // Audit log (non-blocking)
+    try {
+      await audit(request, 'rooms', 'update', 'room_type', id, oldValues, {
+        name: roomType.name,
+        code: roomType.code,
+        description: roomType.description,
+        maxAdults: roomType.maxAdults,
+        maxChildren: roomType.maxChildren,
+        maxOccupancy: roomType.maxOccupancy,
+        basePrice: roomType.basePrice,
+        currency: roomType.currency,
+        status: roomType.status,
+        sortOrder: roomType.sortOrder,
+        overbookingEnabled: roomType.overbookingEnabled,
+        overbookingPercentage: roomType.overbookingPercentage,
+        overbookingLimit: roomType.overbookingLimit,
+      }, { tenantId: user.tenantId, userId: user.id });
+    } catch (auditError) {
+      console.error('Audit log failed (non-blocking):', auditError);
+    }
+
     return NextResponse.json({ 
       success: true, 
       data: {
@@ -290,13 +329,31 @@ export async function DELETE(
         { status: 400 }
       );
     }
-    
+
+    // Capture old values for audit
+    const oldValuesForDelete = {
+      name: existingRoomType.name,
+      code: existingRoomType.code,
+      description: existingRoomType.description,
+      basePrice: existingRoomType.basePrice,
+      currency: existingRoomType.currency,
+      status: existingRoomType.status,
+      propertyId: existingRoomType.propertyId,
+    };
+
     // Soft delete
     await db.roomType.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
-    
+
+    // Audit log (non-blocking)
+    try {
+      await audit(request, 'rooms', 'delete', 'room_type', id, oldValuesForDelete, undefined, { tenantId: user.tenantId, userId: user.id });
+    } catch (auditError) {
+      console.error('Audit log failed (non-blocking):', auditError);
+    }
+
     return NextResponse.json({ success: true, data: { id } });
   } catch (error) {
     console.error('Error deleting room type:', error);

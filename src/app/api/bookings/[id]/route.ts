@@ -492,6 +492,7 @@ export async function PUT(
           oldStatus: existingBooking.status,
           newStatus: status,
           notes: `Status changed from ${existingBooking.status} to ${status}`,
+          performedBy: user.id,
         },
       });
       
@@ -1481,6 +1482,7 @@ export async function PATCH(
           oldStatus: existingBooking.status,
           newStatus: status,
           notes: `Status changed from ${existingBooking.status} to ${status} (PATCH)`,
+          performedBy: user.id,
         },
       });
 

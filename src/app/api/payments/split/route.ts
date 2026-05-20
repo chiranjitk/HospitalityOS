@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 import crypto from 'crypto';
 
 // Generate a transaction ID
@@ -173,6 +174,40 @@ export async function POST(request: NextRequest) {
 
       return results;
     });
+
+    // Audit log for split payment
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'create',
+          entityType: 'payment_split',
+          entityId: folioId,
+          newValue: {
+            folioId,
+            folioNumber: folio.folioNumber,
+            totalSplitAmount,
+            splitCount: splitPayments.length,
+            methods: splitPayments.map((p: { method: string; amount: number }) => ({ method: p.method, amount: p.amount })),
+            currency: folio.currency,
+          },
+          details: {
+            event: 'split_payment',
+            folioId,
+            folioNumber: folio.folioNumber,
+            totalSplitAmount,
+            splitCount: splitPayments.length,
+            bookingId: folio.booking?.id,
+            paymentIds: createdPayments.map((p: { id: string }) => p.id),
+          },
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('[Audit] Failed to log split payment:', auditError);
+    }
 
     return NextResponse.json({
       success: true,

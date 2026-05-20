@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { logUser } from '@/lib/audit';
 
 // Common include for user property assignments
 const userPropertyAssignmentsInclude = {
@@ -270,32 +271,22 @@ export async function PUT(
 
     // Create audit log
     try {
-      await db.auditLog.create({
-        data: {
-          tenantId: user!.tenantId,
-          module: 'admin',
-          action: 'update',
-          entityType: 'user',
-          entityId: user!.id,
-          oldValue: JSON.stringify({
-            email: existingUser.email,
-            firstName: existingUser.firstName,
-            lastName: existingUser.lastName,
-            status: existingUser.status,
-            roleId: existingUser.roleId,
-            isPlatformAdmin: existingUser.isPlatformAdmin,
-          }),
-          newValue: JSON.stringify({
-            email: user!.email,
-            firstName: user!.firstName,
-            lastName: user!.lastName,
-            status: user!.status,
-            roleId: user!.roleId,
-            isPlatformAdmin: user!.isPlatformAdmin,
-            propertyAssignmentCount: Array.isArray(propertyAssignments) ? propertyAssignments.length : undefined,
-          }),
-        },
-      });
+      await logUser(request, 'update', user!.id, {
+        email: existingUser.email,
+        firstName: existingUser.firstName,
+        lastName: existingUser.lastName,
+        status: existingUser.status,
+        roleId: existingUser.roleId,
+        isPlatformAdmin: existingUser.isPlatformAdmin,
+      }, {
+        email: user!.email,
+        firstName: user!.firstName,
+        lastName: user!.lastName,
+        status: user!.status,
+        roleId: user!.roleId,
+        isPlatformAdmin: user!.isPlatformAdmin,
+        propertyAssignmentCount: Array.isArray(propertyAssignments) ? propertyAssignments.length : undefined,
+      }, { tenantId: user!.tenantId, userId: currentUser.id });
     } catch {
       // Ignore audit log errors
     }
@@ -380,20 +371,11 @@ export async function DELETE(
 
     // Create audit log
     try {
-      await db.auditLog.create({
-        data: {
-          tenantId: existingUser.tenantId,
-          module: 'admin',
-          action: 'delete',
-          entityType: 'user',
-          entityId: id,
-          oldValue: JSON.stringify({
-            email: existingUser.email,
-            firstName: existingUser.firstName,
-            lastName: existingUser.lastName,
-          }),
-        },
-      });
+      await logUser(request, 'delete', id, {
+        email: existingUser.email,
+        firstName: existingUser.firstName,
+        lastName: existingUser.lastName,
+      }, undefined, { tenantId: existingUser.tenantId, userId: currentUser.id });
     } catch {
       // Ignore audit log errors
     }

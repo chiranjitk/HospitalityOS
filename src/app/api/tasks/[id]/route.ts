@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { completeCleaningAndInspect, inspectAndReleaseRoom } from '@/lib/housekeeping-automation';
 import { notifyTaskCompleted, notifyTaskAssigned } from '@/lib/notify';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET /api/tasks/[id] - Get a single task
 export async function GET(
@@ -291,6 +292,44 @@ export async function PUT(
       });
     }
 
+    // Audit log
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'admin',
+          action: 'update',
+          entityType: 'task',
+          entityId: id,
+          oldValue: {
+            title: existingTask.title,
+            type: existingTask.type,
+            category: existingTask.category,
+            priority: existingTask.priority,
+            status: existingTask.status,
+            assignedTo: existingTask.assignedTo,
+            roomId: existingTask.roomId,
+            scheduledAt: existingTask.scheduledAt,
+          },
+          newValue: {
+            title: task.title,
+            type: task.type,
+            category: task.category,
+            priority: task.priority,
+            status: task.status,
+            assignedTo: task.assignedTo,
+            roomId: task.roomId,
+            scheduledAt: task.scheduledAt,
+          },
+          description: `Updated task "${task.title}" — status: ${existingTask.status}→${task.status}`,
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('Audit log failed for task update:', auditError);
+    }
+
     return NextResponse.json({ success: true, data: task });
   } catch (error) {
     console.error('Error updating task:', error);
@@ -349,6 +388,33 @@ export async function DELETE(
         completionNotes: 'Task cancelled',
       },
     });
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'admin',
+          action: 'delete',
+          entityType: 'task',
+          entityId: id,
+          oldValue: {
+            title: existingTask.title,
+            type: existingTask.type,
+            category: existingTask.category,
+            priority: existingTask.priority,
+            status: existingTask.status,
+            assignedTo: existingTask.assignedTo,
+            roomId: existingTask.roomId,
+          },
+          description: `Cancelled task "${existingTask.title}" (${existingTask.type}/${existingTask.category})`,
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('Audit log failed for task delete:', auditError);
+    }
 
     return NextResponse.json({
       success: true,

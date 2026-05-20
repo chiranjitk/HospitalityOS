@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
+import { auditLogService } from '@/lib/services/audit-service';
 import { z } from 'zod';
 
 // ──────────────────────────────────────────────
@@ -144,6 +145,31 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // Audit log (non-blocking)
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'create',
+          entityType: 'deposit',
+          entityId: deposit.id,
+          newValue: {
+            name: deposit.name,
+            milestoneType: deposit.milestoneType,
+            dueAmount: deposit.dueAmount,
+            status: deposit.status,
+            bookingId: deposit.bookingId,
+          },
+          description: `Created deposit schedule: ${deposit.name} ($${deposit.dueAmount})`,
+        },
+        request,
+      );
+    } catch (auditErr) {
+      console.error('[POST /api/billing/deposits] audit log failed:', auditErr);
+    }
 
     return NextResponse.json({ success: true, data: deposit }, { status: 201 });
   } catch (error) {

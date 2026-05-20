@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET /api/cancellation-policies — List policies for tenant
 export async function GET(request: NextRequest) {
@@ -219,6 +220,22 @@ export async function POST(request: NextRequest) {
         sortOrder: sortOrder !== undefined ? Number(sortOrder) : 0,
       },
     });
+
+    // Audit log
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId,
+        userId: user.id,
+        module: 'settings',
+        action: 'create',
+        entityType: 'cancellation_policy',
+        entityId: policy.id,
+        newValue: { name: policy.name, penaltyType: policy.penaltyType, penaltyPercent: policy.penaltyPercent, isActive: policy.isActive },
+        description: `Created cancellation policy: ${policy.name}`,
+      }, request);
+    } catch (auditError) {
+      console.error('Audit log failed for cancellation policy create:', auditError);
+    }
 
     return NextResponse.json({ success: true, data: policy }, { status: 201 });
   } catch (error) {

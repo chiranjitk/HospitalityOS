@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { encrypt, decrypt, isEncrypted } from '@/lib/encryption';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // ── Integration type definitions with their config schema ─────────────────
 
@@ -296,6 +297,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Check if integration already exists to determine create vs update
+    const existing = await db.integration.findFirst({
+      where: { tenantId, type, provider: type },
+    });
+    const isUpdate = !!existing;
+
     const integration = await db.integration.upsert({
       where: {
         tenantId_type_provider: {
@@ -319,6 +326,24 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date(),
       },
     });
+
+    // Audit log (non-blocking)
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'settings',
+          action: isUpdate ? 'update' : 'create',
+          entityType: 'integration',
+          entityId: integration.id,
+          description: `${isUpdate ? 'Updated' : 'Created'} ${typeDef.label} integration: ${integration.name}`,
+        },
+        request,
+      );
+    } catch (auditErr) {
+      console.error('[Integrations] POST audit log failed:', auditErr);
+    }
 
     // Build masked response
     const masked: Record<string, unknown> = {};

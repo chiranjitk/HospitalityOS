@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requirePermission } from '@/lib/auth/tenant-context';// GET /api/rate-plans - List all rate plans
+import { requirePermission } from '@/lib/auth/tenant-context';
+import { audit } from '@/lib/audit';
+
+// GET /api/rate-plans - List all rate plans
 export async function GET(request: NextRequest) {    const user = await requirePermission(request, 'pricing.manage');
     if (user instanceof NextResponse) return user;
 
@@ -327,6 +330,21 @@ export async function POST(request: NextRequest) {    const user = await require
       },
     });
 
+    // Audit log (non-blocking)
+    try {
+      await audit(request, 'rooms', 'create', 'rate_plan', ratePlan.id, undefined, {
+        roomTypeId,
+        name,
+        code,
+        basePrice,
+        currency,
+        mealPlan,
+        status,
+      }, { tenantId: user.tenantId, userId: user.id });
+    } catch (auditError) {
+      console.error('Audit log failed (non-blocking):', auditError);
+    }
+
     return NextResponse.json({ success: true, data: ratePlan }, { status: 201 });
   } catch (error) {
     console.error('Error creating rate plan:', error);
@@ -389,6 +407,19 @@ export async function PUT(request: NextRequest) {    const user = await requireP
         { status: 404 }
       );
     }
+
+    // Capture old values for audit
+    const oldRatePlanValues = {
+      name: existing.name,
+      code: existing.code,
+      description: existing.description,
+      basePrice: existing.basePrice,
+      currency: existing.currency,
+      mealPlan: existing.mealPlan,
+      status: existing.status,
+      minStay: existing.minStay,
+      maxStay: existing.maxStay,
+    };
 
     // GAP-004: Check for duplicate code when code is being changed
     if (updates.code) {
@@ -456,6 +487,23 @@ export async function PUT(request: NextRequest) {    const user = await requireP
       },
     });
 
+    // Audit log (non-blocking)
+    try {
+      await audit(request, 'rooms', 'update', 'rate_plan', id, oldRatePlanValues, {
+        name: ratePlan.name,
+        code: ratePlan.code,
+        description: ratePlan.description,
+        basePrice: ratePlan.basePrice,
+        currency: ratePlan.currency,
+        mealPlan: ratePlan.mealPlan,
+        status: ratePlan.status,
+        minStay: ratePlan.minStay,
+        maxStay: ratePlan.maxStay,
+      }, { tenantId: user.tenantId, userId: user.id });
+    } catch (auditError) {
+      console.error('Audit log failed (non-blocking):', auditError);
+    }
+
     return NextResponse.json({ success: true, data: ratePlan });
   } catch (error) {
     console.error('Error updating rate plan:', error);
@@ -514,6 +562,12 @@ export async function DELETE(request: NextRequest) {    const user = await requi
       );
     }
 
+    // Capture old values for audit before deleting
+    const oldRatePlansForDelete = await db.ratePlan.findMany({
+      where: { id: { in: validIds }, tenantId: user.tenantId, deletedAt: null },
+      select: { id: true, name: true, code: true, basePrice: true, currency: true, status: true },
+    });
+
     const results = await db.ratePlan.updateMany({
       where: {
         id: { in: validIds },
@@ -524,6 +578,21 @@ export async function DELETE(request: NextRequest) {    const user = await requi
         status: 'inactive',
       },
     });
+
+    // Audit log (non-blocking)
+    try {
+      for (const oldRp of oldRatePlansForDelete) {
+        await audit(request, 'rooms', 'delete', 'rate_plan', oldRp.id, {
+          name: oldRp.name,
+          code: oldRp.code,
+          basePrice: oldRp.basePrice,
+          currency: oldRp.currency,
+          status: oldRp.status,
+        }, undefined, { tenantId: user.tenantId, userId: user.id });
+      }
+    } catch (auditError) {
+      console.error('Audit log failed (non-blocking):', auditError);
+    }
 
     return NextResponse.json({
       success: true,

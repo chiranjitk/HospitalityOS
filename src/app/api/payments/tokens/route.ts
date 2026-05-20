@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 import { validateTokenFormat, getGatewayTokenInfo, normalizeLast4 } from '@/lib/payment-tokenization';
 
 // GET /api/payments/tokens - List saved payment tokens for the current user/tenant
@@ -171,6 +172,42 @@ export async function POST(request: NextRequest) {
     });
 
     // Return masked response
+    // Audit log for token creation
+    try {
+      await auditLogService.logWithContext(
+        {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'create',
+          entityType: 'payment_token',
+          entityId: storedToken.id,
+          newValue: {
+            gateway: storedToken.gateway,
+            tokenType: storedToken.tokenType,
+            cardLast4: storedToken.cardLast4,
+            cardBrand: storedToken.cardBrand,
+            expiryMonth: storedToken.expiryMonth,
+            expiryYear: storedToken.expiryYear,
+            isDefault: storedToken.isDefault,
+            status: storedToken.status,
+            guestId: storedToken.guestId,
+          },
+          details: {
+            event: 'create_token',
+            gateway: storedToken.gateway,
+            tokenType: storedToken.tokenType,
+            cardLast4: storedToken.cardLast4,
+            cardBrand: storedToken.cardBrand,
+            isDefault: storedToken.isDefault,
+          },
+        },
+        request
+      );
+    } catch (auditError) {
+      console.error('[Audit] Failed to log payment token creation:', auditError);
+    }
+
     return NextResponse.json({
       success: true,
       data: {
