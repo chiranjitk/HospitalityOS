@@ -480,7 +480,7 @@ export default function LoginPage() {
                       </h2>
                     </motion.div>
                     <motion.p
-                      className="text-sm text-muted-foreground/70 font-medium pl-[18px]"
+                      className="text-sm text-gray-600 font-medium pl-[18px]"
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ type: 'spring', stiffness: 240, damping: 20, delay: 0.08 }}
@@ -534,7 +534,7 @@ export default function LoginPage() {
                           animate="visible"
                           custom={0}
                         >
-                          <Label htmlFor="email" className="text-sm font-semibold text-foreground/80 tracking-wide">
+                          <Label htmlFor="email" className="text-sm font-semibold text-gray-700 tracking-wide">
                             {t('email')}
                           </Label>
                           <div className="relative group/input">
@@ -545,7 +545,7 @@ export default function LoginPage() {
                               placeholder="you@company.com"
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
-                              className="relative pl-11 h-[52px] bg-white border-gray-200 rounded-xl transition-all duration-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 hover:border-gray-300 text-[15px] placeholder:text-foreground/30"
+                              className="relative pl-11 h-[52px] bg-white border-gray-200 rounded-xl transition-all duration-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 hover:border-gray-300 text-[15px] placeholder:text-gray-400"
                               required
                               disabled={isLoading}
                               autoComplete="email"
@@ -562,12 +562,12 @@ export default function LoginPage() {
                           custom={1}
                         >
                           <div className="flex items-center">
-                            <Label htmlFor="password" className="text-sm font-semibold text-foreground/80 tracking-wide">
+                            <Label htmlFor="password" className="text-sm font-semibold text-gray-700 tracking-wide">
                               {t('password')}
                             </Label>
                             <button
                               type="button"
-                              className="ml-auto text-xs text-muted-foreground/60 hover:text-orange-600 dark:hover:text-orange-400 transition-colors duration-200 font-medium"
+                              className="ml-auto text-xs text-gray-500 hover:text-orange-600 transition-colors duration-200 font-medium"
                               onClick={async () => {
                                 if (!email) {
                                   toast({
@@ -616,7 +616,7 @@ export default function LoginPage() {
                               placeholder="Enter password"
                               value={password}
                               onChange={(e) => setPassword(e.target.value)}
-                              className="relative pl-11 pr-11 h-[52px] bg-white border-gray-200 rounded-xl transition-all duration-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 hover:border-gray-300 text-[15px] placeholder:text-foreground/30"
+                              className="relative pl-11 pr-11 h-[52px] bg-white border-gray-200 rounded-xl transition-all duration-200 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 hover:border-gray-300 text-[15px] placeholder:text-gray-400"
                               required
                               disabled={isLoading}
                               autoComplete="current-password"
@@ -631,7 +631,7 @@ export default function LoginPage() {
                             </button>
                           </div>
                           {showDemoCredentials && (
-                            <p className="mt-1.5 text-[11px] text-orange-600/40 dark:text-orange-400/40 font-medium pl-1 flex items-center gap-1">
+                            <p className="mt-1.5 text-[11px] text-orange-600 dark:text-orange-400 font-medium pl-1 flex items-center gap-1">
                               <Zap className="h-3 w-3 text-amber-500/60" />
                               Use admin123 for quick demo access
                             </p>
@@ -655,7 +655,7 @@ export default function LoginPage() {
                                 className="h-[18px] w-[18px] rounded-md border-orange-200/80 dark:border-orange-800/50 data-[state=checked]:bg-orange-600 data-[state=checked]:border-orange-600 data-[state=checked]:text-white transition-all duration-300 focus-visible:ring-2 focus-visible:ring-orange-500/25 focus-visible:ring-offset-1 hover:border-orange-400/70"
                               />
                             </div>
-                            <Label htmlFor="remember" className="text-sm text-muted-foreground/70 font-medium cursor-pointer select-none hover:text-muted-foreground transition-colors duration-200">
+                            <Label htmlFor="remember" className="text-sm text-gray-600 font-medium cursor-pointer select-none hover:text-gray-900 transition-colors duration-200">
                               {t('rememberMe')}
                             </Label>
                           </div>
@@ -728,7 +728,7 @@ export default function LoginPage() {
 
                         {/* Secure connection indicator */}
                         <motion.div
-                          className="flex items-center justify-center gap-1.5 mt-1 text-[11px] text-muted-foreground/40 font-medium"
+                          className="flex items-center justify-center gap-1.5 mt-1 text-[11px] text-gray-500 font-medium"
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: 0.6, duration: 0.5 }}
@@ -765,12 +765,12 @@ export default function LoginPage() {
                           </div>
                         </div>
 
-                        <p className="text-sm text-center text-muted-foreground/70">
+                        <p className="text-sm text-center text-gray-600">
                           Enter the 6-digit code from your authenticator app.
                         </p>
 
                         <div className="space-y-2">
-                          <Label htmlFor="twoFactorCode" className="text-sm font-semibold text-foreground/80 tracking-wide">Code</Label>
+                          <Label htmlFor="twoFactorCode" className="text-sm font-semibold text-gray-700 tracking-wide">Code</Label>
                           <Input
                             id="twoFactorCode"
                             type="text"
@@ -802,7 +802,7 @@ export default function LoginPage() {
                         <Button
                           type="button"
                           variant="ghost"
-                          className="w-full rounded-xl transition-all duration-200 text-muted-foreground/60 hover:text-foreground"
+                          className="w-full rounded-xl transition-all duration-200 text-gray-600 hover:text-gray-900"
                           onClick={handleBackToLogin}
                           disabled={isLoading}
                         >
@@ -833,7 +833,7 @@ export default function LoginPage() {
                             <Separator className="bg-gray-200" />
                           </div>
                           <div className="relative flex justify-center">
-                            <span className="bg-white px-3 text-xs text-muted-foreground/60 flex items-center gap-1.5 font-medium">
+                            <span className="bg-white px-3 text-xs text-gray-500 flex items-center gap-1.5 font-medium">
                               <Sparkles className="h-3 w-3 text-gray-400" />
                               {t('demoAccounts')}
                             </span>
@@ -886,7 +886,7 @@ export default function LoginPage() {
                                 </motion.div>
                                 <div className="flex-1 min-w-0">
                                   <div className="text-sm font-semibold text-foreground">{cred.role}</div>
-                                  <div className="text-xs text-muted-foreground/40 truncate">{cred.email}</div>
+                                  <div className="text-xs text-gray-500 truncate">{cred.email}</div>
                                 </div>
                                 <motion.div
                                   className="h-6 w-6 rounded-lg flex items-center justify-center bg-orange-50/80 dark:bg-orange-950/30"
@@ -912,7 +912,7 @@ export default function LoginPage() {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.7, duration: 0.5 }}
               >
-                <p className="text-sm text-muted-foreground/60">
+                <p className="text-sm text-gray-500">
                   Have a license key?{' '}
                   <button
                     className="text-orange-600 dark:text-orange-400 font-semibold hover:text-orange-700 dark:hover:text-orange-300 transition-colors duration-200 underline-offset-4 hover:underline inline-flex items-center gap-1"
@@ -922,10 +922,10 @@ export default function LoginPage() {
                     <ChevronRight className="h-3.5 w-3.5" />
                   </button>
                 </p>
-                <p className="text-xs text-muted-foreground/40">
+                <p className="text-xs text-gray-500">
                   Don&apos;t have a key?{' '}
                   <button
-                    className="text-muted-foreground/60 hover:text-muted-foreground font-medium transition-colors duration-200 underline-offset-4 hover:underline"
+                    className="text-gray-600 hover:text-gray-900 font-medium transition-colors duration-200 underline-offset-4 hover:underline"
                     onClick={() => router.push('/register')}
                   >
                     Register with a trial key
@@ -935,7 +935,7 @@ export default function LoginPage() {
 
               {/* ── System Status indicator ── */}
               <motion.div
-                className="flex items-center justify-end gap-1.5 mt-4 text-[11px] text-muted-foreground/40 font-medium"
+                className="flex items-center justify-end gap-1.5 mt-4 text-[11px] text-gray-500 font-medium"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.8, duration: 0.5 }}
@@ -948,9 +948,9 @@ export default function LoginPage() {
               <div className="flex-1" />
               <div className="lg:hidden h-px bg-gray-200 mt-4" />
 
-              <div className="lg:hidden text-center text-xs text-muted-foreground/60 pt-4 mt-0 border-t border-gray-200">
+              <div className="lg:hidden text-center text-xs text-gray-500 pt-4 mt-0 border-t border-gray-200">
                 <p className="flex items-center justify-center gap-1">
-                  <Zap className="h-3 w-3 text-muted-foreground" />
+                  <Zap className="h-3 w-3 text-gray-400" />
                   Powered by StaySuite HospitalityOS
                 </p>
               </div>
@@ -962,17 +962,17 @@ export default function LoginPage() {
       {/* ═══ Desktop sticky footer ═══ */}
       <div className="hidden lg:block h-px bg-gray-200" />
 
-      <div className="hidden lg:flex items-center justify-center py-3 px-4 bg-white border-t border-gray-200 text-xs text-muted-foreground/60">
+      <div className="hidden lg:flex items-center justify-center py-3 px-4 bg-white border-t border-gray-200 text-xs text-gray-500">
         <span className="flex items-center gap-1">
-          <Zap className="h-3 w-3 text-muted-foreground" />
+          <Zap className="h-3 w-3 text-gray-400" />
           <span>Powered by StaySuite HospitalityOS</span>
         </span>
-        <span className="mx-2 text-muted-foreground/30">&middot;</span>
+        <span className="mx-2 text-gray-400">&middot;</span>
         <span>&copy; 2026 Cryptsk Pvt Ltd</span>
-        <span className="mx-2 text-muted-foreground/30">&middot;</span>
-        <span className="hover:text-muted-foreground transition-colors cursor-pointer">Privacy</span>
-        <span className="mx-2 text-muted-foreground/30">&middot;</span>
-        <span className="hover:text-muted-foreground transition-colors cursor-pointer">Terms</span>
+        <span className="mx-2 text-gray-400">&middot;</span>
+        <span className="hover:text-gray-700 transition-colors cursor-pointer">Privacy</span>
+        <span className="mx-2 text-gray-400">&middot;</span>
+        <span className="hover:text-gray-700 transition-colors cursor-pointer">Terms</span>
       </div>
     </div>
   );
