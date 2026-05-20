@@ -183,10 +183,10 @@ export const FEATURES: Record<string, FeatureConfig> = {
   parking: {
     id: 'parking',
     name: 'Parking Management',
-    description: 'Parking slots, vehicle tracking, guest mapping, and parking billing',
+    description: 'Parking slots, vehicle tracking, guest-to-vehicle mapping, and parking billing',
     category: 'addons',
     subcategory: 'Facility Management',
-    menuItems: ['parking-slots', 'parking-tracking', 'parking-billing'],
+    menuItems: ['parking-slots', 'parking-tracking', 'parking-mapping', 'parking-billing'],
     apiRoutes: ['/api/parking', '/api/vehicles'],
   },
   surveillance: {

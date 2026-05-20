@@ -429,11 +429,13 @@ export function UserManagement() {
     setIsEditDialogOpen(true);
   };
 
-  // Defense-in-depth: filter users by tenant for non-platform-admins
+  // Defense-in-depth: filter users by tenant AND exclude platform admins for non-platform-admins
   const tenantSafeUsers = useMemo(() => {
     if (isPlatformAdmin) return users;
-    // Tenant admin: only show users from their own tenant
-    return users.filter(user => user.tenantId === currentUser?.tenantId);
+    // Tenant admin: only show non-platform-admin users from their own tenant
+    return users.filter(user =>
+      user.tenantId === currentUser?.tenantId && !user.isPlatformAdmin
+    );
   }, [users, isPlatformAdmin, currentUser?.tenantId]);
 
   const filteredUsers = tenantSafeUsers.filter(user => {
@@ -620,7 +622,7 @@ export function UserManagement() {
         </CardContent>
       </Card>
 
-      {/* Users Table */}
+      {/* Users Table - Mobile cards / Desktop table */}
       <Card>
         <CardHeader>
           <CardTitle>Users ({filteredUsers.length})</CardTitle>
@@ -633,129 +635,203 @@ export function UserManagement() {
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[500px]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  {/* Tenant column: only visible to platform admins */}
-                  {isPlatformAdmin && <TableHead>Tenant</TableHead>}
-                  <TableHead>Role</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Last Login</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={isPlatformAdmin ? 7 : 6} className="text-center py-8">
-                      <div className="flex flex-col items-center gap-2">
-                        <Users className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-muted-foreground">No users found</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredUsers.map(user => (
-                    <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center text-white font-medium">
+            {/* Mobile: Card layout */}
+            <div className="block sm:hidden space-y-3">
+              {filteredUsers.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-8">
+                  <Users className="h-8 w-8 text-muted-foreground" />
+                  <p className="text-muted-foreground">No users found</p>
+                </div>
+              ) : (
+                filteredUsers.map(user => (
+                  <div key={user.id} className="border rounded-lg p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="relative shrink-0">
+                          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center text-white font-medium text-sm">
                             {user.firstName[0]}{user.lastName[0]}
                           </div>
                           {user.status === 'active' && (
                             <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-background" />
                           )}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium">{user.firstName} {user.lastName}</p>
-                              {user.isPlatformAdmin && (
-                                <Badge variant="default" className="bg-purple-600 text-white text-[10px] px-1.5 py-0">
-                                  Platform Admin
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-muted-foreground">{user.email}</p>
-                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{user.firstName} {user.lastName}</p>
+                          <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                        </div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => openEditDialog(user)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit User
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleToggleStatus(user)}>
+                            {user.status === 'active' ? (
+                              <><UserX className="mr-2 h-4 w-4" />Deactivate</>
+                            ) : (
+                              <><UserCheck className="mr-2 h-4 w-4" />Activate</>
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => { setSelectedUser(user); setFormData(prev => ({ ...prev, password: '' })); setIsResetPasswordDialogOpen(true); }}>
+                            <Key className="mr-2 h-4 w-4" />
+                            Reset Password
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => { setSelectedUser(user); setIsDeleteDialogOpen(true); }} className="text-red-600 dark:text-red-400">
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete User
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {getRoleBadge(user.role)}
+                      {getStatusBadge(user.status)}
+                      {user.department && (
+                        <span className="text-xs text-muted-foreground">{user.department}</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Last login: {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : 'Never'}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            {/* Desktop: Table layout */}
+            <div className="hidden sm:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    {/* Tenant column: only visible to platform admins */}
+                    {isPlatformAdmin && <TableHead>Tenant</TableHead>}
+                    <TableHead>Role</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Last Login</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={isPlatformAdmin ? 7 : 6} className="text-center py-8">
+                        <div className="flex flex-col items-center gap-2">
+                          <Users className="h-8 w-8 text-muted-foreground" />
+                          <p className="text-muted-foreground">No users found</p>
                         </div>
                       </TableCell>
-                      {/* Tenant column: only visible to platform admins */}
-                      {isPlatformAdmin && (
-                        <TableCell>
-                          <span className="text-sm">{user.tenant?.name || user.tenantId || '-'}</span>
-                        </TableCell>
-                      )}
-                      <TableCell>{getRoleBadge(user.role)}</TableCell>
-                      <TableCell>
-                        <span className="text-sm">{user.department || '-'}</span>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(user.status)}</TableCell>
-                      <TableCell>
-                        <span className="text-sm text-muted-foreground">
-                          {user.lastLoginAt
-                            ? new Date(user.lastLoginAt).toLocaleDateString()
-                            : 'Never'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => openEditDialog(user)}>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit User
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleToggleStatus(user)}>
-                              {user.status === 'active' ? (
-                                <>
-                                  <UserX className="mr-2 h-4 w-4" />
-                                  Deactivate
-                                </>
-                              ) : (
-                                <>
-                                  <UserCheck className="mr-2 h-4 w-4" />
-                                  Activate
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedUser(user);
-                                setFormData(prev => ({ ...prev, password: '' }));
-                                setIsResetPasswordDialogOpen(true);
-                              }}
-                            >
-                              <Key className="mr-2 h-4 w-4" />
-                              Reset Password
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedUser(user);
-                                setIsDeleteDialogOpen(true);
-                              }}
-                              className="text-red-600 dark:text-red-400"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete User
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    filteredUsers.map(user => (
+                      <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div className="relative">
+                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center text-white font-medium">
+                              {user.firstName[0]}{user.lastName[0]}
+                            </div>
+                            {user.status === 'active' && (
+                              <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-background" />
+                            )}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium">{user.firstName} {user.lastName}</p>
+                                {user.isPlatformAdmin && (
+                                  <Badge variant="default" className="bg-purple-600 text-white text-[10px] px-1.5 py-0">
+                                    Platform Admin
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground">{user.email}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        {/* Tenant column: only visible to platform admins */}
+                        {isPlatformAdmin && (
+                          <TableCell>
+                            <span className="text-sm">{user.tenant?.name || user.tenantId || '-'}</span>
+                          </TableCell>
+                        )}
+                        <TableCell>{getRoleBadge(user.role)}</TableCell>
+                        <TableCell>
+                          <span className="text-sm">{user.department || '-'}</span>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(user.status)}</TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">
+                            {user.lastLoginAt
+                              ? new Date(user.lastLoginAt).toLocaleDateString()
+                              : 'Never'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => openEditDialog(user)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit User
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleToggleStatus(user)}>
+                                {user.status === 'active' ? (
+                                  <>
+                                    <UserX className="mr-2 h-4 w-4" />
+                                    Deactivate
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserCheck className="mr-2 h-4 w-4" />
+                                    Activate
+                                  </>
+                                )}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedUser(user);
+                                  setFormData(prev => ({ ...prev, password: '' }));
+                                  setIsResetPasswordDialogOpen(true);
+                                }}
+                              >
+                                <Key className="mr-2 h-4 w-4" />
+                                Reset Password
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedUser(user);
+                                  setIsDeleteDialogOpen(true);
+                                }}
+                                className="text-red-600 dark:text-red-400"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete User
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </ScrollArea>
         </CardContent>
       </Card>
@@ -811,7 +887,7 @@ export function UserManagement() {
                 </div>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName">First Name *</Label>
                 <Input
@@ -851,7 +927,7 @@ export function UserManagement() {
                 placeholder="Minimum 6 characters"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone</Label>
                 <Input
@@ -880,7 +956,7 @@ export function UserManagement() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="jobTitle">Job Title</Label>
                 <Input
@@ -952,7 +1028,7 @@ export function UserManagement() {
                 </span>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-firstName">First Name *</Label>
                 <Input
@@ -979,7 +1055,7 @@ export function UserManagement() {
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-phone">Phone</Label>
                 <Input
@@ -1007,7 +1083,7 @@ export function UserManagement() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-jobTitle">Job Title</Label>
                 <Input

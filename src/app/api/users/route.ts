@@ -63,6 +63,8 @@ export async function GET(request: NextRequest) {
     } else {
       // Non-platform-admin: ALWAYS scope to own tenant (security critical)
       where.tenantId = currentUser.tenantId;
+      // SECURITY: Never expose platform admin users to tenant admins
+      where.isPlatformAdmin = false;
     }
 
     if (filterRole) {

@@ -349,6 +349,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['billing.ap', 'billing.manage', 'billing.*', '*'],
     description: 'Manage accounts payable workflow'
   },
+  'billing-cash-book': {
+    permissions: ['billing.view', 'billing.manage', 'billing.*', '*'],
+    description: 'Manage cash book entries and daily transactions'
+  },
   'pms-package-plans': {
     permissions: ['pricing.view', 'pricing.manage', 'pms.*', '*'],
     description: 'Manage package plans and bundles'
@@ -661,6 +665,18 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['wifi.view', 'wifi.*', '*'],
     description: 'Monitor WiFi service level agreements'
   },
+  'wifi-ad-campaigns': {
+    permissions: ['wifi.manage', 'wifi.*', '*'],
+    description: 'Manage WiFi captive portal ad campaigns'
+  },
+  'wifi-heatmap': {
+    permissions: ['wifi.view', 'wifi.*', '*'],
+    description: 'View WiFi signal heatmap and coverage maps'
+  },
+  'wifi-partners': {
+    permissions: ['wifi.manage', 'wifi.*', '*'],
+    description: 'Configure partner WiFi access and roaming'
+  },
 
   // ---- Revenue Management ----
   'revenue-pricing': {
@@ -682,6 +698,26 @@ export const menuPermissions: PermissionConfig = {
   'revenue-rate-shopping': {
     permissions: ['revenue.view', 'revenue.manage', 'revenue.*', '*'],
     description: 'Manage rate shopping and competitor comparison'
+  },
+  'revenue-hourly-pricing': {
+    permissions: ['revenue.view', 'revenue.manage', 'revenue.*', '*'],
+    description: 'Manage hourly pricing tiers'
+  },
+  'revenue-linear-pricing': {
+    permissions: ['revenue.view', 'revenue.manage', 'revenue.*', '*'],
+    description: 'Manage per-room linear pricing'
+  },
+  'revenue-auto-overbooking': {
+    permissions: ['revenue.view', 'revenue.manage', 'revenue.*', '*'],
+    description: 'Configure auto-overbooking thresholds'
+  },
+  'revenue-last-minute': {
+    permissions: ['revenue.view', 'revenue.manage', 'revenue.*', '*'],
+    description: 'Manage last-minute pricing triggers'
+  },
+  'revenue-automation': {
+    permissions: ['revenue.view', 'revenue.manage', 'revenue.*', '*'],
+    description: 'Configure revenue automation rules'
   },
 
   // ---- Channel Manager ----
@@ -813,6 +849,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['channels.manage', 'channels.*', '*'],
     description: 'Configure booking limits per channel'
   },
+  'channel-messages': {
+    permissions: ['channels.view', 'channels.manage', 'channels.*', '*'],
+    description: 'View and manage OTA messages'
+  },
 
   // ---- CRM & Marketing ----
   'crm-segments': {
@@ -834,6 +874,10 @@ export const menuPermissions: PermissionConfig = {
   'crm-retention': {
     permissions: ['crm.view', 'crm.*', '*'],
     description: 'View retention analytics'
+  },
+  'crm-lead-pipeline': {
+    permissions: ['crm.view', 'crm.manage', 'crm.*', '*'],
+    description: 'Manage lead pipeline and conversion tracking'
   },
 
   // ---- Marketing ----
@@ -864,6 +908,10 @@ export const menuPermissions: PermissionConfig = {
   'marketing-abandoned-bookings': {
     permissions: ['marketing.manage', 'marketing.*', '*'],
     description: 'Manage abandoned booking recovery'
+  },
+  'marketing-website-builder': {
+    permissions: ['marketing.manage', 'marketing.*', '*'],
+    description: 'Build and manage direct booking website'
   },
 
   // ---- Reports ----
