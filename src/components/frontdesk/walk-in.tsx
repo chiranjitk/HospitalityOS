@@ -284,37 +284,37 @@ export default function WalkIn() {
 
   // Fetch properties on mount
   useEffect(() => {
-    const controller = new AbortController();
+    let cancelled = false;
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties', { signal: controller.signal });
+        const response = await fetch('/api/properties');
         if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
         const result = await response.json();
-        if (result.success) {
+        if (!cancelled && result.success) {
           setProperties(result.data);
           if (result.data.length > 0) {
             setSelectedPropertyId(result.data[0].id);
           }
         }
       } catch (error) {
-        if (error?.name === 'AbortError') return;
+        if (cancelled) return;
         toast({ title: 'Error', description: 'Failed to fetch properties', variant: 'destructive' });
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => { cancelled = true; };
   }, []);
 
   // Fetch room types and tax settings when property changes
   useEffect(() => {
-    const controller = new AbortController();
+    let cancelled = false;
     const fetchRoomTypes = async () => {
       if (!selectedPropertyId) return;
       try {
-        const response = await fetch(`/api/room-types?propertyId=${selectedPropertyId}`, { signal: controller.signal });
+        const response = await fetch(`/api/room-types?propertyId=${selectedPropertyId}`);
         if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
         const result = await response.json();
-        if (result.success) {
+        if (!cancelled && result.success) {
           setRoomTypes(result.data);
           if (result.data.length > 0) {
             setSelectedRoomTypeId(result.data[0].id);
@@ -322,7 +322,7 @@ export default function WalkIn() {
           }
         }
       } catch (error) {
-        if (error?.name === 'AbortError') return;
+        if (cancelled) return;
         toast({ title: 'Error', description: 'Failed to fetch room types', variant: 'destructive' });
       }
     };
@@ -330,10 +330,10 @@ export default function WalkIn() {
     const fetchTaxSettings = async () => {
       if (!selectedPropertyId) return;
       try {
-        const response = await fetch(`/api/properties/${selectedPropertyId}/tax-settings`, { signal: controller.signal });
+        const response = await fetch(`/api/properties/${selectedPropertyId}/tax-settings`);
         if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
         const result = await response.json();
-        if (result.success) {
+        if (!cancelled && result.success) {
           setTaxSettings({
             defaultTaxRate: result.data.defaultTaxRate || 0,
             taxComponents: result.data.taxComponents || [],
@@ -341,7 +341,7 @@ export default function WalkIn() {
           });
         }
       } catch (error) {
-        if (error?.name === 'AbortError') return;
+        if (cancelled) return;
         toast({ title: 'Error', description: 'Failed to fetch tax settings', variant: 'destructive' });
         setTaxSettings({
           defaultTaxRate: 0,
@@ -353,7 +353,7 @@ export default function WalkIn() {
 
     fetchRoomTypes();
     fetchTaxSettings();
-    return () => controller.abort();
+    return () => { cancelled = true; };
   }, [selectedPropertyId]);
 
   // Fetch available rooms when room type or dates change

@@ -130,7 +130,7 @@ export default function InventoryCalendar() {
 
   // Fetch inventory data when property changes
   useEffect(() => {
-    const controller = new AbortController();
+    let cancelled = false;
     const fetchInventory = async () => {
       if (!selectedProperty) return;
       setIsLoading(true);
@@ -150,19 +150,19 @@ export default function InventoryCalendar() {
           params.set('propertyId', selectedProperty);
         }
 
-        const response = await fetch(`/api/inventory?${params.toString()}`, { signal: controller.signal });
+        const response = await fetch(`/api/inventory?${params.toString()}`);
         if (!response.ok) {
           const errorText = await response.text().catch(() => 'Unknown error');
           throw new Error(`API error ${response.status}: ${errorText}`);
         }
         const result = await response.json();
 
-        if (result.success) {
+        if (!cancelled && result.success) {
           setInventoryData(result.data);
           setRoomTypes(result.roomTypes || []);
         }
       } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (cancelled) return;
         console.error('Error fetching inventory:', error);
         toast({
           title: 'Error',
@@ -170,39 +170,39 @@ export default function InventoryCalendar() {
           variant: 'destructive',
         });
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     fetchInventory();
-    return () => controller.abort();
+    return () => { cancelled = true; };
   }, [selectedProperty, currentDate]);
 
   // Fetch rate plans for the selected property
   useEffect(() => {
-    const controller = new AbortController();
+    let cancelled = false;
     const fetchRatePlans = async () => {
       if (!selectedProperty) return;
       try {
         const ratePlanUrl = selectedProperty !== 'all'
           ? `/api/rate-plans?propertyId=${selectedProperty}`
           : '/api/rate-plans';
-        const response = await fetch(ratePlanUrl, { signal: controller.signal });
+        const response = await fetch(ratePlanUrl);
         if (!response.ok) {
           const errorText = await response.text().catch(() => 'Unknown error');
           throw new Error(`API error ${response.status}: ${errorText}`);
         }
         const result = await response.json();
-        if (result.success) {
+        if (!cancelled && result.success) {
           setRatePlans(result.data);
         }
       } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (cancelled) return;
         console.error('Error fetching rate plans:', error);
       }
     };
     fetchRatePlans();
-    return () => controller.abort();
+    return () => { cancelled = true; };
   }, [selectedProperty]);
 
   // Generate calendar dates for the current month

@@ -164,12 +164,12 @@ export default function RoomOutOfOrder() {
     return () => controller.abort();
   }, []);
 
-  const fetchRooms = useCallback(async (signal?: AbortSignal) => {
+  const fetchRooms = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (propertyFilter !== 'all') params.append('propertyId', propertyFilter);
       params.append('limit', '500');
-      const res = await fetch(`/api/rooms?${params.toString()}`, signal ? { signal } : undefined);
+      const res = await fetch(`/api/rooms?${params.toString()}`);
       if (!res.ok) {
         const errorText = await res.text().catch(() => 'Unknown error');
         throw new Error(`API error ${res.status}: ${errorText}`);
@@ -181,21 +181,20 @@ export default function RoomOutOfOrder() {
     } catch { /* ignore */ }
   }, [propertyFilter]);
 
-  const fetchBlocks = useCallback(async (signal?: AbortSignal) => {
+  const fetchBlocks = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (propertyFilter !== 'all') params.append('propertyId', propertyFilter);
-      const res = await fetch(`/api/rooms/maintenance-blocks?${params.toString()}`, signal ? { signal } : undefined);
+      const res = await fetch(`/api/rooms/maintenance-blocks?${params.toString()}`);
       if (!res.ok) {
         const errorText = await res.text().catch(() => 'Unknown error');
         throw new Error(`API error ${res.status}: ${errorText}`);
       }
       const json = await res.json();
       if (json.success) setBlocks(json.data);
-    } catch (err: any) {
-      if (err?.name === 'AbortError') return;
+    } catch {
       toast({ title: 'Error', description: 'Failed to fetch blocks', variant: 'destructive' });
     } finally {
       setIsLoading(false);
@@ -203,14 +202,10 @@ export default function RoomOutOfOrder() {
   }, [statusFilter, propertyFilter, toast]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetchRooms(controller.signal);
-    return () => controller.abort();
+    fetchRooms();
   }, [fetchRooms]);
   useEffect(() => {
-    const controller = new AbortController();
-    fetchBlocks(controller.signal);
-    return () => controller.abort();
+    fetchBlocks();
   }, [fetchBlocks]);
 
   const handleCreate = async () => {
