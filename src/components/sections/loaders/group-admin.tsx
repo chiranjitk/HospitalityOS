@@ -1,8 +1,10 @@
-// Group: Admin & security (admin, settings, security, chain, channels)
+// Group: Admin & security (admin, settings, security, chain, channels, staff)
 export default async function loadAdminSection(section: string): Promise<{ default: React.ComponentType<any> }> {
   const prefix = section.split('-')[0];
   switch (prefix) {
     case 'admin':
+      return (await import('./load-admin')).default(section);
+    case 'staff':
       return (await import('./load-admin')).default(section);
     case 'settings':
       return (await import('./load-settings')).default(section);

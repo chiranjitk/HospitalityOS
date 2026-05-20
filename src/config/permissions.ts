@@ -1062,7 +1062,17 @@ export const menuPermissions: PermissionConfig = {
     description: 'Configure AI providers'
   },
 
-  // ---- Admin ----
+  // ---- Tenant User & Role Management (visible to tenant admins) ----
+  'staff-users': {
+    permissions: ['admin.users', 'admin.*', 'users.manage', 'users.view', '*'],
+    description: 'Manage users within your tenant'
+  },
+  'staff-roles': {
+    permissions: ['admin.roles', 'admin.*', 'users.manage', '*'],
+    description: 'Manage roles and permissions within your tenant'
+  },
+
+  // ---- Platform Admin (platform admin only) ----
   'admin-tenants': {
     permissions: ['admin.tenants', 'admin.*', '*'],
     description: 'Manage tenants'

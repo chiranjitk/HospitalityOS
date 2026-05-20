@@ -113,12 +113,13 @@ export const FEATURES: Record<string, FeatureConfig> = {
   settings: {
     id: 'settings',
     name: 'Settings',
-    description: 'General settings, tax & currency, localization, feature flags, GDPR, security, license keys, and system integrations',
+    description: 'General settings, tax & currency, localization, feature flags, GDPR, security, license keys, system integrations, and user/role management',
     category: 'base',
     alwaysEnabled: true,
     menuItems: [
       'settings-general', 'settings-tax', 'settings-localization', 'settings-features', 'settings-gdpr',
       'settings-license', 'settings-license-keys', 'settings-security', 'settings-integrations',
+      'staff-users', 'staff-roles',
     ],
     apiRoutes: ['/api/settings'],
   },

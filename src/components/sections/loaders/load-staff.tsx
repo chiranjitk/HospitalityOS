@@ -20,6 +20,11 @@ export default async function loadSection(section: string): Promise<{ default: R
     case 'staff-payroll':
     case 'staff-payroll-management':
       return import('@/components/staff/payroll-management');
+    // User & role management — routed here from master-loader's staff prefix
+    case 'staff-users':
+      return import('@/components/admin/user-management');
+    case 'staff-roles':
+      return import('@/components/admin/role-permissions');
     default:
       throw new Error(`Unknown staff section: ${section}`);
   }

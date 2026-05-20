@@ -82,6 +82,8 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
       if (menuItemId.startsWith('saas-')) return false;
       if (menuItemId.startsWith('admin-')) return false;
       if (['settings-features', 'settings-license', 'settings-license-keys'].includes(menuItemId)) return false;
+      // Tenant user/role management: only tenant admin role (or wildcard) can access
+      if (menuItemId.startsWith('staff-') && !isAdmin) return false;
       // Admin role or wildcard permission has access to everything else
       if (isAdmin || permissions.includes('*')) return true;
       return hasMenuAccess(permissions, menuItemId);
@@ -101,6 +103,7 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
     }
     return Object.keys(menuPermissions).filter(menuId =>
       !menuId.startsWith('saas-') && !menuId.startsWith('admin-') && !platformOnlyIds.includes(menuId) &&
+      !menuId.startsWith('staff-') &&
       hasMenuAccess(permissions, menuId)
     );
   }, [user, permissions, isAdmin]);

@@ -664,6 +664,23 @@ export const navigationConfig: NavSection[] = [
   },
 
   // =====================================================
+  // USER & ROLE MANAGEMENT - Tenant Admin Accessible
+  // =====================================================
+  // This section is visible to tenant admins (role: admin) for managing
+  // staff users and roles within their own tenant. Platform admins also
+  // see the full "Platform Admin" section below with cross-tenant controls.
+  {
+    id: 'userRoleManagement',
+    title: 'User & Role Management',
+    icon: UserCog,
+    category: 'base',
+    items: [
+      { id: 'staff-users', title: 'Users', href: '#staff-users', icon: Users },
+      { id: 'staff-roles', title: 'Roles & Permissions', href: '#staff-roles', icon: Shield },
+    ],
+  },
+
+  // =====================================================
   // SYSTEM - Always visible
   // =====================================================
   {

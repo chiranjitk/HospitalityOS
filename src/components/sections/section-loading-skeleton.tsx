@@ -192,6 +192,7 @@ const sectionSkeletonMap: Record<string, SkeletonLayout> = {
   'staff-payroll': 'table',
   'staff-departments': 'cards',
   'staff-roles': 'cards',
+  'staff-users': 'table',
   // Security & IoT
   'security-overview': 'dashboard',
   'security-cameras': 'cards',
