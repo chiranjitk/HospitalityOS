@@ -1,6 +1,6 @@
 # StaySuite auto-generated — FreeRADIUS SQL module config
 # Points to the PostgreSQL database
-# Last updated: 2026-05-19T20:44:22.521Z
+# Last updated: 2026-05-20T10:31:43.769Z
 
 sql {
     driver = "rlm_sql_postgresql"
