@@ -20,9 +20,13 @@ import type {
   BandwidthPolicy,
 } from './gateway-adapter';
 
-// Re-export types (zero-cost, no code generated)
+// Re-export types and abstract class (zero-cost — abstract class has no Node.js deps)
 export type { GatewayConfig, GatewayVendor, CoARequest, CoAResponse, SessionInfo, GatewayStatus, BandwidthPolicy };
 export { GatewayAdapter } from './gateway-adapter';
+
+// Suppress Turbopack Edge Runtime analysis warning for dynamic net import
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+
 
 // Vendor-specific config types — re-exported as types only (no runtime cost)
 export type CryptskConfig = import('./cryptsk-adapter').CryptskConfig;

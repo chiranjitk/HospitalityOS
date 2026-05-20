@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
     'bcryptjs',         // Native optional dependency
     'pg',               // Node.js-only — requires 'net'
     'pg-native',
+    'twilio',           // Node.js-only SDK — uses deprecated 'querystring'
   ],
   // Exclude non-essential paths from output file tracing.
   // WARNING: Do NOT add 'node_modules/**' here — it breaks standalone mode!
@@ -34,6 +35,13 @@ const nextConfig: NextConfig = {
     // The project has 700+ source files; tsc requires >2GB which exceeds typical VPS memory.
     // Run `npx tsc --noEmit` separately in CI/CD if type-checking is needed.
     ignoreBuildErrors: true,
+  },
+  // Turbopack configuration — prevent Edge Runtime analysis of Node.js-only modules
+  turbopack: {
+    resolveAlias: {
+      // twilio uses deprecated 'querystring' — make it resolve to empty for Edge analysis
+      'querystring': '',
+    },
   },
   experimental: {
     // Only bundle the specific sub-paths actually used from each package.
@@ -137,7 +145,7 @@ const nextConfig: NextConfig = {
     } else {
       // Server-side: mark Node.js built-ins as external so webpack doesn't try to bundle them
       config.externals = config.externals || [];
-      const nodeBuiltins = ['crypto', 'fs', 'child_process', 'net', 'tls', 'dgram', 'dns', 'os', 'path', 'stream', 'http', 'https', 'zlib', 'util', 'buffer', 'events'];
+      const nodeBuiltins = ['crypto', 'fs', 'child_process', 'net', 'tls', 'dgram', 'dns', 'os', 'path', 'stream', 'http', 'https', 'zlib', 'util', 'buffer', 'events', 'querystring'];
       if (Array.isArray(config.externals)) {
         config.externals.push(...nodeBuiltins);
       }
@@ -147,6 +155,21 @@ const nextConfig: NextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       'node-cron': require.resolve('node-cron'),
+      // Handle node: protocol imports (used by node-cron, twilio, etc.)
+      'node:crypto': 'crypto',
+      'node:fs': 'fs',
+      'node:net': 'net',
+      'node:tls': 'tls',
+      'node:stream': 'stream',
+      'node:http': 'http',
+      'node:https': 'https',
+      'node:querystring': 'querystring',
+      'node:util': 'util',
+      'node:os': 'os',
+      'node:path': 'path',
+      'node:child_process': 'child_process',
+      'node:buffer': 'buffer',
+      'node:events': 'events',
     };
     return config;
   },

@@ -3,27 +3,13 @@
  * Initializes background cron jobs (session engine, NAS health, etc.)
  * and creates TC HTB pool classes for bandwidth shaping.
  *
- * IMPORTANT: Must run in Node.js runtime — node-cron, fs, and child_process
- * are NOT available in Edge runtime. Next.js 16 Turbopack defaults to Edge
- * for instrumentation files unless explicitly set to 'nodejs'.
+ * IMPORTANT: The scheduler is spawned as a SEPARATE child process to prevent
+ * Turbopack from statically analyzing its heavy dependency graph:
+ *   node-cron → node:crypto, twilio → querystring, wifi/adapters → net
+ * This was causing OOM kills in dev mode (~4GB compilation memory).
  */
 export const runtime = 'nodejs';
 
-/**
- * Use direct import() — NOT Function() constructor.
- *
- * Why NOT Function():
- *   Function('return import(p)') runs outside the module resolution scope.
- *   - @/ path aliases are NOT available (Node.js doesn't know about them)
- *   - In standalone mode, cwd = /opt/staysuite/.next/standalone/ and
- *     source .ts files don't exist there anyway
- *
- * Why direct import() works:
- *   - Next.js resolves @/ aliases at BUILD TIME in the compiled output
- *   - In standalone, the compiled chunks have correct resolved paths
- *   - In dev, Turbopack handles the resolution at compile time
- *   - runtime = 'nodejs' tells Turbopack this is Node.js-only
- */
 export async function register() {
   // Only run on the server side
   if (typeof window !== 'undefined') return;
@@ -36,22 +22,36 @@ export async function register() {
 
   // Delay slightly to let the server fully start
   setTimeout(async () => {
+    // ── Scheduler: spawned as separate process ──────────────────────────
     try {
-      const schedulerModule = await import('@/lib/jobs/scheduler');
-      if (schedulerModule?.initializeScheduler) {
-        schedulerModule.initializeScheduler();
-        console.log('[Instrumentation] Background scheduler initialized');
-      } else {
-        console.warn('[Instrumentation] Scheduler module not available');
-      }
+      const { fork } = require('child_process') as typeof import('child_process');
+      const path = require('path') as typeof import('path');
+      const schedulerPath = require('path').join(__dirname, '..', 'scripts', 'spawn-scheduler.cjs');
+      const child = fork(schedulerPath, [], {
+        detached: false,
+        stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+      });
+      child.stdout?.on('data', (d: Buffer) => {
+        // eslint-disable-next-line no-console
+        console.log('[Scheduler]', d.toString().trim());
+      });
+      child.stderr?.on('data', (d: Buffer) => {
+        // eslint-disable-next-line no-console
+        console.error('[Scheduler]', d.toString().trim());
+      });
+      child.on('exit', (code) => {
+        console.log(`[Instrumentation] Scheduler process exited with code ${code}`);
+      });
+      console.log('[Instrumentation] Background scheduler spawned (pid:', child.pid, ')');
     } catch (err) {
-      console.error('[Instrumentation] Scheduler import error:', (err as Error)?.message || err);
+      console.error('[Instrumentation] Scheduler spawn error:', (err as Error)?.message || err);
     }
 
-    // Initialize all pool TC classes (creates HTB root classes for bandwidth pools)
+    // ── Pool Classes: inline initialization (lightweight, no heavy deps) ──
     setTimeout(async () => {
       try {
-        const scriptRunnerModule = await import('@/lib/network/script-runner');
+        // Inline require — script-runner only depends on db + shell commands
+        const scriptRunnerModule = require('@/lib/network/script-runner');
         if (scriptRunnerModule?.initializeAllPoolClasses) {
           const result = await scriptRunnerModule.initializeAllPoolClasses();
           if (result.created > 0) {

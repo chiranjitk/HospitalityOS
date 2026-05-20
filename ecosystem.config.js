@@ -6,7 +6,7 @@ module.exports = {
     cwd: '/home/z/my-project',
     env: {
       DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30',
-      NODE_OPTIONS: '--max-old-space-size=4096',
+      NODE_OPTIONS: '--max-old-space-size=2048',
       PORT: 3000,
     },
     max_memory_restart: '6G',  // Auto-restart if memory exceeds 6GB
