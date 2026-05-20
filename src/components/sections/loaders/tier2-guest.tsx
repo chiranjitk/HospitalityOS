@@ -5,6 +5,7 @@ export default async function loadGuest(section: string): Promise<{ default: Rea
     case 'guests':
       return (await import('./load-guests')).default(section);
     case 'experience':
+    case 'experiences':
       return (await import('./load-experience')).default(section);
     case 'crm':
       return (await import('./load-crm')).default(section);
