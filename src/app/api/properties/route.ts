@@ -10,12 +10,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // RBAC check
-    if (!hasPermission(user, 'properties.view') && !hasPermission(user, 'properties.*') && user.roleName !== 'admin') {
+    const searchParams = request.nextUrl.searchParams;
+    const myProperties = searchParams.get('myProperties') === 'true';
+
+    // RBAC check - skip for myProperties since any authenticated user can see their own assigned properties
+    if (!myProperties && !hasPermission(user, 'properties.view') && !hasPermission(user, 'properties.*') && user.roleName !== 'admin') {
       return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
-
-    const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status');
     const type = searchParams.get('type');
     const limitParam = searchParams.get('limit');
@@ -27,6 +28,31 @@ export async function GET(request: NextRequest) {
       deletedAt: null,
       tenantId: user.tenantId,
     };
+
+    // Platform admins bypass property assignment filtering
+    if (myProperties && !user.isPlatformAdmin) {
+      // Filter to only properties the current user is assigned to
+      const userAssignments = await db.userProperty.findMany({
+        where: {
+          userId: user.id,
+          tenantId: user.tenantId,
+        },
+        select: { propertyId: true },
+      });
+
+      const assignedPropertyIds = userAssignments.map((a) => a.propertyId);
+
+      if (assignedPropertyIds.length === 0) {
+        // User has no property assignments - return empty list
+        return NextResponse.json({
+          success: true,
+          pagination: { total: 0, limit, offset },
+          data: [],
+        });
+      }
+
+      where.id = { in: assignedPropertyIds };
+    }
     
     if (status) {
       where.status = status;
@@ -47,6 +73,18 @@ export async function GET(request: NextRequest) {
             roomTypes: true,
           },
         },
+        ...(myProperties && !user.isPlatformAdmin
+          ? {
+              userAssignments: {
+                where: { userId: user.id },
+                select: {
+                  id: true,
+                  role: true,
+                  isDefault: true,
+                },
+              },
+            }
+          : {}),
       },
       orderBy: {
         createdAt: 'desc',
@@ -58,11 +96,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       pagination: { total, limit, offset },
-      data: properties.map((p) => ({
-        ...p,
-        totalRooms: p._count.rooms,
-        totalRoomTypes: p._count.roomTypes,
-      })),
+      data: properties.map((p) => {
+        const mapped: Record<string, unknown> = {
+          ...p,
+          totalRooms: p._count.rooms,
+          totalRoomTypes: p._count.roomTypes,
+        };
+
+        // Include the user's per-property role when myProperties is active
+        if (myProperties && !user.isPlatformAdmin && p.userAssignments && p.userAssignments.length > 0) {
+          const assignment = p.userAssignments[0];
+          mapped.userRole = assignment.role;
+          mapped.isDefaultProperty = assignment.isDefault;
+        }
+
+        // Remove internal userAssignments from response
+        delete mapped.userAssignments;
+
+        return mapped;
+      }),
     });
   } catch (error) {
     console.error('Error fetching properties:', error);

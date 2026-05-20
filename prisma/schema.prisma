@@ -4781,10 +4781,34 @@ model Property {
   ztnaAuditLogs             ZtnaAuditLog[]
   heatmapReadings           WiFiHeatmapReading[]
   wifiFloorPlans             WiFiFloorPlan[]
+  userAssignments           UserProperty[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
   @@index([brandId])
+}
+
+/// UserProperty - Junction table mapping users to their assigned properties
+/// Supports per-property role assignment (e.g., front_desk at Hotel A, housekeeping at Hotel B)
+/// isDefault marks which property the user lands on after login
+model UserProperty {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  userId      String    @db.Uuid
+  propertyId  String    @db.Uuid
+  role        String    @default("staff")    // Per-property role: front_desk, housekeeping, manager, etc.
+  isDefault   Boolean   @default(false)      // Landing property after login
+  assignedAt  DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, propertyId])           // One assignment per user per property
+  @@index([tenantId])
+  @@index([userId])
+  @@index([propertyId])
 }
 
 /// RoomVlan - Room-per-VLAN isolation mapping
@@ -6614,6 +6638,7 @@ model Tenant {
   staffSchedules            StaffSchedule[]
   stockItems                StockItem[]
   users                     User[]
+  userPropertyAssignments  UserProperty[]
   vehicles                  Vehicle[]
   vendors                   Vendor[]
   workOrders                WorkOrder[]
@@ -7299,6 +7324,7 @@ model User {
   reviewedFraudAlerts     FraudAlert[]             @relation("FraudAlertReviewer")
   role                    Role?                    @relation(fields: [roleId], references: [id])
   tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userPropertyAssignments UserProperty[]
 
   @@unique([tenantId, email])
   @@index([tenantId])

@@ -474,6 +474,35 @@ async function createSessionAndRespond(
     }
   }
 
+  // Fetch user's property assignments (non-blocking: if this fails, proceed without them)
+  let propertyAssignments: Array<{
+    id: string;
+    propertyId: string;
+    role: string;
+    isDefault: boolean;
+    property: { id: string; name: string; slug: string };
+  }> = [];
+  let defaultPropertyId: string | null = null;
+
+  try {
+    propertyAssignments = await db.userProperty.findMany({
+      where: {
+        userId: user.id,
+        tenantId: user.tenantId,
+      },
+      include: {
+        property: {
+          select: { id: true, name: true, slug: true },
+        },
+      },
+      orderBy: { isDefault: 'desc' },
+    });
+
+    defaultPropertyId = propertyAssignments.find((a) => a.isDefault)?.propertyId || null;
+  } catch (propError) {
+    console.error('Failed to fetch property assignments (non-blocking):', propError);
+  }
+
   // Create audit log for successful login
   await logAuth(request, 'login', user.id, { 
     email: user.email,
@@ -497,6 +526,8 @@ async function createSessionAndRespond(
       tenantId: user.tenantId,
       tenant: user.tenant,
       isPlatformAdmin: user.isPlatformAdmin,
+      propertyAssignments,
+      defaultPropertyId,
     },
   });
 

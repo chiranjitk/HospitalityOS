@@ -2,6 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 
+// Common include for user property assignments
+const userPropertyAssignmentsInclude = {
+  userPropertyAssignments: {
+    include: {
+      property: {
+        select: { id: true, name: true, slug: true },
+      },
+    },
+    orderBy: { assignedAt: 'desc' } as const,
+  },
+};
+
 // GET /api/users/[id] - Get single user
 export async function GET(
   request: NextRequest,
@@ -40,6 +52,7 @@ export async function GET(
             name: true,
           },
         },
+        ...userPropertyAssignmentsInclude,
       },
     });
 
@@ -169,36 +182,101 @@ export async function PUT(
     // Tenant admins attempting to set isPlatformAdmin: silently ignored (no error,
     // but the field is never included in updateData for non-platform-admins)
 
-    // Update user
-    const user = await db.user.update({
-      where: { id },
-      data: updateData,
-      include: {
-        role: {
-          select: {
-            id: true,
-            name: true,
-            displayName: true,
-          },
+    // Validate property assignments if provided
+    const { propertyAssignments } = body;
+    if (Array.isArray(propertyAssignments)) {
+      // Verify all propertyIds belong to the same tenant
+      const propertyIds = propertyAssignments.map((a: { propertyId: string }) => a.propertyId);
+      const properties = await db.property.findMany({
+        where: {
+          id: { in: propertyIds },
+          tenantId: existingUser.tenantId,
+          deletedAt: null,
         },
-        tenant: {
-          select: {
-            id: true,
-            name: true,
+        select: { id: true },
+      });
+
+      if (properties.length !== propertyIds.length) {
+        const foundIds = new Set(properties.map((p) => p.id));
+        const missingIds = propertyIds.filter((pid: string) => !foundIds.has(pid));
+        return NextResponse.json(
+          { error: `One or more properties not found or do not belong to this tenant: ${missingIds.join(', ')}` },
+          { status: 400 }
+        );
+      }
+
+      // Validate that at most one assignment has isDefault = true
+      const defaultAssignments = propertyAssignments.filter(
+        (a: { isDefault?: boolean }) => a.isDefault === true
+      );
+      if (defaultAssignments.length > 1) {
+        return NextResponse.json(
+          { error: 'Only one property assignment can be marked as default' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Update user and sync property assignments in a transaction
+    const user = await db.$transaction(async (tx) => {
+      // Update user basic fields
+      await tx.user.update({
+        where: { id },
+        data: updateData,
+      });
+
+      // Sync property assignments if provided in the body
+      if (Array.isArray(propertyAssignments)) {
+        // Delete all existing assignments for this user
+        await tx.userProperty.deleteMany({
+          where: { userId: id },
+        });
+
+        // Create new assignments
+        for (const assignment of propertyAssignments) {
+          await tx.userProperty.create({
+            data: {
+              tenantId: existingUser.tenantId,
+              userId: id,
+              propertyId: assignment.propertyId,
+              role: assignment.role || 'staff',
+              isDefault: assignment.isDefault || false,
+            },
+          });
+        }
+      }
+
+      // Re-fetch with all includes
+      return tx.user.findUnique({
+        where: { id },
+        include: {
+          role: {
+            select: {
+              id: true,
+              name: true,
+              displayName: true,
+            },
           },
+          tenant: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          ...userPropertyAssignmentsInclude,
         },
-      },
+      });
     });
 
     // Create audit log
     try {
       await db.auditLog.create({
         data: {
-          tenantId: user.tenantId,
+          tenantId: user!.tenantId,
           module: 'admin',
           action: 'update',
           entityType: 'user',
-          entityId: user.id,
+          entityId: user!.id,
           oldValue: JSON.stringify({
             email: existingUser.email,
             firstName: existingUser.firstName,
@@ -208,12 +286,13 @@ export async function PUT(
             isPlatformAdmin: existingUser.isPlatformAdmin,
           }),
           newValue: JSON.stringify({
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            status: user.status,
-            roleId: user.roleId,
-            isPlatformAdmin: user.isPlatformAdmin,
+            email: user!.email,
+            firstName: user!.firstName,
+            lastName: user!.lastName,
+            status: user!.status,
+            roleId: user!.roleId,
+            isPlatformAdmin: user!.isPlatformAdmin,
+            propertyAssignmentCount: Array.isArray(propertyAssignments) ? propertyAssignments.length : undefined,
           }),
         },
       });
@@ -277,13 +356,21 @@ export async function DELETE(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // Soft delete user
-    await db.user.update({
-      where: { id },
-      data: {
-        deletedAt: new Date(),
-        status: 'inactive',
-      },
+    // Soft delete user and explicitly delete property assignments
+    await db.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          status: 'inactive',
+        },
+      });
+
+      // Delete all property assignments for this user
+      // (cascade should handle this, but be explicit for clarity)
+      await tx.userProperty.deleteMany({
+        where: { userId: id },
+      });
     });
 
     // Delete all sessions for this user

@@ -3,6 +3,18 @@ import { db } from '@/lib/db';
 import { hashPassword, validatePasswordStrength } from '@/lib/auth';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 
+// Common include for user property assignments
+const userPropertyAssignmentsInclude = {
+  userPropertyAssignments: {
+    include: {
+      property: {
+        select: { id: true, name: true, slug: true },
+      },
+    },
+    orderBy: { assignedAt: 'desc' } as const,
+  },
+};
+
 // GET /api/users - List all users (tenant-scoped or platform-wide)
 export async function GET(request: NextRequest) {
   try {
@@ -101,6 +113,7 @@ export async function GET(request: NextRequest) {
               name: true,
             },
           },
+          ...userPropertyAssignmentsInclude,
         },
         orderBy: {
           createdAt: 'desc',
@@ -138,6 +151,7 @@ export async function GET(request: NextRequest) {
               name: true,
             },
           },
+          ...userPropertyAssignmentsInclude,
         },
         orderBy: {
           createdAt: 'desc',
@@ -208,6 +222,7 @@ export async function POST(request: NextRequest) {
       password,
       tenantId: requestedTenantId,
       isPlatformAdmin: requestedIsPlatformAdmin,
+      propertyAssignments,
     } = body;
 
     // Non-platform-admins cannot assign admin or platform_admin roles
@@ -296,37 +311,110 @@ export async function POST(request: NextRequest) {
     // Hash password securely with bcrypt
     const passwordHash = await hashPassword(password);
 
-    // Create user
-    const user = await db.user.create({
-      data: {
-        tenantId,
-        email: email.toLowerCase(),
-        passwordHash,
-        firstName,
-        lastName,
-        phone: phone || null,
-        jobTitle: jobTitle || null,
-        department: department || null,
-        roleId: roleId || null,
-        status: status || 'active',
-        isVerified: false,
-        isPlatformAdmin: newIsPlatformAdmin,
-      },
-      include: {
-        role: {
-          select: {
-            id: true,
-            name: true,
-            displayName: true,
-          },
+    // Validate property assignments if provided
+    if (Array.isArray(propertyAssignments) && propertyAssignments.length > 0) {
+      // Verify all propertyIds belong to the same tenant
+      const propertyIds = propertyAssignments.map((a: { propertyId: string }) => a.propertyId);
+      const properties = await db.property.findMany({
+        where: {
+          id: { in: propertyIds },
+          tenantId,
+          deletedAt: null,
         },
-        tenant: {
-          select: {
-            id: true,
-            name: true,
-          },
+        select: { id: true },
+      });
+
+      if (properties.length !== propertyIds.length) {
+        const foundIds = new Set(properties.map((p) => p.id));
+        const missingIds = propertyIds.filter((id: string) => !foundIds.has(id));
+        return NextResponse.json(
+          { error: `One or more properties not found or do not belong to this tenant: ${missingIds.join(', ')}` },
+          { status: 400 }
+        );
+      }
+
+      // Validate that at most one assignment has isDefault = true
+      const defaultAssignments = propertyAssignments.filter(
+        (a: { isDefault?: boolean }) => a.isDefault === true
+      );
+      if (defaultAssignments.length > 1) {
+        return NextResponse.json(
+          { error: 'Only one property assignment can be marked as default' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Create user with property assignments in a transaction
+    const user = await db.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          tenantId,
+          email: email.toLowerCase(),
+          passwordHash,
+          firstName,
+          lastName,
+          phone: phone || null,
+          jobTitle: jobTitle || null,
+          department: department || null,
+          roleId: roleId || null,
+          status: status || 'active',
+          isVerified: false,
+          isPlatformAdmin: newIsPlatformAdmin,
         },
-      },
+        include: {
+          role: {
+            select: {
+              id: true,
+              name: true,
+              displayName: true,
+            },
+          },
+          tenant: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          ...userPropertyAssignmentsInclude,
+        },
+      });
+
+      // Create property assignments
+      if (Array.isArray(propertyAssignments) && propertyAssignments.length > 0) {
+        for (const assignment of propertyAssignments) {
+          await tx.userProperty.create({
+            data: {
+              tenantId,
+              userId: newUser.id,
+              propertyId: assignment.propertyId,
+              role: assignment.role || 'staff',
+              isDefault: assignment.isDefault || false,
+            },
+          });
+        }
+      }
+
+      // Re-fetch with assignments
+      return tx.user.findUnique({
+        where: { id: newUser.id },
+        include: {
+          role: {
+            select: {
+              id: true,
+              name: true,
+              displayName: true,
+            },
+          },
+          tenant: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          ...userPropertyAssignmentsInclude,
+        },
+      });
     });
 
     // Create audit log
@@ -337,13 +425,14 @@ export async function POST(request: NextRequest) {
           module: 'admin',
           action: 'create',
           entityType: 'user',
-          entityId: user.id,
+          entityId: user!.id,
           newValue: JSON.stringify({
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            roleId: user.roleId,
-            isPlatformAdmin: user.isPlatformAdmin,
+            email: user!.email,
+            firstName: user!.firstName,
+            lastName: user!.lastName,
+            roleId: user!.roleId,
+            isPlatformAdmin: user!.isPlatformAdmin,
+            propertyAssignmentCount: Array.isArray(propertyAssignments) ? propertyAssignments.length : 0,
           }),
         },
       });
