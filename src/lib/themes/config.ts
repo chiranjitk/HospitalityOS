@@ -68,7 +68,7 @@ export interface ThemeConfig {
   name: string;
   description: string;
   icon: string;
-  category: 'default' | 'original' | 'premium' | 'enterprise';
+  category: 'default' | 'original' | 'enterprise';
   colors: {
     light: ThemeColors;
     dark: ThemeColors;

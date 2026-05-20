@@ -116,7 +116,7 @@ export function applyUITheme(themeId: UIStyleTheme, mode: 'light' | 'dark') {
     ];
 
     for (const [colorKey, cssVar] of cssVarMap) {
-      const value = (colors as Record<string, string>)[colorKey];
+      const value = (colors as unknown as Record<string, string>)[colorKey];
       if (value) {
         root.style.setProperty(cssVar, value);
       }
@@ -141,9 +141,26 @@ export function applyUITheme(themeId: UIStyleTheme, mode: 'light' | 'dark') {
   localStorage.setItem('staysuite-theme-mode', mode);
 }
 
+// Valid theme IDs for validation (prevents stale localStorage values from removed themes)
+const VALID_THEME_IDS: Set<string> = new Set(Object.keys(themesConfig));
+
 // Default theme constants
 const DEFAULT_UI_THEME: UIStyleTheme = 'hospitality-sunrise';
 const DEFAULT_THEME_MODE: ThemeMode = 'system';
+
+/**
+ * Validate a theme ID — if it's a removed/stale theme, return the default.
+ * This prevents crashes when users have old theme IDs in localStorage.
+ */
+function validateThemeId(themeId: string): UIStyleTheme {
+  if (VALID_THEME_IDS.has(themeId)) {
+    return themeId as UIStyleTheme;
+  }
+  console.warn(
+    `[StaySuite] Theme "${themeId}" is no longer available. Falling back to "${DEFAULT_UI_THEME}".`
+  );
+  return DEFAULT_UI_THEME;
+}
 
 export const useUIStyleStore = create<UIStyleState>()(
   persist(
@@ -185,6 +202,11 @@ export const useUIStyleStore = create<UIStyleState>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
+          // Validate theme ID — migrate stale/removed themes to default
+          const validThemeId = validateThemeId(state.themeId as string);
+          if (validThemeId !== state.themeId) {
+            state.themeId = validThemeId;
+          }
           // Apply theme on rehydration
           const effectiveMode = getEffectiveModeFromMode(state.mode);
           applyUITheme(state.themeId, effectiveMode);
@@ -199,8 +221,13 @@ export function initializeUITheme() {
   if (typeof window === 'undefined') return;
 
   const state = useUIStyleStore.getState();
+  // Validate theme ID — migrate stale/removed themes to default
+  const validThemeId = validateThemeId(state.themeId as string);
+  if (validThemeId !== state.themeId) {
+    useUIStyleStore.setState({ themeId: validThemeId });
+  }
   const effectiveMode = state.getEffectiveMode();
-  applyUITheme(state.themeId, effectiveMode);
+  applyUITheme(validThemeId, effectiveMode);
 
   // Listen for system theme changes
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
