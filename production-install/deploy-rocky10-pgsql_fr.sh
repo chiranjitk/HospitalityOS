@@ -20,7 +20,7 @@
 #  10b. nftables-service-tables.sql (5 tables for firewall mini-service)
 #  11.  Seed demo data (properties, rooms, plans, users)
 #  12.  Build Next.js standalone
-#  13.  Install PM2 + generate production ecosystem.config.js
+#  13.  Install PM2 + start services via ecosystem.config.cjs
 #  14.  Start ALL services via PM2 (Next.js + mini-services)
 #  15.  Configure FreeRADIUS CoA (port 3799)
 #  16.  Set up cron jobs (data usage processing)
@@ -1005,7 +1005,7 @@ if [[ -f "${APP_DIR}/.env" ]]; then
   success ".env configured with all secrets and paths"
 fi
 
-# ── 8e: Neutralize .env.production so Next.js doesn't load it ──────────────
+# ── 8e: Neutralize stale files so Next.js/PM2 don't load wrong configs ──────
 # CRITICAL: Next.js loads env files in this order (first found wins):
 #   .env.production.local > .env.local > .env.production > .env
 # After step 8d, .env has real substituted values BUT .env.production still
@@ -1018,6 +1018,13 @@ fi
 if [[ -f "${APP_DIR}/.env.production" ]]; then
   mv "${APP_DIR}/.env.production" "${APP_DIR}/.env.production.template"
   success "Renamed .env.production → .env.production.template (prevents Next.js override)"
+fi
+
+# Also rename the old ecosystem.config.js (has hardcoded /home/z paths)
+# if ecosystem.config.cjs exists (the new portable version).
+if [[ -f "${APP_DIR}/ecosystem.config.cjs" && -f "${APP_DIR}/ecosystem.config.js" ]]; then
+  mv "${APP_DIR}/ecosystem.config.js" "${APP_DIR}/ecosystem.config.js.old"
+  success "Renamed ecosystem.config.js → ecosystem.config.js.old (using portable .cjs)"
 fi
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -1124,10 +1131,10 @@ export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysu
 
 if [[ -f "prisma/seed.ts" ]]; then
   info "Running seed script..."
-  npx tsx prisma/seed.ts 2>&1 | tail -10
+  bun prisma/seed.ts 2>&1 | tail -10
   success "Database seeded"
 elif [[ -f "prisma/wifi-seed.ts" ]]; then
-  npx tsx prisma/wifi-seed.ts 2>&1 | tail -10
+  bun prisma/wifi-seed.ts 2>&1 | tail -10
   success "WiFi seed data inserted"
 else
   warn "No seed file found, skipping"
@@ -1215,31 +1222,21 @@ BUN_PATH="${BUN_INSTALL:-$HOME/.bun}/bin/bun"
 [[ ! -x "$BUN_PATH" ]] && BUN_PATH=$(which bun)
 [[ ! -x "$BUN_PATH" ]] && die "Bun not found!"
 
-# Ensure start-nextjs.sh is executable (Rocky 10 IPv6 fix wrapper)
+# Ensure start scripts are executable
+chmod +x "${APP_DIR}/start-next.sh" 2>/dev/null || true
 chmod +x "${APP_DIR}/start-nextjs.sh" 2>/dev/null || true
 
-# Create production ecosystem.config.js
-# Instead of embedding a stale copy, we use the repo's ecosystem.config.js
-# and only replace the database password placeholder. This keeps deploy script
-# and repo always in sync.
+# ── Use ecosystem.config.cjs (portable — uses INSTALL_DIR env var) ──────────
+# The repo has ecosystem.config.cjs which uses path.join(INSTALL_DIR, ...) 
+# instead of hardcoded paths. We set INSTALL_DIR=${APP_DIR} via PM2 env.
 mkdir -p "${APP_DIR}/logs"
-info "Copying ecosystem.config.js from repo and injecting production values..."
-cp "${APP_DIR}/ecosystem.config.js" "${APP_DIR}/ecosystem.config.js.bak"
+info "Using portable ecosystem.config.cjs with INSTALL_DIR=${APP_DIR}..."
 
-# Replace DATABASE_URL with production credentials
-# The repo file uses: postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite
-# NOTE: Prisma 6.x only supports these PostgreSQL URL params: sslmode, sslcert,
-# sslkey, sslrootcert, connection_limit, schema, pgbouncer.
-# connect_timeout and pool_timeout are NOT supported and cause Prisma crash.
-# The repo's ecosystem.config.js already has a clean DATABASE_URL — we only
-# replace the password if it differs from the default.
-info "Injecting production DB password into ecosystem.config.js..."
+# Replace DATABASE_URL if using non-default password
 if [[ "${DB_PASSWORD}" != "Staysuite2025" ]]; then
   PROD_DB_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
-  TMP_FILE=$(cat "${APP_DIR}/ecosystem.config.js")
-  TMP_FILE="${TMP_FILE//postgresql:\/\/staysuite:Staysuite2025@127.0.0.1:5432\/staysuite/${PROD_DB_URL}}"
-  echo "$TMP_FILE" > "${APP_DIR}/ecosystem.config.js"
-  info "Database password replaced in ecosystem.config.js"
+  sed -i "s|postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite|${PROD_DB_URL}|g" "${APP_DIR}/ecosystem.config.cjs"
+  info "Database password replaced in ecosystem.config.cjs"
 else
   info "Using default DATABASE_URL from repo (no modification needed)"
 fi
@@ -1247,7 +1244,7 @@ fi
 # Stop old processes and start fresh
 pm2 delete all 2>/dev/null || true
 cd "$APP_DIR"
-pm2 start ecosystem.config.js 2>&1 | tail -15
+INSTALL_DIR="${APP_DIR}" pm2 start ecosystem.config.cjs 2>&1 | tail -15
 # Wait for Next.js to be ready on port 3000
 if wait_for_tcp 3000 127.0.0.1 60 2>/dev/null; then
   info "Next.js is listening on port 3000"
