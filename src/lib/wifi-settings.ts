@@ -129,7 +129,7 @@ export async function getWifiSettings<K extends WifiSettingsKey>(
   const rows = await db.$queryRawUnsafe<
     { value: string }[]
   >(
-    `SELECT "value" FROM "WiFiSettings" WHERE "tenantId" = $1 AND COALESCE("propertyId", '00000000-0000-0000-0000-000000000000') = $2 AND "key" = $3 LIMIT 1`,
+    `SELECT "value" FROM "WiFiSettings" WHERE "tenantId" = $1::uuid AND COALESCE("propertyId", '00000000-0000-0000-0000-000000000000'::uuid) = $2::uuid AND "key" = $3 LIMIT 1`,
     tenantId,
     nullProp,
     key
@@ -162,8 +162,8 @@ export async function setWifiSettings<K extends WifiSettingsKey>(
 
   await db.$executeRawUnsafe(
     `INSERT INTO "WiFiSettings" ("tenantId", "propertyId", "key", "value")
-     VALUES ($1, NULLIF($2, '00000000-0000-0000-0000-000000000000'), $3, $4)
-     ON CONFLICT ("tenantId", COALESCE("propertyId", '00000000-0000-0000-0000-000000000000'), "key")
+     VALUES ($1::uuid, NULLIF($2::uuid, '00000000-0000-0000-0000-000000000000'::uuid), $3, $4)
+     ON CONFLICT ("tenantId", COALESCE("propertyId", '00000000-0000-0000-0000-000000000000'::uuid), "key")
      DO UPDATE SET "value" = $4, "updatedAt" = now()`,
     tenantId,
     nullProp,

@@ -130,8 +130,8 @@ async function fetchUptimeStats(
         COUNT(*) FILTER (WHERE "isOnline" = true)::text AS "onlineChecks",
         AVG("avgLatencyMs")::text                 AS "avgLatency"
       FROM "NasHealthLog"
-      WHERE "tenantId"   = $1
-        AND "propertyId" = $2
+      WHERE "tenantId"   = $1::uuid
+        AND "propertyId" = $2::uuid
         AND "createdAt" >= $3
         AND "createdAt" <  $4
       `,
@@ -184,8 +184,8 @@ async function fetchRadacctStats(
       `
       SELECT "ipAddress"
       FROM "RadiusNAS"
-      WHERE "propertyId" = $1
-        AND "tenantId"   = $2
+      WHERE "propertyId" = $1::uuid
+        AND "tenantId"   = $2::uuid
         AND status       = 'active'
         AND "ipAddress"  IS NOT NULL
         AND "ipAddress"  != ''
@@ -298,8 +298,8 @@ async function shouldCreateAlert(
       `
       SELECT id, "createdAt"
       FROM "WiFiAlert"
-      WHERE "tenantId"   = $1
-        AND "propertyId" = $2
+      WHERE "tenantId"   = $1::uuid
+        AND "propertyId" = $2::uuid
         AND type         = 'sla_breach'
         AND status       = 'active'
       ORDER BY "createdAt" ASC
@@ -476,7 +476,7 @@ export async function collectSlaMetrics(): Promise<{
           `
           SELECT id, "periodStart", "periodEnd", "createdAt"
           FROM "WiFiSLAMetric"
-          WHERE "slaConfigId" = $1
+          WHERE "slaConfigId" = $1::uuid
             AND "periodStart" = $2
           LIMIT 1
           `,
@@ -590,7 +590,7 @@ export async function collectSlaMetrics(): Promise<{
               `
               SELECT breached
               FROM "WiFiSLAMetric"
-              WHERE "slaConfigId" = $1
+              WHERE "slaConfigId" = $1::uuid
                 AND "periodStart" >= $2
                 AND "periodStart" <  $3
               ORDER BY "periodStart" ASC
