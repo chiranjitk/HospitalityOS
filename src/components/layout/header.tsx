@@ -29,7 +29,6 @@ import {
   UserPlus,
   CalendarPlus,
   Sparkles,
-  Layers,
   Box,
   Sun,
   Moon,

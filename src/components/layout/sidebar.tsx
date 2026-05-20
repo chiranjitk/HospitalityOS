@@ -21,6 +21,7 @@ import {
   X,
   Lock,
   Sparkles,
+  Crown,
   Layers,
   Box,
   Sun,
