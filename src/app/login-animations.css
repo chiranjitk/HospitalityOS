@@ -82,25 +82,6 @@
   70%  { transform: scale(1.03) translateY(-1px); }
   100% { opacity: 1; transform: scale(1) translateY(0); }
 }
-@keyframes loginAccentFlow {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-@keyframes loginBtnShimmer {
-  0%   { transform: translateX(-100%); }
-  100% { transform: translateX(200%); }
-}
-@keyframes loginBtnPulseGlow {
-  0%, 100% { box-shadow: 0 0 20px 2px rgba(234, 88, 12, 0.15); }
-  50%      { box-shadow: 0 0 28px 4px rgba(234, 88, 12, 0.25); }
-}
-@keyframes loginMobileGradient {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
 /* Register page floating orb animations */
 @keyframes floatOrb1 {
   0%, 100% { transform: translate(0, 0); }

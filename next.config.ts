@@ -36,13 +36,8 @@ const nextConfig: NextConfig = {
     // Run `npx tsc --noEmit` separately in CI/CD if type-checking is needed.
     ignoreBuildErrors: true,
   },
-  // Turbopack configuration — prevent Edge Runtime analysis of Node.js-only modules
-  turbopack: {
-    resolveAlias: {
-      // twilio uses deprecated 'querystring' — make it resolve to empty for Edge analysis
-      'querystring': '',
-    },
-  },
+  // Turbopack configuration
+  turbopack: {},
   experimental: {
     // Only bundle the specific sub-paths actually used from each package.
     // This dramatically reduces build-time memory for projects with many files
