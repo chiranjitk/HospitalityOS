@@ -477,7 +477,7 @@ export default function VipRecognition() {
 
       {/* Summary Cards */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800">
+        <Card className="border-0 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -491,7 +491,7 @@ export default function VipRecognition() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900">
+        <Card className="border-0 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -505,7 +505,7 @@ export default function VipRecognition() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900">
+        <Card className="border-0 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -521,7 +521,7 @@ export default function VipRecognition() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900">
+        <Card className="border-0 bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
@@ -549,7 +549,7 @@ export default function VipRecognition() {
         {/* ---- Tab: Guest Recognition Dashboard ---- */}
         <TabsContent value="dashboard" className="mt-4 space-y-4">
           {/* Today's Arrivals */}
-          <Card className="border-0 shadow-sm">
+          <Card className="border-0">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -635,7 +635,7 @@ export default function VipRecognition() {
           </Card>
 
           {/* All VIP Guests List */}
-          <Card className="border-0 shadow-sm">
+          <Card className="border-0">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -754,7 +754,7 @@ export default function VipRecognition() {
         <TabsContent value="tiers" className="mt-4 space-y-4">
           <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
             {(Object.values(TIER_CONFIG) as VipTierConfig[]).map(config => (
-              <Card key={config.tier} className={`border-0 shadow-sm bg-gradient-to-br ${config.gradientFrom} ${config.gradientTo}`}>
+              <Card key={config.tier} className={`border-0 bg-gradient-to-br ${config.gradientFrom} ${config.gradientTo}`}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -831,7 +831,7 @@ export default function VipRecognition() {
 
         {/* ---- Tab: Recognition Rules Engine ---- */}
         <TabsContent value="rules" className="mt-4 space-y-4">
-          <Card className="border-0 shadow-sm">
+          <Card className="border-0">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Shield className="h-5 w-5" />
@@ -894,7 +894,7 @@ export default function VipRecognition() {
           </Card>
 
           {/* Notification Channels Overview */}
-          <Card className="border-0 shadow-sm">
+          <Card className="border-0">
             <CardHeader>
               <CardTitle className="text-lg">Notification Channels</CardTitle>
               <CardDescription>How recognition alerts are delivered to staff</CardDescription>
@@ -921,7 +921,7 @@ export default function VipRecognition() {
 
         {/* ---- Tab: Alert History Log ---- */}
         <TabsContent value="history" className="mt-4 space-y-4">
-          <Card className="border-0 shadow-sm">
+          <Card className="border-0">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>

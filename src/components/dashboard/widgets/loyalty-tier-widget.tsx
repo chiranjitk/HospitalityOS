@@ -112,7 +112,7 @@ function getTierVisuals(tierName: string) {
 
 function LoyaltyTierSkeleton() {
   return (
-    <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+    <Card className="border border-border/50 rounded-2xl overflow-hidden">
       <div className="h-[2px] bg-gradient-to-r from-orange-400 via-amber-400 to-violet-400" />
       <CardContent className="p-4 space-y-4">
         <div className="flex items-center justify-between">
@@ -434,7 +434,7 @@ export function LoyaltyTierWidget() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
       >
-        <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+        <Card className="border border-border/50 rounded-2xl overflow-hidden">
           <div className="h-[2px] bg-gradient-to-r from-orange-400 via-amber-400 to-violet-400" />
           <CardContent className="p-4 flex items-center justify-center min-h-[300px]">
             <div className="text-center">
@@ -461,7 +461,7 @@ export function LoyaltyTierWidget() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
     >
-      <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden hover-lift transition-all duration-300">
+      <Card className="border border-border/50 rounded-2xl overflow-hidden">
         {/* Gradient accent */}
         <div className="h-[2px] bg-gradient-to-r from-orange-400 via-amber-400 to-violet-400" />
 

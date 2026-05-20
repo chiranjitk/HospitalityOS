@@ -147,7 +147,7 @@ function getTempBarOffset(low: number, globalHigh: number, globalLow: number): n
 
 function WeatherForecastSkeleton() {
   return (
-    <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+    <Card className="border border-border/50 rounded-2xl overflow-hidden">
       <div className="h-[2px] bg-gradient-to-r from-amber-400 via-teal-400 to-slate-400" />
       <CardContent className="p-4 space-y-4">
         {/* Header */}
@@ -314,7 +314,7 @@ export function WeatherForecastWidget() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
       >
-        <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+        <Card className="border border-border/50 rounded-2xl overflow-hidden">
           <div className="h-[2px] bg-gradient-to-r from-amber-400 via-teal-400 to-slate-400" />
           <CardContent className="p-6 flex flex-col items-center justify-center text-center gap-3">
             <div className="h-10 w-10 rounded-full bg-muted/80 flex items-center justify-center">
@@ -344,7 +344,7 @@ export function WeatherForecastWidget() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
       >
-        <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+        <Card className="border border-border/50 rounded-2xl overflow-hidden">
           <div className="h-[2px] bg-gradient-to-r from-amber-400 via-teal-400 to-slate-400" />
           <CardContent className="p-6 flex flex-col items-center justify-center text-center gap-3">
             <div className="h-10 w-10 rounded-full bg-red-50 dark:bg-red-950/50 flex items-center justify-center">
@@ -378,7 +378,7 @@ export function WeatherForecastWidget() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
       >
-        <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+        <Card className="border border-border/50 rounded-2xl overflow-hidden">
           <div className="h-[2px] bg-gradient-to-r from-amber-400 via-teal-400 to-slate-400" />
           <CardContent className="p-6 flex flex-col items-center justify-center text-center gap-3">
             <div className="h-10 w-10 rounded-full bg-muted/80 flex items-center justify-center">
@@ -413,7 +413,7 @@ export function WeatherForecastWidget() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
     >
-      <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden hover-lift transition-all duration-300">
+      <Card className="border border-border/50 rounded-2xl overflow-hidden">
         {/* Gradient accent line */}
         <div className="h-[2px] bg-gradient-to-r from-amber-400 via-teal-400 to-slate-400" />
 

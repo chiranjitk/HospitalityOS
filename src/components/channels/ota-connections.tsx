@@ -1267,7 +1267,7 @@ export default function OTAConnections() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/10 transition-all duration-200">
+        <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-emerald-500/20">
@@ -1281,7 +1281,7 @@ export default function OTAConnections() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 border-cyan-500/20 hover:shadow-lg hover:shadow-cyan-500/10 transition-all duration-200">
+        <Card className="bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 border-cyan-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-cyan-500/20">
@@ -1295,7 +1295,7 @@ export default function OTAConnections() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border-amber-500/20 hover:shadow-lg hover:shadow-amber-500/10 transition-all duration-200">
+        <Card className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border-amber-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-500/20">
@@ -1309,7 +1309,7 @@ export default function OTAConnections() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-red-500/10 to-red-600/5 border-red-500/20 hover:shadow-lg hover:shadow-red-500/10 transition-all duration-200">
+        <Card className="bg-gradient-to-br from-red-500/10 to-red-600/5 border-red-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-red-500/20">
@@ -1372,7 +1372,7 @@ export default function OTAConnections() {
                 const isLoading = actionInProgress === connection.id;
                 
                 return (
-                  <Card key={connection.id} className="overflow-hidden hover:shadow-lg hover:shadow-primary/5 transition-all duration-200">
+                  <Card key={connection.id} className="overflow-hidden">
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
@@ -1596,7 +1596,7 @@ export default function OTAConnections() {
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {channels.map((channel) => (
-                  <Card key={channel.id} className="hover:shadow-lg hover:shadow-primary/5 transition-all duration-200">
+                  <Card key={channel.id}>
                     <CardContent className="p-4">
                       <div className="flex items-start gap-3">
                         <div

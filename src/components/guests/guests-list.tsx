@@ -534,7 +534,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
         exit="exit"
         layout
       >
-        <Card className="hover:shadow-lg hover:bg-muted/30 transition-all duration-200 group">
+        <Card className="hover:bg-muted/30 transition-colors duration-200 group">
           <CardContent className="p-4 space-y-3">
             {/* Row 1: Avatar + Name + Badges */}
             <div className="flex items-start gap-3">
@@ -630,7 +630,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
         exit="exit"
         layout
       >
-        <Card className="hover:shadow-lg hover:bg-muted/30 transition-all duration-200 group">
+        <Card className="hover:bg-muted/30 transition-colors duration-200 group">
           <CardContent className="p-4 space-y-3">
             <div className="flex items-start gap-3">
               <Avatar className="h-11 w-11 shrink-0 ring-2 ring-offset-2 ring-offset-background transition-all duration-200 group-hover:ring-primary/30">

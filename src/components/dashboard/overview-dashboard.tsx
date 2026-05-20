@@ -220,7 +220,7 @@ function TodaySummaryCard({ summary, isLoading }: { summary: TodaySummary | null
 
   if (isLoading || !summary) {
     return (
-      <Card className="card-accent border border-border/60 shadow-md rounded-2xl bg-card">
+      <Card className="card-accent border border-border/60 rounded-2xl bg-card">
         <CardContent className="p-5">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-[88px] rounded-xl" />)}
@@ -282,7 +282,7 @@ function TodaySummaryCard({ summary, isLoading }: { summary: TodaySummary | null
   ];
 
   return (
-    <Card className="card-accent border border-border/60 shadow-md rounded-2xl bg-card hover-lift">
+    <Card className="card-accent border border-border/60 rounded-2xl bg-card">
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -438,7 +438,7 @@ function AlertsWidget({ alerts, isLoading }: { alerts: TodaySummary['alerts']; i
 
   if (isLoading) {
     return (
-      <Card className="card-accent border border-border/60 shadow-md rounded-2xl bg-card">
+      <Card className="card-accent border border-border/60 rounded-2xl bg-card">
         <CardContent className="p-5">
           <Skeleton className="h-5 w-28 mb-4" />
           <div className="space-y-2">
@@ -478,7 +478,7 @@ function AlertsWidget({ alerts, isLoading }: { alerts: TodaySummary['alerts']; i
   };
 
   return (
-    <Card className="card-accent border border-border/60 shadow-md rounded-2xl bg-card hover-lift">
+    <Card className="card-accent border border-border/60 rounded-2xl bg-card">
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">

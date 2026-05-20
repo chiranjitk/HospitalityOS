@@ -532,7 +532,7 @@ export default function CurrencyConfig() {
   // ============================================
   const StatsCards = () => (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-      <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20">
+      <Card className="border-0 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/50">
@@ -546,7 +546,7 @@ export default function CurrencyConfig() {
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20">
+      <Card className="border-0 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/20">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/50">
@@ -560,7 +560,7 @@ export default function CurrencyConfig() {
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-sm bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/20">
+      <Card className="border-0 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/20">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-900/50">
@@ -574,7 +574,7 @@ export default function CurrencyConfig() {
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20">
+      <Card className="border-0 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/50">
@@ -598,7 +598,7 @@ export default function CurrencyConfig() {
   const ConfigTable = () => {
     if (configs.length === 0) {
       return (
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted mb-4">
               <Globe className="h-8 w-8 text-muted-foreground" />
@@ -617,7 +617,7 @@ export default function CurrencyConfig() {
     }
 
     return (
-      <Card className="border-0 shadow-sm">
+      <Card className="border-0">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
@@ -995,7 +995,7 @@ export default function CurrencyConfig() {
   // CONVERTER PANEL
   // ============================================
   const ConverterPanel = () => (
-    <Card className="border-0 shadow-sm">
+    <Card className="border-0">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-900/50">

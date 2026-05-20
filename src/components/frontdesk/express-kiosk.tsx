@@ -314,7 +314,7 @@ export default function ExpressKiosk() {
               exit={{ opacity: 0, x: -50 }}
               className="w-full max-w-lg"
             >
-              <Card className="p-8 shadow-xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+              <Card className="p-8 border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
                 <div className="text-center space-y-6">
                   <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
                     <Search className="h-8 w-8 text-primary" />
@@ -383,7 +383,7 @@ export default function ExpressKiosk() {
               exit={{ opacity: 0, x: -50 }}
               className="w-full max-w-lg"
             >
-              <Card className="p-8 shadow-xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+              <Card className="p-8 border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
                 <div className="space-y-6">
                   <div className="text-center">
                     <h2 className="text-2xl font-bold">Verify Your Details</h2>
@@ -473,7 +473,7 @@ export default function ExpressKiosk() {
               exit={{ opacity: 0, x: -50 }}
               className="w-full max-w-lg"
             >
-              <Card className="p-8 shadow-xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+              <Card className="p-8 border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
                 <div className="space-y-6">
                   <div className="text-center">
                     <h2 className="text-2xl font-bold">Confirm & Check In</h2>
@@ -589,7 +589,7 @@ export default function ExpressKiosk() {
               animate={{ opacity: 1, scale: 1 }}
               className="w-full max-w-lg"
             >
-              <Card className="p-8 shadow-xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+              <Card className="p-8 border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
                 <div className="text-center space-y-6">
                   <motion.div
                     initial={{ scale: 0 }}
@@ -673,7 +673,7 @@ export default function ExpressKiosk() {
               animate={{ opacity: 1, x: 0 }}
               className="w-full max-w-lg"
             >
-              <Card className="p-8 shadow-xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+              <Card className="p-8 border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
                 <div className="text-center space-y-6">
                   <div className="mx-auto w-16 h-16 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
                     <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400" />

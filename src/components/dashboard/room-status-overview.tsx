@@ -292,7 +292,7 @@ function RoomStatusOverviewSkeleton() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
     >
-      <Card className="border border-border/60 shadow-md rounded-2xl bg-card">
+      <Card className="border border-border/60 rounded-2xl bg-card">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <Skeleton className="h-5 w-40" />
@@ -384,7 +384,7 @@ export function RoomStatusOverview() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
       >
-        <Card className="border border-border/60 shadow-md rounded-2xl bg-card">
+        <Card className="border border-border/60 rounded-2xl bg-card">
           <CardContent className="p-6 flex items-center justify-center min-h-[300px]">
             <div className="text-center">
               <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-destructive" />
@@ -405,7 +405,7 @@ export function RoomStatusOverview() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
     >
-      <Card className="border border-border/60 shadow-md rounded-2xl bg-card hover-lift">
+      <Card className="border border-border/60 rounded-2xl bg-card">
         {/* Header */}
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">

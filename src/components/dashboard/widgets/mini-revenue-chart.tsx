@@ -66,7 +66,7 @@ function buildSmoothPath(points: Array<{ x: number; y: number }>): string {
 
 function MiniRevenueSkeleton() {
   return (
-    <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+    <Card className="border border-border/50 rounded-2xl overflow-hidden">
       <div className="h-[2px] bg-gradient-to-r from-primary via-emerald-400 to-teal-400" />
       <CardContent className="p-4 space-y-4">
         <div className="flex items-center justify-between">
@@ -382,7 +382,7 @@ export function MiniRevenueChart() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
       >
-        <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+        <Card className="border border-border/50 rounded-2xl overflow-hidden">
           <div className="h-[2px] bg-gradient-to-r from-primary via-emerald-400 to-teal-400" />
           <CardContent className="p-4 flex items-center justify-center min-h-[280px]">
             <div className="text-center">
@@ -401,7 +401,7 @@ export function MiniRevenueChart() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
     >
-      <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden hover-lift transition-all duration-300">
+      <Card className="border border-border/50 rounded-2xl overflow-hidden">
         {/* Gradient accent line */}
         <div className="h-[2px] bg-gradient-to-r from-primary via-emerald-400 to-teal-400" />
 
