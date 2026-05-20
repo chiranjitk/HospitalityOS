@@ -1,3 +1,5 @@
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
 // Node.js-only modules — loaded via require() to avoid Turbopack Edge Runtime analysis.
 // eslint-disable-next-line @typescript-eslint/no-require-imports

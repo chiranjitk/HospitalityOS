@@ -1,3 +1,5 @@
+export const runtime = 'nodejs';
+
 /**
  * System Health API
  *

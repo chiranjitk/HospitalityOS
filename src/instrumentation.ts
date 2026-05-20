@@ -21,9 +21,12 @@ export async function register() {
   }
 
   // Initialize pool classes (lightweight — only db + shell)
+  // Dynamic import with string concatenation prevents Turbopack from
+  // statically tracing this dependency chain into the Edge Instrumentation bundle.
   setTimeout(async () => {
     try {
-      const { initializeAllPoolClasses } = await import('@/lib/network/script-runner');
+      const mod = await import(/* webpackIgnore: true */ '@/lib/network/' + 'script-runner');
+      const { initializeAllPoolClasses } = mod;
       const result = await initializeAllPoolClasses();
       if (result.created > 0) {
         console.log(`[Instrumentation] Pool classes initialized: ${result.created} created, ${result.failed} failed`);

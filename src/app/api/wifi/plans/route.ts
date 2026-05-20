@@ -1,13 +1,17 @@
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { syncRadiusGroup, deleteRadiusGroup } from '@/lib/wifi/services/wifi-user-service';
 import { updatePlanBandwidthForActiveSessions } from '@/lib/network/tc-bw-update';
 import { RADCLIENT_BIN } from '@/lib/wifi/paths';
-export async function GET(request: NextRequest) {    const user = await requirePermission(request, 'wifi.manage');
-    if (user instanceof NextResponse) return user;
 
-      try {
+export async function GET(request: NextRequest) {
+  const user = await requirePermission(request, 'wifi.manage');
+  if (user instanceof NextResponse) return user;
+
+  try {
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status');
     const search = searchParams.get('search');
@@ -98,10 +102,11 @@ export async function GET(request: NextRequest) {    const user = await requireP
 }
 
 // POST /api/wifi/plans - Create a new WiFi plan
-export async function POST(request: NextRequest) {    const user = await requirePermission(request, 'wifi.manage');
-    if (user instanceof NextResponse) return user;
+export async function POST(request: NextRequest) {
+  const user = await requirePermission(request, 'wifi.manage');
+  if (user instanceof NextResponse) return user;
 
-      try {
+  try {
     const body = await request.json();
     const tenantId = user.tenantId;
 
@@ -196,10 +201,11 @@ export async function POST(request: NextRequest) {    const user = await require
 }
 
 // PUT /api/wifi/plans - Update a WiFi plan
-export async function PUT(request: NextRequest) {    const user = await requirePermission(request, 'wifi.manage');
-    if (user instanceof NextResponse) return user;
+export async function PUT(request: NextRequest) {
+  const user = await requirePermission(request, 'wifi.manage');
+  if (user instanceof NextResponse) return user;
 
-      try {
+  try {
     const body = await request.json();
     const tenantId = user.tenantId;
     const { id, ...updateData } = body;
@@ -436,10 +442,11 @@ export async function PUT(request: NextRequest) {    const user = await requireP
 }
 
 // DELETE /api/wifi/plans - Delete a WiFi plan
-export async function DELETE(request: NextRequest) {    const user = await requirePermission(request, 'wifi.manage');
-    if (user instanceof NextResponse) return user;
+export async function DELETE(request: NextRequest) {
+  const user = await requirePermission(request, 'wifi.manage');
+  if (user instanceof NextResponse) return user;
 
-      try {
+  try {
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get('id');
 
