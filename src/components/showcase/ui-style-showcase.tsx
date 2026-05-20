@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Hotel, Users, Calendar, DollarSign, TrendingUp,
   Star, MapPin, Wifi, Car, Coffee, ArrowRight, Check,
-  BedDouble, Bath, Tv, Wind, Sparkles, Crown, Box, Minus, Zap,
+  BedDouble, Bath, Tv, Wind, Sparkles, Box,
   Sun, Moon, Monitor, Palette
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -16,30 +16,22 @@ import { Card } from '@/components/ui/card';
 
 // Theme icon mapping
 const themeIcons: Partial<Record<ThemeId, typeof Sparkles>> = {
+  'hospitality-sunrise': Sun,
   'gradient-modern': Sparkles,
-  'dark-premium': Crown,
-  'cyber-neon': Zap,
-  'sakura-pink': Sparkles,
   'neumorphism': Box,
-  'minimalist': Minus,
 };
 
 // Theme preview gradient colors
 const themeGradients: Partial<Record<ThemeId, string>> = {
+  'hospitality-sunrise': 'from-orange-400 via-orange-500 to-orange-600',
   'gradient-modern': 'from-violet-500 via-purple-500 to-indigo-600',
-  'dark-premium': 'from-amber-400 via-orange-500 to-amber-600',
-  'cyber-neon': 'from-cyan-400 via-purple-500 to-pink-500',
-  'sakura-pink': 'from-pink-300 via-pink-400 to-rose-500',
   'neumorphism': 'from-teal-400 via-cyan-500 to-teal-600',
-  'minimalist': 'from-gray-400 via-gray-500 to-gray-600',
 };
 
 // Sample dashboard card for theme preview
 const ThemePreviewCard = ({ themeId }: { themeId: ThemeId }) => {
   const gradient = themeGradients[themeId];
-  const isNeon = themeId === 'cyber-neon';
   const isNeumorphic = themeId === 'neumorphism';
-  const isMinimal = themeId === 'minimalist';
 
   return (
     <div className="space-y-3">
@@ -48,9 +40,6 @@ const ThemePreviewCard = ({ themeId }: { themeId: ThemeId }) => {
         'h-24 rounded-xl relative overflow-hidden',
         `bg-gradient-to-br ${gradient}`
       )}>
-        {isNeon && (
-          <div className="absolute inset-0 bg-black/10" />
-        )}
         <div className="absolute bottom-3 left-3 right-3">
           <div className="flex items-center justify-between">
             <div>
@@ -79,9 +68,7 @@ const ThemePreviewCard = ({ themeId }: { themeId: ThemeId }) => {
             className={cn(
               'p-2 rounded-lg text-center',
               isNeumorphic && 'shadow-[4px_4px_8px_#d1d5db,-4px_-4px_8px_#ffffff] bg-gray-100',
-              isNeon && 'border border-cyan-500/30 shadow-[0_0_8px_rgba(0,255,255,0.3)]',
-              isMinimal && 'border border-gray-200',
-              !isNeumorphic && !isNeon && !isMinimal && 'bg-gray-50 dark:bg-gray-800'
+              !isNeumorphic && 'bg-gray-50 dark:bg-gray-800'
             )}
           >
             <stat.icon className="h-4 w-4 mx-auto text-muted-foreground" />
@@ -98,10 +85,6 @@ const ThemePreviewCard = ({ themeId }: { themeId: ThemeId }) => {
           className={cn(
             'flex-1 text-xs',
             themeId === 'gradient-modern' && 'bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700',
-            themeId === 'dark-premium' && 'bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-gray-900',
-            themeId === 'cyber-neon' && 'bg-gradient-to-r from-cyan-400 to-pink-500 hover:from-cyan-500 hover:to-pink-600',
-            themeId === 'sakura-pink' && 'bg-gradient-to-r from-pink-400 to-rose-500 hover:from-pink-500 hover:to-rose-600',
-            themeId === 'minimalist' && 'bg-gray-900 hover:bg-gray-800 text-white'
           )}
         >
           New Booking

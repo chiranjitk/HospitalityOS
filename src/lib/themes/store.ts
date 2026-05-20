@@ -1,6 +1,6 @@
 /**
  * UI Style Theme Store - Zustand store for theme management
- * Handles 16 UI style themes (1 Default + 6 Original + 4 Premium Netflix-style + 5 Enterprise)
+ * Handles 7 UI style themes (1 Default + 2 Original + 4 Enterprise)
  */
 
 import { create } from 'zustand';
@@ -14,18 +14,9 @@ export { themes, DEFAULT_THEME, themeIcons, getThemeConfig, getAllThemes, getThe
 // Local type definitions for UI Style - matches ThemeId from config
 export type UIStyleTheme = 
   | 'hospitality-sunrise'
-  | 'gradient-modern' 
-  | 'dark-premium' 
-  | 'cyber-neon' 
-  | 'sakura-pink' 
-  | 'neumorphism' 
-  | 'minimalist'
-  | 'netflix-crimson'
-  | 'obsidian-rose'
-  | 'midnight-ivory'
-  | 'scarlet-noir'
+  | 'gradient-modern'
+  | 'neumorphism'
   | 'slate-enterprise'
-  | 'sapphire-dash'
   | 'terra-corporate'
   | 'arctic-steel'
   | 'noir-executive';
@@ -78,7 +69,7 @@ export function applyUITheme(themeId: UIStyleTheme, mode: 'light' | 'dark') {
   root.style.setProperty('color-scheme', mode === 'dark' ? 'dark' : 'light');
 
   // ── Apply CSS variables from theme config ────────────────────────────
-  // This ensures ALL 15 themes get proper sidebar & UI colors,
+  // This ensures ALL 7 themes get proper sidebar & UI colors,
   // not just the 6 themes that have CSS rules in themes.css.
   const theme = themesConfig[themeId];
   if (theme) {

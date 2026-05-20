@@ -7,16 +7,9 @@ import {
   Sun, 
   Monitor, 
   Sparkles, 
-  Crown, 
   Box, 
-  Minimize,
   Palette,
-  Zap,
-  Flame,
-  Gem,
-  Clapperboard,
   Building2,
-  BarChart3,
   Palmtree,
   LayoutDashboard,
   Briefcase,
@@ -42,7 +35,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useUIStyleStore, UIStyleTheme } from '@/lib/themes/store';
 
-// UI Style theme configuration with enhanced visuals - 15 themes
+// UI Style theme configuration with enhanced visuals - 7 themes
 const uiStyleThemes: Array<{
   id: UIStyleTheme;
   name: string;
@@ -53,7 +46,7 @@ const uiStyleThemes: Array<{
   darkPreview: string;
   features: string[];
   bestFor: string;
-  category: 'default' | 'original' | 'premium' | 'enterprise';
+  category: 'default' | 'original' | 'enterprise';
 }> = [
   {
     id: 'hospitality-sunrise',
@@ -80,113 +73,16 @@ const uiStyleThemes: Array<{
     category: 'original',
   },
   {
-    id: 'dark-premium',
-    name: 'Dark Premium',
-    description: 'Elegant dark theme with luxurious gold accents.',
-    icon: Crown,
-    previewGradient: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #D4AF37 100%)',
-    lightPreview: 'linear-gradient(135deg, #fffbf0 0%, #fef3c7 50%, #fde68a 100%)',
-    darkPreview: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)',
-    features: ['Gold accents', 'Elegant dark', 'Luxury feel'],
-    bestFor: 'Dark mode',
-    category: 'original',
-  },
-  {
-    id: 'cyber-neon',
-    name: 'Cyber Neon',
-    description: 'Futuristic theme with electric cyan and neon pink accents.',
-    icon: Zap,
-    previewGradient: 'linear-gradient(135deg, #00F5FF 0%, #FF00FF 50%, #00F5FF 100%)',
-    lightPreview: 'linear-gradient(135deg, #f0ffff 0%, #e0ffff 50%, #d0ffff 100%)',
-    darkPreview: 'linear-gradient(135deg, #0a1628 0%, #1a2a4a 50%, #0a1628 100%)',
-    features: ['Neon glow', 'Cyberpunk', 'Electric colors'],
-    bestFor: 'Dark mode',
-    category: 'original',
-  },
-  {
-    id: 'sakura-pink',
-    name: 'Sakura Pink',
-    description: 'Soft and elegant pink theme inspired by cherry blossoms.',
-    icon: Sparkles,
-    previewGradient: 'linear-gradient(135deg, #FFB7C5 0%, #FF69B4 50%, #DB7093 100%)',
-    lightPreview: 'linear-gradient(135deg, #fff5f7 0%, #ffe4e9 50%, #ffd3dc 100%)',
-    darkPreview: 'linear-gradient(135deg, #2d1f24 0%, #3d2830 50%, #2d1f24 100%)',
-    features: ['Soft pink', 'Elegant', 'Warm tones'],
-    bestFor: 'Both modes',
-    category: 'original',
-  },
-  {
     id: 'neumorphism',
     name: 'Neumorphism',
     description: 'Soft UI with subtle shadows creating an extruded effect.',
     icon: Box,
     previewGradient: 'linear-gradient(145deg, #e6e9ef 0%, #d1d5db 50%, #e6e9ef 100%)',
     lightPreview: 'linear-gradient(145deg, #f3f4f6 0%, #e5e7eb 50%, #d1d5db 100%)',
-    darkPreview: 'linear-gradient(145deg, #1f2937 0%, #111827 50%, #1f2937 100%)',
+    darkPreview: 'linear-gradient(135deg, #1f2937 0%, #111827 50%, #1f2937 100%)',
     features: ['Soft shadows', 'Extruded feel', 'Tactile design'],
     bestFor: 'Light mode',
     category: 'original',
-  },
-  {
-    id: 'minimalist',
-    name: 'Minimalist',
-    description: 'Clean, simple design with lots of whitespace.',
-    icon: Minimize,
-    previewGradient: 'linear-gradient(135deg, #ffffff 0%, #f5f5f5 50%, #171717 100%)',
-    lightPreview: 'linear-gradient(135deg, #ffffff 0%, #fafafa 50%, #f5f5f5 100%)',
-    darkPreview: 'linear-gradient(135deg, #171717 0%, #0a0a0a 50%, #000000 100%)',
-    features: ['Clean design', 'Max whitespace', 'Black & white'],
-    bestFor: 'Both modes',
-    category: 'original',
-  },
-  // ===== PREMIUM NETFLIX-STYLE THEMES =====
-  {
-    id: 'netflix-crimson',
-    name: 'Netflix Crimson',
-    description: 'Dark cinematic red inspired by streaming platforms.',
-    icon: Flame,
-    previewGradient: 'linear-gradient(135deg, #8B0000 0%, #DC143C 50%, #B22222 100%)',
-    lightPreview: 'linear-gradient(135deg, #fff5f5 0%, #fee2e2 50%, #fecaca 100%)',
-    darkPreview: 'linear-gradient(135deg, #0a0204 0%, #1a0508 50%, #120308 100%)',
-    features: ['Cinematic red', 'Dark elegance', 'Streaming vibe'],
-    bestFor: 'Dark mode',
-    category: 'premium',
-  },
-  {
-    id: 'obsidian-rose',
-    name: 'Obsidian Rose',
-    description: 'Pure obsidian black with luxurious rose gold accents.',
-    icon: Gem,
-    previewGradient: 'linear-gradient(135deg, #1a1a1a 0%, #B76E79 50%, #E8A87C 100%)',
-    lightPreview: 'linear-gradient(135deg, #fff8f6 0%, #fce4e4 50%, #f5d0d0 100%)',
-    darkPreview: 'linear-gradient(135deg, #050505 0%, #0d0d0d 50%, #121212 100%)',
-    features: ['Rose gold', 'Obsidian black', 'Luxury feel'],
-    bestFor: 'Dark mode',
-    category: 'premium',
-  },
-  {
-    id: 'midnight-ivory',
-    name: 'Midnight Ivory',
-    description: 'Deep navy with elegant ivory and cream accents.',
-    icon: Moon,
-    previewGradient: 'linear-gradient(135deg, #0C1445 0%, #1E3A5F 50%, #FAEBD7 100%)',
-    lightPreview: 'linear-gradient(135deg, #faf8f5 0%, #f5efe6 50%, #ede4d4 100%)',
-    darkPreview: 'linear-gradient(135deg, #060d24 0%, #0C1445 50%, #152347 100%)',
-    features: ['Ivory cream', 'Midnight navy', 'Refined'],
-    bestFor: 'Dark mode',
-    category: 'premium',
-  },
-  {
-    id: 'scarlet-noir',
-    name: 'Scarlet Noir',
-    description: 'Pure black with vivid scarlet highlights. The Netflix experience.',
-    icon: Clapperboard,
-    previewGradient: 'linear-gradient(135deg, #000000 0%, #E50914 50%, #B20710 100%)',
-    lightPreview: 'linear-gradient(135deg, #fff5f5 0%, #fee2e2 50%, #fecaca 100%)',
-    darkPreview: 'linear-gradient(135deg, #000000 0%, #050505 50%, #0a0a0a 100%)',
-    features: ['Netflix-style', 'Pure black', 'Scarlet glow'],
-    bestFor: 'Dark mode',
-    category: 'premium',
   },
   // ===== ENTERPRISE THEMES =====
   {
@@ -199,18 +95,6 @@ const uiStyleThemes: Array<{
     darkPreview: 'linear-gradient(135deg, #1e293b 0%, #334155 50%, #1e293b 100%)',
     features: ['Flat design', 'Soft shadows', 'Professional'],
     bestFor: 'Both modes',
-    category: 'enterprise',
-  },
-  {
-    id: 'sapphire-dash',
-    name: 'Sapphire Dash',
-    description: 'Operations dashboard theme with deep sapphire tones — designed for data-driven teams.',
-    icon: BarChart3,
-    previewGradient: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 50%, #1e3a5f 100%)',
-    lightPreview: 'linear-gradient(135deg, #ffffff 0%, #eff6ff 50%, #dbeafe 100%)',
-    darkPreview: 'linear-gradient(135deg, #0c1425 0%, #172554 50%, #0c1425 100%)',
-    features: ['Data-focused', 'Strong contrast', 'Dark-first'],
-    bestFor: 'Dark mode',
     category: 'enterprise',
   },
   {
@@ -392,7 +276,7 @@ export function UIStyleSwitcher({ trigger, open, onOpenChange }: UIStyleSwitcher
                 Choose Your Style
               </span>
               <p className="text-xs font-normal text-muted-foreground mt-0.5">
-                16 handcrafted design themes • Default, Original, Premium & Enterprise collections
+                7 handcrafted design themes • Default, Original & Enterprise collections
               </p>
             </div>
           </DialogTitle>
@@ -520,7 +404,7 @@ export function UIStyleToggle() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72 rounded-xl p-2">
         <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-          UI Themes • 16 available
+          UI Themes • 7 available
         </div>
         <DropdownMenuSeparator className="my-1" />
         <div className="max-h-80 overflow-y-auto">
@@ -535,7 +419,7 @@ export function UIStyleToggle() {
                     'h-3.5 w-3.5',
                     group.key === 'default' && 'text-orange-500 dark:text-orange-400',
                     group.key === 'original' && 'text-violet-500 dark:text-violet-400',
-                    group.key === 'premium' && 'text-amber-500 dark:text-amber-400',
+
                     group.key === 'enterprise' && 'text-slate-500',
                   )} />
                   {group.name}
@@ -621,13 +505,6 @@ const categoryConfig = {
     badgeVariant: 'default' as const,
     badgeColor: 'bg-violet-500/10 text-violet-700 dark:text-violet-400 border-violet-500/20',
   },
-  premium: {
-    name: 'Premium Collection',
-    description: 'Cinematic dark themes with dramatic visual impact',
-    icon: Crown,
-    badgeVariant: 'warning' as const,
-    badgeColor: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20',
-  },
   enterprise: {
     name: 'Enterprise Collection',
     description: 'Professional themes designed for business operations',
@@ -639,7 +516,7 @@ const categoryConfig = {
 
 type CategoryKey = keyof typeof categoryConfig;
 
-const categoryOrder: CategoryKey[] = ['default', 'original', 'premium', 'enterprise'];
+const categoryOrder: CategoryKey[] = ['default', 'original', 'enterprise'];
 
 const groupedThemes = categoryOrder.map((cat) => ({
   key: cat,
@@ -659,14 +536,14 @@ function CategoryHeader({ category }: { category: typeof groupedThemes[0] }) {
           'h-8 w-8 rounded-lg flex items-center justify-center shadow-sm',
           category.key === 'default' && 'bg-orange-500/15',
           category.key === 'original' && 'bg-violet-500/15',
-          category.key === 'premium' && 'bg-amber-500/15',
+
           category.key === 'enterprise' && 'bg-slate-500/15',
         )}>
           <Icon className={cn(
             'h-4 w-4',
             category.key === 'default' && 'text-orange-600 dark:text-orange-400',
             category.key === 'original' && 'text-violet-600 dark:text-violet-400',
-            category.key === 'premium' && 'text-amber-600 dark:text-amber-400',
+
             category.key === 'enterprise' && 'text-slate-600 dark:text-slate-400',
           )} />
         </div>

@@ -29,19 +29,12 @@ import {
   UserPlus,
   CalendarPlus,
   Sparkles,
-  Crown,
   Layers,
   Box,
-  Minimize,
   Sun,
   Moon,
   Building2,
-  Zap,
-  Gem,
   Keyboard,
-  Flame,
-  Clapperboard,
-  BarChart3,
   Palmtree,
   LayoutDashboard,
   Briefcase,
@@ -102,21 +95,12 @@ export function Header({ className, onMenuClick }: HeaderProps) {
   const { isDark, toggleMode } = useUIStyle();
   const { themeId } = useUIStyleStore();
 
-  // Theme-specific icon - all 16 themes
+  // Theme-specific icon - 7 themes
   const ThemeIcon = {
     'hospitality-sunrise': Sun,
     'gradient-modern': Sparkles,
-    'dark-premium': Crown,
-    'cyber-neon': Zap,
-    'sakura-pink': Sparkles,
     'neumorphism': Box,
-    'minimalist': Minimize,
-    'netflix-crimson': Flame,
-    'obsidian-rose': Gem,
-    'midnight-ivory': Moon,
-    'scarlet-noir': Clapperboard,
     'slate-enterprise': Building2,
-    'sapphire-dash': BarChart3,
     'terra-corporate': Palmtree,
     'arctic-steel': LayoutDashboard,
     'noir-executive': Briefcase,
