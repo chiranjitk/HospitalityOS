@@ -2,10 +2,10 @@
    UTILITY CLASSES
    ============================================ */
 
-/* Custom scrollbar */
+/* Custom scrollbar — uses primary hue for visibility */
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: var(--muted) transparent;
+  scrollbar-color: oklch(from var(--primary) l c h / 0.35) transparent;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
@@ -18,12 +18,12 @@
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: var(--muted);
+  background: oklch(from var(--primary) l c h / 0.30);
   border-radius: 3px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: var(--muted-foreground);
+  background: oklch(from var(--primary) l c h / 0.55);
 }
 
 /* Animation utilities */

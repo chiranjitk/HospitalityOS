@@ -290,19 +290,19 @@ body[style*="padding-right"] {
    Dark mode refinements, utility classes & effects
    ============================================ */
 
-/* Custom Scrollbar - Light & Dark */
+/* Custom Scrollbar - Light & Dark — uses primary hue for visibility */
 * {
   scrollbar-width: thin;
-  scrollbar-color: oklch(from var(--border) l c h / 0.4) transparent;
+  scrollbar-color: oklch(from var(--primary) l c h / 0.35) transparent;
 }
 *::-webkit-scrollbar { width: 6px; height: 6px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
-  background: oklch(from var(--border) l c h / 0.3);
+  background: oklch(from var(--primary) l c h / 0.30);
   border-radius: 9999px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: oklch(from var(--border) l c h / 0.5);
+  background: oklch(from var(--primary) l c h / 0.55);
 }
 
 /* Dark mode glassmorphism utility */
@@ -464,16 +464,16 @@ html.dark * {
               0 0 40px -10px oklch(from var(--primary) l c h / 0.15);
 }
 
-/* Refined scrollbar for specific areas */
+/* Refined scrollbar for specific areas — primary hue */
 .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; border-radius: 9999px; }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: oklch(from var(--border) l c h / 0.25);
+  background: oklch(from var(--primary) l c h / 0.28);
   border-radius: 9999px;
   transition: background 0.2s;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: oklch(from var(--border) l c h / 0.45);
+  background: oklch(from var(--primary) l c h / 0.50);
 }
 
 /* Fade-in-up animation utility */
@@ -823,15 +823,15 @@ html.dark * {
   );
 }
 
-/* Dark mode scrollbar — darker track */
+/* Dark mode scrollbar — primary hue with higher visibility */
 .dark .custom-scrollbar::-webkit-scrollbar-track {
   background: oklch(0.15 0.01 270 / 0.5);
 }
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: oklch(from var(--border) l c h / 0.35);
+  background: oklch(from var(--primary) l c h / 0.40);
 }
 .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: oklch(from var(--border) l c h / 0.55);
+  background: oklch(from var(--primary) l c h / 0.65);
 }
 
 /* Breadcrumb link hover underline animation */
