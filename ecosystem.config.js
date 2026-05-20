@@ -8,10 +8,10 @@ module.exports = {
       cwd: '/home/z/my-project',
       env: {
         DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30',
-        NODE_OPTIONS: '--max-old-space-size=2560',
+        NODE_OPTIONS: '--max-old-space-size=4096',
         PORT: 3000,
       },
-      max_memory_restart: '2500M',
+      max_memory_restart: '5500M',
       max_restarts: 15,
       restart_delay: 8000,
       autorestart: true,

@@ -1,20 +1,15 @@
 /**
  * Next.js Instrumentation — runs once on server startup.
- * Initializes pool classes for bandwidth shaping.
  *
- * BACKGROUND SCHEDULER: Run separately via:
- *   cd /home/z/my-project && DATABASE_URL="..." npx tsx scripts/scheduler-runner.ts &
+ * Pool class initialization for bandwidth shaping is handled by the
+ * staysuite-scheduler process (separate from Next.js) to avoid
+ * Turbopack tracing the script-runner dependency tree which includes
+ * child_process, fs, net etc. — causing Edge Runtime analysis to
+ * consume 4-5GB RAM and trigger OOM kills.
  *
- * The scheduler runs as a separate process because its dependency graph
- * (node-cron → node:crypto, twilio → querystring, wifi/adapters → net)
- * is too heavy for Turbopack's static analysis, causing OOM kills.
- *
- * The script-runner imported here is lightweight (only db + shell),
- * so a static import is safe — it does NOT trigger the OOM issue.
+ * Scheduler: cd /home/z/my-project && DATABASE_URL="..." npx tsx scripts/scheduler-runner.ts
  */
 export const runtime = 'nodejs';
-
-import { initializeAllPoolClasses } from '@/lib/network/script-runner';
 
 export async function register() {
   if (typeof window !== 'undefined') return;
@@ -23,21 +18,9 @@ export async function register() {
     return;
   }
 
-  // Initialize pool classes (lightweight — only db + shell).
-  // Uses setTimeout to avoid blocking the Next.js server startup sequence.
-  // The static import above is safe: script-runner is NOT the heavy
-  // dependency that caused OOM — that was the scheduler (now separate).
-  setTimeout(async () => {
-    try {
-      const result = await initializeAllPoolClasses();
-      if (result.created > 0) {
-        console.log(`[Instrumentation] Pool classes initialized: ${result.created} created, ${result.failed} failed`);
-      }
-      if (result.details.length > 0 && result.details[0] !== 'No enabled BandwidthPools found in database') {
-        result.details.forEach((d: string) => console.log(`[Instrumentation]   ${d}`));
-      }
-    } catch (err) {
-      console.error('[Instrumentation] Script-runner error:', (err as Error)?.message || err);
-    }
-  }, 3000);
+  // Pool initialization is deferred to the scheduler process.
+  // This file intentionally does NOT import script-runner or paths.ts
+  // to prevent Turbopack from tracing the heavy dependency tree during
+  // Edge Runtime analysis (which causes OOM on 8GB memory limits).
+  console.log('[Instrumentation] Next.js server started — pool init deferred to scheduler');
 }
