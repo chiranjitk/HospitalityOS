@@ -934,7 +934,7 @@ export async function fetchPoolGraph(poolId: string, range: string): Promise<Sys
 
   let filePath = '';
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
+    if (/*turbopackIgnore: true*/ fs.existsSync(candidate)) {
       filePath = candidate;
       break;
     }

@@ -4,19 +4,25 @@
  * Supports three install methods for FreeRADIUS:
  *   1. RPM via dnf (Rocky Linux / RHEL)   → /usr/bin/radclient, /etc/raddb/
  *   2. Source compile (default prefix)     → /usr/local/bin/radclient, /usr/local/etc/raddb/
- *   3. Sandbox dev build                   → $FREERADIUS_SANDBOX_HOME/
+ *   3. Sandbox / custom install           → $FREERADIUS_HOME/ or <cwd>/freeradius-install/
  *
  * Auto-detection probes the filesystem so the correct paths are chosen
  * regardless of how FreeRADIUS was installed.  Every path can still be
  * overridden with an environment variable for edge cases.
  *
  * Set NODE_ENV=production to prefer system-wide paths.
+ *
+ * CRITICAL: No hardcoded absolute paths. Everything is relative to
+ * process.cwd() (the project root at runtime) or an env var.
  */
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+/** Project root — always derived from cwd, never hardcoded */
+const PROJECT_ROOT = /*turbopackIgnore: true*/ process.cwd();
+
 // ── Auto-detect FreeRADIUS install prefix ──────────────────────────
-// Probes for the radclient binary in the two most common locations.
+// Probes for the radclient binary in the most common locations.
 // Returns the *prefix* (parent of bin/ sbin/ etc/ share/).
 //
 // Uses lazy require('fs') instead of top-level import so this module
@@ -39,9 +45,10 @@ function detectFreeradiusPrefix(): string {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { existsSync } = /*turbopackIgnore: true*/ require('fs');
 
-    // Sandbox dev build
+    // Sandbox / dev build — look for freeradius-install under project root
     if (!isProduction) {
-      const sandboxHome = process.env.FREERADIUS_SANDBOX_HOME || '/home/z/my-project/freeradius-install';
+      const sandboxHome = process.env.FREERADIUS_SANDBOX_HOME ||
+        `${PROJECT_ROOT}/freeradius-install`;
       if (existsSync(`${sandboxHome}/bin/radclient`) || existsSync(`${sandboxHome}/sbin/radiusd`)) {
         _detectedPrefix = sandboxHome;
         return _detectedPrefix;
@@ -64,11 +71,18 @@ function detectFreeradiusPrefix(): string {
   }
 
   // 3) Fallback: assume RPM layout (most common on Rocky / RHEL)
-  _detectedPrefix = isProduction ? '/usr' : '/home/z/my-project/freeradius-install';
+  _detectedPrefix = isProduction
+    ? '/usr'
+    : `${PROJECT_ROOT}/freeradius-install`;
   return _detectedPrefix;
 }
 
 const FREERADIUS_PREFIX = detectFreeradiusPrefix();
+
+/** Check if the detected prefix is a local/sandbox install (under cwd or explicit sandbox home) */
+const isLocalPrefix = !isProduction &&
+  (FREERADIUS_PREFIX === `${PROJECT_ROOT}/freeradius-install` ||
+   FREERADIUS_PREFIX === process.env.FREERADIUS_SANDBOX_HOME);
 
 // ── FreeRADIUS Paths ──────────────────────────────────────────────
 
@@ -79,8 +93,8 @@ export const FREERADIUS_HOME = FREERADIUS_PREFIX;
 export const RADDB_PATH = process.env.RADDB_PATH ||
   (FREERADIUS_PREFIX === '/usr/local'
     ? '/usr/local/etc/raddb'
-    : FREERADIUS_PREFIX === '/home/z/my-project/freeradius-install'
-      ? '/home/z/my-project/freeradius-install/etc/raddb'
+    : isLocalPrefix
+      ? `${FREERADIUS_PREFIX}/etc/raddb`
       : '/etc/raddb');
 
 /** FreeRADIUS binary name */
@@ -94,16 +108,16 @@ export const RADIUSD_EXECUTABLE = process.env.RADIUSD_EXECUTABLE ||
 export const RADIUSD_PID_FILE = process.env.RADIUSD_PID_FILE ||
   (isProduction
     ? '/run/radiusd/radiusd.pid'     // Rocky 10 systemd
-    : FREERADIUS_PREFIX === '/home/z/my-project/freeradius-install'
-      ? '/home/z/my-project/freeradius-install/var/run/radiusd/radiusd.pid'
+    : isLocalPrefix
+      ? `${FREERADIUS_PREFIX}/var/run/radiusd/radiusd.pid`
       : `${FREERADIUS_PREFIX}/var/run/radiusd/radiusd.pid`);
 
 /** FreeRADIUS log directory */
 export const RADIUSD_LOG_DIR = process.env.RADIUSD_LOG_DIR ||
   (FREERADIUS_PREFIX === '/usr/local'
     ? '/usr/local/var/log/radiusd'
-    : FREERADIUS_PREFIX === '/home/z/my-project/freeradius-install'
-      ? '/home/z/my-project/freeradius-install/var/log/radiusd'
+    : isLocalPrefix
+      ? `${FREERADIUS_PREFIX}/var/log/radiusd`
       : '/var/log/radiusd');
 
 /** FreeRADIUS main config file */
@@ -124,16 +138,16 @@ export const SITES_DIR = `${RADDB_PATH}/sites-enabled`;
 export const RADIUS_DICT_DIR = process.env.RADIUS_DICT_DIR ||
   (FREERADIUS_PREFIX === '/usr/local'
     ? '/usr/local/share/freeradius'
-    : FREERADIUS_PREFIX === '/home/z/my-project/freeradius-install'
-      ? '/home/z/my-project/freeradius-install/share/freeradius'
+    : isLocalPrefix
+      ? `${FREERADIUS_PREFIX}/share/freeradius`
       : '/usr/share/freeradius');
 
 /** FreeRADIUS library directory (for LD_LIBRARY_PATH) */
 export const RADIUS_LIB_DIR = process.env.RADIUS_LIB_DIR ||
   (FREERADIUS_PREFIX === '/usr/local'
     ? '/usr/local/lib/freeradius'
-    : FREERADIUS_PREFIX === '/home/z/my-project/freeradius-install'
-      ? '/home/z/my-project/freeradius-install/lib/freeradius'
+    : isLocalPrefix
+      ? `${FREERADIUS_PREFIX}/lib/freeradius`
       : '/usr/lib64/freeradius');
 
 // ── PostgreSQL Paths ──────────────────────────────────────────────
@@ -142,13 +156,13 @@ export const RADIUS_LIB_DIR = process.env.RADIUS_LIB_DIR ||
 export const PG_DATA = process.env.PG_DATA ||
   (isProduction
     ? '/var/lib/pgsql/data'           // Rocky 10 default
-    : '/home/z/my-project/pgsql-runtime/data');
+    : `${PROJECT_ROOT}/pgsql-runtime/data`);
 
 /** PostgreSQL bin directory */
 export const PG_BIN = process.env.PG_BIN ||
   (isProduction
     ? '/usr/pgsql-17/bin'             // Rocky 10: postgresql17-server
-    : '/home/z/my-project/pgsql-runtime/bin');
+    : `${PROJECT_ROOT}/pgsql-runtime/bin`);
 
 /** PostgreSQL executable */
 export const PG_CTL = `${PG_BIN}/pg_ctl`;
@@ -184,7 +198,7 @@ export const DNSMASQ_BIN = process.env.DNSMASQ_BIN ||
 export const DNSMASQ_CONF_DIR = process.env.DNSMASQ_CONF_DIR ||
   (isProduction
     ? '/etc/dnsmasq.d'
-    : process.env.DHCP_SANDBOX_HOME || '/home/z/my-project/dhcp-local');
+    : process.env.DHCP_SANDBOX_HOME || `${PROJECT_ROOT}/dhcp-local`);
 
 /** Managed DHCP config file */
 export const DNSMASQ_DHCP_CONF = `${DNSMASQ_CONF_DIR}/staysuite-dhcp.conf`;
@@ -216,13 +230,13 @@ export const DNSMASQ_RESOLV_CONF = process.env.DNSMASQ_RESOLV_CONF ||
 export const STAYSUITE_SCRIPTS_DIR = process.env.STAYSUITE_SCRIPTS_DIR ||
   (isProduction
     ? '/usr/local/scripts/staysuite_core'
-    : '/home/z/my-project/scripts/staysuite_core');
+    : `${PROJECT_ROOT}/scripts/staysuite_core`);
 
 /** Network helper scripts directory */
 export const NETWORK_SCRIPTS_DIR = process.env.NETWORK_SCRIPTS_DIR ||
   (isProduction
     ? '/usr/local/scripts/staysuite_core/network'
-    : '/home/z/my-project/scripts/network');
+    : `${PROJECT_ROOT}/scripts/network`);
 
 // ── Network Config Paths ────────────────────────────────────────
 
@@ -243,6 +257,7 @@ export const INTERFACES_FILE = '/etc/network/interfaces';
 export function getRuntimeInfo() {
   return {
     environment: isProduction ? 'production' : 'sandbox',
+    projectRoot: PROJECT_ROOT,
     detectedPrefix: FREERADIUS_PREFIX,
     freeRADIUS: {
       home: FREERADIUS_HOME,

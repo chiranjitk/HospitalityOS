@@ -77,11 +77,11 @@ function getConfDir(): string {
     return process.env.E2GUARDIAN_CONF_DIR;
   }
   // Production FHS path
-  if (existsSync('/etc/e2guardian/e2guardian')) {
+  if (/*turbopackIgnore: true*/ existsSync('/etc/e2guardian/e2guardian')) {
     return '/etc/e2guardian/e2guardian';
   }
   // Sandbox fallback
-  return join(process.cwd(), 'data', 'e2guardian', 'configs');
+  return /*turbopackIgnore: true*/ join(process.cwd(), 'data', 'e2guardian', 'configs');
 }
 
 function getListDir(): string {
@@ -90,11 +90,11 @@ function getListDir(): string {
   }
   const confDir = getConfDir();
   const listDir = join(confDir, 'lists');
-  if (existsSync(listDir)) {
+  if (/*turbopackIgnore: true*/ existsSync(listDir)) {
     return listDir;
   }
   // Sandbox fallback
-  return join(process.cwd(), 'data', 'e2guardian', 'lists');
+  return /*turbopackIgnore: true*/ join(process.cwd(), 'data', 'e2guardian', 'lists');
 }
 
 function getGroupListDir(groupNum: number): string {
@@ -105,10 +105,10 @@ function getStatusFile(): string {
   if (process.env.E2GUARDIAN_STATUS_FILE) {
     return process.env.E2GUARDIAN_STATUS_FILE;
   }
-  if (existsSync('/etc/e2guardian')) {
+  if (/*turbopackIgnore: true*/ existsSync('/etc/e2guardian')) {
     return '/etc/e2guardian/sync-status.json';
   }
-  return join(process.cwd(), 'data', 'e2guardian', 'status.json');
+  return /*turbopackIgnore: true*/ join(process.cwd(), 'data', 'e2guardian', 'status.json');
 }
 
 // ---------------------------------------------------------------------------

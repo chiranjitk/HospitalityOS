@@ -4,7 +4,7 @@ import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import fs from 'fs';
 import path from 'path';
 
-const UPLOAD_DIR = '/home/z/my-project/upload';
+const UPLOAD_DIR = process.env.UPLOAD_DIR || /*turbopackIgnore: true*/ path.join(process.cwd(), 'upload');
 
 /**
  * Sync the Room.images JSON field for backward compatibility.

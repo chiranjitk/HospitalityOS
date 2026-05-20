@@ -21,7 +21,7 @@ const execFileAsync = promisify(execFile);
 // fall back to __dirname only as last resort.
 //
 // In Next.js standalone mode (output: 'standalone'), __dirname gets compiled
-// to the source path which does NOT exist on production (e.g. /ROOT/src/lib/rrd/).
+// to the source path which does NOT exist on production (e.g. <install_root>/src/lib/rrd/).
 // process.cwd() is always the actual working directory set by PM2's cwd or cd.
 function findProjectRoot(startDir?: string): string {
   // Priority: env var > process.cwd() > __dirname
@@ -36,7 +36,7 @@ function findProjectRoot(startDir?: string): string {
   for (const dir of candidates) {
     let current = dir;
     while (current !== path.dirname(current)) {
-      if (fs.existsSync(path.join(current, 'package.json'))) {
+      if (/*turbopackIgnore: true*/ fs.existsSync(path.join(current, 'package.json'))) {
         return current;
       }
       current = path.dirname(current);

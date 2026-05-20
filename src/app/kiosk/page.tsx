@@ -682,7 +682,7 @@ export default function KioskPage() {
               {now.toLocaleTimeString([], { second: '2-digit' })}
             </p>
           </div>
-          )
+          )}
 
           {/* Language switch — only if enabled in settings */}
           {settings.showLanguageSwitch && (

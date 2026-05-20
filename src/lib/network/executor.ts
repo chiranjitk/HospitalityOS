@@ -20,8 +20,13 @@ import * as fs from 'fs';
  * (e.g., PM2 running from a different directory).
  */
 function resolveScriptsDir(): string {
+  // Use env override or derive from project root
+  if (process.env.NETWORK_SCRIPTS_DIR) {
+    return process.env.NETWORK_SCRIPTS_DIR;
+  }
+
   const candidates = [
-    // 1. Relative to process.cwd() (works in dev)
+    // 1. Relative to process.cwd() (works in dev and production)
     path.resolve(/*turbopackIgnore: true*/ process.cwd(), 'scripts/network'),
     // 2. Relative to this source file (works in production builds)
     path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/\/src\/lib\/network\/.*/, '')), 'scripts/network'),
@@ -29,10 +34,8 @@ function resolveScriptsDir(): string {
     ...(typeof __dirname !== 'undefined' ? [
       path.resolve(path.dirname(__dirname), '../../scripts/network'),
     ] : []),
-    // 4. Common deployment paths
-    '/opt/staysuite/scripts/network',
-    '/opt/staysuite-HospitalityOS/scripts/network',
-    '/home/z/my-project/scripts/network',
+    // 4. Production deployment paths
+    '/usr/local/scripts/staysuite_core/network',
   ];
 
   for (const dir of candidates) {

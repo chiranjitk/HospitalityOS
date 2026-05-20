@@ -1127,7 +1127,7 @@ async function handleConntrack(search?: string) {
 
 const MAC_REGEX = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 const DEVNAME_REGEX = /^[a-zA-Z0-9._-]{1,15}$/;
-const CAPTURE_DIR = '/tmp/staysuite-captures';
+const CAPTURE_DIR = process.env.PCAP_CAPTURE_DIR || '/tmp/staysuite-captures';
 
 // Ensure capture directory exists
 try { fs.mkdirSync(CAPTURE_DIR, { recursive: true }); } catch {}

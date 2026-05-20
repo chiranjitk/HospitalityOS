@@ -6,7 +6,7 @@
 MAX_MEM_MB=${STAYSUITE_MAX_MEM:-5500}  # 5.5GB limit (OOM killer hits at ~6.5GB)
 GRACE_PERIOD=300  # 5 minutes grace for initial compilation
 CHECK_INTERVAL=60  # Check every 60 seconds after grace period
-LOG_FILE="/home/z/my-project/logs/memory-watchdog.log"
+LOG_FILE="${INSTALL_DIR:-$(pwd)}/logs/memory-watchdog.log"
 START_TIME=$(date +%s)
 
 log() {
@@ -14,7 +14,7 @@ log() {
 }
 
 # Start Next.js dev server in the background
-cd /home/z/my-project
+cd "${INSTALL_DIR:-$(pwd)}"
 
 DATABASE_URL="postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30" \
 NODE_OPTIONS="--max-old-space-size=4096" \

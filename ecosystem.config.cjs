@@ -1,30 +1,47 @@
+/**
+ * PM2 Ecosystem Configuration — StaySuite-HospitalityOS
+ *
+ * Portable across environments — no hardcoded paths.
+ * All paths are derived from INSTALL_DIR (defaults to cwd).
+ *
+ * Environment variables:
+ *   INSTALL_DIR           - Project root (default: cwd)
+ *   DATABASE_URL          - PostgreSQL connection string
+ *   FREERADIUS_HOME       - FreeRADIUS install prefix
+ *   STAYSUITE_MAX_MEM     - Memory limit for Next.js watchdog (MB)
+ */
+
+const path = require('path');
+const INSTALL_DIR = process.env.INSTALL_DIR || __dirname;
+const FREERADIUS_HOME = process.env.FREERADIUS_HOME || path.join(INSTALL_DIR, 'freeradius-install');
+
 module.exports = {
   apps: [
     {
       name: 'staysuite-postgresql',
       script: 'pg_ctl',
-      args: '-D /home/z/my-project/pgsql-runtime/data start -o "-p 5432 -k /tmp/.s.PGSQL.5432" -w',
-      cwd: '/home/z/my-project',
+      args: `-D ${path.join(INSTALL_DIR, 'pgsql-runtime', 'data')} start -o "-p 5432 -k /tmp/.s.PGSQL.5432" -w`,
+      cwd: INSTALL_DIR,
       interpreter: 'none',
       watch: false,
       autorestart: false,
     },
     {
       name: 'staysuite-freeradius',
-      script: '/home/z/my-project/freeradius-install/sbin/radiusd',
-      args: '-d /home/z/my-project/freeradius-install/etc/raddb -f -D /home/z/my-project/freeradius-install/share/freeradius',
-      cwd: '/home/z/my-project',
+      script: path.join(FREERADIUS_HOME, 'sbin', 'radiusd'),
+      args: `-d ${path.join(FREERADIUS_HOME, 'etc', 'raddb')} -f -D ${path.join(FREERADIUS_HOME, 'share', 'freeradius')}`,
+      cwd: INSTALL_DIR,
       interpreter: 'none',
       watch: false,
       autorestart: true,
       env: {
-        LD_LIBRARY_PATH: '/home/z/my-project/freeradius-install/lib',
+        LD_LIBRARY_PATH: path.join(FREERADIUS_HOME, 'lib'),
       },
     },
     {
       name: 'staysuite-nextjs',
-      script: '/home/z/my-project/start-next.sh',
-      cwd: '/home/z/my-project',
+      script: path.join(INSTALL_DIR, 'start-next.sh'),
+      cwd: INSTALL_DIR,
       interpreter: '/bin/bash',
       watch: false,
       autorestart: true,
@@ -33,8 +50,8 @@ module.exports = {
       kill_timeout: 15000,
       listen_timeout: 120000,
       env: {
-        STAYSUITE_MAX_MEM: '5500',
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30',
+        STAYSUITE_MAX_MEM: process.env.STAYSUITE_MAX_MEM || '5500',
+        DATABASE_URL: process.env.DATABASE_URL || `postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30`,
         NODE_OPTIONS: '--max-old-space-size=4096',
       },
     },

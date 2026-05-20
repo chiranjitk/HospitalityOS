@@ -487,8 +487,6 @@ async function handleActiveUsers() {
       const candidates = [
         getRRDBasePath(),
         /*turbopackIgnore: true*/ process['cwd']() + '/data/rrd',
-        '/home/z/my-project/data/rrd',
-        '/opt/staysuite/data/rrd',
       ];
       for (const base of candidates) {
         const dir = base + '/users';
@@ -592,7 +590,6 @@ async function handleUserGraph(searchParams: URLSearchParams) {
   const candidates = [
     userRRDPath(username),
     /*turbopackIgnore: true*/ process['cwd']() + '/data/rrd/users/' + username + '.rrd',
-    '/home/z/my-project/data/rrd/users/' + username + '.rrd',
   ];
 
   let rrdFile = '';
@@ -658,8 +655,6 @@ function handleListUserRRDs() {
   const candidates = [
     getRRDBasePath(),
     /*turbopackIgnore: true*/ process['cwd']() + '/data/rrd',
-    '/home/z/my-project/data/rrd',
-    '/opt/staysuite/data/rrd',
   ];
 
   for (const base of candidates) {
