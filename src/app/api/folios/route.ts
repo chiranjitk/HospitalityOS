@@ -17,8 +17,9 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
     }
-    // RBAC check
-    if (!hasPermission(user, 'folios.view') && !hasPermission(user, 'folios.*') && user.roleName !== 'admin') {
+    // RBAC check — accept folios.* or billing.* permissions (folios are a billing concept)
+    if (!hasPermission(user, 'folios.view') && !hasPermission(user, 'folios.*') && 
+        !hasPermission(user, 'billing.view') && !hasPermission(user, 'billing.*') && user.roleName !== 'admin') {
       return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
     const tenantId = user.tenantId;
@@ -130,8 +131,9 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
     }
-    // RBAC check
-    if (!hasPermission(user, 'folios.create') && !hasPermission(user, 'folios.*') && user.roleName !== 'admin') {
+    // RBAC check — accept folios.* or billing.* permissions (folios are a billing concept)
+    if (!hasPermission(user, 'folios.create') && !hasPermission(user, 'folios.*') && 
+        !hasPermission(user, 'billing.create') && !hasPermission(user, 'billing.*') && user.roleName !== 'admin') {
       return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
     const tenantId = user.tenantId;

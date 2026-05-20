@@ -91,7 +91,7 @@ export default async function RootLayout({
           id="prevent-scroll-lock-shift"
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{
-            __html: `(function(){function clean(){var b=document.body;if(b.style.overflow==='hidden'||b.style.overflowY==='hidden'){b.style.overflow='';b.style.overflowY='';}if(b.style.paddingRight&&b.style.paddingRight!=='0px'&&b.style.paddingRight!==''){b.style.paddingRight='';}if(b.style.marginRight&&b.style.marginRight!=='0px'&&b.style.marginRight!==''){b.style.marginRight='';}if(b.hasAttribute('data-scroll-locked')){b.removeAttribute('data-scroll-locked');}}var m=new MutationObserver(clean);m.observe(document.body,{attributes:true,attributeFilter:['style','class']});var origSet=document.documentElement.style.setProperty.bind(document.documentElement.style);document.documentElement.style.setProperty=function(p,v,pr){if(p==='overflow-y'||p==='overflowY'){return;}return origSet(p,v,pr);};document.documentElement.style.overflowY='scroll';try{document.documentElement.style.scrollbarGutter='stable';}catch(e){}})();`,
+            __html: `(function(){function clean(){var b=document.body;if(b.style.paddingRight&&b.style.paddingRight!=='0px'&&b.style.paddingRight!==''){b.style.paddingRight='';}if(b.style.marginRight&&b.style.marginRight!=='0px'&&b.style.marginRight!==''){b.style.marginRight='';}if(b.hasAttribute('data-scroll-locked')){b.removeAttribute('data-scroll-locked');}}var m=new MutationObserver(clean);m.observe(document.body,{attributes:true,attributeFilter:['style','class']});try{document.documentElement.style.scrollbarGutter='stable';}catch(e){}})();`,
           }}
         />
       </head>

@@ -738,9 +738,10 @@ function Logo({ showClose, onClose, collapsed }: LogoProps) {
           variant="ghost"
           size="icon"
           onClick={onClose}
-          className="h-7 w-7 text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/40 rounded-lg transition-all duration-200"
+          className="h-10 w-10 text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/40 rounded-lg transition-all duration-200"
+          aria-label="Close navigation"
         >
-          <X className="h-4 w-4" />
+          <X className="h-5 w-5" />
         </Button>
       )}
     </div>
@@ -881,11 +882,30 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
       .filter(section => section.items.length > 0);
   }, [searchQuery, isMenuItemVisible, canAccessMenu, translatedNavigation]);
 
-  // Loading state
+  // Loading state — both mobile and desktop
   if (isLoading) {
     return (
       <>
         <style>{scrollbarStyles}</style>
+        {/* Mobile loading skeleton */}
+        <aside className={cn(
+          "fixed left-0 top-0 z-50 h-screen flex flex-col lg:hidden",
+          "backdrop-blur-xl bg-sidebar border-r border-sidebar-border/[0.10]",
+          "shadow-[0_0_60px_-15px_rgba(0,0,0,0.15)]",
+          className
+        )}
+        style={{ width: `min(85vw, ${SIDEBAR_EXPANDED_WIDTH + 20}px)` }}
+        >
+          <div className="h-16 flex items-center justify-center px-4">
+            <div className="animate-pulse text-sidebar-foreground text-sm">Loading...</div>
+          </div>
+          <div className="flex-1 space-y-3 px-4 py-2">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="h-8 rounded-lg bg-sidebar-accent/20 animate-pulse" style={{ width: `${60 + Math.random() * 30}%`, animationDelay: `${i * 0.1}s` }} />
+            ))}
+          </div>
+        </aside>
+        {/* Desktop loading skeleton */}
         <aside className={cn(
           "hidden lg:flex fixed left-0 top-0 z-40 h-screen flex-col",
           "backdrop-blur-xl bg-sidebar border-r border-sidebar-border/[0.10]",
@@ -931,8 +951,9 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
         mobileOpen ? "translate-x-0 opacity-100" : "-translate-x-full opacity-0",
         className
       )}
-      style={{ width: `${SIDEBAR_EXPANDED_WIDTH + 20}px` }}
-      role="navigation"
+      style={{ width: `min(85vw, ${SIDEBAR_EXPANDED_WIDTH + 20}px)` }}
+      role="dialog"
+      aria-modal={mobileOpen ? true : undefined}
       aria-label="Main navigation"
       >
         {/* Top gradient accent line */}
