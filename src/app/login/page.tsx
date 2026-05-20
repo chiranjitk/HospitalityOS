@@ -577,7 +577,7 @@ export default function LoginPage() {
                       animate="visible"
                     >
                       <div className="h-7 w-1.5 rounded-full bg-gradient-to-b from-orange-500 via-amber-400 to-orange-300" />
-                      <h2 className="text-xl font-bold text-foreground tracking-tight">
+                      <h2 className="text-xl font-bold text-gray-900 tracking-tight">
                         {requireTwoFactor ? 'Two-factor authentication' : t('signIn')}
                       </h2>
                     </motion.div>
@@ -648,7 +648,7 @@ export default function LoginPage() {
                               placeholder="you@company.com"
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
-                              className="relative pl-11 h-[52px] bg-white/60 dark:bg-[#1a1210]/60 border-orange-100/60 dark:border-orange-900/30 rounded-xl transition-all duration-300 focus:bg-white/90 dark:focus:bg-[#1a1210]/90 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25 hover:border-orange-200/80 dark:hover:border-orange-700/40 hover:shadow-sm text-[15px] placeholder:text-foreground/30"
+                              className="relative pl-11 h-[52px] bg-white dark:bg-[#1a1210]/60 border-orange-100/60 dark:border-orange-900/30 rounded-xl transition-all duration-300 focus:bg-white dark:focus:bg-[#1a1210]/90 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25 hover:border-orange-200/80 dark:hover:border-orange-700/40 hover:shadow-sm text-[15px] placeholder:text-gray-400"
                               required
                               disabled={isLoading}
                               autoComplete="email"
@@ -720,7 +720,7 @@ export default function LoginPage() {
                               placeholder="Enter password"
                               value={password}
                               onChange={(e) => setPassword(e.target.value)}
-                              className="relative pl-11 pr-11 h-[52px] bg-white/60 dark:bg-[#1a1210]/60 border-orange-100/60 dark:border-orange-900/30 rounded-xl transition-all duration-300 focus:bg-white/90 dark:focus:bg-[#1a1210]/90 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25 hover:border-orange-200/80 dark:hover:border-orange-700/40 hover:shadow-sm text-[15px] placeholder:text-foreground/30"
+                              className="relative pl-11 pr-11 h-[52px] bg-white dark:bg-[#1a1210]/60 border-orange-100/60 dark:border-orange-900/30 rounded-xl transition-all duration-300 focus:bg-white dark:focus:bg-[#1a1210]/90 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25 hover:border-orange-200/80 dark:hover:border-orange-700/40 hover:shadow-sm text-[15px] placeholder:text-gray-400"
                               required
                               disabled={isLoading}
                               autoComplete="current-password"
@@ -916,7 +916,7 @@ export default function LoginPage() {
                             placeholder="000000"
                             value={twoFactorCode}
                             onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            className="text-center text-xl tracking-[0.3em] font-mono h-12 rounded-xl bg-white/60 dark:bg-[#1a1210]/60 border-orange-100/60 dark:border-orange-900/30 transition-all duration-300 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25"
+                            className="text-center text-xl tracking-[0.3em] font-mono h-12 rounded-xl bg-white dark:bg-[#1a1210]/60 border-orange-100/60 dark:border-orange-900/30 transition-all duration-300 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25 placeholder:text-gray-400"
                             maxLength={6}
                             disabled={isLoading}
                             autoFocus
