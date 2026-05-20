@@ -1,16 +1,17 @@
+/**
+ * Background Scheduler — Lazy-loaded version
+ *
+ * Uses dynamic imports for all service modules to reduce initial memory footprint.
+ * This prevents the Edge Runtime from trying to bundle Node.js-only modules
+ * (crypto, fs, child_process) during compilation analysis.
+ *
+ * Each cron job callback dynamically imports its service only when it runs,
+ * keeping the initial module graph small and reducing memory pressure.
+ */
 import cron, { type ScheduledTask } from 'node-cron';
-import { db } from '@/lib/db';
-import { decrypt } from '@/lib/encryption';
-import { executeReport, sendReportEmail } from './report-executor';
-import { createGatewayAdapter, DEFAULT_PORTS } from '@/lib/wifi/adapters';
-import type { GatewayConfig, GatewayVendor } from '@/lib/wifi/adapters';
-import { runSessionEngine } from '@/lib/wifi/services/session-engine';
-import { runNasHealthCheck } from '@/lib/wifi/services/nas-health-check';
-import { generateHealthAlerts } from '@/lib/wifi/services/wifi-health-alert-generator';
-import { collectSlaMetrics } from '@/lib/wifi/services/sla-metric-collector';
-import { purgeExpiredConsents } from '@/lib/wifi/services/consent-auto-delete';
-import { cleanupStaleDevices } from '@/lib/wifi/services/device-cleanup';
-import { processPreArrivalDelivery } from '@/lib/wifi/services/pre-arrival-scheduler';
+
+// Track active cron jobs
+const activeJobs = new Map<string, ScheduledTask>();
 
 // ---------------------------------------------------------------------------
 // Provider → Vendor mapping (same as API route)
@@ -33,6 +34,25 @@ const PROVIDER_TO_VENDOR: Record<string, GatewayVendor> = {
   other: 'generic',
 };
 
+// Lazy type import — avoid importing the full adapter module at top level
+type GatewayVendor = 'cisco' | 'unifi' | 'aruba' | 'ruckus' | 'mikrotik' | 'tplink' | 'fortinet' | 'juniper' | 'huawei' | 'netgear' | 'dlink' | 'ruijie' | 'cambium' | 'grandstream' | 'generic';
+
+interface GatewayConfig {
+  id: string;
+  vendor: GatewayVendor;
+  ipAddress: string;
+  radiusSecret: string;
+  radiusAuthPort: number;
+  radiusAcctPort: number;
+  coaEnabled: boolean;
+  coaPort: number;
+  coaSecret?: string;
+  apiUsername?: string;
+  apiPassword?: string;
+  apiPort: number;
+  managementUrl: string;
+}
+
 function integrationToGatewayConfig(integration: {
   id: string;
   provider: string;
@@ -41,24 +61,53 @@ function integrationToGatewayConfig(integration: {
   const config = JSON.parse(integration.config || '{}');
   const vendor: GatewayVendor =
     (PROVIDER_TO_VENDOR[integration.provider] as GatewayVendor) || 'generic';
+
+  // Default ports per vendor
+  const DEFAULT_PORTS: Record<string, { radiusAuth: number; radiusAcct: number; coa: number; api: number }> = {
+    cisco: { radiusAuth: 1812, radiusAcct: 1813, coa: 3799, api: 443 },
+    unifi: { radiusAuth: 1812, radiusAcct: 1813, coa: 3799, api: 8443 },
+    aruba: { radiusAuth: 1812, radiusAcct: 1813, coa: 3799, api: 4343 },
+    ruckus: { radiusAuth: 1812, radiusAcct: 1813, coa: 3799, api: 8443 },
+    mikrotik: { radiusAuth: 1812, radiusAcct: 1813, coa: 3799, api: 8728 },
+    tplink: { radiusAuth: 1812, radiusAcct: 1813, coa: 3799, api: 443 },
+    fortinet: { radiusAuth: 1812, radiusAcct: 1813, coa: 3799, api: 443 },
+    juniper: { radiusAuth: 1812, radiusAcct: 1813, coa: 3799, api: 443 },
+    huawei: { radiusAuth: 1812, radiusAcct: 1813, coa: 3799, api: 443 },
+    netgear: { radiusAuth: 1812, radiusAcct: 1813, coa: 3799, api: 443 },
+    dlink: { radiusAuth: 1812, radiusAcct: 1813, coa: 3799, api: 443 },
+    ruijie: { radiusAuth: 1812, radiusAcct: 1813, coa: 3799, api: 443 },
+    cambium: { radiusAuth: 1812, radiusAcct: 1813, coa: 3799, api: 443 },
+    grandstream: { radiusAuth: 1812, radiusAcct: 1813, coa: 3799, api: 443 },
+    generic: { radiusAuth: 1812, radiusAcct: 1813, coa: 3799, api: 443 },
+  };
+
   const defaults = DEFAULT_PORTS[vendor] || DEFAULT_PORTS.generic;
 
   let decryptedPassword: string | undefined;
   if (config.apiKey) {
-    const plain = decrypt(config.apiKey);
-    if (plain) decryptedPassword = plain;
+    try {
+      const { decrypt } = require('@/lib/encryption');
+      const plain = decrypt(config.apiKey);
+      if (plain) decryptedPassword = plain;
+    } catch { /* decryption not available yet */ }
   }
 
   let decryptedRadiusSecret: string | undefined;
   if (config.radiusSecret) {
-    const plain = decrypt(config.radiusSecret);
-    if (plain) decryptedRadiusSecret = plain;
+    try {
+      const { decrypt } = require('@/lib/encryption');
+      const plain = decrypt(config.radiusSecret);
+      if (plain) decryptedRadiusSecret = plain;
+    } catch { /* decryption not available yet */ }
   }
 
   let decryptedCoaSecret: string | undefined;
   if (config.coaSecret) {
-    const plain = decrypt(config.coaSecret);
-    if (plain) decryptedCoaSecret = plain;
+    try {
+      const { decrypt } = require('@/lib/encryption');
+      const plain = decrypt(config.coaSecret);
+      if (plain) decryptedCoaSecret = plain;
+    } catch { /* decryption not available yet */ }
   }
 
   return {
@@ -78,110 +127,115 @@ function integrationToGatewayConfig(integration: {
   };
 }
 
-// Track active cron jobs
-const activeJobs = new Map<string, ScheduledTask>();
-
 /**
- * Initialize the scheduler - start cron jobs for scheduled reports
+ * Initialize the scheduler - start cron jobs using lazy imports
+ * to reduce initial memory footprint and avoid Edge Runtime issues.
  */
 export function initializeScheduler(): void {
-  // Run every minute to check for pending reports
+  // ─── Job 1: Scheduled Reports (every minute) ──────────────────────
   const mainJob = cron.schedule('* * * * *', async () => {
-    await processScheduledReports();
+    try {
+      const { processScheduledReports } = await import('./report-executor');
+      await processScheduledReports();
+    } catch (err) {
+      console.error('[Scheduler] Report check error:', err);
+    }
   });
-
   activeJobs.set('main', mainJob);
   console.log('[Scheduler] Initialized - checking for scheduled reports every minute');
 
-  // Run every minute to sync gateways with auto-sync enabled
+  // ─── Job 2: Gateway Auto-Sync (every minute) ──────────────────────
   const gatewaySyncJob = cron.schedule('* * * * *', async () => {
-    await processGatewayAutoSync();
+    try {
+      await processGatewayAutoSync();
+    } catch (err) {
+      console.error('[Scheduler] Gateway auto-sync error:', err);
+    }
   });
-
   activeJobs.set('gateway-sync', gatewaySyncJob);
   console.log('[Scheduler] Gateway auto-sync job started - runs every minute');
 
-  // Run every minute to process session engine (nftables counters → accounting)
+  // ─── Job 3: Session Engine (every minute) ─────────────────────────
   const sessionEngineJob = cron.schedule('* * * * *', async () => {
     try {
+      const { runSessionEngine } = await import('@/lib/wifi/services/session-engine');
       await runSessionEngine();
     } catch (err) {
       console.error('[Scheduler] Session engine error:', err);
     }
   });
-
   activeJobs.set('session-engine', sessionEngineJob);
   console.log('[Scheduler] Session engine job started - runs every minute');
 
-  // Run every minute to probe NAS devices (ICMP ping + TCP port check)
+  // ─── Job 4: NAS Health Check (every minute) ──────────────────────
   const nasHealthJob = cron.schedule('* * * * *', async () => {
     try {
+      const { runNasHealthCheck } = await import('@/lib/wifi/services/nas-health-check');
       await runNasHealthCheck();
     } catch (err) {
       console.error('[Scheduler] NAS health check error:', err);
     }
   });
-
   activeJobs.set('nas-health-check', nasHealthJob);
   console.log('[Scheduler] NAS health check job started - runs every minute');
 
-  // Run every 2 minutes to generate WiFi alerts from health check results
+  // ─── Job 5: WiFi Health Alerts (every 2 minutes) ─────────────────
   const healthAlertJob = cron.schedule('*/2 * * * *', async () => {
     try {
+      const { generateHealthAlerts } = await import('@/lib/wifi/services/wifi-health-alert-generator');
       await generateHealthAlerts();
     } catch (err) {
       console.error('[Scheduler] WiFi health alert generator error:', err);
     }
   });
-
   activeJobs.set('wifi-health-alerts', healthAlertJob);
   console.log('[Scheduler] WiFi health alert generator started - runs every 2 minutes');
 
-  // Run every 5 minutes to collect SLA metrics and detect breaches
+  // ─── Job 6: SLA Metrics (every 5 minutes) ────────────────────────
   const slaMetricJob = cron.schedule('*/5 * * * *', async () => {
     try {
+      const { collectSlaMetrics } = await import('@/lib/wifi/services/sla-metric-collector');
       await collectSlaMetrics();
     } catch (err) {
       console.error('[Scheduler] SLA metric collector error:', err);
     }
   });
-
   activeJobs.set('sla-metrics', slaMetricJob);
   console.log('[Scheduler] SLA metric collector started - runs every 5 minutes');
 
-  // Run every hour to purge expired consent records (GDPR compliance)
+  // ─── Job 7: Consent Auto-Delete (hourly) ─────────────────────────
   const consentCleanupJob = cron.schedule('0 * * * *', async () => {
     try {
+      const { purgeExpiredConsents } = await import('@/lib/wifi/services/consent-auto-delete');
       await purgeExpiredConsents();
     } catch (err) {
       console.error('[Scheduler] Consent auto-delete error:', err);
     }
   });
-
   activeJobs.set('consent-auto-delete', consentCleanupJob);
   console.log('[Scheduler] Consent auto-delete started - runs every hour');
 
-  // Run every 6 hours to clean up stale WiFi device records
+  // ─── Job 8: Device Cleanup (every 6 hours) ───────────────────────
   const deviceCleanupJob = cron.schedule('0 */6 * * *', async () => {
     try {
+      const { cleanupStaleDevices } = await import('@/lib/wifi/services/device-cleanup');
       await cleanupStaleDevices();
     } catch (err) {
       console.error('[Scheduler] Device cleanup error:', err);
     }
   });
-
   activeJobs.set('device-cleanup', deviceCleanupJob);
   console.log('[Scheduler] Device cleanup started - runs every 6 hours');
 
-  // Run every 15 minutes to process pre-arrival WiFi credential delivery
+  // ─── Job 9: Pre-Arrival Delivery (every 15 minutes) ──────────────
   const preArrivalJob = cron.schedule('*/15 * * * *', async () => {
     try {
+      const { processPreArrivalDelivery } = await import('@/lib/wifi/services/pre-arrival-scheduler');
       await processPreArrivalDelivery();
     } catch (err) {
       console.error('[Scheduler] Pre-arrival scheduler error:', err);
     }
   });
-
   activeJobs.set('pre-arrival-delivery', preArrivalJob);
   console.log('[Scheduler] Pre-arrival delivery started - runs every 15 minutes');
 }
@@ -197,301 +251,11 @@ export function stopScheduler(): void {
   activeJobs.clear();
 }
 
-/**
- * Process all scheduled reports that are due
- */
-export async function processScheduledReports(): Promise<{
-  processed: number;
-  succeeded: number;
-  failed: number;
-  errors: Array<{ reportId: string; error: string }>;
-}> {
-  const now = new Date();
-  const results = {
-    processed: 0,
-    succeeded: 0,
-    failed: 0,
-    errors: [] as Array<{ reportId: string; error: string }>,
-  };
-
-  try {
-    // Find all active scheduled reports that are due
-    const dueReports = await db.scheduledReport.findMany({
-      where: {
-        isActive: true,
-        nextRunAt: {
-          lte: now,
-        },
-      },
-    });
-
-    console.log(`[Scheduler] Found ${dueReports.length} reports due for execution`);
-
-    for (const report of dueReports) {
-      results.processed++;
-
-      try {
-        // Execute the report
-        const executionResult = await executeReport(report);
-
-        // Create history record
-        const historyRecord = await db.reportHistory.create({
-          data: {
-            tenantId: report.tenantId,
-            scheduledReportId: report.id,
-            name: report.name,
-            type: report.reportType,
-            format: report.format,
-            generatedAt: new Date(),
-            periodStart: executionResult.periodStart,
-            periodEnd: executionResult.periodEnd,
-            fileUrl: executionResult.fileUrl,
-            fileSize: executionResult.fileSize,
-            status: 'completed',
-            recipientCount: JSON.parse(report.recipients || '[]').length,
-            sentAt: executionResult.sentAt,
-          },
-        });
-
-        // Send email if delivery method is email
-        if (report.deliveryMethod === 'email') {
-          const recipients = JSON.parse(report.recipients || '[]');
-          if (recipients.length > 0) {
-            await sendReportEmail({
-              to: recipients,
-              reportName: report.name,
-              reportType: report.reportType,
-              fileUrl: executionResult.fileUrl,
-              fileContent: executionResult.fileContent,
-              format: report.format,
-            });
-          }
-        }
-
-        // Calculate next run time
-        const nextRunAt = calculateNextRun(report);
-
-        // Update the scheduled report
-        await db.scheduledReport.update({
-          where: { id: report.id },
-          data: {
-            lastRunAt: now,
-            lastRunStatus: 'success',
-            lastError: null,
-            nextRunAt,
-          },
-        });
-
-        results.succeeded++;
-        console.log(`[Scheduler] Successfully executed report: ${report.name} (${report.id})`);
-      } catch (error) {
-        results.failed++;
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        results.errors.push({ reportId: report.id, error: errorMessage });
-
-        // Create failed history record
-        await db.reportHistory.create({
-          data: {
-            tenantId: report.tenantId,
-            scheduledReportId: report.id,
-            name: report.name,
-            type: report.reportType,
-            format: report.format,
-            generatedAt: new Date(),
-            status: 'failed',
-            errorMessage,
-            recipientCount: 0,
-          },
-        });
-
-        // Update the scheduled report with error status
-        await db.scheduledReport.update({
-          where: { id: report.id },
-          data: {
-            lastRunAt: now,
-            lastRunStatus: 'error',
-            lastError: errorMessage,
-          },
-        }).catch((err) => {
-          console.error('[Scheduler] Failed to update error status:', err);
-        });
-
-        console.error(`[Scheduler] Failed to execute report ${report.name}:`, errorMessage);
-      }
-    }
-  } catch (error) {
-    console.error('[Scheduler] Error processing scheduled reports:', error);
-  }
-
-  return results;
-}
-
-/**
- * Calculate the next run time based on frequency
- */
-export function calculateNextRun(report: {
-  frequency: string;
-  time: string;
-  dayOfWeek: number | null;
-  dayOfMonth: number | null;
-}): Date {
-  const now = new Date();
-  const [hours, minutes] = report.time.split(':').map(Number);
-
-  let nextRun = new Date();
-  nextRun.setHours(hours, minutes, 0, 0);
-
-  switch (report.frequency) {
-    case 'daily':
-      // If the time has passed today, schedule for tomorrow
-      if (nextRun <= now) {
-        nextRun.setDate(nextRun.getDate() + 1);
-      }
-      break;
-
-    case 'weekly':
-      // Schedule for the next occurrence of the specified day
-      const targetDay = report.dayOfWeek ?? 1; // Default to Monday
-      const currentDay = now.getDay();
-      let daysUntilNext = targetDay - currentDay;
-      if (daysUntilNext <= 0 || (daysUntilNext === 0 && nextRun <= now)) {
-        daysUntilNext += 7;
-      }
-      nextRun.setDate(nextRun.getDate() + daysUntilNext);
-      break;
-
-    case 'monthly':
-      // Schedule for the specified day of next month
-      const targetDate = report.dayOfMonth ?? 1;
-      nextRun.setDate(targetDate);
-      if (nextRun <= now) {
-        nextRun.setMonth(nextRun.getMonth() + 1);
-      }
-      break;
-
-    case 'quarterly':
-      // Schedule for the first day of the next quarter
-      const currentMonth = now.getMonth();
-      const nextQuarterMonth = Math.floor(currentMonth / 3) * 3 + 3;
-      nextRun.setMonth(nextQuarterMonth, 1);
-      if (nextRun <= now) {
-        nextRun.setMonth(nextRun.getMonth() + 3);
-      }
-      break;
-
-    case 'yearly':
-      // Schedule for January 1st of next year
-      nextRun.setFullYear(now.getFullYear() + 1, 0, 1);
-      break;
-
-    default:
-      // Default to daily
-      if (nextRun <= now) {
-        nextRun.setDate(nextRun.getDate() + 1);
-      }
-  }
-
-  return nextRun;
-}
-
-/**
- * Manually trigger a specific scheduled report
- */
-export async function triggerReport(reportId: string): Promise<{
-  success: boolean;
-  historyId?: string;
-  error?: string;
-}> {
-  try {
-    const report = await db.scheduledReport.findUnique({
-      where: { id: reportId },
-    });
-
-    if (!report) {
-      return { success: false, error: 'Report not found' };
-    }
-
-    // Execute the report
-    const executionResult = await executeReport(report);
-
-    // Create history record
-    const historyRecord = await db.reportHistory.create({
-      data: {
-        tenantId: report.tenantId,
-        scheduledReportId: report.id,
-        name: report.name,
-        type: report.reportType,
-        format: report.format,
-        generatedAt: new Date(),
-        periodStart: executionResult.periodStart,
-        periodEnd: executionResult.periodEnd,
-        fileUrl: executionResult.fileUrl,
-        fileSize: executionResult.fileSize,
-        status: 'completed',
-        recipientCount: JSON.parse(report.recipients || '[]').length,
-        sentAt: executionResult.sentAt,
-      },
-    });
-
-    // Send email if delivery method is email
-    if (report.deliveryMethod === 'email') {
-      const recipients = JSON.parse(report.recipients || '[]');
-      if (recipients.length > 0) {
-        await sendReportEmail({
-          to: recipients,
-          reportName: report.name,
-          reportType: report.reportType,
-          fileUrl: executionResult.fileUrl,
-          fileContent: executionResult.fileContent,
-          format: report.format,
-        });
-      }
-    }
-
-    // Update last run time
-    await db.scheduledReport.update({
-      where: { id: reportId },
-      data: {
-        lastRunAt: new Date(),
-        lastRunStatus: 'success',
-        lastError: null,
-      },
-    });
-
-    return { success: true, historyId: historyRecord.id };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-    // Update error status
-    try {
-      await db.scheduledReport.update({
-        where: { id: reportId },
-        data: {
-          lastRunAt: new Date(),
-          lastRunStatus: 'error',
-          lastError: errorMessage,
-        },
-      });
-    } catch {
-      // Ignore update errors
-    }
-
-    return { success: false, error: errorMessage };
-  }
-}
-
 // ---------------------------------------------------------------------------
-// Gateway Auto-Sync
+// Gateway Auto-Sync (inline — avoids pulling in heavy adapters at module load)
 // ---------------------------------------------------------------------------
 
-/**
- * Find all gateways with auto-sync enabled whose sync interval has elapsed,
- * then call getStatus() + getActiveSessions() via the adapter framework.
- *
- * This runs every minute. Each gateway has its own `syncInterval` (default 5 min).
- * A gateway is only synced when `now - lastSyncAt >= syncInterval * 60_000`.
- */
-export async function processGatewayAutoSync(): Promise<{
+async function processGatewayAutoSync(): Promise<{
   synced: number;
   succeeded: number;
   failed: number;
@@ -501,6 +265,7 @@ export async function processGatewayAutoSync(): Promise<{
   const results = { synced: 0, succeeded: 0, failed: 0, skipped: 0 };
 
   try {
+    const { db } = await import('@/lib/db');
     const gateways = await db.integration.findMany({
       where: { type: 'wifi_gateway', status: 'active' },
     });
@@ -510,13 +275,11 @@ export async function processGatewayAutoSync(): Promise<{
       const autoSync = config.autoSync ?? true;
       const intervalMin = config.syncInterval || 5;
 
-      // Skip if auto-sync is disabled
       if (!autoSync) {
         results.skipped++;
         continue;
       }
 
-      // Check if enough time has elapsed since last sync
       if (gw.lastSyncAt) {
         const elapsed = now.getTime() - gw.lastSyncAt.getTime();
         const intervalMs = intervalMin * 60 * 1000;
@@ -530,7 +293,8 @@ export async function processGatewayAutoSync(): Promise<{
 
       try {
         const gwConfig = integrationToGatewayConfig(gw);
-        const adapter = createGatewayAdapter(gwConfig);
+        const { createGatewayAdapter } = await import('@/lib/wifi/adapters');
+        const adapter = await createGatewayAdapter(gwConfig);
 
         const syncStart = Date.now();
         const [statusResult, sessionsResult] = await Promise.allSettled([
@@ -580,13 +344,13 @@ export async function processGatewayAutoSync(): Promise<{
         const msg = err?.message || 'Unknown sync error';
         console.error(`[Scheduler] Gateway sync FAIL: ${gw.name || gw.id}: ${msg}`);
 
-        // Mark as error so the UI shows it
-        await db.integration.update({
-          where: { id: gw.id },
-          data: {
-            lastError: `Auto-sync failed: ${msg}`,
-          },
-        }).catch(() => {});
+        try {
+          const { db } = await import('@/lib/db');
+          await db.integration.update({
+            where: { id: gw.id },
+            data: { lastError: `Auto-sync failed: ${msg}` },
+          });
+        } catch {}
       }
     }
   } catch (error) {
@@ -598,3 +362,203 @@ export async function processGatewayAutoSync(): Promise<{
 
 // Export for use in API routes
 export { activeJobs };
+
+// Re-export lazy report functions for API route compatibility
+export async function processScheduledReports() {
+  const { db } = await import('@/lib/db');
+  const { executeReport, sendReportEmail } = await import('./report-executor');
+  const now = new Date();
+
+  const dueReports = await db.scheduledReport.findMany({
+    where: { isActive: true, nextRunAt: { lte: now } },
+  });
+
+  console.log(`[Scheduler] Found ${dueReports.length} reports due for execution`);
+
+  const results = { processed: 0, succeeded: 0, failed: 0, errors: [] as Array<{ reportId: string; error: string }> };
+
+  for (const report of dueReports) {
+    results.processed++;
+    try {
+      const executionResult = await executeReport(report);
+
+      await db.reportHistory.create({
+        data: {
+          tenantId: report.tenantId,
+          scheduledReportId: report.id,
+          name: report.name,
+          type: report.reportType,
+          format: report.format,
+          generatedAt: new Date(),
+          periodStart: executionResult.periodStart,
+          periodEnd: executionResult.periodEnd,
+          fileUrl: executionResult.fileUrl,
+          fileSize: executionResult.fileSize,
+          status: 'completed',
+          recipientCount: JSON.parse(report.recipients || '[]').length,
+          sentAt: executionResult.sentAt,
+        },
+      });
+
+      if (report.deliveryMethod === 'email') {
+        const recipients = JSON.parse(report.recipients || '[]');
+        if (recipients.length > 0) {
+          await sendReportEmail({
+            to: recipients,
+            reportName: report.name,
+            reportType: report.reportType,
+            fileUrl: executionResult.fileUrl,
+            fileContent: executionResult.fileContent,
+            format: report.format,
+          });
+        }
+      }
+
+      const nextRunAt = calculateNextRun(report);
+      await db.scheduledReport.update({
+        where: { id: report.id },
+        data: { lastRunAt: now, lastRunStatus: 'success', lastError: null, nextRunAt },
+      });
+
+      results.succeeded++;
+    } catch (error) {
+      results.failed++;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      results.errors.push({ reportId: report.id, error: errorMessage });
+
+      try {
+        await db.reportHistory.create({
+          data: {
+            tenantId: report.tenantId,
+            scheduledReportId: report.id,
+            name: report.name,
+            type: report.reportType,
+            format: report.format,
+            generatedAt: new Date(),
+            status: 'failed',
+            errorMessage,
+            recipientCount: 0,
+          },
+        });
+
+        await db.scheduledReport.update({
+          where: { id: report.id },
+          data: { lastRunAt: now, lastRunStatus: 'error', lastError: errorMessage },
+        });
+      } catch {}
+    }
+  }
+
+  return results;
+}
+
+export function calculateNextRun(report: {
+  frequency: string;
+  time: string;
+  dayOfWeek: number | null;
+  dayOfMonth: number | null;
+}): Date {
+  const now = new Date();
+  const [hours, minutes] = report.time.split(':').map(Number);
+  let nextRun = new Date();
+  nextRun.setHours(hours, minutes, 0, 0);
+
+  switch (report.frequency) {
+    case 'daily':
+      if (nextRun <= now) nextRun.setDate(nextRun.getDate() + 1);
+      break;
+    case 'weekly': {
+      const targetDay = report.dayOfWeek ?? 1;
+      const currentDay = now.getDay();
+      let daysUntilNext = targetDay - currentDay;
+      if (daysUntilNext <= 0 || (daysUntilNext === 0 && nextRun <= now)) daysUntilNext += 7;
+      nextRun.setDate(nextRun.getDate() + daysUntilNext);
+      break;
+    }
+    case 'monthly': {
+      const targetDate = report.dayOfMonth ?? 1;
+      nextRun.setDate(targetDate);
+      if (nextRun <= now) nextRun.setMonth(nextRun.getMonth() + 1);
+      break;
+    }
+    case 'quarterly': {
+      const currentMonth = now.getMonth();
+      const nextQuarterMonth = Math.floor(currentMonth / 3) * 3 + 3;
+      nextRun.setMonth(nextQuarterMonth, 1);
+      if (nextRun <= now) nextRun.setMonth(nextRun.getMonth() + 3);
+      break;
+    }
+    case 'yearly':
+      nextRun.setFullYear(now.getFullYear() + 1, 0, 1);
+      break;
+    default:
+      if (nextRun <= now) nextRun.setDate(nextRun.getDate() + 1);
+  }
+
+  return nextRun;
+}
+
+export async function triggerReport(reportId: string): Promise<{
+  success: boolean;
+  historyId?: string;
+  error?: string;
+}> {
+  try {
+    const { db } = await import('@/lib/db');
+    const { executeReport, sendReportEmail } = await import('./report-executor');
+
+    const report = await db.scheduledReport.findUnique({ where: { id: reportId } });
+    if (!report) return { success: false, error: 'Report not found' };
+
+    const executionResult = await executeReport(report);
+
+    const historyRecord = await db.reportHistory.create({
+      data: {
+        tenantId: report.tenantId,
+        scheduledReportId: report.id,
+        name: report.name,
+        type: report.reportType,
+        format: report.format,
+        generatedAt: new Date(),
+        periodStart: executionResult.periodStart,
+        periodEnd: executionResult.periodEnd,
+        fileUrl: executionResult.fileUrl,
+        fileSize: executionResult.fileSize,
+        status: 'completed',
+        recipientCount: JSON.parse(report.recipients || '[]').length,
+        sentAt: executionResult.sentAt,
+      },
+    });
+
+    if (report.deliveryMethod === 'email') {
+      const recipients = JSON.parse(report.recipients || '[]');
+      if (recipients.length > 0) {
+        await sendReportEmail({
+          to: recipients,
+          reportName: report.name,
+          reportType: report.reportType,
+          fileUrl: executionResult.fileUrl,
+          fileContent: executionResult.fileContent,
+          format: report.format,
+        });
+      }
+    }
+
+    await db.scheduledReport.update({
+      where: { id: reportId },
+      data: { lastRunAt: new Date(), lastRunStatus: 'success', lastError: null },
+    });
+
+    return { success: true, historyId: historyRecord.id };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    try {
+      const { db } = await import('@/lib/db');
+      await db.scheduledReport.update({
+        where: { id: reportId },
+        data: { lastRunAt: new Date(), lastRunStatus: 'error', lastError: errorMessage },
+      });
+    } catch {}
+    return { success: false, error: errorMessage };
+  }
+}

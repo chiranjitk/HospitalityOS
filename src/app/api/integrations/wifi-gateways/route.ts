@@ -195,7 +195,7 @@ export async function GET(request: NextRequest) {
 
       // Create adapter and test via adapter framework
       try {
-        const adapter = createGatewayAdapter(gwConfig);
+        const adapter = await createGatewayAdapter(gwConfig);
         const startTime = Date.now();
         const result = await adapter.testConnection();
         const latency = result.latency ?? (Date.now() - startTime);
@@ -279,7 +279,7 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        const adapter = createGatewayAdapter(gwConfig);
+        const adapter = await createGatewayAdapter(gwConfig);
 
         // Fetch real status from the gateway
         const [statusResult, sessionsResult] = await Promise.allSettled([
@@ -394,7 +394,7 @@ export async function GET(request: NextRequest) {
       const gwConfig = integrationToGatewayConfig(gateway);
 
       try {
-        const adapter = createGatewayAdapter(gwConfig);
+        const adapter = await createGatewayAdapter(gwConfig);
         const result = await adapter.disconnectSession(
           sessionId || '',
           username || '',
@@ -464,7 +464,7 @@ export async function GET(request: NextRequest) {
       const gwConfig = integrationToGatewayConfig(gateway);
 
       try {
-        const adapter = createGatewayAdapter(gwConfig);
+        const adapter = await createGatewayAdapter(gwConfig);
         const policy: BandwidthPolicy = {
           downloadSpeed,
           uploadSpeed,
@@ -530,7 +530,7 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        const adapter = createGatewayAdapter(gwConfig);
+        const adapter = await createGatewayAdapter(gwConfig);
         let pushResult: { success: boolean; error?: string; message?: string } = { success: false, error: 'This vendor does not support configuration push' };
 
         // Vendor-specific push logic

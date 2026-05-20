@@ -212,36 +212,7 @@ export abstract class GatewayAdapter {
 }
 
 /**
- * Adapter Factory
+ * Adapter Factory — re-exported from index.ts (async version)
+ * Use: `import { createGatewayAdapter } from '@/lib/wifi/adapters'`
+ * Then: `const adapter = await createGatewayAdapter(config)`
  */
-export function createGatewayAdapter(config: GatewayConfig): GatewayAdapter {
-  // Dynamic import based on vendor
-  // This will be implemented in each vendor's adapter file
-  switch (config.vendor) {
-    case 'mikrotik':
-      // return new MikrotikAdapter(config);
-    case 'unifi':
-      // return new UnifiAdapter(config);
-    case 'cisco':
-      // return new CiscoAdapter(config);
-    case 'aruba':
-      // return new ArubaAdapter(config);
-    case 'tplink':
-      // return new TPLinkAdapter(config);
-    case 'ruijie':
-      // return new RuijieAdapter(config);
-    case 'cambium':
-      // return new CambiumAdapter(config);
-    case 'grandstream':
-      // return new GrandstreamAdapter(config);
-    case 'ruckus':
-      // return new RuckusAdapter(config);
-    case 'juniper':
-      // return new JuniperAdapter(config);
-    case 'fortinet':
-      // return new FortinetAdapter(config);
-    default:
-      // return new GenericAdapter(config);
-      throw new Error(`Adapter for vendor '${config.vendor}' not yet implemented`);
-  }
-}

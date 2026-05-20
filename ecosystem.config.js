@@ -1,23 +1,22 @@
 module.exports = {
-  apps: [
-    {
-      name: 'staysuite',
-      script: '/home/z/my-project/node_modules/.bin/next',
-      args: 'dev -p 3000',
-      cwd: '/home/z/my-project',
-      interpreter: 'none',
-      env: {
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30',
-        NODE_ENV: 'development',
-        PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/z/.bun/bin',
-      },
-      watch: false,
-      autorestart: true,
-      max_restarts: 10,
-      restart_delay: 10000,
-      min_uptime: '30s',
-      kill_timeout: 15000,
-      listen_timeout: 60000,
+  apps: [{
+    name: 'staysuite',
+    script: 'npx',
+    args: 'next dev -p 3000',
+    cwd: '/home/z/my-project',
+    env: {
+      DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30',
+      NODE_OPTIONS: '--max-old-space-size=4096',
+      PORT: 3000,
     },
-  ],
+    max_memory_restart: '6G',  // Auto-restart if memory exceeds 6GB
+    max_restarts: 20,          // Max restarts
+    restart_delay: 5000,       // 5 second delay between restarts
+    autorestart: true,         // Auto-restart on crash
+    watch: false,              // Don't watch files (Turbopack handles that)
+    log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    error_file: '/home/z/my-project/logs/pm2-error.log',
+    out_file: '/home/z/my-project/logs/pm2-out.log',
+    merge_logs: true,
+  }]
 };

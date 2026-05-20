@@ -1,56 +1,49 @@
 /**
- * Gateway Adapter Factory
- * Creates vendor-specific WiFi gateway adapters.
- * All adapters implement the same interface for seamless switching.
+ * Gateway Adapter Factory — Lazy-loaded version
+ *
+ * IMPORTANT: All vendor adapter imports are now LAZY (dynamic import()).
+ * This prevents Turbopack from compiling 7,737 lines of adapter code
+ * at module evaluation time, significantly reducing dev server memory.
+ *
+ * The `createGatewayAdapter` function is now ASYNC.
+ * Callers must use: `const adapter = await createGatewayAdapter(config)`
  */
 
-import {
+import type {
   GatewayAdapter,
   GatewayConfig,
   GatewayVendor,
+  CoARequest,
+  CoAResponse,
+  SessionInfo,
+  GatewayStatus,
+  BandwidthPolicy,
 } from './gateway-adapter';
-// Node.js-only module — loaded via require() to avoid Turbopack Edge Runtime analysis.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const net = /*turbopackIgnore: true*/ require('net');
-import { CryptskAdapter, CryptskConfig } from './cryptsk-adapter';
-import { MikrotikAdapter, MikrotikConfig } from './mikrotik-adapter';
-import { TPLinkAdapter, TPLinkConfig } from './tplink-adapter';
-import { UniFiAdapter, UniFiConfig } from './unifi-adapter';
-import { CambiumAdapter, CambiumConfig } from './cambium-adapter';
-import { ArubaAdapter, ArubaConfig } from './aruba-adapter';
-import { CiscoAdapter, CiscoConfig } from './cisco-adapter';
-import { HuaweiAdapter, HuaweiConfig } from './huawei-adapter';
-import { NetgearAdapter, NetgearConfig } from './netgear-adapter';
-import { DLinkAdapter, DLinkConfig } from './dlink-adapter';
-import { JuniperAdapter, JuniperConfig } from './juniper-adapter';
-import { RuijieAdapter, RuijieConfig } from './ruijie-adapter';
-import { FortinetAdapter, FortinetConfig } from './fortinet-adapter';
-import { RuckusAdapter, RuckusConfig } from './ruckus-adapter';
-import { GrandstreamAdapter, GrandstreamConfig } from './grandstream-adapter';
 
-// Re-export types
-export * from './gateway-adapter';
+// Re-export types (zero-cost, no code generated)
+export type { GatewayConfig, GatewayVendor, CoARequest, CoAResponse, SessionInfo, GatewayStatus, BandwidthPolicy };
+export { GatewayAdapter } from './gateway-adapter';
 
-// Vendor configurations
-export type VendorConfig = 
-  | CryptskConfig
-  | MikrotikConfig 
-  | TPLinkConfig 
-  | UniFiConfig 
-  | CambiumConfig 
-  | ArubaConfig
-  | CiscoConfig
-  | DLinkConfig
-  | NetgearConfig
-  | RuijieConfig
-  | FortinetConfig
-  | RuckusConfig
-  | JuniperConfig
-  | HuaweiConfig
-  | GrandstreamConfig
-  | GatewayConfig;
+// Vendor-specific config types — re-exported as types only (no runtime cost)
+export type CryptskConfig = import('./cryptsk-adapter').CryptskConfig;
+export type MikrotikConfig = import('./mikrotik-adapter').MikrotikConfig;
+export type TPLinkConfig = import('./tplink-adapter').TPLinkConfig;
+export type UniFiConfig = import('./unifi-adapter').UniFiConfig;
+export type CambiumConfig = import('./cambium-adapter').CambiumConfig;
+export type ArubaConfig = import('./aruba-adapter').ArubaConfig;
+export type CiscoConfig = import('./cisco-adapter').CiscoConfig;
+export type HuaweiConfig = import('./huawei-adapter').HuaweiConfig;
+export type NetgearConfig = import('./netgear-adapter').NetgearConfig;
+export type DLinkConfig = import('./dlink-adapter').DLinkConfig;
+export type JuniperConfig = import('./juniper-adapter').JuniperConfig;
+export type RuijieConfig = import('./ruijie-adapter').RuijieConfig;
+export type FortinetConfig = import('./fortinet-adapter').FortinetConfig;
+export type RuckusConfig = import('./ruckus-adapter').RuckusConfig;
+export type GrandstreamConfig = import('./grandstream-adapter').GrandstreamConfig;
 
-// Vendor metadata
+export type VendorConfig = GatewayConfig;
+
+// Vendor metadata (static data — no adapter imports needed)
 export const VENDOR_METADATA: Record<GatewayVendor, {
   name: string;
   description: string;
@@ -87,14 +80,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     name: 'MikroTik',
     description: 'RouterOS - Popular in hospitality and ISP deployments',
     popularIn: ['India', 'Eastern Europe', 'Southeast Asia'],
-    features: [
-      'RouterOS API',
-      'Hotspot Portal',
-      'CAPsMAN',
-      'RADIUS CoA',
-      'Rate Limiting',
-      'VLAN Assignment',
-    ],
+    features: ['RouterOS API', 'Hotspot Portal', 'CAPsMAN', 'RADIUS CoA', 'Rate Limiting', 'VLAN Assignment'],
     apiPort: 8728,
     coaPort: 3799,
     radiusPort: 1812,
@@ -103,14 +89,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     name: 'TP-Link Omada',
     description: 'Omada SDN - Cost-effective enterprise WiFi',
     popularIn: ['India', 'China', 'Southeast Asia'],
-    features: [
-      'Omada Controller',
-      'EAP Management',
-      'Captive Portal',
-      'Bandwidth Control',
-      'Multi-site Management',
-      'Cloud Access',
-    ],
+    features: ['Omada Controller', 'EAP Management', 'Captive Portal', 'Bandwidth Control', 'Multi-site Management', 'Cloud Access'],
     apiPort: 8043,
     coaPort: 3799,
     radiusPort: 1812,
@@ -119,14 +98,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     name: 'Ubiquiti UniFi',
     description: 'UniFi Network Application - Enterprise grade',
     popularIn: ['USA', 'Europe', 'Middle East'],
-    features: [
-      'UniFi Controller',
-      'Guest Portal',
-      'VLAN Networks',
-      'Bandwidth Profiles',
-      'Deep Packet Inspection',
-      'Multi-site',
-    ],
+    features: ['UniFi Controller', 'Guest Portal', 'VLAN Networks', 'Bandwidth Profiles', 'Deep Packet Inspection', 'Multi-site'],
     apiPort: 8443,
     coaPort: 3799,
     radiusPort: 1812,
@@ -135,14 +107,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     name: 'Cambium Networks',
     description: 'cnPilot & ePMP - ISP and hospitality focus',
     popularIn: ['India', 'Latin America', 'Africa'],
-    features: [
-      'cnMaestro Cloud',
-      'cnPilot APs',
-      'ePMP Backhaul',
-      'RADIUS Integration',
-      'Bandwidth Management',
-      'Multi-tenant',
-    ],
+    features: ['cnMaestro Cloud', 'cnPilot APs', 'ePMP Backhaul', 'RADIUS Integration', 'Bandwidth Management', 'Multi-tenant'],
     apiPort: 443,
     coaPort: 3799,
     radiusPort: 1812,
@@ -151,14 +116,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     name: 'Aruba Networks (HPE)',
     description: 'ArubaOS & Central - Enterprise hospitality',
     popularIn: ['USA', 'Europe', 'Middle East', 'Asia Pacific'],
-    features: [
-      'Aruba Central Cloud',
-      'Mobility Controller',
-      'ClearPass Integration',
-      'Role-based Access',
-      'AI Insights',
-      'Location Services',
-    ],
+    features: ['Aruba Central Cloud', 'Mobility Controller', 'ClearPass Integration', 'Role-based Access', 'AI Insights', 'Location Services'],
     apiPort: 443,
     coaPort: 3799,
     radiusPort: 1812,
@@ -167,17 +125,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     name: 'Netgear Insight',
     description: 'Insight Instant Mesh & WAC - SMB hospitality (Popular in India)',
     popularIn: ['India', 'USA', 'Europe', 'Middle East'],
-    features: [
-      'Insight Cloud Management',
-      'Instant Mesh (WAX610/615/620/630)',
-      'Orbi Pro (SRK60/SXR80/SXS80)',
-      'WAC Access Points (505/510/540/730)',
-      'RADIUS CoA (VSA: 4526)',
-      'Captive Portal',
-      'Multi-SSID Support',
-      'Bandwidth Control',
-      'VLAN Assignment',
-    ],
+    features: ['Insight Cloud Management', 'Instant Mesh', 'Orbi Pro', 'WAC Access Points', 'RADIUS CoA', 'Captive Portal', 'Multi-SSID Support', 'Bandwidth Control', 'VLAN Assignment'],
     apiPort: 443,
     coaPort: 3799,
     radiusPort: 1812,
@@ -186,17 +134,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     name: 'D-Link Nuclias',
     description: 'Nuclias Connect & Cloud - Popular in India/Asia SMB hospitality',
     popularIn: ['India', 'Southeast Asia', 'Middle East', 'Taiwan'],
-    features: [
-      'Nuclias Connect Controller (DWC-1000/2020/3020)',
-      'Nuclias Cloud Management',
-      'DAP Access Points (DAP-2610/2622/3662/3711)',
-      'RADIUS Authentication',
-      'CoA Support (VSA: 171)',
-      'Captive Portal',
-      'Bandwidth Control',
-      'VLAN Assignment',
-      'Multi-site Management',
-    ],
+    features: ['Nuclias Connect Controller', 'Nuclias Cloud Management', 'DAP Access Points', 'RADIUS Authentication', 'CoA Support', 'Captive Portal', 'Bandwidth Control', 'VLAN Assignment', 'Multi-site Management'],
     apiPort: 8443,
     coaPort: 3799,
     radiusPort: 1812,
@@ -205,19 +143,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     name: 'Cisco Meraki',
     description: 'Meraki Cloud - Enterprise managed WiFi for hospitality',
     popularIn: ['USA', 'Europe', 'Japan', 'Middle East'],
-    features: [
-      'Meraki Dashboard REST API v1',
-      'MR Access Points (MR20/33/36/42/45/46/52/56/70/76/86)',
-      'MX Security Appliances',
-      'MS Switches',
-      'RADIUS Authentication',
-      'CoA Support (Port 1700)',
-      'Group Policies',
-      'Splash Page/Captive Portal',
-      'VLAN Assignment',
-      'Bandwidth Control',
-      'Location Analytics',
-    ],
+    features: ['Meraki Dashboard REST API v1', 'MR Access Points', 'MX Security Appliances', 'MS Switches', 'RADIUS Authentication', 'CoA Support', 'Group Policies', 'Splash Page/Captive Portal', 'VLAN Assignment', 'Bandwidth Control', 'Location Analytics'],
     apiPort: 443,
     coaPort: 1700,
     radiusPort: 1812,
@@ -226,14 +152,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     name: 'Ruckus Networks',
     description: 'Smart WiFi - High density environments',
     popularIn: ['USA', 'Europe', 'Asia Pacific'],
-    features: [
-      'SmartZone Controller',
-      'ZoneDirector',
-      'Cloudpath Enrollment',
-      'SPoT Location',
-      'Unleashed',
-      'BeamFlex',
-    ],
+    features: ['SmartZone Controller', 'ZoneDirector', 'Cloudpath Enrollment', 'SPoT Location', 'Unleashed', 'BeamFlex'],
     apiPort: 8443,
     coaPort: 3799,
     radiusPort: 1812,
@@ -242,16 +161,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     name: 'Ruijie Networks',
     description: 'Enterprise WiFi - VERY popular in India & China hospitality',
     popularIn: ['India', 'China', 'Southeast Asia', 'Middle East'],
-    features: [
-      'RG-BC Controller (BC8600, BC5750)',
-      'RG-AP Access Points (AP520, AP620, AP840)',
-      'RG-S Switches',
-      'Portal Authentication',
-      'Ruijie Cloud',
-      'Smart Roaming',
-      'Bandwidth Control',
-      'RADIUS CoA (VSA: 25506)',
-    ],
+    features: ['RG-BC Controller', 'RG-AP Access Points', 'RG-S Switches', 'Portal Authentication', 'Ruijie Cloud', 'Smart Roaming', 'Bandwidth Control', 'RADIUS CoA'],
     apiPort: 443,
     coaPort: 3799,
     radiusPort: 1812,
@@ -260,14 +170,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     name: 'Grandstream',
     description: 'GWN Series - SMB WiFi solutions',
     popularIn: ['USA', 'Europe', 'Asia'],
-    features: [
-      'GWN Manager',
-      'GWN APs',
-      'CAP Portal',
-      'Bandwidth Limits',
-      'VPN Support',
-      'Multi-site',
-    ],
+    features: ['GWN Manager', 'GWN APs', 'CAP Portal', 'Bandwidth Limits', 'VPN Support', 'Multi-site'],
     apiPort: 443,
     coaPort: 3799,
     radiusPort: 1812,
@@ -276,16 +179,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     name: 'Juniper Mist',
     description: 'Mist AI - AI-driven WiFi for modern hospitality',
     popularIn: ['USA', 'Europe', 'Japan', 'Middle East'],
-    features: [
-      'Mist Cloud API',
-      'Marvis AI Assistant',
-      'AI-driven Insights',
-      'Location Services',
-      'RADIUS Integration',
-      'Dynamic Packet Capture',
-      'Service Level Expectations',
-      'Virtual Network Assistant',
-    ],
+    features: ['Mist Cloud API', 'Marvis AI Assistant', 'AI-driven Insights', 'Location Services', 'RADIUS Integration', 'Dynamic Packet Capture', 'Service Level Expectations', 'Virtual Network Assistant'],
     apiPort: 443,
     coaPort: 3799,
     radiusPort: 1812,
@@ -294,19 +188,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     name: 'Fortinet',
     description: 'FortiWiFi - Security-first WiFi for enterprise hospitality',
     popularIn: ['USA', 'Europe', 'Asia', 'Middle East'],
-    features: [
-      'FortiGate REST API',
-      'FortiWiFi (FWF-40F/60F/80F/100F/200F)',
-      'FortiAP (FAP-221E/231F/431F/433F)',
-      'FortiPresence Analytics',
-      'Zero Trust Network Access (ZTNA)',
-      'Application Control',
-      'Security Profiles',
-      'RADIUS CoA (VSA: 12356)',
-      'Traffic Shaping',
-      'VLAN Assignment',
-      'Per-user Bandwidth Control',
-    ],
+    features: ['FortiGate REST API', 'FortiWiFi', 'FortiAP', 'FortiPresence Analytics', 'Zero Trust Network Access', 'Application Control', 'Security Profiles', 'RADIUS CoA', 'Traffic Shaping', 'VLAN Assignment', 'Per-user Bandwidth Control'],
     apiPort: 443,
     coaPort: 3799,
     radiusPort: 1812,
@@ -315,18 +197,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     name: 'Huawei',
     description: 'AirEngine & CloudEngine - VERY popular in India & Asian hospitality',
     popularIn: ['India', 'China', 'Southeast Asia', 'Middle East', 'Africa'],
-    features: [
-      'AirEngine APs (5760/6760/8760 series)',
-      'CloudEngine Switches',
-      'Access Controllers (AC6508/6805/6800V)',
-      'eSight Management',
-      'Huawei Cloud API',
-      'AI Optimization',
-      '5G/WiFi Convergence',
-      'RADIUS CoA (VSA: 2011)',
-      'VLAN Assignment',
-      'Per-user Bandwidth Control',
-    ],
+    features: ['AirEngine APs', 'CloudEngine Switches', 'Access Controllers', 'eSight Management', 'Huawei Cloud API', 'AI Optimization', '5G/WiFi Convergence', 'RADIUS CoA', 'VLAN Assignment', 'Per-user Bandwidth Control'],
     apiPort: 443,
     coaPort: 3799,
     radiusPort: 1812,
@@ -335,12 +206,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     name: 'Generic RADIUS',
     description: 'Any RADIUS-compatible gateway',
     popularIn: ['Global'],
-    features: [
-      'RADIUS Auth',
-      'RADIUS CoA',
-      'WISPr Attributes',
-      'Session Management',
-    ],
+    features: ['RADIUS Auth', 'RADIUS CoA', 'WISPr Attributes', 'Session Management'],
     apiPort: 1812,
     coaPort: 3799,
     radiusPort: 1812,
@@ -372,12 +238,16 @@ export const DEFAULT_PORTS: Record<GatewayVendor, {
   generic: { api: 443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
 };
 
+// Cache for loaded adapter modules (avoids re-importing on every call)
+const adapterCache = new Map<string, any>();
+
 /**
- * Create a gateway adapter for the specified vendor
+ * Create a gateway adapter for the specified vendor — LAZY LOADED
+ *
+ * IMPORTANT: This function is now ASYNC because adapters are loaded on demand.
+ * Usage: `const adapter = await createGatewayAdapter(config)`
  */
-export function createGatewayAdapter<T extends GatewayVendor>(
-  config: GatewayConfig & { vendor: T }
-): GatewayAdapter {
+export async function createGatewayAdapter(config: GatewayConfig): Promise<GatewayAdapter> {
   const vendor = config.vendor;
   const defaults = DEFAULT_PORTS[vendor] || DEFAULT_PORTS.generic;
 
@@ -391,167 +261,181 @@ export function createGatewayAdapter<T extends GatewayVendor>(
   };
 
   switch (vendor) {
-    case 'cryptsk':
-      return new CryptskAdapter(fullConfig as CryptskConfig);
-
-    case 'mikrotik':
-      return new MikrotikAdapter(fullConfig as MikrotikConfig);
-    
-    case 'tplink':
-      return new TPLinkAdapter(fullConfig as TPLinkConfig);
-    
-    case 'unifi':
-      return new UniFiAdapter(fullConfig as UniFiConfig);
-    
-    case 'cambium':
-      return new CambiumAdapter(fullConfig as CambiumConfig);
-    
-    case 'aruba':
-      return new ArubaAdapter(fullConfig as ArubaConfig);
-    
-    case 'netgear':
-      return new NetgearAdapter(fullConfig as unknown as NetgearConfig);
-    
-    case 'dlink':
-      return new DLinkAdapter(fullConfig as unknown as DLinkConfig);
-    
-    case 'ruijie':
-      return new RuijieAdapter(fullConfig as RuijieConfig);
-    
-    case 'fortinet':
-      return new FortinetAdapter(fullConfig as FortinetConfig);
-    
-    case 'ruckus':
-      return new RuckusAdapter(fullConfig as unknown as RuckusConfig);
-    
-    case 'juniper':
-      return new JuniperAdapter(fullConfig as JuniperConfig);
-    
-    case 'cisco':
-      return new CiscoAdapter(fullConfig as unknown as CiscoConfig);
-    
-    case 'huawei':
-      return new HuaweiAdapter(fullConfig as unknown as HuaweiConfig);
-    
-    case 'grandstream':
-      return new GrandstreamAdapter(fullConfig as GrandstreamConfig);
-    
+    case 'cryptsk': {
+      const mod = adapterCache.get('cryptsk') ?? await import('./cryptsk-adapter');
+      adapterCache.set('cryptsk', mod);
+      return new mod.CryptskAdapter(fullConfig);
+    }
+    case 'mikrotik': {
+      const mod = adapterCache.get('mikrotik') ?? await import('./mikrotik-adapter');
+      adapterCache.set('mikrotik', mod);
+      return new mod.MikrotikAdapter(fullConfig);
+    }
+    case 'tplink': {
+      const mod = adapterCache.get('tplink') ?? await import('./tplink-adapter');
+      adapterCache.set('tplink', mod);
+      return new mod.TPLinkAdapter(fullConfig);
+    }
+    case 'unifi': {
+      const mod = adapterCache.get('unifi') ?? await import('./unifi-adapter');
+      adapterCache.set('unifi', mod);
+      return new mod.UniFiAdapter(fullConfig);
+    }
+    case 'cambium': {
+      const mod = adapterCache.get('cambium') ?? await import('./cambium-adapter');
+      adapterCache.set('cambium', mod);
+      return new mod.CambiumAdapter(fullConfig);
+    }
+    case 'aruba': {
+      const mod = adapterCache.get('aruba') ?? await import('./aruba-adapter');
+      adapterCache.set('aruba', mod);
+      return new mod.ArubaAdapter(fullConfig);
+    }
+    case 'netgear': {
+      const mod = adapterCache.get('netgear') ?? await import('./netgear-adapter');
+      adapterCache.set('netgear', mod);
+      return new mod.NetgearAdapter(fullConfig);
+    }
+    case 'dlink': {
+      const mod = adapterCache.get('dlink') ?? await import('./dlink-adapter');
+      adapterCache.set('dlink', mod);
+      return new mod.DLinkAdapter(fullConfig);
+    }
+    case 'ruijie': {
+      const mod = adapterCache.get('ruijie') ?? await import('./ruijie-adapter');
+      adapterCache.set('ruijie', mod);
+      return new mod.RuijieAdapter(fullConfig);
+    }
+    case 'fortinet': {
+      const mod = adapterCache.get('fortinet') ?? await import('./fortinet-adapter');
+      adapterCache.set('fortinet', mod);
+      return new mod.FortinetAdapter(fullConfig);
+    }
+    case 'ruckus': {
+      const mod = adapterCache.get('ruckus') ?? await import('./ruckus-adapter');
+      adapterCache.set('ruckus', mod);
+      return new mod.RuckusAdapter(fullConfig);
+    }
+    case 'juniper': {
+      const mod = adapterCache.get('juniper') ?? await import('./juniper-adapter');
+      adapterCache.set('juniper', mod);
+      return new mod.JuniperAdapter(fullConfig);
+    }
+    case 'cisco': {
+      const mod = adapterCache.get('cisco') ?? await import('./cisco-adapter');
+      adapterCache.set('cisco', mod);
+      return new mod.CiscoAdapter(fullConfig);
+    }
+    case 'huawei': {
+      const mod = adapterCache.get('huawei') ?? await import('./huawei-adapter');
+      adapterCache.set('huawei', mod);
+      return new mod.HuaweiAdapter(fullConfig);
+    }
+    case 'grandstream': {
+      const mod = adapterCache.get('grandstream') ?? await import('./grandstream-adapter');
+      adapterCache.set('grandstream', mod);
+      return new mod.GrandstreamAdapter(fullConfig);
+    }
     case 'generic':
-    default:
+    default: {
+      const GenericAdapter = await getGenericAdapter();
       return new GenericAdapter(fullConfig);
-  }
-}
-
-/**
- * Generic RADIUS-only adapter
- */
-class GenericAdapter extends GatewayAdapter {
-  constructor(config: GatewayConfig) {
-    super(config);
-  }
-
-  getVendor() {
-    return 'generic' as const;
-  }
-
-  async testConnection(): Promise<{ success: boolean; latency?: number; error?: string }> {
-    // Test TCP connectivity on CoA port
-    return new Promise((resolve) => {
-      const startTime = Date.now();
-      const socket = new net.Socket();
-      socket.setTimeout(5000);
-
-      const port = this.config.coaPort || 3799;
-
-      socket.connect(port, this.config.ipAddress, () => {
-        const latency = Date.now() - startTime;
-        socket.destroy();
-        resolve({ success: true, latency });
-      });
-
-      socket.on('error', (err) => {
-        resolve({ success: false, error: err.message });
-      });
-
-      socket.on('timeout', () => {
-        socket.destroy();
-        resolve({ success: false, error: 'Timeout' });
-      });
-    });
-  }
-
-  async sendCoA(request: CoARequest): Promise<CoAResponse> {
-    // Generic CoA: Route through freeradius-service radclient CLI.
-    // This works for ANY vendor that supports standard RADIUS CoA (RFC 5176).
-    try {
-      const radiusServiceUrl = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
-      const url = `${radiusServiceUrl}/api/coa/disconnect`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: request.username,
-          sessionId: request.sessionId,
-          nasIp: this.config.ipAddress,
-          nasSecret: this.config.secret,
-          coaPort: this.config.coaPort || 3799,
-        }),
-      });
-
-      if (!response.ok) {
-        return { success: false, message: `CoA failed: ${response.status}` };
-      }
-
-      const result = await response.json();
-      return {
-        success: result.success ?? true,
-        message: `Generic CoA ${request.action} for ${request.username} via ${this.config.ipAddress}`,
-      };
-    } catch (err) {
-      return {
-        success: false,
-        message: `Generic CoA ${request.action} error: ${err instanceof Error ? err.message : String(err)}`,
-      };
     }
   }
-
-  async getStatus(): Promise<GatewayStatus> {
-    return {
-      online: true,
-      lastSeen: new Date(),
-    };
-  }
-
-  async getActiveSessions(): Promise<SessionInfo[]> {
-    // Generic adapter relies on RADIUS accounting
-    return [];
-  }
-
-  async disconnectSession(sessionId: string, username: string): Promise<CoAResponse> {
-    return this.sendCoA({
-      username,
-      sessionId,
-      action: 'disconnect',
-    });
-  }
-
-  async updateBandwidth(
-    sessionId: string,
-    username: string,
-    policy: BandwidthPolicy
-  ): Promise<CoAResponse> {
-    const attrs = this.getRadiusAttributes(policy);
-    return this.sendCoA({
-      username,
-      sessionId,
-      action: 'update',
-      attributes: attrs,
-    });
-  }
-
-  getHealthCheckEndpoints(): string[] {
-    return [];
-  }
 }
 
-import type { CoARequest, CoAResponse, SessionInfo, GatewayStatus, BandwidthPolicy } from './gateway-adapter';
+// Lazy-load the GenericAdapter (uses Node.js `net` module)
+let _GenericAdapterClass: typeof import('./gateway-adapter').GatewayAdapter | null = null;
+
+async function getGenericAdapter() {
+  if (_GenericAdapterClass) return _GenericAdapterClass;
+
+  // Load net module lazily
+  const net = await import('net');
+
+  // Define GenericAdapter at runtime (not at module evaluation time)
+  const { GatewayAdapter } = await import('./gateway-adapter');
+
+  class GenericAdapter extends GatewayAdapter {
+    getVendor() { return 'generic' as const; }
+
+    async testConnection(): Promise<{ success: boolean; latency?: number; error?: string }> {
+      return new Promise((resolve) => {
+        const startTime = Date.now();
+        const socket = new net.Socket();
+        socket.setTimeout(5000);
+        const port = this.config.coaPort || 3799;
+
+        socket.connect(port, this.config.ipAddress, () => {
+          const latency = Date.now() - startTime;
+          socket.destroy();
+          resolve({ success: true, latency });
+        });
+
+        socket.on('error', (err) => {
+          resolve({ success: false, error: err.message });
+        });
+
+        socket.on('timeout', () => {
+          socket.destroy();
+          resolve({ success: false, error: 'Timeout' });
+        });
+      });
+    }
+
+    async sendCoA(request: CoARequest): Promise<CoAResponse> {
+      try {
+        const radiusServiceUrl = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
+        const url = `${radiusServiceUrl}/api/coa/disconnect`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: request.username,
+            sessionId: request.sessionId,
+            nasIp: this.config.ipAddress,
+            nasSecret: this.config.secret,
+            coaPort: this.config.coaPort || 3799,
+          }),
+        });
+
+        if (!response.ok) {
+          return { success: false, message: `CoA failed: ${response.status}` };
+        }
+
+        const result = await response.json();
+        return {
+          success: result.success ?? true,
+          message: `Generic CoA ${request.action} for ${request.username} via ${this.config.ipAddress}`,
+        };
+      } catch (err) {
+        return {
+          success: false,
+          message: `Generic CoA ${request.action} error: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
+    }
+
+    async getStatus(): Promise<GatewayStatus> {
+      return { online: true, lastSeen: new Date() };
+    }
+
+    async getActiveSessions(): Promise<SessionInfo[]> {
+      return [];
+    }
+
+    async disconnectSession(sessionId: string, username: string): Promise<CoAResponse> {
+      return this.sendCoA({ username, sessionId, action: 'disconnect' });
+    }
+
+    async updateBandwidth(sessionId: string, username: string, policy: BandwidthPolicy): Promise<CoAResponse> {
+      const attrs = this.getRadiusAttributes(policy);
+      return this.sendCoA({ username, sessionId, action: 'update', attributes: attrs });
+    }
+
+    getHealthCheckEndpoints(): string[] { return []; }
+  }
+
+  _GenericAdapterClass = GenericAdapter as any;
+  return GenericAdapter;
+}
