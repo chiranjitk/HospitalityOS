@@ -41,6 +41,10 @@ import {
   Keyboard,
   Flame,
   Clapperboard,
+  BarChart3,
+  Palmtree,
+  LayoutDashboard,
+  Briefcase,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/contexts/AuthContext';
@@ -98,8 +102,9 @@ export function Header({ className, onMenuClick }: HeaderProps) {
   const { isDark, toggleMode } = useUIStyle();
   const { themeId } = useUIStyleStore();
 
-  // Theme-specific icon - 10 themes
+  // Theme-specific icon - all 16 themes
   const ThemeIcon = {
+    'hospitality-sunrise': Sun,
     'gradient-modern': Sparkles,
     'dark-premium': Crown,
     'cyber-neon': Zap,
@@ -110,7 +115,12 @@ export function Header({ className, onMenuClick }: HeaderProps) {
     'obsidian-rose': Gem,
     'midnight-ivory': Moon,
     'scarlet-noir': Clapperboard,
-  }[themeId] || Sparkles;
+    'slate-enterprise': Building2,
+    'sapphire-dash': BarChart3,
+    'terra-corporate': Palmtree,
+    'arctic-steel': LayoutDashboard,
+    'noir-executive': Briefcase,
+  }[themeId] || Sun;
 
   // Get section title from active section with translations
   const getSectionTitle = () => {
