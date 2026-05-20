@@ -488,12 +488,12 @@ async function handleActiveUsers() {
       // Try multiple possible RRD data paths (dev, production, sandbox)
       const candidates = [
         getRRDBasePath(),
-        /*turbopackIgnore: true*/ process['cwd']() + '/data/rrd',
+        /*turbopackIgnore: true*/ process.cwd() + '/data/rrd',
       ];
       for (const base of candidates) {
         const dir = base + '/users';
-        if (fs.existsSync(dir)) {
-          const files = fs.readdirSync(dir).filter(f => f.endsWith('.rrd'));
+        if (/*turbopackIgnore: true*/ fs.existsSync(dir)) {
+          const files = /*turbopackIgnore: true*/ fs.readdirSync(dir).filter(f => f.endsWith('.rrd'));
           if (files.length > 0) {
             rrdUsernames = files.map(f => f.replace(/\.rrd$/, ''));
             console.log(`[Health API] active-users: found ${rrdUsernames.length} RRD users from ${dir}`);
@@ -503,15 +503,10 @@ async function handleActiveUsers() {
       }
       // Debug: write path resolution to temp file
       try {
-        fs.appendFileSync('/tmp/rrd-active-users-debug.log',
-          `[${new Date().toISOString()}] cwd=${/*turbopackIgnore: true*/ process['cwd']()} getRRDBase=${getRRDBasePath()} candidates=${candidates.join(',')} rrdUsers=${rrdUsernames.length}\n`);
+        console.log(`[Health API] active-users debug: cwd=${process.cwd()} getRRDBase=${getRRDBasePath()} candidates=${candidates.join(',')} rrdUsers=${rrdUsernames.length}`);
       } catch { /* ignore */ }
     } catch (err) {
       console.error('[Health API] RRD scan error:', err);
-      try {
-        fs.appendFileSync('/tmp/rrd-active-users-debug.log',
-          `[${new Date().toISOString()}] ERROR: ${err}\n`);
-      } catch { /* ignore */ }
     }
 
     return NextResponse.json({ success: true, data: users, rrdUsernames });
@@ -591,12 +586,12 @@ async function handleUserGraph(searchParams: URLSearchParams) {
   // Try multiple candidate paths to find the RRD file
   const candidates = [
     userRRDPath(username),
-    /*turbopackIgnore: true*/ process['cwd']() + '/data/rrd/users/' + username + '.rrd',
+    /*turbopackIgnore: true*/ process.cwd() + '/data/rrd/users/' + username + '.rrd',
   ];
 
   let rrdFile = '';
   for (const candidate of candidates) {
-    if (/*turbopackIgnore: true*/ (() => fs['existsSync'](candidate))()) {
+    if (/*turbopackIgnore: true*/ fs.existsSync(candidate)) {
       rrdFile = candidate;
       break;
     }
@@ -656,14 +651,14 @@ function handleListUserRRDs() {
   // Try multiple candidate paths (same logic as handleActiveUsers)
   const candidates = [
     getRRDBasePath(),
-    /*turbopackIgnore: true*/ process['cwd']() + '/data/rrd',
+    /*turbopackIgnore: true*/ process.cwd() + '/data/rrd',
   ];
 
   for (const base of candidates) {
     const usersDir = base + '/users';
-    if (fs.existsSync(usersDir)) {
+    if (/*turbopackIgnore: true*/ fs.existsSync(usersDir)) {
       try {
-        const files = fs.readdirSync(usersDir).filter(f => f.endsWith('.rrd'));
+        const files = /*turbopackIgnore: true*/ fs.readdirSync(usersDir).filter(f => f.endsWith('.rrd'));
         if (files.length > 0) {
           const usernames = files.map(f => f.replace(/\.rrd$/, ''));
           console.log(`[Health API] list-user-rrds: found ${usernames.length} users from ${usersDir}`);

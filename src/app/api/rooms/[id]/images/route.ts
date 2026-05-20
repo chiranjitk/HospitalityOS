@@ -3,8 +3,11 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
-import fs from 'fs';
-import path from 'path';
+// Node.js-only modules — loaded via require() to avoid Turbopack Edge Runtime analysis.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const fs = /*turbopackIgnore: true*/ require('fs');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const path = /*turbopackIgnore: true*/ require('path');
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || /*turbopackIgnore: true*/ path.join(process.cwd(), 'upload');
 
@@ -79,22 +82,22 @@ function deleteFileFromDisk(fileUrl: string) {
       return;
     }
 
-    const filePath = path.join(UPLOAD_DIR, relativePath);
-    const resolvedFilePath = path.resolve(filePath);
+    const filePath = /*turbopackIgnore: true*/ path.join(UPLOAD_DIR, relativePath);
+    const resolvedFilePath = /*turbopackIgnore: true*/ path.resolve(filePath);
 
     // Security: ensure resolved path is within UPLOAD_DIR
-    const normalizedUploadDir = path.resolve(UPLOAD_DIR);
+    const normalizedUploadDir = /*turbopackIgnore: true*/ path.resolve(UPLOAD_DIR);
     if (
-      !resolvedFilePath.startsWith(normalizedUploadDir + path.sep) &&
+      !resolvedFilePath.startsWith(normalizedUploadDir + /*turbopackIgnore: true*/ path.sep) &&
       resolvedFilePath !== normalizedUploadDir
     ) {
       return;
     }
 
-    if (fs.existsSync(resolvedFilePath)) {
-      const stat = fs.statSync(resolvedFilePath);
+    if (/*turbopackIgnore: true*/ fs.existsSync(resolvedFilePath)) {
+      const stat = /*turbopackIgnore: true*/ fs.statSync(resolvedFilePath);
       if (stat.isFile()) {
-        fs.unlinkSync(resolvedFilePath);
+        /*turbopackIgnore: true*/ fs.unlinkSync(resolvedFilePath);
       }
     }
   } catch (error) {

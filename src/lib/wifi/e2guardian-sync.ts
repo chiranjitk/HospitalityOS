@@ -22,9 +22,13 @@
  */
 
 import { db } from '@/lib/db';
-import { writeFile, mkdir, readFile, readdir, stat, copyFile } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
+// Node.js-only modules — loaded via require() to avoid Turbopack Edge Runtime analysis.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { writeFile, mkdir, readFile, readdir, stat, copyFile } = /*turbopackIgnore: true*/ require('fs/promises');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { join } = /*turbopackIgnore: true*/ require('path');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { existsSync } = /*turbopackIgnore: true*/ require('fs');
 
 // ---------------------------------------------------------------------------
 // Constants — FHS system paths (configurable via env)
@@ -89,7 +93,7 @@ function getListDir(): string {
     return process.env.E2GUARDIAN_LIST_DIR;
   }
   const confDir = getConfDir();
-  const listDir = join(confDir, 'lists');
+  const listDir = /*turbopackIgnore: true*/ join(confDir, 'lists');
   if (/*turbopackIgnore: true*/ existsSync(listDir)) {
     return listDir;
   }
@@ -98,7 +102,7 @@ function getListDir(): string {
 }
 
 function getGroupListDir(groupNum: number): string {
-  return join(getListDir(), `group${groupNum}`);
+  return /*turbopackIgnore: true*/ join(getListDir(), `group${groupNum}`);
 }
 
 function getStatusFile(): string {
@@ -159,7 +163,7 @@ interface CategoryData {
 async function ensureGroupDirs(groups: number[]): Promise<void> {
   for (const g of groups) {
     const dir = getGroupListDir(g);
-    if (!existsSync(dir)) {
+    if (!/*turbopackIgnore: true*/ existsSync(dir)) {
       await mkdir(dir, { recursive: true });
     }
   }
@@ -176,7 +180,7 @@ async function writeListFile(
   fileName: string,
   domains: string[],
 ): Promise<number> {
-  const filePath = join(dir, fileName);
+  const filePath = /*turbopackIgnore: true*/ join(dir, fileName);
   const lines = domains.map(domainLine).filter(Boolean);
   const unique = [...new Set(lines)];
   const content = unique.join('\n') + (unique.length > 0 ? '\n' : '');
@@ -291,8 +295,8 @@ export async function syncE2guardianConfig(
     Object.assign(filesWritten, groupFiles);
 
     // 5. Write category-level list files (for reference/debugging)
-    const staysuiteDir = join(listDir, 'staysuite', 'banned');
-    if (!existsSync(staysuiteDir)) {
+    const staysuiteDir = /*turbopackIgnore: true*/ join(listDir, 'staysuite', 'banned');
+    if (!/*turbopackIgnore: true*/ existsSync(staysuiteDir)) {
       await mkdir(staysuiteDir, { recursive: true });
     }
     for (const [cat, domains] of Object.entries(categories)) {
@@ -314,7 +318,7 @@ export async function syncE2guardianConfig(
     };
     const statusFile = getStatusFile();
     const statusDir = statusFile.substring(0, statusFile.lastIndexOf('/'));
-    if (!existsSync(statusDir)) {
+    if (!/*turbopackIgnore: true*/ existsSync(statusDir)) {
       await mkdir(statusDir, { recursive: true });
     }
     await writeFile(statusFile, JSON.stringify(status, null, 2), 'utf-8');
@@ -386,8 +390,8 @@ export async function syncE2guardianConfigFromData(
     Object.assign(filesWritten, groupFiles);
 
     // Category-level reference files
-    const staysuiteDir = join(listDir, 'staysuite', 'banned');
-    if (!existsSync(staysuiteDir)) {
+    const staysuiteDir = /*turbopackIgnore: true*/ join(listDir, 'staysuite', 'banned');
+    if (!/*turbopackIgnore: true*/ existsSync(staysuiteDir)) {
       await mkdir(staysuiteDir, { recursive: true });
     }
     for (const [cat, domains] of Object.entries(categories)) {
@@ -408,7 +412,7 @@ export async function syncE2guardianConfigFromData(
     };
     const statusFile = getStatusFile();
     const statusDir = statusFile.substring(0, statusFile.lastIndexOf('/'));
-    if (!existsSync(statusDir)) {
+    if (!/*turbopackIgnore: true*/ existsSync(statusDir)) {
       await mkdir(statusDir, { recursive: true });
     }
     await writeFile(statusFile, JSON.stringify(status, null, 2), 'utf-8');
@@ -449,7 +453,7 @@ export async function syncE2guardianConfigFromData(
 export async function getSyncStatus(): Promise<SyncStatus | null> {
   try {
     const statusFile = getStatusFile();
-    if (!existsSync(statusFile)) return null;
+    if (!/*turbopackIgnore: true*/ existsSync(statusFile)) return null;
     const raw = await readFile(statusFile, 'utf-8');
     return JSON.parse(raw) as SyncStatus;
   } catch {
@@ -476,9 +480,9 @@ export async function getListFilesSummary(): Promise<{
   // Read per-group localbannedsitelist files
   for (const g of [1, 2, 3]) {
     const dir = getGroupListDir(g);
-    const filePath = join(dir, 'localbannedsitelist');
+    const filePath = /*turbopackIgnore: true*/ join(dir, 'localbannedsitelist');
     try {
-      if (existsSync(filePath)) {
+      if (/*turbopackIgnore: true*/ existsSync(filePath)) {
         const content = await readFile(filePath, 'utf-8');
         const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
         const fileStat = await stat(filePath);
@@ -493,12 +497,12 @@ export async function getListFilesSummary(): Promise<{
   }
 
   // Read staysuite reference lists
-  const staysuiteDir = join(listDir, 'staysuite', 'banned');
+  const staysuiteDir = /*turbopackIgnore: true*/ join(listDir, 'staysuite', 'banned');
   try {
-    if (existsSync(staysuiteDir)) {
+    if (/*turbopackIgnore: true*/ existsSync(staysuiteDir)) {
       const files = await readdir(staysuiteDir);
       for (const file of files) {
-        const filePath = join(staysuiteDir, file);
+        const filePath = /*turbopackIgnore: true*/ join(staysuiteDir, file);
         try {
           const content = await readFile(filePath, 'utf-8');
           const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
@@ -520,7 +524,7 @@ export async function getListFilesSummary(): Promise<{
   // List config files
   const configs: string[] = [];
   try {
-    if (existsSync(confDir)) {
+    if (/*turbopackIgnore: true*/ existsSync(confDir)) {
       const files = await readdir(confDir).catch(() => []);
       const confFiles = files.filter(f => f.endsWith('.conf'));
       configs.push(...confFiles.sort());

@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch from RRD
-    if (!rrdPath || !/*turbopackIgnore: true*/ (() => fs['existsSync'](rrdPath))()) {
+    if (!rrdPath || !/*turbopackIgnore: true*/ fs.existsSync(rrdPath)) {
       return NextResponse.json({
         success: true,
         timestamps: [],
