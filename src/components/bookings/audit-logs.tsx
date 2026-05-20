@@ -50,6 +50,7 @@ interface AuditLog {
   newStatus?: string;
   notes?: string;
   performedBy?: string;
+  performedByName?: string;
   performedAt: string;
   booking: BookingInfo;
 }
@@ -288,7 +289,7 @@ export default function AuditLogs() {
                       </TableCell>
                       <TableCell>
                         <span className="text-sm text-muted-foreground">
-                          {log.performedBy || 'System'}
+                          {log.performedByName || 'System'}
                         </span>
                       </TableCell>
                     </TableRow>

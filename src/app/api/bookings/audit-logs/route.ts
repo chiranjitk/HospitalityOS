@@ -59,11 +59,43 @@ export async function GET(request: NextRequest) {    const user = await requireP
       ...(offset && { skip: parseInt(offset, 10) }),
     });
 
+    // Batch-resolve performedBy UUIDs → real user names
+    const performedByIds = [...new Set(
+      logs.map(l => l.performedBy).filter((v): v is string => !!v && v.includes('-'))
+    )];
+    let userNameMap: Record<string, string> = {};
+    if (performedByIds.length > 0) {
+      const users = await db.user.findMany({
+        where: { id: { in: performedByIds } },
+        select: { id: true, firstName: true, lastName: true },
+      });
+      userNameMap = Object.fromEntries(
+        users.map(u => [u.id, `${u.firstName} ${u.lastName}`.trim()])
+      );
+    }
+
+    // Build display-friendly name mapping for known system strings
+    const systemLabels: Record<string, string> = {
+      'guest_portal': 'Guest Portal',
+      'system': 'System',
+      'night_audit': 'Night Audit',
+      'scheduler': 'Scheduler',
+      'no_show_engine': 'No-Show Engine',
+      'auto': 'System',
+    };
+
+    const enrichedLogs = logs.map(log => ({
+      ...log,
+      performedByName: !log.performedBy
+        ? 'System'
+        : (systemLabels[log.performedBy] || userNameMap[log.performedBy] || log.performedBy),
+    }));
+
     const total = await db.bookingAuditLog.count({ where });
 
     return NextResponse.json({
       success: true,
-      data: logs,
+      data: enrichedLogs,
       pagination: {
         total,
         limit: parseInt(limit, 10),
