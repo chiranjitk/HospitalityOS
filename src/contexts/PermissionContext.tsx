@@ -82,8 +82,13 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
       if (menuItemId.startsWith('saas-')) return false;
       if (menuItemId.startsWith('admin-')) return false;
       if (['settings-features', 'settings-license', 'settings-license-keys'].includes(menuItemId)) return false;
-      // Tenant user/role management: only tenant admin role (or wildcard) can access
-      if (menuItemId.startsWith('staff-') && !isAdmin) return false;
+      // Tenant user/role management: admin role always gets access;
+      // other roles need explicit permission (users.manage / users.view / admin.users)
+      if (menuItemId.startsWith('staff-') && !isAdmin) {
+        const staffPerms = getMenuPermissions(menuItemId);
+        const hasStaffAccess = staffPerms.length > 0 && hasAnyPermission(staffPerms);
+        if (!hasStaffAccess) return false;
+      }
       // Admin role or wildcard permission has access to everything else
       if (isAdmin || permissions.includes('*')) return true;
       return hasMenuAccess(permissions, menuItemId);
@@ -101,11 +106,15 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
         !id.startsWith('saas-') && !id.startsWith('admin-') && !platformOnlyIds.includes(id)
       );
     }
-    return Object.keys(menuPermissions).filter(menuId =>
-      !menuId.startsWith('saas-') && !menuId.startsWith('admin-') && !platformOnlyIds.includes(menuId) &&
-      !menuId.startsWith('staff-') &&
-      hasMenuAccess(permissions, menuId)
-    );
+    return Object.keys(menuPermissions).filter(menuId => {
+      if (menuId.startsWith('saas-') || menuId.startsWith('admin-') || platformOnlyIds.includes(menuId)) return false;
+      // Staff management: check explicit permission instead of hard-blocking
+      if (menuId.startsWith('staff-')) {
+        const staffPerms = getMenuPermissions(menuId);
+        return staffPerms.length > 0 && hasAnyPermission(staffPerms);
+      }
+      return hasMenuAccess(permissions, menuId);
+    });
   }, [user, permissions, isAdmin]);
 
   // Get required permissions for a menu item
