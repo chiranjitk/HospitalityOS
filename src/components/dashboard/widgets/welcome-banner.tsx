@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Shield, HeadphonesIcon, SprayCan, Clock, Calendar } from 'lucide-react';
+import { Shield, HeadphonesIcon, SprayCan, LogIn } from 'lucide-react';
 import { useTranslations } from '@/i18n/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -80,12 +80,6 @@ function getGreeting(): string {
 export function WelcomeBannerWidget() {
   const t = useTranslations('dashboard');
   const { user } = useAuth();
-  const [now, setNow] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 60_000);
-    return () => clearInterval(timer);
-  }, []);
 
   if (!user) return null;
 
@@ -93,18 +87,6 @@ export function WelcomeBannerWidget() {
   const RoleIcon = role.icon;
   const initials = getInitials(user.firstName, user.lastName);
   const greeting = getGreeting();
-
-  const formattedDate = now.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
-
-  const formattedTime = now.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  });
 
   return (
     <motion.div
@@ -179,17 +161,10 @@ export function WelcomeBannerWidget() {
             </p>
           </div>
 
-          {/* Time & Date */}
+          {/* Last login info */}
           <div className="hidden sm:flex flex-col items-end gap-1 shrink-0 text-right">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Clock className="h-3.5 w-3.5" />
-              <span className="tabular-nums font-medium">{formattedTime}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
-              <Calendar className="h-3 w-3" />
-              <span>{formattedDate}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
+              <LogIn className="h-3 w-3" />
               <span>{t('lastLogin')}</span>
               <span className="font-medium">2h ago</span>
             </div>

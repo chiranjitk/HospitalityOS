@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { useUIStore, useAuthStore } from '@/store';
+import { useUIStore } from '@/store';
 import { useTranslations } from 'next-intl';
 import { useDashboardData } from '@/hooks/use-dashboard-data';
 import {
@@ -15,7 +15,6 @@ import {
   Moon,
   CloudSun,
   Calendar,
-  Clock,
   Bell,
   BellRing,
   AlertTriangle,
@@ -37,7 +36,6 @@ import {
   Crown,
   Wifi,
   Activity,
-  Hotel,
   IndianRupee,
   CalendarPlus,
   Sparkles,
@@ -355,12 +353,7 @@ function TodaySummaryCard({ summary, isLoading }: { summary: TodaySummary | null
         {summary.arrivals === 0 && summary.departures === 0 && summary.inHouse === 0 && summary.availableRooms === 0 && (
           <p className="text-center text-xs text-muted-foreground/50 mt-3">{t('noActivityToday')}</p>
         )}
-        {/* Last updated timestamp */}
-        <div className="flex items-center justify-end mt-3 pt-2 border-t border-border/20">
-          <span className="text-[10px] text-muted-foreground/40 font-mono tabular-nums">
-            Updated {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
-          </span>
-        </div>
+
       </CardContent>
     </Card>
   );
@@ -696,74 +689,6 @@ function FloatingQuickActionsBar() {
   );
 }
 
-// ─── Live Clock Widget ──────────────────────────────────────────────────
-
-function LiveClockWidget() {
-  const [now, setNow] = useState(new Date());
-  const { currentProperty } = useAuthStore();
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const timeStr = now.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-  });
-
-  const dateStr = now.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="bg-muted/50 backdrop-blur-sm rounded-lg border border-border/50 p-3"
-    >
-      <div className="flex items-center justify-between gap-3">
-        {/* Left: Property name + Date */}
-        <div className="flex flex-col min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <Hotel className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="text-xs font-semibold text-foreground truncate">
-              {currentProperty?.name || 'Royal Stay Hotels'}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <Calendar className="h-3 w-3 text-muted-foreground shrink-0" />
-            <span className="text-[11px] text-muted-foreground truncate">{dateStr}</span>
-          </div>
-        </div>
-
-        {/* Right: Time + LIVE indicator */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-sm font-mono font-semibold tabular-nums text-foreground tracking-tight">
-            {timeStr}
-          </span>
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-            </span>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-              Live
-            </span>
-          </span>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
 // ─── Quick Stats Ticker ─────────────────────────────────────────────────
 
 function QuickStatsTicker({ summary, isLoading }: { summary: TodaySummary | null; isLoading: boolean }) {
@@ -965,11 +890,6 @@ export default function OverviewDashboard() {
         {/* ── Welcome Banner ── */}
         <div className="relative z-10">
           <WelcomeBannerWidget />
-        </div>
-
-        {/* ── Live Clock Widget ── */}
-        <div className="relative z-10">
-          <LiveClockWidget />
         </div>
 
         {/* ── Quick Stats Ticker ── */}
