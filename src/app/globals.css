@@ -286,6 +286,33 @@ body[style*="padding-right"] {
 }
 
 /* ============================================
+   REMOVE HOVER FLOAT EFFECT FROM ALL CARDS
+   No translateY lift, no scale, no shadow escalation
+   when hovering over content cards (user request)
+   ============================================ */
+[data-slot="card"]:hover {
+  transform: none !important;
+  scale: 1 !important;
+}
+
+/* Also neutralize CSS utility classes that add hover lift */
+.hover-lift:hover,
+.hover-lift:active {
+  transform: none !important;
+  box-shadow: none !important;
+}
+.card-hover-lift:hover,
+.card-hover-lift:active {
+  transform: none !important;
+  box-shadow: none !important;
+}
+.stat-pill:hover,
+.stat-pill:active {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* ============================================
    ENHANCED GLOBAL STYLES
    Dark mode refinements, utility classes & effects
    ============================================ */
