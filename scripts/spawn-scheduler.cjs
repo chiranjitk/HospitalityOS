@@ -1,16 +1,16 @@
 /**
  * Scheduler Spawn Script — runs background cron jobs in a SEPARATE process.
  *
- * This is forked from instrumentation.ts to isolate the heavy dependency graph
+ * Forked from instrumentation.ts to isolate the heavy dependency graph
  * (node-cron, twilio, wifi/adapters) from Turbopack's module analysis.
  *
- * Uses require() with explicit .js paths since this is plain CJS, not ESM.
+ * Uses `npx tsx` to run the TypeScript scheduler-runner.ts in a plain Node process.
  */
 const path = require('path');
+const { spawn } = require('child_process');
 
 // Ensure DATABASE_URL is available (inherited from parent process)
 if (!process.env.DATABASE_URL) {
-  // Try to load from .env file
   try {
     const fs = require('fs');
     const envPath = path.join(process.cwd(), '.env');
@@ -32,56 +32,22 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-async function main() {
-  try {
-    // Dynamic import of the scheduler module
-    // In Node.js CJS context, we need to use the compiled path
-    const schedulerModule = require('../src/lib/jobs/scheduler.ts');
-    if (schedulerModule?.initializeScheduler) {
-      schedulerModule.initializeScheduler();
-      console.log('[Scheduler] Initialized from child process');
-    } else {
-      // Try the compiled version
-      console.warn('[Scheduler] Trying compiled path...');
-      const compiledPath = path.join(process.cwd(), '.next', 'server', 'chunks', 'ssr');
-      console.error('[Scheduler] Module loaded but initializeScheduler not found');
-      process.exit(1);
-    }
-  } catch (err) {
-    console.error('[Scheduler] Failed to initialize:', err.message);
-    // Try alternative: use tsx to run TypeScript
-    try {
-      const { execSync } = require('child_process');
-      const schedulerTsPath = path.join(process.cwd(), 'src', 'lib', 'jobs', 'scheduler.ts');
-      const result = execSync(
-        `npx tsx -e "import('${schedulerTsPath}').then(m => { m.initializeScheduler(); console.log('[Scheduler] Initialized via tsx'); })"`,
-        { stdio: 'inherit', timeout: 30000 }
-      );
-      console.log(result?.toString());
-    } catch (tsxErr) {
-      console.error('[Scheduler] tsx fallback also failed:', tsxErr.message);
-      process.exit(1);
-    }
-  }
-}
+// Spawn tsx with the scheduler runner module
+const tsxBin = path.join(process.cwd(), 'node_modules', '.bin', 'tsx');
+const runnerPath = path.join(process.cwd(), 'scripts', 'scheduler-runner.ts');
 
-main();
-
-// Keep process alive
-process.on('SIGTERM', () => {
-  console.log('[Scheduler] Received SIGTERM, shutting down...');
-  try {
-    const { stopScheduler } = require('../src/lib/jobs/scheduler.ts');
-    if (stopScheduler) stopScheduler();
-  } catch {}
-  process.exit(0);
+const child = spawn(tsxBin, [runnerPath], {
+  stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+  env: { ...process.env },
+  cwd: process.cwd(),
 });
 
-process.on('SIGINT', () => {
-  console.log('[Scheduler] Received SIGINT, shutting down...');
-  try {
-    const { stopScheduler } = require('../src/lib/jobs/scheduler.ts');
-    if (stopScheduler) stopScheduler();
-  } catch {}
-  process.exit(0);
+child.stdout?.on('data', (d) => process.stdout.write(d));
+child.stderr?.on('data', (d) => process.stderr.write(d));
+child.on('exit', (code) => {
+  console.log(`[Scheduler] Runner exited with code ${code}`);
+  process.exit(code || 0);
 });
+
+process.on('SIGTERM', () => { child.kill('SIGTERM'); });
+process.on('SIGINT', () => { child.kill('SIGINT'); });
