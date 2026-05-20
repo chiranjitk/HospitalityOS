@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch from RRD
-    if (!rrdPath || !/*turbopackIgnore: true*/ fs.existsSync(rrdPath)) {
+    if (!rrdPath || !fs.existsSync(/*turbopackIgnore: true*/ rrdPath)) {
       return NextResponse.json({
         success: true,
         timestamps: [],
@@ -143,7 +143,7 @@ async function getAggregateData(start: number, end: number, resolution: number) 
 
     for (const username of usernames) {
       const rrdPath = userRRDPath(username);
-      if (!/*turbopackIgnore: true*/ fs.existsSync(rrdPath)) continue;
+      if (!fs.existsSync(/*turbopackIgnore: true*/ rrdPath)) continue;
 
       try {
         const result = await fetchRRD(rrdPath, 'AVERAGE', start, end, resolution);

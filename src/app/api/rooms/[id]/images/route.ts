@@ -9,7 +9,7 @@ const fs = /*turbopackIgnore: true*/ require('fs');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const path = /*turbopackIgnore: true*/ require('path');
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || /*turbopackIgnore: true*/ path.join(process.cwd(), 'upload');
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(/*turbopackIgnore: true*/ process.cwd(), 'upload');
 
 /**
  * Sync the Room.images JSON field for backward compatibility.
@@ -82,22 +82,22 @@ function deleteFileFromDisk(fileUrl: string) {
       return;
     }
 
-    const filePath = /*turbopackIgnore: true*/ path.join(UPLOAD_DIR, relativePath);
-    const resolvedFilePath = /*turbopackIgnore: true*/ path.resolve(filePath);
+    const filePath = path.join(/*turbopackIgnore: true*/ UPLOAD_DIR, relativePath);
+    const resolvedFilePath = path.resolve(/*turbopackIgnore: true*/ filePath);
 
     // Security: ensure resolved path is within UPLOAD_DIR
-    const normalizedUploadDir = /*turbopackIgnore: true*/ path.resolve(UPLOAD_DIR);
+    const normalizedUploadDir = path.resolve(/*turbopackIgnore: true*/ UPLOAD_DIR);
     if (
-      !resolvedFilePath.startsWith(normalizedUploadDir + /*turbopackIgnore: true*/ path.sep) &&
+      !resolvedFilePath.startsWith(normalizedUploadDir + path.sep) &&
       resolvedFilePath !== normalizedUploadDir
     ) {
       return;
     }
 
-    if (/*turbopackIgnore: true*/ fs.existsSync(resolvedFilePath)) {
-      const stat = /*turbopackIgnore: true*/ fs.statSync(resolvedFilePath);
+    if (fs.existsSync(/*turbopackIgnore: true*/ resolvedFilePath)) {
+      const stat = fs.statSync(/*turbopackIgnore: true*/ resolvedFilePath);
       if (stat.isFile()) {
-        /*turbopackIgnore: true*/ fs.unlinkSync(resolvedFilePath);
+        fs.unlinkSync(/*turbopackIgnore: true*/ resolvedFilePath);
       }
     }
   } catch (error) {

@@ -25,8 +25,7 @@ const nextConfig: NextConfig = {
       '.next/cache/**',
       'logs/**',
       '.staysuite/**',
-      'data/rrd/**',
-      'data/e2guardian/**',
+      'data/**',
       'restricted-network.txt',
       'upload/**',
       'freeradius-install/**',
@@ -37,6 +36,12 @@ const nextConfig: NextConfig = {
       '*.log',
       '*.pcap',
       '*.rrd',
+      '*.txt',
+      // Prevent NFT from tracing node_modules/.cache, test files, etc.
+      'node_modules/.cache/**',
+      '**/*.test.*',
+      '**/*.spec.*',
+      '**/__tests__/**',
     ],
   },
   typescript: {
@@ -46,7 +51,30 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   // Turbopack configuration
-  turbopack: {},
+  turbopack: {
+    // Resolve Node.js built-in modules correctly under Turbopack.
+    // This prevents Turbopack from trying to bundle native modules
+    // and avoids the "overly broad file patterns" warnings.
+    resolveAlias: {
+      'node:crypto': 'crypto',
+      'node:fs': 'fs',
+      'node:net': 'net',
+      'node:tls': 'tls',
+      'node:stream': 'stream',
+      'node:http': 'http',
+      'node:https': 'https',
+      'node:querystring': 'querystring',
+      'node:util': 'util',
+      'node:os': 'os',
+      'node:path': 'path',
+      'node:child_process': 'child_process',
+      'node:buffer': 'buffer',
+      'node:events': 'events',
+      'node:dns': 'dns',
+      'node:dgram': 'dgram',
+      'node:zlib': 'zlib',
+    },
+  },
   experimental: {
     // Only bundle the specific sub-paths actually used from each package.
     // This dramatically reduces build-time memory for projects with many files

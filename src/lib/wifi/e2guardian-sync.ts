@@ -81,11 +81,11 @@ function getConfDir(): string {
     return process.env.E2GUARDIAN_CONF_DIR;
   }
   // Production FHS path
-  if (/*turbopackIgnore: true*/ existsSync('/etc/e2guardian/e2guardian')) {
+  if (existsSync(/*turbopackIgnore: true*/ '/etc/e2guardian/e2guardian')) {
     return '/etc/e2guardian/e2guardian';
   }
   // Sandbox fallback
-  return /*turbopackIgnore: true*/ join(process.cwd(), 'data', 'e2guardian', 'configs');
+  return join(/*turbopackIgnore: true*/ process.cwd(), 'data', 'e2guardian', 'configs');
 }
 
 function getListDir(): string {
@@ -93,26 +93,26 @@ function getListDir(): string {
     return process.env.E2GUARDIAN_LIST_DIR;
   }
   const confDir = getConfDir();
-  const listDir = /*turbopackIgnore: true*/ join(confDir, 'lists');
-  if (/*turbopackIgnore: true*/ existsSync(listDir)) {
+  const listDir = join(/*turbopackIgnore: true*/ confDir, 'lists');
+  if (existsSync(/*turbopackIgnore: true*/ listDir)) {
     return listDir;
   }
   // Sandbox fallback
-  return /*turbopackIgnore: true*/ join(process.cwd(), 'data', 'e2guardian', 'lists');
+  return join(/*turbopackIgnore: true*/ process.cwd(), 'data', 'e2guardian', 'lists');
 }
 
 function getGroupListDir(groupNum: number): string {
-  return /*turbopackIgnore: true*/ join(getListDir(), `group${groupNum}`);
+  return join(/*turbopackIgnore: true*/ getListDir(), `group${groupNum}`);
 }
 
 function getStatusFile(): string {
   if (process.env.E2GUARDIAN_STATUS_FILE) {
     return process.env.E2GUARDIAN_STATUS_FILE;
   }
-  if (/*turbopackIgnore: true*/ existsSync('/etc/e2guardian')) {
+  if (existsSync(/*turbopackIgnore: true*/ '/etc/e2guardian')) {
     return '/etc/e2guardian/sync-status.json';
   }
-  return /*turbopackIgnore: true*/ join(process.cwd(), 'data', 'e2guardian', 'status.json');
+  return join(/*turbopackIgnore: true*/ process.cwd(), 'data', 'e2guardian', 'status.json');
 }
 
 // ---------------------------------------------------------------------------
@@ -163,7 +163,7 @@ interface CategoryData {
 async function ensureGroupDirs(groups: number[]): Promise<void> {
   for (const g of groups) {
     const dir = getGroupListDir(g);
-    if (!/*turbopackIgnore: true*/ existsSync(dir)) {
+    if (!existsSync(/*turbopackIgnore: true*/ dir)) {
       await mkdir(dir, { recursive: true });
     }
   }
@@ -180,7 +180,7 @@ async function writeListFile(
   fileName: string,
   domains: string[],
 ): Promise<number> {
-  const filePath = /*turbopackIgnore: true*/ join(dir, fileName);
+  const filePath = join(/*turbopackIgnore: true*/ dir, fileName);
   const lines = domains.map(domainLine).filter(Boolean);
   const unique = [...new Set(lines)];
   const content = unique.join('\n') + (unique.length > 0 ? '\n' : '');
@@ -295,8 +295,8 @@ export async function syncE2guardianConfig(
     Object.assign(filesWritten, groupFiles);
 
     // 5. Write category-level list files (for reference/debugging)
-    const staysuiteDir = /*turbopackIgnore: true*/ join(listDir, 'staysuite', 'banned');
-    if (!/*turbopackIgnore: true*/ existsSync(staysuiteDir)) {
+    const staysuiteDir = join(/*turbopackIgnore: true*/ listDir, 'staysuite', 'banned');
+    if (!existsSync(/*turbopackIgnore: true*/ staysuiteDir)) {
       await mkdir(staysuiteDir, { recursive: true });
     }
     for (const [cat, domains] of Object.entries(categories)) {
@@ -318,7 +318,7 @@ export async function syncE2guardianConfig(
     };
     const statusFile = getStatusFile();
     const statusDir = statusFile.substring(0, statusFile.lastIndexOf('/'));
-    if (!/*turbopackIgnore: true*/ existsSync(statusDir)) {
+    if (!existsSync(/*turbopackIgnore: true*/ statusDir)) {
       await mkdir(statusDir, { recursive: true });
     }
     await writeFile(statusFile, JSON.stringify(status, null, 2), 'utf-8');
@@ -390,8 +390,8 @@ export async function syncE2guardianConfigFromData(
     Object.assign(filesWritten, groupFiles);
 
     // Category-level reference files
-    const staysuiteDir = /*turbopackIgnore: true*/ join(listDir, 'staysuite', 'banned');
-    if (!/*turbopackIgnore: true*/ existsSync(staysuiteDir)) {
+    const staysuiteDir = join(/*turbopackIgnore: true*/ listDir, 'staysuite', 'banned');
+    if (!existsSync(/*turbopackIgnore: true*/ staysuiteDir)) {
       await mkdir(staysuiteDir, { recursive: true });
     }
     for (const [cat, domains] of Object.entries(categories)) {
@@ -412,7 +412,7 @@ export async function syncE2guardianConfigFromData(
     };
     const statusFile = getStatusFile();
     const statusDir = statusFile.substring(0, statusFile.lastIndexOf('/'));
-    if (!/*turbopackIgnore: true*/ existsSync(statusDir)) {
+    if (!existsSync(/*turbopackIgnore: true*/ statusDir)) {
       await mkdir(statusDir, { recursive: true });
     }
     await writeFile(statusFile, JSON.stringify(status, null, 2), 'utf-8');
@@ -453,8 +453,8 @@ export async function syncE2guardianConfigFromData(
 export async function getSyncStatus(): Promise<SyncStatus | null> {
   try {
     const statusFile = getStatusFile();
-    if (!/*turbopackIgnore: true*/ existsSync(statusFile)) return null;
-    const raw = await readFile(statusFile, 'utf-8');
+    if (!existsSync(/*turbopackIgnore: true*/ statusFile)) return null;
+    const raw = await readFile(/*turbopackIgnore: true*/ statusFile, 'utf-8');
     return JSON.parse(raw) as SyncStatus;
   } catch {
     return null;
@@ -480,12 +480,12 @@ export async function getListFilesSummary(): Promise<{
   // Read per-group localbannedsitelist files
   for (const g of [1, 2, 3]) {
     const dir = getGroupListDir(g);
-    const filePath = /*turbopackIgnore: true*/ join(dir, 'localbannedsitelist');
+    const filePath = join(/*turbopackIgnore: true*/ dir, 'localbannedsitelist');
     try {
-      if (/*turbopackIgnore: true*/ existsSync(filePath)) {
-        const content = await readFile(filePath, 'utf-8');
+      if (existsSync(/*turbopackIgnore: true*/ filePath)) {
+        const content = await readFile(/*turbopackIgnore: true*/ filePath, 'utf-8');
         const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-        const fileStat = await stat(filePath);
+        const fileStat = await stat(/*turbopackIgnore: true*/ filePath);
         groups[`group${g}`] = {
           localBannedDomains: lines.length,
           lastModified: fileStat.mtime.toISOString(),
@@ -497,16 +497,16 @@ export async function getListFilesSummary(): Promise<{
   }
 
   // Read staysuite reference lists
-  const staysuiteDir = /*turbopackIgnore: true*/ join(listDir, 'staysuite', 'banned');
+  const staysuiteDir = join(/*turbopackIgnore: true*/ listDir, 'staysuite', 'banned');
   try {
-    if (/*turbopackIgnore: true*/ existsSync(staysuiteDir)) {
+    if (existsSync(/*turbopackIgnore: true*/ staysuiteDir)) {
       const files = await readdir(staysuiteDir);
       for (const file of files) {
-        const filePath = /*turbopackIgnore: true*/ join(staysuiteDir, file);
+        const filePath = join(/*turbopackIgnore: true*/ staysuiteDir, file);
         try {
-          const content = await readFile(filePath, 'utf-8');
+          const content = await readFile(/*turbopackIgnore: true*/ filePath, 'utf-8');
           const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-          const fileStat = await stat(filePath);
+          const fileStat = await stat(/*turbopackIgnore: true*/ filePath);
           banned[file] = {
             file,
             domains: lines.length,
@@ -524,7 +524,7 @@ export async function getListFilesSummary(): Promise<{
   // List config files
   const configs: string[] = [];
   try {
-    if (/*turbopackIgnore: true*/ existsSync(confDir)) {
+    if (existsSync(/*turbopackIgnore: true*/ confDir)) {
       const files = await readdir(confDir).catch(() => []);
       const confFiles = files.filter(f => f.endsWith('.conf'));
       configs.push(...confFiles.sort());

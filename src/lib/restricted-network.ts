@@ -18,14 +18,16 @@
 
 import { db } from '@/lib/db';
 // Node.js-only modules — loaded via require() to avoid Turbopack Edge Runtime analysis.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const fs = /*turbopackIgnore: true*/ require('fs');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const path = /*turbopackIgnore: true*/ require('path');
 import { RESTRICTED_NETWORK_PATH } from '@/lib/wifi/paths';
 
 // Configurable path — override via env var RESTRICTED_NETWORK_PATH (defined in paths.ts)
 // Production: /etc/restrictednetwork
 // Sandbox: ./restricted-network.txt
-const SANDBOX_FALLBACK_PATH = /*turbopackIgnore: true*/ path['join'](process.cwd(), 'restricted-network.txt');
+const SANDBOX_FALLBACK_PATH = path['join'](/*turbopackIgnore: true*/ process.cwd(), 'restricted-network.txt');
 
 /** Get the writable path (production or sandbox fallback) */
 function getWritablePath(): string {
@@ -79,7 +81,7 @@ export async function syncRestrictedNetwork(): Promise<{ success: boolean; path:
     if (entries.length === 0) {
       // No restricted networks — remove file if exists
       try {
-        if (/*turbopackIgnore: true*/ fs['existsSync'](filePath)) {
+        if (fs['existsSync'](/*turbopackIgnore: true*/ filePath)) {
           fs['unlinkSync'](filePath);
         }
       } catch {
@@ -88,7 +90,7 @@ export async function syncRestrictedNetwork(): Promise<{ success: boolean; path:
     } else {
       // Write atomically via temp file
       const dir = filePath.substring(0, filePath.lastIndexOf('/'));
-      if (dir && !/*turbopackIgnore: true*/ (() => fs['existsSync'](dir))()) {
+      if (dir && !(() => fs['existsSync'](/*turbopackIgnore: true*/ dir))()) {
         fs['mkdirSync'](dir, { recursive: true });
       }
 
@@ -119,7 +121,7 @@ export async function syncRestrictedNetwork(): Promise<{ success: boolean; path:
 
         const content = entries.map(e => e.subnet).join('\n') + (entries.length > 0 ? '\n' : '');
         if (entries.length === 0) {
-          if (/*turbopackIgnore: true*/ fs['existsSync'](SANDBOX_FALLBACK_PATH)) fs['unlinkSync'](SANDBOX_FALLBACK_PATH);
+          if (fs['existsSync'](/*turbopackIgnore: true*/ SANDBOX_FALLBACK_PATH)) fs['unlinkSync'](SANDBOX_FALLBACK_PATH);
         } else {
           fs['writeFileSync'](SANDBOX_FALLBACK_PATH, content, 'utf-8');
         }

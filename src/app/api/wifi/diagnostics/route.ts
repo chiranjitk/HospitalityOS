@@ -442,17 +442,17 @@ async function handlePacketCapture(
   let pcapSaved = false;
   let pcapSize = 0;
   if (savePcap && captureId && packets.length > 0) {
-    const pcapPath = /*turbopackIgnore: true*/ path.join(CAPTURE_DIR, `${captureId}.pcap`);
+    const pcapPath = path.join(/*turbopackIgnore: true*/ CAPTURE_DIR, `${captureId}.pcap`);
     const pcapArgs = ['-i', iface, '-c', String(count), '-w', pcapPath];
     if (filter) pcapArgs.push(filter);
     const pcapResult = await execSafe('tcpdump', pcapArgs, (durationSec + 5) * 1000);
     try {
-      const st = /*turbopackIgnore: true*/ fs.statSync(pcapPath);
+      const st = fs.statSync(/*turbopackIgnore: true*/ pcapPath);
       pcapSaved = st.size > 0;
       pcapSize = st.size;
     } catch { /* file not created */ }
     if (!pcapSaved) {
-      try { /*turbopackIgnore: true*/ fs.unlinkSync(pcapPath); } catch {}
+      try { fs.unlinkSync(/*turbopackIgnore: true*/ pcapPath); } catch {}
       captureId = undefined;
     }
   }
@@ -711,7 +711,7 @@ async function runSpeedTest(testId: string, session: SpeedTestSession) {
       // Use the configured speedtest binary path — inline default to avoid dynamic-variable file-pattern analysis
       const bin = process.env.SPEEDTEST_BIN || '/usr/bin/speedtest';
       const child = spawn(
-        bin,
+        /*turbopackIgnore: true*/ bin,
         ['--accept-license', '--accept-gdpr', '--progress=yes', '--format=json-pretty'],
         { timeout: 120_000 },
       );
@@ -1132,16 +1132,16 @@ const DEVNAME_REGEX = /^[a-zA-Z0-9._-]{1,15}$/;
 const CAPTURE_DIR = process.env.PCAP_CAPTURE_DIR || '/tmp/staysuite-captures';
 
 // Ensure capture directory exists
-try { /*turbopackIgnore: true*/ fs.mkdirSync(CAPTURE_DIR, { recursive: true }); } catch {}
+try { fs.mkdirSync(/*turbopackIgnore: true*/ CAPTURE_DIR, { recursive: true }); } catch {}
 
 // Cleanup captures older than 1 hour every 5 minutes
 setInterval(() => {
   try {
     const now = Date.now();
-    for (const f of /*turbopackIgnore: true*/ fs.readdirSync(CAPTURE_DIR)) {
-      const fp = /*turbopackIgnore: true*/ path.join(CAPTURE_DIR, f);
-      const st = /*turbopackIgnore: true*/ fs.statSync(fp);
-      if (now - st.mtimeMs > 3_600_000) /*turbopackIgnore: true*/ fs.unlinkSync(fp);
+    for (const f of fs.readdirSync(/*turbopackIgnore: true*/ CAPTURE_DIR)) {
+      const fp = path.join(/*turbopackIgnore: true*/ CAPTURE_DIR, f);
+      const st = fs.statSync(/*turbopackIgnore: true*/ fp);
+      if (now - st.mtimeMs > 3_600_000) fs.unlinkSync(/*turbopackIgnore: true*/ fp);
     }
   } catch {}
 }, 300_000).unref();
@@ -1329,11 +1329,11 @@ export async function GET(request: NextRequest) {
         if (!captureId || !/^[a-z0-9_-]+$/.test(captureId)) {
           return NextResponse.json({ success: false, error: 'Invalid capture ID' }, { status: 400 });
         }
-        const pcapPath = /*turbopackIgnore: true*/ path.join(CAPTURE_DIR, `${captureId}.pcap`);
-        if (!/*turbopackIgnore: true*/ fs.existsSync(pcapPath)) {
+        const pcapPath = path.join(/*turbopackIgnore: true*/ CAPTURE_DIR, `${captureId}.pcap`);
+        if (!fs.existsSync(/*turbopackIgnore: true*/ pcapPath)) {
           return NextResponse.json({ success: false, error: 'Capture file not found (may have expired)' }, { status: 404 });
         }
-        const fileBuf = await fs.promises.readFile(pcapPath);
+        const fileBuf = await fs.promises.readFile(/*turbopackIgnore: true*/ pcapPath);
         return new NextResponse(fileBuf, {
           headers: {
             'Content-Type': 'application/vnd.tcpdump.pcap',

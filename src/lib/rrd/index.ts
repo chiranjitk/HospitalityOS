@@ -38,8 +38,8 @@ function findProjectRoot(startDir?: string): string {
 
   for (const dir of candidates) {
     let current = dir;
-    while (current !== /*turbopackIgnore: true*/ path.dirname(current)) {
-      if (/*turbopackIgnore: true*/ fs.existsSync(/*turbopackIgnore: true*/ path.join(current, 'package.json'))) {
+    while (current !== path.dirname(/*turbopackIgnore: true*/ current)) {
+      if (fs.existsSync(/*turbopackIgnore: true*/ path.join(current, 'package.json'))) {
         return current;
       }
       current = path.dirname(current);
@@ -52,15 +52,15 @@ function findProjectRoot(startDir?: string): string {
 const PROJECT_ROOT = findProjectRoot();
 
 // RRDtool binary path — configurable via RRD_BIN_PATH env var
-const RRD_BIN = process.env.RRD_BIN_PATH || /*turbopackIgnore: true*/ path.join(PROJECT_ROOT, 'rrdtool', 'bin', 'rrdtool');
+const RRD_BIN = process.env.RRD_BIN_PATH || path.join(/*turbopackIgnore: true*/ PROJECT_ROOT, 'rrdtool', 'bin', 'rrdtool');
 
 // Base directory for RRD files — configurable via RRD_DATA_PATH env var
-const RRD_BASE = process.env.RRD_DATA_PATH || /*turbopackIgnore: true*/ path.join(PROJECT_ROOT, 'data', 'rrd');
+const RRD_BASE = process.env.RRD_DATA_PATH || path.join(/*turbopackIgnore: true*/ PROJECT_ROOT, 'data', 'rrd');
 
 // Environment for rrdtool (needs LD_LIBRARY_PATH for shared libs)
 const RRD_ENV = {
   ...process.env,
-  LD_LIBRARY_PATH: process.env.RRD_LIB_PATH || /*turbopackIgnore: true*/ path.join(PROJECT_ROOT, 'rrdtool', 'lib'),
+  LD_LIBRARY_PATH: process.env.RRD_LIB_PATH || path.join(/*turbopackIgnore: true*/ PROJECT_ROOT, 'rrdtool', 'lib'),
 };
 
 // Log resolved paths at module load for debugging
@@ -158,9 +158,9 @@ export async function createRRD(
   ]
 ): Promise<void> {
   // Ensure directory exists
-  const dir = /*turbopackIgnore: true*/ path.dirname(filePath);
-  if (!/*turbopackIgnore: true*/ fs.existsSync(dir)) {
-    /*turbopackIgnore: true*/ fs.mkdirSync(dir, { recursive: true });
+  const dir = path.dirname(/*turbopackIgnore: true*/ filePath);
+  if (!fs.existsSync(/*turbopackIgnore: true*/ dir)) {
+    fs.mkdirSync(/*turbopackIgnore: true*/ dir, { recursive: true });
   }
 
   const args = [
@@ -204,7 +204,7 @@ export async function fetchRRD(
   data: Record<string, number[]>;
   meta: { step: number; start: number; end: number; cf: string; dsNames: string[] };
 }> {
-  if (!/*turbopackIgnore: true*/ fs.existsSync(filePath)) {
+  if (!fs.existsSync(/*turbopackIgnore: true*/ filePath)) {
     return { timestamps: [], data: {}, meta: { step: 60, start, end, cf, dsNames: [] } };
   }
 
@@ -287,7 +287,7 @@ export async function fetchRRD(
  * Get RRD file info
  */
 export async function infoRRD(filePath: string): Promise<Record<string, unknown> | null> {
-  if (!/*turbopackIgnore: true*/ fs.existsSync(filePath)) return null;
+  if (!fs.existsSync(/*turbopackIgnore: true*/ filePath)) return null;
 
   const stdout = await rrdExec(['info', filePath]);
   const info: Record<string, unknown> = {};
@@ -342,7 +342,7 @@ export async function ensureRRD(
   dataSources?: RRDDataSource[],
   archives?: RRDArchive[]
 ): Promise<boolean> {
-  if (/*turbopackIgnore: true*/ fs.existsSync(filePath)) return true;
+  if (fs.existsSync(/*turbopackIgnore: true*/ filePath)) return true;
 
   try {
     await createRRD(filePath, step, dataSources, archives);
@@ -372,12 +372,12 @@ export function getRRDLibPath(): string {
  * Build user RRD file path
  */
 export function userRRDPath(username: string): string {
-  return /*turbopackIgnore: true*/ path.join(RRD_BASE, 'users', `${username}.rrd`);
+  return path.join(/*turbopackIgnore: true*/ RRD_BASE, 'users', `${username}.rrd`);
 }
 
 /**
  * Build interface RRD file path
  */
 export function interfaceRRDPath(iface: string): string {
-  return /*turbopackIgnore: true*/ path.join(RRD_BASE, 'interfaces', `${iface}.rrd`);
+  return path.join(/*turbopackIgnore: true*/ RRD_BASE, 'interfaces', `${iface}.rrd`);
 }

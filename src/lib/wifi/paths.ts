@@ -19,7 +19,7 @@
 const isProduction = process.env.NODE_ENV === 'production';
 
 /** Project root — always derived from cwd, never hardcoded */
-const PROJECT_ROOT = /*turbopackIgnore: true*/ process.cwd();
+const PROJECT_ROOT = process.cwd();
 
 // ── Auto-detect FreeRADIUS install prefix ──────────────────────────
 // Probes for the radclient binary in the most common locations.

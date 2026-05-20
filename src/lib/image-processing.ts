@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || /*turbopackIgnore: true*/ path.join(process.cwd(), 'upload');
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(/*turbopackIgnore: true*/ process.cwd(), 'upload');
 
 /** Supported input MIME types */
 const SUPPORTED_MIME_TYPES: Record<string, string> = {

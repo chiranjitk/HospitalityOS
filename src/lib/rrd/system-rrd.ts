@@ -32,7 +32,7 @@ const DEFAULT_STEP = 60;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const SYSTEM_RRD_DIR = /*turbopackIgnore: true*/ path.join(getRRDBasePath(), 'system');
+const SYSTEM_RRD_DIR = path.join(/*turbopackIgnore: true*/ getRRDBasePath(), 'system');
 
 // Same RRAs as the existing bandwidth collector (1min→24h, 5min→7d, 1hr→30d, 1day→1yr)
 const SYSTEM_RRAS: RRDArchive[] = [
@@ -207,8 +207,8 @@ export async function ensureSystemRRDs(
   interfaces?: string[],
   coreCount?: number
 ): Promise<void> {
-  if (!/*turbopackIgnore: true*/ fs.existsSync(SYSTEM_RRD_DIR)) {
-    /*turbopackIgnore: true*/ fs.mkdirSync(SYSTEM_RRD_DIR, { recursive: true });
+  if (!fs.existsSync(/*turbopackIgnore: true*/ SYSTEM_RRD_DIR)) {
+    fs.mkdirSync(/*turbopackIgnore: true*/ SYSTEM_RRD_DIR, { recursive: true });
   }
 
   const now = Math.floor(Date.now() / 1000);
@@ -318,7 +318,7 @@ async function ensureSingleRRD(
   dataSources: RRDDataSource[],
   now: number
 ): Promise<void> {
-  if (/*turbopackIgnore: true*/ fs.existsSync(filePath)) return;
+  if (fs.existsSync(/*turbopackIgnore: true*/ filePath)) return;
 
   try {
     const args = [
@@ -742,7 +742,7 @@ export async function fetchSystemGraph(
   }
 
   // File may not exist yet
-  if (!/*turbopackIgnore: true*/ fs.existsSync(filePath)) {
+  if (!fs.existsSync(/*turbopackIgnore: true*/ filePath)) {
     return {
       timestamps: [],
       data: {},
@@ -819,7 +819,7 @@ export async function fetchSystemGraph(
  * Returns an empty array if the file doesn't exist or parsing fails.
  */
 async function getDSNamesFromRRD(filePath: string): Promise<string[]> {
-  if (!/*turbopackIgnore: true*/ fs.existsSync(filePath)) return [];
+  if (!fs.existsSync(/*turbopackIgnore: true*/ filePath)) return [];
 
   try {
     const stdout = await rrdExec(['info', filePath]);
@@ -840,7 +840,7 @@ async function getDSNamesFromRRD(filePath: string): Promise<string[]> {
 // ─── Pool Bandwidth RRD ───────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const POOL_RRD_DIR = /*turbopackIgnore: true*/ path.join(getRRDBasePath(), 'pools');
+const POOL_RRD_DIR = path.join(/*turbopackIgnore: true*/ getRRDBasePath(), 'pools');
 
 const POOL_BW_DS: RRDDataSource[] = [
   { name: 'download', type: 'DERIVE', heartbeat: 120, min: '0', max: 'U' },
@@ -854,12 +854,12 @@ const POOL_BW_DS: RRDDataSource[] = [
  * @param poolId - BandwidthPool UUID from database
  */
 export async function ensurePoolRRD(poolId: string): Promise<void> {
-  if (!/*turbopackIgnore: true*/ fs.existsSync(POOL_RRD_DIR)) {
-    /*turbopackIgnore: true*/ fs.mkdirSync(POOL_RRD_DIR, { recursive: true });
+  if (!fs.existsSync(/*turbopackIgnore: true*/ POOL_RRD_DIR)) {
+    fs.mkdirSync(/*turbopackIgnore: true*/ POOL_RRD_DIR, { recursive: true });
   }
 
-  const filePath = /*turbopackIgnore: true*/ path.join(POOL_RRD_DIR, `${poolId}.rrd`);
-  if (/*turbopackIgnore: true*/ fs.existsSync(filePath)) return;
+  const filePath = path.join(/*turbopackIgnore: true*/ POOL_RRD_DIR, `${poolId}.rrd`);
+  if (fs.existsSync(/*turbopackIgnore: true*/ filePath)) return;
 
   try {
     const now = Math.floor(Date.now() / 1000);
@@ -885,8 +885,8 @@ export async function ensurePoolRRD(poolId: string): Promise<void> {
  * @param upload    - Upload delta bytes since last poll
  */
 export async function updatePoolRRD(poolId: string, download: number, upload: number): Promise<void> {
-  const filePath = /*turbopackIgnore: true*/ path.join(POOL_RRD_DIR, `${poolId}.rrd`);
-  if (!/*turbopackIgnore: true*/ fs.existsSync(filePath)) return;
+  const filePath = path.join(/*turbopackIgnore: true*/ POOL_RRD_DIR, `${poolId}.rrd`);
+  if (!fs.existsSync(/*turbopackIgnore: true*/ filePath)) return;
 
   try {
     const now = Math.floor(Date.now() / 1000);
@@ -924,20 +924,20 @@ export async function fetchPoolGraph(poolId: string, range: string): Promise<Sys
 
   // Try multiple candidate paths (same pattern as user-graph)
   const candidates = [
-    /*turbopackIgnore: true*/ path.join(POOL_RRD_DIR, `${poolId}.rrd`),
-    /*turbopackIgnore: true*/ path.join(getRRDBasePath(), 'pools', `${poolId}.rrd`),
+    path.join(/*turbopackIgnore: true*/ POOL_RRD_DIR, `${poolId}.rrd`),
+    path.join(/*turbopackIgnore: true*/ getRRDBasePath(), 'pools', `${poolId}.rrd`),
   ];
 
   // Also try short-id variant (first 8 chars of UUID)
   const shortId = poolId.replace(/-/g, '').substring(0, 8);
   candidates.push(
-    /*turbopackIgnore: true*/ path.join(POOL_RRD_DIR, `${shortId}.rrd`),
-    /*turbopackIgnore: true*/ path.join(getRRDBasePath(), 'pools', `${shortId}.rrd`),
+    path.join(/*turbopackIgnore: true*/ POOL_RRD_DIR, `${shortId}.rrd`),
+    path.join(/*turbopackIgnore: true*/ getRRDBasePath(), 'pools', `${shortId}.rrd`),
   );
 
   let filePath = '';
   for (const candidate of candidates) {
-    if (/*turbopackIgnore: true*/ fs.existsSync(candidate)) {
+    if (fs.existsSync(/*turbopackIgnore: true*/ candidate)) {
       filePath = candidate;
       break;
     }
