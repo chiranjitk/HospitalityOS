@@ -267,8 +267,8 @@ export default function LoginPage() {
   const showDemoCredentials = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production';
   const demoCredentials = showDemoCredentials ? [
     { role: 'Admin', email: 'admin@royalstay.in', password: 'admin123', color: 'bg-gradient-to-br from-violet-600 to-purple-600', ring: 'ring-violet-500/30', icon: Shield, barColor: 'bg-amber-400' },
-    { role: 'Front Desk', email: 'frontdesk@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-teal-500 to-emerald-500', ring: 'ring-teal-500/30', icon: ConciergeBell, barColor: 'bg-teal-400' },
-    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-amber-500 to-orange-500', ring: 'ring-amber-500/30', icon: Bath, barColor: 'bg-violet-400' },
+    { role: 'Front Desk', email: 'frontdesk@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-amber-500 to-orange-500', ring: 'ring-orange-500/30', icon: ConciergeBell, barColor: "bg-amber-400" },
+    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-amber-500 to-orange-500', ring: 'ring-amber-500/30', icon: Bath, barColor: "bg-orange-400" },
   ] : [];
 
   return (
@@ -299,15 +299,15 @@ export default function LoginPage() {
 
           {/* Animated glow orbs - colorful */}
           <div
-            className="absolute top-1/4 left-1/3 w-72 h-72 rounded-full bg-teal-400/20 blur-[100px]"
+            className="absolute top-1/4 left-1/3 w-72 h-72 rounded-full bg-orange-400/20 blur-[100px]"
             style={{ animation: 'loginGlowPulse 6s ease-in-out infinite' }}
           />
           <div
-            className="absolute bottom-1/3 right-1/4 w-56 h-56 rounded-full bg-emerald-400/15 blur-[80px]"
+            className="absolute bottom-1/3 right-1/4 w-56 h-56 rounded-full bg-amber-400/15 blur-[80px]"
             style={{ animation: 'loginGlowPulse 8s ease-in-out infinite 2s' }}
           />
           <div
-            className="absolute top-[60%] right-[10%] w-40 h-40 rounded-full bg-cyan-400/10 blur-[70px]"
+            className="absolute top-[60%] right-[10%] w-40 h-40 rounded-full bg-yellow-400/10 blur-[70px]"
             style={{ animation: 'loginGlowPulse 7s ease-in-out infinite 4s' }}
           />
 
@@ -324,10 +324,10 @@ export default function LoginPage() {
                 <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={44} height={44} className="object-contain w-full h-full" />
               </div>
               <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-white via-teal-100 to-emerald-100 bg-clip-text text-transparent animate-[subtleShimmer_3s_ease-in-out_infinite]">
+                <h1 className="text-xl font-bold bg-gradient-to-r from-white via-orange-100 to-amber-100 bg-clip-text text-transparent animate-[subtleShimmer_3s_ease-in-out_infinite]">
                   StaySuite
                 </h1>
-                <p className="text-emerald-200/80 text-xs font-medium">by Cryptsk Pvt Ltd</p>
+                <p className="text-amber-200/80 text-xs font-medium">by Cryptsk Pvt Ltd</p>
               </div>
             </motion.div>
 
@@ -352,7 +352,7 @@ export default function LoginPage() {
                   <h2 className="text-3xl xl:text-4xl font-bold text-white leading-tight">
                     Manage your property
                     <br />
-                    <span className="bg-gradient-to-r from-teal-200 via-emerald-200 to-cyan-200 bg-clip-text text-transparent">
+                    <span className="bg-gradient-to-r from-orange-200 via-amber-200 to-yellow-100 bg-clip-text text-transparent">
                       with intelligence.
                     </span>
                   </h2>
@@ -463,7 +463,7 @@ export default function LoginPage() {
           <div
             className="lg:hidden absolute inset-0 dark:hidden"
             style={{
-              background: 'linear-gradient(135deg, #f0fdfa 0%, #ecfdf5 25%, #f0fdfa 50%, #fefce8 75%, #f0fdfa 100%)',
+              background: 'linear-gradient(135deg, #fff7ed 0%, #fffbeb 25%, #fff7ed 50%, #fefce8 75%, #fff7ed 100%)',
               backgroundSize: '400% 400%',
               animation: 'loginMobileGradient 12s ease infinite',
             }}
@@ -472,21 +472,21 @@ export default function LoginPage() {
           <div
             className="lg:hidden hidden dark:block absolute inset-0"
             style={{
-              background: 'linear-gradient(135deg, #042f2e 0%, #022c22 25%, #042f2e 50%, #1c1917 75%, #042f2e 100%)',
+              background: 'linear-gradient(135deg, #1c1917 0%, #292524 25%, #1c1917 50%, #1c1917 75%, #1c1917 100%)',
               backgroundSize: '400% 400%',
               animation: 'loginMobileGradient 12s ease infinite',
             }}
           />
           {/* Desktop: subtle gradient with glow accents */}
           <div
-            className="hidden lg:block absolute inset-0 bg-gradient-to-br from-teal-50/80 via-white to-emerald-50/60 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900"
+            className="hidden lg:block absolute inset-0 bg-gradient-to-br from-orange-50/80 via-white to-amber-50/60 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900"
           />
 
           {/* Mobile-only: floating decorative orb behind the login card */}
           <div
             className="lg:hidden absolute top-[30%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, rgba(20,184,166,0.12) 0%, rgba(16,185,129,0.06) 40%, transparent 70%)',
+              background: 'radial-gradient(circle, rgba(234,88,12,0.12) 0%, rgba(217,119,6,0.06) 40%, transparent 70%)',
               animation: 'loginGlowPulse 8s ease-in-out infinite, floatOrb1 20s ease-in-out infinite',
             }}
           />
@@ -495,7 +495,7 @@ export default function LoginPage() {
           <div
             className="hidden lg:block absolute top-[10%] left-[5%] w-[400px] h-[400px] rounded-full opacity-20 blur-[120px] pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, rgba(20,184,166,0.18) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, rgba(234,88,12,0.18) 0%, transparent 70%)',
             }}
           />
           <div
@@ -506,9 +506,9 @@ export default function LoginPage() {
           />
 
           {/* Decorative floating elements on right panel */}
-          <div className="absolute top-[8%] right-[8%] w-3 h-3 rounded-full bg-gradient-to-br from-teal-400/20 to-emerald-400/20 animate-pulse pointer-events-none hidden lg:block" />
+          <div className="absolute top-[8%] right-[8%] w-3 h-3 rounded-full bg-gradient-to-br from-orange-400/20 to-amber-400/20 animate-pulse pointer-events-none hidden lg:block" />
           <div className="absolute bottom-[15%] left-[6%] w-2 h-2 rounded-full bg-gradient-to-br from-amber-400/20 to-orange-400/20 animate-bounce [animation-delay:1s] pointer-events-none hidden lg:block" />
-          <div className="absolute top-[45%] right-[4%] w-2.5 h-2.5 rounded-full bg-gradient-to-br from-emerald-400/15 to-cyan-400/15 animate-pulse [animation-delay:2s] pointer-events-none hidden lg:block" />
+          <div className="absolute top-[45%] right-[4%] w-2.5 h-2.5 rounded-full bg-gradient-to-br from-amber-400/15 to-yellow-400/15 animate-pulse [animation-delay:2s] pointer-events-none hidden lg:block" />
 
           <div className="relative z-10 flex flex-col items-center justify-center min-h-screen lg:min-h-screen p-4 sm:p-6 lg:p-8 py-8 lg:py-0 pb-[env(safe-area-inset-bottom)]">
             <div className="w-full max-w-[400px] lg:max-w-[360px] flex flex-col">
@@ -524,7 +524,7 @@ export default function LoginPage() {
                   <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={44} height={44} className="object-contain w-full h-full" />
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold bg-gradient-to-r from-teal-700 via-emerald-600 to-cyan-600 bg-clip-text text-transparent drop-shadow-sm">
+                  <h1 className="text-lg font-bold bg-gradient-to-r from-orange-700 via-amber-600 to-yellow-600 bg-clip-text text-transparent drop-shadow-sm">
                     StaySuite
                   </h1>
                   <p className="text-muted-foreground text-[11px] tracking-wide font-medium">Hospitality OS</p>
@@ -532,12 +532,12 @@ export default function LoginPage() {
               </motion.div>
 
               {/* ── Glass Card with Animated Gradient Border ── */}
-              <div className="relative rounded-[17px] p-[1px] bg-gradient-to-br from-teal-500/30 via-emerald-500/10 to-amber-500/30 overflow-hidden">
+              <div className="relative rounded-[17px] p-[1px] bg-gradient-to-br from-orange-500/30 via-amber-500/10 to-yellow-500/30 overflow-hidden">
                 {/* Animated spinning conic gradient layer for border shimmer */}
                 <div className="absolute inset-0 overflow-hidden rounded-[17px] pointer-events-none">
                   <div
                     className="absolute inset-[-200%] animate-[spin_8s_linear_infinite]"
-                    style={{ background: 'conic-gradient(from 0deg, transparent 0%, rgba(20,184,166,0.12) 15%, transparent 30%, rgba(16,185,129,0.08) 45%, transparent 60%, rgba(245,158,11,0.08) 75%, transparent 90%)' }}
+                    style={{ background: 'conic-gradient(from 0deg, transparent 0%, rgba(234,88,12,0.12) 15%, transparent 30%, rgba(217,119,6,0.08) 45%, transparent 60%, rgba(245,158,11,0.08) 75%, transparent 90%)' }}
                   />
                 </div>
               <motion.div
@@ -546,7 +546,7 @@ export default function LoginPage() {
                 initial="hidden"
                 animate="visible"
                 whileHover={{
-                  boxShadow: '0_16px_48px_-12px_rgba(0,0,0,0.12),0_0_24px_rgba(20,184,166,0.08)',
+                  boxShadow: '0_16px_48px_-12px_rgba(0,0,0,0.12),0_0_24px_rgba(234,88,12,0.08)',
                   y: -1,
                   transition: { duration: 0.3, ease: 'easeOut' },
                 }}
@@ -555,7 +555,7 @@ export default function LoginPage() {
                 <div
                   className="absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl z-10"
                   style={{
-                    background: 'linear-gradient(90deg, #10b981, #14b8a6, #06b6d4, #8b5cf6, #10b981)',
+                    background: 'linear-gradient(90deg, #ea580c, #d97706, #ca8a04, #dc2626, #ea580c)',
                     backgroundSize: '300% 100%',
                     animation: 'loginAccentFlow 4s ease infinite',
                   }}
@@ -571,7 +571,7 @@ export default function LoginPage() {
                       initial="hidden"
                       animate="visible"
                     >
-                      <div className="h-8 w-1 rounded-full bg-gradient-to-b from-teal-500 via-emerald-400 to-cyan-500" />
+                      <div className="h-8 w-1 rounded-full bg-gradient-to-b from-orange-500 via-amber-400 to-yellow-500" />
                       <h2 className="text-xl font-bold text-foreground tracking-tight text-shadow-sm">
                         {requireTwoFactor ? 'Two-factor authentication' : t('signIn')}
                       </h2>
@@ -593,7 +593,7 @@ export default function LoginPage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ type: 'spring', stiffness: 300, damping: 22, delay: 0.15 }}
                     >
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/50 dark:border-emerald-800/30 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-50/80 dark:bg-orange-950/30 border border-orange-200/50 dark:border-orange-800/30 text-[11px] font-medium text-orange-700 dark:text-orange-400">
                         <Shield className="h-3 w-3" />
                         Trusted by 2,500+ properties
                       </span>
@@ -635,15 +635,15 @@ export default function LoginPage() {
                             {t('email')}
                           </Label>
                           <div className="relative group/input">
-                            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30 transition-all duration-300 group-focus-within/input:text-teal-500 group-focus-within/input:scale-110" />
-                            <div className="absolute inset-0 rounded-xl bg-teal-500/0 blur-sm transition-all duration-300 group-focus-within/input:bg-teal-500/5 group-focus-within/input:blur-md pointer-events-none" />
+                            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30 transition-all duration-300 group-focus-within/input:text-orange-500 group-focus-within/input:scale-110" />
+                            <div className="absolute inset-0 rounded-xl bg-orange-500/0 blur-sm transition-all duration-300 group-focus-within/input:bg-orange-500/5 group-focus-within/input:blur-md pointer-events-none" />
                             <Input
                               id="email"
                               type="email"
                               placeholder="you@company.com"
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
-                              className="relative pl-11 h-[52px] bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-700/50 rounded-xl transition-all duration-300 focus:bg-white/80 dark:focus:bg-slate-900/80 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/30 hover:border-teal-300/70 dark:hover:border-teal-600/70 hover:shadow-sm text-[15px] placeholder:text-foreground/35"
+                              className="relative pl-11 h-[52px] bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-700/50 rounded-xl transition-all duration-300 focus:bg-white/80 dark:focus:bg-slate-900/80 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/30 hover:border-orange-300/70 dark:hover:border-orange-600/70 hover:shadow-sm text-[15px] placeholder:text-foreground/35"
                               required
                               disabled={isLoading}
                               autoComplete="email"
@@ -665,7 +665,7 @@ export default function LoginPage() {
                             </Label>
                             <button
                               type="button"
-                              className="ml-auto text-xs text-muted-foreground hover:text-teal-600 dark:hover:text-teal-400 transition-colors duration-200 font-medium"
+                              className="ml-auto text-xs text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 transition-colors duration-200 font-medium"
                               onClick={async () => {
                                 if (!email) {
                                   toast({
@@ -707,22 +707,22 @@ export default function LoginPage() {
                             </button>
                           </div>
                           <div className="mt-1 relative group/input">
-                            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30 transition-all duration-300 group-focus-within/input:text-teal-500 group-focus-within/input:scale-110" />
-                            <div className="absolute inset-0 rounded-xl bg-teal-500/0 blur-sm transition-all duration-300 group-focus-within/input:bg-teal-500/5 group-focus-within/input:blur-md pointer-events-none" />
+                            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/30 transition-all duration-300 group-focus-within/input:text-orange-500 group-focus-within/input:scale-110" />
+                            <div className="absolute inset-0 rounded-xl bg-orange-500/0 blur-sm transition-all duration-300 group-focus-within/input:bg-orange-500/5 group-focus-within/input:blur-md pointer-events-none" />
                             <Input
                               id="password"
                               type={showPassword ? 'text' : 'password'}
                               placeholder="Enter password"
                               value={password}
                               onChange={(e) => setPassword(e.target.value)}
-                              className="relative pl-11 pr-11 h-[52px] bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-700/50 rounded-xl transition-all duration-300 focus:bg-white/80 dark:focus:bg-slate-900/80 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/30 hover:border-teal-300/70 dark:hover:border-teal-600/70 hover:shadow-sm text-[15px] placeholder:text-foreground/35"
+                              className="relative pl-11 pr-11 h-[52px] bg-white/50 dark:bg-slate-900/50 border-slate-200/50 dark:border-slate-700/50 rounded-xl transition-all duration-300 focus:bg-white/80 dark:focus:bg-slate-900/80 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/30 hover:border-orange-300/70 dark:hover:border-orange-600/70 hover:shadow-sm text-[15px] placeholder:text-foreground/35"
                               required
                               disabled={isLoading}
                               autoComplete="current-password"
                             />
                             <button
                               type="button"
-                              className="absolute right-2.5 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-muted-foreground/30 hover:text-teal-500 transition-all duration-200 hover:scale-110 active:scale-95"
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center text-muted-foreground/30 hover:text-orange-500 transition-all duration-200 hover:scale-110 active:scale-95"
                               onClick={() => setShowPassword(!showPassword)}
                               aria-label={showPassword ? 'Hide password' : 'Show password'}
                             >
@@ -751,7 +751,7 @@ export default function LoginPage() {
                                 id="remember"
                                 checked={rememberMe}
                                 onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                                className="h-[18px] w-[18px] rounded-md border-slate-300/80 data-[state=checked]:bg-teal-600 data-[state=checked]:border-teal-600 data-[state=checked]:text-white transition-all duration-300 focus-visible:ring-2 focus-visible:ring-teal-500/30 focus-visible:ring-offset-1 hover:border-teal-400/80"
+                                className="h-[18px] w-[18px] rounded-md border-slate-300/80 data-[state=checked]:bg-orange-600 data-[state=checked]:border-orange-600 data-[state=checked]:text-white transition-all duration-300 focus-visible:ring-2 focus-visible:ring-orange-500/30 focus-visible:ring-offset-1 hover:border-orange-400/80"
                               />
                             </div>
                             <Label htmlFor="remember" className="text-sm text-muted-foreground/80 font-medium cursor-pointer select-none hover:text-muted-foreground transition-colors duration-200">
@@ -771,11 +771,11 @@ export default function LoginPage() {
                             type="submit"
                             className={cn(
                               "w-full h-12 rounded-xl font-semibold text-sm transition-all duration-200",
-                              "bg-gradient-to-r from-teal-600 to-emerald-600",
-                              "hover:from-teal-500 hover:to-emerald-500",
-                              "hover:shadow-[0_0_20px_rgba(20,184,166,0.3)] hover:scale-[1.02]",
+                              "bg-gradient-to-r from-orange-600 to-amber-600",
+                              "hover:from-orange-500 hover:to-amber-500",
+                              "hover:shadow-[0_0_20px_rgba(234,88,12,0.3)] hover:scale-[1.02]",
                               "active:scale-[0.98]",
-                              "dark:from-teal-500 dark:to-emerald-500",
+                              "dark:from-orange-500 dark:to-amber-500",
                               "text-white",
                               "hover:-translate-y-0.5 active:translate-y-0",
                               "disabled:opacity-70 disabled:hover:translate-y-0 disabled:shadow-none disabled:active:scale-100 disabled:hover:scale-100",
@@ -894,8 +894,8 @@ export default function LoginPage() {
                         </AnimatePresence>
 
                         <div className="flex justify-center py-4">
-                          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-teal-100 to-emerald-200 dark:from-teal-900/40 dark:to-emerald-800/40 flex items-center justify-center shadow-md">
-                            <Shield className="h-6 w-6 text-teal-600 dark:text-teal-400" />
+                          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-100 to-amber-200 dark:from-orange-900/40 dark:to-amber-800/40 flex items-center justify-center shadow-md">
+                            <Shield className="h-6 w-6 text-orange-600 dark:text-orange-400" />
                           </div>
                         </div>
 
@@ -911,7 +911,7 @@ export default function LoginPage() {
                             placeholder="000000"
                             value={twoFactorCode}
                             onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            className="text-center text-xl tracking-[0.3em] font-mono h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200/80 dark:border-slate-700/80 transition-all duration-300 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20"
+                            className="text-center text-xl tracking-[0.3em] font-mono h-12 rounded-xl bg-white/50 dark:bg-slate-900/50 border-slate-200/80 dark:border-slate-700/80 transition-all duration-300 focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20"
                             maxLength={6}
                             disabled={isLoading}
                             autoFocus
@@ -920,7 +920,7 @@ export default function LoginPage() {
 
                         <Button
                           type="submit"
-                          className="w-full h-11 rounded-xl font-semibold text-sm transition-all duration-300 bg-gradient-to-r from-teal-600 to-emerald-500 hover:from-teal-500 hover:to-emerald-400 text-white shadow-lg shadow-emerald-500/20 hover:shadow-xl hover:shadow-emerald-500/25 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0 relative overflow-hidden"
+                          className="w-full h-11 rounded-xl font-semibold text-sm transition-all duration-300 bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white shadow-lg shadow-amber-500/20 hover:shadow-xl hover:shadow-amber-500/25 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0 relative overflow-hidden"
                           disabled={isLoading || twoFactorCode.length < 6}
                         >
                           {isLoading ? (
@@ -1002,8 +1002,8 @@ export default function LoginPage() {
                                   "backdrop-blur-sm",
                                   "transition-all duration-300",
                                   "hover:bg-white/60 dark:hover:bg-slate-900/60",
-                                  "hover:border-teal-300/60 dark:hover:border-teal-600/40",
-                                  "hover:shadow-[0_8px_24px_-8px_rgba(20,184,166,0.12)]",
+                                  "hover:border-orange-300/60 dark:hover:border-orange-600/40",
+                                  "hover:shadow-[0_8px_24px_-8px_rgba(234,88,12,0.12)]",
                                   "group",
                                   "relative overflow-hidden"
                                 )}
@@ -1052,7 +1052,7 @@ export default function LoginPage() {
                 <p className="text-sm text-muted-foreground">
                   Have a license key?{' '}
                   <button
-                    className="text-teal-600 dark:text-teal-400 font-semibold hover:text-teal-700 dark:hover:text-teal-300 transition-colors duration-200 underline-offset-4 hover:underline inline-flex items-center gap-1"
+                    className="text-orange-600 dark:text-orange-400 font-semibold hover:text-orange-700 dark:hover:text-orange-300 transition-colors duration-200 underline-offset-4 hover:underline inline-flex items-center gap-1"
                     onClick={() => router.push('/register')}
                   >
                     Activate your plan
@@ -1078,7 +1078,7 @@ export default function LoginPage() {
                 transition={{ delay: 0.8, duration: 0.5 }}
               >
                 <span
-                  className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"
+                  className="inline-block h-1.5 w-1.5 rounded-full bg-orange-500 shadow-sm shadow-orange-500/50"
                   style={{ animation: 'loginGlowPulse 3s ease-in-out infinite' }}
                 />
                 <span>All systems operational</span>
@@ -1087,7 +1087,7 @@ export default function LoginPage() {
               {/* ── Mobile footer (sticky at bottom when content is short) ── */}
               <div className="flex-1" />
               {/* Gradient divider above mobile footer */}
-              <div className="lg:hidden h-px bg-gradient-to-r from-transparent via-teal-400/30 dark:via-teal-500/20 to-transparent mt-4" />
+              <div className="lg:hidden h-px bg-gradient-to-r from-transparent via-orange-400/30 dark:via-orange-500/20 to-transparent mt-4" />
 
               <div className="lg:hidden text-center text-xs text-muted-foreground/80 pt-4 mt-0 border-t border-border/50">
                 <p className="flex items-center justify-center gap-1">
@@ -1103,7 +1103,7 @@ export default function LoginPage() {
 
       {/* ═══ Sticky footer for desktop (below the flex row) ═══ */}
       {/* Subtle gradient divider above desktop footer */}
-      <div className="hidden lg:block h-px bg-gradient-to-r from-transparent via-teal-400/30 dark:via-teal-500/20 to-transparent" />
+      <div className="hidden lg:block h-px bg-gradient-to-r from-transparent via-orange-400/30 dark:via-orange-500/20 to-transparent" />
 
       <div className="hidden lg:flex items-center justify-center py-3 px-4 bg-background/80 dark:bg-background/40 backdrop-blur-sm border-t border-border/30 text-xs text-muted-foreground/80">
         <span className="flex items-center gap-1">
