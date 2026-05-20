@@ -285,7 +285,7 @@ export function UIStyleSwitcher({ trigger, open, onOpenChange }: UIStyleSwitcher
         {/* Mode Toggle */}
         <div className="flex items-center justify-between p-4 px-5 bg-muted/20 border-b shrink-0">
           <div className="flex items-center gap-2">
-            <Zap className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+            <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" />
             <div>
               <h4 className="font-medium text-sm">Appearance</h4>
               <p className="text-[11px] text-muted-foreground">
