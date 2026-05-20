@@ -286,30 +286,55 @@ body[style*="padding-right"] {
 }
 
 /* ============================================
-   REMOVE HOVER FLOAT EFFECT FROM ALL CARDS
-   No translateY lift, no scale, no shadow escalation
-   when hovering over content cards (user request)
+   REMOVE HOVER FLOAT/LIFT EFFECT FROM ALL CARDS
+   Kill translateY and scale on hover for card-like elements
+   inside the main body content area (user request).
+   Shadow is kept — only the physical movement is removed.
    ============================================ */
+
+/* 1. shadcn Card component (data-slot="card") */
 [data-slot="card"]:hover {
   transform: none !important;
   scale: 1 !important;
 }
 
-/* Also neutralize CSS utility classes that add hover lift */
+/* 2. All card-like divs inside main content: rounded border bg-card or shadow containers */
+main [data-slot="card"]:hover,
+main .card-hover:hover,
+main .card-accent:hover,
+main .card-shine:hover,
+main .card-pattern:hover,
+main .data-card:hover,
+main .data-card.card-hover:hover,
+main .data-table-wrapper:hover {
+  transform: none !important;
+  scale: 1 !important;
+  translate: 0 0 !important;
+}
+
+/* 3. Generic card-styled divs inside main: any rounded border+shadow element on hover */
+main div[class*="rounded-"][class*="border"]:hover,
+main div[class*="rounded-"][class*="shadow"]:hover {
+  transform: none !important;
+  scale: 1 !important;
+  translate: 0 0 !important;
+}
+
+/* 4. Neutralize CSS utility hover-lift classes everywhere */
 .hover-lift:hover,
-.hover-lift:active {
-  transform: none !important;
-  box-shadow: none !important;
-}
+.hover-lift:active,
 .card-hover-lift:hover,
-.card-hover-lift:active {
-  transform: none !important;
-  box-shadow: none !important;
-}
+.card-hover-lift:active,
 .stat-pill:hover,
 .stat-pill:active {
   transform: none !important;
-  box-shadow: none !important;
+  translate: 0 0 !important;
+  scale: 1 !important;
+}
+
+/* 5. Explicitly block Tailwind hover translate/scale on all elements inside main */
+main *:hover {
+  translate: 0 0 !important;
 }
 
 /* ============================================
