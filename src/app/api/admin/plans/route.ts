@@ -1,8 +1,7 @@
 /**
  * GET /api/admin/plans
  * List all SaaS subscription plans from the database with subscriber counts.
- * Requires platform admin access.
- * Auto-seeds default plans if the DB is empty.
+ * Auto-seeds Indian market plans if the DB is empty.
  *
  * POST /api/admin/plans
  * Create a new subscription plan in the database.
@@ -13,101 +12,169 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePlatformAdmin, requireAuth } from '@/lib/auth/tenant-context';
 
-// Default plan definitions used for seeding if DB is empty
+// Indian market plan definitions — seeded if DB is empty
 const defaultPlanDefs = [
+  // ──────── CLOUD PLANS ────────
   {
-    name: 'trial',
-    displayName: 'Trial',
-    description: 'Try StaySuite free for 14 days',
-    monthlyPrice: 0,
-    yearlyPrice: 0,
-    maxProperties: 1,
-    maxUsers: 3,
-    maxRooms: 20,
-    storageLimitMb: 500,
-    features: JSON.stringify([
-      { name: 'Basic PMS features', included: true },
-      { name: 'Front Desk operations', included: true },
-      { name: 'Guest management', included: true },
-      { name: 'Basic reports', included: true },
-      { name: 'Channel manager', included: false },
-      { name: 'Advanced analytics', included: false },
-      { name: 'API access', included: false },
-      { name: 'Custom branding', included: false },
-    ]),
-    sortOrder: 0,
-    isPopular: false,
-  },
-  {
-    name: 'starter',
-    displayName: 'Starter',
-    description: 'Perfect for small properties',
-    monthlyPrice: 99,
-    yearlyPrice: 990,
+    name: 'cloud-starter',
+    displayName: 'Starter Cloud',
+    description: 'Essential PMS for small hotels & guesthouses — up to 30 rooms',
+    monthlyPrice: 4999,
+    yearlyPrice: 49990,
+    currency: 'INR',
+    deploymentType: 'cloud',
+    setupFee: 0,
     maxProperties: 1,
     maxUsers: 5,
-    maxRooms: 50,
-    storageLimitMb: 1000,
+    maxRooms: 30,
+    storageLimitMb: 2000,
     features: JSON.stringify([
-      { name: 'Full PMS features', included: true },
-      { name: 'Front Desk operations', included: true },
-      { name: 'Guest management', included: true },
-      { name: 'All reports', included: true },
-      { name: 'Channel manager', included: true },
-      { name: 'Email support', included: true },
-      { name: 'Advanced analytics', included: false },
-      { name: 'API access', included: false },
-      { name: 'Custom branding', included: false },
+      { name: 'Dashboard & Analytics', included: true },
+      { name: 'PMS Core', included: true },
+      { name: 'Bookings Management', included: true },
+      { name: 'Front Desk', included: true },
+      { name: 'Guest Management', included: true },
+      { name: 'Housekeeping', included: true },
+      { name: 'Billing & Invoicing', included: true },
+      { name: 'Reports', included: true },
+      { name: 'Notifications', included: true },
+      { name: 'Settings & Config', included: true },
+      { name: 'Help & Support', included: true },
+      { name: 'WiFi RADIUS', included: false },
+      { name: 'POS & Restaurant', included: false },
+      { name: 'Channel Manager', included: false },
+      { name: 'CRM & Marketing', included: false },
     ]),
-    sortOrder: 1,
+    addonModules: JSON.stringify([]),
+    sortOrder: 0,
     isPopular: false,
+    isCustom: false,
   },
   {
-    name: 'professional',
-    displayName: 'Professional',
-    description: 'For growing hospitality businesses',
-    monthlyPrice: 499,
-    yearlyPrice: 4990,
-    maxProperties: 5,
-    maxUsers: 25,
-    maxRooms: 200,
-    storageLimitMb: 5000,
+    name: 'cloud-professional',
+    displayName: 'Professional Cloud',
+    description: 'Full-featured PMS with WiFi RADIUS — up to 80 rooms',
+    monthlyPrice: 9999,
+    yearlyPrice: 99990,
+    currency: 'INR',
+    deploymentType: 'cloud',
+    setupFee: 0,
+    maxProperties: 2,
+    maxUsers: 15,
+    maxRooms: 80,
+    storageLimitMb: 10000,
     features: JSON.stringify([
       { name: 'Everything in Starter', included: true },
-      { name: 'Multi-property support', included: true },
-      { name: 'Advanced analytics', included: true },
-      { name: 'API access', included: true },
-      { name: 'Custom integrations', included: true },
-      { name: 'Priority support', included: true },
-      { name: 'Mobile app access', included: true },
-      { name: 'Custom branding', included: false },
-      { name: 'Dedicated account manager', included: false },
+      { name: 'Multi-Property Support', included: true },
+      { name: 'Guest Experience Module', included: true },
+      { name: 'POS & Restaurant', included: true },
+      { name: 'CRM & Marketing', included: true },
+      { name: 'Channel Manager', included: true },
+      { name: 'WiFi RADIUS Authentication', included: true },
+      { name: 'Revenue Management', included: false },
+      { name: 'Digital Advertising', included: false },
+      { name: 'AI Assistant', included: false },
     ]),
-    sortOrder: 2,
+    addonModules: JSON.stringify([]),
+    sortOrder: 1,
     isPopular: true,
+    isCustom: false,
   },
   {
-    name: 'enterprise',
-    displayName: 'Enterprise',
-    description: 'Custom solutions for large organizations',
-    monthlyPrice: 1999,
-    yearlyPrice: 19990,
-    maxProperties: 999,
-    maxUsers: 999,
-    maxRooms: 9999,
+    name: 'cloud-enterprise',
+    displayName: 'Enterprise Cloud',
+    description: 'Unlimited cloud PMS with all cloud-compatible modules — up to 200 rooms',
+    monthlyPrice: 17999,
+    yearlyPrice: 179990,
+    currency: 'INR',
+    deploymentType: 'cloud',
+    setupFee: 0,
+    maxProperties: 5,
+    maxUsers: 30,
+    maxRooms: 200,
     storageLimitMb: 50000,
     features: JSON.stringify([
-      { name: 'Everything in Professional', included: true },
-      { name: 'Unlimited properties', included: true },
-      { name: 'Custom branding', included: true },
-      { name: 'Dedicated account manager', included: true },
-      { name: 'SLA guarantee', included: true },
-      { name: 'On-premise option', included: true },
-      { name: 'Custom development', included: true },
-      { name: '24/7 phone support', included: true },
+      { name: 'All Cloud-Compatible Modules', included: true },
+      { name: 'Revenue Management', included: true },
+      { name: 'Digital Advertising', included: true },
+      { name: 'Events / MICE', included: true },
+      { name: 'Staff Management', included: true },
+      { name: 'AI Assistant', included: true },
+      { name: 'Automation & Workflows', included: true },
+      { name: 'Chain Management', included: true },
+      { name: 'Priority Support', included: true },
+      { name: 'WiFi RADIUS Authentication', included: true },
+      { name: 'WiFi Gateway (requires on-prem)', included: false },
+      { name: 'Room VLAN Isolation (requires on-prem)', included: false },
+      { name: 'ZTNA Security (requires on-prem)', included: false },
     ]),
-    sortOrder: 3,
+    addonModules: JSON.stringify([]),
+    sortOrder: 2,
     isPopular: false,
+    isCustom: true,
+  },
+  // ──────── ON-PREMISE PLANS ────────
+  {
+    name: 'onprem-professional',
+    displayName: 'Professional On-Prem',
+    description: 'Full WiFi Gateway + all professional modules — data sovereignty',
+    monthlyPrice: 14999,
+    yearlyPrice: 149990,
+    currency: 'INR',
+    deploymentType: 'onprem',
+    setupFee: 75000,
+    maxProperties: 2,
+    maxUsers: 15,
+    maxRooms: 80,
+    storageLimitMb: 100000,
+    features: JSON.stringify([
+      { name: 'All Professional Cloud Features', included: true },
+      { name: 'Full WiFi Gateway', included: true },
+      { name: 'Captive Portal', included: true },
+      { name: 'Bandwidth Management', included: true },
+      { name: 'Room VLAN Isolation', included: true },
+      { name: 'ZTNA Security', included: true },
+      { name: 'On-Premise Data Sovereignty', included: true },
+      { name: 'Surveillance Integration', included: true },
+      { name: 'IoT Smart Hotel', included: false },
+      { name: 'AI Assistant', included: false },
+      { name: 'Chain Management', included: false },
+      { name: 'Custom Development', included: false },
+    ]),
+    addonModules: JSON.stringify([]),
+    sortOrder: 3,
+    isPopular: true,
+    isCustom: false,
+  },
+  {
+    name: 'onprem-enterprise',
+    displayName: 'Enterprise On-Prem',
+    description: 'Complete StaySuite with every module — unlimited scale',
+    monthlyPrice: 24999,
+    yearlyPrice: 249990,
+    currency: 'INR',
+    deploymentType: 'onprem',
+    setupFee: 150000,
+    maxProperties: 10,
+    maxUsers: 999,
+    maxRooms: 9999,
+    storageLimitMb: 500000,
+    features: JSON.stringify([
+      { name: 'Everything in Professional On-Prem', included: true },
+      { name: 'Multi-Property Management', included: true },
+      { name: 'Chain Management Module', included: true },
+      { name: 'AI Assistant', included: true },
+      { name: 'Automation & Workflows', included: true },
+      { name: 'IoT Smart Hotel', included: true },
+      { name: 'Priority Support & SLA', included: true },
+      { name: 'Custom Development', included: true },
+      { name: 'Dedicated Account Manager', included: true },
+      { name: '24/7 Phone Support', included: true },
+    ]),
+    addonModules: JSON.stringify([]),
+    sortOrder: 4,
+    isPopular: false,
+    isCustom: true,
   },
 ];
 
@@ -119,7 +186,6 @@ async function ensurePlansSeeded() {
 }
 
 // GET - List all subscription plans with subscriber counts
-// Any authenticated user can read plans; only writes require platform admin
 export async function GET(request: NextRequest) {
   try {
     const authResult = await requireAuth(request);
@@ -127,7 +193,6 @@ export async function GET(request: NextRequest) {
       return authResult;
     }
 
-    // Ensure default plans exist
     await ensurePlansSeeded();
 
     const plans = await db.subscriptionPlan.findMany({
@@ -135,7 +200,6 @@ export async function GET(request: NextRequest) {
       orderBy: { sortOrder: 'asc' },
     });
 
-    // Get subscriber counts from tenants
     const tenantCounts = await db.tenant.groupBy({
       by: ['plan'],
       where: { deletedAt: null },
@@ -153,13 +217,16 @@ export async function GET(request: NextRequest) {
       yearlyPrice: plan.yearlyPrice,
       currency: plan.currency,
       billingPeriod: 'monthly' as const,
+      deploymentType: plan.deploymentType || 'cloud',
+      setupFee: plan.setupFee || 0,
       maxProperties: plan.maxProperties,
       maxUsers: plan.maxUsers,
       maxRooms: plan.maxRooms,
       storageLimitMb: plan.storageLimitMb,
       features: JSON.parse(plan.features || '[]'),
+      addonModules: JSON.parse(plan.addonModules || '[]'),
       isPopular: plan.isPopular,
-      isCustom: plan.name === 'enterprise',
+      isCustom: plan.isCustom,
       sortOrder: plan.sortOrder,
       subscriberCount: countMap.get(plan.name) || 0,
       status: 'active' as const,
@@ -187,7 +254,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, displayName, description, monthlyPrice, yearlyPrice, maxProperties, maxUsers, maxRooms, storageLimitMb, features } = body;
+    const { name, displayName, description, monthlyPrice, yearlyPrice, deploymentType, setupFee, maxProperties, maxUsers, maxRooms, storageLimitMb, features, addonModules } = body;
 
     if (!name || !displayName) {
       return NextResponse.json(
@@ -196,7 +263,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for duplicate plan name
     const existing = await db.subscriptionPlan.findFirst({
       where: { name },
     });
@@ -207,7 +273,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get next sort order
     const maxSort = await db.subscriptionPlan.aggregate({
       _max: { sortOrder: true },
     });
@@ -219,13 +284,18 @@ export async function POST(request: NextRequest) {
         description: description || '',
         monthlyPrice: typeof monthlyPrice === 'number' ? monthlyPrice : 0,
         yearlyPrice: typeof yearlyPrice === 'number' ? yearlyPrice : 0,
+        currency: 'INR',
+        deploymentType: deploymentType || 'cloud',
+        setupFee: typeof setupFee === 'number' ? setupFee : 0,
         maxProperties: typeof maxProperties === 'number' ? maxProperties : 1,
         maxUsers: typeof maxUsers === 'number' ? maxUsers : 5,
         maxRooms: typeof maxRooms === 'number' ? maxRooms : 50,
         storageLimitMb: typeof storageLimitMb === 'number' ? storageLimitMb : 1000,
         features: JSON.stringify(Array.isArray(features) ? features : []),
+        addonModules: JSON.stringify(Array.isArray(addonModules) ? addonModules : []),
         sortOrder: (maxSort._max.sortOrder || 0) + 1,
         isPopular: false,
+        isCustom: false,
       },
     });
 
@@ -240,12 +310,16 @@ export async function POST(request: NextRequest) {
         yearlyPrice: plan.yearlyPrice,
         currency: plan.currency,
         billingPeriod: 'monthly',
+        deploymentType: plan.deploymentType,
+        setupFee: plan.setupFee,
         maxProperties: plan.maxProperties,
         maxUsers: plan.maxUsers,
         maxRooms: plan.maxRooms,
         storageLimitMb: plan.storageLimitMb,
         features: JSON.parse(plan.features || '[]'),
+        addonModules: JSON.parse(plan.addonModules || '[]'),
         isPopular: plan.isPopular,
+        isCustom: plan.isCustom,
         sortOrder: plan.sortOrder,
         subscriberCount: 0,
         status: 'active',
