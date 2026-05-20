@@ -416,6 +416,8 @@
     "admin-tenants": "टेनेंट मैनेजमेंट",
     "admin-lifecycle": "टेनेंट लाइफ़साइकल",
     "admin-roles": "रोल और परमिशन",
+    "staff-users": "उपयोगकर्ता",
+    "staff-roles": "भूमिकाएँ और अनुमतियाँ",
     "admin-users": "यूज़र मैनेजमेंट",
     "admin-usage": "यूसेज ट्रैकिंग",
     "admin-revenue": "रेवेन्यू एनालिटिक्स",
@@ -535,6 +537,7 @@
     "facilities": "फैसिलिटीज़",
     "securityIot": "सिक्योरिटी और IoT",
     "automationAi": "ऑटोमेशन और AI",
+    "userRoleManagement": "उपयोगकर्ता व भूमिका प्रबंधन",
     "platformAdmin": "प्लेटफॉर्म एडमिन"
   },
   "layout": {

@@ -415,6 +415,8 @@
     "admin-tenants": "إدارة المستأجرين",
     "admin-lifecycle": "دورة حياة المستأجر",
     "admin-roles": "الأدوار والصلاحيات",
+    "staff-users": "المستخدمون",
+    "staff-roles": "الأدوار والصلاحيات",
     "admin-users": "إدارة المستخدمين",
     "admin-usage": "تتبع الاستخدام",
     "admin-revenue": "تحليلات الإيرادات",
@@ -535,6 +537,7 @@
     "facilities": "المرافق",
     "securityIot": "الأمان وإنترنت الأشياء",
     "automationAi": "الأتمتة والذكاء الاصطناعي",
+    "userRoleManagement": "إدارة المستخدمين والأدوار",
     "platformAdmin": "مدير المنصة"
   },
   "layout": {

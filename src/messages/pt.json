@@ -415,6 +415,8 @@
     "admin-tenants": "Gestão de tenants",
     "admin-lifecycle": "Ciclo de vida do tenant",
     "admin-roles": "Funções & Permissões",
+    "staff-users": "Usuários",
+    "staff-roles": "Funções e permissões",
     "admin-users": "Gestão de usuários",
     "admin-usage": "Rastreamento de uso",
     "admin-revenue": "Análise de receita",
@@ -535,6 +537,7 @@
     "facilities": "Instalações",
     "securityIot": "Segurança e IoT",
     "automationAi": "Automação e IA",
+    "userRoleManagement": "Gestão de usuários e funções",
     "platformAdmin": "Administrador da plataforma"
   },
   "layout": {

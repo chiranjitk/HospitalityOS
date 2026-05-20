@@ -415,6 +415,8 @@
     "admin-tenants": "ટેનન્ટ મેનેજમેન્ટ",
     "admin-lifecycle": "ટેનન્ટ લાઇફસાયકલ",
     "admin-roles": "ભૂમિકા અને પરવાનગી",
+    "staff-users": "વપરાશકર્તાઓ",
+    "staff-roles": "ભૂમિકાઓ અને પરવાનગીઓ",
     "admin-users": "યુઝર મેનેજમેન્ટ",
     "admin-usage": "વપરાશ ટ્રેકિંગ",
     "admin-revenue": "રેવન્યુ એનાલિટિક્સ",
@@ -535,6 +537,7 @@
     "facilities": "સુવિધાઓ",
     "securityIot": "સુરક્ષા અને IoT",
     "automationAi": "ઓટોમેશન અને AI",
+    "userRoleManagement": "વપરાશકર્તા અને ભૂમિકા વ્યવસ્થાપન",
     "platformAdmin": "પ્લેટફોર્મ એડમિન"
   },
   "layout": {

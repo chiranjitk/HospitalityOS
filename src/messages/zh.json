@@ -415,6 +415,8 @@
     "admin-tenants": "租户管理",
     "admin-lifecycle": "租户生命周期",
     "admin-roles": "角色与权限",
+    "staff-users": "用户",
+    "staff-roles": "角色与权限",
     "admin-users": "用户管理",
     "admin-usage": "用量追踪",
     "admin-revenue": "收入分析",
@@ -535,6 +537,7 @@
     "facilities": "设施",
     "securityIot": "安全与物联网",
     "automationAi": "自动化与AI",
+    "userRoleManagement": "用户与角色管理",
     "platformAdmin": "平台管理"
   },
   "layout": {

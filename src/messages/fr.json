@@ -415,6 +415,8 @@
     "admin-tenants": "Gestion des locataires",
     "admin-lifecycle": "Cycle de vie du locataire",
     "admin-roles": "Rôles et permissions",
+    "staff-users": "Utilisateurs",
+    "staff-roles": "Rôles et permissions",
     "admin-users": "Gestion des utilisateurs",
     "admin-usage": "Suivi d'utilisation",
     "admin-revenue": "Analytique des revenus",
@@ -535,6 +537,7 @@
     "facilities": "Installations",
     "securityIot": "Sécurité et IoT",
     "automationAi": "Automatisation et IA",
+    "userRoleManagement": "Gestion des utilisateurs et des rôles",
     "platformAdmin": "Administrateur de plateforme"
   },
   "layout": {

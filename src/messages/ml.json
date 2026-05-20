@@ -415,6 +415,8 @@
     "admin-tenants": "ടെനന്റ് മാനേജ്‌മെന്റ്",
     "admin-lifecycle": "ടെനന്റ് ലൈഫ്‌സൈക്കിൾ",
     "admin-roles": "റോളുകൾ & അനുമതികൾ",
+    "staff-users": "യൂസർമാർ",
+    "staff-roles": "റോളുകൾ & അനുമതികൾ",
     "admin-users": "യൂസർ മാനേജ്‌മെന്റ്",
     "admin-usage": "ഉപയോഗ ട്രാക്കിംഗ്",
     "admin-revenue": "വരുമാന അനലിറ്റിക്സ്",
@@ -535,6 +537,7 @@
     "facilities": "സൗകര്യങ്ങൾ",
     "securityIot": "സുരക്ഷയും IoT-യും",
     "automationAi": "ഓട്ടോമേഷനും AI-യും",
+    "userRoleManagement": "യൂസർ & റോൾ മാനേജ്‌മെന്റ്",
     "platformAdmin": "പ്ലാറ്റ്ഫോം അഡ്മിൻ"
   },
   "layout": {

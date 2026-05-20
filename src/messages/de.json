@@ -415,6 +415,8 @@
     "admin-tenants": "Mandantenverwaltung",
     "admin-lifecycle": "Mandantenlebenszyklus",
     "admin-roles": "Rollen & Berechtigungen",
+    "staff-users": "Benutzer",
+    "staff-roles": "Rollen und Berechtigungen",
     "admin-users": "Benutzerverwaltung",
     "admin-usage": "Nutzungsverfolgung",
     "admin-revenue": "Umsatzanalysen",
@@ -535,6 +537,7 @@
     "facilities": "Einrichtungen",
     "securityIot": "Sicherheit & IoT",
     "automationAi": "Automatisierung & KI",
+    "userRoleManagement": "Benutzer- und Rollenverwaltung",
     "platformAdmin": "Plattform-Administrator"
   },
   "layout": {

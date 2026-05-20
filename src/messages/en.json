@@ -444,6 +444,8 @@
     "admin-tenants": "Tenant Management",
     "admin-lifecycle": "Tenant Lifecycle",
     "admin-roles": "Roles & Permissions",
+    "staff-users": "Users",
+    "staff-roles": "Roles & Permissions",
     "admin-users": "User Management",
     "admin-usage": "Usage Tracking",
     "admin-revenue": "Revenue Analytics",
@@ -536,6 +538,7 @@
     "facilities": "Facilities",
     "securityIot": "Security & IoT",
     "automationAi": "Automation & AI",
+    "userRoleManagement": "User & Role Management",
     "platformAdmin": "Platform Admin"
   },
   "layout": {

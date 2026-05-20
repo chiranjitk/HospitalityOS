@@ -415,6 +415,8 @@
     "admin-tenants": "テナント管理",
     "admin-lifecycle": "テナントライフサイクル",
     "admin-roles": "ロール & 権限",
+    "staff-users": "ユーザー",
+    "staff-roles": "ロールと権限",
     "admin-users": "ユーザー管理",
     "admin-usage": "利用状況トラッキング",
     "admin-revenue": "収益分析",
@@ -535,6 +537,7 @@
     "facilities": "施設",
     "securityIot": "セキュリティ＆IoT",
     "automationAi": "自動化＆AI",
+    "userRoleManagement": "ユーザー＆ロール管理",
     "platformAdmin": "プラットフォーム管理"
   },
   "layout": {

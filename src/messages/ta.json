@@ -415,6 +415,8 @@
     "admin-tenants": "டெனன்ட் மேலாண்மை",
     "admin-lifecycle": "டெனன்ட் வாழ்க்கைச் சுழற்சி",
     "admin-roles": "பங்குகள் & அனுமதிகள்",
+    "staff-users": "பயனர்கள்",
+    "staff-roles": "பங்குகள் & அனுமதிகள்",
     "admin-users": "பயனர் மேலாண்மை",
     "admin-usage": "பயன்பாட்டு கண்காணிப்பு",
     "admin-revenue": "வருவாய் பகுப்பாய்வு",
@@ -535,6 +537,7 @@
     "facilities": "வசதிகள்",
     "securityIot": "பாதுகாப்பு மற்றும் IoT",
     "automationAi": "ஆட்டோமேஷன் மற்றும் AI",
+    "userRoleManagement": "பயனர் & பங்கு மேலாண்மை",
     "platformAdmin": "தள நிர்வாகி"
   },
   "layout": {
