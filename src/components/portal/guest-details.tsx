@@ -174,7 +174,7 @@ export function GuestDetails({ token, guest, isComplete, onUpdate, onComplete }:
         {!isEditing ? (
           <div className="space-y-3">
             {/* Display Mode */}
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-muted-foreground" />
                 <span>{formData.firstName} {formData.lastName}</span>
@@ -199,7 +199,7 @@ export function GuestDetails({ token, guest, isComplete, onUpdate, onComplete }:
         ) : (
           <div className="space-y-4">
             {/* Personal Information */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName">First Name *</Label>
                 <Input
@@ -220,7 +220,7 @@ export function GuestDetails({ token, guest, isComplete, onUpdate, onComplete }:
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email *</Label>
                 <div className="relative">
@@ -250,7 +250,7 @@ export function GuestDetails({ token, guest, isComplete, onUpdate, onComplete }:
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="nationality">Nationality</Label>
                 <Select
@@ -280,7 +280,7 @@ export function GuestDetails({ token, guest, isComplete, onUpdate, onComplete }:
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="gender">Gender</Label>
                 <Select
@@ -316,7 +316,7 @@ export function GuestDetails({ token, guest, isComplete, onUpdate, onComplete }:
                 <CreditCard className="h-4 w-4" />
                 Identification
               </h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="idType">ID Type</Label>
                   <Select
@@ -363,7 +363,7 @@ export function GuestDetails({ token, guest, isComplete, onUpdate, onComplete }:
                     placeholder="123 Main Street"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="city">City</Label>
                     <Input

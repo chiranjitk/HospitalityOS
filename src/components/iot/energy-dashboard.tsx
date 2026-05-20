@@ -201,7 +201,7 @@ export default function EnergyDashboard() {
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -284,7 +284,7 @@ export default function EnergyDashboard() {
       </div>
 
       {/* Green Metrics */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         <Card className="bg-green-50 dark:bg-green-950">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -410,7 +410,7 @@ export default function EnergyDashboard() {
         </TabsContent>
 
         <TabsContent value="costs" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Cost by Resource</CardTitle>
@@ -469,6 +469,7 @@ export default function EnergyDashboard() {
             </CardHeader>
             <CardContent>
               <ScrollArea className="max-h-[400px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -493,6 +494,7 @@ export default function EnergyDashboard() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -527,7 +529,7 @@ export default function EnergyDashboard() {
           <CardTitle className="text-sm">Daily Averages</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             <div className="text-center p-4 bg-muted rounded-lg">
               <p className="text-sm text-muted-foreground">Avg Electricity</p>
               <p className="text-xl font-bold">{formatNumber(data.dailyAvg.electricityKwh, 1)} kWh</p>

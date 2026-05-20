@@ -241,7 +241,7 @@ export default function GuestAnalyticsReports() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full overflow-x-auto flex sm:inline-grid sm:grid-cols-4">
+        <TabsList className="w-full overflow-x-auto grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="demographics">Demographics</TabsTrigger>
           <TabsTrigger value="bookings">Booking Patterns</TabsTrigger>

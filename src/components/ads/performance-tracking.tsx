@@ -193,7 +193,7 @@ export default function PerformanceTracking() {
             <Skeleton className="h-9 w-24" />
           </div>
         </div>
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i} className="border-0 shadow-sm">
               <CardContent className="pt-6">
@@ -268,7 +268,7 @@ export default function PerformanceTracking() {
 
       {/* Summary Cards */}
       {summary && (
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
           <Card className="border-0 shadow-sm">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
@@ -343,7 +343,7 @@ export default function PerformanceTracking() {
 
       {/* Key Metrics */}
       {summary && (
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
           <div className="p-3 rounded-lg bg-muted/50">
             <p className="text-xs text-muted-foreground">Avg CTR</p>
             <p className="text-lg font-semibold">{summary.avgCtr.toFixed(2)}%</p>
@@ -476,7 +476,7 @@ export default function PerformanceTracking() {
         </TabsContent>
 
         <TabsContent value="conversions" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
             <Card className="border-0 shadow-sm">
               <CardHeader>
                 <CardTitle className="text-lg">Conversion Trend</CardTitle>

@@ -276,7 +276,7 @@ function LoadingSkeleton() {
           <div className="h-9 w-36 bg-muted rounded" />
         </div>
       </div>
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {[1, 2, 3, 4].map(i => (
           <div key={i} className="h-28 bg-muted rounded-lg" />
         ))}
@@ -740,7 +740,7 @@ export default function RateShopping() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -821,7 +821,7 @@ export default function RateShopping() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
           <TabsTrigger value="matrix" className="gap-1.5"><BarChart3 className="h-3.5 w-3.5 hidden sm:block" />Rate Matrix</TabsTrigger>
           <TabsTrigger value="parity" className="gap-1.5"><Shield className="h-3.5 w-3.5 hidden sm:block" />Parity</TabsTrigger>
           <TabsTrigger value="position" className="gap-1.5"><MapPin className="h-3.5 w-3.5 hidden sm:block" />Position</TabsTrigger>
@@ -868,6 +868,7 @@ export default function RateShopping() {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="max-h-[500px] overflow-y-auto">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -951,6 +952,7 @@ export default function RateShopping() {
                       })}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -969,7 +971,7 @@ export default function RateShopping() {
             </CardHeader>
             <CardContent>
               {resultsStats && (
-                <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-6">
+                <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-4 mb-6">
                   <div className="text-center p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
                     <p className="text-2xl font-bold text-emerald-600">{resultsStats.parity}</p>
                     <p className="text-xs text-muted-foreground">At Parity</p>
@@ -1009,7 +1011,7 @@ export default function RateShopping() {
                           <span className="font-medium">{parPct}%</span>
                         </div>
                         <Progress value={parPct} className="h-2" />
-                        <div className="grid grid-cols-3 gap-2 mt-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mt-2">
                           <div className="text-center">
                             <p className="text-lg font-bold text-emerald-600">{par}</p>
                             <p className="text-[10px] text-muted-foreground">Par</p>
@@ -1185,7 +1187,7 @@ export default function RateShopping() {
                   {/* Market Segments Legend */}
                   <div>
                     <h4 className="text-sm font-medium mb-3">Market Segments</h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                       {(Object.entries(SEGMENT_CONFIG) as [MarketSegment, typeof SEGMENT_CONFIG[MarketSegment]][]).map(([key, config]) => (
                         <div key={key} className="flex items-center gap-2 p-3 rounded-lg border">
                           <div className="w-3 h-3 rounded-full" style={{
@@ -1492,7 +1494,7 @@ export default function RateShopping() {
                   <Separator className="my-6" />
                   <div>
                     <h4 className="text-sm font-medium mb-3">Overall Parity Summary</h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                       <div className="p-3 rounded-lg bg-muted/50 text-center">
                         <p className="text-lg font-bold">{apiStats.parity}</p>
                         <p className="text-xs text-muted-foreground">At Parity</p>
@@ -1520,7 +1522,7 @@ export default function RateShopping() {
 
       {/* Add Competitor Dialog */}
       <Dialog open={isAddCompOpen} onOpenChange={setIsAddCompOpen}>
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Add Competitor</DialogTitle>
             <DialogDescription>

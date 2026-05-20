@@ -217,7 +217,7 @@ export default function TwoFactorSetup() {
 
           {step === 'setup' && setupData && (
             <div className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
+              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2">
                 <div className="space-y-4">
                   <div>
                     <h4 className="font-medium mb-2">Step 1: Scan QR Code</h4>
@@ -255,7 +255,7 @@ export default function TwoFactorSetup() {
                       Store these backup codes in a safe place. You can use them to access your account if you lose your authenticator.
                     </p>
                     <div className="bg-muted p-4 rounded-lg">
-                      <div className="grid grid-cols-2 gap-2 font-mono text-sm">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-sm">
                         {setupData.backupCodes?.map((code, index) => (
                           <div key={index} className="flex items-center gap-2">
                             <span className="text-muted-foreground">{index + 1}.</span>

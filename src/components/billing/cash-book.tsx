@@ -296,7 +296,7 @@ export default function CashBook() {
       </div>
 
       {/* Day Summary Cards */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 lg:grid-cols-5">
         <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950 dark:to-sky-950">
           <CardContent className="p-4">
             <p className="text-xs font-medium text-muted-foreground">Opening Balance</p>
@@ -357,7 +357,7 @@ export default function CashBook() {
               <Plus className="h-5 w-5 text-teal-600 dark:text-teal-400" />
               <h3 className="font-semibold">New Transaction</h3>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
               <div className="space-y-2">
                 <Label>Description</Label>
                 <Input

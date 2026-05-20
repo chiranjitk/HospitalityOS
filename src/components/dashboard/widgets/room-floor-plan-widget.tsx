@@ -130,7 +130,7 @@ function LoadingSkeleton() {
         </div>
       </CardHeader>
       <CardContent className="p-4 pt-0 space-y-4">
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {[1,2,3,4].map(i => (
             <Skeleton key={i} className="h-16 rounded-lg" />
           ))}
@@ -594,7 +594,7 @@ export function RoomFloorPlanWidget() {
 
         <CardContent className="p-4 pt-0 space-y-4">
           {/* Quick Stats Row */}
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
               { label: 'Total Rooms', value: stats.total, icon: Building2, color: 'text-foreground', bg: 'bg-muted/50' },
               { label: 'Available', value: stats.available, icon: Bed, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30' },

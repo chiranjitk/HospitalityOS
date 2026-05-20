@@ -484,7 +484,7 @@ export default function DigitalKeys() {
                 {getStatusBadge(selectedKey.status)}
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Guest</p>
                   <p className="font-medium">{selectedKey.guestName}</p>
@@ -535,7 +535,7 @@ export default function DigitalKeys() {
               )}
 
               {selectedKey.accessCount > 0 && (
-                <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
                   <div className="text-center">
                     <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{selectedKey.accessCount}</p>
                     <p className="text-xs text-muted-foreground">Total Access</p>

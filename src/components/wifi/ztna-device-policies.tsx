@@ -804,7 +804,8 @@ function PoliciesTab({
       ) : (
         <Card className="overflow-hidden">
           <CardContent className="p-0">
-            <div className="max-h-[500px] overflow-y-auto">
+            <div className="max-h-[500px] overflow-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -896,6 +897,7 @@ function PoliciesTab({
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -909,7 +911,7 @@ function PoliciesTab({
           setDialogOpen(open);
         }}
       >
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>
               {editingPolicy ? 'Edit Device Policy' : 'New Device Policy'}
@@ -971,7 +973,7 @@ function PoliciesTab({
             </div>
 
             {/* Bandwidth */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Bandwidth Down (Kbps)</Label>
                 <Input
@@ -1003,7 +1005,7 @@ function PoliciesTab({
             </div>
 
             {/* Content Filter + Session Timeout */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Content Filter</Label>
                 <Select
@@ -1316,7 +1318,8 @@ function GroupsTab({
       ) : (
         <Card className="overflow-hidden">
           <CardContent className="p-0">
-            <div className="max-h-[500px] overflow-y-auto">
+            <div className="max-h-[500px] overflow-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1397,6 +1400,7 @@ function GroupsTab({
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1410,7 +1414,7 @@ function GroupsTab({
           setDialogOpen(open);
         }}
       >
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>
               {editingGroup ? 'Edit Device Group' : 'New Device Group'}
@@ -1757,7 +1761,8 @@ function AssignmentsTab({
       ) : (
         <Card className="overflow-hidden">
           <CardContent className="p-0">
-            <div className="max-h-[500px] overflow-y-auto">
+            <div className="max-h-[500px] overflow-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1836,6 +1841,7 @@ function AssignmentsTab({
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -2049,7 +2055,8 @@ function AuditLogTab({
       ) : (
         <Card className="overflow-hidden">
           <CardContent className="p-0">
-            <div className="max-h-[500px] overflow-y-auto">
+            <div className="max-h-[500px] overflow-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -2140,6 +2147,7 @@ function AuditLogTab({
                   })}
                 </TableBody>
               </Table>
+              </div>
             </div>
           </CardContent>
         </Card>

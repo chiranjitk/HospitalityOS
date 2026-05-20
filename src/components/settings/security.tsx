@@ -151,7 +151,7 @@ export default function SecuritySettings() {
           <CardDescription>Configure authentication methods and policies</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
               <div>
                 <p className="font-medium">Multi-Factor Authentication</p>
@@ -168,7 +168,7 @@ export default function SecuritySettings() {
             </div>
           </div>
           
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             <div className="space-y-2">
               <Label>MFA Method</Label>
               <Select value={settings.authentication.mfaMethod} onValueChange={(v) => setSettings({ ...settings, authentication: { ...settings.authentication, mfaMethod: v } })}>
@@ -202,7 +202,7 @@ export default function SecuritySettings() {
           <CardDescription>Configure password requirements</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Minimum Length</Label>
               <Input type="number" value={settings.authentication.passwordPolicy.minLength} onChange={(e) => setSettings({ ...settings, authentication: { ...settings.authentication, passwordPolicy: { ...settings.authentication.passwordPolicy, minLength: parseInt(e.target.value) } } })} />
@@ -249,7 +249,7 @@ export default function SecuritySettings() {
           <CardDescription>Configure data security settings</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
               <div>
                 <p className="font-medium">Encryption at Rest</p>
@@ -295,7 +295,7 @@ export default function SecuritySettings() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
               <div>
                 <p className="font-medium">Rate Limiting</p>
@@ -325,7 +325,7 @@ export default function SecuritySettings() {
           <CardDescription>Regulatory compliance settings</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
               <div>
                 <p className="font-medium">PCI DSS</p>

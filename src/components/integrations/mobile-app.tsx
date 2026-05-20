@@ -303,7 +303,7 @@ function channelIcon(channel: string) {
 
 function StatsCardsSkeleton() {
   return (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       {[1, 2, 3, 4].map(i => (
         <Card key={i} className="border-l-4 border-l-muted">
           <CardHeader className="pb-2">
@@ -495,7 +495,7 @@ export function MobileAppManagement() {
       {loading ? (
         <StatsCardsSkeleton />
       ) : (
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="border-l-4 border-l-sky-500">
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-1.5">
@@ -551,7 +551,7 @@ export function MobileAppManagement() {
 
       {/* ─── Tabs ─── */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="guest-app" className="gap-1.5">
             <Smartphone className="h-4 w-4 hidden sm:block" />
             Guest App
@@ -757,6 +757,7 @@ export function MobileAppManagement() {
               </CardHeader>
               <CardContent>
                 <ScrollArea className="max-h-[400px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -805,6 +806,7 @@ export function MobileAppManagement() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </CardContent>
             </Card>
@@ -838,6 +840,7 @@ export function MobileAppManagement() {
                 </div>
               ) : (
                 <ScrollArea className="max-h-[320px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -879,6 +882,7 @@ export function MobileAppManagement() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               )}
             </CardContent>
@@ -918,6 +922,7 @@ export function MobileAppManagement() {
                 </div>
               ) : (
                 <ScrollArea className="max-h-[400px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -944,6 +949,7 @@ export function MobileAppManagement() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               )}
             </CardContent>
@@ -1069,7 +1075,7 @@ export function MobileAppManagement() {
                   <Label className="text-xs text-muted-foreground">Body</Label>
                   <p className="text-sm bg-muted p-3 rounded-md max-h-32 overflow-auto">{selectedTemplate.body}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <Label className="text-xs text-muted-foreground">Type</Label>
                     <p className="text-sm">{selectedTemplate.type}</p>

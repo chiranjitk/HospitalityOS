@@ -239,7 +239,8 @@ export default function UserStatusHistory() {
               </p>
             </div>
           ) : (
-            <div className="max-h-[500px] overflow-y-auto">
+            <div className="max-h-[500px] overflow-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -294,6 +295,7 @@ export default function UserStatusHistory() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </CardContent>

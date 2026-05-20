@@ -378,6 +378,7 @@ function FupSwitchLog() {
           </div>
         </div>
         <ScrollArea className="max-h-[320px]">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -441,6 +442,7 @@ function FupSwitchLog() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </ScrollArea>
       </CardContent>
     </Card>
@@ -453,7 +455,7 @@ function FupSwitchLog() {
 
 function StatsSkeleton() {
   return (
-    <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 md:grid-cols-5">
       {Array.from({ length: 5 }).map((_, i) => (
         <Card key={i} className="p-4">
           <div className="flex items-center gap-3">
@@ -800,7 +802,7 @@ export default function FupDashboard() {
       {isLoading ? (
         <StatsSkeleton />
       ) : (
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 md:grid-cols-5">
           {/* Active Policies */}
           <Card className="p-4">
             <div className="flex items-center gap-3">
@@ -948,7 +950,7 @@ export default function FupDashboard() {
                   </div>
 
                   {/* Threshold indicators */}
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <div className="text-center">
                       <div className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
                         {breakdown.below50}
@@ -1011,6 +1013,7 @@ export default function FupDashboard() {
           <Card>
             <CardContent className="p-0">
               <ScrollArea className="max-h-[480px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1130,6 +1133,7 @@ export default function FupDashboard() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>

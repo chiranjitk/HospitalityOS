@@ -473,7 +473,7 @@ export default function ExperienceCatalog() {
   );
 
   const renderStatCards = () => (
-    <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
       <Card className="p-4">
         <div className="flex items-center gap-2">
           <div className="p-2 rounded-lg bg-violet-500/10">
@@ -843,6 +843,7 @@ export default function ExperienceCatalog() {
             <>
               <div className="hidden sm:block">
                 <ScrollArea className="max-h-[500px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -954,6 +955,7 @@ export default function ExperienceCatalog() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </div>
 
@@ -1110,7 +1112,7 @@ export default function ExperienceCatalog() {
               </div>
 
               {/* Row 3: Duration, Max Guests, Base Price, Status */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="exp-duration">Duration (min)</Label>
                   <Input
@@ -1319,7 +1321,7 @@ export default function ExperienceCatalog() {
                   </p>
                 )}
 
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-muted-foreground">Category:</span>
                     <p className="font-medium">

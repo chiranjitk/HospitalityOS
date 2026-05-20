@@ -827,7 +827,7 @@ const t = useTranslations('billing');
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-4 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-violet-500/10">
@@ -1251,7 +1251,7 @@ const t = useTranslations('billing');
               <TabsContent value="details" className="flex-1 overflow-y-auto pr-2 -mr-2">
             <div className="space-y-6 mt-4">
               {/* Guest & Booking Info */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Card className="p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <User className="h-4 w-4 text-muted-foreground" />
@@ -1288,6 +1288,7 @@ const t = useTranslations('billing');
                   )}
                 </div>
                 <Card>
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1343,6 +1344,7 @@ const t = useTranslations('billing');
                       )}
                     </TableBody>
                   </Table>
+                  </div>
                 </Card>
               </div>
 
@@ -1387,6 +1389,7 @@ const t = useTranslations('billing');
                 <div>
                   <h3 className="font-medium mb-2">Payments</h3>
                   <Card>
+                    <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -1411,6 +1414,7 @@ const t = useTranslations('billing');
                         ))}
                       </TableBody>
                     </Table>
+                    </div>
                   </Card>
                 </div>
               )}
@@ -1562,7 +1566,7 @@ const t = useTranslations('billing');
               {/* Split Type Selector */}
               <div className="space-y-2">
                 <Label>Split By</Label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Button
                     type="button"
                     variant={splitType === 'items' ? 'default' : 'outline'}
@@ -1791,7 +1795,7 @@ const t = useTranslations('billing');
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="quantity">Quantity</Label>
                 <Input

@@ -338,7 +338,7 @@ export default function CorporateAccounts() {
 
       {/* Stats */}
       {stats && (
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 lg:grid-cols-5">
           <Card className="p-4">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-teal-500/10">
@@ -462,7 +462,7 @@ export default function CorporateAccounts() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <p className="text-xs text-muted-foreground">Credit Limit</p>
                     <p className="text-sm font-semibold">${account.creditLimit.toLocaleString()}</p>
@@ -527,7 +527,7 @@ export default function CorporateAccounts() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Contact Name</Label>
                 <Input
@@ -547,7 +547,7 @@ export default function CorporateAccounts() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Contact Phone</Label>
                 <Input
@@ -566,7 +566,7 @@ export default function CorporateAccounts() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Account Type</Label>
                 <Select
@@ -605,7 +605,7 @@ export default function CorporateAccounts() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Credit Limit ($)</Label>
                 <Input
@@ -630,7 +630,7 @@ export default function CorporateAccounts() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>City</Label>
                 <Input
@@ -677,7 +677,7 @@ export default function CorporateAccounts() {
 
           {selectedAccount && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <Card className="p-3">
                   <p className="text-xs text-muted-foreground">Type</p>
                   <Badge variant="outline" className={cn('mt-1', getAccountTypeColor(selectedAccount.accountType))}>
@@ -700,7 +700,7 @@ export default function CorporateAccounts() {
                 </Card>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 {selectedAccount.contactName && (
                   <div><span className="text-muted-foreground">Contact:</span> {selectedAccount.contactName}</div>
                 )}

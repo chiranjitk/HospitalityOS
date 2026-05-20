@@ -1411,7 +1411,7 @@ export default function DhcpPage() {
             </div>
             <Skeleton className="h-9 w-32" />
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             {[1, 2, 3].map(i => (
               <Card key={i}>
                 <CardContent className="p-5 space-y-4">
@@ -1424,7 +1424,7 @@ export default function DhcpPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Skeleton className="h-10 w-full" />
                     <Skeleton className="h-10 w-full" />
                   </div>
@@ -1464,7 +1464,7 @@ export default function DhcpPage() {
             actionLabel="Add Subnet"
           />
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             {subnets.map((s) => {
               const pct = s.utilization || (s.totalPool > 0 ? Math.round((s.activeLeases / s.totalPool) * 100) : 0);
               return (
@@ -1504,7 +1504,7 @@ export default function DhcpPage() {
                     </div>
 
                     {/* Info grid */}
-                    <div className="grid grid-cols-2 gap-3 text-sm mb-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm mb-4">
                       {s.interface && (
                         <div>
                           <span className="text-muted-foreground">Interface</span>
@@ -1574,7 +1574,7 @@ export default function DhcpPage() {
 
         {/* Add/Edit Subnet Dialog */}
         <Dialog open={subnetDialogOpen} onOpenChange={setSubnetDialogOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-auto">
             <DialogHeader>
               <DialogTitle>{editingSubnet ? 'Edit Subnet' : 'Add Subnet'}</DialogTitle>
               <DialogDescription>
@@ -1699,7 +1699,7 @@ export default function DhcpPage() {
               )}
 
               {/* CIDR + Gateway */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="subnet-cidr">CIDR *</Label>
                   <Input
@@ -1723,7 +1723,7 @@ export default function DhcpPage() {
               </div>
 
               {/* Pool Start + End */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="subnet-pool-start">Pool Start</Label>
                   <Input
@@ -1903,7 +1903,8 @@ export default function DhcpPage() {
         ) : (
           <Card>
             <CardContent className="p-0">
-              <div className="max-h-96 overflow-y-auto">
+              <div className="max-h-96 overflow-auto">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1971,6 +1972,7 @@ export default function DhcpPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -1978,7 +1980,7 @@ export default function DhcpPage() {
 
         {/* Add/Edit Reservation Dialog */}
         <Dialog open={resDialogOpen} onOpenChange={setResDialogOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-auto">
             <DialogHeader>
               <DialogTitle>{editingRes ? 'Edit Reservation' : 'Add Reservation'}</DialogTitle>
               <DialogDescription>
@@ -2002,7 +2004,7 @@ export default function DhcpPage() {
               </div>
 
               {/* MAC + IP */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>MAC Address *</Label>
                   <Input
@@ -2038,7 +2040,7 @@ export default function DhcpPage() {
               </div>
 
               {/* Lease Time + Description */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Lease Time</Label>
                   <Input
@@ -2109,7 +2111,7 @@ export default function DhcpPage() {
             </div>
             <Skeleton className="h-9 w-32" />
           </div>
-          <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             {[1, 2, 3, 4].map(i => (
               <Card key={i} className="p-4">
                 <div className="flex items-center gap-2">
@@ -2166,7 +2168,7 @@ export default function DhcpPage() {
         </div>
 
         {/* Summary stats */}
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           <Card className="p-4">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-primary/10">
@@ -2264,7 +2266,8 @@ export default function DhcpPage() {
         ) : (
           <Card>
             <CardContent className="p-0">
-              <div className="max-h-96 overflow-y-auto">
+              <div className="max-h-96 overflow-auto">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -2362,6 +2365,7 @@ export default function DhcpPage() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -2409,7 +2413,7 @@ export default function DhcpPage() {
                     </div>
                     <p className="font-mono text-sm text-muted-foreground mb-3">{t.values.cidr}</p>
 
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                       <div>
                         <span className="text-muted-foreground">Interface: </span>
                         <span className="font-mono">{t.values.iface}</span>

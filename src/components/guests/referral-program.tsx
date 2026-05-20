@@ -427,7 +427,7 @@ export default function ReferralProgram() {
               <label className="text-sm font-medium">Guest ID</label>
               <Input value={newReferral.referrerId} onChange={(e) => setNewReferral(p => ({ ...p, referrerId: e.target.value }))} placeholder="Enter guest ID" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Referral Source</label>
                 <Select value={newReferral.referralSource} onValueChange={(v) => setNewReferral(p => ({ ...p, referralSource: v }))}>
@@ -452,7 +452,7 @@ export default function ReferralProgram() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Reward Amount</label>
                 <Input type="number" value={newReferral.rewardAmount} onChange={(e) => setNewReferral(p => ({ ...p, rewardAmount: Number(e.target.value) }))} />

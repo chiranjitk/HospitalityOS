@@ -327,7 +327,7 @@ export default function AdCampaigns() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
         <Card className="border-0 shadow-sm">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -581,7 +581,7 @@ export default function AdCampaigns() {
               {/* Basic Info */}
               <div className="space-y-4">
                 <h4 className="font-medium">Basic Information</h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Campaign Name</Label>
                     <Input
@@ -607,7 +607,7 @@ export default function AdCampaigns() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Campaign Type</Label>
                     <Select
@@ -640,7 +640,7 @@ export default function AdCampaigns() {
               {/* Budget & Bidding */}
               <div className="space-y-4">
                 <h4 className="font-medium">Budget & Bidding</h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Budget</Label>
                     <Input
@@ -665,7 +665,7 @@ export default function AdCampaigns() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Bid Strategy</Label>
                     <Select
@@ -692,7 +692,7 @@ export default function AdCampaigns() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Target CPA (optional)</Label>
                     <Input
@@ -720,7 +720,7 @@ export default function AdCampaigns() {
               {/* Schedule */}
               <div className="space-y-4">
                 <h4 className="font-medium">Schedule</h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Start Date</Label>
                     <Input

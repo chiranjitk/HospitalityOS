@@ -79,7 +79,7 @@ const t = useTranslations('pos');
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         {/* Staff List */}
         <Card>
           <CardHeader><CardTitle className="text-base flex items-center gap-2"><Users className="h-4 w-4" />Staff</CardTitle><CardDescription>{onDutyStaff.length} on duty</CardDescription></CardHeader>

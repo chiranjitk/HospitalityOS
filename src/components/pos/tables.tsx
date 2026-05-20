@@ -699,7 +699,7 @@ const t = useTranslations('pos');
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-number">Table Number *</Label>
                 <Input
@@ -717,7 +717,7 @@ const t = useTranslations('pos');
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-capacity">Capacity</Label>
                 <Select
@@ -751,7 +751,7 @@ const t = useTranslations('pos');
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-area">Area</Label>
                 <Select

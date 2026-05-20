@@ -338,7 +338,7 @@ export default function NasHealth() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-cyan-500/10">
@@ -437,7 +437,7 @@ export default function NasHealth() {
                 </div>
 
                 {/* Card Metrics */}
-                <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div>
                     <p className="text-muted-foreground">Live Users</p>
                     <p className="font-medium text-sm tabular-nums">{nas.liveUserCount}</p>
@@ -489,6 +489,7 @@ export default function NasHealth() {
         <Card>
           <CardContent className="p-0">
             <ScrollArea className="h-[500px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -555,6 +556,7 @@ export default function NasHealth() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           </CardContent>
         </Card>

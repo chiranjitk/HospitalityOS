@@ -370,7 +370,7 @@ export default function ReviewSources() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Connected Sources</CardTitle>
@@ -438,6 +438,7 @@ export default function ReviewSources() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -514,6 +515,7 @@ export default function ReviewSources() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -677,7 +679,7 @@ export default function ReviewSources() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <p className="text-sm font-medium">Total Reviews</p>
                   <p className="text-2xl font-bold">{selectedSource.totalReviews}</p>

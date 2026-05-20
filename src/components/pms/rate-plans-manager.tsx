@@ -527,7 +527,7 @@ export function RatePlansManager() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <Card className="p-4">
           <div className="text-2xl font-bold">{stats.total}</div>
           <div className="text-xs text-muted-foreground">Total Rate Plans</div>
@@ -598,6 +598,7 @@ export function RatePlansManager() {
               <p className="text-sm">Create your first rate plan to get started</p>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -672,6 +673,7 @@ export function RatePlansManager() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -834,7 +836,7 @@ function RatePlanForm({ formData, setFormData, roomTypes, ratePlans, onNameChang
           </div>
           {isDerived && (
             <>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Adjustment Type</Label>
                   <Select
@@ -903,7 +905,7 @@ function RatePlanForm({ formData, setFormData, roomTypes, ratePlans, onNameChang
       </div>
 
       {/* Name and Code */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="name">Name *</Label>
           <Input
@@ -938,7 +940,7 @@ function RatePlanForm({ formData, setFormData, roomTypes, ratePlans, onNameChang
       </div>
 
       {/* Base Price and Meal Plan */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="basePrice">
             Base Price *
@@ -990,7 +992,7 @@ function RatePlanForm({ formData, setFormData, roomTypes, ratePlans, onNameChang
       </div>
 
       {/* Min/Max Stay */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="minStay">Min Stay (nights)</Label>
           <Input

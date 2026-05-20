@@ -617,7 +617,7 @@ export function ChannelAnalytics() {
           {/* ====== OVERVIEW TAB ====== */}
           <TabsContent value="overview" className="space-y-6 mt-4">
             {/* Revenue Distribution + Table */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {/* Revenue Distribution Donut */}
               <Card>
                 <CardHeader className="pb-2">
@@ -656,6 +656,7 @@ export function ChannelAnalytics() {
                 </CardHeader>
                 <CardContent className="p-0">
                   <ScrollArea className="max-h-[420px]">
+                    <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -749,6 +750,7 @@ export function ChannelAnalytics() {
                         ))}
                       </TableBody>
                     </Table>
+                    </div>
                   </ScrollArea>
                 </CardContent>
               </Card>
@@ -870,6 +872,7 @@ export function ChannelAnalytics() {
               </CardHeader>
               <CardContent className="p-0">
                 <ScrollArea className="max-h-[400px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -922,6 +925,7 @@ export function ChannelAnalytics() {
                         ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </CardContent>
             </Card>

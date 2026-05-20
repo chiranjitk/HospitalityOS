@@ -863,7 +863,7 @@ export default function RadiusUsersTab() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-cyan-500/10">
@@ -983,7 +983,8 @@ export default function RadiusUsersTab() {
               </p>
             </div>
           ) : (
-            <div className="max-h-[500px] overflow-y-auto">
+            <div className="max-h-[500px] overflow-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1123,6 +1124,7 @@ export default function RadiusUsersTab() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </CardContent>
@@ -1139,7 +1141,7 @@ export default function RadiusUsersTab() {
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Username *</Label>
                 <Input
@@ -1238,7 +1240,7 @@ export default function RadiusUsersTab() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Download Speed (Mbps)</Label>
                 <Input
@@ -1257,7 +1259,7 @@ export default function RadiusUsersTab() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Session Timeout (minutes)</Label>
                 <Input
@@ -1440,7 +1442,8 @@ export default function RadiusUsersTab() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto border rounded-lg">
+          <div className="flex-1 overflow-auto border rounded-lg">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1474,6 +1477,7 @@ export default function RadiusUsersTab() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">

@@ -523,7 +523,7 @@ export function ChannelCancellationPolicies() {
           </div>
           <Skeleton className="h-10 w-32 rounded" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-24 rounded-lg" />
           ))}
@@ -562,7 +562,7 @@ export function ChannelCancellationPolicies() {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-slate-500/10 to-slate-600/5 border-slate-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -846,6 +846,7 @@ export function ChannelCancellationPolicies() {
         <Card>
           <CardContent className="p-0">
             <div className="max-h-[500px] overflow-y-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -961,6 +962,7 @@ export function ChannelCancellationPolicies() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           </CardContent>
         </Card>

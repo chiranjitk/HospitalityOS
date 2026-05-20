@@ -337,7 +337,7 @@ export default function ServiceRequests() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-amber-500/10">
@@ -511,6 +511,7 @@ export default function ServiceRequests() {
               {/* Desktop Table */}
               <div className="hidden sm:block">
                 <ScrollArea className="h-[500px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -608,6 +609,7 @@ export default function ServiceRequests() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </div>
             </>
@@ -714,7 +716,7 @@ export default function ServiceRequests() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">Priority:</span>
                   <div className="mt-1">{getPriorityBadge(selectedRequest.priority)}</div>

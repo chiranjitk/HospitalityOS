@@ -333,7 +333,7 @@ const t = useTranslations('pos');
                 <Label>Group Name *</Label>
                 <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g., Size, Extra Toppings" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Selection Type</Label>
                   <Select value={form.selectionType} onValueChange={v => setForm({ ...form, selectionType: v })}>
@@ -346,7 +346,7 @@ const t = useTranslations('pos');
                   <div className="flex items-center gap-2 pt-2"><Switch checked={form.isAvailable} onCheckedChange={v => setForm({ ...form, isAvailable: v })} /><span className="text-sm">{form.isAvailable ? 'Yes' : 'No'}</span></div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Min Selections</Label><Input type="number" value={form.minSelections} onChange={e => setForm({ ...form, minSelections: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Max Selections</Label><Input type="number" value={form.maxSelections} onChange={e => setForm({ ...form, maxSelections: e.target.value })} /></div>
               </div>

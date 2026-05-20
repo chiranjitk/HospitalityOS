@@ -68,7 +68,7 @@ const ThemePreviewCard = ({ themeId }: { themeId: ThemeId }) => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         {[
           { icon: BedDouble, value: '250', label: 'Rooms' },
           { icon: Users, value: '1,234', label: 'Guests' },

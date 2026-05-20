@@ -294,7 +294,7 @@ export default function RoutingRules() {
 
       {/* Stats */}
       {stats && (
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           <Card className="p-4">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-teal-500/10">
@@ -453,7 +453,7 @@ export default function RoutingRules() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="charge-category">Charge Category</Label>
                 <Select
@@ -493,7 +493,7 @@ export default function RoutingRules() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="priority">Priority</Label>
                 <Input
@@ -528,7 +528,7 @@ export default function RoutingRules() {
 
             <Card className="p-3 bg-muted/30">
               <p className="text-xs font-medium text-muted-foreground mb-2">Amount Range Conditions (optional)</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Min Amount ($)</Label>
                   <Input

@@ -505,7 +505,7 @@ export default function UnifiedInbox() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-gray-500/10">
@@ -593,7 +593,7 @@ export default function UnifiedInbox() {
       </div>
 
       {/* Chat Interface */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[600px]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100vh-300px)] sm:h-[600px]">
         {/* Conversation List */}
         <Card className="lg:col-span-1">
           <CardHeader className="p-4 pb-2">

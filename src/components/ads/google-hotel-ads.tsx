@@ -387,7 +387,7 @@ export default function GoogleHotelAds() {
 
       {/* Campaign Overview */}
       {campaignOverview && (
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -506,7 +506,7 @@ export default function GoogleHotelAds() {
             <CardDescription>Automated bidding settings</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>

@@ -505,7 +505,8 @@ export default function FapPolicies() {
               </p>
             </div>
           ) : (
-            <div className="max-h-[500px] overflow-y-auto">
+            <div className="max-h-[500px] overflow-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -572,6 +573,7 @@ export default function FapPolicies() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </CardContent>
@@ -595,7 +597,7 @@ export default function FapPolicies() {
                 placeholder="e.g. Daily 5GB Limit"
               />
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Cycle Type</Label>
                 <Select value={form.cycleType} onValueChange={(v) => setForm(prev => ({ ...prev, cycleType: v }))}>
@@ -633,7 +635,7 @@ export default function FapPolicies() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Applies To</Label>
                 <Select value={form.applicableOn} onValueChange={(v) => setForm(prev => ({ ...prev, applicableOn: v }))}>

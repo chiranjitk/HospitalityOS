@@ -578,7 +578,7 @@ export default function CheckOut() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-4">
           <div className="text-2xl font-bold">{stats.total}</div>
           <div className="text-xs text-muted-foreground">Today&apos;s Departures</div>

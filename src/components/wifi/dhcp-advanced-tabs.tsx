@@ -607,7 +607,8 @@ export function DhcpAdvancedTabs({
         {filteredBlacklist.length === 0 ? (
           <EmptyState icon={Ban} title="No blocked MAC addresses" description={blSearch ? 'No entries match your search.' : 'Block specific MAC addresses from receiving DHCP leases.'} action={!blSearch ? openAddBl : undefined} actionLabel="Add MAC" />
         ) : (
-          <Card><CardContent className="p-0"><div className="max-h-96 overflow-y-auto"><Table><TableHeader><TableRow>
+          <div className="overflow-x-auto">
+          <Card><CardContent className="p-0"><div className="max-h-96 overflow-auto"><Table><TableHeader><TableRow>
             <TableHead className="w-10"><Checkbox checked={filteredBlacklist.length > 0 && filteredBlacklist.every(b => blSelected.has(b.id))} onCheckedChange={c => { if (c) setBlSelected(new Set(filteredBlacklist.map(b => b.id))); else setBlSelected(new Set()); }} /></TableHead>
             <TableHead>MAC Address</TableHead><TableHead>Subnet</TableHead><TableHead>Reason</TableHead><TableHead>Enabled</TableHead><TableHead className="text-right">Actions</TableHead>
           </TableRow></TableHeader><TableBody>
@@ -625,6 +626,7 @@ export function DhcpAdvancedTabs({
               </TableRow>
             ))}
           </TableBody></Table></div></CardContent></Card>
+          </div>
         )}
         {/* Add/Edit Dialog */}
         <Dialog open={blDialogOpen} onOpenChange={setBlDialogOpen}><DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editingBl ? 'Edit' : 'Add'} Blacklist Entry</DialogTitle><DialogDescription>{editingBl ? 'Modify the blocked MAC entry.' : 'Add a MAC address to the deny list. The device will not receive a DHCP lease.'}</DialogDescription></DialogHeader>
@@ -668,7 +670,8 @@ export function DhcpAdvancedTabs({
         {filteredOptions.length === 0 ? (
           <EmptyState icon={Settings} title="No custom options" description={optSearch ? 'No options match your search.' : 'Add custom DHCP options to extend configuration. Use presets for common options.'} action={!optSearch ? openAddOpt : undefined} actionLabel="Add Option" />
         ) : (
-          <Card><CardContent className="p-0"><div className="max-h-96 overflow-y-auto"><Table><TableHeader><TableRow>
+          <div className="overflow-x-auto">
+          <Card><CardContent className="p-0"><div className="max-h-96 overflow-auto"><Table><TableHeader><TableRow>
             <TableHead>Code</TableHead><TableHead>Name</TableHead><TableHead>Value</TableHead><TableHead>Type</TableHead><TableHead>Subnet</TableHead><TableHead>Enabled</TableHead><TableHead className="text-right">Actions</TableHead>
           </TableRow></TableHeader><TableBody>
             {filteredOptions.map(o => (
@@ -686,16 +689,17 @@ export function DhcpAdvancedTabs({
               </TableRow>
             ))}
           </TableBody></Table></div></CardContent></Card>
+          </div>
         )}
         {/* Add/Edit Dialog */}
-        <Dialog open={optDialogOpen} onOpenChange={setOptDialogOpen}><DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>{editingOpt ? 'Edit' : 'Add'} DHCP Option</DialogTitle><DialogDescription>{editingOpt ? 'Modify custom DHCP option.' : 'Add a custom DHCP option. Code 1-254.'}</DialogDescription></DialogHeader>
+        <Dialog open={optDialogOpen} onOpenChange={setOptDialogOpen}><DialogContent className="max-w-lg max-h-[90vh] overflow-auto"><DialogHeader><DialogTitle>{editingOpt ? 'Edit' : 'Add'} DHCP Option</DialogTitle><DialogDescription>{editingOpt ? 'Modify custom DHCP option.' : 'Add a custom DHCP option. Code 1-254.'}</DialogDescription></DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="flex flex-wrap gap-2"><span className="text-xs text-muted-foreground self-center mr-1">Quick presets:</span>{OPTION_PRESETS.map(p => <Button key={p.code} variant="outline" size="sm" className="text-xs h-7" onClick={() => applyPreset(p)}>{p.name} ({p.code})</Button>)}</div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Option Code *</Label><Input type="number" min={1} max={254} value={optForm.code} onChange={e => setOptForm(p => ({ ...p, code: e.target.value }))} placeholder="1-254" className="font-mono" /></div>
               <div className="space-y-2"><Label>Name *</Label><Input value={optForm.name} onChange={e => setOptForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. NTP Server" /></div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Value *</Label><Input value={optForm.value} onChange={e => setOptForm(p => ({ ...p, value: e.target.value }))} placeholder="Option value" className="font-mono" /></div>
               <div className="space-y-2"><Label>Type</Label><Select value={optForm.type} onValueChange={v => setOptForm(p => ({ ...p, type: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['string','ip','integer','boolean','hex'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
             </div>
@@ -728,7 +732,8 @@ export function DhcpAdvancedTabs({
         {filteredTagRules.length === 0 ? (
           <EmptyState icon={Tag} title="No tag rules" description={trSearch ? 'No rules match your search.' : 'Create tag rules to classify devices by MAC, vendor class, user class, or hostname.'} action={!trSearch ? openAddTr : undefined} actionLabel="Add Rule" />
         ) : (
-          <Card><CardContent className="p-0"><div className="max-h-96 overflow-y-auto"><Table><TableHeader><TableRow>
+          <div className="overflow-x-auto">
+          <Card><CardContent className="p-0"><div className="max-h-96 overflow-auto"><Table><TableHeader><TableRow>
             <TableHead>Name</TableHead><TableHead>Match Type</TableHead><TableHead>Pattern</TableHead><TableHead>Tag</TableHead><TableHead>Subnet</TableHead><TableHead>Enabled</TableHead><TableHead className="text-right">Actions</TableHead>
           </TableRow></TableHeader><TableBody>
             {filteredTagRules.map(t => (
@@ -746,6 +751,7 @@ export function DhcpAdvancedTabs({
               </TableRow>
             ))}
           </TableBody></Table></div></CardContent></Card>
+          </div>
         )}
         <Dialog open={trDialogOpen} onOpenChange={setTrDialogOpen}><DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editingTr ? 'Edit' : 'Add'} Tag Rule</DialogTitle><DialogDescription>{editingTr ? 'Modify the tag rule.' : 'Create a tag rule to classify devices matching a pattern.'}</DialogDescription></DialogHeader>
           <div className="grid gap-4 py-4">
@@ -789,7 +795,8 @@ export function DhcpAdvancedTabs({
         {filteredHostnameFilters.length === 0 ? (
           <EmptyState icon={Filter} title="No hostname filters" description={hfSearch ? 'No filters match your search.' : 'Create hostname filters to block or ignore devices by their hostname pattern.'} action={!hfSearch ? openAddHf : undefined} actionLabel="Add Filter" />
         ) : (
-          <Card><CardContent className="p-0"><div className="max-h-96 overflow-y-auto"><Table><TableHeader><TableRow>
+          <div className="overflow-x-auto">
+          <Card><CardContent className="p-0"><div className="max-h-96 overflow-auto"><Table><TableHeader><TableRow>
             <TableHead>Pattern</TableHead><TableHead>Action</TableHead><TableHead>Subnet</TableHead><TableHead>Enabled</TableHead><TableHead className="text-right">Actions</TableHead>
           </TableRow></TableHeader><TableBody>
             {filteredHostnameFilters.map(h => (
@@ -805,6 +812,7 @@ export function DhcpAdvancedTabs({
               </TableRow>
             ))}
           </TableBody></Table></div></CardContent></Card>
+          </div>
         )}
         <Dialog open={hfDialogOpen} onOpenChange={setHfDialogOpen}><DialogContent className="max-w-lg"><DialogHeader><DialogTitle>{editingHf ? 'Edit' : 'Add'} Hostname Filter</DialogTitle><DialogDescription>{editingHf ? 'Modify the hostname filter.' : 'Create a filter to block or ignore devices by hostname pattern.'}</DialogDescription></DialogHeader>
           <div className="grid gap-4 py-4">
@@ -827,7 +835,7 @@ export function DhcpAdvancedTabs({
 
   const renderLeaseScriptsTab = () => {
     if (loadingLeaseScripts) {
-      return (<div className="space-y-6"><div className="flex justify-between"><div className="space-y-2"><Skeleton className="h-7 w-48" /><Skeleton className="h-4 w-36" /></div><Skeleton className="h-9 w-32" /></div><div className="grid gap-4 md:grid-cols-2">{[1,2].map(i => <Card key={i}><CardContent className="p-5 space-y-3"><Skeleton className="h-5 w-32" /><Skeleton className="h-4 w-48" /><Skeleton className="h-8 w-full" /></CardContent></Card>)}</div></div>);
+      return (<div className="space-y-6"><div className="flex justify-between"><div className="space-y-2"><Skeleton className="h-7 w-48" /><Skeleton className="h-4 w-36" /></div><Skeleton className="h-9 w-32" /></div><div className="grid gap-4 grid-cols-1 sm:grid-cols-2">{[1,2].map(i => <Card key={i}><CardContent className="p-5 space-y-3"><Skeleton className="h-5 w-32" /><Skeleton className="h-4 w-48" /><Skeleton className="h-8 w-full" /></CardContent></Card>)}</div></div>);
     }
     return (
       <div className="space-y-6">
@@ -838,7 +846,7 @@ export function DhcpAdvancedTabs({
         {leaseScripts.length === 0 ? (
           <EmptyState icon={Terminal} title="No event scripts" description="Configure scripts that run on DHCP lease events (add, delete, expire, ARP changes)." action={openAddLs} actionLabel="Add Script" />
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             {leaseScripts.map(s => (
               <Card key={s.id} className={cn('transition-shadow hover:shadow-md', !s.enabled && 'opacity-60')}>
                 <CardContent className="p-5">
@@ -892,7 +900,7 @@ export function DhcpAdvancedTabs({
           <div className="text-primary">IPv6 is a feature flag. Enable per subnet below to activate DHCPv6 dual-stack. Supports SLAAC, Stateful, RA-Only, and RA-Stateless modes.</div>
         </div>
         {/* Summary Cards */}
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
           <Card className="p-4"><div className="flex items-center gap-2"><div className="p-2 rounded-lg bg-primary/10"><Server className="h-4 w-4 text-primary" /></div><div><div className="text-2xl font-bold">{subnets.length}</div><div className="text-xs text-muted-foreground">Total Subnets</div></div></div></Card>
           <Card className="p-4"><div className="flex items-center gap-2"><div className="p-2 rounded-lg bg-emerald-500/10"><CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" /></div><div><div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{ipv6EnabledCount}</div><div className="text-xs text-muted-foreground">IPv6 Enabled</div></div></div></Card>
           <Card className="p-4"><div className="flex items-center gap-2"><div className="p-2 rounded-lg bg-gray-500/10"><XCircle className="h-4 w-4 text-gray-500" /></div><div><div className="text-2xl font-bold text-gray-600">{ipv6DisabledCount}</div><div className="text-xs text-muted-foreground">IPv6 Disabled</div></div></div></Card>
@@ -901,7 +909,8 @@ export function DhcpAdvancedTabs({
         {subnets.length === 0 ? (
           <EmptyState icon={Globe} title="No subnets" description="Create subnets first to configure IPv6 settings." />
         ) : (
-          <Card><CardContent className="p-0"><div className="max-h-96 overflow-y-auto"><Table><TableHeader><TableRow>
+          <div className="overflow-x-auto">
+          <Card><CardContent className="p-0"><div className="max-h-96 overflow-auto"><Table><TableHeader><TableRow>
             <TableHead>Subnet Name</TableHead><TableHead>IPv4 CIDR</TableHead><TableHead>IPv6 Enabled</TableHead><TableHead>IPv6 Prefix</TableHead><TableHead>IPv6 Pool</TableHead><TableHead>RA Type</TableHead><TableHead>Lease Time</TableHead><TableHead className="text-right">Actions</TableHead>
           </TableRow></TableHeader><TableBody>
             {subnets.map(s => (
@@ -923,17 +932,18 @@ export function DhcpAdvancedTabs({
               </TableRow>
             ))}
           </TableBody></Table></div></CardContent></Card>
+          </div>
         )}
         {/* Edit IPv6 Dialog */}
         <Dialog open={ipv6DialogOpen} onOpenChange={setIpv6DialogOpen}><DialogContent className="max-w-lg"><DialogHeader><DialogTitle>Edit IPv6 Settings</DialogTitle><DialogDescription>Configure IPv6 for subnet &quot;{editingIpv6?.name}&quot;</DialogDescription></DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="flex items-center gap-2"><Checkbox checked={ipv6Form.ipv6Enabled} onCheckedChange={c => setIpv6Form(p => ({ ...p, ipv6Enabled: !!c }))} /><Label>Enable IPv6 (DHCPv6 dual-stack)</Label></div>
             <div className="space-y-2"><Label>IPv6 Prefix</Label><Input value={ipv6Form.ipv6Prefix} onChange={e => setIpv6Form(p => ({ ...p, ipv6Prefix: e.target.value }))} placeholder="e.g. fd00::/64" className="font-mono" /></div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Pool Start</Label><Input value={ipv6Form.ipv6PoolStart} onChange={e => setIpv6Form(p => ({ ...p, ipv6PoolStart: e.target.value }))} placeholder="fd00::100" className="font-mono" /></div>
               <div className="space-y-2"><Label>Pool End</Label><Input value={ipv6Form.ipv6PoolEnd} onChange={e => setIpv6Form(p => ({ ...p, ipv6PoolEnd: e.target.value }))} placeholder="fd00::200" className="font-mono" /></div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Lease Time</Label><Input value={ipv6Form.ipv6LeaseTime} onChange={e => setIpv6Form(p => ({ ...p, ipv6LeaseTime: e.target.value }))} placeholder="e.g. 4h, 1d" className="font-mono" /></div>
               <div className="space-y-2"><Label>RA Type</Label><Select value={ipv6Form.ipv6RAType} onValueChange={v => setIpv6Form(p => ({ ...p, ipv6RAType: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>
                 <SelectItem value="slaac">SLAAC</SelectItem><SelectItem value="stateful">Stateful</SelectItem><SelectItem value="ra-only">RA-Only</SelectItem><SelectItem value="ra-stateless">RA-Stateless</SelectItem>

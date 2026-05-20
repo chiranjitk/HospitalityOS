@@ -575,7 +575,7 @@ export default function WiFiIdentityVerification() {
       </div>
 
       <Tabs defaultValue="dashboard" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="dashboard" className="gap-1.5"><BarChart3 className="h-4 w-4" /><span className="hidden sm:inline">Dashboard</span></TabsTrigger>
           <TabsTrigger value="logs" className="gap-1.5"><FileCheck className="h-4 w-4" /><span className="hidden sm:inline">Verification Logs</span></TabsTrigger>
           <TabsTrigger value="compliance" className="gap-1.5"><ShieldCheck className="h-4 w-4" /><span className="hidden sm:inline">Compliance Report</span></TabsTrigger>
@@ -785,7 +785,8 @@ export default function WiFiIdentityVerification() {
           {/* Table */}
           <Card>
             <CardContent className="p-0">
-              <div className="max-h-[520px] overflow-y-auto">
+              <div className="max-h-[520px] overflow-auto">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -865,6 +866,7 @@ export default function WiFiIdentityVerification() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             </CardContent>
             {/* Pagination */}
@@ -990,7 +992,8 @@ export default function WiFiIdentityVerification() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="max-h-64 overflow-y-auto">
+                    <div className="max-h-64 overflow-auto">
+                      <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -1013,6 +1016,7 @@ export default function WiFiIdentityVerification() {
                           ))}
                         </TableBody>
                       </Table>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -1098,7 +1102,7 @@ export default function WiFiIdentityVerification() {
                   </div>
                 </div>
                 <Separator />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="otpExpiry">OTP Expiry (seconds)</Label>
                     <Input
@@ -1135,7 +1139,7 @@ export default function WiFiIdentityVerification() {
 
       {/* ─── Details Dialog ─── */}
       <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-primary" />
@@ -1145,7 +1149,7 @@ export default function WiFiIdentityVerification() {
           </DialogHeader>
           {selectedLog && (
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><Label className="text-muted-foreground">Username</Label><p className="font-mono mt-0.5">{selectedLog.username}</p></div>
                 <div><Label className="text-muted-foreground">Session ID</Label><p className="font-mono mt-0.5 text-sm text-muted-foreground">{selectedLog.sessionId || '—'}</p></div>
                 <div>

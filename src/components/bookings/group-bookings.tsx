@@ -974,6 +974,7 @@ export default function GroupBookings() {
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1133,6 +1134,7 @@ export default function GroupBookings() {
                   })}
                 </TableBody>
               </Table>
+            </div>
             </ScrollArea>
           )}
         </CardContent>
@@ -1408,6 +1410,7 @@ export default function GroupBookings() {
                 <div className="space-y-2">
                   <Label>Booked Rooms</Label>
                   <ScrollArea className="h-[200px]">
+                  <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -1438,6 +1441,7 @@ export default function GroupBookings() {
                         ))}
                       </TableBody>
                     </Table>
+                  </div>
                   </ScrollArea>
                 </div>
               )}
@@ -1517,7 +1521,7 @@ interface GroupBookingFormProps {
 function GroupBookingForm({ formData, setFormData, properties, roomTypes }: GroupBookingFormProps) {
   return (
     <div className="grid gap-4 py-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="propertyId">Property *</Label>
           <Select
@@ -1558,7 +1562,7 @@ function GroupBookingForm({ formData, setFormData, properties, roomTypes }: Grou
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label htmlFor="contactName">Contact Name</Label>
           <Input
@@ -1589,7 +1593,7 @@ function GroupBookingForm({ formData, setFormData, properties, roomTypes }: Grou
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="checkIn">Check-in Date *</Label>
           <Input
@@ -1610,7 +1614,7 @@ function GroupBookingForm({ formData, setFormData, properties, roomTypes }: Grou
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label htmlFor="totalRooms">Total Rooms Needed</Label>
           <Input
@@ -1645,7 +1649,7 @@ function GroupBookingForm({ formData, setFormData, properties, roomTypes }: Grou
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="status">Status</Label>
           <Select

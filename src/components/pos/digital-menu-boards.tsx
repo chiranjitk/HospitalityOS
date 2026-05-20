@@ -441,7 +441,7 @@ export default function DigitalMenuBoards() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600">
@@ -490,7 +490,7 @@ export default function DigitalMenuBoards() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="boards">Menu Boards</TabsTrigger>
           <TabsTrigger value="items">Item Management</TabsTrigger>
           <TabsTrigger value="screens">Screen Assignment</TabsTrigger>
@@ -502,7 +502,7 @@ export default function DigitalMenuBoards() {
           <div className="relative w-full sm:w-64">
             <SearchQueryInput value={searchQuery} onChange={setSearchQuery} />
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
             {filteredBoards.map(board => (
               <div key={board.id}>
                 <div className="flex items-center justify-between mb-2">
@@ -647,7 +647,7 @@ export default function DigitalMenuBoards() {
 
         {/* ── Screen Assignment Tab ──────────────────────────────── */}
         <TabsContent value="screens" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {screens.map(screen => {
               const assignedBoard = boards.find(b => b.id === screen.boardId);
               return (
@@ -724,7 +724,7 @@ export default function DigitalMenuBoards() {
         {/* ── Analytics Tab ──────────────────────────────────────── */}
         <TabsContent value="analytics" className="space-y-6">
           {/* Summary Cards */}
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             <Card className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <EyeIcon className="h-4 w-4 text-muted-foreground" />
@@ -917,7 +917,7 @@ export default function DigitalMenuBoards() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label className="text-sm">Display Settings</Label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Orientation</Label>
                   <Select defaultValue={editingBoard?.orientation}>
@@ -943,7 +943,7 @@ export default function DigitalMenuBoards() {
             <Separator />
             <div className="space-y-2">
               <Label className="text-sm">Layout Style</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {['grid', 'list', 'carousel'].map(layout => (
                   <div key={layout} className={cn(
                     'p-2 rounded-lg border-2 text-center cursor-pointer capitalize transition-all',
@@ -958,7 +958,7 @@ export default function DigitalMenuBoards() {
             <Separator />
             <div className="space-y-2">
               <Label className="text-sm">Branding</Label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Primary Color</Label>
                   <div className="flex items-center gap-2">

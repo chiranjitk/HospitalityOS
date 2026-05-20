@@ -722,7 +722,7 @@ export default function RoomsManager() {
       </div>
 
       {/* Status Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         <Card className="p-4">
           <div className="text-2xl font-bold">{stats.total}</div>
           <div className="text-xs text-muted-foreground">Total Rooms</div>
@@ -974,6 +974,7 @@ export default function RoomsManager() {
         {/* Desktop Table List View */}
         <Card className="hidden md:block">
           <CardContent className="p-0">
+            <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="border-b bg-muted/50">
                 <tr>
@@ -1098,6 +1099,7 @@ export default function RoomsManager() {
                 })}
               </tbody>
             </table>
+            </div>
           </CardContent>
         </Card>
         </>
@@ -1403,7 +1405,7 @@ function RoomForm({ formData, setFormData, properties, roomTypes }: RoomFormProp
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="number">Room Number *</Label>
           <Input

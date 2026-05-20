@@ -567,7 +567,7 @@ export default function WiFiSatisfactionSurveys() {
                                       ))}
                                     </div>
                                   </div>
-                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                                     <div>
                                       <span className="text-muted-foreground block">Room</span>
                                       <span className="font-medium">{survey.roomNumber || 'N/A'}</span>
@@ -742,7 +742,7 @@ export default function WiFiSatisfactionSurveys() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Room Number</Label>
                 <Input

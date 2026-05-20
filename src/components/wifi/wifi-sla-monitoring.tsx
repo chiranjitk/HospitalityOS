@@ -555,7 +555,7 @@ export default function WiFiSLAMonitoring() {
                       {complianceData.breachSummary?.totalBreaches ?? 0} breach events in last 30 days
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {[
                       { label: 'Uptime', val: complianceData.overallCompliance.uptimeCompliance },
                       { label: 'Download', val: complianceData.overallCompliance.speedDownCompliance },
@@ -682,7 +682,7 @@ export default function WiFiSLAMonitoring() {
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                             <div>
                               <p className="text-[10px] text-muted-foreground">Uptime Target</p>
                               <p className="text-sm font-semibold tabular-nums">{config.uptimeTarget}%</p>
@@ -746,6 +746,7 @@ export default function WiFiSLAMonitoring() {
                 <CardDescription className="text-xs">Breach counts and compliance per property</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -795,6 +796,7 @@ export default function WiFiSLAMonitoring() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
               </CardContent>
             </Card>
           ) : (
@@ -837,7 +839,7 @@ export default function WiFiSLAMonitoring() {
             <DialogDescription>Update service level agreement targets for {editingConfig?.property.name}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Uptime Target (%)</Label>
                 <Input
@@ -951,7 +953,7 @@ export default function WiFiSLAMonitoring() {
                 </Select>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Uptime Target (%)</Label>
                 <Input

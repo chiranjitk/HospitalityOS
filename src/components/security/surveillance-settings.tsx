@@ -260,7 +260,7 @@ export default function SurveillanceSettings() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
                   Media Server Type
@@ -401,7 +401,7 @@ export default function SurveillanceSettings() {
               </div>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
                   Max Storage Limit
@@ -529,7 +529,7 @@ export default function SurveillanceSettings() {
               />
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
                   Auto-acknowledge Low Severity After
@@ -609,7 +609,7 @@ export default function SurveillanceSettings() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
                   Default Grid Layout

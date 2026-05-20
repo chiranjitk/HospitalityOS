@@ -1135,7 +1135,8 @@ function RulesTab() {
               collisionDetection={closestCenter}
               onDragEnd={onDragEnd}
             >
-              <div className="max-h-96 overflow-y-auto">
+              <div className="max-h-96 overflow-auto">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1172,6 +1173,7 @@ function RulesTab() {
                     </TableBody>
                   </SortableContext>
                 </Table>
+                </div>
               </div>
             </DndContext>
           </CardContent>
@@ -1198,7 +1200,7 @@ function RulesTab() {
               />
             </div>
             {/* Target chain is auto-detected from action — hidden from user */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Protocol</Label>
                 <Select value={form.protocol} onValueChange={(v) => setForm((p) => ({ ...p, protocol: v }))}>
@@ -1233,7 +1235,7 @@ function RulesTab() {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <div className="flex items-center gap-1">
                   <Label>Source IP / CIDR / Domain</Label>
@@ -1272,7 +1274,7 @@ function RulesTab() {
                 placeholder="e.g. AA:BB:CC:DD:EE:FF"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
                   <Label className="shrink-0">Source Port</Label>
@@ -1678,7 +1680,7 @@ function PortForwardTab() {
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-9 w-40" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
         </div>
         <TableSkeleton cols={7} rows={4} />
@@ -1691,7 +1693,7 @@ function PortForwardTab() {
   return (
     <div className="space-y-4">
       {/* Statistics Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-7 gap-2">
         <Card className="p-3">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -1885,7 +1887,7 @@ function PortForwardTab() {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="max-h-80 overflow-y-auto bg-slate-950 text-slate-100 p-4 font-mono text-xs leading-relaxed">
+                <div className="max-h-80 overflow-auto bg-slate-950 text-slate-100 p-4 font-mono text-xs leading-relaxed">
                   <pre className="whitespace-pre-wrap">{generatePortForwardNftables()}</pre>
                 </div>
               </CardContent>
@@ -1914,7 +1916,8 @@ function PortForwardTab() {
           <Card className="overflow-hidden">
             <div className="h-1 bg-gradient-to-r from-primary to-primary/70" />
             <CardContent className="p-0">
-              <div className="max-h-[500px] overflow-y-auto">
+              <div className="max-h-[500px] overflow-auto">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50 sticky top-0 z-10">
@@ -2007,6 +2010,7 @@ function PortForwardTab() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -2042,7 +2046,7 @@ function PortForwardTab() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>External Port *</Label>
                 <Input
@@ -2307,7 +2311,8 @@ function RateLimitTab() {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <div className="max-h-96 overflow-y-auto">
+            <div className="max-h-96 overflow-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -2372,6 +2377,7 @@ function RateLimitTab() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -2403,7 +2409,7 @@ function RateLimitTab() {
                 placeholder="e.g. 10.0.2.0/24"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Download Rate</Label>
                 <Select value={form.downloadRate} onValueChange={(v) => setForm((p) => ({ ...p, downloadRate: v }))}>
@@ -2701,7 +2707,8 @@ function QuickBlockTab() {
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
           <Card className="overflow-hidden">
             <CardContent className="p-0">
-              <div className="max-h-96 overflow-y-auto">
+              <div className="max-h-96 overflow-auto">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -2771,6 +2778,7 @@ function QuickBlockTab() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -3005,7 +3013,8 @@ function SchedulesTab() {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <div className="max-h-96 overflow-y-auto">
+            <div className="max-h-96 overflow-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -3079,6 +3088,7 @@ function SchedulesTab() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -3118,7 +3128,7 @@ function SchedulesTab() {
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Start Time</Label>
                 <Input
@@ -3600,7 +3610,7 @@ function ChainArchitectureTab() {
             <Skeleton className="h-3.5 w-80" />
           </div>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-24 rounded-lg" />
           ))}
@@ -3653,7 +3663,7 @@ function ChainArchitectureTab() {
       </motion.div>
 
       {/* ── Summary Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'GUI Chains', value: totalGuiChains, icon: Unlock, color: 'text-primary', bg: 'bg-primary/5' },
           { label: 'GUI Rules', value: totalGuiRules, icon: ShieldCheck, color: 'text-primary', bg: 'bg-primary/5' },
@@ -4112,7 +4122,7 @@ function ChainArchitectureTab() {
                       Chain <span className="font-mono font-semibold">{selectedLiveChain}</span> &middot; {getLiveRuleCount(selectedLiveChain)} live rule{getLiveRuleCount(selectedLiveChain) !== 1 ? 's' : ''}
                     </span>
                   </div>
-                  <pre className="bg-zinc-950 text-zinc-100 rounded-lg p-4 overflow-x-auto overflow-y-auto text-[11px] font-mono leading-relaxed border border-zinc-800 max-h-96 scrollbar-thin">
+                  <pre className="bg-zinc-950 text-zinc-100 rounded-lg p-4 overflow-x-auto overflow-auto text-[11px] font-mono leading-relaxed border border-zinc-800 max-h-96 scrollbar-thin">
                     <code>{liveRulesText}</code>
                   </pre>
                 </CardContent>

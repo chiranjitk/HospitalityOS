@@ -420,7 +420,7 @@ export default function SaaSPlans() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-amber-500/10">
@@ -530,7 +530,7 @@ export default function SaaSPlans() {
                     <p className="text-xs text-muted-foreground">RADIUS authentication only · No gateway · Hosted infrastructure</p>
                   </div>
                 </div>
-                <div className="grid gap-6 md:grid-cols-3">
+                <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
                   {cloudPlans.map(plan => (
                     <Card
                       key={plan.id}
@@ -565,7 +565,7 @@ export default function SaaSPlans() {
                           <p className="text-xs text-muted-foreground">{plan.subscriberCount} subscribers</p>
                         </div>
                         <Separator className="my-3" />
-                        <div className="grid grid-cols-3 gap-2 mb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
                           <div className="text-center p-2 rounded-lg bg-muted/50">
                             <p className="text-sm font-bold">{plan.maxProperties}</p>
                             <p className="text-[9px] text-muted-foreground uppercase">Properties</p>
@@ -640,7 +640,7 @@ export default function SaaSPlans() {
                     <p className="text-xs text-muted-foreground">Full WiFi Gateway + Captive Portal + VLAN + ZTNA · Data sovereignty</p>
                   </div>
                 </div>
-                <div className="grid gap-6 md:grid-cols-2">
+                <div className="grid gap-6 grid-cols-1 sm:grid-cols-2">
                   {onPremPlans.map(plan => (
                     <Card
                       key={plan.id}
@@ -683,7 +683,7 @@ export default function SaaSPlans() {
                           </p>
                           <p className="text-xs text-muted-foreground">{plan.subscriberCount} subscribers</p>
                         </div>
-                        <div className="grid grid-cols-3 gap-2 mb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
                           <div className="text-center p-2 rounded-lg bg-muted/50">
                             <p className="text-sm font-bold">{plan.maxProperties === 999 ? '∞' : plan.maxProperties}</p>
                             <p className="text-[9px] text-muted-foreground uppercase">Properties</p>
@@ -1210,7 +1210,7 @@ export default function SaaSPlans() {
           </DialogHeader>
           {selectedPlan && (
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="displayName">Display Name</Label>
                   <Input id="displayName" value={formData.displayName} onChange={(e) => setFormData(prev => ({ ...prev, displayName: e.target.value }))} />
@@ -1226,7 +1226,7 @@ export default function SaaSPlans() {
               </div>
               <Separator />
               <h4 className="font-medium">Resource Limits</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="maxProperties">Max Properties</Label>
                   <Input id="maxProperties" type="number" min="1" value={formData.maxProperties} onChange={(e) => setFormData(prev => ({ ...prev, maxProperties: e.target.value }))} />
@@ -1236,7 +1236,7 @@ export default function SaaSPlans() {
                   <Input id="maxUsers" type="number" min="1" value={formData.maxUsers} onChange={(e) => setFormData(prev => ({ ...prev, maxUsers: e.target.value }))} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="maxRooms">Max Rooms</Label>
                   <Input id="maxRooms" type="number" min="1" value={formData.maxRooms} onChange={(e) => setFormData(prev => ({ ...prev, maxRooms: e.target.value }))} />

@@ -442,7 +442,7 @@ function BandwidthUsageTab() {
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
         <SummaryCard icon={Download} label="Total Download" value={formatMB(summary.totalDown)} color="teal" />
         <SummaryCard icon={Upload} label="Total Upload" value={formatMB(summary.totalUp)} color="amber" />
         <SummaryCard icon={Users} label="Unique Users" value={summary.uniqueUsers.toString()} color="emerald" />
@@ -740,7 +740,7 @@ function UserBandwidthTab() {
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <SummaryCard icon={Users} label="Total Users" value={summaryStats.totalUsers.toString()} color="emerald" />
         <SummaryCard icon={BarChart3} label="Total Bandwidth" value={formatMB(summaryStats.totalBw)} color="teal" />
         <SummaryCard icon={TrendingUp} label="Avg / User" value={formatMB(summaryStats.avgPerUser)} color="amber" />
@@ -801,7 +801,7 @@ function UserBandwidthTab() {
           <CardTitle className="text-base">Average Usage per Plan Tier</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {Object.entries(planAgg).map(([plan, data]) => {
               const avgDown = Math.round(data.totalDown / data.count);
               const avgUp = Math.round(data.totalUp / data.count);
@@ -1090,7 +1090,7 @@ function WebSurfingTab() {
 
       {/* 4 Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Globe className="h-6 w-6 sm:h-8 sm:w-8 text-violet-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Domains</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.totalDomains || 0).toLocaleString()}</p></div></div></Card>
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Activity className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Traffic</p><p className="text-lg sm:text-xl font-bold truncate">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Users className="h-6 w-6 sm:h-8 sm:w-8 text-amber-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Unique Users</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.uniqueUsers || 0).toLocaleString()}</p></div></div></Card>
@@ -1317,7 +1317,7 @@ function NATLogsTab() {
 
       {/* 4 Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Activity className="h-6 w-6 sm:h-8 sm:w-8 text-sky-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Connections</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.totalConnections || 0).toLocaleString()}</p></div></div></Card>
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Download className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Traffic</p><p className="text-lg sm:text-xl font-bold truncate">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Users className="h-6 w-6 sm:h-8 sm:w-8 text-amber-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Unique Sources</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.uniqueSources || 0).toLocaleString()}</p></div></div></Card>
@@ -1584,7 +1584,7 @@ function VoucherReportTab() {
 
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
           <SummaryCard icon={Ticket} label="Total Vouchers" value={summary.total.toString()} color="teal" />
           <SummaryCard icon={CheckCircle2} label="Active" value={summary.active.toString()} color="emerald" />
           <SummaryCard icon={Wifi} label="Used (Redeemed)" value={summary.used.toString()} color="teal" />
@@ -1603,7 +1603,7 @@ function VoucherReportTab() {
             <CardDescription>Voucher usage breakdown by WiFi plan</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {planBreakdown.map((plan) => (
                 <div key={plan.planId} className="rounded-lg border p-3 space-y-2">
                   <p className="text-sm font-medium truncate">{plan.planName}</p>
@@ -2341,7 +2341,7 @@ function SystemHealthTab() {
 
   return (
     <Tabs defaultValue="overview" className="space-y-4">
-      <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
+      <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:w-auto lg:inline-grid">
         <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
         <TabsTrigger value="interfaces" className="text-xs sm:text-sm">Interfaces</TabsTrigger>
         <TabsTrigger value="resources" className="text-xs sm:text-sm">Resources</TabsTrigger>
@@ -2353,7 +2353,7 @@ function SystemHealthTab() {
       {/* ==================== SUB-TAB 1: OVERVIEW ==================== */}
       <TabsContent value="overview" className="space-y-4">
         {/* Top row: 4 metric cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {metricCards.map(card => {
             const mc = card.label === 'Active Alerts'
               ? (card.value > 0 ? { bg: 'bg-red-500/10', text: 'text-red-600 dark:text-red-400', icon: 'text-red-500 dark:text-red-400', spark: '#f43f5e' } : { bg: 'bg-primary/10', text: 'text-primary', icon: 'text-primary', spark: 'var(--primary)' })
@@ -2571,7 +2571,7 @@ function SystemHealthTab() {
           const txCol = formatBytesColored(iface.txBytes || 0);
           return (
             <Card className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground">Current ↓</p>
                   <p className="text-lg font-bold tabular-nums text-primary">{formatMbps(iface.rxSpeed || 0)}</p>
@@ -2960,7 +2960,7 @@ function SystemHealthTab() {
 
         {/* Summary bar */}
         <Card className="p-4">
-          <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-xs text-muted-foreground">CPU Cores</p>
               <p className="text-lg font-bold tabular-nums">{cores}</p>
@@ -3448,7 +3448,7 @@ function SystemHealthTab() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Operator</Label>
                   <Select value={newRule.operator} onValueChange={v => setNewRule(p => ({ ...p, operator: v }))}>

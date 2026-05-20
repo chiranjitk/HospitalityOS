@@ -471,7 +471,7 @@ export default function LaundryPage() {
       </div>
 
       <Tabs defaultValue="items" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
           <TabsTrigger value="items" className="gap-1.5"><Shirt className="h-4 w-4" />Service Items</TabsTrigger>
           <TabsTrigger value="orders" className="gap-1.5"><ShoppingCart className="h-4 w-4" />Orders</TabsTrigger>
           <TabsTrigger value="statistics" className="gap-1.5"><TrendingUp className="h-4 w-4" />Statistics</TabsTrigger>
@@ -497,6 +497,7 @@ export default function LaundryPage() {
                 <>
                   <div className="hidden md:block">
                     <ScrollArea className="max-h-[500px]">
+                      <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -532,6 +533,7 @@ export default function LaundryPage() {
                           ))}
                         </TableBody>
                       </Table>
+                      </div>
                     </ScrollArea>
                   </div>
                   {/* Mobile */}
@@ -586,6 +588,7 @@ export default function LaundryPage() {
                 <>
                   <div className="hidden md:block">
                     <ScrollArea className="max-h-[500px]">
+                      <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -654,6 +657,7 @@ export default function LaundryPage() {
                           })}
                         </TableBody>
                       </Table>
+                      </div>
                     </ScrollArea>
                   </div>
                   {/* Mobile */}
@@ -704,7 +708,7 @@ export default function LaundryPage() {
 
         {/* ========== STATISTICS TAB ========== */}
         <TabsContent value="statistics" className="space-y-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <Card className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-teal-500/10 shrink-0"><ShoppingCart className="h-5 w-5 text-teal-600 dark:text-teal-400" /></div>
@@ -735,7 +739,7 @@ export default function LaundryPage() {
           <Card>
             <CardHeader className="pb-3"><CardTitle className="text-base">Order Status Breakdown</CardTitle></CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 {Object.entries(ORDER_STATUSES).filter(([k]) => k !== 'cancelled').map(([key, cfg]) => {
                   const count = orders.filter(o => o.status === key).length;
                   const Icon = cfg.icon;
@@ -761,7 +765,7 @@ export default function LaundryPage() {
           <DialogHeader><DialogTitle>Add Laundry Service Item</DialogTitle><DialogDescription>Create a new laundry service item</DialogDescription></DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="space-y-1.5"><Label>Name *</Label><Input value={itemForm.name} onChange={e => setItemForm(p => ({ ...p, name: e.target.value }))} placeholder="Shirt - Wash" /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Category</Label>
                 <Select value={itemForm.category} onValueChange={v => setItemForm(p => ({ ...p, category: v }))}>
@@ -777,7 +781,7 @@ export default function LaundryPage() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Unit Price</Label><Input type="number" step="0.01" value={itemForm.unitPrice} onChange={e => setItemForm(p => ({ ...p, unitPrice: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>Turnaround (hrs)</Label><Input type="number" value={itemForm.turnaroundHours} onChange={e => setItemForm(p => ({ ...p, turnaroundHours: e.target.value }))} /></div>
             </div>
@@ -801,7 +805,7 @@ export default function LaundryPage() {
                 <SelectContent>{rooms.map(r => <SelectItem key={r.id} value={r.id}>Room {r.roomNumber || r.name || r.id.slice(0, 8)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Payment Method</Label>
                 <Select value={orderPaymentMethod} onValueChange={setOrderPaymentMethod}>

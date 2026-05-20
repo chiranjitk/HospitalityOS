@@ -104,7 +104,7 @@ export default function RetryQueue() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="border-l-4 border-l-amber-500">
           <CardHeader className="pb-2">
             <CardDescription>Total in Queue</CardDescription>
@@ -142,6 +142,7 @@ export default function RetryQueue() {
               <p>No items in retry queue</p>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -204,6 +205,7 @@ export default function RetryQueue() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

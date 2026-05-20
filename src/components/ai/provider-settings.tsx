@@ -155,7 +155,7 @@ export default function AIProviderSettings() {
           <CardDescription>Enable or disable AI-powered features</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
               <div>
                 <p className="font-medium">AI Copilot</p>
@@ -214,7 +214,7 @@ export default function AIProviderSettings() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Model</Label>
                 <Input value={provider.model} onChange={(e) => updateProvider(provider.id, 'model', e.target.value)} />
@@ -241,7 +241,7 @@ export default function AIProviderSettings() {
                 )}
               </div>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Temperature</Label>
                 <Input 

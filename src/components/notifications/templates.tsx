@@ -197,7 +197,7 @@ export default function Templates() {
             </DialogHeader>
             {editTemplate && (
               <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">Template Name</Label>
                     <Input
@@ -225,7 +225,7 @@ export default function Templates() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="category">Category</Label>
                     <Select
@@ -296,7 +296,7 @@ export default function Templates() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="border-l-4 border-l-primary">
           <CardHeader className="pb-2">
             <CardDescription>Total Templates</CardDescription>
@@ -337,6 +337,7 @@ export default function Templates() {
       {/* Templates Table */}
       <Card>
         <CardContent className="pt-6">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -399,6 +400,7 @@ export default function Templates() {
               })}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 

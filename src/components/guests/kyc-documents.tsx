@@ -369,7 +369,7 @@ export function KYCDocuments({ guestId }: KYCDocumentsProps) {
   return (
     <div className="space-y-6">
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card className="p-4">
           <div className="text-2xl font-bold">{stats.total}</div>
           <div className="text-xs text-muted-foreground">Total Documents</div>

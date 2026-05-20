@@ -136,7 +136,7 @@ export default function RevenueManagement() {
       </div>
 
       <Tabs defaultValue="cancellation" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5 lg:grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
           <TabsTrigger value="cancellation" className="text-xs sm:text-sm gap-1">
             <ShieldAlert className="h-4 w-4 hidden sm:block" />
             <span className="truncate">Cancel Risk</span>
@@ -258,7 +258,7 @@ function CancellationPredictionTab() {
 
       {/* Summary Cards */}
       {summary && (
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
           <Card className="border-0 shadow-sm">
             <CardContent className="pt-4 pb-4">
               <p className="text-xs text-muted-foreground">Total Predictions</p>
@@ -324,6 +324,7 @@ function CancellationPredictionTab() {
             </div>
           ) : (
             <div className="max-h-[480px] overflow-y-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -363,6 +364,7 @@ function CancellationPredictionTab() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </CardContent>
@@ -480,7 +482,7 @@ function PriceElasticityTab() {
       ) : latest ? (
         <>
           {/* Key Metrics */}
-          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             <Card className="border-0 shadow-sm bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900">
               <CardContent className="pt-4 pb-4">
                 <p className="text-xs text-violet-700 dark:text-violet-400">Elasticity Coefficient</p>
@@ -645,7 +647,7 @@ function RevPAROptimizationTab() {
 
       {/* Summary */}
       {summary && (
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="border-0 shadow-sm">
             <CardContent className="pt-4 pb-4">
               <p className="text-xs text-muted-foreground">Suggestions</p>
@@ -694,6 +696,7 @@ function RevPAROptimizationTab() {
             </div>
           ) : (
             <div className="max-h-[480px] overflow-y-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -751,6 +754,7 @@ function RevPAROptimizationTab() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </CardContent>
@@ -876,11 +880,11 @@ function LosPricingTab() {
 
       {/* Tiers Grid */}
       {isLoading ? (
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map(i => <Skeleton key={i} className="h-40" />)}
         </div>
       ) : (
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {tiers.map((tier, index) => (
             <Card key={tier.id || index} className="border-0 shadow-sm">
               <CardContent className="pt-4 pb-4 space-y-3">
@@ -988,7 +992,7 @@ function AutoApplyTab() {
       </div>
 
       {/* Status Cards */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         <Card className="border-0 shadow-sm">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2 mb-2">
@@ -1076,6 +1080,7 @@ function AutoApplyTab() {
             </div>
           ) : (
             <div className="max-h-[400px] overflow-y-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1112,6 +1117,7 @@ function AutoApplyTab() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </CardContent>

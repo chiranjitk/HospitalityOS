@@ -879,7 +879,7 @@ export default function LoyaltyPrograms() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid gap-3 grid-cols-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {redemptionOptions.map((reward) => {
                 const canAfford = redeemGuestPoints >= reward.points;
                 return (

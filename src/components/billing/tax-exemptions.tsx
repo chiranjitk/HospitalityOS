@@ -307,7 +307,7 @@ export default function TaxExemptions() {
 
       {/* Stats */}
       {stats && (
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 lg:grid-cols-5">
           {[
             { label: 'Total', value: stats.total, icon: FileText, color: 'text-foreground' },
             { label: 'Pending', value: stats.pending, icon: Clock, color: 'text-amber-600' },
@@ -467,7 +467,7 @@ export default function TaxExemptions() {
           </DialogHeader>
 
           <div className="grid gap-4 py-4 max-h-[400px] overflow-y-auto">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Guest ID</Label>
                 <Input
@@ -496,7 +496,7 @@ export default function TaxExemptions() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Certificate Number</Label>
                 <Input
@@ -531,7 +531,7 @@ export default function TaxExemptions() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Exempt Amount ($)</Label>
                 <Input

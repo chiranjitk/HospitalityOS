@@ -310,7 +310,7 @@ export default function FinancingPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card className="p-3 sm:p-4">
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="p-2 rounded-lg bg-blue-500/10 shrink-0"><DollarSign className="h-4 w-4 text-blue-600 dark:text-blue-400" /></div>
@@ -369,7 +369,7 @@ export default function FinancingPage() {
                         <div className="text-xs text-muted-foreground">APR</div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                       <div>
                         <div className="text-muted-foreground text-xs">Amount Range</div>
                         <div className="font-medium">{formatCurrency(plan.minAmount)} – {formatCurrency(plan.maxAmount)}</div>
@@ -477,7 +477,7 @@ export default function FinancingPage() {
           <DialogHeader><DialogTitle>Create Financing Plan</DialogTitle><DialogDescription>Configure a new BNPL/financing plan</DialogDescription></DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="space-y-1.5"><Label>Plan Name *</Label><Input value={planForm.name} onChange={e => setPlanForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. 6-Month Easy Pay" /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Provider</Label>
                 <Select value={planForm.provider} onValueChange={v => setPlanForm(f => ({ ...f, provider: v }))}>
@@ -492,11 +492,11 @@ export default function FinancingPage() {
               </div>
               <div className="space-y-1.5"><Label>Interest Rate (%)</Label><Input type="number" step="0.1" value={planForm.interestRate} onChange={e => setPlanForm(f => ({ ...f, interestRate: e.target.value }))} /></div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Min Amount</Label><Input type="number" step="0.01" value={planForm.minAmount} onChange={e => setPlanForm(f => ({ ...f, minAmount: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>Max Amount</Label><Input type="number" step="0.01" value={planForm.maxAmount} onChange={e => setPlanForm(f => ({ ...f, maxAmount: e.target.value }))} /></div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Duration (months)</Label><Input type="number" value={planForm.durationMonths} onChange={e => setPlanForm(f => ({ ...f, durationMonths: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>Max Installments</Label><Input type="number" value={planForm.maxInstallments} onChange={e => setPlanForm(f => ({ ...f, maxInstallments: e.target.value }))} /></div>
             </div>
@@ -522,11 +522,11 @@ export default function FinancingPage() {
                 <SelectContent>{plans.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Total Amount *</Label><Input type="number" step="0.01" value={installmentForm.totalAmount} onChange={e => setInstallmentForm(f => ({ ...f, totalAmount: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>Installment Amount</Label><Input type="number" step="0.01" value={installmentForm.installmentAmount} onChange={e => setInstallmentForm(f => ({ ...f, installmentAmount: e.target.value }))} /></div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Installment #</Label><Input type="number" value={installmentForm.installmentNumber} onChange={e => setInstallmentForm(f => ({ ...f, installmentNumber: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>Due Date *</Label><Input type="date" value={installmentForm.dueDate} onChange={e => setInstallmentForm(f => ({ ...f, dueDate: e.target.value }))} /></div>
             </div>

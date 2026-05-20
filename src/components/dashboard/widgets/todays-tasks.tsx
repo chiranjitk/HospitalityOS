@@ -120,7 +120,7 @@ function TodaysTasksSkeleton() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 rounded-xl" />)}
         </div>
         <Skeleton className="h-3 w-full rounded-full" />
@@ -325,7 +325,7 @@ export function TodaysTasksWidget() {
 
       <CardContent className="space-y-4">
         {/* ── Summary Stats ── */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {[
             { label: t('todaysTasksTotal'), value: totalCount, color: 'text-foreground', bg: 'bg-muted/60' },
             { label: t('todaysTasksDone'), value: completedCount, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40' },

@@ -391,6 +391,7 @@ export default function JourneyCampaigns() {
             <div className="p-8 text-center text-muted-foreground">No journeys found. Create one to get started.</div>
           ) : (
             <div className="max-h-[500px] overflow-y-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -452,6 +453,7 @@ export default function JourneyCampaigns() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </CardContent>

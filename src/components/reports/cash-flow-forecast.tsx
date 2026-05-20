@@ -933,7 +933,7 @@ export default function CashFlowForecast() {
                   <h4 className="font-semibold text-sm">{insight.season}</h4>
                   <Badge variant="outline" className="text-xs ml-auto">{insight.months}</Badge>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                   <div>
                     <p className="text-xs text-muted-foreground">Avg Inflow</p>
                     <p className="text-sm font-semibold text-emerald-600">{formatLakhs(insight.avgInflow)}</p>

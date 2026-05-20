@@ -197,7 +197,7 @@ export function PreferenceSelection({
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="room" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-4">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 mb-4">
             <TabsTrigger value="room" className="text-xs">
               <Bed className="h-3 w-3 mr-1" />
               Room
@@ -218,7 +218,7 @@ export function PreferenceSelection({
 
           {/* Room Preferences */}
           <TabsContent value="room" className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Floor Preference</Label>
                 <Select
@@ -295,7 +295,7 @@ export function PreferenceSelection({
             
             <div className="space-y-3 pt-2">
               <Label className="text-sm font-medium">Additional Room Preferences</Label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { key: 'quietRoom', label: 'Quiet Room' },
                   { key: 'highFloor', label: 'High Floor' },
@@ -318,7 +318,7 @@ export function PreferenceSelection({
           <TabsContent value="dietary" className="space-y-4">
             <div className="space-y-3">
               <Label className="text-sm font-medium">Dietary Requirements</Label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { key: 'vegetarian', label: 'Vegetarian' },
                   { key: 'vegan', label: 'Vegan' },
@@ -339,7 +339,7 @@ export function PreferenceSelection({
 
             <div className="space-y-3">
               <Label className="text-sm font-medium">Allergies</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {commonAllergies.map((allergy) => {
                   const isSelected = preferences.allergies?.includes(allergy);
                   return (
@@ -365,7 +365,7 @@ export function PreferenceSelection({
           <TabsContent value="amenities" className="space-y-4">
             <div className="space-y-3">
               <Label className="text-sm font-medium">Room Amenities</Label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { key: 'extraTowels', label: 'Extra Towels' },
                   { key: 'extraPillows', label: 'Extra Pillows' },

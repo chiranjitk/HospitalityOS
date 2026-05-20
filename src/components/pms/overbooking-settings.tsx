@@ -367,7 +367,7 @@ export default function OverbookingSettings() {
       </Card>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-lg">
@@ -592,7 +592,7 @@ export default function OverbookingSettings() {
                           </Badge>
                         )}
                       </div>
-                      <div className="grid grid-cols-4 gap-4 text-sm">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                         <div>
                           <div className="text-muted-foreground">Physical Rooms</div>
                           <div className="font-medium">{roomType.totalRooms}</div>

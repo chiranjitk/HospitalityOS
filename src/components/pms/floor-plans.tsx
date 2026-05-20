@@ -1014,7 +1014,7 @@ export default function FloorPlans() {
         </div>
 
         {/* Stats */}
-        <div className="grid gap-4 grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
           <Card className="p-4">
             <div className="text-2xl font-bold">{stats.total}</div>
             <div className="text-xs text-muted-foreground">Floor Plans</div>
@@ -1203,7 +1203,7 @@ export default function FloorPlans() {
                   placeholder="e.g., First Floor Plan"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Width (px)</Label>
                   <Input
@@ -1259,7 +1259,7 @@ export default function FloorPlans() {
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Width (px)</Label>
                   <Input

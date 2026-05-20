@@ -449,7 +449,7 @@ function getProviderCategory(providerId: string): HardwareCategory {
 
 function StatsSkeleton() {
   return (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       {[...Array(4)].map((_, i) => (
         <Card key={i} className="border-l-4 border-l-muted">
           <CardHeader className="pb-2">
@@ -1084,7 +1084,7 @@ export function HardwareAdapters() {
       {loading ? (
         <StatsSkeleton />
       ) : (
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="border-l-4 border-l-slate-500">
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-1.5">
@@ -1142,7 +1142,7 @@ export function HardwareAdapters() {
 
       {/* ─── Tabs ─── */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
           <TabsTrigger value="overview" className="gap-1.5">
             <Server className="h-4 w-4 hidden sm:block" />
             <span className="hidden sm:inline">Overview</span>
@@ -1214,7 +1214,7 @@ export function HardwareAdapters() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <p className="text-xs text-muted-foreground">Health Status</p>
                         {healthStatusBadge(adapter.healthStatus)}
@@ -1224,7 +1224,7 @@ export function HardwareAdapters() {
                         <p className="text-sm font-medium truncate">{adapter.propertyName || adapter.propertyId.slice(0, 8)}</p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <p className="text-xs text-muted-foreground">Last Check</p>
                         <p className="text-xs text-muted-foreground">
@@ -1539,6 +1539,7 @@ export function HardwareAdapters() {
                 </div>
               ) : (
                 <ScrollArea className="max-h-[480px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1588,6 +1589,7 @@ export function HardwareAdapters() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               )}
             </CardContent>
@@ -1690,6 +1692,7 @@ export function HardwareAdapters() {
                   </div>
                 ) : (
                   <ScrollArea className="max-h-96">
+                    <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -1735,6 +1738,7 @@ export function HardwareAdapters() {
                         ))}
                       </TableBody>
                     </Table>
+                    </div>
                   </ScrollArea>
                 )}
               </CardContent>

@@ -907,7 +907,7 @@ export default function SecurityEvents() {
                 <Separator />
 
                 {/* Info Grid */}
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-xs text-muted-foreground">Camera</span>
                     <p className="font-medium mt-0.5 flex items-center gap-1">

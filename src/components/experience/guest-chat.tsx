@@ -285,7 +285,7 @@ export default function GuestChat() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-emerald-500/10">
@@ -333,7 +333,7 @@ export default function GuestChat() {
       </div>
 
       {/* Chat Interface */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[400px] sm:h-[500px] lg:h-[600px]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 h-[400px] sm:h-[500px] lg:h-[600px]">
         {/* Conversation List */}
         <Card className="lg:col-span-1">
           <CardHeader className="p-4 pb-2">

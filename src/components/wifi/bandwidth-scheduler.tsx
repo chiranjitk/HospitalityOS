@@ -799,7 +799,8 @@ export default function BandwidthScheduler() {
               </Button>
             </div>
           ) : (
-            <div className="max-h-[520px] overflow-y-auto">
+            <div className="max-h-[520px] overflow-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -958,6 +959,7 @@ export default function BandwidthScheduler() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </CardContent>
@@ -971,7 +973,7 @@ export default function BandwidthScheduler() {
           setDialogOpen(open);
         }}
       >
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>
               {editingSchedule ? 'Edit Bandwidth Schedule' : 'New Bandwidth Schedule'}
@@ -1162,7 +1164,7 @@ export default function BandwidthScheduler() {
 
             {/* Bandwidth (only shown for "limit" action) */}
             {form.action === 'limit' && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="download-mbps">Download (Mbps)</Label>
                   <Input

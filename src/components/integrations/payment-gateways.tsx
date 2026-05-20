@@ -174,7 +174,7 @@ export function PaymentGateways() {
             </DialogHeader>
             {editGateway && (
               <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">Gateway Name</Label>
                     <Input
@@ -201,7 +201,7 @@ export function PaymentGateways() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="apiKey">API Key</Label>
                     <Input
@@ -223,7 +223,7 @@ export function PaymentGateways() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="merchantId">Merchant ID</Label>
                     <Input
@@ -249,7 +249,7 @@ export function PaymentGateways() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="percentage">Fee Percentage (%)</Label>
                     <Input
@@ -282,7 +282,7 @@ export function PaymentGateways() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="pb-2">
             <CardDescription>Active Gateways</CardDescription>

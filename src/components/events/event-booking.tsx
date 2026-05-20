@@ -501,7 +501,7 @@ export default function EventBooking() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card>
           <CardContent className="pt-4">
             <div className="text-sm text-muted-foreground">Total</div>
@@ -737,7 +737,7 @@ export default function EventBooking() {
             <DialogDescription>Create a new event or inquiry</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Property *</Label>
                 <Select value={formData.propertyId} onValueChange={(v) => setFormData({ ...formData, propertyId: v, spaceId: '' })}>
@@ -778,7 +778,7 @@ export default function EventBooking() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Event Type</Label>
                 <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v })}>
@@ -829,7 +829,7 @@ export default function EventBooking() {
 
             <div className="border-t pt-4">
               <h4 className="font-medium mb-3">Organizer Details</h4>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="grid gap-2">
                   <Label>Name *</Label>
                   <Input
@@ -860,7 +860,7 @@ export default function EventBooking() {
 
             <div className="border-t pt-4">
               <h4 className="font-medium mb-3">Date & Time</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>Start Date *</Label>
                   <Input
@@ -898,7 +898,7 @@ export default function EventBooking() {
 
             <div className="border-t pt-4">
               <h4 className="font-medium mb-3">Pricing</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>Space Charge ({currency.symbol})</Label>
                   <Input
@@ -948,7 +948,7 @@ export default function EventBooking() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Status</Label>
                 <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
@@ -992,7 +992,7 @@ export default function EventBooking() {
             <DialogDescription>Update event details</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Property</Label>
                 <Select value={formData.propertyId} onValueChange={(v) => setFormData({ ...formData, propertyId: v, spaceId: '' })}>
@@ -1030,7 +1030,7 @@ export default function EventBooking() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Event Type</Label>
                 <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v })}>
@@ -1075,7 +1075,7 @@ export default function EventBooking() {
 
             <div className="border-t pt-4">
               <h4 className="font-medium mb-3">Organizer Details</h4>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="grid gap-2">
                   <Label>Name</Label>
                   <Input
@@ -1103,7 +1103,7 @@ export default function EventBooking() {
 
             <div className="border-t pt-4">
               <h4 className="font-medium mb-3">Date & Time</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>Start Date</Label>
                   <Input
@@ -1141,7 +1141,7 @@ export default function EventBooking() {
 
             <div className="border-t pt-4">
               <h4 className="font-medium mb-3">Pricing</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>Space Charge ({currency.symbol})</Label>
                   <Input
@@ -1191,7 +1191,7 @@ export default function EventBooking() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Status</Label>
                 <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>

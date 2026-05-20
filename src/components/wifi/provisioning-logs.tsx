@@ -307,7 +307,7 @@ export default function ProvisioningLogs() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Logs */}
         <Card className="p-4">
           <div className="flex items-center gap-3">
@@ -447,7 +447,8 @@ export default function ProvisioningLogs() {
             </div>
           ) : (
             <>
-              <div className="max-h-[600px] overflow-y-auto">
+              <div className="max-h-[600px] overflow-auto">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -556,6 +557,7 @@ export default function ProvisioningLogs() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
 
               {/* Pagination */}

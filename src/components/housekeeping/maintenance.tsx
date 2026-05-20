@@ -672,7 +672,7 @@ export default function Maintenance() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-gray-500/10">
@@ -802,6 +802,7 @@ export default function Maintenance() {
                   {/* Desktop Table */}
                   <div className="hidden md:block">
                     <ScrollArea className="h-[400px]">
+                      <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -898,6 +899,7 @@ export default function Maintenance() {
                           ))}
                         </TableBody>
                       </Table>
+                      </div>
                     </ScrollArea>
                   </div>
 
@@ -928,7 +930,7 @@ export default function Maintenance() {
                               </div>
 
                               {/* Row 3: Location + Assignee */}
-                              <div className="grid grid-cols-2 gap-2">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <div className="bg-muted/50 rounded-lg px-2 py-1.5">
                                   <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                                     <MapPin className="h-3 w-3" />
@@ -1020,6 +1022,7 @@ export default function Maintenance() {
               {/* Desktop Table */}
               <div className="hidden md:block">
               <ScrollArea className="h-[400px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1093,6 +1096,7 @@ export default function Maintenance() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
               </div>
               {/* Mobile Card Layout for Preventive Maintenance */}
@@ -1130,7 +1134,7 @@ export default function Maintenance() {
                                 </Badge>
                               )}
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               <div className="bg-muted/50 rounded-lg px-2 py-1.5">
                                 <div className="text-[10px] text-muted-foreground">Last Completed</div>
                                 <p className="text-xs font-semibold mt-0.5">
@@ -1427,7 +1431,7 @@ export default function Maintenance() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="pm-frequency">Frequency *</Label>
                 <Select
@@ -1598,7 +1602,7 @@ export default function Maintenance() {
                 rows={3}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="category">Category</Label>
                 <Select

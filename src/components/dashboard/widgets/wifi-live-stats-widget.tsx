@@ -212,7 +212,7 @@ function WiFiStatsLoadingSkeleton() {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="p-4 rounded-xl border border-border/30">
               <Skeleton className="h-8 w-8 rounded-lg mb-2" />
@@ -409,7 +409,7 @@ export function WiFiLiveStatsWidget() {
       </CardHeader>
 
       <CardContent>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {statCards.map((stat, index) => (
             <StatCard key={stat.label} {...stat} index={index} />
           ))}

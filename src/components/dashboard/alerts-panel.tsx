@@ -299,7 +299,7 @@ export function AlertsPanel() {
               <EmptyAlertState />
             ) : (
               <Tabs defaultValue="all" className="w-full">
-                <TabsList className="grid w-full grid-cols-4 h-9">
+                <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-9">
                   <TabsTrigger value="all" className="text-xs">
                     All ({alerts.length})
                   </TabsTrigger>

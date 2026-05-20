@@ -291,7 +291,7 @@ export default function DepositSchedulesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-primary/10"><DollarSign className="h-5 w-5 text-primary" /></div>
@@ -425,7 +425,7 @@ export default function DepositSchedulesPage() {
           <DialogHeader><DialogTitle>New Deposit Schedule</DialogTitle><DialogDescription>Create a new deposit milestone</DialogDescription></DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="space-y-1.5"><Label>Deposit Name *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Initial Deposit" /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Milestone Type</Label>
                 <Select value={form.milestoneType} onValueChange={v => setForm(f => ({ ...f, milestoneType: v }))}>
@@ -440,7 +440,7 @@ export default function DepositSchedulesPage() {
               </div>
               <div className="space-y-1.5"><Label>Days Before</Label><Input type="number" value={form.milestoneDays} onChange={e => setForm(f => ({ ...f, milestoneDays: e.target.value }))} placeholder="e.g. 30" /></div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Percent of Total (%)</Label><Input type="number" value={form.percentOfTotal} onChange={e => setForm(f => ({ ...f, percentOfTotal: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>Fixed Amount</Label><Input type="number" step="0.01" value={form.fixedAmount} onChange={e => setForm(f => ({ ...f, fixedAmount: e.target.value }))} placeholder="Optional" /></div>
             </div>

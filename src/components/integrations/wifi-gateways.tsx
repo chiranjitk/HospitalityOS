@@ -198,7 +198,7 @@ export default function WifiGateways() {
             </DialogHeader>
             {editGateway && (
               <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">Gateway Name</Label>
                     <Input
@@ -225,7 +225,7 @@ export default function WifiGateways() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="ipAddress">IP Address</Label>
                     <Input
@@ -245,7 +245,7 @@ export default function WifiGateways() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="username">Username</Label>
                     <Input
@@ -275,7 +275,7 @@ export default function WifiGateways() {
                     placeholder="Server Room, Building A"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="syncInterval">Sync Interval (min)</Label>
                     <Input
@@ -307,7 +307,7 @@ export default function WifiGateways() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="pb-2">
             <CardDescription>Connected Gateways</CardDescription>

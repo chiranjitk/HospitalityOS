@@ -248,7 +248,7 @@ export default function DirectBookingEngine() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Direct Bookings</CardTitle>
@@ -331,7 +331,7 @@ export default function DirectBookingEngine() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
@@ -340,7 +340,7 @@ export default function DirectBookingEngine() {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle>Booking Sources</CardTitle>
@@ -552,7 +552,7 @@ export default function DirectBookingEngine() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="termsUrl">Terms & Conditions URL</Label>
                   <Input
@@ -594,7 +594,7 @@ export default function DirectBookingEngine() {
               <CardDescription>Customize the look of your booking page</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="primaryColor">Primary Color</Label>
                   <div className="flex gap-2">
@@ -684,7 +684,7 @@ export default function DirectBookingEngine() {
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {[1, 2, 3].map((i) => (
                       <div key={i} className="bg-white rounded-lg p-3 shadow-sm">
                         <div className="h-20 bg-gray-200 rounded mb-2" />

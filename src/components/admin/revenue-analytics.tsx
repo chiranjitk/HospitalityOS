@@ -63,7 +63,7 @@ export function RevenueAnalytics() {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="pb-2">
             <CardDescription>Monthly Recurring Revenue</CardDescription>
@@ -91,7 +91,7 @@ export function RevenueAnalytics() {
       </div>
 
       {/* Additional Metrics */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">

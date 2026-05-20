@@ -643,7 +643,7 @@ export default function PropertiesList() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4 stat-card">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg icon-gradient">
@@ -806,7 +806,7 @@ export default function PropertiesList() {
                     <p className="text-xs text-muted-foreground">{property.address}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div className="p-2 rounded-lg bg-muted/80">
                     <p className="text-lg font-semibold text-primary">{property.totalRooms}</p>
                     <p className="text-xs text-muted-foreground">Rooms</p>
@@ -1115,7 +1115,7 @@ export default function PropertiesList() {
                   {selectedProperty.website && <p className="text-sm flex items-center gap-2"><Globe className="h-3 w-3" />{selectedProperty.website}</p>}
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3 rounded-lg bg-muted text-center">
                   <p className="text-lg font-semibold">{selectedProperty.totalRooms}</p>
                   <p className="text-xs text-muted-foreground">Rooms</p>
@@ -1133,7 +1133,7 @@ export default function PropertiesList() {
                   <p className="text-xs text-muted-foreground">Occupancy</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Check-in/out</span>
                   <span>{selectedProperty.checkInTime} / {selectedProperty.checkOutTime}</span>

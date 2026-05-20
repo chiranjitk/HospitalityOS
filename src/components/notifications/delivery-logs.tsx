@@ -85,7 +85,7 @@ export default function DeliveryLogs() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
         <Card className="border-l-4 border-l-cyan-500">
           <CardHeader className="pb-2">
             <CardDescription>Total Sent</CardDescription>
@@ -121,6 +121,7 @@ export default function DeliveryLogs() {
       {/* Logs Table */}
       <Card>
         <CardContent className="pt-6">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -177,6 +178,7 @@ export default function DeliveryLogs() {
               })}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

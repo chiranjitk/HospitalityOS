@@ -146,7 +146,7 @@ const t = useTranslations('pos');
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Merge Tables</DialogTitle><DialogDescription>Select tables to merge for a large party</DialogDescription></DialogHeader>
           <div className="space-y-4">
-            <ScrollArea className="h-48"><div className="grid grid-cols-3 gap-2">
+            <ScrollArea className="h-48"><div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {selectableTables.map(t => (
                 <div key={t.id} className={`flex items-center gap-2 p-2 rounded border cursor-pointer ${selectedTables.includes(t.id) ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30' : ''}`} onClick={() => toggleTable(t.id)}>
                   <Checkbox checked={selectedTables.includes(t.id)} />

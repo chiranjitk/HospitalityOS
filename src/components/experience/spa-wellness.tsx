@@ -398,7 +398,7 @@ export default function SpaWellness() {
   // ── Render: Stat cards ───────────────────────────────────────────
 
   const renderStatCards = () => (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       <Card className="p-4 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 hover:-translate-y-0.5">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-violet-500/20">
@@ -698,6 +698,7 @@ export default function SpaWellness() {
     <Card>
       <CardContent className="p-0">
         <ScrollArea className="max-h-[520px]">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -777,6 +778,7 @@ export default function SpaWellness() {
               }))}
             </TableBody>
           </Table>
+          </div>
         </ScrollArea>
       </CardContent>
     </Card>
@@ -872,7 +874,7 @@ export default function SpaWellness() {
         </Card>
 
         {/* Quick stats row */}
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           <Card className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-violet-500/10">
@@ -942,7 +944,7 @@ export default function SpaWellness() {
             <DialogDescription>{apt.treatment}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Guest</p>
                 <p className="font-medium text-sm">{apt.guestName}</p>
@@ -1017,7 +1019,7 @@ export default function SpaWellness() {
             <DialogDescription>{tr.description}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Category</p>
                 <Badge variant="secondary">{cat?.label || tr.category}</Badge>
@@ -1098,7 +1100,7 @@ export default function SpaWellness() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSearchQuery(''); setStatusFilter('all'); setCategoryFilter('all'); }}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="appointments" className="text-xs sm:text-sm">
             <Calendar className="h-4 w-4 mr-1.5 hidden sm:inline" />
             Appointments
@@ -1166,7 +1168,7 @@ export default function SpaWellness() {
             <DialogDescription>Book a spa appointment for a guest</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Guest Name</Label>
                 <Input placeholder="Search guest..." />
@@ -1189,7 +1191,7 @@ export default function SpaWellness() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Date</Label>
                 <Input type="date" defaultValue={format(today, 'yyyy-MM-dd')} />

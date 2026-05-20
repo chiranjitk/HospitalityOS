@@ -440,7 +440,7 @@ export default function SkillsManagement() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Skills</CardTitle>
@@ -494,7 +494,7 @@ export default function SkillsManagement() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             <div className="space-y-2">
               <Label>Category</Label>
               <Select value={filterCategory} onValueChange={setFilterCategory}>
@@ -707,7 +707,7 @@ export default function SkillsManagement() {
             <CardDescription>Distribution of skills across categories</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 md:grid-cols-5">
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-3 md:grid-cols-5">
               {CATEGORIES.map((cat) => {
                 const count = summary.byCategory[cat.value] || 0;
                 const percentage = totalSkills > 0 ? Math.round((count / totalSkills) * 100) : 0;
@@ -790,7 +790,7 @@ export default function SkillsManagement() {
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select

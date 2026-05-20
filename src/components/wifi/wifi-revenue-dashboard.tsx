@@ -385,6 +385,7 @@ export default function WiFiRevenueDashboard() {
                 <p className="text-xs text-muted-foreground">No plan data available</p>
               </div>
             ) : (
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -416,6 +417,7 @@ export default function WiFiRevenueDashboard() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>

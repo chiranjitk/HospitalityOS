@@ -293,7 +293,7 @@ export function WiFiUsersManagement() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="username">Username (optional)</Label>
                   <Input
@@ -313,7 +313,7 @@ export function WiFiUsersManagement() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="download">Download (Mbps)</Label>
                   <Input
@@ -333,7 +333,7 @@ export function WiFiUsersManagement() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="validFrom">Valid From</Label>
                   <Input
@@ -579,7 +579,7 @@ export function WiFiUsersManagement() {
           </DialogHeader>
           {selectedUser && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-muted-foreground">Username</Label>
                   <p className="font-mono">{selectedUser.username}</p>

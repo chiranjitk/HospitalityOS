@@ -253,7 +253,7 @@ export default function AuthLogs() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-cyan-500/10">
@@ -425,7 +425,8 @@ export default function AuthLogs() {
               </div>
 
               {/* Desktop: Table Layout */}
-              <div className="hidden sm:block max-h-[500px] overflow-y-auto">
+              <div className="hidden sm:block max-h-[500px] overflow-auto">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -486,6 +487,7 @@ export default function AuthLogs() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             </>
           )}
@@ -494,7 +496,7 @@ export default function AuthLogs() {
 
       {/* Auth Log Detail Dialog */}
       <Dialog open={!!selectedLog} onOpenChange={(open) => { if (!open) setSelectedLog(null); }}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Eye className="h-5 w-5" />
@@ -507,7 +509,7 @@ export default function AuthLogs() {
               <div className="flex items-center justify-between">{getResultBadge(selectedLog.authResult)}</div>
               <div className="border-t pt-4">
                 <p className="text-xs font-medium text-muted-foreground mb-3">User Information</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Username</p>
                     <p className="text-sm font-medium font-mono">{selectedLog.username || '—'}</p>
@@ -520,7 +522,7 @@ export default function AuthLogs() {
               </div>
               <div className="border-t pt-4">
                 <p className="text-xs font-medium text-muted-foreground mb-3">IP Addresses</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Source IP</p>
                     {(() => {
@@ -558,7 +560,7 @@ export default function AuthLogs() {
               </div>
               <div className="border-t pt-4">
                 <p className="text-xs font-medium text-muted-foreground mb-3">Location</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Property</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -576,7 +578,7 @@ export default function AuthLogs() {
               </div>
               <div className="border-t pt-4">
                 <p className="text-xs font-medium text-muted-foreground mb-3">Authentication Details</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Timestamp</p>
                     <div className="flex items-center gap-1.5 mt-0.5">

@@ -267,7 +267,7 @@ export default function ExperienceCalendar() {
                 <Button variant="outline" size="icon" onClick={goToPrevMonth}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <h3 className="text-lg font-semibold min-w-[200px] text-center">
+                <h3 className="text-lg font-semibold min-w-0 sm:min-w-[200px] text-center">
                   {monthNames[currentMonth - 1]} {currentYear}
                 </h3>
                 <Button variant="outline" size="icon" onClick={goToNextMonth}>
@@ -282,6 +282,7 @@ export default function ExperienceCalendar() {
           </CardHeader>
 
           <CardContent>
+            <div className="overflow-x-auto">
             {/* Legend */}
             <div className="flex gap-4 mb-4 flex-wrap text-xs">
               <div className="flex items-center gap-1.5">
@@ -303,7 +304,7 @@ export default function ExperienceCalendar() {
             </div>
 
             {/* Day headers */}
-            <div className="grid grid-cols-7 mb-1">
+            <div className="grid grid-cols-7 mb-1 min-w-[640px]">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                 <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
                   {day}
@@ -312,7 +313,7 @@ export default function ExperienceCalendar() {
             </div>
 
             {/* Calendar Grid */}
-            <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
+            <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden min-w-[640px]">
               {calendarDays.map((dayInfo, idx) => {
                 const summary = data?.dailySummary.find(d => d.date === dayInfo.date);
                 const bookings = data?.bookingsByDate[dayInfo.date] || [];
@@ -367,6 +368,7 @@ export default function ExperienceCalendar() {
                 );
               })}
             </div>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -411,7 +413,7 @@ export default function ExperienceCalendar() {
                       {booking.status}
                     </Badge>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm mt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm mt-2">
                     <div>
                       <span className="text-muted-foreground">Guest: </span>
                       <span>{booking.guestName}</span>

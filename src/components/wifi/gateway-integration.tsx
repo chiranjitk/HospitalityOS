@@ -678,7 +678,7 @@ export default function GatewayIntegration() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-primary/10">
@@ -849,7 +849,7 @@ export default function GatewayIntegration() {
                             </div>
 
                             {/* Metrics */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                               <div>
                                 <p className="text-muted-foreground">APs</p>
                                 <p className="font-semibold">{gateway.totalAPs}</p>
@@ -990,7 +990,7 @@ export default function GatewayIntegration() {
             {/* Basic Settings */}
             <div className="space-y-4">
               <h4 className="font-medium text-sm">Basic Settings</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Gateway Name *</Label>
                   <Input
@@ -1068,7 +1068,7 @@ export default function GatewayIntegration() {
             {/* Authentication */}
             <div className="space-y-4">
               <h4 className="font-medium text-sm">Authentication</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="username">Username</Label>
                   <Input
@@ -1107,7 +1107,7 @@ export default function GatewayIntegration() {
             {/* RADIUS & CoA Settings */}
             <div className="space-y-4">
               <h4 className="font-medium text-sm">RADIUS & CoA Settings</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="radiusSecret">RADIUS Secret</Label>
                   <div className="relative">
@@ -1179,7 +1179,7 @@ export default function GatewayIntegration() {
             {/* WiFi Configuration */}
             <div className="space-y-4">
               <h4 className="font-medium text-sm">WiFi Configuration</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="ssid">SSID</Label>
                   <Input
@@ -1230,7 +1230,7 @@ export default function GatewayIntegration() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="splashPage">Splash Page URL</Label>
                   <Input

@@ -730,7 +730,7 @@ export function RolePermissions() {
   const RolesOverview = () => (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Roles</CardTitle>
@@ -806,6 +806,7 @@ export function RolePermissions() {
         </CardHeader>
         <CardContent>
           <ScrollArea className="max-h-[500px]">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -953,6 +954,7 @@ export function RolePermissions() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </ScrollArea>
         </CardContent>
       </Card>
@@ -1399,7 +1401,7 @@ export function RolePermissions() {
         {compareRoles.length === 2 && (
           <>
             {/* Summary Stats */}
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
               <Card className="border-emerald-200 dark:border-emerald-800">
                 <CardContent className="pt-4 pb-4">
                   <div className="flex items-center gap-2">
@@ -1571,6 +1573,7 @@ export function RolePermissions() {
             </div>
           ) : (
             <ScrollArea className="max-h-[500px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1633,6 +1636,7 @@ export function RolePermissions() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>
@@ -1709,7 +1713,7 @@ export function RolePermissions() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
             <TabsTrigger value="overview" className="flex items-center gap-1.5">
               <Shield className="h-4 w-4" />
               <span className="hidden sm:inline">Roles Overview</span>

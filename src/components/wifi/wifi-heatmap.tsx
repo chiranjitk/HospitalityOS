@@ -550,7 +550,7 @@ export default function WifiHeatmap() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Floor Name</Label>
                     <input
@@ -802,7 +802,7 @@ export default function WifiHeatmap() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="text-center p-2 rounded-lg bg-muted">
                   <p className="text-2xl font-bold">{stats.totalAps}</p>
                   <p className="text-xs text-muted-foreground">Total APs</p>
@@ -931,7 +931,7 @@ export default function WifiHeatmap() {
           </DialogHeader>
           {selectedAp && (
             <div className="space-y-4 py-2">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="p-3 rounded-lg bg-muted text-center">
                   <p className="text-xs text-muted-foreground mb-1">Signal Strength</p>
                   <p className="text-xl font-bold" style={{ color: getSignalColor(selectedAp.signalStrength) }}>

@@ -85,7 +85,7 @@ export function LoyaltyWidget() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="p-2.5 rounded-lg bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/50 dark:to-purple-950/50 border border-violet-100/50 dark:border-violet-800/50">
             <div className="flex items-center gap-1 mb-1"><Users className="h-3 w-3 text-violet-600 dark:text-violet-400" /><span className="text-[10px] text-muted-foreground font-medium">{t('members')}</span></div>
             <p className="text-lg font-bold text-violet-600 dark:text-violet-400 tabular-nums">{data.activeMembers}</p>

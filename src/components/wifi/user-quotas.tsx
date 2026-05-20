@@ -307,7 +307,7 @@ export function UserQuotas() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-emerald-500/10">
@@ -412,6 +412,7 @@ export function UserQuotas() {
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -528,6 +529,7 @@ export function UserQuotas() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>
@@ -542,7 +544,7 @@ export function UserQuotas() {
           </DialogHeader>
           {detailUser && (
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Username</p>
                   <p className="font-mono text-sm font-medium">{detailUser.username}</p>
@@ -552,7 +554,7 @@ export function UserQuotas() {
                   <p className="text-sm">{detailUser.guestName || '—'}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Plan</p>
                   <p className="text-sm font-medium">{detailUser.planName}</p>

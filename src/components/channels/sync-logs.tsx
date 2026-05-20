@@ -171,7 +171,7 @@ export default function SyncLogs() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-slate-500/10 to-slate-600/5 border-slate-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -275,6 +275,7 @@ export default function SyncLogs() {
         <CardContent className="p-0">
           <ScrollArea className="h-[500px]">
             {filteredLogs.length > 0 ? (
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -360,6 +361,7 @@ export default function SyncLogs() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             ) : (
               <div className="py-12 text-center text-muted-foreground">
                 <History className="h-12 w-12 mx-auto mb-4 opacity-50" />

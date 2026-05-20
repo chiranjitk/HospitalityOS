@@ -496,7 +496,8 @@ export default function WebCategories() {
                   </p>
                 </div>
               ) : (
-                <div className="max-h-[500px] overflow-y-auto">
+                <div className="max-h-[500px] overflow-auto">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -551,6 +552,7 @@ export default function WebCategories() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -583,7 +585,8 @@ export default function WebCategories() {
                   </p>
                 </div>
               ) : (
-                <div className="max-h-[500px] overflow-y-auto">
+                <div className="max-h-[500px] overflow-auto">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -646,6 +649,7 @@ export default function WebCategories() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -671,7 +675,7 @@ export default function WebCategories() {
                 placeholder="e.g. Social Media"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Type</Label>
                 <Select value={categoryForm.type} onValueChange={(v) => setCategoryForm(prev => ({ ...prev, type: v }))}>
@@ -765,7 +769,7 @@ export default function WebCategories() {
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Start Time</Label>
                 <Input

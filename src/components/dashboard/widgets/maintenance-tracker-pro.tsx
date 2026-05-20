@@ -136,7 +136,7 @@ function SkeletonLoader() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           {[...Array(3)].map((_, i) => (
             <Skeleton key={i} className="h-16 rounded-xl" />
           ))}
@@ -427,7 +427,7 @@ export function MaintenanceTrackerProWidget() {
 
       <CardContent className="space-y-4">
         {/* Summary Stats */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           <StatCard
             label={t('maintenanceProTotalActive')}
             value={data.stats.totalActive}

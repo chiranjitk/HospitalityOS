@@ -449,7 +449,7 @@ export default function EventResources() {
       {selectedEvent && (
         <>
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-7">
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7">
             <Card>
               <CardContent className="pt-4">
                 <div className="text-sm text-muted-foreground">Total Items</div>
@@ -501,7 +501,7 @@ export default function EventResources() {
                 <CardTitle className="text-base">Category Summary</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                   {Object.entries(stats.categoryTotals).map(([category, data]) => {
                     const Icon = categoryIcons[category] || Package;
                     return (
@@ -575,6 +575,7 @@ export default function EventResources() {
                   <Loader2 className="h-6 w-6 animate-spin text-teal-600 dark:text-teal-400" />
                 </div>
               ) : (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -643,6 +644,7 @@ export default function EventResources() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               )}
 
               {filteredResources.length === 0 && !loading && (
@@ -683,7 +685,7 @@ export default function EventResources() {
                 placeholder="Projector, Microphone, Catering..."
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Category</Label>
                 <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
@@ -723,7 +725,7 @@ export default function EventResources() {
                 rows={2}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Quantity</Label>
                 <Input
@@ -744,7 +746,7 @@ export default function EventResources() {
             <div className="text-right text-sm text-muted-foreground">
               Total: <span className="font-bold text-foreground">{formatCurrency(formData.quantity * formData.unitPrice)}</span>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Vendor Name</Label>
                 <Input
@@ -762,7 +764,7 @@ export default function EventResources() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Setup Time</Label>
                 <Input
@@ -815,7 +817,7 @@ export default function EventResources() {
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Category</Label>
                 <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
@@ -856,7 +858,7 @@ export default function EventResources() {
                 rows={2}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Quantity</Label>
                 <Input
@@ -877,7 +879,7 @@ export default function EventResources() {
             <div className="text-right text-sm text-muted-foreground">
               Total: <span className="font-bold text-foreground">{formatCurrency(formData.quantity * formData.unitPrice)}</span>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Vendor Name</Label>
                 <Input
@@ -893,7 +895,7 @@ export default function EventResources() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Setup Time</Label>
                 <Input

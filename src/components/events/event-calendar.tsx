@@ -481,7 +481,7 @@ export default function EventCalendar() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card>
           <CardContent className="pt-4">
             <div className="text-sm text-muted-foreground">Total</div>
@@ -645,7 +645,8 @@ export default function EventCalendar() {
             </div>
           ) : (
             /* Month / Week Grid */
-            <div className={`grid grid-cols-7 gap-1 ${viewMode === 'week' ? 'min-h-[500px]' : ''}`}>
+            <div className="overflow-x-auto">
+            <div className={`grid grid-cols-7 gap-1 ${viewMode === 'week' ? 'min-h-[500px]' : ''} min-w-[640px]`}>
               {/* Weekday Headers */}
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                 <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
@@ -697,6 +698,7 @@ export default function EventCalendar() {
                 );
               })}
             </div>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -723,7 +725,7 @@ export default function EventCalendar() {
                 <Badge variant="outline">{selectedEvent.type}</Badge>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm">
                     <Building className="h-4 w-4 text-muted-foreground" />
@@ -762,7 +764,7 @@ export default function EventCalendar() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">
                 <div>
                   <div className="text-sm text-muted-foreground">Space Charge</div>
                   <div className="font-medium">{formatCurrency(selectedEvent.spaceCharge)}</div>

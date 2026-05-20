@@ -531,7 +531,7 @@ export default function CurrencyConfig() {
   // STATS CARDS
   // ============================================
   const StatsCards = () => (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
       <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/20">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
@@ -834,7 +834,7 @@ export default function CurrencyConfig() {
       )}
 
       {/* Currencies row */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label>Source Currency</Label>
           <Select
@@ -874,7 +874,7 @@ export default function CurrencyConfig() {
       </div>
 
       {/* Exchange Rate */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label>Exchange Rate *</Label>
           <Input
@@ -906,7 +906,7 @@ export default function CurrencyConfig() {
       </div>
 
       {/* Conversion Type & Rounding */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label>Conversion Type</Label>
           <Select

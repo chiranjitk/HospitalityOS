@@ -662,7 +662,7 @@ export default function LiveSessions() {
         </div>
 
         {/* Row 2: Key info grid */}
-        <div className="grid grid-cols-3 gap-2 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
           <div>
             <p className="text-muted-foreground mb-0.5">MAC</p>
             <p className="font-mono truncate">{session.macAddress || '—'}</p>
@@ -705,7 +705,7 @@ export default function LiveSessions() {
         )}
 
         {/* Row 3: Bandwidth + Data */}
-        <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
           <div className="rounded-md bg-muted/50 p-2">
             <p className="text-muted-foreground mb-1">Bandwidth</p>
             <div className="flex items-center gap-2">
@@ -830,7 +830,7 @@ export default function LiveSessions() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-primary/10">
@@ -1162,8 +1162,8 @@ export default function LiveSessions() {
             <DialogDescription>Detailed information for user session</DialogDescription>
           </DialogHeader>
           {selectedSession && (
-            <div className="grid gap-4 py-4 overflow-y-auto flex-1 -mx-6 px-6">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 py-4 overflow-auto flex-1 -mx-6 px-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground">Username</p>
                   <p className="text-sm font-medium">{selectedSession.username}</p>
@@ -1176,7 +1176,7 @@ export default function LiveSessions() {
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground">IP Address</p>
                   <p className="text-sm font-mono">{selectedSession.ipAddress || '—'}</p>
@@ -1188,7 +1188,7 @@ export default function LiveSessions() {
               </div>
               {/* Guest info */}
               {(selectedSession.guestName || selectedSession.roomId || selectedSession.propertyName) && (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   {selectedSession.guestName && (
                     <div>
                       <p className="text-xs text-muted-foreground">Guest</p>
@@ -1212,7 +1212,7 @@ export default function LiveSessions() {
               {/* Device info from DeviceProfile */}
               <div className="border-t pt-4">
                 <p className="text-xs font-medium text-muted-foreground mb-2">Device & Browser</p>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Device</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -1240,7 +1240,7 @@ export default function LiveSessions() {
               </div>
               <div className="border-t pt-4">
                 <p className="text-xs font-medium text-muted-foreground mb-2">Bandwidth & Plan</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Download</p>
                     <p className="text-sm">{selectedSession.bandwidthDown || '—'}</p>
@@ -1272,7 +1272,7 @@ export default function LiveSessions() {
                   <p className="text-xs font-medium text-muted-foreground">Session Info</p>
                   <SessionTermsInfoButton />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Session Time</p>
                     <p className="text-sm font-medium tabular-nums">{formatDuration(liveSessionTime)}</p>
@@ -1329,7 +1329,7 @@ export default function LiveSessions() {
           <div className="py-4 space-y-3">
             <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
               <p className="text-sm font-medium">{selectedIds.size} session{selectedIds.size !== 1 ? 's' : ''} selected</p>
-              <div className="mt-2 max-h-32 overflow-y-auto space-y-1">
+              <div className="mt-2 max-h-32 overflow-auto space-y-1">
                 {uniqueSessions.filter(s => selectedIds.has(s.id)).map((s, idx) => (
                   <div key={`${s.id}_${idx}`} className="flex items-center gap-2 text-xs text-muted-foreground">
                     <UserCircle className="h-3.5 w-3.5 shrink-0" />

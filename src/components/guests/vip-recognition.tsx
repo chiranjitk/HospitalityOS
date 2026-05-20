@@ -476,7 +476,7 @@ export default function VipRecognition() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-0 shadow-sm bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -539,7 +539,7 @@ export default function VipRecognition() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="dashboard" className="gap-1.5"><Eye className="h-3.5 w-3.5 hidden sm:block" />Dashboard</TabsTrigger>
           <TabsTrigger value="tiers" className="gap-1.5"><Award className="h-3.5 w-3.5 hidden sm:block" />Tier Config</TabsTrigger>
           <TabsTrigger value="rules" className="gap-1.5"><Shield className="h-3.5 w-3.5 hidden sm:block" />Rules Engine</TabsTrigger>
@@ -669,6 +669,7 @@ export default function VipRecognition() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="max-h-[500px] overflow-y-auto">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -743,6 +744,7 @@ export default function VipRecognition() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -776,7 +778,7 @@ export default function VipRecognition() {
                   {/* Qualification Rules */}
                   <div>
                     <h4 className="text-sm font-medium mb-2">Qualification Requirements</h4>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="p-3 rounded-lg bg-white/60 dark:bg-black/20 border">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <DollarSign className="h-3.5 w-3.5" /> Total Spend
@@ -937,6 +939,7 @@ export default function VipRecognition() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="max-h-[600px] overflow-y-auto">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -989,6 +992,7 @@ export default function VipRecognition() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -997,7 +1001,7 @@ export default function VipRecognition() {
 
       {/* Guest Detail Dialog */}
       <Dialog open={isGuestDialogOpen} onOpenChange={setIsGuestDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           {selectedGuest && (
             <>
               <DialogHeader>
@@ -1021,7 +1025,7 @@ export default function VipRecognition() {
 
               <div className="space-y-4">
                 {/* Guest Stats */}
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="text-center p-3 rounded-lg bg-muted/50">
                     <DollarSign className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
                     <p className="font-bold">${selectedGuest.totalSpent.toLocaleString()}</p>
@@ -1050,7 +1054,7 @@ export default function VipRecognition() {
                     <Eye className="h-4 w-4 text-emerald-600" />
                     Know Before They Arrive
                   </h4>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {selectedGuest.dietaryPreference && (
                       <div className="p-2.5 rounded-lg border text-sm">
                         <span className="text-muted-foreground text-xs">Dietary:</span>

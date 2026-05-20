@@ -539,7 +539,7 @@ const t = useTranslations('billing');
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <Card className="p-3 sm:p-4">
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="p-2 rounded-lg bg-emerald-500/10 shrink-0">
@@ -1080,7 +1080,7 @@ const t = useTranslations('billing');
                 <div className="px-4 py-3 bg-muted/30 border-b">
                   <h4 className="text-sm font-semibold">{t('lineItems')}</h4>
                 </div>
-                <div className="hidden sm:block">
+                <div className="hidden sm:block overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>

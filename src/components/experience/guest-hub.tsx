@@ -619,7 +619,7 @@ export default function GuestHub() {
         {/* ─── Communication Center ───────────────────────────────────────── */}
         <TabsContent value="communication" className="space-y-4">
           {/* Quick Stats */}
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             <Card className="p-4 border-l-4 border-l-emerald-500">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg bg-emerald-500/10">
@@ -696,7 +696,7 @@ export default function GuestHub() {
           </div>
 
           {/* Conversation List + Detail */}
-          <div className="grid gap-4 md:grid-cols-5">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
             {/* Conversation List */}
             <Card className="md:col-span-2">
               <CardContent className="p-0">
@@ -866,7 +866,7 @@ export default function GuestHub() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
                 {[
                   { channel: 'Chat', target: '< 2 min', current: '1.5 min', met: true },
                   { channel: 'WhatsApp', target: '< 5 min', current: '3.2 min', met: true },
@@ -898,7 +898,7 @@ export default function GuestHub() {
         {/* ─── Service Request Management ─────────────────────────────────── */}
         <TabsContent value="service-requests" className="space-y-4">
           {/* Stats */}
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
             {[
               { label: 'New', count: serviceRequests.filter(r => r.status === 'new').length, color: 'text-slate-500', bg: 'bg-slate-500/10' },
               { label: 'Assigned', count: serviceRequests.filter(r => r.status === 'assigned').length, color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
@@ -951,6 +951,7 @@ export default function GuestHub() {
           <Card>
             <CardContent className="p-0">
               <ScrollArea className="max-h-[500px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1022,6 +1023,7 @@ export default function GuestHub() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1030,7 +1032,7 @@ export default function GuestHub() {
         {/* ─── Guest Feedback Hub ─────────────────────────────────────────── */}
         <TabsContent value="feedback" className="space-y-4">
           {/* Sentiment Summary */}
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             <Card className="p-4 border-l-4 border-l-amber-500">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg bg-amber-500/10">
@@ -1119,6 +1121,7 @@ export default function GuestHub() {
             </CardHeader>
             <CardContent className="p-0">
               <ScrollArea className="max-h-[400px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1195,6 +1198,7 @@ export default function GuestHub() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1203,7 +1207,7 @@ export default function GuestHub() {
         {/* ─── Loyalty Dashboard ──────────────────────────────────────────── */}
         <TabsContent value="loyalty" className="space-y-4">
           {/* Tier Overview */}
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
             {(['bronze', 'silver', 'gold', 'platinum', 'diamond'] as const).map((tier) => {
               const config = tierConfig[tier];
               const count = loyaltyGuests.filter(g => g.tier === tier).length;
@@ -1232,6 +1236,7 @@ export default function GuestHub() {
             </CardHeader>
             <CardContent className="p-0">
               <ScrollArea className="max-h-[400px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1300,6 +1305,7 @@ export default function GuestHub() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1313,7 +1319,7 @@ export default function GuestHub() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
                 {redemptionCatalog.length === 0 ? (
                   <div className="col-span-full flex flex-col items-center justify-center py-8 text-muted-foreground">
                     <Gift className="h-8 w-8 mb-2 opacity-30" />
@@ -1340,7 +1346,7 @@ export default function GuestHub() {
         {/* ─── Personalization Engine ─────────────────────────────────────── */}
         <TabsContent value="personalization" className="space-y-4">
           {/* Guest Preference Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {preferenceCards.length === 0 ? (
               <div className="col-span-full flex flex-col items-center justify-center py-12 text-muted-foreground">
                 <Target className="h-10 w-10 mb-3 opacity-30" />
@@ -1368,7 +1374,7 @@ export default function GuestHub() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {/* Preferences Grid */}
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {card.preferences.map((pref, pIdx) => (
                       <div key={pIdx} className="p-2 rounded-md bg-muted/50">
                         <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{pref.category}</p>
@@ -1435,7 +1441,7 @@ export default function GuestHub() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
                 <div className="p-3 rounded-lg bg-muted/50">
                   <div className="text-2xl font-bold">{preferenceCards.length}</div>
                   <div className="text-xs text-muted-foreground">Guests Profiled</div>
@@ -1470,7 +1476,7 @@ export default function GuestHub() {
           </DialogHeader>
           {selectedRequest && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-xs text-muted-foreground">Guest</Label>
                   <p className="text-sm font-medium">{selectedRequest.guestName}</p>
@@ -1564,7 +1570,7 @@ export default function GuestHub() {
                   <p className="text-sm text-muted-foreground mt-1">Member since {selectedLoyaltyGuest.joinedAt}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="p-3 rounded-lg bg-muted/50">
                   <div className="text-xl font-bold text-primary">{selectedLoyaltyGuest.points.toLocaleString()}</div>
                   <div className="text-xs text-muted-foreground">Points Balance</div>
@@ -1635,7 +1641,7 @@ export default function GuestHub() {
           </DialogHeader>
           {selectedPreference && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {selectedPreference.preferences.map((pref, i) => (
                   <div key={i} className="p-3 rounded-lg border">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{pref.category}</p>

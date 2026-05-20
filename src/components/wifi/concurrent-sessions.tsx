@@ -380,6 +380,7 @@ export default function ConcurrentSessions() {
             </div>
           ) : (
             <ScrollArea className="max-h-[400px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -451,6 +452,7 @@ export default function ConcurrentSessions() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>
@@ -497,6 +499,7 @@ export default function ConcurrentSessions() {
             </div>
           ) : (
             <ScrollArea className="max-h-[360px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -559,6 +562,7 @@ export default function ConcurrentSessions() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>

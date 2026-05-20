@@ -707,7 +707,7 @@ function OverrideForm({ formData, setFormData, ratePlans, isEdit }: OverrideForm
       </div>
 
       {/* Date and Price */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="date">Date *</Label>
           <Input
@@ -768,7 +768,7 @@ function OverrideForm({ formData, setFormData, ratePlans, isEdit }: OverrideForm
       {/* Restrictions */}
       <div className="space-y-3">
         <Label>Restrictions</Label>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <Switch
               checked={formData.closedToArrival as boolean}

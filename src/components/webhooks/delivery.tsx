@@ -77,7 +77,7 @@ export default function WebhookDelivery() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="border-l-4 border-l-cyan-500">
           <CardHeader className="pb-2">
             <CardDescription>Total Deliveries</CardDescription>
@@ -107,6 +107,7 @@ export default function WebhookDelivery() {
       {/* Deliveries Table */}
       <Card>
         <CardContent className="pt-6">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -159,6 +160,7 @@ export default function WebhookDelivery() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

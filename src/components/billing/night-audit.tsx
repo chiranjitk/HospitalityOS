@@ -298,7 +298,7 @@ export default function NightAudit() {
 
       {isLoading ? (
         <div className="space-y-4">
-          <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             {[...Array(4)].map((_, i) => (
               <Card key={i} className="p-4"><Skeleton className="h-12 w-full" /></Card>
             ))}
@@ -308,7 +308,7 @@ export default function NightAudit() {
       ) : (
         <>
           {/* Stats Cards */}
-          <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             <Card className="p-4 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 hover:-translate-y-0.5">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg bg-emerald-500/10">
@@ -393,7 +393,7 @@ export default function NightAudit() {
 
                     {/* Daily Summary */}
                     {dailySummary && (
-                      <div className="grid gap-3 grid-cols-3 max-w-md mx-auto mt-6">
+                      <div className="grid gap-3 grid-cols-1 sm:grid-cols-3 max-w-md mx-auto mt-6">
                         <div className="text-center p-3 rounded-lg bg-muted/50">
                           <Users className="h-5 w-5 mx-auto mb-1 text-blue-500" />
                           <div className="text-xl font-bold">{dailySummary.inHouseGuests}</div>

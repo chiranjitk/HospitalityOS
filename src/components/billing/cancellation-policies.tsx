@@ -623,7 +623,7 @@ const t = useTranslations('billing');
       </div>
 
       {/* ── Stats Cards ── */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-lg bg-violet-500/10">
@@ -955,7 +955,7 @@ const t = useTranslations('billing');
             </div>
 
             {/* Property + Rate Plan */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Property</Label>
                 <Select value={formPropertyId} onValueChange={(val) => {

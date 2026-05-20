@@ -552,7 +552,7 @@ export default function PackagePlansPage() {
               <div className="space-y-1.5"><Label>Start Date *</Label><Input type="date" value={pkgForm.startDate} onChange={e => setPkgForm(p => ({ ...p, startDate: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>End Date *</Label><Input type="date" value={pkgForm.endDate} onChange={e => setPkgForm(p => ({ ...p, endDate: e.target.value }))} /></div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <div className="space-y-1.5"><Label>Min Nights</Label><Input type="number" min="1" value={pkgForm.minNights} onChange={e => setPkgForm(p => ({ ...p, minNights: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>Max Nights</Label><Input type="number" value={pkgForm.maxNights} onChange={e => setPkgForm(p => ({ ...p, maxNights: e.target.value }))} placeholder="No max" /></div>
               <div className="space-y-1.5">
@@ -741,11 +741,11 @@ export default function PackagePlansPage() {
               </Select>
             </div>
             <div className="space-y-1.5"><Label>Price *</Label><Input type="number" step="0.01" value={rateForm.price} onChange={e => setRateForm(p => ({ ...p, price: e.target.value }))} placeholder="0.00" /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Start Date *</Label><Input type="date" value={rateForm.startDate} onChange={e => setRateForm(p => ({ ...p, startDate: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>End Date *</Label><Input type="date" value={rateForm.endDate} onChange={e => setRateForm(p => ({ ...p, endDate: e.target.value }))} /></div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Min Stay</Label><Input type="number" min="1" value={rateForm.minStay} onChange={e => setRateForm(p => ({ ...p, minStay: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>Max Stay</Label><Input type="number" value={rateForm.maxStay} onChange={e => setRateForm(p => ({ ...p, maxStay: e.target.value }))} placeholder="No max" /></div>
             </div>

@@ -549,7 +549,7 @@ export default function RoomRateCalendar() {
       </div>
 
       {/* Stats bar */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
         <Card className="p-3 bg-blue-50 dark:bg-blue-950/30 border-blue-200/50 dark:border-blue-800/30">
           <div className="text-center">
             <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(avgRate)}</p>
@@ -582,7 +582,7 @@ export default function RoomRateCalendar() {
             </div>
           ) : (
             <ScrollArea className="w-full">
-              <div className="min-w-[900px]">
+              <div>
                 {ratePlans.filter(rp => !selectedRoomType || rp.roomType?.id === selectedRoomType).length === 0 && (
                   <div className="text-center py-8 text-muted-foreground">
                     No rate plans configured for this room type. Create rate plans first.
@@ -749,7 +749,7 @@ export default function RoomRateCalendar() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Date Range</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <Input
                   type="date"
                   value={bulkStartDate}

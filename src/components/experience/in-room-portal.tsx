@@ -283,7 +283,7 @@ export default function InRoomPortal() {
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-9 w-24" />
         </div>
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 lg:grid-cols-6">
           {Array.from({ length: 6 }).map((_, i) => (
             <Card key={i}>
               <CardContent className="p-4">
@@ -352,7 +352,7 @@ export default function InRoomPortal() {
           <CardDescription>Manage your room environment</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 lg:grid-cols-6">
             {portalData.controls.map((control) => {
               const Icon = controlIcons[control.type] || Lightbulb;
               return (

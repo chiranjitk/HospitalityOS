@@ -727,6 +727,7 @@ export function BookingPaceAnalysis() {
               </CardHeader>
               <CardContent className="p-0">
                 <ScrollArea className="max-h-[500px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -794,6 +795,7 @@ export function BookingPaceAnalysis() {
                       })}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </CardContent>
             </Card>
@@ -813,6 +815,7 @@ export function BookingPaceAnalysis() {
               </CardHeader>
               <CardContent className="p-0">
                 <ScrollArea className="max-h-[400px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -886,6 +889,7 @@ export function BookingPaceAnalysis() {
                       )}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </CardContent>
             </Card>
@@ -943,6 +947,7 @@ export function BookingPaceAnalysis() {
                 </CardHeader>
                 <CardContent className="p-0">
                   <ScrollArea className="max-h-[400px]">
+                    <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -993,6 +998,7 @@ export function BookingPaceAnalysis() {
                         })}
                       </TableBody>
                     </Table>
+                    </div>
                   </ScrollArea>
                 </CardContent>
               </Card>

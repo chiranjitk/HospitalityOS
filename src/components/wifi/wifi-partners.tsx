@@ -586,7 +586,7 @@ export default function WifiPartners() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="rounded-lg bg-purple-50 dark:bg-purple-950/30 p-2.5">
@@ -929,7 +929,8 @@ export default function WifiPartners() {
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                <div className="overflow-auto max-h-96">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -982,6 +983,7 @@ export default function WifiPartners() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -1186,7 +1188,7 @@ export default function WifiPartners() {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Partner Type</Label>
                 <Select value={formData.partnerType} onValueChange={(v) => setFormData({ ...formData, partnerType: v })}>
@@ -1215,7 +1217,7 @@ export default function WifiPartners() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <div className="space-y-2">
                 <Label>Cost/Auth (₹)</Label>
                 <Input
@@ -1300,7 +1302,7 @@ export default function WifiPartners() {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Partner Type</Label>
                 <Select value={formData.partnerType} onValueChange={(v) => setFormData({ ...formData, partnerType: v })}>
@@ -1329,7 +1331,7 @@ export default function WifiPartners() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <div className="space-y-2">
                 <Label>Cost/Auth (₹)</Label>
                 <Input

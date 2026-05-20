@@ -1013,7 +1013,7 @@ function RecordsTab() {
               <Label>Value *</Label>
               <Input placeholder={form.type === 'A' ? '192.168.1.10' : form.type === 'CNAME' ? 'server.hotel.local' : 'value'} value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>TTL (seconds)</Label>
                 <Input type="number" value={form.ttl} onChange={(e) => setForm({ ...form, ttl: parseInt(e.target.value) || 300 })} />
@@ -1393,7 +1393,7 @@ function CacheTab() {
       </div>
 
       {/* Top stats cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Cache Capacity', value: cacheStats?.capacity || 0, icon: Database, color: 'text-primary', bg: 'bg-primary/5 dark:bg-primary/5', suffix: ' entries' },
           { label: 'Cache Status', value: cacheStats?.status || 'N/A', icon: Activity, color: 'text-primary', bg: 'bg-primary/5 dark:bg-primary/5', isText: true },
@@ -1428,7 +1428,7 @@ function CacheTab() {
           <CardDescription>DNS queries were sent twice — if the second query is faster, caching is working</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center p-3 rounded-lg bg-blue-50 dark:bg-blue-950">
               <p className="text-xs text-muted-foreground">Cold Query</p>
               <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{cacheStats?.coldQueryMs || 0}ms</p>
@@ -1482,7 +1482,7 @@ function CacheTab() {
                     </div>
                     <span className="text-sm text-muted-foreground">Avg: <span className="text-primary font-medium">{fw.latency}ms</span></span>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-center">
                     <div>
                       <p className="text-lg font-bold">{fw.queries}</p>
                       <p className="text-xs text-muted-foreground">Queries Sent</p>

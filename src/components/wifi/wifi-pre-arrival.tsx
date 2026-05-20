@@ -491,6 +491,7 @@ export default function WifiPreArrival() {
           ) : (
             <>
               <ScrollArea className="max-h-96">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -555,6 +556,7 @@ export default function WifiPreArrival() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
               {/* Pagination */}
               {logsTotalPages > 1 && (

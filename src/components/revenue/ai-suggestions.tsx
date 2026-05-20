@@ -284,7 +284,7 @@ const t = useTranslations('revenue');
 
       {/* Suggestions Tabs */}
       <Tabs defaultValue="all">
-        <TabsList className="grid w-full grid-cols-4 max-w-[500px]">
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 max-w-[500px]">
           <TabsTrigger value="all">All ({suggestions.length})</TabsTrigger>
           <TabsTrigger value="pricing">Pricing</TabsTrigger>
           <TabsTrigger value="marketing">Marketing</TabsTrigger>

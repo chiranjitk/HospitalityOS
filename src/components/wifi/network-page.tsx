@@ -1803,7 +1803,7 @@ export default function NetworkPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="pt-0">
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                       <div className="space-y-0.5">
                         <span className="text-muted-foreground">IP Address{(iface.allIps?.length || 0) > 1 ? 'es' : ''}</span>
                         {(iface.allIps || []).map((ip, idx) => (
@@ -1847,6 +1847,7 @@ export default function NetworkPage() {
             ) : (
             <Card>
               <CardContent className="p-0">
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/30">
@@ -1942,6 +1943,7 @@ export default function NetworkPage() {
                     })}
                   </TableBody>
                 </Table>
+              </div>
               </CardContent>
             </Card>
             )}
@@ -1994,7 +1996,7 @@ export default function NetworkPage() {
                   <DialogTitle>Edit Interface — {selectedInterface?.name}</DialogTitle>
                   <DialogDescription>Modify interface configuration</DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-2 max-h-[70vh] overflow-y-auto pr-2">
+                <div className="grid gap-4 py-2 max-h-[70vh] overflow-auto pr-2">
                   {/* Basic Settings */}
                   <div className="space-y-2">
                     <Label>Interface Name</Label>
@@ -2162,7 +2164,7 @@ export default function NetworkPage() {
                           <div className="space-y-2">
                             {interfaceAliases.map((alias, idx) => (
                               <div key={idx} className="flex items-center gap-2 bg-muted/50 rounded-md p-2">
-                                <div className="flex-1 grid grid-cols-3 gap-2 text-xs">
+                                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
                                   <span className="font-mono font-medium">{alias.ipAddress}</span>
                                   <span className="font-mono text-muted-foreground">{alias.netmask}</span>
                                   <span className="text-muted-foreground truncate">{alias.description}</span>
@@ -2175,7 +2177,7 @@ export default function NetworkPage() {
                             ))}
                           </div>
                         )}
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                           <Input className="font-mono text-xs h-8" placeholder="IP Address" value={newAlias.ipAddress}
                             onChange={e => setNewAlias(p => ({ ...p, ipAddress: e.target.value }))} />
                           <Select value={newAlias.netmask} onValueChange={v => setNewAlias(p => ({ ...p, netmask: v }))}>
@@ -2202,7 +2204,7 @@ export default function NetworkPage() {
 
                   {/* Read-only info */}
                   {selectedInterface && (
-                    <div className="grid grid-cols-2 gap-4 text-sm bg-muted/50 rounded-lg p-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm bg-muted/50 rounded-lg p-3">
                       <div><span className="text-muted-foreground">MAC:</span> <span className="font-mono">{selectedInterface.mac}</span></div>
                       <div><span className="text-muted-foreground">Speed:</span> {selectedInterface.speed}</div>
                       <div><span className="text-muted-foreground">IP:</span> <span className="font-mono">{selectedInterface.ipAddress}</span></div>
@@ -2240,6 +2242,7 @@ export default function NetworkPage() {
             ) : (
             <Card>
               <CardContent className="p-0">
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/30">
@@ -2295,6 +2298,7 @@ export default function NetworkPage() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
               </CardContent>
             </Card>
             )}
@@ -2332,7 +2336,7 @@ export default function NetworkPage() {
                   </div>
                   <Separator />
                   <p className="text-xs font-semibold text-muted-foreground">VLAN Gateway IP Configuration</p>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>IP Address</Label>
                       <Input className="font-mono" placeholder="192.168.10.1" value={newVlan.ipAddress} onChange={e => setNewVlan(p => ({ ...p, ipAddress: e.target.value }))} />
@@ -2393,7 +2397,8 @@ export default function NetworkPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <Table>
+              <div className="overflow-x-auto">
+                <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/30">
                         <TableHead className="font-semibold">Name</TableHead>
@@ -2437,6 +2442,7 @@ export default function NetworkPage() {
                       ))}
                     </TableBody>
                   </Table>
+                </div>
                 </CardContent>
               </Card>
             )}
@@ -2455,7 +2461,8 @@ export default function NetworkPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <Table>
+              <div className="overflow-x-auto">
+                <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/30">
                         <TableHead className="font-semibold">Name</TableHead>
@@ -2505,6 +2512,7 @@ export default function NetworkPage() {
                       ))}
                     </TableBody>
                   </Table>
+                </div>
                 </CardContent>
               </Card>
             )}
@@ -2527,6 +2535,7 @@ export default function NetworkPage() {
             ) : (
             <Card>
               <CardContent className="p-0">
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/30">
@@ -2564,6 +2573,7 @@ export default function NetworkPage() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
               </CardContent>
             </Card>
             )}
@@ -2593,7 +2603,7 @@ export default function NetworkPage() {
                     <Label>Gateway</Label>
                     <Input className="font-mono" placeholder="e.g., 192.168.1.254" value={newRoute.gateway} onChange={e => setNewRoute(p => ({ ...p, gateway: e.target.value }))} />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Interface</Label>
                       <Select value={newRoute.interfaceName} onValueChange={v => setNewRoute(p => ({ ...p, interfaceName: v }))}>
@@ -2962,7 +2972,7 @@ export default function NetworkPage() {
               </div>
               <div className="space-y-2">
                 <Label>Member Interfaces</Label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                   {interfaces.filter(i => i.type === 'ethernet' && !bridges.some(b => b.members.includes(i.name))).map(i => (
                     <label key={i.id} className="flex items-center gap-2 p-2 rounded-md border hover:bg-muted/50 cursor-pointer">
                       <input type="checkbox" checked={newBridge.members.includes(i.name)}
@@ -2976,7 +2986,7 @@ export default function NetworkPage() {
                 <Switch checked={newBridge.stp} onCheckedChange={v => setNewBridge(p => ({ ...p, stp: v }))} />
                 <Label>Enable STP (Spanning Tree Protocol)</Label>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>IP Address (Optional)</Label>
                   <Input className="font-mono" placeholder="192.168.1.1" value={newBridge.ipAddress} onChange={e => setNewBridge(p => ({ ...p, ipAddress: e.target.value }))} />
@@ -3033,7 +3043,7 @@ export default function NetworkPage() {
                   return available.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-3">No available ethernet interfaces. All may be in use by bridges or existing bonds.</p>
                   ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                       {available.map(i => (
                         <label key={i.id} className="flex items-center gap-2 p-2 rounded-md border hover:bg-muted/50 cursor-pointer">
                           <input type="checkbox" checked={newBond.members.includes(i.name)}
@@ -3046,7 +3056,7 @@ export default function NetworkPage() {
                   );
                 })()}
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>MIIMon (ms)</Label>
                   <Input type="number" value={newBond.miimon} onChange={e => setNewBond(p => ({ ...p, miimon: parseInt(e.target.value) || 100 }))} />
@@ -3071,7 +3081,7 @@ export default function NetworkPage() {
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>IP Address (Optional)</Label>
                   <Input className="font-mono" placeholder="10.0.2.1" value={newBond.ipAddress} onChange={e => setNewBond(p => ({ ...p, ipAddress: e.target.value }))} />
@@ -3110,6 +3120,7 @@ export default function NetworkPage() {
             ) : (
             <Card>
               <CardContent className="p-0">
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/30">
@@ -3181,6 +3192,7 @@ export default function NetworkPage() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
               </CardContent>
             </Card>
             )}
@@ -3224,7 +3236,7 @@ export default function NetworkPage() {
                       ))}
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Start Time</Label>
                       <Input

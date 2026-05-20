@@ -321,7 +321,7 @@ export default function EventSpaces() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Spaces</CardTitle>
@@ -546,7 +546,7 @@ export default function EventSpaces() {
                 rows={3}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="minCapacity">Min Capacity</Label>
                 <Input
@@ -566,7 +566,7 @@ export default function EventSpaces() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="sizeSqMeters">Size (sq meters)</Label>
                 <Input
@@ -586,7 +586,7 @@ export default function EventSpaces() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="hourlyRate">Hourly Rate ($)</Label>
                 <Input
@@ -687,7 +687,7 @@ export default function EventSpaces() {
                 rows={3}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Min Capacity</Label>
                 <Input
@@ -705,7 +705,7 @@ export default function EventSpaces() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Size (sq meters)</Label>
                 <Input
@@ -723,7 +723,7 @@ export default function EventSpaces() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label>Hourly Rate ($)</Label>
                 <Input

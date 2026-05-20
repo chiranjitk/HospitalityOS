@@ -180,7 +180,7 @@ export function StayHistory({ guestId }: StayHistoryProps) {
   return (
     <div className="space-y-6">
       {/* Summary Stats */}
-      <div className="grid gap-4 grid-cols-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <History className="h-4 w-4 text-muted-foreground" />

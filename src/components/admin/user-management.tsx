@@ -526,7 +526,7 @@ export function UserManagement() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="hover:shadow-lg hover:shadow-primary/5 transition-all duration-200">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -708,6 +708,7 @@ export function UserManagement() {
             </div>
             {/* Desktop: Table layout */}
             <div className="hidden sm:block">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -831,6 +832,7 @@ export function UserManagement() {
                   )}
                 </TableBody>
               </Table>
+              </div>
             </div>
           </ScrollArea>
         </CardContent>

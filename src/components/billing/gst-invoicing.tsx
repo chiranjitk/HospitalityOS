@@ -113,7 +113,7 @@ export default function GstInvoicingPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}>
           <Card className="p-4"><div className="flex items-center gap-3"><div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg"><FileText className="h-5 w-5 text-blue-600" /></div><div><p className="text-sm text-muted-foreground">Total Invoices</p><p className="font-bold text-lg">{invoices.length}</p></div></div></Card>
         </motion.div>
@@ -178,7 +178,7 @@ export default function GstInvoicingPage() {
           <DialogHeader><DialogTitle>Invoice Details</DialogTitle><DialogDescription>Full e-invoice information</DialogDescription></DialogHeader>
           {selectedInvoice && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div className="space-y-1"><span className="text-muted-foreground">Invoice #</span><p className="font-mono font-semibold">{selectedInvoice.invoiceNumber}</p></div>
                 <div className="space-y-1"><span className="text-muted-foreground">IRN</span><p className="font-mono text-xs break-all">{selectedInvoice.irn || 'N/A'}</p></div>
                 <div className="space-y-1"><span className="text-muted-foreground">Date</span><p>{selectedInvoice.invoiceDate ? new Date(selectedInvoice.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</p></div>

@@ -650,7 +650,7 @@ export default function SmartBandwidth() {
         </div>
 
         {/* Row 2: Key info grid */}
-        <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
           <div>
             <p className="text-muted-foreground mb-0.5">Cycle</p>
             <div className="flex items-center gap-1">
@@ -819,7 +819,7 @@ export default function SmartBandwidth() {
       </Card>
 
       {/* ─── Stats Cards ───────────────────────────────────────────────── */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         {/* Total Policies */}
         <Card className="p-4">
           <div className="flex items-center gap-2">
@@ -1257,7 +1257,7 @@ export default function SmartBandwidth() {
             {/* Cycle Type */}
             <div className="space-y-2">
               <Label>Cycle Type</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                 {CYCLE_OPTIONS.map((opt) => (
                   <Button
                     key={opt.value}
@@ -1358,7 +1358,7 @@ export default function SmartBandwidth() {
                   <Zap className="h-4 w-4" />
                   Throttle Speeds
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="fap-throttle-dl" className="text-xs">
                       Download (Mbps)
@@ -1500,7 +1500,7 @@ export default function SmartBandwidth() {
 
           {enforceResult && (
             <div className="py-4 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-lg border p-3 text-center">
                   <div className="text-2xl font-bold tabular-nums">{enforceResult.totalChecked}</div>
                   <div className="text-xs text-muted-foreground">Users Checked</div>

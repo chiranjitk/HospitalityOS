@@ -566,7 +566,7 @@ export default function RetentionAnalytics() {
                 </div>
               ) : (
                 <ScrollArea className="w-full">
-                  <div className="min-w-[600px]">
+                  <div>
                     {/* Header */}
                     <div className="grid grid-cols-7 gap-2 mb-2 text-sm font-medium text-muted-foreground">
                       <div>Cohort</div>

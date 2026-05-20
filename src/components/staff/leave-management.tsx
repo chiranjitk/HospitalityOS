@@ -323,7 +323,7 @@ export default function LeaveManagement() {
     if (!userBalances) return null;
 
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {Object.entries(userBalances).map(([type, bal]) => (
           <div key={type} className="p-3 rounded-lg border bg-card">
             <div className="flex items-center justify-between mb-2">
@@ -354,7 +354,7 @@ export default function LeaveManagement() {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
           {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-24" />)}
         </div>
         <Skeleton className="h-96" />
@@ -396,7 +396,7 @@ export default function LeaveManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Start Date *</Label>
                   <Input
@@ -610,7 +610,8 @@ export default function LeaveManagement() {
               {calendarLoading ? (
                 <Skeleton className="h-[400px]" />
               ) : (
-                <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
+                <div className="overflow-x-auto">
+                <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden min-w-[640px]">
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                     <div key={day} className="bg-muted p-2 text-center text-xs font-medium text-muted-foreground">
                       {day}
@@ -641,6 +642,7 @@ export default function LeaveManagement() {
                       </div>
                     );
                   })}
+                </div>
                 </div>
               )}
             </CardContent>

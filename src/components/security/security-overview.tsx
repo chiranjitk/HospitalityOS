@@ -238,7 +238,7 @@ export default function SecurityOverview({ onNavigate }: SecurityOverviewProps) 
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2">
             {/* Security Score */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -270,7 +270,7 @@ export default function SecurityOverview({ onNavigate }: SecurityOverviewProps) 
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="bg-muted/50 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <Monitor className="h-4 w-4 text-muted-foreground" />
@@ -411,7 +411,7 @@ export default function SecurityOverview({ onNavigate }: SecurityOverviewProps) 
       </Card>
 
       {/* Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         <Card
           className="cursor-pointer hover:border-teal-500 transition-colors"
           role="button"

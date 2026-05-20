@@ -554,7 +554,7 @@ const t = useTranslations('pos');
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Items</CardTitle>
@@ -692,7 +692,7 @@ const t = useTranslations('pos');
                   onImageUploaded={(url) => setImageUrl(url)}
                   onImageRemoved={() => setImageUrl('')}
                 />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="price">Price *</Label>
                     <Input
@@ -721,7 +721,7 @@ const t = useTranslations('pos');
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="prepTime">Prep Time (min)</Label>
                     <Input
@@ -972,7 +972,7 @@ const t = useTranslations('pos');
                     placeholder="https://example.com/image.jpg"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="cat-sort">Sort Order</Label>
                     <Input
@@ -1219,7 +1219,7 @@ const t = useTranslations('pos');
                 onChange={(e) => setCategoryForm({ ...categoryForm, imageUrl: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-cat-sort">Sort Order</Label>
                 <Input
@@ -1284,7 +1284,7 @@ const t = useTranslations('pos');
                   rows={2}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-price">Price *</Label>
                   <Input
@@ -1312,7 +1312,7 @@ const t = useTranslations('pos');
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-prepTime">Prep Time (min)</Label>
                   <Input

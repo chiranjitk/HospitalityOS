@@ -889,7 +889,7 @@ export default function Campaigns() {
                         {abConfig.variants.a.subject && (
                           <p className="text-sm font-medium mb-2 truncate">Subject: {abConfig.variants.a.subject}</p>
                         )}
-                        <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                           <div className="p-2 bg-muted rounded">
                             <p className="text-lg font-bold">{Math.round(viewingCampaign.sentCount / 2)}</p>
                             <p className="text-xs text-muted-foreground">Sent</p>
@@ -918,7 +918,7 @@ export default function Campaigns() {
                         {abConfig.variants.b.subject && (
                           <p className="text-sm font-medium mb-2 truncate">Subject: {abConfig.variants.b.subject}</p>
                         )}
-                        <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                           <div className="p-2 bg-muted rounded">
                             <p className="text-lg font-bold">{Math.round(viewingCampaign.sentCount / 2)}</p>
                             <p className="text-xs text-muted-foreground">Sent</p>

@@ -608,7 +608,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
 
           <div className="space-y-6 py-4">
             {/* Basic Info */}
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="name">Connection Name</Label>
                 <Input
@@ -643,7 +643,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
                   <CardTitle className="text-base">SAML Configuration</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="samlSsoUrl">SSO URL *</Label>
                       <Input
@@ -711,7 +711,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
                   <CardTitle className="text-base">LDAP Configuration</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="ldapUrl">LDAP URL *</Label>
                       <Input
@@ -731,7 +731,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
                       />
                     </div>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="ldapBindDn">Bind DN (Service Account)</Label>
                       <Input
@@ -805,7 +805,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
                       Auto-configures endpoints from the discovery document
                     </p>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="oidcClientId">Client ID *</Label>
                       <Input
@@ -826,7 +826,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
                       />
                     </div>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="oidcScopes">Scopes</Label>
                       <Input
@@ -858,7 +858,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="emailAttribute">Email Attribute</Label>
                     <Input
@@ -884,7 +884,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
                     />
                   </div>
                 </div>
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="nameAttribute">Full Name Attribute</Label>
                     <Input
@@ -1061,7 +1061,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
             )}
 
             {/* Basic Info + Status */}
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="edit-name">Connection Name</Label>
                 <Input
@@ -1094,7 +1094,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
                   <CardTitle className="text-base">SAML Configuration</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="edit-samlSsoUrl">SSO URL *</Label>
                       <Input
@@ -1162,7 +1162,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
                   <CardTitle className="text-base">LDAP Configuration</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="edit-ldapUrl">LDAP URL *</Label>
                       <Input
@@ -1182,7 +1182,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
                       />
                     </div>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="edit-ldapBindDn">Bind DN (Service Account)</Label>
                       <Input
@@ -1256,7 +1256,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
                       Auto-configures endpoints from the discovery document
                     </p>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="edit-oidcClientId">Client ID *</Label>
                       <Input
@@ -1277,7 +1277,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
                       />
                     </div>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="edit-oidcScopes">Scopes</Label>
                       <Input
@@ -1309,7 +1309,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="edit-emailAttribute">Email Attribute</Label>
                     <Input
@@ -1335,7 +1335,7 @@ export function SSOConfig({ tenantId }: SSOConfigProps) {
                     />
                   </div>
                 </div>
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="edit-nameAttribute">Full Name Attribute</Label>
                     <Input

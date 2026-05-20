@@ -643,7 +643,7 @@ export default function WifiPlans() {
                   <Skeleton className="h-2 flex-1 rounded-full" />
                   <Skeleton className="h-2 flex-1 rounded-full" />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Skeleton className="h-4 w-20" />
                   <Skeleton className="h-4 w-20" />
                 </div>
@@ -911,7 +911,7 @@ export default function WifiPlans() {
                 rows={2}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="downloadSpeed">Download Speed (Mbps) *</Label>
                 <Input
@@ -933,7 +933,7 @@ export default function WifiPlans() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="burstDownloadSpeed" className="flex items-center gap-1.5">
                   Burst Download (Mbps)
@@ -981,7 +981,7 @@ export default function WifiPlans() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="dataLimit">Data Limit (MB)</Label>
@@ -1074,7 +1074,7 @@ export default function WifiPlans() {
               </p>
             </div>
             {/* Price & Currency */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="price">Price</Label>
                 <Input
@@ -1133,7 +1133,7 @@ export default function WifiPlans() {
               </p>
             </div>
             {/* Session Timeout & Idle Timeout */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
                   <Label htmlFor="sessionTimeout">Session Timeout</Label>
@@ -1170,7 +1170,7 @@ export default function WifiPlans() {
               </div>
             </div>
             {/* Priority & Status */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="priority">Priority</Label>
                 <Input

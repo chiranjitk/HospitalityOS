@@ -381,7 +381,7 @@ export default function RoomMove() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-3xl font-bold text-primary">{selectedBooking.room?.number || 'TBD'}</p>
                     <p className="text-sm text-muted-foreground">{selectedBooking.roomType.name}</p>
@@ -481,7 +481,7 @@ export default function RoomMove() {
                   >
                     <div className="p-4 bg-muted/50 rounded-lg">
                       <h4 className="text-sm font-medium mb-2">Room Comparison</h4>
-                      <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-sm">
                         <div>
                           <p className="text-xs text-muted-foreground">From</p>
                           <p className="font-bold">{selectedBooking.room?.number}</p>
@@ -615,6 +615,7 @@ export default function RoomMove() {
                     No room moves recorded for this booking
                   </p>
                 ) : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -651,6 +652,7 @@ export default function RoomMove() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>

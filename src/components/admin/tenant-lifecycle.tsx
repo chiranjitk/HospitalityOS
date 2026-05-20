@@ -252,7 +252,7 @@ export function TenantLifecycle() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="pb-2">
             <CardDescription>Total Tenants</CardDescription>
@@ -322,6 +322,7 @@ export function TenantLifecycle() {
         </CardHeader>
         <CardContent>
           <ScrollArea className="max-h-[500px]">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -463,6 +464,7 @@ export function TenantLifecycle() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </ScrollArea>
         </CardContent>
       </Card>

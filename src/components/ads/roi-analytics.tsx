@@ -172,7 +172,7 @@ export default function ROIAnalytics() {
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-9 w-32" />
         </div>
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i} className="border-0 shadow-sm">
               <CardContent className="pt-6">
@@ -230,7 +230,7 @@ export default function ROIAnalytics() {
 
       {/* Summary Cards */}
       {summary && (
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
@@ -349,7 +349,7 @@ export default function ROIAnalytics() {
       </Card>
 
       {/* ROAS Trend & Channel Comparison */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
         {/* ROAS Trend */}
         <Card className="border-0 shadow-sm">
           <CardHeader>
@@ -444,7 +444,7 @@ export default function ROIAnalytics() {
         </CardHeader>
         <CardContent>
           {insights.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {insights.map((insight, index) => (
                 <div
                   key={index}

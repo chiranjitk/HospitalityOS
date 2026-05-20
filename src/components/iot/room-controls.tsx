@@ -841,7 +841,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {devices.map(device => (
                   <div key={device.id}>
                     {device.type === 'thermostat' && <ThermostatControl device={device} />}
@@ -871,7 +871,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
           </TabsContent>
 
           <TabsContent value="climate" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {thermostats.map(device => (
                 <ThermostatControl key={device.id} device={device} />
               ))}
@@ -889,7 +889,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
           </TabsContent>
 
           <TabsContent value="lighting" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {lights.map(device => (
                 <LightControl key={device.id} device={device} />
               ))}
@@ -907,7 +907,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
           </TabsContent>
 
           <TabsContent value="security" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {locks.map(device => (
                 <LockControl key={device.id} device={device} />
               ))}
@@ -922,7 +922,7 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
           </TabsContent>
 
           <TabsContent value="entertainment" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {tvs.map(device => (
                 <TVControl key={device.id} device={device} />
               ))}

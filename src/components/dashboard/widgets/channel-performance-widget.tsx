@@ -212,7 +212,7 @@ function ChannelPerformanceSkeleton() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <Skeleton className="h-16 rounded-xl" />
           <Skeleton className="h-16 rounded-xl" />
         </div>
@@ -421,7 +421,7 @@ export function ChannelPerformanceWidget() {
 
       <CardContent className="space-y-4">
         {/* ── Summary Cards ── */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100/50 dark:border-emerald-800/50">
             <div className="flex items-center gap-1 mb-0.5">
               <span className="text-[10px] text-muted-foreground font-medium">{t('channelPerfBookings')}</span>

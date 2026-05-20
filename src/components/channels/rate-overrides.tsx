@@ -573,7 +573,7 @@ export function ChannelRateOverrides() {
           </div>
           <Skeleton className="h-10 w-32 rounded" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-24 rounded-lg" />
           ))}
@@ -613,7 +613,7 @@ export function ChannelRateOverrides() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-slate-500/10 to-slate-600/5 border-slate-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -754,7 +754,7 @@ export function ChannelRateOverrides() {
           {/* Calculator Result */}
           {calcResult && (
             <div className="mt-4 p-4 rounded-lg border bg-muted/30 space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground">Base Rate</p>
                   <p className="text-lg font-bold tabular-nums">${calcResult.baseRate.toFixed(2)}</p>
@@ -899,6 +899,7 @@ export function ChannelRateOverrides() {
         <Card>
           <CardContent className="p-0">
             <div className="max-h-[500px] overflow-y-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -997,6 +998,7 @@ export function ChannelRateOverrides() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           </CardContent>
         </Card>

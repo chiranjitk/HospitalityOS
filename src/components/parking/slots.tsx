@@ -364,7 +364,7 @@ export default function ParkingSlots() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-emerald-500/10">
@@ -474,7 +474,7 @@ export default function ParkingSlots() {
                 <CardTitle className="text-lg">Floor {floor}</CardTitle>
               </CardHeader>
               <CardContent className="p-4">
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
                   {floorSlots.map((slot) => (
                     <div
                       key={slot.id}
@@ -530,7 +530,7 @@ export default function ParkingSlots() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Slot Number</Label>
                 <Input
@@ -558,7 +558,7 @@ export default function ParkingSlots() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Slot Type</Label>
                 <Select
@@ -648,7 +648,7 @@ export default function ParkingSlots() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Floor</p>
                   <p className="font-medium">{selectedSlot.floor}</p>

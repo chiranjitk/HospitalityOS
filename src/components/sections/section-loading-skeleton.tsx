@@ -579,7 +579,7 @@ function TableSkeleton() {
       {/* Table container */}
       <div className="rounded-xl border border-border/30 dark:border-border/15 overflow-hidden bg-card/50 dark:bg-card/30">
         {/* Table header */}
-        <div className="bg-muted/40 dark:bg-muted/20 px-4 py-2.5 grid grid-cols-4 gap-4">
+        <div className="bg-muted/40 dark:bg-muted/20 px-4 py-2.5 grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
             <Skeleton key={i} className="h-4 rounded-md" />
           ))}

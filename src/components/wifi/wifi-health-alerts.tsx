@@ -453,7 +453,7 @@ export default function WiFiHealthAlerts() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 md:grid-cols-6">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-orange-500/10">
@@ -565,7 +565,7 @@ export default function WiFiHealthAlerts() {
               </Button>
             )}
           </div>
-          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-3 md:grid-cols-6">
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Status</label>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -676,6 +676,7 @@ export default function WiFiHealthAlerts() {
         <Card>
           <CardContent className="p-0">
             <ScrollArea className="max-h-[600px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -898,6 +899,7 @@ export default function WiFiHealthAlerts() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
 
             {/* Pagination */}

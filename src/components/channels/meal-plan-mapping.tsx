@@ -501,7 +501,7 @@ export function MealPlanMappingManager() {
           </div>
           <Skeleton className="h-10 w-32 rounded" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-20 rounded-lg" />
           ))}
@@ -541,7 +541,7 @@ export function MealPlanMappingManager() {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-slate-500/10 to-slate-600/5 border-slate-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -701,6 +701,7 @@ export function MealPlanMappingManager() {
         <Card>
           <CardContent className="p-0">
             <div className="max-h-[500px] overflow-y-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -790,6 +791,7 @@ export function MealPlanMappingManager() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -980,7 +982,7 @@ export function MealPlanMappingManager() {
               </div>
 
               {/* Includes Checkboxes */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="includesBreakfast"

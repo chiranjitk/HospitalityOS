@@ -736,7 +736,7 @@ export default function RatePlansPricingRules() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3 sm:max-w-lg">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 sm:max-w-lg">
           <TabsTrigger value="calendar" className="gap-2">
             <Grid3X3 className="h-4 w-4" />
             Calendar
@@ -813,7 +813,7 @@ export default function RatePlansPricingRules() {
               {selectedRoomType === 'all' ? (
                 <div className="border rounded-lg overflow-x-auto">
                   {/* Matrix View - All Room Types */}
-                  <div className="min-w-[800px]">
+                  <div>
                     {/* Header Row - Dates */}
                     <div className="grid bg-muted/50 border-b" style={{ gridTemplateColumns: `140px repeat(${calendarDays.length}, minmax(40px, 1fr))` }}>
                       <div className="p-2 font-medium text-sm border-r">Room Type</div>

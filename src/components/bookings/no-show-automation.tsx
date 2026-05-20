@@ -671,6 +671,7 @@ export default function NoShowAutomation() {
             </div>
           ) : (
             <div className="max-h-96 overflow-y-auto rounded-md border">
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -711,6 +712,7 @@ export default function NoShowAutomation() {
                   ))}
                 </TableBody>
               </Table>
+            </div>
             </div>
           )}
         </CardContent>

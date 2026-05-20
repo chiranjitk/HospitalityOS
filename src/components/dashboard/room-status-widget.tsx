@@ -112,7 +112,7 @@ export function RoomStatusWidget() {
           </div>
           <DistributionBar statusCounts={data.statusCounts} totalRooms={data.totalRooms} t={t} />
           <div className="h-px bg-border" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 dark:from-primary/10 dark:to-primary/5 border border-primary/20"><div className="p-1.5 rounded-md bg-primary/10"><LogIn className="h-4 w-4 text-primary" /></div><div><p className="text-[11px] text-muted-foreground leading-none">{t('arrivals')}</p><p className="text-lg font-bold text-primary tabular-nums leading-tight">{data.todaysArrivals}</p></div></div>
             <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/15 dark:to-amber-900/15 border border-orange-200/50 dark:border-orange-800/40"><div className="p-1.5 rounded-md bg-orange-100 dark:bg-orange-900/40"><LogOut className="h-4 w-4 text-orange-600 dark:text-orange-400" /></div><div><p className="text-[11px] text-muted-foreground leading-none">{t('departures')}</p><p className="text-lg font-bold text-orange-600 dark:text-orange-400 tabular-nums leading-tight">{data.todaysDepartures}</p></div></div>
           </div>

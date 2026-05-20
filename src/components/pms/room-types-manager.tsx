@@ -808,7 +808,7 @@ export default function RoomTypesManager() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4 stat-card">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg icon-gradient">
@@ -956,7 +956,7 @@ export default function RoomTypesManager() {
                 </div>
               </div>
               <CardContent className="p-4 space-y-3">
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div className="p-2 rounded-lg bg-muted/80">
                     <p className="text-lg font-semibold text-primary">{roomType.totalRooms}</p>
                     <p className="text-xs text-muted-foreground">Rooms</p>
@@ -1247,7 +1247,7 @@ export default function RoomTypesManager() {
                 <p className="text-sm text-muted-foreground">{selectedRoomType.description}</p>
               )}
               
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="p-3 rounded-lg bg-muted">
                   <p className="text-xs text-muted-foreground">Max Adults</p>
                   <p className="text-lg font-semibold">{selectedRoomType.maxAdults}</p>

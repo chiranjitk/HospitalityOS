@@ -332,7 +332,7 @@ const t = useTranslations('billing');
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-4 hover:shadow-lg transition-all hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-violet-500/10">
@@ -577,7 +577,7 @@ const t = useTranslations('billing');
               <Input value={scheduleName} onChange={e => setScheduleName(e.target.value)} placeholder="e.g., Guest Payment Plan" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Total Amount *</Label>
                 <Input type="number" min="0.01" step="0.01" value={totalAmount} onChange={e => setTotalAmount(e.target.value)} />
@@ -588,7 +588,7 @@ const t = useTranslations('billing');
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Number of Installments</Label>
                 <Input type="number" min="1" max="24" value={installmentCount} onChange={e => setInstallmentCount(e.target.value)} />
@@ -608,7 +608,7 @@ const t = useTranslations('billing');
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Start Date</Label>
                 <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />

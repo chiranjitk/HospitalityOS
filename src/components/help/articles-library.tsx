@@ -559,7 +559,7 @@ export default function ArticlesLibrary() {
           </DialogHeader>
           <ScrollArea className="flex-1 pr-4">
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Title *</label>
                   <Input
@@ -595,7 +595,7 @@ export default function ArticlesLibrary() {
                   className="font-mono text-sm"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Category</label>
                   <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>

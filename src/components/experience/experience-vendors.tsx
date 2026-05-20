@@ -144,7 +144,7 @@ export default function ExperienceVendors() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-violet-500/10"><Building2 className="h-4 w-4 text-violet-500" /></div>
@@ -226,6 +226,7 @@ export default function ExperienceVendors() {
               </div>
               <div className="hidden sm:block">
                 <ScrollArea className="h-[500px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -266,6 +267,7 @@ export default function ExperienceVendors() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </div>
             </>
@@ -337,7 +339,7 @@ export default function ExperienceVendors() {
                 </div>
                 <Badge variant="secondary" className={cn('text-white', selectedVendor.status === 'active' ? 'bg-emerald-500' : 'bg-gray-500')}>{selectedVendor.status}</Badge>
               </div>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div><span className="text-muted-foreground">Contact:</span><p className="font-medium">{selectedVendor.contactPerson}</p></div>
                 <div><span className="text-muted-foreground">Email:</span><p className="font-medium">{selectedVendor.email}</p></div>
                 <div><span className="text-muted-foreground">Phone:</span><p className="font-medium">{selectedVendor.phone || '-'}</p></div>

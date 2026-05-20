@@ -505,7 +505,7 @@ export default function MinibarPage() {
       </div>
 
       <Tabs defaultValue="catalog" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
           <TabsTrigger value="catalog" className="gap-1.5"><Package className="h-4 w-4" />Items Catalog</TabsTrigger>
           <TabsTrigger value="setup" className="gap-1.5"><Wine className="h-4 w-4" />Room Setup</TabsTrigger>
           <TabsTrigger value="consumption" className="gap-1.5"><ShoppingBag className="h-4 w-4" />Consumption Log</TabsTrigger>
@@ -546,6 +546,7 @@ export default function MinibarPage() {
                 <>
                   <div className="hidden md:block">
                     <ScrollArea className="max-h-[500px]">
+                      <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -587,6 +588,7 @@ export default function MinibarPage() {
                           ))}
                         </TableBody>
                       </Table>
+                      </div>
                     </ScrollArea>
                   </div>
                   {/* Mobile cards */}
@@ -733,6 +735,7 @@ export default function MinibarPage() {
                 <>
                   <div className="hidden md:block">
                     <ScrollArea className="max-h-[500px]">
+                      <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -775,6 +778,7 @@ export default function MinibarPage() {
                           ))}
                         </TableBody>
                       </Table>
+                      </div>
                     </ScrollArea>
                   </div>
                   {/* Mobile */}
@@ -811,7 +815,7 @@ export default function MinibarPage() {
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="space-y-1.5"><Label>Name *</Label><Input value={itemForm.name} onChange={e => setItemForm(p => ({ ...p, name: e.target.value }))} placeholder="Sparkling Water" /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Category</Label>
                 <Select value={itemForm.category} onValueChange={v => setItemForm(p => ({ ...p, category: v }))}>
@@ -821,7 +825,7 @@ export default function MinibarPage() {
               </div>
               <div className="space-y-1.5"><Label>SKU</Label><Input value={itemForm.sku} onChange={e => setItemForm(p => ({ ...p, sku: e.target.value }))} placeholder="MB-001" /></div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Cost Price</Label><Input type="number" step="0.01" value={itemForm.costPrice} onChange={e => setItemForm(p => ({ ...p, costPrice: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>Sell Price</Label><Input type="number" step="0.01" value={itemForm.sellPrice} onChange={e => setItemForm(p => ({ ...p, sellPrice: e.target.value }))} /></div>
             </div>
@@ -870,7 +874,7 @@ export default function MinibarPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Quantity</Label><Input type="number" min="1" value={consumptionForm.quantity} onChange={e => setConsumptionForm(p => ({ ...p, quantity: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>Unit Price</Label><Input type="number" step="0.01" value={consumptionForm.unitPrice} onChange={e => setConsumptionForm(p => ({ ...p, unitPrice: e.target.value }))} /></div>
             </div>

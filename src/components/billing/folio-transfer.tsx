@@ -305,7 +305,7 @@ const t = useTranslations('billing');
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <Card className="p-4 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-blue-500/10">
@@ -406,7 +406,7 @@ const t = useTranslations('billing');
 
       {/* Transfer Dialog */}
       <Dialog open={showTransferDialog} onOpenChange={(open) => { if (!open) resetForm(); setShowTransferDialog(open); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ArrowRightLeft className="h-5 w-5" />
@@ -487,6 +487,7 @@ const t = useTranslations('billing');
 
                 {transferMode === 'items' && sourceLineItems.length > 0 && (
                   <Card className="p-0">
+                    <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -525,6 +526,7 @@ const t = useTranslations('billing');
                         </AnimatePresence>
                       </TableBody>
                     </Table>
+                    </div>
                     {selectedItems.length > 0 && (
                       <div className="p-3 bg-muted/50 text-sm font-medium text-right">
                         Selected Total: <span className="text-primary">{formatCurrency(getSelectedTotal())}</span>
@@ -576,7 +578,7 @@ const t = useTranslations('billing');
                 {getActualTransferAmount() > 0 && (
                   <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="border rounded-lg p-4 bg-muted/30">
                     <h4 className="text-sm font-medium mb-3">Transfer Preview</h4>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Source: {sourceFolio?.folioNumber}</p>
                         <div className="text-sm">
@@ -648,7 +650,7 @@ const t = useTranslations('billing');
 
       {/* History Dialog */}
       <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <History className="h-5 w-5" />
@@ -662,6 +664,7 @@ const t = useTranslations('billing');
               <p>No transfers found</p>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -694,6 +697,7 @@ const t = useTranslations('billing');
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </DialogContent>
       </Dialog>

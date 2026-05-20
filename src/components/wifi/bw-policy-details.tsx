@@ -405,7 +405,8 @@ export default function BwPolicyDetails() {
               </p>
             </div>
           ) : (
-            <div className="max-h-[500px] overflow-y-auto">
+            <div className="max-h-[500px] overflow-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -487,6 +488,7 @@ export default function BwPolicyDetails() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </CardContent>
@@ -520,7 +522,7 @@ export default function BwPolicyDetails() {
             </div>
 
             {/* Download/Upload Limits */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="flex items-center gap-1">
                   <ArrowDownToLine className="h-3.5 w-3.5 text-primary" />
@@ -552,7 +554,7 @@ export default function BwPolicyDetails() {
             </div>
 
             {/* Guaranteed Bandwidth */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Guaranteed Download (Mbps)</Label>
                 <Input
@@ -578,7 +580,7 @@ export default function BwPolicyDetails() {
             </div>
 
             {/* Burst Settings */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label className="flex items-center gap-1">
                   <Zap className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
@@ -617,7 +619,7 @@ export default function BwPolicyDetails() {
             </div>
 
             {/* Contention + Priority */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Contention Ratio</Label>
                 <Input

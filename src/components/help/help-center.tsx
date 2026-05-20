@@ -446,7 +446,7 @@ export function HelpCenter({ onSelectArticle }: HelpCenterProps) {
                   <h2 className="text-lg font-semibold capitalize">{category.replace(/-/g, ' ')}</h2>
                   <Badge variant="outline">{categoryArticles.length}</Badge>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                   {categoryArticles.map((article) => (
                     <Card 
                       key={article.id} 
@@ -511,7 +511,7 @@ export function HelpCenter({ onSelectArticle }: HelpCenterProps) {
           <ScrollArea className="flex-1 pr-4">
             <div className="space-y-6 py-4">
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Title</label>
                     <Input
@@ -556,7 +556,7 @@ export function HelpCenter({ onSelectArticle }: HelpCenterProps) {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Category</label>
                     <Input

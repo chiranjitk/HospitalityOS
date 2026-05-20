@@ -627,7 +627,7 @@ export default function CameraManagement() {
         </div>
 
         {/* ===== Stats Cards ===== */}
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           {[
             { label: 'Total Cameras', value: stats.total, Icon: Camera, color: 'text-sky-500 dark:text-sky-400', bg: 'bg-sky-500/10' },
             { label: 'Online', value: stats.online, Icon: Wifi, color: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-500/10' },
@@ -744,6 +744,7 @@ export default function CameraManagement() {
             ) : (
               <Card>
                 <div className="max-h-[600px] overflow-y-auto">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -821,6 +822,7 @@ export default function CameraManagement() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               </Card>
             )}
@@ -861,7 +863,7 @@ export default function CameraManagement() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {groups.map(group => {
                   const camCount = cameras.filter(c => c.groupId === group.id).length;
                   return (
@@ -919,7 +921,7 @@ export default function CameraManagement() {
         {/* Camera Add/Edit Dialog                                         */}
         {/* ============================================================ */}
         <Dialog open={cameraDialogOpen} onOpenChange={setCameraDialogOpen}>
-          <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {cameraFormMode === 'create' ? (
@@ -1072,7 +1074,7 @@ export default function CameraManagement() {
               {/* Position (optional, both modes) */}
               <div className="space-y-2">
                 <Label>Map Position <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Pos X</Label>
                     <Input
@@ -1115,7 +1117,7 @@ export default function CameraManagement() {
         {/* Group Add/Edit Dialog                                          */}
         {/* ============================================================ */}
         <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
-          <DialogContent className="sm:max-w-[440px]">
+          <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[440px]">
             <DialogHeader>
               <DialogTitle>
                 {groupFormMode === 'create' ? (
@@ -1180,7 +1182,7 @@ export default function CameraManagement() {
         {/* Delete Confirmation Dialog                                     */}
         {/* ============================================================ */}
         <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <DialogContent className="sm:max-w-[400px]">
+          <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[400px]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-destructive">
                 <AlertTriangle className="h-5 w-5" />
@@ -1210,7 +1212,7 @@ export default function CameraManagement() {
         {/* Test Stream Dialog                                             */}
         {/* ============================================================ */}
         <Dialog open={testStreamOpen} onOpenChange={setTestStreamOpen}>
-          <DialogContent className="sm:max-w-[640px]">
+          <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[640px]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Eye className="h-5 w-5" />
@@ -1279,7 +1281,7 @@ export default function CameraManagement() {
         {/* Grid View Dialog                                               */}
         {/* ============================================================ */}
         <Dialog open={gridViewOpen} onOpenChange={setGridViewOpen}>
-          <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <LayoutGrid className="h-5 w-5" />
@@ -1290,7 +1292,7 @@ export default function CameraManagement() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {gridCameras.map((camId, idx) => {
                 const selectedCamera = camId ? cameras.find(c => c.id === camId) : null;
                 const onlineCameras = cameras.filter(c => c.status === 'online' && c.streamUrl);

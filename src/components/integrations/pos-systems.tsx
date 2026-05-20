@@ -211,7 +211,7 @@ export default function PosSystems() {
             </DialogHeader>
             {editSystem && (
               <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">System Name</Label>
                     <Input
@@ -238,7 +238,7 @@ export default function PosSystems() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="endpoint">API Endpoint</Label>
                     <Input
@@ -259,7 +259,7 @@ export default function PosSystems() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="merchantId">Merchant ID</Label>
                     <Input
@@ -281,7 +281,7 @@ export default function PosSystems() {
                 </div>
                 <div className="space-y-3">
                   <Label>Sync Settings</Label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="flex items-center space-x-2">
                       <Switch
                         id="syncMenu"
@@ -327,7 +327,7 @@ export default function PosSystems() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="pb-2">
             <CardDescription>Connected Systems</CardDescription>

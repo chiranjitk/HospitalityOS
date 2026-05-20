@@ -402,7 +402,7 @@ export function ContentSync() {
           </div>
           <Skeleton className="h-10 w-32 rounded" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(i => (
             <Skeleton key={i} className="h-24 rounded-lg" />
           ))}
@@ -439,7 +439,7 @@ export function ContentSync() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-slate-500/10 to-slate-600/5 border-slate-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -630,6 +630,7 @@ export function ContentSync() {
         <Card>
           <CardContent className="p-0">
             <div className="max-h-[420px] overflow-y-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -710,6 +711,7 @@ export function ContentSync() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -753,6 +755,7 @@ export function ContentSync() {
         <CardContent>
           {contentFields.length > 0 ? (
             <div className="max-h-[400px] overflow-y-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -802,6 +805,7 @@ export function ContentSync() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12">

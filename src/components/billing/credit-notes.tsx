@@ -290,7 +290,7 @@ const t = useTranslations('billing');
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-4 hover:shadow-lg transition-all hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-blue-500/10">

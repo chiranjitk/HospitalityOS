@@ -378,7 +378,7 @@ export default function OfflinePOS() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-4 hover:shadow-lg transition-all duration-200">
           <div className="flex items-center gap-3">
             <div className={cn(
@@ -434,7 +434,7 @@ export default function OfflinePOS() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="queue">Offline Queue</TabsTrigger>
           <TabsTrigger value="conflicts">Conflicts</TabsTrigger>
@@ -730,7 +730,7 @@ export default function OfflinePOS() {
 
         {/* ── Conflicts Tab ──────────────────────────────────────── */}
         <TabsContent value="conflicts" className="space-y-6">
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             <Card className="p-4">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg bg-red-500/10">
@@ -884,7 +884,7 @@ export default function OfflinePOS() {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Auto Sync */}
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium">Auto-Sync Interval</Label>
@@ -1159,7 +1159,7 @@ export default function OfflinePOS() {
                 </Badge>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-3 rounded-lg border-2 border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/10 space-y-1">
                   <div className="flex items-center gap-1.5 text-xs font-medium text-violet-600">
                     <MonitorSmartphone className="h-3 w-3" />

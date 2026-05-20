@@ -376,7 +376,7 @@ export default function RateParityDashboard() {
             <Skeleton className="h-4 w-96 mt-2 rounded" />
           </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-lg" />
           ))}
@@ -548,7 +548,7 @@ export default function RateParityDashboard() {
 
       {/* Stats Overview */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="bg-gradient-to-br from-slate-500/10 to-slate-600/5 border-slate-500/20">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -759,6 +759,7 @@ export default function RateParityDashboard() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="max-h-[500px] overflow-y-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -887,6 +888,7 @@ export default function RateParityDashboard() {
 
                                 {/* Channel Details Table */}
                                 {report.channels.length > 0 && (
+                                  <div className="overflow-x-auto">
                                   <Table>
                                     <TableHeader>
                                       <TableRow>
@@ -928,6 +930,7 @@ export default function RateParityDashboard() {
                                       ))}
                                     </TableBody>
                                   </Table>
+                                  </div>
                                 )}
 
                                 {/* Summary */}
@@ -958,6 +961,7 @@ export default function RateParityDashboard() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1048,7 +1052,7 @@ export default function RateParityDashboard() {
           </DialogHeader>
           {correctionResult && (
             <div className="space-y-4 py-2">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 text-center">
                   <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
                     {correctionResult.corrected}

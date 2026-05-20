@@ -199,7 +199,7 @@ export default function WebhookEvents() {
                 </div>
                 <div className="space-y-2">
                   <Label>Events to Subscribe</Label>
-                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-lg p-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-lg p-2">
                     {eventTypes.map(event => (
                       <div key={event.value} className="flex items-center space-x-2">
                         <input
@@ -239,7 +239,7 @@ export default function WebhookEvents() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="pb-2">
             <CardDescription>Active Endpoints</CardDescription>
@@ -273,6 +273,7 @@ export default function WebhookEvents() {
       {/* Endpoints Table */}
       <Card>
         <CardContent className="pt-6">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -341,6 +342,7 @@ export default function WebhookEvents() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -369,7 +371,7 @@ export default function WebhookEvents() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-muted-foreground">Created</Label>
                   <p className="text-sm">{new Date(selectedEndpoint.createdAt).toLocaleDateString()}</p>

@@ -142,7 +142,7 @@ export default function HousekeepingDashboard() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
             <Card key={i} className="border border-border/50 shadow-sm">
               <CardContent className="p-4">
@@ -168,7 +168,7 @@ export default function HousekeepingDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Rooms to Clean"
           value={stats.roomsToClean}
@@ -197,7 +197,7 @@ export default function HousekeepingDashboard() {
       </div>
 
       {/* Task Breakdown */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         <Card className="border border-border/50 shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-medium flex items-center gap-2">

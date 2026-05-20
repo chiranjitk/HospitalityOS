@@ -316,7 +316,7 @@ function OverallBanner({ overall }: { overall: ChannelHealthData['overall'] }) {
       </div>
 
       {/* Status Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="h-10 w-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
@@ -427,7 +427,7 @@ function ChannelHealthCard({ channel }: { channel: ChannelHealthEntry }) {
         <Separator className="my-3" />
 
         {/* Metrics grid */}
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Uptime (7d)</span>
             <span className={`font-medium ${statusColor(health.status)}`}>{health.uptime7d}%</span>
@@ -815,13 +815,13 @@ export function ChannelHealth() {
       <div className="space-y-6 p-4 md:p-6">
         <div className="animate-pulse">
           <div className="h-6 bg-muted rounded w-64 mb-4" />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="h-24 bg-muted rounded-lg" />
             ))}
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="h-56 bg-muted rounded-lg" />
               ))}
@@ -911,7 +911,7 @@ export function ChannelHealth() {
       <Separator />
 
       {/* Bottom Panels: Alerts, Timeline, History */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-1 space-y-4">
           <AlertsPanel alerts={data.alerts} />
         </div>

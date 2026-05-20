@@ -328,7 +328,7 @@ export default function ExperienceBookings() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-violet-500/10">
@@ -552,6 +552,7 @@ export default function ExperienceBookings() {
               {/* Desktop Table */}
               <div className="hidden sm:block">
                 <ScrollArea className="h-[500px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -644,6 +645,7 @@ export default function ExperienceBookings() {
                       })}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </div>
             </>
@@ -687,7 +689,7 @@ export default function ExperienceBookings() {
                 }
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Email</Label>
                 <Input
@@ -710,7 +712,7 @@ export default function ExperienceBookings() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Date *</Label>
                 <Input
@@ -803,7 +805,7 @@ export default function ExperienceBookings() {
                 {getStatusBadge(selectedBooking.status)}
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">Experience</span>
                   <p className="font-medium">{selectedBooking.experience?.name || '-'}</p>

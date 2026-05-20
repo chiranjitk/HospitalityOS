@@ -105,12 +105,12 @@ export function MaintenanceTrackerWidget() {
       </CardHeader>
       <CardContent>
         {isLoading && !data ? (
-          <div className="space-y-3"><div className="grid grid-cols-4 gap-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
+          <div className="space-y-3"><div className="grid grid-cols-2 sm:grid-cols-4 gap-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
         ) : error && !data ? (
           <div className="flex flex-col items-center justify-center py-8 text-center"><AlertCircle className="h-8 w-8 text-red-400 dark:text-red-300 mb-2" /><p className="text-sm text-muted-foreground">{t('failedToLoadMaintenance')}</p><Button variant="outline" size="sm" className="mt-2" onClick={() => fetchData(true)}>{t('retry')}</Button></div>
         ) : data ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <SummaryBadge count={data.summary.overdue} label="overdue" variant="overdue" t={t} />
               <SummaryBadge count={data.summary.inProgress} label="active" variant="inProgress" t={t} />
               <SummaryBadge count={data.summary.pending} label="pending" variant="pending" t={t} />

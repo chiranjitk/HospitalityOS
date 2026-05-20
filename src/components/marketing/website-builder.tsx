@@ -1426,7 +1426,7 @@ export default function WebsiteBuilder() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5 max-w-[650px]">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 max-w-[650px]">
           <TabsTrigger value="templates">Templates</TabsTrigger>
           <TabsTrigger value="pages">Pages</TabsTrigger>
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
@@ -1820,7 +1820,7 @@ export default function WebsiteBuilder() {
 
                 <div className="space-y-2">
                   <Label>Font Family</Label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {FONT_OPTIONS.map((f) => (
                       <button
                         key={f.value}

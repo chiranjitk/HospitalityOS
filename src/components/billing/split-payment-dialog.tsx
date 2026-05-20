@@ -377,7 +377,7 @@ export default function SplitPaymentDialog({
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs">Method</Label>
                       <Select
@@ -416,7 +416,7 @@ export default function SplitPaymentDialog({
 
                   {/* Card-specific fields */}
                   {entry.method === 'card' && (
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div className="space-y-1">
                         <Label className="text-[10px] text-muted-foreground">Card Type</Label>
                         <Select

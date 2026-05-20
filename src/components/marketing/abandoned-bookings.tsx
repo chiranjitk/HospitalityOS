@@ -282,6 +282,7 @@ export default function AbandonedBookings() {
                 <div className="p-8 text-center text-muted-foreground">No abandoned bookings found.</div>
               ) : (
                 <div className="max-h-[500px] overflow-y-auto">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -340,6 +341,7 @@ export default function AbandonedBookings() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -439,7 +441,7 @@ export default function AbandonedBookings() {
 
                   <Separator className="my-4" />
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950">
                       <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">Revenue Recovered</p>
                       <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">${stats.totalRevenueRecovered.toLocaleString()}</p>
@@ -475,7 +477,7 @@ export default function AbandonedBookings() {
 
             <div className="space-y-2">
               <Label>Recovery Channel</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <Button
                   variant={recoverChannel === 'email' ? 'default' : 'outline'}
                   className="gap-2"

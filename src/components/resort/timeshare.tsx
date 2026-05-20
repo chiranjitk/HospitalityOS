@@ -380,7 +380,7 @@ export default function ResortTimeshare() {
 
       {/* Stats Cards */}
       {activeTab === 'units' ? (
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           <Card className="border-l-4 border-l-amber-500">
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-1.5"><Building2 className="h-3.5 w-3.5" />Total Units</CardDescription>
@@ -407,7 +407,7 @@ export default function ResortTimeshare() {
           </Card>
         </div>
       ) : (
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           <Card className="border-l-4 border-l-emerald-500">
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" />Active Ownerships</CardDescription>
@@ -484,7 +484,7 @@ export default function ResortTimeshare() {
           ) : units.length === 0 ? (
             <Card><CardContent className="py-12 text-center"><Building2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-40" /><p className="text-muted-foreground">No timeshare units found</p></CardContent></Card>
           ) : (
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {units.map(unit => (
                 <Card key={unit.id} className={cn('transition-all hover:shadow-md', !unit.isActive && 'opacity-60')}>
                   <CardContent className="p-4">
@@ -503,7 +503,7 @@ export default function ResortTimeshare() {
                       </Badge>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs mb-3">
                       <div className="p-2 rounded bg-muted/50">
                         <p className="text-muted-foreground">Season</p>
                         <p className="font-medium">{SEASON_TYPE_LABELS[unit.seasonType] || unit.seasonType}</p>
@@ -587,6 +587,7 @@ export default function ResortTimeshare() {
             <Card>
               <CardContent className="p-0">
                 <ScrollArea className="max-h-[500px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -635,6 +636,7 @@ export default function ResortTimeshare() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </CardContent>
             </Card>
@@ -650,7 +652,7 @@ export default function ResortTimeshare() {
             <DialogDescription>Configure a new timeshare unit for vacation ownership</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Unit Number <span className="text-red-500">*</span></Label>
                 <Input placeholder="e.g., T-101" value={unitForm.unitNumber} onChange={e => setUnitForm(f => ({ ...f, unitNumber: e.target.value }))} />
@@ -660,7 +662,7 @@ export default function ResortTimeshare() {
                 <Input type="number" placeholder="0" value={unitForm.pointsValue} onChange={e => setUnitForm(f => ({ ...f, pointsValue: e.target.value }))} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Season Type</Label>
                 <Select value={unitForm.seasonType} onValueChange={v => setUnitForm(f => ({ ...f, seasonType: v }))}>
@@ -711,13 +713,13 @@ export default function ResortTimeshare() {
             <DialogDescription>Register a new timeshare ownership</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2 col-span-2">
                 <Label>Owner Name <span className="text-red-500">*</span></Label>
                 <Input placeholder="Full name" value={ownershipForm.ownerName} onChange={e => setOwnershipForm(f => ({ ...f, ownerName: e.target.value }))} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Email</Label>
                 <Input type="email" placeholder="owner@email.com" value={ownershipForm.ownerEmail} onChange={e => setOwnershipForm(f => ({ ...f, ownerEmail: e.target.value }))} />
@@ -727,7 +729,7 @@ export default function ResortTimeshare() {
                 <Input placeholder="+1-555-0100" value={ownershipForm.ownerPhone} onChange={e => setOwnershipForm(f => ({ ...f, ownerPhone: e.target.value }))} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Purchase Price <span className="text-red-500">*</span></Label>
                 <Input type="number" placeholder="0" value={ownershipForm.purchasePrice} onChange={e => setOwnershipForm(f => ({ ...f, purchasePrice: e.target.value }))} />
@@ -737,7 +739,7 @@ export default function ResortTimeshare() {
                 <Input type="number" placeholder="0" value={ownershipForm.annualMf} onChange={e => setOwnershipForm(f => ({ ...f, annualMf: e.target.value }))} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Start Date <span className="text-red-500">*</span></Label>
                 <Input type="date" value={ownershipForm.startDate} onChange={e => setOwnershipForm(f => ({ ...f, startDate: e.target.value }))} />

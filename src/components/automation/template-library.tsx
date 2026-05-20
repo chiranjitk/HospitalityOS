@@ -265,7 +265,7 @@ export default function TemplateLibrary() {
           </TabsList>
 
           <TabsContent value="system" className="mt-4">
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {systemTemplates.map((template, index) => (
                 <Card key={index} className="hover:shadow-md transition-shadow relative">
                   <CardHeader className="pb-3">
@@ -340,7 +340,7 @@ export default function TemplateLibrary() {
           </TabsContent>
 
           <TabsContent value="custom" className="mt-4">
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {customTemplates.map((template) => (
                 <Card key={template.id} className="hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
@@ -399,7 +399,7 @@ export default function TemplateLibrary() {
               <label className="text-sm font-medium">Description</label>
               <Textarea value={newTemplate.description} onChange={(e) => setNewTemplate(p => ({ ...p, description: e.target.value }))} placeholder="What this automation does..." rows={2} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Category</label>
                 <Select value={newTemplate.category} onValueChange={(v) => setNewTemplate(p => ({ ...p, category: v }))}>

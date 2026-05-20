@@ -571,6 +571,7 @@ export default function IntegrationHub() {
           <Card>
             <CardContent className="p-0">
               <ScrollArea className="max-h-[600px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -634,6 +635,7 @@ export default function IntegrationHub() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -642,7 +644,7 @@ export default function IntegrationHub() {
         {/* ─── Sync Activity Log ──────────────────────────────────────────── */}
         <TabsContent value="sync-log" className="space-y-4">
           {/* Log Stats */}
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             <Card className="p-4 border-l-4 border-l-emerald-500">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg bg-emerald-500/10">
@@ -723,6 +725,7 @@ export default function IntegrationHub() {
           <Card>
             <CardContent className="p-0">
               <ScrollArea className="max-h-[500px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -779,6 +782,7 @@ export default function IntegrationHub() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -787,7 +791,7 @@ export default function IntegrationHub() {
         {/* ─── Health Dashboard ───────────────────────────────────────────── */}
         <TabsContent value="health" className="space-y-4">
           {/* Overview Cards */}
-          <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             <Card className="p-4 border-l-4 border-l-emerald-500">
               <div className="text-2xl font-bold text-emerald-600">99.4%</div>
               <div className="text-xs text-muted-foreground">Avg Uptime (7d)</div>
@@ -889,6 +893,7 @@ export default function IntegrationHub() {
             </CardHeader>
             <CardContent className="p-0">
               <ScrollArea className="max-h-[300px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -929,6 +934,7 @@ export default function IntegrationHub() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1018,6 +1024,7 @@ export default function IntegrationHub() {
           <Card>
             <CardContent className="p-0">
               <ScrollArea className="max-h-[500px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1089,6 +1096,7 @@ export default function IntegrationHub() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1111,7 +1119,7 @@ export default function IntegrationHub() {
           </DialogHeader>
           {selectedIntegration && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="p-3 rounded-lg bg-muted/50">
                   <div className="text-xs text-muted-foreground">Category</div>
                   <div className="text-sm font-medium mt-0.5">{selectedIntegration.category}</div>

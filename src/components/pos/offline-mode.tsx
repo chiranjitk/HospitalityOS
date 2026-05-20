@@ -467,7 +467,7 @@ export default function OfflinePOSMode() {
   // ── Render: Stat cards ───────────────────────────────────────────
 
   const renderStatCards = () => (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       <Card className="p-4 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 hover:-translate-y-0.5">
         <div className="flex items-center gap-3">
           <div className={cn(
@@ -571,7 +571,7 @@ export default function OfflinePOSMode() {
       </Card>
 
       {/* Metrics grid */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         {/* Connection Quality */}
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-3">
@@ -889,7 +889,7 @@ export default function OfflinePOSMode() {
   const renderConflictResolution = () => (
     <div className="space-y-6">
       {/* Summary */}
-      <div className="grid gap-4 grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-red-500/10">
@@ -1030,7 +1030,7 @@ export default function OfflinePOSMode() {
           </DialogHeader>
           {selectedConflict && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-3 rounded-lg border-2 border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/10 space-y-1">
                   <div className="flex items-center gap-1.5 text-xs font-medium text-violet-600">
                     <HardDrive className="h-3 w-3" />
@@ -1329,7 +1329,7 @@ export default function OfflinePOSMode() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSearchQuery(''); setQueueFilter('all'); }}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="dashboard" className="text-xs sm:text-sm">
             <Activity className="h-4 w-4 mr-1.5 hidden sm:inline" />
             Dashboard

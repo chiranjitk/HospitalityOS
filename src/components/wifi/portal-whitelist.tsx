@@ -616,7 +616,8 @@ export default function PortalWhitelist() {
           ) : (
             <>
               {/* Desktop: Table view */}
-              <div className="hidden sm:block max-h-[500px] overflow-y-auto">
+              <div className="hidden sm:block max-h-[500px] overflow-auto">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -680,6 +681,7 @@ export default function PortalWhitelist() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
 
               {/* Mobile: Card view */}
@@ -702,7 +704,7 @@ export default function PortalWhitelist() {
                     </div>
 
                     {/* Details grid */}
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                       <div>
                         <span className="text-muted-foreground">Path:</span>
                         <span className="ml-1 font-mono">{entry.path || '/'}</span>
@@ -771,7 +773,7 @@ export default function PortalWhitelist() {
                 Use *.domain.com for wildcard matching of all subdomains
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Path</Label>
                 <Input
@@ -804,7 +806,7 @@ export default function PortalWhitelist() {
                 placeholder="e.g. Hotel booking engine"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Priority</Label>
                 <Input

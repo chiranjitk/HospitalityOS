@@ -287,14 +287,14 @@ export function PaymentGatewaysEnhanced() {
               {editGateway && (
                 <div className="space-y-6 py-4">
                   <Tabs defaultValue="basic">
-                    <TabsList className="grid w-full grid-cols-3">
+                    <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3">
                       <TabsTrigger value="basic">Basic</TabsTrigger>
                       <TabsTrigger value="credentials">Credentials</TabsTrigger>
                       <TabsTrigger value="fees">Fees & Limits</TabsTrigger>
                     </TabsList>
                     
                     <TabsContent value="basic" className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="name">Gateway Name</Label>
                           <Input
@@ -326,7 +326,7 @@ export function PaymentGatewaysEnhanced() {
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="priority">Priority</Label>
                           <Input
@@ -365,7 +365,7 @@ export function PaymentGatewaysEnhanced() {
                     </TabsContent>
                     
                     <TabsContent value="credentials" className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="apiKey">API Key / Client ID</Label>
                           <Input
@@ -387,7 +387,7 @@ export function PaymentGatewaysEnhanced() {
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="merchantId">Merchant ID</Label>
                           <Input
@@ -421,7 +421,7 @@ export function PaymentGatewaysEnhanced() {
                     </TabsContent>
                     
                     <TabsContent value="fees" className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="percentage">Fee Percentage (%)</Label>
                           <Input
@@ -477,7 +477,7 @@ export function PaymentGatewaysEnhanced() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
         <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="pb-2">
             <CardDescription>Active Gateways</CardDescription>
@@ -566,7 +566,7 @@ export function PaymentGatewaysEnhanced() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid gap-4 md:grid-cols-5 mb-4">
+                    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5 mb-4">
                       <div>
                         <p className="text-sm text-muted-foreground">Processing Fee</p>
                         <p className="font-medium">{gateway.fees.percentage}% + {formatCurrency(gateway.fees.fixed)}</p>

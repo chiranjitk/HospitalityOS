@@ -470,7 +470,7 @@ function CreateVariantDialog({
           <DialogDescription>Add a new variant to test against</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Variant Label *</Label>
               <Input placeholder={nextLabel} value={formData.variantLabel}

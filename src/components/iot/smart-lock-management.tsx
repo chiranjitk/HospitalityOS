@@ -652,7 +652,7 @@ export default function SmartLockManagement() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-7">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 lg:grid-cols-7">
         <Card>
           <CardContent className="p-3 text-center">
             <p className="text-xs font-medium text-muted-foreground">Total</p>
@@ -787,7 +787,7 @@ export default function SmartLockManagement() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     {floorRooms.map(room => {
                       const statusConf = LOCK_STATUS_CONFIG[room.lockStatus];
                       const StatusIcon = statusConf.icon;
@@ -867,6 +867,7 @@ export default function SmartLockManagement() {
             </CardHeader>
             <CardContent>
               <ScrollArea className="max-h-[600px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -940,6 +941,7 @@ export default function SmartLockManagement() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -992,6 +994,7 @@ export default function SmartLockManagement() {
             </CardHeader>
             <CardContent>
               <ScrollArea className="max-h-[500px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1054,6 +1057,7 @@ export default function SmartLockManagement() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1100,6 +1104,7 @@ export default function SmartLockManagement() {
             </CardHeader>
             <CardContent>
               <ScrollArea className="max-h-[500px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1150,6 +1155,7 @@ export default function SmartLockManagement() {
                       })}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1257,7 +1263,7 @@ export default function SmartLockManagement() {
                   <h3 className="font-medium">Lockout Policy</h3>
                 </div>
                 <p className="text-sm text-muted-foreground">Lock the door after multiple failed access attempts to prevent unauthorized entry.</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Failed Attempts Before Lockout</Label>
                     <Select value={String(settings.lockoutAttempts)} onValueChange={(v) => setSettings({ ...settings, lockoutAttempts: Number(v) })}>
@@ -1304,7 +1310,7 @@ export default function SmartLockManagement() {
                 </div>
                 <p className="text-sm text-muted-foreground">Control when guests can access their rooms relative to check-in and check-out times.</p>
                 {settings.enableGuestAccessWindow && (
-                  <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                     <div className="space-y-2">
                       <Label>Access Starts Before Check-In</Label>
                       <Select value={String(settings.accessStartOffsetHours)} onValueChange={(v) => setSettings({ ...settings, accessStartOffsetHours: Number(v) })}>
@@ -1352,7 +1358,7 @@ export default function SmartLockManagement() {
                 </div>
                 <p className="text-sm text-muted-foreground">Restrict staff access during specified hours. Emergency and master keys are exempt.</p>
                 {settings.enableAfterHoursRestriction && (
-                  <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                     <div className="space-y-2">
                       <Label>Restriction Start</Label>
                       <Input
@@ -1392,7 +1398,7 @@ export default function SmartLockManagement() {
           </DialogHeader>
           {selectedRoom && (
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <Label className="text-muted-foreground">Status</Label>
                   <Badge className={cn('text-xs', LOCK_STATUS_CONFIG[selectedRoom.lockStatus].bgColor, LOCK_STATUS_CONFIG[selectedRoom.lockStatus].color)}>

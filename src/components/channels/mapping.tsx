@@ -300,7 +300,7 @@ export default function ChannelMapping() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Channel</Label>
                   <Select
@@ -360,7 +360,7 @@ export default function ChannelMapping() {
 
               <div className="space-y-4">
                 <h4 className="font-medium">External Channel Details</h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>External Room ID</Label>
                     <Input
@@ -378,7 +378,7 @@ export default function ChannelMapping() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>External Rate ID (Optional)</Label>
                     <Input
@@ -438,7 +438,7 @@ export default function ChannelMapping() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-slate-500/10 to-slate-600/5 border-slate-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -515,6 +515,7 @@ export default function ChannelMapping() {
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[300px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -587,6 +588,7 @@ export default function ChannelMapping() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </CardContent>
             </Card>

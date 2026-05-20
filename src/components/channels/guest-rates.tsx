@@ -499,7 +499,7 @@ export default function ChannelGuestRates() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Base Rate / Night</Label>
                     <Input type="number" step="0.01" value={calcForm.baseRate} onChange={e => setCalcForm(p => ({ ...p, baseRate: parseFloat(e.target.value) || 0 }))} />
@@ -567,7 +567,7 @@ export default function ChannelGuestRates() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="bg-gradient-to-br from-slate-500/10 to-slate-600/5 border-slate-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -674,6 +674,7 @@ export default function ChannelGuestRates() {
         <Card>
           <CardContent className="p-0">
             <ScrollArea className="max-h-[600px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -768,6 +769,7 @@ export default function ChannelGuestRates() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           </CardContent>
         </Card>
@@ -787,7 +789,7 @@ export default function ChannelGuestRates() {
             {/* Channel Info */}
             <div className="space-y-3">
               <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Channel & Scope</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Channel *</Label>
                   <Select value={formData.channelCode} onValueChange={v => setFormData(p => ({ ...p, channelCode: v }))}>
@@ -814,7 +816,7 @@ export default function ChannelGuestRates() {
             {/* Guest Limits */}
             <div className="space-y-3">
               <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Guest Limits</h4>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Max Adults</Label>
                   <Input type="number" min={1} max={10} value={formData.maxAdults} onChange={e => setFormData(p => ({ ...p, maxAdults: parseInt(e.target.value) || 1 }))} />
@@ -833,7 +835,7 @@ export default function ChannelGuestRates() {
             {/* Age Thresholds */}
             <div className="space-y-3">
               <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Age Thresholds</h4>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs">Infant Max Age</Label>
                   <Input type="number" min={0} max={5} value={formData.infantAgeMax} onChange={e => setFormData(p => ({ ...p, infantAgeMax: parseInt(e.target.value) || 0 }))} />
@@ -860,7 +862,7 @@ export default function ChannelGuestRates() {
             {/* Extra Adult Rates */}
             <div className="space-y-3">
               <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Extra Adult Charges</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Rate Type</Label>
                   <Select value={formData.extraAdultType} onValueChange={v => setFormData(p => ({ ...p, extraAdultType: v }))}>
@@ -884,7 +886,7 @@ export default function ChannelGuestRates() {
             {/* Extra Child Rates */}
             <div className="space-y-3">
               <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Extra Child Charges</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Rate Type</Label>
                   <Select value={formData.extraChildType} onValueChange={v => setFormData(p => ({ ...p, extraChildType: v }))}>

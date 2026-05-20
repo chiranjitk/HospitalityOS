@@ -370,7 +370,7 @@ export default function BulkPriceUpdate() {
               <CalendarDays className="h-4 w-4" />
               Date Range ({getDaysInRange()} days)
             </Label>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label className="text-xs text-muted-foreground">Start Date</Label>
                 <Input
@@ -421,7 +421,7 @@ export default function BulkPriceUpdate() {
             </div>
 
             {/* Value Input */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {updateMode === 'fixed' && (
                 <div className="space-y-2">
                   <Label>New Price ({currency.symbol})</Label>
@@ -475,7 +475,7 @@ export default function BulkPriceUpdate() {
 
           {/* Quick Stats */}
           {selectedRatePlanData && (
-            <div className="grid grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
               <div className="text-center">
                 <p className="text-2xl font-bold">{formatCurrency(selectedRatePlanData.basePrice)}</p>
                 <p className="text-xs text-muted-foreground">Current Base Rate</p>
@@ -528,7 +528,7 @@ export default function BulkPriceUpdate() {
             </div>
           ) : (
             <>
-              <div className="max-h-96 overflow-y-auto">
+              <div className="max-h-96 overflow-y-auto overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

@@ -334,7 +334,7 @@ export default function KeyCardManager() {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-7 gap-3">
           {[
             { label: 'Total', value: stats.total, color: 'text-foreground' },
             { label: 'Issued Today', value: stats.issuedToday, color: 'text-blue-600 dark:text-blue-400' },
@@ -560,7 +560,7 @@ export default function KeyCardManager() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Card Type */}
               <div className="space-y-2">
                 <Label>Card Type</Label>
@@ -592,7 +592,7 @@ export default function KeyCardManager() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Valid From */}
               <div className="space-y-2">
                 <Label>Valid From</Label>

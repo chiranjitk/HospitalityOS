@@ -302,7 +302,7 @@ export default function HourlyPricingPage() {
 
             <div className="space-y-3">
               <Label>Occupancy Thresholds (%)</Label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Low / Medium</Label>
                   <Input type="number" defaultValue={30} className="h-9" />

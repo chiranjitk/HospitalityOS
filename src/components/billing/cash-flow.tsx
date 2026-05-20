@@ -262,7 +262,7 @@ export default function CashFlowForecastPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <Card className="p-3 sm:p-4">
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="p-2 rounded-lg bg-emerald-500/10 shrink-0"><ArrowUpRight className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>
@@ -377,7 +377,7 @@ export default function CashFlowForecastPage() {
             <DialogDescription>{MONTH_NAMES[(parseInt(form.month) || 1) - 1]} {year}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Month</Label>
                 <Select value={form.month} onValueChange={v => setForm(f => ({ ...f, month: v }))}>
@@ -409,7 +409,7 @@ export default function CashFlowForecastPage() {
                 <Input type="text" disabled value={formatCurrency((parseFloat(form.totalInflow) || 0) - (parseFloat(form.totalOutflow) || 0))} />
               </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <div className="space-y-1.5"><Label>Room Revenue</Label><Input type="number" step="0.01" value={form.roomRevenue} onChange={e => setForm(f => ({ ...f, roomRevenue: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>F&B Revenue</Label><Input type="number" step="0.01" value={form.fbRevenue} onChange={e => setForm(f => ({ ...f, fbRevenue: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>Other Revenue</Label><Input type="number" step="0.01" value={form.otherRevenue} onChange={e => setForm(f => ({ ...f, otherRevenue: e.target.value }))} /></div>

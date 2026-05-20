@@ -162,7 +162,7 @@ export default function TaxSettingsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="p-4"><div className="flex items-center gap-3"><div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg"><FileText className="h-5 w-5 text-emerald-600" /></div><div><p className="text-sm text-muted-foreground">GSTIN</p><p className="font-semibold">{settings[0]?.gstin ? <Badge variant="default" className="bg-emerald-600">Registered</Badge> : <Badge variant="secondary">Not Set</Badge>}</p></div></div></Card>
         <Card className="p-4"><div className="flex items-center gap-3"><div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg"><Hash className="h-5 w-5 text-blue-600" /></div><div><p className="text-sm text-muted-foreground">SAC Codes</p><p className="font-semibold text-lg">{sacCodes.length}</p></div></div></Card>
         <Card className="p-4"><div className="flex items-center gap-3"><div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg"><MapPin className="h-5 w-5 text-amber-600" /></div><div><p className="text-sm text-muted-foreground">State</p><p className="font-semibold">{settings[0]?.stateName || 'N/A'}</p></div></div></Card>
@@ -170,7 +170,7 @@ export default function TaxSettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="sac">SAC Codes</TabsTrigger>
           <TabsTrigger value="tcs">TCS/TDS</TabsTrigger>
@@ -324,7 +324,7 @@ export default function TaxSettingsPage() {
               <div><Label>Service Type</Label><Select name="serviceType" defaultValue={editingSac?.serviceType || ''} disabled={!!editingSac?.id}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{SERVICE_TYPES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent></Select></div>
               <div><Label>SAC Code</Label><Input name="sacCode" defaultValue={editingSac?.sacCode || SERVICE_TYPES.find(s => s.value === editingSac?.serviceType)?.sac || ''} /></div>
               <div><Label>Description</Label><Input name="description" defaultValue={editingSac?.description || ''} /></div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><Label>CGST Rate (%)</Label><Input name="cgstRate" type="number" step="0.01" defaultValue={editingSac ? editingSac.cgstRate * 100 : 9} /></div>
                 <div><Label>SGST Rate (%)</Label><Input name="sgstRate" type="number" step="0.01" defaultValue={editingSac ? editingSac.sgstRate * 100 : 9} /></div>
                 <div><Label>IGST Rate (%)</Label><Input name="igstRate" type="number" step="0.01" defaultValue={editingSac ? editingSac.igstRate * 100 : 18} /></div>

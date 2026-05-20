@@ -476,7 +476,7 @@ export default function SettlementReconciliation() {
                 <DialogDescription>Enter OTA settlement details and line items</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleCreateSettlement} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="channelCode">Channel Code</Label>
                     <Select name="channelCode" required>
@@ -561,7 +561,7 @@ export default function SettlementReconciliation() {
                   </div>
                   <ScrollArea className="max-h-60">
                     {newItemRows.map(idx => (
-                      <div key={idx} className="grid grid-cols-4 gap-2 mb-2 items-end">
+                      <div key={idx} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 mb-2 items-end">
                         <Input placeholder="Guest name" onChange={e => updateNewItem(idx, 'guestName', e.target.value)} />
                         <Input placeholder="Channel booking ref" onChange={e => updateNewItem(idx, 'channelBookingRef', e.target.value)} />
                         <Input type="date" onChange={e => updateNewItem(idx, 'checkIn', e.target.value || undefined)} />
@@ -590,7 +590,7 @@ export default function SettlementReconciliation() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <Card className="bg-gradient-to-br from-slate-500/10 to-slate-600/5 border-slate-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -747,6 +747,7 @@ export default function SettlementReconciliation() {
               <Card>
                 <CardContent className="p-0">
                   <ScrollArea className="max-h-[600px]">
+                    <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -870,7 +871,7 @@ export default function SettlementReconciliation() {
                                   <TableCell colSpan={11} className="bg-muted/30 p-4">
                                     <div className="space-y-4">
                                       {/* Summary header */}
-                                      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                                         <div className="text-sm">
                                           <span className="text-muted-foreground">Settlement Date:</span>
                                           <p className="font-medium">
@@ -919,6 +920,7 @@ export default function SettlementReconciliation() {
                                       {/* Items table */}
                                       {settlement.settlementItems.length > 0 ? (
                                         <ScrollArea className="max-h-72">
+                                          <div className="overflow-x-auto">
                                           <Table>
                                             <TableHeader>
                                               <TableRow>
@@ -975,6 +977,7 @@ export default function SettlementReconciliation() {
                                               ))}
                                             </TableBody>
                                           </Table>
+                                          </div>
                                         </ScrollArea>
                                       ) : (
                                         <p className="text-sm text-muted-foreground py-4 text-center">
@@ -990,6 +993,7 @@ export default function SettlementReconciliation() {
                         })}
                       </TableBody>
                     </Table>
+                    </div>
                   </ScrollArea>
                 </CardContent>
               </Card>
@@ -1018,6 +1022,7 @@ export default function SettlementReconciliation() {
                 </div>
               ) : (
                 <ScrollArea className="max-h-[500px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1061,6 +1066,7 @@ export default function SettlementReconciliation() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               )}
             </CardContent>
@@ -1086,6 +1092,7 @@ export default function SettlementReconciliation() {
                   </div>
                 ) : (
                   <ScrollArea className="max-h-96">
+                    <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -1130,6 +1137,7 @@ export default function SettlementReconciliation() {
                         ))}
                       </TableBody>
                     </Table>
+                    </div>
                   </ScrollArea>
                 )}
               </CardContent>

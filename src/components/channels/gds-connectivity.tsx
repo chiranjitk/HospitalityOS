@@ -595,7 +595,7 @@ export default function GDSConnectivity() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -710,7 +710,7 @@ export default function GDSConnectivity() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Last Sync</p>
                       <p className="text-sm font-medium">
@@ -814,6 +814,7 @@ export default function GDSConnectivity() {
           <Card>
             <CardContent className="p-0">
               <ScrollArea className="h-[480px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -886,6 +887,7 @@ export default function GDSConnectivity() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -919,6 +921,7 @@ export default function GDSConnectivity() {
           <Card>
             <CardContent className="p-0">
               <ScrollArea className="h-[480px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -970,6 +973,7 @@ export default function GDSConnectivity() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1005,6 +1009,7 @@ export default function GDSConnectivity() {
           <Card>
             <CardContent className="p-0">
               <ScrollArea className="h-[480px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1078,6 +1083,7 @@ export default function GDSConnectivity() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1095,7 +1101,7 @@ export default function GDSConnectivity() {
           </DialogHeader>
           {connectionDialog.item && (
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Hotel Code</Label>
                   <Input defaultValue={connectionDialog.item.hotelCode} readOnly className="bg-muted" />
@@ -1105,7 +1111,7 @@ export default function GDSConnectivity() {
                   <Input defaultValue={connectionDialog.item.chainCode} readOnly className="bg-muted" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Pseudo City Code (PCC)</Label>
                   <Input defaultValue={connectionDialog.item.pcc} />
@@ -1115,7 +1121,7 @@ export default function GDSConnectivity() {
                   <Input defaultValue={connectionDialog.item.rateAccessCode} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Sync Interval</Label>
                   <Select defaultValue={connectionDialog.item.syncInterval.toString()}>
@@ -1138,7 +1144,7 @@ export default function GDSConnectivity() {
               <Separator />
               <div className="space-y-3">
                 <Label>Sync Features</Label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {(['inventory', 'rates', 'bookings', 'restrictions', 'updates'] as const).map((feature) => (
                     <div key={feature} className="flex items-center justify-between">
                       <span className="text-sm capitalize">{feature}</span>
@@ -1169,7 +1175,7 @@ export default function GDSConnectivity() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Rate Code *</Label>
                 <Input
@@ -1188,7 +1194,7 @@ export default function GDSConnectivity() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select value={rateCodeForm.category} onValueChange={(v) => setRateCodeForm(f => ({ ...f, category: v as GDSRateCode['category'] }))}>
@@ -1231,7 +1237,7 @@ export default function GDSConnectivity() {
               />
             </div>
             <Separator />
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Discount Type</Label>
                 <Select value={rateCodeForm.discountType} onValueChange={(v) => setRateCodeForm(f => ({ ...f, discountType: v as GDSRateCode['discountType'] }))}>
@@ -1264,7 +1270,7 @@ export default function GDSConnectivity() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Min Stay (nights)</Label>
                 <Input
@@ -1285,7 +1291,7 @@ export default function GDSConnectivity() {
               </div>
             </div>
             <Separator />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Valid From</Label>
                 <Input

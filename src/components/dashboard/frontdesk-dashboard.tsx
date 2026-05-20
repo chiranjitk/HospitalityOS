@@ -316,7 +316,7 @@ export default function FrontDeskDashboard() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
             <Card key={i} className="border border-border/50 shadow-sm">
               <CardContent className="p-4">
@@ -385,7 +385,7 @@ export default function FrontDeskDashboard() {
       )}
 
       {/* Stats Grid */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Arrivals Today"
           value={stats.arrivalsToday}
@@ -477,7 +477,7 @@ export default function FrontDeskDashboard() {
       </div>
 
       {/* Arrivals and Departures */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         <Card className="border border-border/50 shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">

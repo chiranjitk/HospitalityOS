@@ -446,7 +446,7 @@ export default function LoyaltyManagement() {
           <CardTitle className="text-sm">Tier Distribution</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 grid-cols-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {Object.entries(tierConfig).map(([tier, config]) => (
               <div key={tier} className="text-center">
                 <div className={cn('w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center', config.color)}>

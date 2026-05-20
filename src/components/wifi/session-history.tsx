@@ -442,17 +442,17 @@ export default function SessionHistory() {
           </div>
           {getStatusBadge(session)}
         </div>
-        <div className="grid grid-cols-4 gap-2 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
           <div><p className="text-muted-foreground mb-0.5">MAC</p><p className="font-mono truncate">{session.callingstationid || session.dp_macAddress || '—'}</p></div>
           <div><p className="text-muted-foreground mb-0.5">NAS</p><div className="flex items-center gap-1"><Router className="h-3 w-3 shrink-0" /><span className="truncate">{session.nasipaddress || '—'}</span></div></div>
           <div><p className="text-muted-foreground mb-0.5">Port</p><p className="truncate">{session.nasporttype || '—'}</p></div>
           <div><p className="text-muted-foreground mb-0.5">Duration</p><p className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatDuration(session.acctsessiontime)}</p></div>
         </div>
-        <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
           <div className="rounded-md bg-muted/50 p-2"><p className="text-muted-foreground mb-1">Upload</p><div className="flex items-center gap-1 text-primary"><ArrowUpFromLine className="h-3 w-3" />{formatBytes(session.acctinputoctets)}</div></div>
           <div className="rounded-md bg-muted/50 p-2"><p className="text-muted-foreground mb-1">Download</p><div className="flex items-center gap-1 text-amber-600 dark:text-amber-400"><ArrowDownToLine className="h-3 w-3" />{formatBytes(session.acctoutputoctets)}</div></div>
         </div>
-        <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
           <div><p className="text-muted-foreground mb-0.5">Started</p><p>{formatDateTime(session.acctstarttime)}</p></div>
           <div><p className="text-muted-foreground mb-0.5">Stopped</p><p>{session.acctstoptime ? formatDateTime(session.acctstoptime) : <span className="text-emerald-600 dark:text-emerald-400 font-medium">Online</span>}</p></div>
         </div>
@@ -542,7 +542,7 @@ export default function SessionHistory() {
       </Card>
 
       {/* Stats Cards — Filtered Summary */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-violet-500/10"><Activity className="h-4 w-4 text-violet-500 dark:text-violet-400" /></div>
@@ -736,7 +736,7 @@ export default function SessionHistory() {
 
       {/* Session Details Dialog */}
       <Dialog open={!!selectedSession} onOpenChange={(open) => { if (!open) setSelectedSession(null); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Eye className="h-5 w-5" />Session Details</DialogTitle>
             <DialogDescription>RADIUS accounting record</DialogDescription>
@@ -746,7 +746,7 @@ export default function SessionHistory() {
               <div className="flex items-center justify-between">{getStatusBadge(selectedSession)}</div>
               <div className="border-t pt-4">
                 <p className="text-xs font-medium text-muted-foreground mb-3">User Information</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><p className="text-xs text-muted-foreground">Username</p>
                     <button className="text-sm font-medium hover:text-primary transition-colors text-left" onClick={() => { setDrillDownUser(selectedSession.username); setSelectedSession(null); setPagination(prev => ({ ...prev, offset: 0 })); }}>
                       {selectedSession.username || '—'}
@@ -760,7 +760,7 @@ export default function SessionHistory() {
               </div>
               <div className="border-t pt-4">
                 <p className="text-xs font-medium text-muted-foreground mb-3">Session Timing</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><p className="text-xs text-muted-foreground">Start Time</p><div className="flex items-center gap-1.5 mt-0.5"><CalendarDays className="h-3.5 w-3.5 text-muted-foreground" /><p className="text-sm">{formatDateTimeFull(selectedSession.acctstarttime)}</p></div></div>
                   <div><p className="text-xs text-muted-foreground">Stop Time</p>
                     {selectedSession.acctstoptime ? (
@@ -777,7 +777,7 @@ export default function SessionHistory() {
               </div>
               <div className="border-t pt-4">
                 <p className="text-xs font-medium text-muted-foreground mb-3">Data Usage</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground mb-1">Upload</p><div className="flex items-center gap-2"><ArrowUpFromLine className="h-4 w-4 text-sky-500" /><span className="text-sm font-medium">{formatBytes(selectedSession.acctinputoctets)}</span></div></div>
                   <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground mb-1">Download</p><div className="flex items-center gap-2"><ArrowDownToLine className="h-4 w-4 text-cyan-500" /><span className="text-sm font-medium">{formatBytes(selectedSession.acctoutputoctets)}</span></div></div>
                 </div>

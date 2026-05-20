@@ -458,7 +458,7 @@ export default function UpsellEngine() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -734,7 +734,7 @@ export default function UpsellEngine() {
                     </div>
 
                     {/* Stats row */}
-                    <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                       <div className="bg-muted/50 rounded-lg p-2">
                         <p className="text-xs text-muted-foreground">Sold</p>
                         <p className="text-sm font-bold">{offer.timesSold}</p>
@@ -794,7 +794,7 @@ export default function UpsellEngine() {
         {/* ─── Performance Tab ────────────────────────────────────────── */}
         <TabsContent value="performance" className="mt-4 space-y-6">
           {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <Card>
               <CardContent className="p-4 text-center">
                 <p className="text-xs text-muted-foreground mb-1">Total Revenue (YTD)</p>
@@ -893,6 +893,7 @@ export default function UpsellEngine() {
               <CardDescription>Ranked by total revenue generated</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -941,6 +942,7 @@ export default function UpsellEngine() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
 
@@ -955,6 +957,7 @@ export default function UpsellEngine() {
             </CardHeader>
             <CardContent className="p-0">
               <ScrollArea className="max-h-[300px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1000,6 +1003,7 @@ export default function UpsellEngine() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1071,7 +1075,7 @@ export default function UpsellEngine() {
                       <p className="text-sm text-muted-foreground">{rec.description}</p>
 
                       {/* Metrics */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="bg-muted/50 rounded-lg p-3">
                           <p className="text-xs text-muted-foreground mb-1">Predicted Conversion</p>
                           <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{rec.predictedConversion}%</p>
@@ -1113,7 +1117,7 @@ export default function UpsellEngine() {
           </DialogHeader>
           {campaignDialog.item && (
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Campaign Name</Label>
                   <Input defaultValue={campaignDialog.item.name} />
@@ -1167,7 +1171,7 @@ export default function UpsellEngine() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Start Date</Label>
                   <Input type="date" defaultValue={campaignDialog.item.startDate} />
@@ -1204,7 +1208,7 @@ export default function UpsellEngine() {
                 <Label>Offer Name</Label>
                 <Input defaultValue={offerDialog.item.name} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Category</Label>
                   <Select defaultValue={offerDialog.item.category}>
@@ -1242,7 +1246,7 @@ export default function UpsellEngine() {
                 <Label>Description</Label>
                 <Input defaultValue={offerDialog.item.description} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Original Price</Label>
                   <Input type="number" defaultValue={offerDialog.item.originalPrice} />
@@ -1295,7 +1299,7 @@ export default function UpsellEngine() {
                 onChange={(e) => setCreateOfferForm(prev => ({ ...prev, name: e.target.value }))}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="offer-type">Type *</Label>
                 <Select value={createOfferForm.offerType} onValueChange={(v) => setCreateOfferForm(prev => ({ ...prev, offerType: v }))}>
@@ -1329,7 +1333,7 @@ export default function UpsellEngine() {
                 onChange={(e) => setCreateOfferForm(prev => ({ ...prev, conditions: e.target.value }))}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="offer-valid-from">Valid From</Label>
                 <Input

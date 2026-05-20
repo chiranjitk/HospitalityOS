@@ -357,7 +357,7 @@ export function AdPlatformConnections() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="pb-2">
             <CardDescription>Google Ads</CardDescription>
@@ -429,7 +429,7 @@ export function AdPlatformConnections() {
                         onChange={(e) => setSelectedPropertyId(e.target.value)}
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Developer Token <span className="text-red-500">*</span></Label>
                         <Input
@@ -448,7 +448,7 @@ export function AdPlatformConnections() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Client Secret <span className="text-red-500">*</span></Label>
                         <Input
@@ -468,7 +468,7 @@ export function AdPlatformConnections() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Customer ID <span className="text-red-500">*</span></Label>
                         <Input
@@ -596,7 +596,7 @@ export function AdPlatformConnections() {
                         onChange={(e) => setSelectedPropertyId(e.target.value)}
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>App ID <span className="text-red-500">*</span></Label>
                         <Input

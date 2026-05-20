@@ -346,7 +346,7 @@ export default function StockItems() {
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 border-emerald-200 dark:border-emerald-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Total Items</CardTitle>
@@ -465,6 +465,7 @@ export default function StockItems() {
             </div>
           ) : (
             <ScrollArea className="max-h-[600px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -569,6 +570,7 @@ export default function StockItems() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>
@@ -586,7 +588,7 @@ export default function StockItems() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Name *</Label>
                 <Input
@@ -606,7 +608,7 @@ export default function StockItems() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="category">Category</Label>
                 <Select
@@ -650,7 +652,7 @@ export default function StockItems() {
                 rows={2}
               />
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="quantity">Current Quantity</Label>
                 <Input
@@ -679,7 +681,7 @@ export default function StockItems() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="unitCost">Unit Cost ($)</Label>
                 <Input
@@ -700,7 +702,7 @@ export default function StockItems() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="location">Location</Label>
                 <Input

@@ -906,7 +906,7 @@ export default function SyslogTab() {
               </div>
 
               {/* Host and Port */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 <div className="col-span-2 space-y-2">
                   <Label htmlFor="syslog-host">
                     Host <span className="text-red-500">*</span>
@@ -1037,7 +1037,7 @@ export default function SyslogTab() {
                     </span>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {CATEGORY_OPTIONS.map((cat) => (
                     <label
                       key={cat.value}

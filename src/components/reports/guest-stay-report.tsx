@@ -816,7 +816,7 @@ function GuestDetailDialog({
             </TabsContent>
 
             <TabsContent value="booking" className="space-y-4 mt-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Card className="bg-muted/30 border-0">
                   <CardContent className="p-4">
                     <p className="text-xs text-muted-foreground">Property</p>
@@ -1105,7 +1105,7 @@ function ScheduleReportDialog({
             <Label className="text-xs font-medium">Report Name</Label>
             <Input className="mt-1 h-8 text-sm" placeholder="Weekly Guest Stay Report" value={name} onChange={e => setName(e.target.value)} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-xs font-medium">Frequency</Label>
               <Select value={frequency} onValueChange={v => setFrequency(v as 'daily' | 'weekly' | 'monthly')}>
@@ -1146,7 +1146,7 @@ function ScheduleReportDialog({
               <Input className="mt-1 h-8 text-sm" type="number" min={1} max={31} value={dayOfMonth} onChange={e => setDayOfMonth(e.target.value)} />
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-xs font-medium">Time (HH:mm)</Label>
               <Input className="mt-1 h-8 text-sm" type="time" value={time} onChange={e => setTime(e.target.value)} />

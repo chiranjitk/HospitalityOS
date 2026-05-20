@@ -268,7 +268,7 @@ export default function ExperienceRevenue() {
       ) : (
         <>
           {/* Summary Cards */}
-          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             <Card className="p-4">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg bg-primary/10">
@@ -456,6 +456,7 @@ export default function ExperienceRevenue() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -495,6 +496,7 @@ export default function ExperienceRevenue() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </>

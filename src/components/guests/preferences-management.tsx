@@ -646,7 +646,7 @@ export default function PreferencesManagement() {
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid grid-cols-4 w-full">
+            <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full">
               {preferenceCategories.map((cat) => (
                 <TabsTrigger key={cat.id} value={cat.id}>
                   <cat.icon className="h-4 w-4 mr-1" />
@@ -742,7 +742,7 @@ export default function PreferencesManagement() {
 
               <div className="space-y-3">
                 <Label>Room Features</Label>
-                <div className="grid gap-2 grid-cols-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {[
                     { key: 'nonSmoking', label: 'Non-Smoking' },
                     { key: 'quietRoom', label: 'Quiet Room' },
@@ -770,7 +770,7 @@ export default function PreferencesManagement() {
             <TabsContent value="dietary" className="space-y-4 py-4">
               <div className="space-y-3">
                 <Label>Dietary Requirements</Label>
-                <div className="grid gap-2 grid-cols-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {[
                     { key: 'vegetarian', label: 'Vegetarian' },
                     { key: 'vegan', label: 'Vegan' },
@@ -824,7 +824,7 @@ export default function PreferencesManagement() {
 
             {/* Amenities */}
             <TabsContent value="amenities" className="space-y-4 py-4">
-              <div className="grid gap-3 grid-cols-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { key: 'extraTowels', label: 'Extra Towels', icon: '🛁' },
                   { key: 'extraPillows', label: 'Extra Pillows', icon: '🛏️' },

@@ -928,7 +928,7 @@ export function InventoryPooling() {
                 rows={2}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Total Rooms</Label>
                 <Input
@@ -949,7 +949,7 @@ export function InventoryPooling() {
                 <p className="text-[10px] text-muted-foreground">Rooms reserved for direct/overbooking</p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Overbooking Limit</Label>
                 <Input
@@ -1038,7 +1038,7 @@ export function InventoryPooling() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Weight</Label>
                 <Input
@@ -1061,7 +1061,7 @@ export function InventoryPooling() {
                 <p className="text-[10px] text-muted-foreground">Higher = first served</p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Min Allocation</Label>
                 <Input

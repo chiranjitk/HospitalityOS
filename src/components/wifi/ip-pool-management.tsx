@@ -685,7 +685,7 @@ export default function IpPoolManagement() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-primary/10">
@@ -781,6 +781,7 @@ export default function IpPoolManagement() {
             <p className="text-xs text-muted-foreground/60 mt-1">Create your first IP pool to restrict user access</p>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -944,6 +945,7 @@ export default function IpPoolManagement() {
                               <p className="text-xs text-muted-foreground py-2">No ranges configured</p>
                             ) : (
                               <div className="rounded-lg border bg-background overflow-hidden mb-4">
+                                <div className="overflow-x-auto">
                                 <Table>
                                   <TableHeader>
                                     <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -978,6 +980,7 @@ export default function IpPoolManagement() {
                                     ))}
                                   </TableBody>
                                 </Table>
+                                </div>
                               </div>
                             )}
 
@@ -990,7 +993,7 @@ export default function IpPoolManagement() {
                             </div>
                             {bwPool ? (
                               <div className="rounded-lg border bg-background overflow-hidden">
-                                <div className="grid grid-cols-2 gap-px bg-border">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-border">
                                   <div className="bg-background p-3">
                                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Container ↓</p>
                                     <p className="text-sm font-semibold tabular-nums mt-0.5">{formatBandwidthKbps(bwPool.totalDownloadKbps)}</p>
@@ -1020,6 +1023,7 @@ export default function IpPoolManagement() {
               })}
             </TableBody>
           </Table>
+          </div>
         )}
       </Card>
 
@@ -1027,7 +1031,7 @@ export default function IpPoolManagement() {
       <Dialog open={isCreateOpen || isEditOpen} onOpenChange={(open) => {
         if (!open) { setIsCreateOpen(false); setIsEditOpen(false); setSelectedPool(null); setBwSectionOpen(false); }
       }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>{isEditOpen ? 'Edit IP Pool' : 'Create IP Pool'}</DialogTitle>
             <DialogDescription>
@@ -1140,7 +1144,7 @@ export default function IpPoolManagement() {
                   'rounded-lg border p-3 space-y-2',
                   hasError ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-950/20' : 'border-border bg-muted/30'
                 )}>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs font-medium text-muted-foreground">Start IP</Label>
                       <Input
@@ -1317,7 +1321,7 @@ export default function IpPoolManagement() {
           {selectedPool && (
             <div className="space-y-4 py-2">
               {/* Network Info */}
-              <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-muted-foreground">Subnet</span>
                   <p className="font-mono">{formatInetDisplay(selectedPool.subnet)}</p>
@@ -1364,7 +1368,7 @@ export default function IpPoolManagement() {
                       <Gauge className="h-3 w-3" />
                       Bandwidth Container (TC HTB)
                     </p>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div className="rounded-md bg-muted/30 p-2 text-center">
                         <p className="text-[10px] text-muted-foreground">Container ↓</p>
                         <p className="text-sm font-semibold tabular-nums">{formatBandwidthKbps(bwPool.totalDownloadKbps)}</p>
@@ -1384,7 +1388,7 @@ export default function IpPoolManagement() {
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
                   IP Ranges ({selectedPool._count.ranges})
                 </p>
-                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                <div className="space-y-1.5 max-h-40 overflow-auto">
                   {selectedPool.ranges.map((range, idx) => (
                     <div key={range.id || idx} className="flex items-center gap-2 bg-muted/30 rounded px-3 py-1.5 text-xs">
                       <span className="font-mono">{formatInetDisplay(range.startIp)}</span>

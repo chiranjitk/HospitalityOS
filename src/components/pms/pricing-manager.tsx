@@ -555,7 +555,7 @@ export function PricingManager() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="text-2xl font-bold">{ratePlans.length}</div>
           <div className="text-xs text-muted-foreground">Rate Plans</div>
@@ -608,6 +608,7 @@ export function PricingManager() {
                   <p className="text-sm">Create rate plans to manage pricing</p>
                 </div>
               ) : (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -669,6 +670,7 @@ export function PricingManager() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -698,6 +700,7 @@ export function PricingManager() {
                   <p className="text-sm">Add overrides to adjust prices for specific dates</p>
                 </div>
               ) : (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -776,6 +779,7 @@ export function PricingManager() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -810,7 +814,7 @@ export function PricingManager() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Name</Label>
                 <Input
@@ -840,7 +844,7 @@ export function PricingManager() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Base Price ({currency.symbol})</Label>
                 <div className="relative">
@@ -873,7 +877,7 @@ export function PricingManager() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Min Stay (nights)</Label>
                 <Input
@@ -965,7 +969,7 @@ export function PricingManager() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Date</Label>
                 <Input
@@ -999,7 +1003,7 @@ export function PricingManager() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <Switch
                   checked={overrideForm.closedToArrival}

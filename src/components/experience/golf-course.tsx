@@ -318,7 +318,7 @@ export default function GolfCourseManagement() {
   // ── Render: Stats Cards ────────────────────────────────────────
 
   const renderStatsCards = () => (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       <Card className="p-4 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20">
@@ -392,7 +392,7 @@ export default function GolfCourseManagement() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {courses.map(course => {
           const diff = DIFFICULTY_CONFIG[course.difficulty] || DIFFICULTY_CONFIG.moderate;
           let facilities: string[] = [];
@@ -411,7 +411,7 @@ export default function GolfCourseManagement() {
                   </Badge>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-center">
                   <div className="bg-muted/50 rounded-lg p-2">
                     <div className="text-lg font-bold">{course.holes}</div>
                     <div className="text-[10px] text-muted-foreground">Holes</div>
@@ -502,6 +502,7 @@ export default function GolfCourseManagement() {
       <Card>
         <CardContent className="p-0">
           <ScrollArea className="max-h-[520px]">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -580,6 +581,7 @@ export default function GolfCourseManagement() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </ScrollArea>
         </CardContent>
       </Card>
@@ -617,6 +619,7 @@ export default function GolfCourseManagement() {
       <Card>
         <CardContent className="p-0">
           <ScrollArea className="max-h-[520px]">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -674,6 +677,7 @@ export default function GolfCourseManagement() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </ScrollArea>
         </CardContent>
       </Card>
@@ -712,7 +716,7 @@ export default function GolfCourseManagement() {
             <DialogDescription>Set up a new golf course for your property</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="col-span-2">
                 <Label>Name</Label>
                 <Input value={courseForm.name} onChange={(e) => setCourseForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Championship Course" />
@@ -770,7 +774,7 @@ export default function GolfCourseManagement() {
             <DialogDescription>Create a new tee time booking</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="col-span-2">
                 <Label>Course</Label>
                 <Select value={teeTimeForm.courseId} onValueChange={(v) => setTeeTimeForm(f => ({ ...f, courseId: v }))}>
@@ -840,7 +844,7 @@ export default function GolfCourseManagement() {
             <DialogDescription>Create a new golf membership</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="col-span-2">
                 <Label>Member Name</Label>
                 <Input value={membershipForm.name} onChange={(e) => setMembershipForm(f => ({ ...f, name: e.target.value }))} placeholder="Full name" />

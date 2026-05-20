@@ -526,7 +526,7 @@ export default function WifiAdCampaigns() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2.5">
@@ -746,7 +746,7 @@ export default function WifiAdCampaigns() {
           ) : stats ? (
             <>
               {/* Performance Overview */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <Card className="border-0 shadow-sm">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
@@ -1155,7 +1155,7 @@ export default function WifiAdCampaigns() {
           </DialogHeader>
           {selectedCampaign && (
             <div className="grid gap-4 text-sm">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <span className="text-muted-foreground block text-xs mb-1">Name</span>
                   <span className="font-medium">{selectedCampaign.name}</span>
@@ -1196,7 +1196,7 @@ export default function WifiAdCampaigns() {
 
               <div>
                 <span className="text-muted-foreground block text-xs mb-2">Performance</span>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="rounded-lg bg-muted/50 p-3 text-center">
                     <p className="text-lg font-bold tabular-nums">{selectedCampaign.impressions.toLocaleString()}</p>
                     <p className="text-[11px] text-muted-foreground">Impressions</p>
@@ -1233,7 +1233,7 @@ export default function WifiAdCampaigns() {
 
               <Separator />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <span className="text-muted-foreground block text-xs mb-1">Start Date</span>
                   <span>{format(new Date(selectedCampaign.startDate), 'PPP')}</span>

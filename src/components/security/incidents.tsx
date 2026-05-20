@@ -338,7 +338,7 @@ export default function Incidents() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-red-500/10">
@@ -444,6 +444,7 @@ export default function Incidents() {
             </div>
           ) : (
             <ScrollArea className="h-[400px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -507,6 +508,7 @@ export default function Incidents() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>
@@ -530,7 +532,7 @@ export default function Incidents() {
                 onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Type</Label>
                 <Select
@@ -614,7 +616,7 @@ export default function Incidents() {
                 {getSeverityBadge(selectedIncident.severity)}
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Type</p>
                   <Badge variant="outline" className="capitalize mt-1">

@@ -1283,7 +1283,7 @@ export default function LicenseManagement() {
                 </div>
 
                 {/* Current usage summary */}
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                   <div className="rounded-lg border bg-muted/20 p-2">
                     <p className="text-lg font-bold">
                       {editingEnt.currentUsage.toLocaleString()}

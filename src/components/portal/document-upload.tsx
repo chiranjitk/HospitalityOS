@@ -257,7 +257,7 @@ export function DocumentUpload({ token, documents, kycComplete, onUpdate }: Docu
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <div className="text-center p-2 rounded-lg bg-muted/50">
             <div className="text-lg font-bold">{stats.total}</div>
             <div className="text-[10px] text-muted-foreground">Total</div>

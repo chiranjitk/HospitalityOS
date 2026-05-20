@@ -546,7 +546,7 @@ export function ParkingBilling() {
       </div>
 
       {/* Stats Cards Row */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-emerald-500/10">
@@ -732,6 +732,7 @@ export function ParkingBilling() {
           <Card>
             <CardContent className="p-0">
               <ScrollArea className="max-h-[500px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -892,6 +893,7 @@ export function ParkingBilling() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -933,7 +935,7 @@ export function ParkingBilling() {
               </div>
 
               {/* Details grid */}
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 {selectedRecord.guest && (
                   <div className="col-span-2 p-3 bg-muted rounded-lg">
                     <p className="text-xs text-muted-foreground mb-1">Guest</p>
@@ -1068,7 +1070,7 @@ export function ParkingBilling() {
               {/* Payment method selection as cards */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Payment Method</Label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {paymentMethods.map((method) => {
                     const Icon = method.icon;
                     const isSelected = selectedPaymentMethod === method.value;
@@ -1132,7 +1134,7 @@ export function ParkingBilling() {
             </div>
 
             {/* Make, Model, Year */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Make</Label>
                 <Input
@@ -1222,7 +1224,7 @@ export function ParkingBilling() {
             </div>
 
             {/* Rates */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Hourly Rate</Label>
                 <Input

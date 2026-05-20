@@ -170,7 +170,7 @@ export function ShiftSummaryWidget() {
           <div className="animate-pulse space-y-3">
             <div className="h-5 w-32 bg-muted rounded" />
             <div className="h-3 w-full bg-muted rounded" />
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[0,1,2,3].map(i => <div key={i} className="h-14 bg-muted rounded-lg" />)}
             </div>
           </div>
@@ -221,7 +221,7 @@ export function ShiftSummaryWidget() {
         <Separator className="opacity-50" />
 
         {/* Quick Stats Grid */}
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}

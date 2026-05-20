@@ -820,6 +820,7 @@ export default function Waitlist() {
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -972,6 +973,7 @@ export default function Waitlist() {
                   })}
                 </TableBody>
               </Table>
+            </div>
             </ScrollArea>
           )}
         </CardContent>
@@ -1250,7 +1252,7 @@ export default function Waitlist() {
                   </div>
                 ) : (
                   <ScrollArea className="h-40">
-                    <div className="grid grid-cols-3 gap-2 pr-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pr-2">
                       {convertRooms.map(room => (
                         <button
                           key={room.id}

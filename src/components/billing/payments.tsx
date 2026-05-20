@@ -822,7 +822,7 @@ export default function Payments() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className="text-xs">Method</Label>
             <Select value={line.method} onValueChange={(v) => updateSplitLine(line.id, 'method', v)}>
@@ -854,7 +854,7 @@ export default function Payments() {
         </div>
 
         {line.method === 'card' && (
-          <div className="grid grid-cols-3 gap-2 mt-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
             <div className="space-y-1">
               <Label className="text-[10px] text-muted-foreground">Card Type</Label>
               <Select value={line.cardType} onValueChange={(v) => updateSplitLine(line.id, 'cardType', v)}>
@@ -972,7 +972,7 @@ export default function Payments() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-4 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-violet-500/10">
@@ -1304,7 +1304,7 @@ export default function Payments() {
                   <RadioGroup
                     value={formData.method}
                     onValueChange={(value) => setFormData(prev => ({ ...prev, method: value }))}
-                    className="grid grid-cols-2 gap-2"
+                    className="grid grid-cols-1 sm:grid-cols-2 gap-2"
                   >
                     {paymentMethods.map(method => {
                       const Icon = method.icon;
@@ -1343,7 +1343,7 @@ export default function Payments() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="cardType">Card Type</Label>
                         <Select value={formData.cardType} onValueChange={(v) => setFormData(prev => ({ ...prev, cardType: v }))}>
@@ -1402,7 +1402,7 @@ export default function Payments() {
                   <Card className="p-4 bg-muted/50">
                     <div className="space-y-3">
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Payment Summary</p>
-                      <div className="grid grid-cols-3 gap-3 text-center">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
                         <div className="rounded-lg bg-background/80 p-2.5">
                           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Due</p>
                           <p className="text-sm font-bold">{formatCurrency(selectedFolio.balance)}</p>

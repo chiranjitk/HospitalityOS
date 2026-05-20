@@ -243,7 +243,7 @@ export default function MonthlyPasses() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
         {[
           { label: 'Active', value: stats.active, color: 'text-emerald-600 dark:text-emerald-400' },
           { label: 'Expired', value: stats.expired, color: 'text-gray-500' },
@@ -349,7 +349,7 @@ export default function MonthlyPasses() {
             <DialogDescription>Create a new monthly, weekly, or yearly parking pass</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Holder Name *</Label>
                 <Input value={formData.holderName} onChange={e => setFormData({ ...formData, holderName: e.target.value })} />
@@ -359,7 +359,7 @@ export default function MonthlyPasses() {
                 <Input value={formData.licensePlate} onChange={e => setFormData({ ...formData, licensePlate: e.target.value })} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Email</Label>
                 <Input type="email" value={formData.holderEmail} onChange={e => setFormData({ ...formData, holderEmail: e.target.value })} />
@@ -369,7 +369,7 @@ export default function MonthlyPasses() {
                 <Input value={formData.holderPhone} onChange={e => setFormData({ ...formData, holderPhone: e.target.value })} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Start Date *</Label>
                 <Input type="date" value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} />
@@ -384,7 +384,7 @@ export default function MonthlyPasses() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Amount</Label>
                 <Input type="number" step="0.01" value={formData.amount} onChange={e => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })} />

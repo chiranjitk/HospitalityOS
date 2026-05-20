@@ -556,7 +556,7 @@ export default function CheckIn() {
       </div>
 
       {/* Quick Stats Ribbon */}
-      <div className="grid gap-3 grid-cols-3">
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
         <Card className="p-3 sm:p-4 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30 border border-emerald-200/50 dark:border-emerald-800/30">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-emerald-500/10">
@@ -957,7 +957,7 @@ export default function CheckIn() {
                   {depositMethod === 'card' && (
                     <div className="space-y-2">
                       <Label className="text-xs font-medium text-muted-foreground">Card Details</Label>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div className="space-y-1">
                           <Label className="text-xs">Card Type</Label>
                           <Select value={depositCardType} onValueChange={setDepositCardType}>

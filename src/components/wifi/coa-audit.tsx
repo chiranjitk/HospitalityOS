@@ -281,7 +281,7 @@ export default function CoaAudit() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { icon: Activity, color: 'text-cyan-500', bg: 'bg-cyan-500/10', value: stats.totalToday, label: 'Total Operations' },
           { icon: CheckCircle, color: 'text-primary', bg: 'bg-primary/10', value: stats.successCount, label: 'Successful', valueColor: 'text-primary' },

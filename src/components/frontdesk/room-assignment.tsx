@@ -605,7 +605,7 @@ export default function RoomAssignment() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <Card className="p-4 border-l-4 border-l-amber-500">
           <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.unassigned}</div>
           <div className="text-xs text-muted-foreground">Unassigned Bookings</div>
@@ -791,7 +791,7 @@ export default function RoomAssignment() {
           </Card>
 
           {isLoadingRooms ? (
-            <div className="grid gap-4 grid-cols-4 sm:grid-cols-6 lg:grid-cols-8">
+            <div className="grid gap-4 grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
               {Array.from({ length: 16 }).map((_, i) => (
                 <Skeleton key={i} className="h-24 rounded-lg" />
               ))}
@@ -817,7 +817,7 @@ export default function RoomAssignment() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid gap-3 grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10">
+                      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10">
                         {rooms.map(room => (
                           <div
                             key={room.id}
@@ -856,7 +856,7 @@ export default function RoomAssignment() {
             <div className="space-y-4">
               {/* Booking Info */}
               <Card className="p-4 bg-muted/50">
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-muted-foreground">Room Type</span>
                     <p className="font-medium">{selectedBooking.roomType.name}</p>
@@ -893,7 +893,7 @@ export default function RoomAssignment() {
                   }
                   return (
                     <ScrollArea className="h-48">
-                      <div className="grid grid-cols-4 gap-2 pr-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pr-2">
                         {compatibleRooms.map(room => (
                           <button
                             key={room.id}

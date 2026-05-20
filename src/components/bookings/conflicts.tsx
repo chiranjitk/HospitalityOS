@@ -434,7 +434,7 @@ export default function Conflicts() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-6">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
         <Card className={cn('p-4', stats.criticalConflicts > 0 && 'border-red-500')}>
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />
@@ -775,7 +775,7 @@ export default function Conflicts() {
                     The conflicting booking will have its dates adjusted. This may affect pricing.
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="modifyCheckIn">New Check-in</Label>
                     <Input

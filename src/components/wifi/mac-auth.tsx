@@ -480,7 +480,7 @@ export default function MacAuth({ propertyId }: MacAuthProps) {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-2">
@@ -715,7 +715,7 @@ export default function MacAuth({ propertyId }: MacAuthProps) {
                 disabled={!!editingEntry}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Username (optional)</Label>
                 <Input
@@ -741,7 +741,7 @@ export default function MacAuth({ propertyId }: MacAuthProps) {
                 placeholder="e.g. John's laptop"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Valid From</Label>
                 <Input
@@ -774,7 +774,7 @@ export default function MacAuth({ propertyId }: MacAuthProps) {
                 </Select>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Download (Mbps)</Label>
                 <Input
@@ -794,7 +794,7 @@ export default function MacAuth({ propertyId }: MacAuthProps) {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Session Timeout (min)</Label>
                 <Input

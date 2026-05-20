@@ -134,7 +134,7 @@ export default function NotificationSettingsComponent() {
       </div>
 
       {/* Channel Settings */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         {/* Email Settings */}
         <Card>
           <CardHeader>
@@ -148,7 +148,7 @@ export default function NotificationSettingsComponent() {
               <Label>Enable Email Notifications</Label>
               <Switch checked={settings.email.enabled} onCheckedChange={(v) => setSettings({ ...settings, email: { ...settings.email, enabled: v } })} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Provider</Label>
                 <Select value={settings.email.provider} onValueChange={(v) => setSettings({ ...settings, email: { ...settings.email, provider: v } })}>
@@ -185,7 +185,7 @@ export default function NotificationSettingsComponent() {
               <Label>Enable SMS Notifications</Label>
               <Switch checked={settings.sms.enabled} onCheckedChange={(v) => setSettings({ ...settings, sms: { ...settings.sms, enabled: v } })} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Provider</Label>
                 <Select value={settings.sms.provider} onValueChange={(v) => setSettings({ ...settings, sms: { ...settings.sms, provider: v } })}>
@@ -218,7 +218,7 @@ export default function NotificationSettingsComponent() {
               <Label>Enable Push Notifications</Label>
               <Switch checked={settings.push.enabled} onCheckedChange={(v) => setSettings({ ...settings, push: { ...settings.push, enabled: v } })} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Provider</Label>
                 <Select value={settings.push.provider} onValueChange={(v) => setSettings({ ...settings, push: { ...settings.push, provider: v } })}>
@@ -250,7 +250,7 @@ export default function NotificationSettingsComponent() {
               <Label>Enable Quiet Hours</Label>
               <Switch checked={settings.quietHours.enabled} onCheckedChange={(v) => setSettings({ ...settings, quietHours: { ...settings.quietHours, enabled: v } })} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Start Time</Label>
                 <Input type="time" value={settings.quietHours.start} onChange={(e) => setSettings({ ...settings, quietHours: { ...settings.quietHours, start: e.target.value } })} />
@@ -271,6 +271,7 @@ export default function NotificationSettingsComponent() {
           <CardDescription>Configure which notifications are sent for each event</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -297,6 +298,7 @@ export default function NotificationSettingsComponent() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

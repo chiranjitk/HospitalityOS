@@ -239,7 +239,7 @@ export default function Restrictions() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="bg-gradient-to-br from-slate-500/10 to-slate-600/5 border-slate-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -345,7 +345,7 @@ export default function Restrictions() {
                           <Edit className="h-4 w-4" />
                         </Button>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 mb-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                         <div>
                           <p className="text-xs text-muted-foreground">Min Stay</p>
                           <Badge variant="outline">{item.minStay} night{item.minStay > 1 ? 's' : ''}</Badge>
@@ -379,6 +379,7 @@ export default function Restrictions() {
                 {/* Desktop Table */}
                 <div className="hidden sm:block">
                   <ScrollArea className="h-[300px]">
+                    <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -443,6 +444,7 @@ export default function Restrictions() {
                         ))}
                       </TableBody>
                     </Table>
+                    </div>
                   </ScrollArea>
                 </div>
               </CardContent>

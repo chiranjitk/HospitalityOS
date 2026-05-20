@@ -294,6 +294,7 @@ const t = useTranslations('billing');
               <p className="text-sm mt-1">Add a rate to enable multi-currency billing</p>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -334,6 +335,7 @@ const t = useTranslations('billing');
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -345,6 +347,7 @@ const t = useTranslations('billing');
             <CardTitle className="text-base">Rate History</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -373,6 +376,7 @@ const t = useTranslations('billing');
                 ))}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -385,7 +389,7 @@ const t = useTranslations('billing');
             <DialogDescription>Set up a currency conversion rate</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>From Currency *</Label>
                 <Select value={fromCurrency} onValueChange={setFromCurrency}>

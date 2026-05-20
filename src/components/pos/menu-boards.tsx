@@ -635,7 +635,7 @@ export default function DigitalMenuBoards() {
               <Label>Description</Label>
               <Textarea value={boardForm.description} onChange={(e) => setBoardForm(f => ({ ...f, description: e.target.value }))} placeholder="Optional description" rows={2} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Location</Label>
                 <Select value={boardForm.location} onValueChange={(v) => setBoardForm(f => ({ ...f, location: v }))}>
@@ -689,7 +689,7 @@ export default function DigitalMenuBoards() {
             <DialogDescription>Add an item to &quot;{selectedBoard?.name}&quot;</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="col-span-2">
                 <Label>Item Name</Label>
                 <Input value={itemForm.name} onChange={(e) => setItemForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Grilled Salmon" />

@@ -1096,7 +1096,7 @@ export function FloorPlanEditor({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <Label className="text-xs">X</Label>
                         <Input
@@ -1129,7 +1129,7 @@ export function FloorPlanEditor({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <Label className="text-xs">Width</Label>
                         <Input

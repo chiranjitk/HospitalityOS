@@ -304,7 +304,7 @@ function RuleForm({ rule, onChange, onSave, onCancel, isSaving, currencySymbol }
             <Clock className="h-3.5 w-3.5" />
             Early Bird Settings
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs text-muted-foreground">Book at least (days)</label>
               <Input
@@ -340,7 +340,7 @@ function RuleForm({ rule, onChange, onSave, onCancel, isSaving, currencySymbol }
             <Zap className="h-3.5 w-3.5" />
             Last Minute Settings
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs text-muted-foreground">Within (days)</label>
               <Input
@@ -376,7 +376,7 @@ function RuleForm({ rule, onChange, onSave, onCancel, isSaving, currencySymbol }
             <Calendar className="h-3.5 w-3.5" />
             Long Stay Settings
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs text-muted-foreground">Minimum Nights</label>
               <Input
@@ -412,7 +412,7 @@ function RuleForm({ rule, onChange, onSave, onCancel, isSaving, currencySymbol }
             <Tag className="h-3.5 w-3.5" />
             Promo Code Settings
           </label>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             <div className="col-span-2 space-y-1.5">
               <label className="text-xs text-muted-foreground">Promo Code</label>
               <div className="flex gap-2">
@@ -467,7 +467,7 @@ function RuleForm({ rule, onChange, onSave, onCancel, isSaving, currencySymbol }
             <Users className="h-3.5 w-3.5" />
             Occupancy Surcharge Settings
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs text-muted-foreground">Threshold Guests</label>
               <Input
@@ -500,7 +500,7 @@ function RuleForm({ rule, onChange, onSave, onCancel, isSaving, currencySymbol }
             <Timer className="h-3.5 w-3.5" />
             Advance Booking Settings
           </label>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs text-muted-foreground">Min Days</label>
               <Input
@@ -546,7 +546,7 @@ function RuleForm({ rule, onChange, onSave, onCancel, isSaving, currencySymbol }
             <Globe className="h-3.5 w-3.5" />
             Channel Settings
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs text-muted-foreground">Channel</label>
               <Select
@@ -567,7 +567,7 @@ function RuleForm({ rule, onChange, onSave, onCancel, isSaving, currencySymbol }
             </div>
             <div className="space-y-1.5">
               <label className="text-xs text-muted-foreground">Adjustment Value</label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <Select
                   value={rule.valueType || 'percentage'}
                   onValueChange={(v) => onChange({ ...rule, valueType: v as 'percentage' | 'fixed' })}
@@ -594,7 +594,7 @@ function RuleForm({ rule, onChange, onSave, onCancel, isSaving, currencySymbol }
 
       {/* General fields for types without specific panels */}
       {!['early_bird', 'last_minute', 'long_stay', 'promo_code', 'occupancy', 'advance_booking', 'channel'].includes(currentType) && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Value Type</label>
             <Select
@@ -623,7 +623,7 @@ function RuleForm({ rule, onChange, onSave, onCancel, isSaving, currencySymbol }
       )}
 
       {/* Priority + Effective From */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">Priority</label>
           <Input

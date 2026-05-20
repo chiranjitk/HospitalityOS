@@ -271,7 +271,7 @@ export function TenantManagement() {
             </DialogHeader>
             {editTenant && (
               <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Name</Label>
                     <Input value={editTenant.name} onChange={(e) => setEditTenant({ ...editTenant, name: e.target.value })} />
@@ -281,7 +281,7 @@ export function TenantManagement() {
                     <Input value={editTenant.slug} onChange={(e) => setEditTenant({ ...editTenant, slug: e.target.value })} />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Email</Label>
                     <Input type="email" value={editTenant.email} onChange={(e) => setEditTenant({ ...editTenant, email: e.target.value })} />
@@ -291,7 +291,7 @@ export function TenantManagement() {
                     <Input value={editTenant.phone || ''} onChange={(e) => setEditTenant({ ...editTenant, phone: e.target.value })} />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Plan</Label>
                     <Select value={editTenant.plan} onValueChange={(v: Tenant['plan']) => setEditTenant({ ...editTenant, plan: v })}>
@@ -317,7 +317,7 @@ export function TenantManagement() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Max Properties</Label>
                     <Input type="number" value={editTenant.limits.properties} onChange={(e) => setEditTenant({ ...editTenant, limits: { ...editTenant.limits, properties: parseInt(e.target.value) } })} />
@@ -345,7 +345,7 @@ export function TenantManagement() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
         <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="pb-2">
             <CardDescription>Active Tenants</CardDescription>
@@ -407,6 +407,7 @@ export function TenantManagement() {
             </Select>
           </div>
 
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -469,6 +470,7 @@ export function TenantManagement() {
               ))}
             </TableBody>
           </Table>
+          </div>
           
           {filteredTenants.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">

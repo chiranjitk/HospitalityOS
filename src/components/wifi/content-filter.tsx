@@ -1330,7 +1330,8 @@ export default function ContentFilterPage() {
               {filteredFilters.length === 0 ? (
                 renderEmpty()
               ) : (
-                <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
+                <div className="max-h-[500px] overflow-auto custom-scrollbar">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
@@ -1472,6 +1473,7 @@ export default function ContentFilterPage() {
                       </AnimatePresence>
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -1512,7 +1514,7 @@ export default function ContentFilterPage() {
               </div>
 
               {/* Category + Property */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label>Category</Label>
                   <Select value={formCategory} onValueChange={setFormCategory}>

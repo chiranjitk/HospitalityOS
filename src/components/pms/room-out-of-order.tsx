@@ -387,7 +387,7 @@ export default function RoomOutOfOrder() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4 hover:shadow-lg transition-all hover:-translate-y-0.5">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-amber-500/10">
@@ -614,7 +614,8 @@ export default function RoomOutOfOrder() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-7 gap-1">
+          <div className="overflow-x-auto">
+            <div className="grid grid-cols-7 gap-1">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
               <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">{day}</div>
             ))}
@@ -656,6 +657,7 @@ export default function RoomOutOfOrder() {
                 </div>
               );
             })}
+          </div>
           </div>
         </CardContent>
       </Card>
@@ -708,7 +710,7 @@ export default function RoomOutOfOrder() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Start Date *</Label>
                 <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />

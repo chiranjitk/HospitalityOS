@@ -390,7 +390,7 @@ export default function DepositSchedules() {
       {!isLoading && (
       <>
       {/* Summary Dashboard */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-primary/10">

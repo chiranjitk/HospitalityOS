@@ -656,7 +656,7 @@ export function StopSellManager() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-red-500/10 to-red-600/5 border-red-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -715,7 +715,7 @@ export function StopSellManager() {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Left: Form + Calendar */}
         <div className="lg:col-span-1 space-y-6">
           {/* Apply Stop-Sell Form */}
@@ -729,7 +729,7 @@ export function StopSellManager() {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Date Range */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Start Date</Label>
                   <Input
@@ -1112,6 +1112,7 @@ export function StopSellManager() {
                   {/* Desktop Table */}
                   <div className="hidden sm:block">
                     <ScrollArea className="max-h-96">
+                      <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -1191,6 +1192,7 @@ export function StopSellManager() {
                           ))}
                         </TableBody>
                       </Table>
+                      </div>
                     </ScrollArea>
                   </div>
                 </>

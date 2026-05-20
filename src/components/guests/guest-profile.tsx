@@ -262,7 +262,7 @@ export function GuestProfile({ guestId, onBack }: GuestProfileProps) {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-muted-foreground" />
@@ -295,7 +295,7 @@ export function GuestProfile({ guestId, onBack }: GuestProfileProps) {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-7">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="journey">Journey</TabsTrigger>
           <TabsTrigger value="documents">KYC</TabsTrigger>

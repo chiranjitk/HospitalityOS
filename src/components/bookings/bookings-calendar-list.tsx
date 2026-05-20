@@ -688,7 +688,8 @@ function CalendarViewTab() {
           ) : (
             <>
               {/* Week day headers */}
-              <div className="grid grid-cols-7 border-b">
+              <div className="overflow-x-auto">
+              <div className="grid grid-cols-7 border-b min-w-[640px]">
                 {weekDays.map(day => (
                   <div
                     key={day}
@@ -700,7 +701,7 @@ function CalendarViewTab() {
               </div>
 
               {/* Calendar days */}
-              <div className="grid grid-cols-7">
+              <div className="grid grid-cols-7 min-w-[640px]">
                 {calendarDays.map((day) => {
                   const isCurrentMonth = format(day, 'M') === format(currentMonth, 'M');
                   const dayBookings = getBookingsForDay(day);
@@ -803,6 +804,7 @@ function CalendarViewTab() {
                     </div>
                   );
                 })}
+              </div>
               </div>
             </>
           )}
@@ -1852,7 +1854,7 @@ function BookingForm({ formData, setFormData, properties, roomTypes, guests }: {
   
   return (
     <div className="grid gap-4 py-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="propertyId">Property *</Label>
           <Select 
@@ -1917,7 +1919,7 @@ function BookingForm({ formData, setFormData, properties, roomTypes, guests }: {
         </Select>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="checkIn">Check-in Date *</Label>
           <Input
@@ -1938,7 +1940,7 @@ function BookingForm({ formData, setFormData, properties, roomTypes, guests }: {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label htmlFor="adults">Adults</Label>
           <Input
@@ -1974,7 +1976,7 @@ function BookingForm({ formData, setFormData, properties, roomTypes, guests }: {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="source">Source</Label>
           <Select 

@@ -355,7 +355,7 @@ function keyCardStatusBadge(status: string) {
 
 function StatsSkeleton() {
   return (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       {[...Array(4)].map((_, i) => (
         <Card key={i} className="border-l-4 border-l-muted">
           <CardHeader className="pb-2">
@@ -735,7 +735,7 @@ export function SmartLocks() {
       {loading ? (
         <StatsSkeleton />
       ) : (
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="border-l-4 border-l-sky-500">
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-1.5">
@@ -787,7 +787,7 @@ export function SmartLocks() {
 
       {/* ─── Tabs ─── */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="providers" className="gap-1.5">
             <Radio className="h-4 w-4 hidden sm:block" />
             Lock Providers
@@ -938,6 +938,7 @@ export function SmartLocks() {
                 </div>
               ) : (
                 <ScrollArea className="max-h-[480px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -994,6 +995,7 @@ export function SmartLocks() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               )}
             </CardContent>
@@ -1032,6 +1034,7 @@ export function SmartLocks() {
                 </div>
               ) : (
                 <ScrollArea className="max-h-[480px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1090,6 +1093,7 @@ export function SmartLocks() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               )}
             </CardContent>
@@ -1124,6 +1128,7 @@ export function SmartLocks() {
                 </div>
               ) : (
                 <ScrollArea className="max-h-[480px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1173,6 +1178,7 @@ export function SmartLocks() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               )}
             </CardContent>

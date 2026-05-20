@@ -431,7 +431,7 @@ const t = useTranslations('pos');
                       placeholder="e.g., Window Seat"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Capacity</Label>
                       <Select
@@ -643,7 +643,7 @@ const t = useTranslations('pos');
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label>Width (px)</Label>
                   <Input

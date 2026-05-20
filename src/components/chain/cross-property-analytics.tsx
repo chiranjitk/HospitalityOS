@@ -260,7 +260,7 @@ export default function CrossPropertyAnalytics() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 hover:-translate-y-0.5">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
@@ -385,7 +385,7 @@ export default function CrossPropertyAnalytics() {
           </div>
 
           {/* Top Performers */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -530,6 +530,7 @@ export default function CrossPropertyAnalytics() {
                   No property data available
                 </div>
               ) : (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -574,6 +575,7 @@ export default function CrossPropertyAnalytics() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>

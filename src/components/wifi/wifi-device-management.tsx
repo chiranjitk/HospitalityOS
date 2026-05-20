@@ -581,7 +581,7 @@ export default function WiFiDeviceManagement() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-2.5">
@@ -842,7 +842,7 @@ export default function WiFiDeviceManagement() {
                           {expandedRowId === device.id && (
                             <TableRow>
                               <TableCell colSpan={10} className="bg-muted/30 px-6 py-3">
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                                   <div>
                                     <span className="text-muted-foreground block">MAC Address</span>
                                     <span className="font-mono font-medium">{device.macAddress}</span>
@@ -1223,7 +1223,7 @@ export default function WiFiDeviceManagement() {
                 className="font-mono"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Device Name</Label>
                 <Input
@@ -1249,7 +1249,7 @@ export default function WiFiDeviceManagement() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>IP Address</Label>
                 <Input
@@ -1310,7 +1310,7 @@ export default function WiFiDeviceManagement() {
                 placeholder="e.g. John's iPhone"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Device Type</Label>
                 <Select value={editForm.deviceType} onValueChange={(v) => setEditForm(prev => ({ ...prev, deviceType: v }))}>

@@ -308,7 +308,7 @@ export default function InspectionChecklists() {
 
       {/* Main Tabs */}
       <Tabs defaultValue="templates" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="templates" className="gap-2">
             <ClipboardList className="h-4 w-4" />
             <span className="hidden sm:inline">Templates</span>
@@ -626,7 +626,7 @@ function TemplatesTab() {
   return (
     <div className="space-y-4">
       {/* Stats Row */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-teal-500/10">
@@ -711,7 +711,7 @@ function TemplatesTab() {
 
       {/* Template Cards Grid */}
       {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
             <Card key={i} className="p-4">
               <Skeleton className="h-5 w-3/4 mb-2" />
@@ -734,7 +734,7 @@ function TemplatesTab() {
           </Button>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((template) => {
             const items = parseJson<TemplateItem[]>(template.items, []);
             return (
@@ -1646,7 +1646,7 @@ function HistoryTab() {
   return (
     <div className="space-y-4">
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-teal-500/10">
@@ -1755,6 +1755,7 @@ function HistoryTab() {
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1824,6 +1825,7 @@ function HistoryTab() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>
@@ -1850,7 +1852,7 @@ function HistoryTab() {
 
               <div className={cn("space-y-4 max-h-[60vh] overflow-y-auto", customScrollClass)}>
                 {/* Summary */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="p-3 rounded-lg bg-muted/50 text-center">
                     <div className={cn('text-2xl font-bold', getScoreColor(selectedInspection.score))}>
                       {selectedInspection.score}%
@@ -2028,7 +2030,7 @@ function ReportsTab() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i} className="p-4"><Skeleton className="h-16 w-full" /></Card>
           ))}
@@ -2062,7 +2064,7 @@ function ReportsTab() {
       </Card>
 
       {/* Overview Cards */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-teal-500/10">
@@ -2124,6 +2126,7 @@ function ReportsTab() {
             </div>
           ) : (
             <ScrollArea className="max-h-96">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -2163,6 +2166,7 @@ function ReportsTab() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>
@@ -2240,6 +2244,7 @@ function ReportsTab() {
             </div>
           ) : (
             <ScrollArea className="max-h-96">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -2280,6 +2285,7 @@ function ReportsTab() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>

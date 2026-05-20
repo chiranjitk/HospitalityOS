@@ -646,6 +646,7 @@ export function AllotmentRelease() {
               <Card>
                 <CardContent className="p-0">
                   <ScrollArea className="max-h-[500px] overflow-auto">
+                    <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -743,6 +744,7 @@ export function AllotmentRelease() {
                         })}
                       </TableBody>
                     </Table>
+                    </div>
                   </ScrollArea>
                 </CardContent>
               </Card>
@@ -764,6 +766,7 @@ export function AllotmentRelease() {
                 ) : (
                   <>
                     <ScrollArea className="max-h-[400px] overflow-auto">
+                      <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -802,6 +805,7 @@ export function AllotmentRelease() {
                           ))}
                         </TableBody>
                       </Table>
+                      </div>
                     </ScrollArea>
                     {/* Pagination */}
                     {logPages > 1 && (
@@ -975,7 +979,7 @@ export function AllotmentRelease() {
 
             <div className="grid gap-4 py-4">
               {/* Channel */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Channel *</Label>
                   <Select value={formChannelCode} onValueChange={(val) => setFormChannelCode(val)}>
@@ -1034,7 +1038,7 @@ export function AllotmentRelease() {
                   <div className="border rounded-lg p-3 space-y-2">
                     {formReleaseSteps.map((step, index) => (
                       <div key={index} className="flex items-center gap-2">
-                        <div className="flex-1 grid grid-cols-2 gap-2">
+                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>
                             <Label className="text-xs text-muted-foreground">Days Before</Label>
                             <Input
@@ -1117,7 +1121,7 @@ export function AllotmentRelease() {
 
               {/* Percentage Type */}
               {formReleaseType === 'percentage' && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Start Releasing (Days Before)</Label>
                     <Input
@@ -1212,6 +1216,7 @@ export function AllotmentRelease() {
 
               {previewData && previewData.length > 0 ? (
                 <ScrollArea className="max-h-[400px] overflow-auto">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1252,6 +1257,7 @@ export function AllotmentRelease() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">

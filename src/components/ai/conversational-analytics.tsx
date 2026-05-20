@@ -465,7 +465,7 @@ export default function ConversationalAnalytics() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="query">
             Query Results
             {queryHistory.length > 0 && <Badge variant="secondary" className="ml-1.5 text-[10px] bg-background/20 text-current">{queryHistory.length}</Badge>}
@@ -770,7 +770,7 @@ export default function ConversationalAnalytics() {
 
         {/* ── Analytics Gallery Tab ──────────────────────────────── */}
         <TabsContent value="gallery" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             {ANALYSIS_TEMPLATES.map(template => (
               <Card key={template.id} className="hover:shadow-lg transition-all cursor-pointer" onClick={() => handleTemplateClick(template)}>
                 <CardContent className="p-5">

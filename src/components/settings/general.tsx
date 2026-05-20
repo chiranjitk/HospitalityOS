@@ -265,7 +265,7 @@ export default function GeneralSettingsComponent() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <div className="space-y-2">
               <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Property Name</Label>
               <Input value={settings.property.name} onChange={(e) => updateProperty('name', e.target.value)} className="transition-all duration-300 focus:ring-2 focus:ring-primary/10 hover:border-primary/30 rounded-xl hover:shadow-sm focus:shadow-md focus:shadow-primary/5" />
@@ -279,7 +279,7 @@ export default function GeneralSettingsComponent() {
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Description</Label>
             <Input value={settings.property.description} onChange={(e) => updateProperty('description', e.target.value)} className="transition-all duration-300 focus:ring-2 focus:ring-primary/10 hover:border-primary/30 rounded-xl hover:shadow-sm focus:shadow-md focus:shadow-primary/5" />
           </div>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             <div className="space-y-2">
               <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Website</Label>
               <Input value={settings.property.website} onChange={(e) => updateProperty('website', e.target.value)} className="transition-all duration-300 focus:ring-2 focus:ring-primary/10 hover:border-primary/30 rounded-xl hover:shadow-sm focus:shadow-md focus:shadow-primary/5" />
@@ -293,7 +293,7 @@ export default function GeneralSettingsComponent() {
               <Input value={settings.property.phone} onChange={(e) => updateProperty('phone', e.target.value)} className="transition-all duration-300 focus:ring-2 focus:ring-primary/10 hover:border-primary/30 rounded-xl hover:shadow-sm focus:shadow-md focus:shadow-primary/5" />
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <div className="space-y-2">
               <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Address</Label>
               <Input value={settings.property.address} onChange={(e) => updateProperty('address', e.target.value)} className="transition-all duration-300 focus:ring-2 focus:ring-primary/10 hover:border-primary/30 rounded-xl hover:shadow-sm focus:shadow-md focus:shadow-primary/5" />
@@ -303,7 +303,7 @@ export default function GeneralSettingsComponent() {
               <Input value={settings.property.city} onChange={(e) => updateProperty('city', e.target.value)} className="transition-all duration-300 focus:ring-2 focus:ring-primary/10 hover:border-primary/30 rounded-xl hover:shadow-sm focus:shadow-md focus:shadow-primary/5" />
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <div className="space-y-2">
               <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Country</Label>
               <Select value={settings.property.country} onValueChange={(v) => updateProperty('country', v)}>
@@ -341,7 +341,7 @@ export default function GeneralSettingsComponent() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             <div className="space-y-2">
               <Label>Check-in Time</Label>
               <Input type="time" value={settings.operations.checkInTime} onChange={(e) => updateOperations('checkInTime', e.target.value)} className="transition-all duration-200 focus:ring-2 focus:ring-amber-400/10 hover:border-amber-300/50 rounded-xl" />
@@ -371,7 +371,7 @@ export default function GeneralSettingsComponent() {
               </Select>
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             <div className="space-y-2">
               <Label>Default Currency</Label>
               <Select value={settings.operations.defaultCurrency} onValueChange={(v) => updateOperations('defaultCurrency', v)}>
@@ -520,7 +520,7 @@ export default function GeneralSettingsComponent() {
       </Card>
 
       {/* Settings Impact Information */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         {/* Currency Impact */}
         <Card className="border-0 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 rounded-2xl bg-gradient-to-br from-primary/5 to-transparent">
           <CardHeader className="pb-3">

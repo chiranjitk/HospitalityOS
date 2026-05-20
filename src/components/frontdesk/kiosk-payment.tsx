@@ -285,7 +285,7 @@ export default function KioskPayment({
               exit={{ opacity: 0, y: -20 }}
               className="w-full max-w-2xl space-y-4"
             >
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {PAYMENT_METHODS.map((method) => (
                   <button
                     key={method.id}
@@ -369,7 +369,7 @@ export default function KioskPayment({
                     </div>
 
                     {/* Expiry + CVV */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-300">
                           Expiry Date

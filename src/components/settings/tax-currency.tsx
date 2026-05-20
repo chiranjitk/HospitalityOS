@@ -360,7 +360,7 @@ export default function TaxCurrencySettings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="currency" className="flex items-center gap-2">
             <DollarSign className="h-4 w-4" />
             Currency
@@ -390,7 +390,7 @@ export default function TaxCurrencySettings() {
               <CardDescription>Set your default currency and formatting preferences</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Default Currency</Label>
                   <Select 
@@ -436,7 +436,7 @@ export default function TaxCurrencySettings() {
                   </Select>
                 </div>
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Thousand Separator</Label>
                   <Select 
@@ -528,7 +528,7 @@ export default function TaxCurrencySettings() {
                   <ArrowRightLeft className="h-5 w-5 text-primary" />
                   <h3 className="font-semibold">Currency Converter</h3>
                 </div>
-                <div className="grid gap-4 md:grid-cols-5 items-end">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5 items-end">
                   <div className="space-y-2">
                     <Label>Amount</Label>
                     <Input
@@ -583,6 +583,7 @@ export default function TaxCurrencySettings() {
 
               {/* Exchange Rates Table */}
               <div className="rounded-md border">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -603,6 +604,7 @@ export default function TaxCurrencySettings() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
               {settings.supportedCurrencies.length > 20 && (
                 <p className="text-sm text-muted-foreground mt-2">
@@ -635,6 +637,7 @@ export default function TaxCurrencySettings() {
             </CardHeader>
             <CardContent>
               <div className="rounded-md border">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -700,6 +703,7 @@ export default function TaxCurrencySettings() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -716,7 +720,7 @@ export default function TaxCurrencySettings() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                 {settings.taxGroups.map((group) => (
                   <Card key={group.id} className="p-4">
                     <div className="flex items-center justify-between mb-2">
@@ -753,7 +757,7 @@ export default function TaxCurrencySettings() {
               <CardDescription>Configure how taxes are calculated and displayed</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Tax ID / GST Number</Label>
                   <Input
@@ -813,7 +817,7 @@ export default function TaxCurrencySettings() {
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Tax Rounding Method</Label>
                   <Select
@@ -904,7 +908,7 @@ export default function TaxCurrencySettings() {
                 placeholder="e.g., GST, VAT, Service Charge"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="taxRate">Rate *</Label>
                 <Input
@@ -945,7 +949,7 @@ export default function TaxCurrencySettings() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Priority</Label>
                 <Input

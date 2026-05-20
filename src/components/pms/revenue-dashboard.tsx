@@ -300,7 +300,7 @@ export default function RevenueDashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         {kpiCards.map((kpi, idx) => (
           <Card key={idx} className="overflow-hidden">
             <CardContent className="p-4">
@@ -331,7 +331,7 @@ export default function RevenueDashboard() {
       </div>
 
       {/* Charts Section */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2">
         {/* Revenue Trend */}
         <Card>
           <CardHeader>

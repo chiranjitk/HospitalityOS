@@ -150,7 +150,7 @@ export function PaymentSummary({
         </div>
 
         {/* Dates */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="p-3 rounded-lg bg-muted/50">
             <div className="flex items-center gap-2 text-muted-foreground mb-1">
               <Calendar className="h-3 w-3" />

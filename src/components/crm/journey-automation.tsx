@@ -465,7 +465,7 @@ export default function JourneyAutomation() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="journeys">Active Journeys</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="timeline">Contact Timeline</TabsTrigger>
@@ -685,7 +685,7 @@ export default function JourneyAutomation() {
 
         {/* ─── Analytics Tab ──────────────────────────────────────────── */}
         <TabsContent value="analytics" className="space-y-4 mt-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             {/* Revenue by Journey */}
             <Card>
               <CardHeader>
@@ -750,8 +750,8 @@ export default function JourneyAutomation() {
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <div className="min-w-[600px]">
-                  <div className="grid grid-cols-6 gap-3">
+                <div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
                     {JOURNEY_STAGES.map((stage) => {
                       const stageJourneys = journeys.filter(j => j.stage === stage);
                       const enroll = stageJourneys.reduce((a, j) => a + j.totalEnrolled, 0);

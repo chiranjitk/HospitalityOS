@@ -306,7 +306,7 @@ export default function ExperienceFeedback() {
       </div>
 
       {/* Stats Row */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-amber-500/10">
@@ -469,6 +469,7 @@ export default function ExperienceFeedback() {
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -536,6 +537,7 @@ export default function ExperienceFeedback() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>

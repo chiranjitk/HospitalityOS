@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
   Building2,
@@ -577,7 +577,7 @@ export function ChannelAllocations() {
         <Card>
           <CardContent className="p-0">
             <ScrollArea className="max-h-[500px] overflow-auto">
-              <div className="min-w-[600px]">
+              <div>
                 {/* Grid Header */}
                 <div className="grid sticky top-0 bg-background z-10 border-b" style={{ gridTemplateColumns: `180px repeat(${channels.length}, 100px) 100px` }}>
                   <div className="p-3 text-xs font-semibold text-muted-foreground border-r">Room Type</div>
@@ -665,6 +665,7 @@ export function ChannelAllocations() {
                   );
                 })}
               </div>
+              <ScrollBar orientation="horizontal" />
             </ScrollArea>
           </CardContent>
         </Card>
@@ -726,7 +727,7 @@ export function ChannelAllocations() {
                       {Math.round(ch.utilizationRate * 100)}% used
                     </Badge>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     <div className="text-center">
                       <p className="text-lg font-bold">{ch.totalAllocated}</p>
                       <p className="text-[10px] text-muted-foreground">Allocated</p>

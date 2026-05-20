@@ -100,7 +100,7 @@ export function SystemHealth() {
       </div>
 
       {/* System Overview */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -176,7 +176,7 @@ export function SystemHealth() {
       </Card>
 
       {/* Database & Storage */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

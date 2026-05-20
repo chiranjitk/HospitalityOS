@@ -1061,7 +1061,7 @@ export default function OTAConnections() {
                   <Badge variant="outline" className="mb-2">
                     {getRegionLabel(region)} ({channels.length})
                   </Badge>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {channels.map((channel) => (
                       <button
                         key={channel.id}
@@ -1266,7 +1266,7 @@ export default function OTAConnections() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/10 transition-all duration-200">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -1477,7 +1477,7 @@ export default function OTAConnections() {
                       )}
 
                       {/* Sync Stats */}
-                      <div className="grid grid-cols-2 gap-2 text-center">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-center">
                         <div className="p-2 rounded-md bg-emerald-50 dark:bg-emerald-950/20">
                           <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{connection.successfulSyncs || 0}</p>
                           <p className="text-xs text-muted-foreground">Successful</p>

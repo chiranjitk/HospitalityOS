@@ -738,6 +738,7 @@ export default function BookingsList() {
           ) : (
             <>
               <ScrollArea className="h-[500px]">
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -915,6 +916,7 @@ export default function BookingsList() {
                     })}
                   </TableBody>
                 </Table>
+              </div>
               </ScrollArea>
               
               {/* Pagination */}
@@ -1103,7 +1105,7 @@ function BookingForm({ formData, setFormData, properties, roomTypes, guests }: B
         </Select>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="checkIn">Check-in Date *</Label>
           <Input
@@ -1126,7 +1128,7 @@ function BookingForm({ formData, setFormData, properties, roomTypes, guests }: B
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label htmlFor="adults">Adults</Label>
           <Input
@@ -1162,7 +1164,7 @@ function BookingForm({ formData, setFormData, properties, roomTypes, guests }: B
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="source">Source</Label>
           <Select 

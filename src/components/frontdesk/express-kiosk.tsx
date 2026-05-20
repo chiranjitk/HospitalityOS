@@ -393,7 +393,7 @@ export default function ExpressKiosk() {
                   {/* Guest Info */}
                   <div className="p-4 bg-muted/50 rounded-xl space-y-3">
                     <h3 className="font-semibold text-lg">{bookingData.guest.firstName} {bookingData.guest.lastName}</h3>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                       <div className="flex items-center gap-2">
                         <Building2 className="h-4 w-4 text-muted-foreground" />
                         <span>{bookingData.roomType.name}</span>
@@ -418,7 +418,7 @@ export default function ExpressKiosk() {
                   </div>
 
                   {/* Dates */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg text-center">
                       <p className="text-xs text-muted-foreground">Check-in</p>
                       <p className="font-semibold">{new Date(bookingData.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
@@ -613,7 +613,7 @@ export default function ExpressKiosk() {
                       <p className="text-sm text-muted-foreground">{checkInResult.roomType} · Floor {checkInResult.roomFloor}</p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                       <div>
                         <p className="text-xs text-muted-foreground">Check-in Time</p>
                         <p className="font-medium">{new Date(checkInResult.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
@@ -632,7 +632,7 @@ export default function ExpressKiosk() {
                         <Wifi className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                         <h3 className="font-semibold">WiFi Credentials</h3>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <p className="text-xs text-muted-foreground">Username</p>
                           <p className="font-mono font-medium text-sm">{checkInResult.wifiCredentials.username}</p>

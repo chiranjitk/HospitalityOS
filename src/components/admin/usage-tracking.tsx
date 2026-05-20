@@ -97,7 +97,7 @@ export function UsageTracking() {
       </div>
 
       {/* Usage Overview */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -169,7 +169,7 @@ export function UsageTracking() {
           <CardDescription>Current plan limits and usage</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
               <div>
                 <p className="text-sm text-muted-foreground">Properties</p>

@@ -474,7 +474,7 @@ export default function VirtualInventory() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="bg-gradient-to-br from-violet-500/10 to-violet-600/5 border-violet-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -816,6 +816,7 @@ export default function VirtualInventory() {
               <div>
                 <Label className="text-sm font-medium mb-2 block">Current Mappings</Label>
                 <ScrollArea className="max-h-48">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -857,6 +858,7 @@ export default function VirtualInventory() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </div>
             )}
@@ -880,7 +882,7 @@ export default function VirtualInventory() {
                   </SelectContent>
                 </Select>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Channel Code</Label>
                     <Input
@@ -899,7 +901,7 @@ export default function VirtualInventory() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Rate Multiplier: x{mapRateMultiplier}</Label>
                     <Slider
@@ -971,6 +973,7 @@ export default function VirtualInventory() {
 
             {invDays.length > 0 && (
               <ScrollArea className="max-h-72">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1008,6 +1011,7 @@ export default function VirtualInventory() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             )}
 

@@ -329,7 +329,7 @@ const t = useTranslations('pos');
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Items</CardTitle>
@@ -584,7 +584,7 @@ const t = useTranslations('pos');
           </DialogHeader>
           <ScrollArea className="max-h-[65vh]">
             <div className="space-y-4 py-4 pr-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="item-name">Item Name *</Label>
                   <Input id="item-name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g., Chicken Breast" />
@@ -603,7 +603,7 @@ const t = useTranslations('pos');
 
               <Separator />
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="stock">Current Stock</Label>
                   <Input id="stock" type="number" step="0.01" value={form.currentStock} onChange={e => setForm({ ...form, currentStock: e.target.value })} />
@@ -621,7 +621,7 @@ const t = useTranslations('pos');
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="threshold">Low Stock Threshold</Label>
                   <Input id="threshold" type="number" step="0.01" value={form.lowStockThreshold} onChange={e => setForm({ ...form, lowStockThreshold: e.target.value })} />
@@ -634,7 +634,7 @@ const t = useTranslations('pos');
 
               <Separator />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="supplier">Supplier Name</Label>
                   <Input id="supplier" value={form.supplierName} onChange={e => setForm({ ...form, supplierName: e.target.value })} placeholder="e.g., Fresh Farms Inc." />
@@ -668,7 +668,7 @@ const t = useTranslations('pos');
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Adjustment Type</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <Button
                   type="button"
                   variant={adjustForm.quantity.startsWith('-') || adjustForm.quantity === '' ? 'outline' : 'default'}

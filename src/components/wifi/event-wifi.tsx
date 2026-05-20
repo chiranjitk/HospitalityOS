@@ -137,7 +137,8 @@ function SmartCredentialsTable({ users, onPrint, onRevoke, onCopy }: SmartTableP
   const showGuestCols = hasGuestName || hasEmail || hasCompany;
 
   return (
-    <div className="max-h-[500px] overflow-y-auto">
+    <div className="max-h-[500px] overflow-auto">
+      <div className="overflow-x-auto">
       <Table className="table-fixed w-full">
         <TableHeader>
           <TableRow>
@@ -227,6 +228,7 @@ function SmartCredentialsTable({ users, onPrint, onRevoke, onCopy }: SmartTableP
           ))}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 }
@@ -658,7 +660,7 @@ export default function EventWifi() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-cyan-500/10">
@@ -784,7 +786,7 @@ export default function EventWifi() {
                   )}
 
                   {/* Event details grid */}
-                  <div className="grid grid-cols-2 gap-2 mb-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <Gauge className="h-3 w-3 shrink-0" />
                       <span className="truncate">{event.bandwidth || 0} Mbps</span>
@@ -1029,7 +1031,7 @@ export default function EventWifi() {
                 Auto-filled from selected plan. You can override below.
               </p>
             )}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Download (Mbps)</Label>
                 <Input

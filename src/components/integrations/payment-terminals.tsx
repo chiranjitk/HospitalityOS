@@ -403,7 +403,7 @@ function formatDate(iso: string) {
 
 function StatsCardsSkeleton() {
   return (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       {[...Array(4)].map((_, i) => (
         <Card key={i}>
           <CardHeader className="pb-2">
@@ -793,7 +793,7 @@ export function PaymentTerminals() {
                     onChange={e => setFormName(e.target.value)}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Model</Label>
                     <Select value={formModel} onValueChange={setFormModel}>
@@ -856,7 +856,7 @@ export function PaymentTerminals() {
       </div>
 
       {/* ─── Stats Cards ─── */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-l-4 border-l-sky-500">
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-1.5">
@@ -911,7 +911,7 @@ export function PaymentTerminals() {
 
       {/* ─── Tabs ─── */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="registry" className="gap-1.5">
             <Monitor className="h-4 w-4 hidden sm:block" />
             Terminal Registry
@@ -939,6 +939,7 @@ export function PaymentTerminals() {
             </CardHeader>
             <CardContent>
               <ScrollArea className="max-h-[480px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -995,6 +996,7 @@ export function PaymentTerminals() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1021,6 +1023,7 @@ export function PaymentTerminals() {
             </CardHeader>
             <CardContent>
               <ScrollArea className="max-h-[480px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1065,6 +1068,7 @@ export function PaymentTerminals() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1120,6 +1124,7 @@ export function PaymentTerminals() {
                 </div>
               </div>
               <ScrollArea className="max-h-[360px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1167,6 +1172,7 @@ export function PaymentTerminals() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1195,6 +1201,7 @@ export function PaymentTerminals() {
             </CardHeader>
             <CardContent>
               <ScrollArea className="max-h-[480px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1257,6 +1264,7 @@ export function PaymentTerminals() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>

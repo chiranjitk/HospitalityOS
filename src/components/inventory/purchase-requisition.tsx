@@ -748,7 +748,7 @@ export default function PurchaseRequisition() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 border-emerald-200 dark:border-emerald-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Total Requisitions</CardTitle>
@@ -876,6 +876,7 @@ export default function PurchaseRequisition() {
             </CardHeader>
             <CardContent>
               <ScrollArea className="max-h-[600px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -960,6 +961,7 @@ export default function PurchaseRequisition() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -968,7 +970,7 @@ export default function PurchaseRequisition() {
         {/* ── Tab: 3-Way Matching ── */}
         <TabsContent value="matching" className="space-y-4">
           {/* Matching Stats */}
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             {([
               { label: 'Fully Matched', count: invoiceMatches.filter(m => m.matchStatus === 'fully_matched').length, color: 'text-green-600 dark:text-green-400', bg: 'from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20', border: 'border-green-200 dark:border-green-800' },
               { label: 'Partially Matched', count: invoiceMatches.filter(m => m.matchStatus === 'partially_matched').length, color: 'text-yellow-600 dark:text-yellow-400', bg: 'from-yellow-50 to-amber-50 dark:from-yellow-950/20 dark:to-amber-950/20', border: 'border-yellow-200 dark:border-yellow-800' },
@@ -998,6 +1000,7 @@ export default function PurchaseRequisition() {
             </CardHeader>
             <CardContent>
               <ScrollArea className="max-h-[500px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1062,6 +1065,7 @@ export default function PurchaseRequisition() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1164,6 +1168,7 @@ export default function PurchaseRequisition() {
             </CardHeader>
             <CardContent>
               <ScrollArea className="max-h-[300px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1211,6 +1216,7 @@ export default function PurchaseRequisition() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1227,6 +1233,7 @@ export default function PurchaseRequisition() {
             {rankingsExpanded && (
               <CardContent>
                 <ScrollArea className="max-h-[300px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1276,6 +1283,7 @@ export default function PurchaseRequisition() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </CardContent>
             )}
@@ -1369,6 +1377,7 @@ export default function PurchaseRequisition() {
             </CardHeader>
             <CardContent>
               <ScrollArea className="max-h-[300px]">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1414,6 +1423,7 @@ export default function PurchaseRequisition() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1431,7 +1441,7 @@ export default function PurchaseRequisition() {
           </DialogHeader>
           {selectedRequisition && (
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <Label className="text-muted-foreground">Department</Label>
                   <div className="font-medium">{selectedRequisition.department}</div>
@@ -1465,6 +1475,7 @@ export default function PurchaseRequisition() {
               <div className="space-y-2">
                 <Label>Items</Label>
                 <div className="border rounded-lg">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1489,6 +1500,7 @@ export default function PurchaseRequisition() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               </div>
 
@@ -1530,7 +1542,7 @@ export default function PurchaseRequisition() {
           </DialogHeader>
           {selectedMatch && (
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="bg-muted p-3 rounded-lg text-center">
                   <Label className="text-xs text-muted-foreground">PO Amount</Label>
                   <div className="text-lg font-bold">{formatCurrency(selectedMatch.poAmount)}</div>
@@ -1564,6 +1576,7 @@ export default function PurchaseRequisition() {
                       Variances Detected
                     </Label>
                     <div className="border border-red-200 dark:border-red-800 rounded-lg overflow-hidden">
+                      <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow className="bg-red-50 dark:bg-red-950/30">
@@ -1588,6 +1601,7 @@ export default function PurchaseRequisition() {
                           ))}
                         </TableBody>
                       </Table>
+                      </div>
                     </div>
                   </div>
                 </>

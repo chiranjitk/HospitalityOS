@@ -524,7 +524,7 @@ export default function UserUsageDashboard() {
         </div>
 
         {/* Row 2: Sessions / Time Grid */}
-        <div className="grid grid-cols-3 gap-2 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
           <div>
             <p className="text-muted-foreground mb-0.5">Sessions</p>
             <p className="font-medium tabular-nums">{user.totalSessions}</p>
@@ -550,7 +550,7 @@ export default function UserUsageDashboard() {
         </div>
 
         {/* Row 3: Bandwidth Boxes */}
-        <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
           <div className="rounded-md bg-muted/50 p-2">
             <p className="text-muted-foreground mb-1 flex items-center gap-1">
               <Download className="h-3 w-3" />
@@ -615,7 +615,7 @@ export default function UserUsageDashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-primary/10">
@@ -836,7 +836,7 @@ export default function UserUsageDashboard() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserCircle className="h-5 w-5" />
@@ -854,7 +854,7 @@ export default function UserUsageDashboard() {
           ) : detailUser ? (
             <div className="space-y-5 py-2">
               {/* Summary Stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="rounded-lg bg-muted/50 p-3 text-center">
                   <p className="text-xs text-muted-foreground mb-1">Total Sessions</p>
                   <p className="text-lg font-bold tabular-nums">{detailUser.totalSessions}</p>
@@ -946,7 +946,7 @@ export default function UserUsageDashboard() {
                     No session records found for this user.
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                  <div className="space-y-2 max-h-64 overflow-auto">
                     {detailUser.sessions.map((session) => (
                       <div
                         key={session.id}
@@ -967,7 +967,7 @@ export default function UserUsageDashboard() {
                         </div>
 
                         {/* Session Info */}
-                        <div className="flex-1 min-w-0 grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-1">
+                        <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-x-4 gap-y-1">
                           <div>
                             <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Started</p>
                             <p className="font-mono text-xs truncate" title={session.startedAt || undefined}>

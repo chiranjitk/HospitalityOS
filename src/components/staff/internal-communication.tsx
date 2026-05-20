@@ -449,7 +449,7 @@ export default function InternalCommunication() {
       </div>
 
       {/* Main Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 h-[calc(100vh-220px)]">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 h-[calc(100vh-300px)] sm:h-[calc(100vh-220px)]">
         {/* Sidebar - Channels & Staff */}
         <Card className="lg:col-span-1 overflow-hidden">
           <CardHeader className="pb-3">

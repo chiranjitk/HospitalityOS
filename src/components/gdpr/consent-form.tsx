@@ -151,7 +151,7 @@ export function ConsentForm({ tenantId, guestId: initialGuestId, onSuccess, onEr
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       {/* Guest ID Input (if not provided) */}
       {!initialGuestId && (
         <div className="space-y-2">

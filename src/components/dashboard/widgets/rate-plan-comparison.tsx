@@ -40,7 +40,7 @@ function PlanCardSkeleton() {
         <Skeleton className="h-4 w-20" />
         <Skeleton className="h-3 w-12" />
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
           <Skeleton className="h-2 w-14 mb-1" />
           <Skeleton className="h-4 w-16" />

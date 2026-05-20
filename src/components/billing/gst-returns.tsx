@@ -109,7 +109,7 @@ export default function GstReturnsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}><Card className="p-4"><div className="flex items-center gap-3"><div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg"><FileText className="h-5 w-5 text-blue-600" /></div><div><p className="text-sm text-muted-foreground">Total Returns</p><p className="font-bold text-lg">{returns.length}</p></div></div></Card></motion.div>
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}><Card className="p-4"><div className="flex items-center gap-3"><div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg"><CheckCircle2 className="h-5 w-5 text-emerald-600" /></div><div><p className="text-sm text-muted-foreground">Filed</p><p className="font-bold text-lg">{totalFiled}</p></div></div></Card></motion.div>
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}><Card className="p-4"><div className="flex items-center gap-3"><div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg"><Clock className="h-5 w-5 text-amber-600" /></div><div><p className="text-sm text-muted-foreground">Draft/Pending</p><p className="font-bold text-lg">{totalDraft}</p></div></div></Card></motion.div>
@@ -183,7 +183,7 @@ export default function GstReturnsPage() {
               {activeTab === 'gstr1' ? (
                 <div className="space-y-4">
                   <Card className="p-4"><h4 className="font-semibold mb-3 text-sm">Summary</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                       <div><span className="text-muted-foreground">Total Invoices</span><p className="font-bold">{(previewData as Record<string, unknown>).totalInvoices || 0}</p></div>
                       <div><span className="text-muted-foreground">Taxable Value</span><p className="font-bold">₹{Number(((previewData as Record<string, unknown>).totalTaxableValue as number) || 0).toLocaleString()}</p></div>
                       <div><span className="text-muted-foreground">Total Tax</span><p className="font-bold">₹{Number(((previewData as Record<string, unknown>).totalTax as number) || 0).toLocaleString()}</p></div>

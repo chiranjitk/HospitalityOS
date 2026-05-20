@@ -484,7 +484,7 @@ const t = useTranslations('billing');
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-violet-500/10">
@@ -741,7 +741,7 @@ const t = useTranslations('billing');
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-2 -mr-2">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Name *</Label>
                 <Input
@@ -779,7 +779,7 @@ const t = useTranslations('billing');
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="discountType">Discount Type *</Label>
                 <Select
@@ -829,7 +829,7 @@ const t = useTranslations('billing');
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="startsAt">Start Date</Label>
                 <Input
@@ -850,7 +850,7 @@ const t = useTranslations('billing');
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="minNights">Min. Nights</Label>
                 <Input

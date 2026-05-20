@@ -142,7 +142,7 @@ export default function TcsTdsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}><Card className="p-4"><div className="flex items-center gap-3"><div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg"><ArrowDownToLine className="h-5 w-5 text-emerald-600" /></div><div><p className="text-sm text-muted-foreground">TCS Collected</p><p className="font-bold text-lg">₹{tcsTotal.toLocaleString()}</p></div></div></Card></motion.div>
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}><Card className="p-4"><div className="flex items-center gap-3"><div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg"><CheckCircle2 className="h-5 w-5 text-green-600" /></div><div><p className="text-sm text-muted-foreground">TCS Deposited</p><p className="font-bold text-lg">₹{tcsDeposited.toLocaleString()}</p></div></div></Card></motion.div>
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}><Card className="p-4"><div className="flex items-center gap-3"><div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg"><ArrowUpFromLine className="h-5 w-5 text-blue-600" /></div><div><p className="text-sm text-muted-foreground">TDS Deducted</p><p className="font-bold text-lg">₹{tdsTotal.toLocaleString()}</p></div></div></Card></motion.div>
@@ -235,11 +235,11 @@ export default function TcsTdsPage() {
           <form onSubmit={e => { e.preventDefault(); const fd = new FormData(e.currentTarget); const data = Object.fromEntries(fd); data.tcsRate = parseFloat(data.tcsRate as string) / 100; data.tcsAmount = parseFloat(data.bookingAmount as string) * data.tcsRate; data.thresholdExceeded = parseFloat(data.bookingAmount as string) > 100000; handleCreateTcs(data); }}>
             <div className="space-y-4">
               <div><Label>Guest Name</Label><Input name="guestName" placeholder="John Doe" /></div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><Label>PAN Number</Label><Input name="panNumber" maxLength={10} placeholder="ABCDE1234F" /></div>
                 <div><Label>Collection Date</Label><Input name="collectionDate" type="date" defaultValue={new Date().toISOString().split('T')[0]} /></div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><Label>Booking Amount (₹)</Label><Input name="bookingAmount" type="number" placeholder="50000" /></div>
                 <div><Label>TCS Rate (%)</Label><Input name="tcsRate" type="number" step="0.1" defaultValue="1" /></div>
               </div>
@@ -260,15 +260,15 @@ export default function TcsTdsPage() {
           <form onSubmit={e => { e.preventDefault(); const fd = new FormData(e.currentTarget); const data = Object.fromEntries(fd); data.tdsRate = parseFloat(data.tdsRate as string) / 100; data.tdsAmount = parseFloat(data.paymentAmount as string) * data.tdsRate; handleCreateTds(data); }}>
             <div className="space-y-4">
               <div><Label>Vendor Name</Label><Input name="vendorName" placeholder="ABC Services" /></div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><Label>PAN Number</Label><Input name="panNumber" maxLength={10} placeholder="ABCDE1234F" /></div>
                 <div><Label>Section</Label><Select name="section" defaultValue="194C"><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="194C">194C - Contractor</SelectItem><SelectItem value="194H">194H - Commission</SelectItem><SelectItem value="194J">194J - Professional</SelectItem><SelectItem value="194I">194I - Interest</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><Label>Payment Date</Label><Input name="paymentDate" type="date" defaultValue={new Date().toISOString().split('T')[0]} /></div>
                 <div><Label>Payment Amount (₹)</Label><Input name="paymentAmount" type="number" placeholder="25000" /></div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><Label>TDS Rate (%)</Label><Input name="tdsRate" type="number" step="0.1" defaultValue="1" /></div>
                 <div><Label>Period (MMYYYY)</Label><Input name="period" defaultValue={currentPeriod} maxLength={6} /></div>
               </div>

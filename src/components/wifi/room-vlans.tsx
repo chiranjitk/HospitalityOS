@@ -779,7 +779,8 @@ export default function RoomVlanManager() {
         <Card className="overflow-hidden">
           <div className="h-1 bg-gradient-to-r from-primary to-primary/70" />
           <CardContent className="p-0">
-            <div className="max-h-[32rem] overflow-y-auto">
+            <div className="max-h-[32rem] overflow-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -898,6 +899,7 @@ export default function RoomVlanManager() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -921,7 +923,7 @@ export default function RoomVlanManager() {
           ADD / EDIT DIALOG
           ══════════════════════════════════════════════════════════════════════ */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Edit Room VLAN' : 'Add Room VLAN'}</DialogTitle>
             <DialogDescription>
@@ -931,7 +933,7 @@ export default function RoomVlanManager() {
 
           <div className="space-y-4 py-2">
             {/* Room Number & VLAN ID */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Room Number *</Label>
                 <Input
@@ -954,7 +956,7 @@ export default function RoomVlanManager() {
             </div>
 
             {/* Parent Interface & Role */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5">
                   <Network className="h-3.5 w-3.5" />
@@ -1002,7 +1004,7 @@ export default function RoomVlanManager() {
             </div>
 
             {/* Subnet & Gateway */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Subnet</Label>
                 <Input
@@ -1024,7 +1026,7 @@ export default function RoomVlanManager() {
             </div>
 
             {/* Floor & Room Type */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Floor</Label>
                 <Input
@@ -1118,7 +1120,7 @@ export default function RoomVlanManager() {
           BULK GENERATE DIALOG
           ══════════════════════════════════════════════════════════════════════ */}
       <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>Bulk Generate Room VLANs</DialogTitle>
             <DialogDescription>
@@ -1128,7 +1130,7 @@ export default function RoomVlanManager() {
 
           <div className="space-y-4 py-2">
             {/* VLAN Base & Subnet Base */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>VLAN Base ID</Label>
                 <Input
@@ -1154,7 +1156,7 @@ export default function RoomVlanManager() {
             </div>
 
             {/* Parent Interface & Role & MTU */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5">
                   <Network className="h-3.5 w-3.5" />
@@ -1277,7 +1279,8 @@ export default function RoomVlanManager() {
                 <Label className="text-sm font-semibold">
                   Preview ({bulkPreview.length} room{bulkPreview.length !== 1 ? 's' : ''})
                 </Label>
-                <div className="max-h-48 overflow-y-auto rounded-lg border">
+                <div className="max-h-48 overflow-auto rounded-lg border">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1307,6 +1310,7 @@ export default function RoomVlanManager() {
                       )}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               </div>
             )}

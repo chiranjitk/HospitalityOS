@@ -384,7 +384,7 @@ export default function WiFiBandwidthUpsell() {
       </div>
 
       {/* Revenue Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-2.5">
@@ -816,7 +816,7 @@ export default function WiFiBandwidthUpsell() {
           </DialogHeader>
           {selectedUpgrade && (
             <div className="grid gap-4 text-sm">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <span className="text-muted-foreground block text-xs mb-1">Guest</span>
                   <span className="font-medium">{selectedUpgrade.guest ? `${selectedUpgrade.guest.firstName} ${selectedUpgrade.guest.lastName}` : selectedUpgrade.username || 'N/A'}</span>

@@ -590,7 +590,7 @@ export default function ConversionEngine() {
       </div>
 
       {/* Overview Stats */}
-      <div className="grid gap-2 sm:gap-4 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-2 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -639,7 +639,7 @@ export default function ConversionEngine() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
           <TabsTrigger value="funnel">Booking Funnel</TabsTrigger>
           <TabsTrigger value="abandoned">Abandoned Recovery</TabsTrigger>
           <TabsTrigger value="optimization">Optimization</TabsTrigger>
@@ -649,7 +649,7 @@ export default function ConversionEngine() {
 
         {/* ─── Booking Funnel Tab ────────────────────────────────────── */}
         <TabsContent value="funnel" className="space-y-4 mt-4">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             {/* Visual Funnel */}
             <Card className="md:col-span-2">
               <CardHeader>
@@ -811,7 +811,7 @@ export default function ConversionEngine() {
         {/* ─── Abandoned Recovery Tab ─────────────────────────────────── */}
         <TabsContent value="abandoned" className="space-y-4 mt-4">
           {/* Recovery Campaign Stats */}
-          <div className="grid gap-2 sm:gap-4 grid-cols-2 md:grid-cols-4">
+          <div className="grid gap-2 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             <Card>
               <CardContent className="p-4">
                 <p className="text-xs font-medium text-muted-foreground">Total Abandoned Value</p>
@@ -1036,7 +1036,7 @@ export default function ConversionEngine() {
 
         {/* ─── Optimization Tab ───────────────────────────────────────── */}
         <TabsContent value="optimization" className="space-y-4 mt-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
             {/* Optimization Tools */}
             <Card className="md:col-span-2">
               <CardHeader>
@@ -1173,7 +1173,7 @@ export default function ConversionEngine() {
 
         {/* ─── Performance Tab ────────────────────────────────────────── */}
         <TabsContent value="performance" className="space-y-4 mt-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
             {/* Direct vs OTA */}
             <Card>
               <CardHeader>
@@ -1411,7 +1411,7 @@ export default function ConversionEngine() {
               </div>
 
               {/* Social Proof */}
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                 <div>
                   <Label className="text-xs text-muted-foreground mb-2 block">Recent Bookings Counter</Label>
                   <div className="border rounded-lg p-4 bg-background">

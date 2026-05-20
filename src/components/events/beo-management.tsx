@@ -487,7 +487,7 @@ export default function BEOManagement() {
         </div>
 
         {/* Event Header */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <h3 className="font-semibold text-base">Event Details</h3>
             <div className="space-y-1.5">
@@ -532,7 +532,7 @@ export default function BEOManagement() {
           <h3 className="font-semibold text-base mb-3 flex items-center gap-2">
             <Users className="h-4 w-4" /> Function Details
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <div className="rounded-lg border p-3">
               <div className="text-xs text-muted-foreground">Type</div>
               <div className="font-medium capitalize">{FUNCTION_TYPES.find(t => t.value === beo.functionType)?.icon} {beo.functionType}</div>
@@ -630,7 +630,7 @@ export default function BEOManagement() {
               ))}
             </TableBody>
           </Table>
-          <div className="grid grid-cols-2 gap-3 mt-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
             <div className="rounded-lg bg-muted/50 p-3">
               <div className="flex items-center gap-2 text-xs font-medium mb-1">
                 <RectangleHorizontal className="h-3.5 w-3.5" /> Stage Setup
@@ -1061,7 +1061,7 @@ export default function BEOManagement() {
               <Label>Client / Event Name <span className="text-red-500">*</span></Label>
               <Input placeholder="e.g., Smith Wedding Reception" value={createForm.clientName} onChange={e => setCreateForm(f => ({ ...f, clientName: e.target.value }))} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Event Type</Label>
                 <Select value={createForm.eventType} onValueChange={v => setCreateForm(f => ({ ...f, eventType: v }))}>
@@ -1078,7 +1078,7 @@ export default function BEOManagement() {
                 <Input type="number" value={createForm.expectedPax} onChange={e => setCreateForm(f => ({ ...f, expectedPax: parseInt(e.target.value) || 0 }))} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Event Date <span className="text-red-500">*</span></Label>
                 <Input type="date" value={createForm.functionDate} onChange={e => setCreateForm(f => ({ ...f, functionDate: e.target.value }))} />

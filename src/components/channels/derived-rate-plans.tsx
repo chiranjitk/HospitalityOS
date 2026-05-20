@@ -675,7 +675,7 @@ export function DerivedRatePlans() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-slate-500/10 to-slate-600/5 border-slate-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -817,6 +817,7 @@ export function DerivedRatePlans() {
             <Card>
               <CardContent className="p-0">
                 <div className="max-h-[500px] overflow-y-auto">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -920,6 +921,7 @@ export function DerivedRatePlans() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1017,6 +1019,7 @@ export function DerivedRatePlans() {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="max-h-[400px] overflow-y-auto">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1047,6 +1050,7 @@ export function DerivedRatePlans() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1095,6 +1099,7 @@ export function DerivedRatePlans() {
             <Card>
               <CardContent className="p-0">
                 <div className="max-h-[400px] overflow-y-auto">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1119,6 +1124,7 @@ export function DerivedRatePlans() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1303,7 +1309,7 @@ export function DerivedRatePlans() {
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Rounding Method</Label>
                   <Select
@@ -1347,7 +1353,7 @@ export function DerivedRatePlans() {
                 <DollarSign className="h-4 w-4" />
                 Rate Constraints
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs">Floor Rate</Label>
                   <Input
@@ -1401,7 +1407,7 @@ export function DerivedRatePlans() {
                 <Upload className="h-4 w-4" />
                 Sync & Status
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="flex items-center gap-3 col-span-2">
                   <Switch
                     checked={formData.autoSync}
@@ -1442,7 +1448,7 @@ export function DerivedRatePlans() {
                 <CalendarDays className="h-4 w-4" />
                 Effective Dates (optional)
               </h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs">Effective From</Label>
                   <Input type="date" value={formData.effectiveFrom} onChange={(e) => setFormData((prev) => ({ ...prev, effectiveFrom: e.target.value }))} />

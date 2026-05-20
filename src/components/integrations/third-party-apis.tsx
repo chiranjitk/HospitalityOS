@@ -177,7 +177,7 @@ export default function ThirdPartyApis() {
             </DialogHeader>
             {editApi && (
               <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">API Name</Label>
                     <Input
@@ -223,7 +223,7 @@ export default function ThirdPartyApis() {
                     placeholder="Enter API key"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="rateLimit">Rate Limit</Label>
                     <Input
@@ -262,7 +262,7 @@ export default function ThirdPartyApis() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="pb-2">
             <CardDescription>Active APIs</CardDescription>
@@ -292,6 +292,7 @@ export default function ThirdPartyApis() {
       {/* APIs Table */}
       <Card>
         <CardContent className="pt-6">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -357,6 +358,7 @@ export default function ThirdPartyApis() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -168,7 +168,7 @@ export function TodaysSchedule() {
           <Skeleton className="h-5 w-40" />
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               {[...Array(5)].map((_, i) => (
                 <Skeleton key={i} className="h-12 rounded-lg" />
@@ -211,7 +211,7 @@ export function TodaysSchedule() {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 gap-4 max-h-[320px] overflow-y-auto scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent pr-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[320px] overflow-y-auto scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent pr-1">
           {/* Arrivals */}
           <div>
             <div className="flex items-center gap-1.5 mb-2">

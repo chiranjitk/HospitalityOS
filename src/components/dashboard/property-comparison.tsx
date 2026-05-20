@@ -138,7 +138,7 @@ export function PropertyComparison() {
           </Button>
         </div>
         {/* Property names header */}
-        <div className="grid grid-cols-3 gap-2 mt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Metric</div>
           <div className="text-xs font-semibold text-right truncate">{prop1.name}</div>
           <div className="text-xs font-semibold text-right truncate">{prop2.name}</div>
@@ -153,7 +153,7 @@ export function PropertyComparison() {
 
             return (
               <div key={metric.key} className="space-y-1.5">
-                <div className="grid grid-cols-3 gap-2 items-center">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
                   <div className="text-xs text-muted-foreground font-medium">{metric.label}</div>
                   <div className={cn('text-right text-sm font-bold tabular-nums', prop1Wins ? 'text-primary' : 'text-muted-foreground')}>
                     {formatValue(val1, metric.format)}
@@ -172,7 +172,7 @@ export function PropertyComparison() {
         </div>
 
         {/* Bottom summary */}
-        <div className="mt-3 pt-2 border-t border-border/50 grid grid-cols-3 gap-2">
+        <div className="mt-3 pt-2 border-t border-border/50 grid grid-cols-1 sm:grid-cols-3 gap-2">
           <div />
           <div className="text-center">
             <span className="text-xs text-muted-foreground">Occupancy</span>

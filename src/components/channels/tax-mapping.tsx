@@ -597,7 +597,7 @@ export default function TaxMappingDashboard() {
             <Skeleton className="h-4 w-96 mt-2 rounded" />
           </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-lg" />
           ))}
@@ -638,7 +638,7 @@ export default function TaxMappingDashboard() {
 
         {/* Stats Cards */}
         {summary && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <Card className="bg-gradient-to-br from-slate-500/10 to-slate-600/5 border-slate-500/20">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
@@ -826,6 +826,7 @@ export default function TaxMappingDashboard() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="max-h-[500px] overflow-y-auto">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -922,6 +923,7 @@ export default function TaxMappingDashboard() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -1020,6 +1022,7 @@ export default function TaxMappingDashboard() {
 
                 {previewExpanded && (
                   <div className="border-t p-3 space-y-2">
+                    <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -1050,6 +1053,7 @@ export default function TaxMappingDashboard() {
                         ))}
                       </TableBody>
                     </Table>
+                    </div>
                     <div className="flex items-center gap-2 p-2 text-xs text-muted-foreground">
                       <Info className="h-3 w-3" />
                       <span>{previewResult.note}</span>

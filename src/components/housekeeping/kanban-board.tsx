@@ -411,7 +411,7 @@ export default function KanbanBoard() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-gray-500/10">
@@ -472,7 +472,7 @@ export default function KanbanBoard() {
           <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           {columns.map((column) => (
             <div
               key={column.id}
@@ -568,7 +568,7 @@ export default function KanbanBoard() {
                 )}
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground">Type</p>
                   <Badge variant="outline" className="capitalize mt-1">
@@ -583,7 +583,7 @@ export default function KanbanBoard() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground">Priority</p>
                   <Badge 

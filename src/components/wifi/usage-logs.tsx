@@ -314,7 +314,7 @@ export default function UsageLogs() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-primary/10">
@@ -475,6 +475,7 @@ export default function UsageLogs() {
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -562,6 +563,7 @@ export default function UsageLogs() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>
@@ -578,7 +580,7 @@ export default function UsageLogs() {
           </DialogHeader>
           {selectedSession && (
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <Label className="text-muted-foreground text-xs">Device Name</Label>
                   <p className="font-medium">{selectedSession.deviceName || 'Unknown'}</p>

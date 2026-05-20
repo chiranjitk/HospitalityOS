@@ -656,6 +656,7 @@ export function ChannelBookingLimits() {
             </div>
           ) : (
             <ScrollArea className="max-h-[480px] overflow-auto">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -770,6 +771,7 @@ export function ChannelBookingLimits() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>
@@ -885,7 +887,7 @@ export function ChannelBookingLimits() {
             )}
 
             {/* Date Range */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="grid gap-2">
                 <Label className="text-sm">Start Date</Label>
                 <Input
@@ -1019,7 +1021,7 @@ export function ChannelBookingLimits() {
             )}
 
             {/* Date Range */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="grid gap-2">
                 <Label className="text-sm">Start Date</Label>
                 <Input

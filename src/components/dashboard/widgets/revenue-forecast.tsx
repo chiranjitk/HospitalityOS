@@ -634,7 +634,7 @@ export function RevenueForecastWidget() {
           </div>
 
           {/* Summary metrics */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-3 border-t border-border/40">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 pt-3 border-t border-border/40">
             <SummaryCard
               label={t('totalProjected')}
               value={formatCurrency(data.totalProjected)}

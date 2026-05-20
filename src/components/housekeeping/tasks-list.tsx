@@ -554,7 +554,7 @@ export default function TasksList() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-gray-500/10">
@@ -684,6 +684,7 @@ export default function TasksList() {
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -848,6 +849,7 @@ export default function TasksList() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>
@@ -1033,7 +1035,7 @@ export default function TasksList() {
                 />
               </div>
               {formData.isRecurring && (
-                <div className="grid grid-cols-2 gap-4 pl-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-6">
                   <div className="space-y-2">
                     <Label>Frequency</Label>
                     <Select
@@ -1261,7 +1263,7 @@ export default function TasksList() {
                 />
               </div>
               {formData.isRecurring && (
-                <div className="grid grid-cols-2 gap-4 pl-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-6">
                   <div className="space-y-2">
                     <Label>Frequency</Label>
                     <Select

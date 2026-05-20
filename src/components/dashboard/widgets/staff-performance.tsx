@@ -96,7 +96,7 @@ export default function StaffPerformanceWidget() {
             </motion.div>
           ))}
         </div>
-        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/50">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-border/50">
           <div className="text-center p-2 rounded-lg bg-primary/10 dark:bg-primary/10"><CircularProgress value={data.shiftCompletion} size={44} strokeWidth={4} /><p className="text-[10px] text-muted-foreground mt-1 font-medium">{t('shiftDone')}</p></div>
           <div className="text-center p-2 rounded-lg bg-sky-50 dark:bg-sky-950/10"><div className="flex items-center justify-center gap-1 h-[44px]"><CheckCircle2 className="h-4 w-4 text-sky-600 dark:text-sky-400" /><span className="text-lg font-bold text-sky-600 dark:text-sky-400 tabular-nums">{data.tasksCompleted}</span>{totalTasks > 0 && <span className="text-xs text-muted-foreground">/ {totalTasks}</span>}</div><p className="text-[10px] text-muted-foreground mt-1 font-medium">{t('tasksDone')}</p></div>
           <div className="text-center p-2 rounded-lg bg-amber-50 dark:bg-amber-950/10"><div className="flex items-center justify-center gap-1 h-[44px]"><Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" /><span className="text-lg font-bold text-amber-600 dark:text-amber-400 tabular-nums">{data.onTimeRate}%</span></div><p className="text-[10px] text-muted-foreground mt-1 font-medium">{t('onTime')}</p></div>

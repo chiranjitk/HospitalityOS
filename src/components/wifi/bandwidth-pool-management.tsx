@@ -493,7 +493,8 @@ export default function BandwidthPoolManagement() {
             </p>
           </div>
         ) : (
-          <div className="max-h-[500px] overflow-y-auto">
+          <div className="max-h-[500px] overflow-auto">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -601,6 +602,7 @@ export default function BandwidthPoolManagement() {
                 })}
               </TableBody>
             </Table>
+            </div>
           </div>
         )}
       </Card>
@@ -656,7 +658,7 @@ export default function BandwidthPoolManagement() {
             </div>
 
             {/* Bandwidth Row */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Download */}
               <div className="grid gap-2">
                 <Label htmlFor="pool-download">Total Download (Mbps)</Label>

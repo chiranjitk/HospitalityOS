@@ -367,7 +367,7 @@ export default function RegistrationCard() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Full Name</Label>
                     <p className="font-medium">
@@ -420,7 +420,7 @@ export default function RegistrationCard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Room Number</Label>
                     <p className="text-lg font-bold text-primary">{selectedBooking.room?.number || 'TBD'}</p>
@@ -476,6 +476,7 @@ export default function RegistrationCard() {
                     No companions added. Click &quot;Add&quot; to add accompanying guests.
                   </p>
                 ) : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -534,6 +535,7 @@ export default function RegistrationCard() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>

@@ -362,7 +362,7 @@ export default function InvoiceMatching() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
         <Card className="p-4 hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-emerald-500/10">
@@ -470,6 +470,7 @@ export default function InvoiceMatching() {
             </div>
           ) : (
             <ScrollArea className="max-h-[600px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -549,6 +550,7 @@ export default function InvoiceMatching() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>
@@ -568,7 +570,7 @@ export default function InvoiceMatching() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             {/* Header fields */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>PO # *</Label>
                 <Input
@@ -595,7 +597,7 @@ export default function InvoiceMatching() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label>Invoice Date *</Label>
                 <Input
@@ -636,7 +638,7 @@ export default function InvoiceMatching() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Tolerance %</Label>
                 <Input
@@ -818,7 +820,7 @@ export default function InvoiceMatching() {
               </div>
 
               {/* Summary */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-1">
                   <Label className="text-muted-foreground text-xs">PO #</Label>
                   <code className="text-sm bg-muted px-2 py-1 rounded font-mono">{selectedMatch.poNumber}</code>
@@ -840,7 +842,7 @@ export default function InvoiceMatching() {
               <Separator />
 
               {/* Amounts */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-1">
                   <Label className="text-muted-foreground text-xs">PO Amount</Label>
                   <div className="text-lg font-bold">{formatCurrency(selectedMatch.poAmount)}</div>
@@ -879,6 +881,7 @@ export default function InvoiceMatching() {
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Line Items</Label>
                     <div className="border rounded-lg">
+                      <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -912,6 +915,7 @@ export default function InvoiceMatching() {
                           ))}
                         </TableBody>
                       </Table>
+                      </div>
                     </div>
                   </div>
                 </>

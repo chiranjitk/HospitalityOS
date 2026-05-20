@@ -424,7 +424,7 @@ function ConnectDialog({
             )}
 
             {/* Channel features */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {[
                 { label: 'Instant Booking', active: true },
                 { label: 'Content Sync', active: true },
@@ -585,7 +585,7 @@ function StatsHeader({
   categories: number;
 }) {
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
       <Card className="border-border/50 bg-gradient-to-br from-card to-muted/30">
         <CardContent className="p-4 flex items-center gap-3">
           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">

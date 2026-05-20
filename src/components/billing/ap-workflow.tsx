@@ -417,7 +417,7 @@ export default function APWorkflow() {
   // ── Render: Stat cards ───────────────────────────────────────────
 
   const renderStatCards = () => (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       <Card className="p-4 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 hover:-translate-y-0.5">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 shadow-lg shadow-sky-500/20">
@@ -965,7 +965,7 @@ export default function APWorkflow() {
             <DialogDescription>{inv.vendor} — {inv.category}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Vendor</p>
                 <p className="font-medium text-sm">{inv.vendor} ({inv.vendorCode})</p>
@@ -1071,7 +1071,7 @@ export default function APWorkflow() {
             <DialogDescription>{doc.name}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Category</p>
                 <Badge variant="outline">{doc.category}</Badge>
@@ -1235,7 +1235,7 @@ export default function APWorkflow() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSearchQuery(''); setStatusFilter('all'); setCategoryFilter('all'); setDocCategoryFilter('all'); }}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="invoices" className="text-xs sm:text-sm">
             <FileText className="h-4 w-4 mr-1.5 hidden sm:inline" />
             Invoices

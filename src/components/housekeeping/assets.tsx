@@ -438,7 +438,7 @@ export default function Assets() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 lg:grid-cols-6">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-gray-500/10">
@@ -570,6 +570,7 @@ export default function Assets() {
               {/* Desktop Table */}
               <div className="hidden md:block">
                 <ScrollArea className="h-[500px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -680,6 +681,7 @@ export default function Assets() {
                       })}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </div>
               {/* Mobile Card Layout */}
@@ -714,7 +716,7 @@ export default function Assets() {
                               )}
                             </div>
                             {/* Row 3: Location + Maintenance */}
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               <div className="bg-muted/50 rounded-lg px-2 py-1.5">
                                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                                   <MapPin className="h-3 w-3" />
@@ -784,7 +786,7 @@ export default function Assets() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2 col-span-2">
                 <Label htmlFor="name">Asset Name *</Label>
                 <Input
@@ -850,7 +852,7 @@ export default function Assets() {
                 onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="serialNumber">Serial Number</Label>
                 <Input
@@ -879,7 +881,7 @@ export default function Assets() {
                 onChange={(e) => setFormData(prev => ({ ...prev, manufacturer: e.target.value }))}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="purchasePrice">Purchase Price</Label>
                 <Input
@@ -901,7 +903,7 @@ export default function Assets() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="purchaseDate">Purchase Date</Label>
                 <Input
@@ -921,7 +923,7 @@ export default function Assets() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="warrantyProvider">Warranty Provider</Label>
                 <Input
@@ -965,7 +967,7 @@ export default function Assets() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2 col-span-2">
                 <Label htmlFor="edit-name">Asset Name *</Label>
                 <Input
@@ -1028,7 +1030,7 @@ export default function Assets() {
                 onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-serialNumber">Serial Number</Label>
                 <Input
@@ -1054,7 +1056,7 @@ export default function Assets() {
                 onChange={(e) => setFormData(prev => ({ ...prev, manufacturer: e.target.value }))}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-purchasePrice">Purchase Price</Label>
                 <Input
@@ -1074,7 +1076,7 @@ export default function Assets() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-purchaseDate">Purchase Date</Label>
                 <Input
@@ -1094,7 +1096,7 @@ export default function Assets() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-warrantyProvider">Warranty Provider</Label>
                 <Input

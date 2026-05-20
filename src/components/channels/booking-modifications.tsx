@@ -364,7 +364,7 @@ export default function BookingModifications() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="bg-gradient-to-br from-slate-500/10 to-slate-600/5 border-slate-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -513,6 +513,7 @@ export default function BookingModifications() {
             </div>
           ) : (
             <ScrollArea className="max-h-[520px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -586,6 +587,7 @@ export default function BookingModifications() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>
@@ -642,7 +644,7 @@ export default function BookingModifications() {
                 {/* Date Change */}
                 {detailItem.modificationType === 'date_change' && (
                   <>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Previous Check-in</p>
                         <p className="text-sm font-medium line-through text-red-600/70">
@@ -656,7 +658,7 @@ export default function BookingModifications() {
                         </p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Previous Check-out</p>
                         <p className="text-sm font-medium line-through text-red-600/70">
@@ -675,7 +677,7 @@ export default function BookingModifications() {
 
                 {/* Room Change */}
                 {detailItem.modificationType === 'room_change' && (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Previous Room</p>
                       <p className="text-sm font-medium line-through text-red-600/70">
@@ -693,7 +695,7 @@ export default function BookingModifications() {
 
                 {/* Guest Change */}
                 {detailItem.modificationType === 'guest_change' && (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Previous Guests</p>
                       <p className="text-sm font-medium line-through text-red-600/70">
@@ -711,7 +713,7 @@ export default function BookingModifications() {
 
                 {/* Rate Change */}
                 {detailItem.modificationType === 'rate_change' && (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Previous Rate</p>
                       <p className="text-sm font-medium line-through text-red-600/70">
@@ -731,7 +733,7 @@ export default function BookingModifications() {
                 {(detailItem.modificationType === 'name_change' ||
                   detailItem.modificationType === 'addon_change' ||
                   detailItem.modificationType === 'special_request') && (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Previous</p>
                       <p className="text-sm font-medium line-through text-red-600/70">

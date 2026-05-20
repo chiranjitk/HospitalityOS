@@ -399,7 +399,7 @@ export default function WorkOrders({ propertyId }: WorkOrdersProps) {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-gray-500/10"><Clock className="h-4 w-4 text-gray-500" /></div>
@@ -507,6 +507,7 @@ export default function WorkOrders({ propertyId }: WorkOrdersProps) {
             </div>
           ) : (
             <ScrollArea className="h-[500px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -590,6 +591,7 @@ export default function WorkOrders({ propertyId }: WorkOrdersProps) {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </ScrollArea>
           )}
         </CardContent>
@@ -622,7 +624,7 @@ export default function WorkOrders({ propertyId }: WorkOrdersProps) {
               <Label>Description</Label>
               <Textarea placeholder="Describe the issue..." value={formData.description} onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))} rows={3} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Type</Label>
                 <Select value={formData.type} onValueChange={v => setFormData(prev => ({ ...prev, type: v }))}>
@@ -646,7 +648,7 @@ export default function WorkOrders({ propertyId }: WorkOrdersProps) {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Est. Cost</Label>
                 <Input type="number" placeholder="0.00" value={formData.estimatedCost} onChange={e => setFormData(prev => ({ ...prev, estimatedCost: e.target.value }))} />
@@ -691,7 +693,7 @@ export default function WorkOrders({ propertyId }: WorkOrdersProps) {
               <Label>Description</Label>
               <Textarea value={formData.description} onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))} rows={3} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Type</Label>
                 <Select value={formData.type} onValueChange={v => setFormData(prev => ({ ...prev, type: v }))}>
@@ -715,7 +717,7 @@ export default function WorkOrders({ propertyId }: WorkOrdersProps) {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Est. Cost</Label>
                 <Input type="number" value={formData.estimatedCost} onChange={e => setFormData(prev => ({ ...prev, estimatedCost: e.target.value }))} />

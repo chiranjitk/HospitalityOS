@@ -540,7 +540,7 @@ export function ChannelCommissionConfigPanel() {
           </div>
           <Skeleton className="h-10 w-32 rounded" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(i => (
             <Skeleton key={i} className="h-24 rounded-lg" />
           ))}
@@ -579,7 +579,7 @@ export function ChannelCommissionConfigPanel() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-slate-500/10 to-slate-600/5 border-slate-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -725,6 +725,7 @@ export function ChannelCommissionConfigPanel() {
             <Card>
               <CardContent className="p-0">
                 <div className="max-h-[500px] overflow-y-auto">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -833,6 +834,7 @@ export function ChannelCommissionConfigPanel() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -954,7 +956,7 @@ export function ChannelCommissionConfigPanel() {
               <div className="mt-6 space-y-4">
                 <div className="p-4 rounded-lg border bg-muted/30">
                   <h4 className="text-sm font-semibold mb-3">Commission Breakdown</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
                       <p className="text-xs text-muted-foreground">Booking Amount</p>
                       <p className="text-lg font-bold tabular-nums">${calcResult.bookingAmount.toFixed(2)}</p>
@@ -982,7 +984,7 @@ export function ChannelCommissionConfigPanel() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   <div className="p-3 rounded-lg border">
                     <p className="text-xs text-muted-foreground mb-1">Channel</p>
                     <Badge variant="outline">{calcResult.channelCode}</Badge>
@@ -1206,7 +1208,7 @@ export function ChannelCommissionConfigPanel() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Min Commission</Label>
                   <Input
@@ -1320,7 +1322,7 @@ export function ChannelCommissionConfigPanel() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Effective To</Label>
                   <Input

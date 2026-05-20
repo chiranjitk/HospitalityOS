@@ -265,7 +265,7 @@ export function WiFiGatewayConfig() {
                 </AlertDescription>
               </Alert>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Gateway Name *</Label>
                   <Input
@@ -314,7 +314,7 @@ export function WiFiGatewayConfig() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="ipAddress">IP Address *</Label>
                   <Input
@@ -336,7 +336,7 @@ export function WiFiGatewayConfig() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="authPort">Auth Port</Label>
                   <Input
@@ -371,7 +371,7 @@ export function WiFiGatewayConfig() {
               </div>
 
               {formData.coaEnabled && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="coaPort">CoA Port</Label>
                     <Input

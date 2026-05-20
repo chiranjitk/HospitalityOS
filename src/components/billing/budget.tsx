@@ -317,7 +317,7 @@ export default function BudgetManagementPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <Card className="p-3 sm:p-4">
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="p-2 rounded-lg bg-blue-500/10 shrink-0"><DollarSign className="h-4 w-4 text-blue-600 dark:text-blue-400" /></div>
@@ -520,7 +520,7 @@ export default function BudgetManagementPage() {
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="space-y-1.5"><Label>Budget Name *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Operations Budget" /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Period Type</Label>
                 <Select value={form.periodType} onValueChange={v => setForm(f => ({ ...f, periodType: v }))}>

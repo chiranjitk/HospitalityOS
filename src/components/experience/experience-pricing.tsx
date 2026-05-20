@@ -458,7 +458,7 @@ export default function ExperiencePricing() {
       </Card>
 
       {/* Stats Row */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-cyan-500/10">
@@ -579,6 +579,7 @@ export default function ExperiencePricing() {
               {/* Desktop Table */}
               <div className="hidden sm:block">
                 <ScrollArea className="max-h-[350px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -634,6 +635,7 @@ export default function ExperiencePricing() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </div>
             </>
@@ -711,6 +713,7 @@ export default function ExperiencePricing() {
               {/* Desktop Table */}
               <div className="hidden sm:block">
                 <ScrollArea className="max-h-[350px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -766,6 +769,7 @@ export default function ExperiencePricing() {
                       })}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </div>
             </>
@@ -785,7 +789,7 @@ export default function ExperiencePricing() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Start Time</Label>
                 <Input
@@ -864,7 +868,7 @@ export default function ExperiencePricing() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Start Date</Label>
                 <Input
@@ -896,7 +900,7 @@ export default function ExperiencePricing() {
                 <span className="text-sm text-muted-foreground">x (e.g. 1.2 = 20% premium)</span>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Min Guests</Label>
                 <Input

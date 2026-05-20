@@ -1020,7 +1020,7 @@ export function BookingCalendar() {
     
     return (
       <div className="overflow-x-auto">
-        <div className="min-w-[800px]">
+        <div>
           {/* Header with dates */}
           <div className="grid border-b bg-muted/50 sticky top-0" style={{ gridTemplateColumns: `150px repeat(${calendarDays.length}, minmax(40px, 1fr))` }}>
             <div className="p-2 font-medium border-r">Room Type</div>
@@ -1783,7 +1783,7 @@ export function BookingCalendar() {
             </div>
 
             {/* Check-in/Check-out */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Check-in *</Label>
                 <Input
@@ -1803,7 +1803,7 @@ export function BookingCalendar() {
             </div>
 
             {/* Adults, Children, Rate */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Adults</Label>
                 <Input

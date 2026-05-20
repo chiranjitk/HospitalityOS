@@ -896,7 +896,7 @@ export default function WifiFupPolicy() {
             {/* Cycle Type */}
             <div className="space-y-2">
               <Label>Cycle Type</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {CYCLE_OPTIONS.map((opt) => (
                   <Button
                     key={opt.value}
@@ -1002,7 +1002,7 @@ export default function WifiFupPolicy() {
                   <Zap className="h-4 w-4" />
                   Throttle Speeds
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="fup-throttle-dl" className="text-xs">
                       Download (Mbps)
@@ -1080,7 +1080,7 @@ export default function WifiFupPolicy() {
             </div>
 
             {/* Priority + Enabled */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="fup-priority">Priority</Label>
                 <Input

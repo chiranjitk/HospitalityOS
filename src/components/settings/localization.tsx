@@ -178,7 +178,7 @@ export default function LocalizationSettings() {
           <CardDescription>Configure regional preferences</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
             <div className="space-y-2">
               <Label>Timezone</Label>
               <Select value={settings.region.timezone} onValueChange={(v) => setSettings({ ...settings, region: { ...settings.region, timezone: v } })}>
@@ -242,7 +242,7 @@ export default function LocalizationSettings() {
           <CardDescription>Configure how guests experience language options</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
               <div>
                 <p className="font-medium">Auto Language Detection</p>

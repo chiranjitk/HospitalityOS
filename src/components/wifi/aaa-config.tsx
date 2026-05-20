@@ -1190,7 +1190,7 @@ export default function AAAConfig() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <Button
                   onClick={() => handleServiceAction('start')}
                   disabled={serviceStatus?.running}
@@ -1386,7 +1386,7 @@ export default function AAAConfig() {
                     </DialogDescription>
                   </DialogHeader>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4 overflow-y-auto flex-1 pr-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4 overflow-auto flex-1 pr-1">
                     <div className="space-y-2">
                       <Label>Name *</Label>
                       <Input
@@ -1633,6 +1633,7 @@ export default function AAAConfig() {
                   <p className="text-sm">Add a router or access point to get started</p>
                 </div>
               ) : (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1712,6 +1713,7 @@ export default function AAAConfig() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -1732,6 +1734,7 @@ export default function AAAConfig() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1788,6 +1791,7 @@ export default function AAAConfig() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           )}

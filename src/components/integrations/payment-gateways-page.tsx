@@ -320,7 +320,7 @@ export default function PaymentGatewaysPage() {
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-9 w-32" />
         </div>
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           {[1, 2, 3, 4].map(i => (
             <Card key={i}>
               <CardContent className="pt-6">
@@ -378,7 +378,7 @@ export default function PaymentGatewaysPage() {
                   {/* Basic Settings */}
                   <div className="space-y-4">
                     <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">Basic Settings</h4>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="name">Gateway Name</Label>
                         <Input
@@ -410,7 +410,7 @@ export default function PaymentGatewaysPage() {
                         </Select>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="mode">Mode</Label>
                         <Select
@@ -448,7 +448,7 @@ export default function PaymentGatewaysPage() {
                   {/* API Credentials */}
                   <div className="space-y-4">
                     <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">API Credentials</h4>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="apiKey">API Key</Label>
                         <Input
@@ -470,7 +470,7 @@ export default function PaymentGatewaysPage() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="merchantId">Merchant ID</Label>
                         <Input
@@ -496,7 +496,7 @@ export default function PaymentGatewaysPage() {
                   {/* Fees & Limits */}
                   <div className="space-y-4">
                     <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">Fees & Configuration</h4>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="percentage">Fee Percentage (%)</Label>
                         <Input
@@ -531,7 +531,7 @@ export default function PaymentGatewaysPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="pb-2">
             <CardDescription>Total Transactions</CardDescription>
@@ -627,7 +627,7 @@ export default function PaymentGatewaysPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid gap-4 md:grid-cols-5 mb-4">
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5 mb-4">
                     <div>
                       <p className="text-sm text-muted-foreground">Processing Fee</p>
                       <p className="font-medium">{gateway.fees.percentage}% + {formatCurrency(gateway.fees.fixed)}</p>

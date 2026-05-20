@@ -558,7 +558,7 @@ export default function KPIDashboardEnhanced() {
 
       {/* Tabs for different KPI categories */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 h-10">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-10">
           <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
           <TabsTrigger value="revenue" className="text-xs sm:text-sm">Revenue</TabsTrigger>
           <TabsTrigger value="operations" className="text-xs sm:text-sm">Operations</TabsTrigger>
@@ -841,7 +841,7 @@ export default function KPIDashboardEnhanced() {
                 <CardDescription>Today's check-in/check-out statistics</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="p-3 rounded-lg bg-teal-50 dark:bg-teal-900/40">
                     <p className="text-xs text-muted-foreground">Check-ins Completed</p>
                     <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">{stats.performance.checkInsCompleted}</p>
@@ -868,7 +868,7 @@ export default function KPIDashboardEnhanced() {
                 <CardDescription>Cleaning and inspection metrics</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="p-3 rounded-lg bg-primary/10 dark:bg-primary/10">
                     <p className="text-xs text-muted-foreground">Rooms Cleaned</p>
                     <p className="text-2xl font-bold text-primary">{stats.housekeeping.roomsCleaned}</p>
@@ -899,7 +899,7 @@ export default function KPIDashboardEnhanced() {
               <CardDescription>Current network statistics</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="text-center p-4 rounded-lg bg-teal-50 dark:bg-teal-900/40">
                   <Wifi className="h-6 w-6 mx-auto text-teal-600 dark:text-teal-400 mb-2" />
                   <p className="text-2xl font-bold">{stats.wifi.activeSessions}</p>

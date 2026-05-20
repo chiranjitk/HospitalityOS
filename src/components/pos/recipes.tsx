@@ -181,7 +181,7 @@ const t = useTranslations('pos');
               <SelectTrigger><SelectValue placeholder="Select menu item" /></SelectTrigger>
               <SelectContent>{menuItems.map(m => <SelectItem key={m.id} value={m.id}>{m.name} ({formatCurrency(m.price)})</SelectItem>)}</SelectContent>
             </Select>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <div><label className="text-xs font-medium">Prep Time (min)</label><Input type="number" value={form.prepTime} onChange={e => setForm(f => ({ ...f, prepTime: +e.target.value }))} /></div>
               <div><label className="text-xs font-medium">Cook Time (min)</label><Input type="number" value={form.cookTime} onChange={e => setForm(f => ({ ...f, cookTime: +e.target.value }))} /></div>
               <div><label className="text-xs font-medium">Yield (servings)</label><Input type="number" min={1} value={form.yield} onChange={e => setForm(f => ({ ...f, yield: +e.target.value }))} /></div>
@@ -199,7 +199,7 @@ const t = useTranslations('pos');
               </div>
             ))}
             <Separator />
-            <div className="grid grid-cols-4 gap-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm">
               <div><span className="text-muted-foreground">Total Cost:</span><p className="font-bold">{formatCurrency(totalCost)}</p></div>
               <div><span className="text-muted-foreground">Cost/Serving:</span><p className="font-bold">{formatCurrency(costPerServing)}</p></div>
               <div><span className="text-muted-foreground">Selling Price:</span><p className="font-bold">{formatCurrency(sellingPrice)}</p></div>
@@ -216,7 +216,7 @@ const t = useTranslations('pos');
           <DialogHeader><DialogTitle>{viewingRecipe?.menuItem.name}</DialogTitle></DialogHeader>
           {viewingRecipe && (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                 <div><span className="text-muted-foreground">Prep:</span><p>{viewingRecipe.prepTime} min</p></div>
                 <div><span className="text-muted-foreground">Cook:</span><p>{viewingRecipe.cookTime} min</p></div>
                 <div><span className="text-muted-foreground">Yield:</span><p>{viewingRecipe.yield} servings</p></div>
@@ -228,7 +228,7 @@ const t = useTranslations('pos');
                 <div key={i} className="flex justify-between text-sm p-2 rounded border"><span>{ing.name}</span><span>{ing.quantity} {ing.unit} ({formatCurrency(ing.quantity * ing.costPerUnit)})</span></div>
               ))}</div>
               <Separator />
-              <div className="grid grid-cols-3 gap-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                 <div><span className="text-muted-foreground">Cost/Serving:</span><p className="font-bold">{formatCurrency(viewingRecipe.costPerServing)}</p></div>
                 <div><span className="text-muted-foreground">Selling Price:</span><p className="font-bold">{formatCurrency(viewingRecipe.menuItem.price)}</p></div>
                 <div><span className="text-muted-foreground">Margin:</span><p className="font-bold">{((viewingRecipe.menuItem.price - viewingRecipe.costPerServing) / viewingRecipe.menuItem.price * 100).toFixed(1)}%</p></div>

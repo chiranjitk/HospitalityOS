@@ -606,7 +606,7 @@ export default function InventoryLocking() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-lg">
@@ -1038,7 +1038,7 @@ function LockForm({
         <div className="text-xs text-muted-foreground mb-2">
           Select either a specific room or an entire room type
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="roomId" className="text-xs">Specific Room</Label>
             <Select
@@ -1079,7 +1079,7 @@ function LockForm({
       </div>
 
       {/* Date Range */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Start Date *</Label>
           <Popover open={isStartCalendarOpen} onOpenChange={setIsStartCalendarOpen}>

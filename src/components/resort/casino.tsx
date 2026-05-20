@@ -317,7 +317,7 @@ export default function ResortCasino() {
 
       {/* Stats Cards */}
       {activeTab === 'tables' ? (
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           <Card className="border-l-4 border-l-emerald-500">
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-1.5"><CircleDot className="h-3.5 w-3.5 text-emerald-500" />Open Tables</CardDescription>
@@ -344,7 +344,7 @@ export default function ResortCasino() {
           </Card>
         </div>
       ) : (
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           <Card className="border-l-4 border-l-emerald-500">
             <CardHeader className="pb-2">
               <CardDescription className="flex items-center gap-1.5"><Coins className="h-3.5 w-3.5" />Chip Sales</CardDescription>
@@ -439,7 +439,7 @@ export default function ResortCasino() {
               </div>
 
               {/* Grid */}
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="grid gap-3 grid-cols-1 md:grid-cols-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {tables.map(table => {
                   const gameCfg = GAME_TYPE_CONFIG[table.gameType] || { label: table.gameType, color: 'bg-gray-100 text-gray-800', icon: '🎲' };
                   const statusCfg = TABLE_STATUS_CONFIG[table.status] || { label: table.status, color: 'bg-gray-100 text-gray-800', dotColor: 'bg-gray-400' };
@@ -465,7 +465,7 @@ export default function ResortCasino() {
 
                         <Badge className={cn('mb-3 text-[10px]', gameCfg.color)}>{gameCfg.icon} {gameCfg.label}</Badge>
 
-                        <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                           <div className="p-2 rounded bg-muted/50">
                             <p className="text-muted-foreground">Min Bet</p>
                             <p className="font-semibold">{formatCurrency(table.minBet)}</p>
@@ -524,7 +524,7 @@ export default function ResortCasino() {
           </div>
 
           {/* Pit Boss Quick Stats */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             <Card className="p-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Bets</p>
               <p className="text-lg font-bold">{formatCurrency(txStats.todayTotalBets)}</p>
@@ -556,6 +556,7 @@ export default function ResortCasino() {
               </CardHeader>
               <CardContent className="p-0">
                 <ScrollArea className="max-h-[500px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -617,6 +618,7 @@ export default function ResortCasino() {
                       })}
                     </TableBody>
                   </Table>
+                  </div>
                 </ScrollArea>
               </CardContent>
             </Card>
@@ -632,7 +634,7 @@ export default function ResortCasino() {
             <DialogDescription>Register a new gaming table in the pit</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2 col-span-2 sm:col-span-1">
                 <Label>Table Name <span className="text-red-500">*</span></Label>
                 <Input placeholder="e.g., Royal Flush" value={tableForm.name} onChange={e => setTableForm(f => ({ ...f, name: e.target.value }))} />
@@ -642,7 +644,7 @@ export default function ResortCasino() {
                 <Input type="number" placeholder="e.g., 1" value={tableForm.tableNumber} onChange={e => setTableForm(f => ({ ...f, tableNumber: e.target.value }))} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Game Type <span className="text-red-500">*</span></Label>
                 <Select value={tableForm.gameType} onValueChange={v => setTableForm(f => ({ ...f, gameType: v }))}>
@@ -666,7 +668,7 @@ export default function ResortCasino() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Min Bet ($)</Label>
                 <Input type="number" placeholder="0" value={tableForm.minBet} onChange={e => setTableForm(f => ({ ...f, minBet: e.target.value }))} />
@@ -712,7 +714,7 @@ export default function ResortCasino() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Transaction Type <span className="text-red-500">*</span></Label>
                 <Select value={txForm.transactionType} onValueChange={v => setTxForm(f => ({ ...f, transactionType: v }))}>
@@ -729,7 +731,7 @@ export default function ResortCasino() {
                 <Input type="number" placeholder="0" value={txForm.amount} onChange={e => setTxForm(f => ({ ...f, amount: e.target.value }))} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Chip Color</Label>
                 <Select value={txForm.chipColor} onValueChange={v => setTxForm(f => ({ ...f, chipColor: v }))}>

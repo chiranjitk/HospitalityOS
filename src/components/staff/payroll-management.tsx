@@ -361,7 +361,7 @@ export default function PayrollManagement() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-2">
             <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -406,7 +406,7 @@ export default function PayrollManagement() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
           <TabsTrigger value="processing">Payroll</TabsTrigger>
           <TabsTrigger value="salary">Salary Structure</TabsTrigger>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
@@ -511,7 +511,7 @@ export default function PayrollManagement() {
 
         {/* ── Salary Structure Tab ────────────────────────────────── */}
         <TabsContent value="salary" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
             {/* CTC Breakdown Pie Chart */}
             <Card>
               <CardHeader>
@@ -711,7 +711,7 @@ export default function PayrollManagement() {
           </Card>
 
           {/* Leave Summary */}
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             <Card className="p-4">
               <div className="text-xs text-muted-foreground mb-1">Casual Leave (CL)</div>
               <div className="text-xl font-bold">12 <span className="text-sm text-muted-foreground font-normal">/ year</span></div>
@@ -740,7 +740,7 @@ export default function PayrollManagement() {
 
         {/* ── Compliance Tab ──────────────────────────────────────── */}
         <TabsContent value="compliance" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {/* PF/ESI */}
             <Card className="p-4">
               <div className="flex items-center gap-2 mb-3">
@@ -952,7 +952,7 @@ export default function PayrollManagement() {
             <ScrollArea className="max-h-[60vh] pr-2">
               <div className="space-y-4">
                 {/* Employee Info */}
-                <div className="grid grid-cols-2 gap-2 p-3 rounded-lg bg-muted/50 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 rounded-lg bg-muted/50 text-xs">
                   <div><span className="text-muted-foreground">Employee ID:</span> <span className="font-medium ml-1">{selectedRecord.employee.employeeId}</span></div>
                   <div><span className="text-muted-foreground">PAN:</span> <span className="font-medium ml-1">{selectedRecord.employee.pan}</span></div>
                   <div><span className="text-muted-foreground">Bank A/C:</span> <span className="font-medium ml-1">{selectedRecord.employee.bankAccount}</span></div>

@@ -529,7 +529,7 @@ export default function SMSGateways() {
           <Skeleton className="h-8 w-40" />
           <Skeleton className="h-10 w-40" />
         </div>
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardContent className="pt-6">
@@ -713,7 +713,7 @@ export default function SMSGateways() {
       </div>
 
       {/* ─── Stats Cards ─── */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="pb-2">
             <CardDescription>Configured Gateways</CardDescription>

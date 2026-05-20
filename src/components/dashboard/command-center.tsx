@@ -529,7 +529,7 @@ function CommandCenterSkeleton() {
   return (
     <div className="space-y-6">
       {/* Quick Stats Grid skeleton */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
         {[...Array(6)].map((_, i) => (
           <Card key={i} className="border border-border/50 shadow-sm">
             <CardContent className="p-4">
@@ -546,7 +546,7 @@ function CommandCenterSkeleton() {
       </div>
 
       {/* 3-Column Grid skeleton */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="border border-border/50 shadow-sm">
           <CardHeader className="pb-3">
             <Skeleton className="h-5 w-28 mb-1" />
@@ -583,7 +583,7 @@ function CommandCenterSkeleton() {
       </div>
 
       {/* Timeline + Alerts skeleton */}
-      <div className="grid gap-4 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card className="border border-border/50 shadow-sm lg:col-span-3">
           <CardHeader className="pb-3">
             <Skeleton className="h-5 w-32 mb-1" />
@@ -674,7 +674,7 @@ export default function CommandCenter() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6"
+        className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6"
       >
         {quickStats.map((stat, i) => (
           <QuickStatCard key={stat.label} stat={stat} index={i} />
@@ -686,7 +686,7 @@ export default function CommandCenter() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="grid gap-4 lg:grid-cols-3"
+        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
       >
         {/* Room Status Overview */}
         <motion.div variants={itemVariants}>
@@ -870,9 +870,9 @@ export default function CommandCenter() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="grid gap-4 lg:grid-cols-5"
+        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5"
       >
-        <motion.div variants={itemVariants} className="lg:col-span-3">
+        <motion.div variants={itemVariants} className="sm:col-span-1 lg:col-span-3">
           <ActivityTimeline events={activityEvents} />
         </motion.div>
         <motion.div variants={itemVariants} className="lg:col-span-2">

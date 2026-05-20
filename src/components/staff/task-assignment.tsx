@@ -408,7 +408,7 @@ export default function TaskAssignment() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
@@ -465,7 +465,7 @@ export default function TaskAssignment() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             <div className="space-y-2">
               <Label>Priority</Label>
               <Select value={filterPriority} onValueChange={setFilterPriority}>
@@ -723,7 +723,7 @@ export default function TaskAssignment() {
                 rows={3}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select
@@ -779,7 +779,7 @@ export default function TaskAssignment() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Scheduled Date</Label>
                 <Input
@@ -808,7 +808,7 @@ export default function TaskAssignment() {
                 Recurring Task
               </Label>
               {formData.isRecurring && (
-                <div className="grid grid-cols-2 gap-4 pl-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-6">
                   <div className="space-y-2">
                     <Label>Frequency</Label>
                     <Select

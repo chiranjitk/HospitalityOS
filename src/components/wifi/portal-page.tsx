@@ -823,7 +823,7 @@ function ZoneFormContent({ form, setForm, zones, editZone, ssidInput, setSsidInp
         <p className="text-[10px] text-muted-foreground">Portal URL: connect.hotel.com/<span className="font-mono text-foreground">{form.slug || '...'}</span></p>
       </div>
       <Separator />
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Auth Method</Label>
           <Select value={form.authMethod} onValueChange={v => setForm(f => ({ ...f, authMethod: v }))}>
@@ -874,7 +874,7 @@ function ZoneFormContent({ form, setForm, zones, editZone, ssidInput, setSsidInp
       )}
       <div className="space-y-2">
         <Label>Bandwidth Limits (Mbps)</Label>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1"><p className="text-[10px] text-muted-foreground">Download</p><Input type="number" value={form.maxBandwidthDown} onChange={e => setForm(f => ({ ...f, maxBandwidthDown: parseInt(e.target.value) || 5 }))} /></div>
           <div className="space-y-1"><p className="text-[10px] text-muted-foreground">Upload</p><Input type="number" value={form.maxBandwidthUp} onChange={e => setForm(f => ({ ...f, maxBandwidthUp: parseInt(e.target.value) || 1 }))} /></div>
         </div>
@@ -919,7 +919,7 @@ function ZoneFormContent({ form, setForm, zones, editZone, ssidInput, setSsidInp
         </div>
       )}
       <Separator />
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <div className="space-y-2"><Label>Max Concurrent</Label><Input type="number" value={form.maxConcurrent} onChange={e => setForm(f => ({ ...f, maxConcurrent: parseInt(e.target.value) || 200 }))} /></div>
         <div className="space-y-2"><Label>Session (min)</Label><Input type="number" value={form.sessionTimeout} onChange={e => setForm(f => ({ ...f, sessionTimeout: parseInt(e.target.value) || 1440 }))} /></div>
         <div className="space-y-2"><Label>Idle (min)</Label><Input type="number" value={form.idleTimeout} onChange={e => setForm(f => ({ ...f, idleTimeout: parseInt(e.target.value) || 30 }))} /></div>
@@ -1146,7 +1146,7 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
                 )}
 
                 {/* Timeouts */}
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-center">
                   <div className="rounded-lg bg-muted/50 p-1.5"><div className="text-sm font-bold">{zone.sessionTimeout}m</div><div className="text-[10px] text-muted-foreground">Session</div></div>
                   <div className="rounded-lg bg-muted/50 p-1.5"><div className="text-sm font-bold">{zone.idleTimeout}m</div><div className="text-[10px] text-muted-foreground">Idle</div></div>
                   <div className="rounded-lg bg-muted/50 p-1.5"><div className="text-sm font-bold">{zone.maxConcurrent}</div><div className="text-[10px] text-muted-foreground">Max</div></div>
@@ -1631,7 +1631,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                 {/* Notch (phone only) */}
                 {previewDevice === 'phone' && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-gray-900 rounded-b-xl z-10" />}
                 {/* Screen Content */}
-                <div className="w-full h-full overflow-y-auto" style={{ background: getBackgroundCSS(design), color: design.textColor }}>
+                <div className="w-full h-full overflow-auto" style={{ background: getBackgroundCSS(design), color: design.textColor }}>
                   <PortalPreviewContent design={design} visibleFields={visibleFields} />
                 </div>
               </div>
@@ -1658,7 +1658,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
               })}
             </div>
 
-            <div className="overflow-y-auto max-h-[70vh] overscroll-contain">
+            <div className="overflow-auto max-h-[70vh] overscroll-contain">
               <div className="p-5 space-y-5">
                 {/* ── Templates Sub-Tab ──────────────────────────────────────── */}
                 {subTab === 'templates' && (() => {
@@ -1683,7 +1683,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                         </button>
                       ))}
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {filtered.map((tmpl) => (
                         <button key={tmpl.id} onClick={() => applyTemplate(tmpl)}
                           className={cn('group relative rounded-xl overflow-hidden border-2 transition-all hover:shadow-lg text-left',
@@ -1765,7 +1765,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                 {subTab === 'background' && (
                   <div className="space-y-5">
                     <div><h3 className="text-sm font-semibold">Background Type</h3></div>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                       {[{ v: 'solid' as const, l: 'Solid Color' }, { v: 'gradient' as const, l: 'Gradient' }, { v: 'image' as const, l: 'Image URL' }].map((bt) => (
                         <button key={bt.v} onClick={() => updateSettings({ backgroundType: bt.v })}
                           className={cn('p-3 rounded-lg border-2 text-center text-xs font-medium transition-all',
@@ -1847,7 +1847,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                     )}
                     <Separator />
                     {/* Brand & Text Colors */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2"><Label className="text-xs">Brand / Accent Color</Label><div className="flex items-center gap-3"><input type="color" value={design.brandColor} onChange={(e) => updateDesign({ brandColor: e.target.value })} className="w-10 h-10 rounded-lg cursor-pointer border-0" /><Input value={design.brandColor} onChange={(e) => updateDesign({ brandColor: e.target.value })} className="flex-1 font-mono text-xs" /></div></div>
                       <div className="space-y-2"><Label className="text-xs">Text Color</Label><div className="flex items-center gap-3"><input type="color" value={design.textColor} onChange={(e) => updateDesign({ textColor: e.target.value })} className="w-10 h-10 rounded-lg cursor-pointer border-0" /><Input value={design.textColor} onChange={(e) => updateDesign({ textColor: e.target.value })} className="flex-1 font-mono text-xs" /></div></div>
                     </div>
@@ -1877,7 +1877,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                 {subTab === 'formstyle' && (
                   <div className="space-y-5">
                     <div><h3 className="text-sm font-semibold flex items-center gap-2"><FormInput className="h-4 w-4" />Form Style</h3></div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {FORM_STYLES.map((fs) => (
                         <button key={fs.value} onClick={() => updateSettings({ formStyle: fs.value })}
                           className={cn('p-3 rounded-lg border-2 text-xs font-medium transition-all',
@@ -1887,7 +1887,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                     </div>
                     <Separator />
                     <div><h3 className="text-sm font-semibold">Input Style</h3></div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {INPUT_STYLES.map((is) => (
                         <button key={is.value} onClick={() => updateSettings({ inputStyle: is.value })}
                           className={cn('p-3 rounded-lg border-2 text-xs font-medium transition-all',
@@ -1897,7 +1897,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                     </div>
                     <Separator />
                     <div><h3 className="text-sm font-semibold">Button Style</h3></div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {BUTTON_STYLES.map((bs) => (
                         <button key={bs.value} onClick={() => updateSettings({ buttonStyle: bs.value })}
                           className={cn('p-3 rounded-lg border-2 text-xs font-medium transition-all',
@@ -1906,7 +1906,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                       ))}
                     </div>
                     <div><h3 className="text-sm font-semibold mt-2">Button Size</h3></div>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                       {(['small', 'medium', 'large'] as const).map((sz) => (
                         <button key={sz} onClick={() => updateSettings({ buttonSize: sz })}
                           className={cn('p-3 rounded-lg border-2 text-xs font-medium transition-all capitalize',
@@ -1916,7 +1916,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                     </div>
                     <Separator />
                     <div><h3 className="text-sm font-semibold">Animation</h3></div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {([['none', 'None'], ['fade', 'Fade In'], ['slide_up', 'Slide Up'], ['zoom', 'Zoom']] as const).map(([v, l]) => (
                         <button key={v} onClick={() => updateSettings({ animationType: v })}
                           className={cn('p-3 rounded-lg border-2 text-xs font-medium transition-all',
@@ -1927,7 +1927,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                     <Separator />
                     {/* Feature 10: Card Shadow Control */}
                     <div><h3 className="text-sm font-semibold">Card Shadow</h3></div>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {(['none', 'small', 'medium', 'large'] as const).map((sz) => (
                         <button key={sz} onClick={() => updateSettings({ cardShadow: sz })}
                           className={cn('p-3 rounded-lg border-2 text-xs font-medium transition-all capitalize',
@@ -1948,7 +1948,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                       <div className="flex items-center justify-between"><Label className="text-xs font-semibold flex items-center gap-1.5"><Languages className="h-3.5 w-3.5" />Multi-Language</Label><Switch checked={design.settings.enableMultiLanguage} onCheckedChange={(v) => updateSettings({ enableMultiLanguage: v })} /></div>
                       {design.settings.enableMultiLanguage && (<>
                         <div className="space-y-2"><Label className="text-xs">Available Languages</Label>
-                          <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-auto">
                             {LANGUAGE_OPTIONS.map((lang) => (
                               <div key={lang.value} className={cn('flex items-center gap-2 p-1.5 rounded-lg border text-xs cursor-pointer transition-all',
                                 design.settings.languages.includes(lang.value) ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border hover:border-teal-300'
@@ -2026,7 +2026,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                       </div>
                       {/* Logo Size */}
                       <div className="space-y-2"><Label className="text-xs">Logo Size</Label>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                           {([['small', 'Small (40px)'], ['medium', 'Medium (56px)'], ['large', 'Large (72px)']] as const).map(([v, l]) => (
                             <button key={v} onClick={() => updateSettings({ logoSize: v })} className={cn('p-2 rounded-lg border-2 text-xs font-medium transition-all text-center', design.settings.logoSize === v ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border hover:border-teal-300')}>{l}</button>
                           ))}
@@ -2048,7 +2048,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                       {design.settings.showHotelInfo && (<>
                         <div className="space-y-2"><Label className="text-xs">Hotel Name</Label><Input value={design.settings.hotelName} onChange={(e) => updateSettings({ hotelName: e.target.value })} className="text-xs" /></div>
                         <div className="space-y-2"><Label className="text-xs">Address</Label><Input value={design.settings.hotelAddress} onChange={(e) => updateSettings({ hotelAddress: e.target.value })} className="text-xs" /></div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div className="space-y-2"><Label className="text-xs">Phone</Label><Input value={design.settings.hotelPhone} onChange={(e) => updateSettings({ hotelPhone: e.target.value })} className="text-xs" /></div>
                           <div className="space-y-2"><Label className="text-xs">Website</Label><Input value={design.settings.hotelWebsite} onChange={(e) => updateSettings({ hotelWebsite: e.target.value })} className="text-xs" /></div>
                         </div>
@@ -2060,7 +2060,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                     <div className="space-y-3">
                       <div className="flex items-center justify-between"><Label className="text-xs font-semibold">Amenities</Label><Switch checked={design.settings.showAmenities} onCheckedChange={(v) => updateSettings({ showAmenities: v })} /></div>
                       {design.settings.showAmenities && (<>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {Object.keys(AMENITY_ICONS).map((am) => (
                             <div key={am} className={cn('flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer transition-all', design.settings.amenities.includes(am) ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border hover:border-teal-300')} onClick={() => { const curr = design.settings.amenities; updateSettings({ amenities: curr.includes(am) ? curr.filter((a) => a !== am) : [...curr, am] }); }}>
                               {React.createElement(AMENITY_ICONS[am], { className: 'h-3.5 w-3.5 text-teal-500 dark:text-teal-400 flex-shrink-0' })}<span className="truncate">{am}</span>
@@ -2126,7 +2126,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                                 <div className="space-y-1.5">
                                   <Input value={slide.title} onChange={(e) => { const updated = [...design.settings.promotions]; updated[i] = { ...updated[i], title: e.target.value }; updateSettings({ promotions: updated }); }} className="text-xs" placeholder="Title" />
                                   <Textarea value={slide.description} onChange={(e) => { const updated = [...design.settings.promotions]; updated[i] = { ...updated[i], description: e.target.value }; updateSettings({ promotions: updated }); }} className="text-xs" rows={2} placeholder="Description" />
-                                  <div className="grid grid-cols-2 gap-2">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     <Input value={slide.imageUrl} onChange={(e) => { const updated = [...design.settings.promotions]; updated[i] = { ...updated[i], imageUrl: e.target.value }; updateSettings({ promotions: updated }); }} className="text-xs" placeholder="Image URL" />
                                     <Input value={slide.linkUrl} onChange={(e) => { const updated = [...design.settings.promotions]; updated[i] = { ...updated[i], linkUrl: e.target.value }; updateSettings({ promotions: updated }); }} className="text-xs" placeholder="Link URL" />
                                   </div>
@@ -2283,7 +2283,7 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                                   className={cn('px-2 py-1 rounded text-[10px] font-medium border transition-all', sched.days[di] ? 'bg-teal-500 text-white border-teal-500' : 'border-border text-muted-foreground hover:border-teal-300')}>{day}</button>
                               ))}
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               <div className="space-y-1"><Label className="text-[10px] text-muted-foreground">Start Time</Label><Input type="time" value={sched.startTime} onChange={(e) => { const updated = [...design.settings.scheduleConfig.schedules]; updated[i] = { ...updated[i], startTime: e.target.value }; updateSettings({ scheduleConfig: { ...design.settings.scheduleConfig, schedules: updated } }); }} className="text-xs" /></div>
                               <div className="space-y-1"><Label className="text-[10px] text-muted-foreground">End Time</Label><Input type="time" value={sched.endTime} onChange={(e) => { const updated = [...design.settings.scheduleConfig.schedules]; updated[i] = { ...updated[i], endTime: e.target.value }; updateSettings({ scheduleConfig: { ...design.settings.scheduleConfig, schedules: updated } }); }} className="text-xs" /></div>
                             </div>
@@ -2423,7 +2423,7 @@ function PortalPreviewContent({ design, visibleFields }: { design: PortalPageDes
       {/* Amenities */}
       {s.showAmenities && s.amenities.length > 0 && (
         <div className="w-full max-w-[240px]">
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5">
             {s.amenities.slice(0, 6).map((am) => {
               const AmIcon = AMENITY_ICONS[am] || Star;
               return (
@@ -2779,7 +2779,8 @@ function VoucherDesignerTab({ portalOptions }: { portalOptions: Array<{ id: stri
                 {loading ? (<div className="space-y-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>) : guests.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-8">No check-ins today</p>
                 ) : (
-                  <div className="max-h-96 overflow-y-auto">
+                  <div className="max-h-96 overflow-auto">
+                    <div className="overflow-x-auto">
                     <Table>
                       <TableHeader><TableRow><TableHead className="text-xs">Guest</TableHead><TableHead className="text-xs">Room</TableHead><TableHead className="text-xs">Status</TableHead><TableHead className="text-xs w-10"></TableHead></TableRow></TableHeader>
                       <TableBody>
@@ -2801,6 +2802,7 @@ function VoucherDesignerTab({ portalOptions }: { portalOptions: Array<{ id: stri
                         ))}
                       </TableBody>
                     </Table>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -2818,7 +2820,7 @@ function VoucherDesignerTab({ portalOptions }: { portalOptions: Array<{ id: stri
                     </div>
                     <Separator />
                     <div className="space-y-2">
-                      <div className={cn('grid grid-cols-2 gap-3 text-xs', voucherStyle.text)}>
+                      <div className={cn('grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs', voucherStyle.text)}>
                         <div><p className="opacity-50 text-[10px] uppercase">Guest</p><p className="font-semibold">{selectedGuest.guestName}</p></div>
                         <div><p className="opacity-50 text-[10px] uppercase">Room</p><p className="font-semibold font-mono">{selectedGuest.roomNumber}</p></div>
                         <div><p className="opacity-50 text-[10px] uppercase">Network</p><p className="font-semibold">{selectedGuest.ssid}</p></div>
@@ -2855,7 +2857,7 @@ function VoucherDesignerTab({ portalOptions }: { portalOptions: Array<{ id: stri
       {subView === 'list' && (
         <>
           {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
             {[
               { label: 'Total', value: voucherStats.total, color: 'text-foreground' },
               { label: 'Active', value: voucherStats.active, color: 'text-emerald-600 dark:text-emerald-400' },
@@ -2890,7 +2892,8 @@ function VoucherDesignerTab({ portalOptions }: { portalOptions: Array<{ id: stri
           {/* Voucher Table */}
           <Card>
             <CardContent className="p-0">
-              <div className="max-h-[500px] overflow-y-auto">
+              <div className="max-h-[500px] overflow-auto">
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader><TableRow>
                     <TableHead className="text-xs">Code</TableHead>
@@ -2924,6 +2927,7 @@ function VoucherDesignerTab({ portalOptions }: { portalOptions: Array<{ id: stri
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -2945,7 +2949,7 @@ function VoucherDesignerTab({ portalOptions }: { portalOptions: Array<{ id: stri
                 <div className="space-y-2"><Label>WiFi Plan *</Label>
                   <Select value={genPlanId} onValueChange={setGenPlanId}><SelectTrigger><SelectValue placeholder="Select a plan" /></SelectTrigger><SelectContent>{plans.map(p => <SelectItem key={p.id} value={p.id}>{p.name} — {p.downloadSpeed || 0}/{p.uploadSpeed || 0} Mbps, {p.validityDays || 1}d</SelectItem>)}</SelectContent></Select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Quantity</Label><Input type="number" min={1} max={500} value={genQuantity} onChange={e => setGenQuantity(parseInt(e.target.value) || 1)} /></div>
                   <div className="space-y-2"><Label>Validity (days)</Label><Input type="number" min={1} max={365} value={genValidityDays} onChange={e => setGenValidityDays(parseInt(e.target.value) || 1)} /></div>
                 </div>
@@ -3107,7 +3111,7 @@ function AnalyticsOverview() {
           </div>
           <div className="flex gap-2"><Skeleton className="h-8 w-20" /><Skeleton className="h-8 w-20" /><Skeleton className="h-8 w-24" /></div>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}><CardContent className="p-4"><Skeleton className="h-16 w-full rounded-lg" /></CardContent></Card>
           ))}
@@ -3190,7 +3194,7 @@ function AnalyticsOverview() {
       {hasData && (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -3307,7 +3311,7 @@ function AnalyticsOverview() {
                   <p className="text-xs text-muted-foreground mt-1">Total data consumed</p>
                 </div>
                 <Separator />
-                <div className="grid grid-cols-2 gap-4 w-full text-center">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full text-center">
                   <div>
                     <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground mb-1">
                       <Download className="h-3.5 w-3.5 text-teal-500" />Sessions
@@ -3501,7 +3505,7 @@ function AnalyticsLiveMonitor() {
 
       {/* Loading */}
       {loading && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}><CardContent className="p-4"><Skeleton className="h-20 w-full rounded-lg" /></CardContent></Card>
           ))}
@@ -3511,7 +3515,7 @@ function AnalyticsLiveMonitor() {
       {/* Live KPI Cards */}
       {!loading && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Active Sessions */}
             <Card className="border-emerald-200 dark:border-emerald-900/50">
               <CardContent className="p-4">
@@ -3709,7 +3713,7 @@ function AnalyticsLiveMonitor() {
             </CardHeader>
             <CardContent>
               {authStats ? (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="text-center p-3 rounded-lg bg-muted/50">
                     <p className="text-2xl font-bold">{authStats.totalAuths.toLocaleString()}</p>
                     <p className="text-[10px] text-muted-foreground mt-1">Total Attempts</p>
@@ -3867,7 +3871,7 @@ function AnalyticsAuthInsights() {
 
       {/* Auth Stats KPI Row */}
       {authStats && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           <Card className="bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/50">
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{authStats.acceptCount.toLocaleString()}</p>
@@ -3949,7 +3953,7 @@ function AnalyticsAuthInsights() {
                     <span className="text-[9px] text-muted-foreground">Success</span>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-6 w-full">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-emerald-500" />
                     <div>
@@ -4038,22 +4042,22 @@ function PrintCardsTab() {
           <p className="text-xs text-muted-foreground">Fill in the details to generate a printable WiFi login card</p>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2"><Label>Hotel Name</Label><Input value={hotelName} onChange={e => setHotelName(e.target.value)} placeholder="StaySuite Hotel" /></div>
             <div className="space-y-2"><Label>Network (SSID)</Label><Input value={ssid} onChange={e => setSsid(e.target.value)} placeholder="HotelWiFi" /></div>
           </div>
           <Separator />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2"><Label>Guest Name</Label><Input value={guestName} onChange={e => setGuestName(e.target.value)} placeholder="John Smith" /></div>
             <div className="space-y-2"><Label>Room Number</Label><Input value={roomNumber} onChange={e => setRoomNumber(e.target.value)} placeholder="301" /></div>
           </div>
           <Separator />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2"><Label>Username *</Label><Input value={username} onChange={e => setUsername(e.target.value)} placeholder="guest301" /></div>
             <div className="space-y-2"><Label>Password *</Label><Input value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" type="password" /></div>
           </div>
           <Separator />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2"><Label>Valid From</Label><Input type="date" value={validFrom} onChange={e => setValidFrom(e.target.value)} /></div>
             <div className="space-y-2"><Label>Valid Until</Label><Input type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)} /></div>
           </div>

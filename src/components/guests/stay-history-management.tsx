@@ -621,7 +621,7 @@ export default function StayHistoryManagement() {
               </div>
 
               {/* Stay Info Grid */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Confirmation Code</p>
                   <p className="font-mono font-medium">{selectedStay.booking?.confirmationCode}</p>

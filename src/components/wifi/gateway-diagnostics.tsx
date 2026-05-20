@@ -143,7 +143,7 @@ function SummaryBar({
   items: Array<{ label: string; value: string; color?: string }>;
 }) {
   return (
-    <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
       {items.map((item) => (
         <div key={item.label} className="rounded-lg bg-muted/50 p-3">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
@@ -344,6 +344,7 @@ function PingTool() {
 
         {packets.length > 0 && (
           <div className="mt-4">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -366,6 +367,7 @@ function PingTool() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           </div>
         )}
       </CardContent>
@@ -474,6 +476,7 @@ function TracerouteTool() {
 
         {hops.length > 0 && (
           <div className="mt-4">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -513,6 +516,7 @@ function TracerouteTool() {
                 })}
               </TableBody>
             </Table>
+            </div>
           </div>
         )}
 
@@ -624,6 +628,7 @@ function DnsLookupTool() {
 
         {result?.success && records && (
           <div className="mt-4">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -663,6 +668,7 @@ function DnsLookupTool() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </div>
         )}
       </CardContent>
@@ -846,6 +852,7 @@ function ArpTableTool() {
 
         {entries.length > 0 && (
           <div className="mt-4">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -872,6 +879,7 @@ function ArpTableTool() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           </div>
         )}
 
@@ -987,7 +995,7 @@ function NetworkScanTool() {
               <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
               <span className="text-xs font-medium">{aliveHosts.length} hosts alive</span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
               {aliveHosts.map((h, i) => (
                 <div
                   key={i}
@@ -1210,6 +1218,7 @@ function PacketCaptureTool() {
               {topSourceIps.length > 0 && (
                 <div className="rounded-lg border bg-muted/20 p-4">
                   <p className="text-xs font-medium mb-2">Top Source IPs</p>
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
@@ -1226,6 +1235,7 @@ function PacketCaptureTool() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               )}
 
@@ -1233,6 +1243,7 @@ function PacketCaptureTool() {
               {topDestIps.length > 0 && (
                 <div className="rounded-lg border bg-muted/20 p-4">
                   <p className="text-xs font-medium mb-2">Top Dest IPs</p>
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
@@ -1249,6 +1260,7 @@ function PacketCaptureTool() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               )}
 
@@ -1256,6 +1268,7 @@ function PacketCaptureTool() {
               {topDestPorts.length > 0 && (
                 <div className="rounded-lg border bg-muted/20 p-4">
                   <p className="text-xs font-medium mb-2">Top Dest Ports</p>
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
@@ -1272,6 +1285,7 @@ function PacketCaptureTool() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               )}
             </div>
@@ -1782,7 +1796,7 @@ function SpeedTestTool() {
             {/* Server & ISP */}
             {(server || isp || netIface || packetLoss !== null) && (
               <div className="rounded-xl border bg-muted/30 p-4">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                   {isp && (
                     <div>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">ISP</p>
@@ -2167,6 +2181,7 @@ function ConntrackTool() {
             {displayRows.length > 0 ? (
               <div className="mt-3">
                 <div className="rounded-lg border overflow-auto max-h-[500px]">
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader className="sticky top-0 bg-background z-10">
                       <TableRow className="hover:bg-transparent">
@@ -2191,6 +2206,7 @@ function ConntrackTool() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
                 <p className="mt-1 text-[10px] text-muted-foreground">
                   Showing {displayRows.length} filtered {viewTab} connections
@@ -2207,7 +2223,7 @@ function ConntrackTool() {
             {topTalkers.length > 0 && (
               <div className="mt-5 rounded-lg border bg-muted/20 p-4">
                 <p className="text-xs font-medium mb-3">Top Talkers (by Source IP)</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2">
                   {topTalkers.map(([ip, count], i) => (
                     <div key={i} className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2">
                       <span className="text-[10px] text-muted-foreground tabular-nums w-4">{i + 1}.</span>
@@ -2282,6 +2298,7 @@ function RouteTableTool() {
         {result?.success && routes.length > 0 && (
           <div className="mt-4">
             <div className="rounded-lg border overflow-auto max-h-[500px]">
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow className="hover:bg-transparent">
@@ -2308,6 +2325,7 @@ function RouteTableTool() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           </div>
         )}
@@ -2444,7 +2462,7 @@ function InterfaceStatsTool() {
                               <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${Math.max(rxPct, 0.5)}%` }} />
                             </div>
                           </div>
-                          <div className="grid grid-cols-3 gap-2 text-[11px]">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-[11px]">
                             <div><span className="text-muted-foreground">Packets:</span> <span className="font-mono tabular-nums">{rxPackets.toLocaleString()}</span></div>
                             <div><span className="text-muted-foreground">Errors:</span> <span className={cn('font-mono tabular-nums', rxErrors > 0 ? 'text-red-500' : '')}>{rxErrors}</span></div>
                             <div><span className="text-muted-foreground">Drops:</span> <span className={cn('font-mono tabular-nums', rxDrops > 0 ? 'text-red-500' : '')}>{rxDrops}</span></div>
@@ -2467,7 +2485,7 @@ function InterfaceStatsTool() {
                               <div className="h-full bg-cyan-500 rounded-full transition-all" style={{ width: `${Math.max(txPct, 0.5)}%` }} />
                             </div>
                           </div>
-                          <div className="grid grid-cols-3 gap-2 text-[11px]">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-[11px]">
                             <div><span className="text-muted-foreground">Packets:</span> <span className="font-mono tabular-nums">{txPackets.toLocaleString()}</span></div>
                             <div><span className="text-muted-foreground">Errors:</span> <span className={cn('font-mono tabular-nums', txErrors > 0 ? 'text-red-500' : '')}>{txErrors}</span></div>
                             <div><span className="text-muted-foreground">Drops:</span> <span className={cn('font-mono tabular-nums', txDrops > 0 ? 'text-red-500' : '')}>{txDrops}</span></div>

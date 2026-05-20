@@ -205,7 +205,7 @@ export default function ProfitLossStatement() {
       ) : pnlData ? (
         <>
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <Card className="p-3 sm:p-4">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="p-2 rounded-lg bg-emerald-500/10 shrink-0"><ArrowUpRight className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>
