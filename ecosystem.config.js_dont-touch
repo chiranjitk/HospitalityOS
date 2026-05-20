@@ -251,6 +251,8 @@ module.exports = {
         PORT: 3020,
         CLICKHOUSE_URL: 'http://127.0.0.1:8123',
         CONNTRACK_BIN: '/usr/sbin/conntrack',
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+        GUEST_ENRICHER_SILENT: 'true',  // Suppress repeated "DATABASE_URL not set" warnings
       },
     }),
     miniService('sni-parser', {
