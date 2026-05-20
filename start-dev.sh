@@ -1,11 +1,7 @@
 #!/bin/bash
+# StaySuite — Start all services via PM2
+# Usage: ./start-dev.sh
 cd /home/z/my-project
-export DATABASE_URL="postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30"
-
-# Start background scheduler in separate process
-npx tsx scripts/scheduler-runner.ts &
-SCHEDULER_PID=$!
-echo "Scheduler PID: $SCHEDULER_PID"
-
-# Start Next.js dev server (foreground)
-exec npx next dev -p 3000
+pm2 start ecosystem.config.js
+pm2 save
+echo "All services started. Use 'pm2 logs' to monitor, 'pm2 monit' for dashboard."
