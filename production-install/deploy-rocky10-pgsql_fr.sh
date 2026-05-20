@@ -1195,12 +1195,14 @@ fi
 success "Standalone artifacts copied (server + static + BUILD_ID)"
 
 # Install Ookla speedtest CLI (used by Gateway Diagnostics > Speed Test)
-# No native Node.js modules needed — just a standalone binary.
+# Direct binary install — no repo dependencies, works on Rocky Linux 10.
 if ! command -v speedtest &>/dev/null; then
-  info "Installing Ookla speedtest CLI..."
-  # Official install method: https://www.speedtest.net/apps/cli
-  curl -s https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.rpm.sh | bash 2>&1 | tail -3
-  yum install -y speedtest 2>&1 | tail -3
+  info "Installing Ookla speedtest CLI (direct binary)..."
+  cd /tmp
+  curl -LO https://install.speedtest.net/app/cli/ookla-speedtest-1.2.0-linux-x86_64.tgz
+  tar -xzf ookla-speedtest-1.2.0-linux-x86_64.tgz
+  install -m 755 speedtest /usr/bin/speedtest
+  rm -f ookla-speedtest-1.2.0-linux-x86_64.tgz
   if command -v speedtest &>/dev/null; then
     success "Ookla speedtest CLI installed: $(speedtest --version 2>/dev/null || echo 'installed')"
   else
