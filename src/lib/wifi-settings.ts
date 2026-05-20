@@ -160,14 +160,51 @@ export async function setWifiSettings<K extends WifiSettingsKey>(
   const nullProp = propertyId ?? '00000000-0000-0000-0000-000000000000';
   const json = JSON.stringify(value);
 
-  await db.$executeRawUnsafe(
-    `INSERT INTO "WiFiSettings" ("tenantId", "propertyId", "key", "value")
-     VALUES ($1::uuid, NULLIF($2::uuid, '00000000-0000-0000-0000-000000000000'::uuid), $3, $4)
-     ON CONFLICT ("tenantId", COALESCE("propertyId", '00000000-0000-0000-0000-000000000000'::uuid), "key")
-     DO UPDATE SET "value" = $4, "updatedAt" = now()`,
-    tenantId,
-    nullProp,
-    key,
-    json
-  );
+  const resolvedPropertyId = nullProp !== '00000000-0000-0000-0000-000000000000'
+    ? nullProp
+    : null;
+
+  // PostgreSQL unique indexes treat NULLs as distinct, so a simple ON CONFLICT
+  // cannot match rows when propertyId IS NULL. Work around this with an
+  // advisory lock + upsert pattern for the NULL-propertyId case.
+  if (resolvedPropertyId === null) {
+    // NULL propertyId: lock by tenantId+key, then insert-or-update
+    await db.$executeRawUnsafe(
+      `SELECT pg_advisory_xact_lock(
+         ('x' || substr(md5($1::text), 1, 8))::bit(32)::int,
+         ('x' || substr(md5($2::text), 1, 8))::bit(32)::int
+       )`,
+      tenantId, key
+    );
+
+    const existing = await db.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM "WiFiSettings"
+       WHERE "tenantId" = $1::uuid AND "propertyId" IS NULL AND "key" = $2
+       LIMIT 1`,
+      tenantId, key
+    );
+
+    if (existing.length > 0) {
+      await db.$executeRawUnsafe(
+        `UPDATE "WiFiSettings" SET "value" = $1, "updatedAt" = now()
+         WHERE id = $2::uuid`,
+        json, existing[0].id
+      );
+    } else {
+      await db.$executeRawUnsafe(
+        `INSERT INTO "WiFiSettings" (id, "tenantId", "propertyId", "key", "value", "createdAt", "updatedAt")
+         VALUES (gen_random_uuid(), $1::uuid, NULL, $2, $3, now(), now())`,
+        tenantId, key, json
+      );
+    }
+  } else {
+    // Non-NULL propertyId: standard ON CONFLICT works
+    await db.$executeRawUnsafe(
+      `INSERT INTO "WiFiSettings" ("tenantId", "propertyId", "key", "value")
+       VALUES ($1::uuid, $2::uuid, $3, $4)
+       ON CONFLICT ("tenantId", "propertyId", "key")
+       DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = now()`,
+      tenantId, resolvedPropertyId, key, json
+    );
+  }
 }
