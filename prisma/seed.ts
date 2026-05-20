@@ -117,6 +117,9 @@ async function main() {
     await prisma.webhookEndpoint.deleteMany({});
     await prisma.automationRule.deleteMany({});
     await prisma.notificationTemplate.deleteMany({});
+    await prisma.leadActivity.deleteMany({});
+    await prisma.lead.deleteMany({});
+    await prisma.subscriptionPlan.deleteMany({});
     await prisma.property.deleteMany({});
     await prisma.tenant.deleteMany({});
     console.log('Core seed data cleaned.');
@@ -3828,6 +3831,219 @@ async function main() {
     console.log('8 revenue accounts, 6 posting rules, 5 posting logs seeded!');
   } catch (e: any) {
     console.log('Posting rules seed error:', e.message);
+  }
+
+  // ─── Seed CRM Leads ───
+  console.log('Seeding CRM leads...');
+  try {
+    const leads = [
+      { contactName: 'Sarah Mitchell', contactEmail: 'sarah@techcorp.com', contactPhone: '+1 555-0101', contactCompany: 'TechCorp Inc.', source: 'website', type: 'corporate', status: 'proposal_sent', priority: 'hot', estimatedRevenue: 45000, roomCount: 10, guestCount: 20, score: 88, pipeline: 'proposal', notes: 'Corporate retreat inquiry for Q2' },
+      { contactName: 'James Rodriguez', contactEmail: 'james@globalevents.com', contactPhone: '+1 555-0142', contactCompany: 'Global Events Co.', source: 'referral', type: 'event', status: 'negotiation', priority: 'hot', estimatedRevenue: 78000, roomCount: 30, guestCount: 75, score: 91, pipeline: 'negotiation', notes: 'Large conference booking, flexible on dates' },
+      { contactName: 'Emily Chen', contactEmail: 'emily@weddingbliss.com', contactPhone: '+1 555-0103', contactCompany: 'Wedding Bliss', source: 'google_ads', type: 'wedding', status: 'qualified', priority: 'hot', estimatedRevenue: 32000, roomCount: 15, guestCount: 50, score: 82, pipeline: 'qualification', notes: 'Wedding reception + room block' },
+      { contactName: 'Michael Brown', contactEmail: 'm.brown@summit.com', contactPhone: '+1 555-0104', contactCompany: 'Summit Finance', source: 'linkedin', type: 'corporate', status: 'contacted', priority: 'warm', estimatedRevenue: 55000, roomCount: 8, guestCount: 16, score: 64, pipeline: 'inquiry', notes: 'Annual board meeting' },
+      { contactName: 'Lisa Thompson', contactEmail: 'lisa@adventures.com', contactPhone: '+1 555-0105', contactCompany: 'Adventures Ltd.', source: 'ota', type: 'group_booking', status: 'converted', priority: 'hot', estimatedRevenue: 28000, roomCount: 12, guestCount: 24, score: 100, pipeline: 'closing', notes: 'Group tour - converted to booking' },
+      { contactName: 'David Kim', contactEmail: 'd.kim@nexgen.com', contactPhone: '+1 555-0106', contactCompany: 'NexGen Pharma', source: 'website', type: 'corporate', status: 'proposal_sent', priority: 'warm', estimatedRevenue: 120000, roomCount: 50, guestCount: 100, score: 72, pipeline: 'proposal', notes: 'Pharma conference + exhibition space needed' },
+      { contactName: 'Anna Kowalski', contactEmail: 'anna@eurotravel.de', contactPhone: '+49 30-1234567', contactCompany: 'EuroTravel AG', source: 'email', type: 'general', status: 'new', priority: 'warm', estimatedRevenue: 18000, roomCount: 5, guestCount: 10, score: 28, pipeline: 'inquiry', notes: 'European tour group inquiry' },
+      { contactName: 'Robert Wilson', contactEmail: 'robert@citytours.com', contactPhone: '+44 20-1234567', contactCompany: 'City Tours Inc.', source: 'referral', type: 'general', status: 'lost', priority: 'cold', estimatedRevenue: 8000, roomCount: 3, guestCount: 6, score: 15, pipeline: 'inquiry', notes: "Budget didn't match", lossReason: 'Budget mismatch' },
+      { contactName: 'Priya Sharma', contactEmail: 'priya@tajgroup.com', contactPhone: '+91 22-12345678', contactCompany: 'Taj Hotels Group', source: 'linkedin', type: 'corporate', status: 'negotiation', priority: 'hot', estimatedRevenue: 95000, roomCount: 25, guestCount: 50, score: 85, pipeline: 'negotiation', notes: 'Strategic partnership discussion' },
+      { contactName: 'Carlos Mendez', contactEmail: 'carlos@solevents.mx', contactPhone: '+52 55-12345678', contactCompany: 'SOL Events', source: 'google_ads', type: 'event', status: 'qualified', priority: 'warm', estimatedRevenue: 15000, roomCount: 6, guestCount: 15, score: 58, pipeline: 'qualification', notes: 'Destination event planning' },
+      { contactName: 'Sophie Laurent', contactEmail: 'sophie@parisian.fr', contactPhone: '+33 1-12345678', contactCompany: 'Parisian Getaways', source: 'ota', type: 'group_booking', status: 'contacted', priority: 'warm', estimatedRevenue: 42000, roomCount: 20, guestCount: 40, score: 55, pipeline: 'inquiry', notes: 'French tour group for winter season' },
+      { contactName: 'Tom Anderson', contactEmail: 'tom@andersonco.com', contactPhone: '+1 555-0112', contactCompany: 'Anderson Consulting', source: 'website', type: 'corporate', status: 'new', priority: 'warm', estimatedRevenue: 25000, roomCount: 5, guestCount: 10, score: 30, pipeline: 'inquiry', notes: 'Consulting firm offsite' },
+      { contactName: 'Yuki Tanaka', contactEmail: 'yuki@sakura.jp', contactPhone: '+81 3-12345678', contactCompany: 'Sakura Tours', source: 'email', type: 'group_booking', status: 'converted', priority: 'hot', estimatedRevenue: 68000, roomCount: 35, guestCount: 70, score: 100, pipeline: 'closing', notes: 'Cherry blossom tour group - converted' },
+    ];
+
+    for (const lead of leads) {
+      await prisma.lead.create({
+        data: {
+          tenantId: uuid('tenant-1'),
+          propertyId: uuid('property-1'),
+          contactName: lead.contactName,
+          contactEmail: lead.contactEmail,
+          contactPhone: lead.contactPhone,
+          contactCompany: lead.contactCompany,
+          source: lead.source,
+          type: lead.type,
+          status: lead.status,
+          priority: lead.priority,
+          estimatedRevenue: lead.estimatedRevenue,
+          roomCount: lead.roomCount,
+          guestCount: lead.guestCount,
+          score: lead.score,
+          pipeline: lead.pipeline,
+          notes: lead.notes,
+          lossReason: (lead as any).lossReason || null,
+          tags: JSON.stringify([]),
+        },
+      });
+    }
+    console.log(`${leads.length} CRM leads seeded.`);
+  } catch (e: any) {
+    console.log('CRM leads seed error:', e.message);
+  }
+
+  // ─── Seed Subscription Plans ───
+  console.log('Seeding subscription plans...');
+  try {
+    const plans = [
+      {
+        name: 'trial',
+        displayName: 'Trial',
+        description: '14-day free trial with core PMS features. No credit card required.',
+        monthlyPrice: 0,
+        yearlyPrice: 0,
+        currency: 'INR',
+        maxProperties: 1,
+        maxUsers: 3,
+        maxRooms: 10,
+        storageLimitMb: 100,
+        features: JSON.stringify([
+          { name: 'Dashboard', included: true },
+          { name: 'PMS', included: true },
+          { name: 'Bookings', included: true },
+          { name: 'Front Desk', included: true },
+          { name: 'Guests', included: true },
+          { name: 'Housekeeping', included: true },
+          { name: 'Billing', included: true },
+          { name: 'Settings', included: true },
+          { name: 'Help', included: true },
+        ]),
+        sortOrder: 0,
+        isPopular: false,
+        isActive: true,
+      },
+      {
+        name: 'starter',
+        displayName: 'Starter Cloud',
+        description: 'For small hotels & guest houses up to 30 rooms. Core PMS + reports + notifications.',
+        monthlyPrice: 4999,
+        yearlyPrice: 49990,
+        currency: 'INR',
+        maxProperties: 1,
+        maxUsers: 5,
+        maxRooms: 30,
+        storageLimitMb: 500,
+        features: JSON.stringify([
+          { name: 'Dashboard', included: true },
+          { name: 'PMS', included: true },
+          { name: 'Bookings', included: true },
+          { name: 'Front Desk', included: true },
+          { name: 'Guests', included: true },
+          { name: 'Housekeeping', included: true },
+          { name: 'Billing', included: true },
+          { name: 'Settings', included: true },
+          { name: 'Help', included: true },
+          { name: 'Reports', included: true },
+          { name: 'Notifications', included: true },
+        ]),
+        sortOrder: 1,
+        isPopular: false,
+        isActive: true,
+      },
+      {
+        name: 'professional',
+        displayName: 'Professional Cloud',
+        description: 'For growing hotels up to 80 rooms. PMS + POS + CRM + Channel Manager + WiFi RADIUS.',
+        monthlyPrice: 9999,
+        yearlyPrice: 99990,
+        currency: 'INR',
+        maxProperties: 2,
+        maxUsers: 15,
+        maxRooms: 80,
+        storageLimitMb: 2000,
+        features: JSON.stringify([
+          { name: 'Dashboard', included: true },
+          { name: 'PMS', included: true },
+          { name: 'Bookings', included: true },
+          { name: 'Front Desk', included: true },
+          { name: 'Guests', included: true },
+          { name: 'Housekeeping', included: true },
+          { name: 'Billing', included: true },
+          { name: 'Settings', included: true },
+          { name: 'Help', included: true },
+          { name: 'Reports', included: true },
+          { name: 'Notifications', included: true },
+          { name: 'Guest Experience', included: true },
+          { name: 'POS & Restaurant', included: true },
+          { name: 'CRM & Marketing', included: true },
+          { name: 'Channel Manager', included: true },
+          { name: 'WiFi RADIUS', included: true },
+        ]),
+        sortOrder: 2,
+        isPopular: true,
+        isActive: true,
+      },
+      {
+        name: 'enterprise',
+        displayName: 'Enterprise Cloud',
+        description: 'For large hotels & chains up to 200 rooms. All cloud-compatible modules included.',
+        monthlyPrice: 17999,
+        yearlyPrice: 179990,
+        currency: 'INR',
+        maxProperties: 5,
+        maxUsers: 30,
+        maxRooms: 200,
+        storageLimitMb: 10000,
+        features: JSON.stringify([
+          { name: 'Dashboard', included: true },
+          { name: 'PMS', included: true },
+          { name: 'Bookings', included: true },
+          { name: 'Front Desk', included: true },
+          { name: 'Guests', included: true },
+          { name: 'Housekeeping', included: true },
+          { name: 'Billing', included: true },
+          { name: 'Settings', included: true },
+          { name: 'Help', included: true },
+          { name: 'Reports', included: true },
+          { name: 'Notifications', included: true },
+          { name: 'Guest Experience', included: true },
+          { name: 'POS & Restaurant', included: true },
+          { name: 'Inventory', included: true },
+          { name: 'Parking', included: true },
+          { name: 'WiFi & Network', included: true },
+          { name: 'Revenue Management', included: true },
+          { name: 'Channel Manager', included: true },
+          { name: 'CRM & Marketing', included: true },
+          { name: 'Marketing', included: true },
+          { name: 'Digital Advertising', included: true },
+          { name: 'Events', included: true },
+          { name: 'Staff Management', included: true },
+          { name: 'Security Center', included: true },
+          { name: 'Integrations', included: true },
+          { name: 'Automation', included: true },
+          { name: 'AI Features', included: true },
+          { name: 'Chain Management', included: true },
+          { name: 'Webhooks', included: true },
+        ]),
+        sortOrder: 3,
+        isPopular: false,
+        isActive: true,
+      },
+    ];
+
+    for (const plan of plans) {
+      await prisma.subscriptionPlan.upsert({
+        where: { name: plan.name },
+        create: plan,
+        update: {
+          displayName: plan.displayName,
+          description: plan.description,
+          monthlyPrice: plan.monthlyPrice,
+          yearlyPrice: plan.yearlyPrice,
+          currency: plan.currency,
+          maxProperties: plan.maxProperties,
+          maxUsers: plan.maxUsers,
+          maxRooms: plan.maxRooms,
+          storageLimitMb: plan.storageLimitMb,
+          features: plan.features,
+          sortOrder: plan.sortOrder,
+          isPopular: plan.isPopular,
+          isActive: plan.isActive,
+        },
+      });
+    }
+    console.log(`${plans.length} subscription plans seeded.`);
+  } catch (e: any) {
+    console.log('Subscription plans seed error:', e.message);
   }
 
   console.log('\n✅ Database seed completed successfully!');
