@@ -134,7 +134,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                   placeholder="name@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="h-11 bg-white/50 dark:bg-[#1a1210]/60 border-orange-100/60 dark:border-orange-900/30 rounded-xl transition-all duration-300 focus:bg-white dark:focus:bg-[#1a1210] focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25 hover:border-orange-200/80 dark:hover:border-orange-700/40"
+                  className="h-11 bg-white/50 dark:bg-[#1a1210]/60 border-orange-100/60 dark:border-orange-900/30 rounded-xl transition-all duration-300 focus:bg-white dark:focus:bg-[#1a1210] focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25 hover:border-orange-200/80 dark:hover:border-orange-700/40 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                   required
                   disabled={isLoading}
                   autoComplete="email"
@@ -153,7 +153,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="h-11 pr-10 bg-white/50 dark:bg-[#1a1210]/60 border-orange-100/60 dark:border-orange-900/30 rounded-xl transition-all duration-300 focus:bg-white dark:focus:bg-[#1a1210] focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25 hover:border-orange-200/80 dark:hover:border-orange-700/40"
+                    className="h-11 pr-10 bg-white/50 dark:bg-[#1a1210]/60 border-orange-100/60 dark:border-orange-900/30 rounded-xl transition-all duration-300 focus:bg-white dark:focus:bg-[#1a1210] focus:border-orange-400 focus:ring-2 focus:ring-orange-500/25 hover:border-orange-200/80 dark:hover:border-orange-700/40 placeholder:text-gray-400 dark:placeholder:text-gray-500"
                     required
                     disabled={isLoading}
                     autoComplete="current-password"
@@ -177,8 +177,9 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                   type="submit"
                   className={cn(
                     "w-full h-11 rounded-xl font-semibold text-sm transition-all duration-300",
-                    "bg-gradient-to-r from-orange-600 via-orange-500 to-amber-500 hover:from-orange-500 hover:via-orange-400 hover:to-amber-400",
-                    "shadow-lg shadow-orange-500/25 hover:shadow-xl hover:shadow-orange-500/30",
+                    "bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-gray-100",
+                    "text-white dark:text-neutral-900",
+                    "shadow-lg shadow-neutral-900/20 hover:shadow-xl hover:shadow-neutral-900/25 dark:shadow-white/10 dark:hover:shadow-white/15",
                     "hover:-translate-y-0.5 active:translate-y-0",
                     "disabled:opacity-70 disabled:hover:translate-y-0 disabled:shadow-lg",
                     "relative overflow-hidden"
@@ -201,7 +202,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                     <span
                       className="absolute inset-0 pointer-events-none"
                       style={{
-                        background: 'linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.2) 50%, transparent 75%)',
+                        background: 'linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.15) 50%, transparent 75%)',
                         backgroundSize: '200% 100%',
                         animation: 'formShimmer 1.5s infinite',
                       }}
