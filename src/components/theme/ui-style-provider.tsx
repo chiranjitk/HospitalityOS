@@ -9,8 +9,31 @@ interface UIStyleProviderProps {
 }
 
 export function UIStyleProvider({ children }: UIStyleProviderProps) {
-  // Initialize theme on mount (handled by ThemeProvider now, but keep for store sync)
+  // Initialize theme on mount — clean up stale theme IDs from localStorage
   React.useEffect(() => {
+    // Clean up stale theme IDs from localStorage (from removed themes)
+    try {
+      const rawTheme = localStorage.getItem('staysuite-ui-style');
+      if (rawTheme) {
+        const validIds = ['hospitality-sunrise', 'gradient-modern', 'neumorphism', 'slate-enterprise', 'terra-corporate', 'arctic-steel', 'noir-executive'];
+        if (!validIds.includes(rawTheme)) {
+          console.warn(`[StaySuite] Cleaning stale theme "${rawTheme}" from localStorage, falling back to hospitality-sunrise`);
+          localStorage.setItem('staysuite-ui-style', 'hospitality-sunrise');
+        }
+      }
+      // Also clean the Zustand persisted store
+      const zustandStore = localStorage.getItem('staysuite-ui-style-store');
+      if (zustandStore) {
+        try {
+          const parsed = JSON.parse(zustandStore);
+          const validIds = ['hospitality-sunrise', 'gradient-modern', 'neumorphism', 'slate-enterprise', 'terra-corporate', 'arctic-steel', 'noir-executive'];
+          if (parsed?.state?.themeId && !validIds.includes(parsed.state.themeId)) {
+            parsed.state.themeId = 'hospitality-sunrise';
+            localStorage.setItem('staysuite-ui-style-store', JSON.stringify(parsed));
+          }
+        } catch { /* ignore parse errors */ }
+      }
+    } catch { /* ignore localStorage errors */ }
     initializeUITheme();
   }, []);
 

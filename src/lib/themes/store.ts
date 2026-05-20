@@ -48,15 +48,25 @@ function getEffectiveModeFromMode(mode: ThemeMode): 'light' | 'dark' {
   return mode;
 }
 
+// Valid theme IDs for validation (prevents stale localStorage values from removed themes)
+const VALID_THEME_IDS: Set<string> = new Set(Object.keys(themesConfig));
+
+// Default theme constants
+const DEFAULT_UI_THEME: UIStyleTheme = 'hospitality-sunrise';
+const DEFAULT_THEME_MODE: ThemeMode = 'system';
+
 // Apply theme to document - delegates CSS variables to themes.css via data attributes
 // This avoids inline style conflicts with CSS specificity
 export function applyUITheme(themeId: UIStyleTheme, mode: 'light' | 'dark') {
   if (typeof document === 'undefined') return;
 
+  // Safety: validate theme ID before applying (prevents stale localStorage crash)
+  const validThemeId = VALID_THEME_IDS.has(themeId) ? themeId : DEFAULT_UI_THEME;
+
   const root = document.documentElement;
   
   // Apply theme ID as data attribute (for CSS variable selectors in themes.css)
-  root.setAttribute('data-theme', themeId);
+  root.setAttribute('data-theme', validThemeId);
   
   // Apply light/dark class (for .dark theme variants in CSS)
   if (mode === 'dark') {
@@ -71,7 +81,7 @@ export function applyUITheme(themeId: UIStyleTheme, mode: 'light' | 'dark') {
   // ── Apply CSS variables from theme config ────────────────────────────
   // This ensures ALL 7 themes get proper sidebar & UI colors,
   // not just the 6 themes that have CSS rules in themes.css.
-  const theme = themesConfig[themeId];
+  const theme = themesConfig[validThemeId];
   if (theme) {
     const colors = theme.colors[mode];
 
@@ -137,16 +147,9 @@ export function applyUITheme(themeId: UIStyleTheme, mode: 'light' | 'dark') {
   }
 
   // Store in localStorage for persistence
-  localStorage.setItem('staysuite-ui-style', themeId);
+  localStorage.setItem('staysuite-ui-style', validThemeId);
   localStorage.setItem('staysuite-theme-mode', mode);
 }
-
-// Valid theme IDs for validation (prevents stale localStorage values from removed themes)
-const VALID_THEME_IDS: Set<string> = new Set(Object.keys(themesConfig));
-
-// Default theme constants
-const DEFAULT_UI_THEME: UIStyleTheme = 'hospitality-sunrise';
-const DEFAULT_THEME_MODE: ThemeMode = 'system';
 
 /**
  * Validate a theme ID — if it's a removed/stale theme, return the default.
