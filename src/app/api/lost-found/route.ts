@@ -14,7 +14,7 @@ const createLostFoundSchema = z.object({
   foundBy: z.string().optional(),
   finderContact: z.string().optional(),
   foundAt: z.string().datetime().optional(),
-  photos: z.array(z.string().url()).default([]),
+  photos: z.array(z.string()).default([]),
   guestId: z.string().uuid().optional().nullable(),
   bookingId: z.string().uuid().optional().nullable(),
   storageLocation: z.string().optional(),

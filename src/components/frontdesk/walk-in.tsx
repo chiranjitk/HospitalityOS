@@ -359,19 +359,18 @@ export default function WalkIn() {
   // Fetch available rooms when room type or dates change
   // Uses /api/rooms/available which checks actual booking conflicts
   useEffect(() => {
-    const controller = new AbortController();
+    let cancelled = false;
     const fetchAvailableRooms = async () => {
       if (!selectedPropertyId || !selectedRoomTypeId) return;
       if (nights <= 0) return; // Don't fetch if dates are invalid
       try {
         setIsLoading(true);
         const response = await fetch(
-          `/api/rooms/available?propertyId=${selectedPropertyId}&checkIn=${bookingForm.checkIn}&checkOut=${bookingForm.checkOut}`,
-          { signal: controller.signal }
+          `/api/rooms/available?propertyId=${selectedPropertyId}&checkIn=${bookingForm.checkIn}&checkOut=${bookingForm.checkOut}`
         );
         if (!response.ok) { const text = await response.text().catch(() => 'Unknown error'); throw new Error(text); }
         const result = await response.json();
-        if (result.success) {
+        if (!cancelled && result.success) {
           // Filter by selected room type (API returns all rooms for property)
           const filtered = (result.data || []).filter((room: Room) => room.roomType?.id === selectedRoomTypeId);
           setAvailableRooms(filtered);
@@ -382,14 +381,14 @@ export default function WalkIn() {
           }
         }
       } catch (error) {
-        if (error?.name === 'AbortError') return;
+        if (cancelled) return;
         toast({ title: 'Error', description: 'Failed to fetch available rooms', variant: 'destructive' });
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
     fetchAvailableRooms();
-    return () => controller.abort();
+    return () => { cancelled = true; };
   }, [selectedPropertyId, selectedRoomTypeId, bookingForm.checkIn, bookingForm.checkOut]);
 
   // Search existing guests
@@ -407,7 +406,6 @@ export default function WalkIn() {
         setExistingGuests(result.data);
       }
     } catch (error) {
-      if (error?.name === 'AbortError') return;
       toast({ title: 'Error', description: 'Failed to search guests', variant: 'destructive' });
     } finally {
       setIsSearchingGuests(false);
@@ -617,7 +615,6 @@ export default function WalkIn() {
         });
       }
     } catch (error) {
-      if (error?.name === 'AbortError') return;
       // Log the actual error for debugging
       console.error('[Walk-in] Booking creation error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

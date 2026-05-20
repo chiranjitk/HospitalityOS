@@ -113,6 +113,7 @@ export default function LostFound() {
   const [items, setItems] = useState<LostFoundItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
+  const [properties, setProperties] = useState<Array<{ id: string; name: string }>>([]);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -135,7 +136,26 @@ export default function LostFound() {
     finderName: '',
     finderContact: '',
     notes: '',
+    propertyId: '',
   });
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+
+  // Fetch properties on mount
+  useEffect(() => {
+    const fetchProperties = async () => {
+      try {
+        const res = await fetch('/api/properties');
+        const result = await res.json();
+        if (result.success) {
+          setProperties(result.data || []);
+          if (result.data?.length > 0) {
+            setReportForm(prev => ({ ...prev, propertyId: result.data[0].id }));
+          }
+        }
+      } catch { /* ignore */ }
+    };
+    fetchProperties();
+  }, []);
 
   // Fetch items
   const fetchItems = useCallback(async () => {
@@ -150,7 +170,14 @@ export default function LostFound() {
       const res = await fetch(`/api/lost-found?${params.toString()}`);
       const result = await res.json();
       if (result.success) {
-        setItems(result.data || []);
+        // Map API response to frontend format — photos is stored as JSON string in DB
+        const mapped = (result.data || []).map((item: Record<string, unknown>) => ({
+          ...item,
+          type: (item as Record<string, unknown>).itemType as string || 'found',
+          location: (item as Record<string, unknown>).locationFound as string || '',
+          photos: typeof item.photos === 'string' ? JSON.parse(item.photos || '[]') : (item.photos || []),
+        }));
+        setItems(mapped);
       }
     } catch {
       toast({ title: 'Error', description: 'Failed to load items', variant: 'destructive' });
@@ -177,13 +204,24 @@ export default function LostFound() {
       const res = await fetch('/api/lost-found', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reportForm),
+        body: JSON.stringify({
+          propertyId: reportForm.propertyId || properties[0]?.id || '',
+          itemType: reportForm.type,
+          category: reportForm.category,
+          description: reportForm.description,
+          locationFound: reportForm.location,
+          foundBy: reportForm.finderName,
+          finderContact: reportForm.finderContact,
+          notes: reportForm.notes,
+          photos: photoPreviews,
+        }),
       });
       const result = await res.json();
       if (result.success) {
         toast({ title: 'Success', description: 'Item reported successfully' });
         setIsReportOpen(false);
-        setReportForm({ type: 'found', category: 'electronics', description: '', location: '', finderName: '', finderContact: '', notes: '' });
+        setReportForm({ type: 'found', category: 'electronics', description: '', location: '', finderName: '', finderContact: '', notes: '', propertyId: properties[0]?.id || '' });
+        setPhotoPreviews([]);
         fetchItems();
       } else {
         toast({ title: 'Error', description: result.error?.message || 'Failed to report item', variant: 'destructive' });
@@ -549,6 +587,23 @@ export default function LostFound() {
             </div>
 
             <div className="space-y-2">
+              <Label>Property *</Label>
+              <Select
+                value={reportForm.propertyId}
+                onValueChange={(value) => setReportForm(prev => ({ ...prev, propertyId: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select property" />
+                </SelectTrigger>
+                <SelectContent>
+                  {properties.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="category">Category *</Label>
               <Select
                 value={reportForm.category}
@@ -620,11 +675,54 @@ export default function LostFound() {
             {/* Photos Upload Area */}
             <div className="space-y-2">
               <Label>Photos</Label>
-              <div className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center gap-2 text-muted-foreground hover:bg-muted/50 transition-colors cursor-pointer">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                id="photo-upload"
+                onChange={(e) => {
+                  const files = e.target.files;
+                  if (!files) return;
+                  Array.from(files).forEach((file) => {
+                    if (file.size > 10 * 1024 * 1024) {
+                      toast({ title: 'Error', description: `${file.name} exceeds 10MB limit`, variant: 'destructive' });
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      const dataUrl = ev.target?.result as string;
+                      setPhotoPreviews((prev) => [...prev, dataUrl]);
+                    };
+                    reader.readAsDataURL(file);
+                  });
+                  e.target.value = '';
+                }}
+              />
+              <label
+                htmlFor="photo-upload"
+                className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center gap-2 text-muted-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+              >
                 <Camera className="h-8 w-8" />
                 <p className="text-sm">Click to upload photos</p>
                 <p className="text-xs">PNG, JPG up to 10MB each</p>
-              </div>
+              </label>
+              {photoPreviews.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {photoPreviews.map((src, idx) => (
+                    <div key={idx} className="relative w-16 h-16 rounded-md overflow-hidden border">
+                      <img src={src} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center text-xs"
+                        onClick={() => setPhotoPreviews((prev) => prev.filter((_, i) => i !== idx))}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
