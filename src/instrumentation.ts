@@ -5,13 +5,16 @@
  * BACKGROUND SCHEDULER: Run separately via:
  *   cd /home/z/my-project && DATABASE_URL="..." npx tsx scripts/scheduler-runner.ts &
  *
- * This is a separate process because Turbopack statically traces ALL
- * import() calls in instrumentation.ts (even inside setTimeout/catch),
- * and the scheduler's dependency graph (node-cron → node:crypto,
- * twilio → querystring, wifi/adapters → net) consumes 4-5GB during
- * analysis, causing OOM kills.
+ * The scheduler runs as a separate process because its dependency graph
+ * (node-cron → node:crypto, twilio → querystring, wifi/adapters → net)
+ * is too heavy for Turbopack's static analysis, causing OOM kills.
+ *
+ * The script-runner imported here is lightweight (only db + shell),
+ * so a static import is safe — it does NOT trigger the OOM issue.
  */
 export const runtime = 'nodejs';
+
+import { initializeAllPoolClasses } from '@/lib/network/script-runner';
 
 export async function register() {
   if (typeof window !== 'undefined') return;
@@ -20,13 +23,12 @@ export async function register() {
     return;
   }
 
-  // Initialize pool classes (lightweight — only db + shell)
-  // Dynamic import with string concatenation prevents Turbopack from
-  // statically tracing this dependency chain into the Edge Instrumentation bundle.
+  // Initialize pool classes (lightweight — only db + shell).
+  // Uses setTimeout to avoid blocking the Next.js server startup sequence.
+  // The static import above is safe: script-runner is NOT the heavy
+  // dependency that caused OOM — that was the scheduler (now separate).
   setTimeout(async () => {
     try {
-      const mod = await import(/* webpackIgnore: true */ '@/lib/network/' + 'script-runner');
-      const { initializeAllPoolClasses } = mod;
       const result = await initializeAllPoolClasses();
       if (result.created > 0) {
         console.log(`[Instrumentation] Pool classes initialized: ${result.created} created, ${result.failed} failed`);
