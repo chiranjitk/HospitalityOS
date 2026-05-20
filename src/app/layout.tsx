@@ -18,7 +18,7 @@ import { locales, type Locale, defaultLocale, isValidLocale } from '@/i18n/confi
 import { I18nProvider } from '@/contexts/I18nContext';
 import { PwaRegister } from '@/components/common/pwa-register';
 import { PwaInstallPrompt } from '@/components/common/pwa-install-prompt';
-import Script from 'next/script';
+import { FoucGuard } from '@/components/common/fouc-guard';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -65,39 +65,23 @@ export default async function RootLayout({
   // Get locale from cookie
   const cookieStore = await cookies();
   const cookieLocale = cookieStore.get('locale')?.value;
-  
+
   let locale: Locale = defaultLocale;
-  
+
   if (cookieLocale && isValidLocale(cookieLocale)) {
     locale = cookieLocale as Locale;
   }
-  
+
   // Load messages for the locale
   const messages = await getMessages();
 
   return (
     <html lang={locale} suppressHydrationWarning>
-      <head>
-        {/* Inline FOUC prevention — runs before React hydration */}
-        <Script
-          id="theme-fouc-prevention"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('staysuite-theme-mode-next');var d=t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme:dark)').matches);if(d)document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark');document.documentElement.style.setProperty('color-scheme',d?'dark':'light')}catch(e){}})()`,
-          }}
-        />
-        {/* Prevent layout shift when dropdowns/modals open — neutralizes react-remove-scroll-bar */}
-        <Script
-          id="prevent-scroll-lock-shift"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `(function(){function clean(){var b=document.body;if(b.style.paddingRight&&b.style.paddingRight!=='0px'&&b.style.paddingRight!==''){b.style.paddingRight='';}if(b.style.marginRight&&b.style.marginRight!=='0px'&&b.style.marginRight!==''){b.style.marginRight='';}if(b.hasAttribute('data-scroll-locked')){b.removeAttribute('data-scroll-locked');}}var m=new MutationObserver(clean);m.observe(document.body,{attributes:true,attributeFilter:['style','class']});try{document.documentElement.style.scrollbarGutter='stable';}catch(e){}})();`,
-          }}
-        />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
+        {/* FOUC Guard — runs in useLayoutEffect before browser paint */}
+        <FoucGuard />
         <UIStyleProvider>
           <NextIntlClientProvider locale={locale} messages={messages}>
             <I18nProvider>

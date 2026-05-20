@@ -1239,7 +1239,7 @@ const t = useTranslations('billing');
             </DialogDescription>
           </DialogHeader>
           {selectedFolio && (
-            <Tabs defaultValue="details" className="flex-1 flex flex-col">
+            <Tabs defaultValue="details" className="flex-1 min-h-0 flex flex-col">
               <TabsList className="shrink-0">
                 <TabsTrigger value="details">Details</TabsTrigger>
                 <TabsTrigger value="audit" className="flex items-center gap-1.5">
@@ -1248,8 +1248,8 @@ const t = useTranslations('billing');
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="details" className="flex-1 overflow-y-auto pr-2 -mr-2">
-            <div className="space-y-6 mt-4">
+              <TabsContent value="details" className="flex-1 min-h-0 overflow-y-auto pr-2 -mr-2">
+            <div className="space-y-6 mt-4 pb-4">
               {/* Guest & Booking Info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Card className="p-4">
@@ -1447,7 +1447,7 @@ const t = useTranslations('billing');
               </TabsContent>
 
               {/* Audit Tab */}
-              <TabsContent value="audit" className="flex-1 overflow-y-auto pr-2 -mr-2">
+              <TabsContent value="audit" className="flex-1 min-h-0 overflow-y-auto pr-2 -mr-2">
                 <div className="space-y-4 mt-4">
                   <div className="flex items-center justify-between">
                     <div>

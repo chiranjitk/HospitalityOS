@@ -393,7 +393,8 @@ export default function KioskPage() {
 
   const [errorMsg, setErrorMsg] = useState('');
   const [timeLeft, setTimeLeft] = useState(DEFAULT_TIMEOUT_SECONDS);
-  const [now, setNow] = useState(new Date());
+  const [now, setNow] = useState<Date | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -414,8 +415,10 @@ export default function KioskPage() {
       .catch(() => { /* Use defaults on error */ });
   }, []);
 
-  /* ── Clock ── */
+  /* ── Clock — initialize on client only to avoid hydration mismatch ── */
   useEffect(() => {
+    setMounted(true);
+    setNow(new Date());
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
@@ -659,16 +662,18 @@ export default function KioskPage() {
             <h1 className="text-sm sm:text-base lg:text-lg font-semibold leading-tight">
               {t.welcome} {HOTEL_NAME}
             </h1>
+            {now && (
             <p className="text-xs text-slate-400 hidden sm:block">
               {now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </p>
+            )}
           </div>
         </div>
 
         {/* Right side controls */}
         <div className="flex items-center gap-3 sm:gap-5">
           {/* Clock — only if enabled in settings */}
-          {settings.showClock && (
+          {settings.showClock && now && (
           <div className="text-right hidden sm:block">
             <p className="text-lg lg:text-xl font-mono font-semibold tabular-nums">
               {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -677,7 +682,7 @@ export default function KioskPage() {
               {now.toLocaleTimeString([], { second: '2-digit' })}
             </p>
           </div>
-          )}
+          )
 
           {/* Language switch — only if enabled in settings */}
           {settings.showLanguageSwitch && (
