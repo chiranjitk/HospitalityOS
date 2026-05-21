@@ -14,9 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-const CRON_SECRET =
-  process.env.CRON_SECRET ||
-  (process.env.NODE_ENV !== 'production' ? 'dev-only-cron-secret' : '');
+const CRON_SECRET = process.env.CRON_SECRET;
 
 /** Verify the x-cron-secret header */
 function verifySecret(request: NextRequest): boolean {

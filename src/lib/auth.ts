@@ -192,12 +192,16 @@ export const authOptions: NextAuthOptions = {
     maxAge: 24 * 60 * 60, // 24 hours
   },
   secret: process.env.NEXTAUTH_SECRET || (() => {
-    // During next build, NODE_ENV=production but secrets aren't available yet.
-    // Only throw at runtime (not during static generation / build).
-    if (process.env.NODE_ENV === 'production' && typeof window === 'undefined' && process.env.NEXT_PHASE !== 'phase-production-build') {
-      console.error('CRITICAL: NEXTAUTH_SECRET must be set in production. Using insecure fallback.');
+    // SECURITY: No fallback in production — crash if NEXTAUTH_SECRET is missing.
+    // Only allow missing secret during build time (static generation).
+    if (process.env.NEXT_PHASE === 'phase-production-build') {
+      return 'build-time-placeholder';
     }
-    return 'dev-only-secret-' + (process.env.NODE_ENV || 'unknown');
+    throw new Error(
+      'CRITICAL: NEXTAUTH_SECRET environment variable is not set. ' +
+      'Refusing to start without a cryptographically random secret. ' +
+      'Generate one with: openssl rand -base64 32'
+    );
   })(),
 };
 

@@ -18,16 +18,16 @@ import { notificationService } from '@/lib/services/notification-service';
 
 // Cron secret for security
 const CRON_SECRET = process.env.CRON_SECRET;
-if (!CRON_SECRET && process.env.NODE_ENV === 'production') {
-  console.error('[CRON] CRON_SECRET environment variable is required in production');
+if (!CRON_SECRET) {
+  console.error('[CRON] CRON_SECRET environment variable is required');
 }
-const CRON_SECRET_VALUE = CRON_SECRET || (process.env.NODE_ENV !== 'production' ? 'dev-only-cron-secret' : '');
+const CRON_SECRET_VALUE = CRON_SECRET;
 
 // POST /api/cron/expiration - Run expiration job
 export async function POST(request: NextRequest) {
   try {
     if (!CRON_SECRET_VALUE) {
-      return NextResponse.json({ error: 'Cron secret not configured' }, { status: 403 });
+      return NextResponse.json({ error: 'Server configuration error: CRON_SECRET not set' }, { status: 500 });
     }
     // Verify cron secret
     const authHeader = request.headers.get('authorization');
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     if (!CRON_SECRET_VALUE) {
-      return NextResponse.json({ error: 'Cron secret not configured' }, { status: 403 });
+      return NextResponse.json({ error: 'Server configuration error: CRON_SECRET not set' }, { status: 500 });
     }
     // Verify cron secret for GET as well (stats contain sensitive data)
     const authHeader = request.headers.get('authorization');

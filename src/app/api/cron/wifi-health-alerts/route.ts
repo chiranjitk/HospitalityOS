@@ -18,7 +18,10 @@ import { db } from '@/lib/db';
 // Returns count of active alerts grouped by type.
 // ────────────────────────────────────────────────────────────────
 
-const CRON_SECRET = process.env.CRON_SECRET || (process.env.NODE_ENV !== 'production' ? 'dev-only-cron-secret' : '');
+const CRON_SECRET = process.env.CRON_SECRET;
+if (!CRON_SECRET) {
+  console.error('[wifi-health-alerts] CRON_SECRET environment variable is required');
+}
 
 function verifyCronSecret(request: NextRequest): boolean {
   if (!CRON_SECRET) return false;
@@ -28,6 +31,13 @@ function verifyCronSecret(request: NextRequest): boolean {
 
 // POST — Trigger health alert generation
 export async function POST(request: NextRequest) {
+  // Verify cron secret is configured
+  if (!CRON_SECRET) {
+    return NextResponse.json(
+      { success: false, error: 'Server configuration error: CRON_SECRET not set' },
+      { status: 500 }
+    );
+  }
   // Verify cron secret
   if (!verifyCronSecret(request)) {
     return NextResponse.json(
@@ -57,6 +67,12 @@ export async function POST(request: NextRequest) {
 
 // GET — Return count of active alerts grouped by type
 export async function GET(request: NextRequest) {
+  if (!CRON_SECRET) {
+    return NextResponse.json(
+      { success: false, error: 'Server configuration error: CRON_SECRET not set' },
+      { status: 500 }
+    );
+  }
   if (!verifyCronSecret(request)) {
     return NextResponse.json(
       { success: false, error: 'Unauthorized' },

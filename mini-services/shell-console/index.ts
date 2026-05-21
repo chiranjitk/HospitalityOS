@@ -13,11 +13,13 @@ function timestamp(): string {
   return new Date().toISOString().replace('T', ' ').split('.')[0];
 }
 
-// ─── Auth validation (best-effort) ────────────────────────────────────────────
+// ─── Auth validation (fail-closed) ────────────────────────────────────────────
+// SECURITY: All connections MUST have a valid session token.
+// Previously this was fail-open (allowed on any error) — now fail-closed.
 async function validateAuthToken(token: string | undefined): Promise<boolean> {
   if (!token) {
-    console.log(`[${timestamp()}] AUTH No token provided, allowing (internal network)`);
-    return true;
+    console.log(`[${timestamp()}] AUTH DENIED — no token provided`);
+    return false;
   }
 
   try {
@@ -32,16 +34,16 @@ async function validateAuthToken(token: string | undefined): Promise<boolean> {
     if (res.ok) {
       const session = await res.json();
       if (session?.user) {
-        console.log(`[${timestamp()}] AUTH Valid session for user: ${session.user.email || session.user.name || session.user.id}`);
+        console.log(`[${timestamp()}] AUTH OK — valid session for user: ${session.user.email || session.user.name || session.user.id}`);
         return true;
       }
     }
 
-    console.log(`[${timestamp()}] AUTH Session validation failed (status ${res.status}), allowing connection (internal)`);
-    return true;
+    console.log(`[${timestamp()}] AUTH DENIED — invalid session (status ${res.status})`);
+    return false;
   } catch (err) {
-    console.log(`[${timestamp()}] AUTH Session endpoint unreachable, allowing connection (internal): ${err instanceof Error ? err.message : err}`);
-    return true;
+    console.log(`[${timestamp()}] AUTH DENIED — session endpoint unreachable: ${err instanceof Error ? err.message : err}`);
+    return false;
   }
 }
 
@@ -91,7 +93,7 @@ io.on('connection', async (socket) => {
 
   console.log(`[${timestamp()}] CONNECT Client ${socket.id} from ${clientAddr}`);
 
-  // Validate auth token (best-effort — always allow on failure for internal use)
+  // Validate auth token (fail-closed — deny all unauthorized connections)
   const authorized = await validateAuthToken(authToken);
   if (!authorized) {
     console.log(`[${timestamp()}] DENY Client ${socket.id} — unauthorized`);
