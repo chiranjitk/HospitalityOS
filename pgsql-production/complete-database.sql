@@ -1048,6 +1048,7 @@ BEGIN
 
     -- Priority 2: No plan at all → still check ALL enabled pools.
     -- IP must exist in at least one managed pool, otherwise reject.
+    -- Priority 2: No plan at all → allow
     IF v_plan_id IS NULL THEN
         SELECT EXISTS (
             SELECT 1 FROM "IpPoolRange" r
