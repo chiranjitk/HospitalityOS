@@ -18,7 +18,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Table,
@@ -58,7 +57,6 @@ import {
   Upload,
   XCircle,
   Zap,
-  ExternalLink,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
@@ -1305,14 +1303,14 @@ function PacketCaptureTool() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Tool 7: SPEED TEST — Real bandwidth test with animated SVG gauge
+// Tool 7: SPEED TEST — Real internet speed test via Cloudflare CDN
 // ═══════════════════════════════════════════════════════════════════
-// Tests actual bandwidth between browser and server (gateway).
-// Download: fetches random data from /api/wifi/speedtest-probe
-// Upload: POSTs random data to /api/wifi/speedtest-probe
-// Ping: small XHR round-trip measurements
+// Measures actual gateway → internet bandwidth using Cloudflare's CDN.
+// Download: fetches random data from speed.cloudflare.com/__down
+// Upload: POSTs random data to speed.cloudflare.com/__up
+// Ping: small RTT measurements to Cloudflare edge
 //
-// Also provides links to external speed test services for internet speed.
+// This tests REAL internet speed — not local gateway bandwidth.
 
 const GAUGE_SCALES = [10, 25, 50, 100, 250, 500, 1000, 2000, 5000];
 
@@ -1468,14 +1466,6 @@ function SpeedGauge({
   );
 }
 
-/** External speed test services for internet speed testing */
-const EXTERNAL_SPEED_TESTS = [
-  { name: 'Fast.com', url: 'https://fast.com/', icon: Activity, gradient: 'from-red-500 to-rose-600' },
-  { name: 'Speedtest.net', url: 'https://www.speedtest.net/', icon: Zap, gradient: 'from-sky-500 to-indigo-600' },
-  { name: 'Cloudflare', url: 'https://speed.cloudflare.com/', icon: Globe, gradient: 'from-orange-500 to-amber-600' },
-  { name: 'LibreSpeed', url: 'https://speed.librespeed.org/', icon: Gauge, gradient: 'from-teal-500 to-emerald-600' },
-];
-
 /** AbortController ref to cancel the running test */
 const abortRef = { current: null as AbortController | null };
 
@@ -1555,33 +1545,35 @@ function SpeedTestTool() {
     };
   }, []);
 
-  // ── Helper: measure single ping ──
+  // ── Helper: measure single ping to Cloudflare CDN edge ──
   const measurePing = async (signal: AbortSignal): Promise<number> => {
     const start = performance.now();
-    const res = await fetch('/api/wifi/speedtest-probe?action=ping', {
+    const res = await fetch('https://speed.cloudflare.com/__down?bytes=0', {
       signal,
       cache: 'no-store',
+      mode: 'cors',
     });
     await res.text();
     return performance.now() - start;
   };
 
-  // ── Helper: run download test ──
+  // ── Helper: real download test from Cloudflare CDN ──
   const runDownloadTest = async (
     signal: AbortSignal,
     onSpeed: (mbps: number, prog: number) => void,
   ): Promise<{ mbps: number; bytes: number; elapsed: number }> => {
-    // Progressive download: 100KB → 1MB → 5MB → 10MB → 25MB
-    const sizes = [100_000, 1_000_000, 5_000_000, 10_000_000, 25_000_000];
+    // Progressive download from Cloudflare CDN edge: 1MB → 5MB → 10MB → 25MB
+    const sizes = [1_000_000, 5_000_000, 10_000_000, 25_000_000];
     let totalBytes = 0;
     const startTime = performance.now();
     let peakSpeed = 0;
 
     for (let i = 0; i < sizes.length; i++) {
       const size = sizes[i];
-      const res = await fetch(`/api/wifi/speedtest-probe?action=download&bytes=${size}`, {
+      const res = await fetch(`https://speed.cloudflare.com/__down?bytes=${size}`, {
         signal,
         cache: 'no-store',
+        mode: 'cors',
       });
 
       if (!res.ok || !res.body) throw new Error(`Download failed: ${res.status}`);
@@ -1616,16 +1608,15 @@ function SpeedTestTool() {
     };
   };
 
-  // ── Helper: run upload test ──
-  // FIX: Use 60KB chunks (well under 65536 byte browser crypto limit)
-  // Previous code used 256KB which caused: "Failed to execute 'getRandomValues'"
+  // ── Helper: real upload test to Cloudflare CDN ──
+  // Uses 60KB chunks (under 65536 byte browser crypto.getRandomValues limit)
   const runUploadTest = async (
     signal: AbortSignal,
     onSpeed: (mbps: number, prog: number) => void,
   ): Promise<{ mbps: number; bytes: number; elapsed: number }> => {
-    // Progressive upload: 100KB → 1MB → 5MB → 10MB → 25MB
-    const sizes = [100_000, 1_000_000, 5_000_000, 10_000_000, 25_000_000];
-    const CHUNK_SIZE = 60_000; // 60KB — safely under the 65536 byte crypto.getRandomValues limit
+    // Progressive upload to Cloudflare CDN: 1MB → 5MB → 10MB → 25MB
+    const sizes = [1_000_000, 5_000_000, 10_000_000, 25_000_000];
+    const CHUNK_SIZE = 60_000; // 60KB — safely under the 65536 byte crypto limit
     const chunk = new Uint8Array(CHUNK_SIZE);
     crypto.getRandomValues(chunk);
 
@@ -1641,10 +1632,11 @@ function SpeedTestTool() {
         const blockSize = Math.min(chunk.length, size - sent);
         const data = blockSize < chunk.length ? chunk.subarray(0, blockSize) : chunk;
 
-        const res = await fetch('/api/wifi/speedtest-probe?action=upload', {
+        const res = await fetch('https://speed.cloudflare.com/__up', {
           method: 'POST',
           body: data,
           signal,
+          mode: 'cors',
         });
 
         if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
@@ -1691,15 +1683,15 @@ function SpeedTestTool() {
     const { signal } = ac;
 
     try {
-      // ── Phase 1: Ping Test (10 samples) ──
+      // ── Phase 1: Ping Test (20 samples to Cloudflare edge) ──
       setPhase('ping');
       const pings: number[] = [];
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 20; i++) {
         if (signal.aborted) return;
         const ms = await measurePing(signal);
         pings.push(ms);
         const avg = pings.reduce((a, b) => a + b, 0) / pings.length;
-        setProgress((i + 1) / 10);
+        setProgress((i + 1) / 20);
         setPingData({
           latency: avg,
           jitter: pings.length > 1
@@ -1715,7 +1707,7 @@ function SpeedTestTool() {
 
       if (signal.aborted) return;
 
-      // ── Phase 2: Download Test ──
+      // ── Phase 2: Download Test (from Cloudflare CDN) ──
       setPhase('download');
       targetSpeedRef.current = 0;
       currentSpeedRef.current = 0;
@@ -1744,7 +1736,7 @@ function SpeedTestTool() {
       await new Promise(r => setTimeout(r, 600));
       if (signal.aborted) return;
 
-      // ── Phase 3: Upload Test ──
+      // ── Phase 3: Upload Test (to Cloudflare CDN) ──
       setPhase('upload');
       targetSpeedRef.current = 0;
       currentSpeedRef.current = 0;
@@ -1781,12 +1773,12 @@ function SpeedTestTool() {
           elapsed: ulResult.elapsed,
         },
         ping: pingResult,
-        server: { name: 'Local Gateway', location: window.location.hostname },
+        server: { name: 'Cloudflare CDN Edge', location: 'Nearest Cloudflare PoP' },
       };
       setFinalResult(result);
 
       toast({
-        title: 'Speed Test Complete',
+        title: 'Internet Speed Test Complete',
         description: `↓ ${dlResult.mbps} Mbps | ↑ ${ulResult.mbps} Mbps | ⚡ ${pingResult.latency} ms`,
       });
     } catch (err: unknown) {
@@ -1802,10 +1794,10 @@ function SpeedTestTool() {
   const isComplete = phase === 'complete';
 
   const phaseLabel: Record<string, string> = {
-    starting: 'Initializing...',
-    ping: 'Testing Ping',
-    download: 'Testing Download',
-    upload: 'Testing Upload',
+    starting: 'Connecting to Cloudflare...',
+    ping: 'Testing Internet Latency',
+    download: 'Testing Internet Download',
+    upload: 'Testing Internet Upload',
     complete: 'Complete',
     error: 'Error',
     idle: '',
@@ -1823,11 +1815,11 @@ function SpeedTestTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Gauge} title="Speed Test" description="Real-time bandwidth test — measures browser ↔ gateway speed" gradient="from-orange-500 to-red-500" />
+        <ToolHeader icon={Gauge} title="Internet Speed Test" description="Real bandwidth test — measures gateway → internet speed via Cloudflare CDN" gradient="from-orange-500 to-red-500" />
 
         <div className="flex items-center gap-3">
           <RunButton loading={isRunning} onClick={startTest} label={isRunning ? 'Testing...' : 'Start Speed Test'} disabled={isRunning} />
-          {isComplete && <Badge variant="outline" className="text-[10px] ml-1">Gateway Bandwidth Test</Badge>}
+          {isComplete && <Badge variant="outline" className="text-[10px] ml-1">Internet Speed Test</Badge>}
         </div>
 
         {errorMsg && <ErrorBox message={errorMsg} />}
@@ -1941,46 +1933,14 @@ function SpeedTestTool() {
                   </div>
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Test Type</p>
-                    <p className="text-xs font-medium mt-1">Browser ↔ Gateway</p>
-                    <p className="text-[10px] text-muted-foreground">Measures actual guest WiFi bandwidth</p>
+                    <p className="text-xs font-medium mt-1">Gateway → Internet</p>
+                    <p className="text-[10px] text-muted-foreground">Measures real internet bandwidth via Cloudflare CDN</p>
                   </div>
                 </div>
               </div>
             )}
           </div>
         )}
-
-        {/* ── External Speed Tests (for internet speed) ── */}
-        <Separator className="my-5" />
-        <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <ExternalLink className="h-3.5 w-3.5" />
-            External Internet Speed Tests
-          </p>
-          <p className="text-[11px] text-muted-foreground mb-3">
-            Test your gateway&apos;s internet connection speed with these real-world services. Opens in a new tab.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {EXTERNAL_SPEED_TESTS.map((svc) => {
-              const Icon = svc.icon;
-              return (
-                <Button
-                  key={svc.name}
-                  size="sm"
-                  variant="outline"
-                  className={cn('h-8 text-xs gap-1.5')}
-                  asChild
-                >
-                  <a href={svc.url} target="_blank" rel="noopener noreferrer" className="gap-1.5">
-                    <Icon className="h-3.5 w-3.5" />
-                    {svc.name}
-                    <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                  </a>
-                </Button>
-              );
-            })}
-          </div>
-        </div>
       </CardContent>
     </Card>
   );
