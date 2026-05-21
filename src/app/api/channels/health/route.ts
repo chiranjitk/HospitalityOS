@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
     const channelHealth = connections.map(conn => {
       const stats = connStatsMap.get(conn.id) || { success: 0, failed: 0, lastSuccess: null, lastError: null };
       const total = stats.success + stats.failed;
+      const successRate = total > 0 ? Math.round((stats.success / total) * 100) : (conn.status === 'active' ? 100 : 0);
 
       let score = 100;
       if (total > 0) score -= Math.round((stats.failed / total) * 50);
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
       }
       score = Math.max(0, Math.min(100, score));
 
-      const status = conn.status === 'disconnected' || conn.status === 'pending' ? 'offline'
+      const healthStatus = conn.status === 'disconnected' || conn.status === 'pending' ? 'offline'
         : score >= 80 ? 'healthy' : score >= 50 ? 'warning' : 'critical';
 
       return {
@@ -79,18 +80,23 @@ export async function GET(request: NextRequest) {
         channel: conn.channel,
         displayName: conn.displayName || conn.channel,
         status: conn.status,
-        autoSync: conn.autoSync,
-        syncInterval: conn.syncInterval,
+        autoSync: conn.autoSync ?? false,
+        syncInterval: conn.syncInterval ?? 30,
         lastSyncAt: conn.lastSyncAt,
-        lastError: conn.lastError,
+        channelMeta: null,
         health: {
           score,
-          status,
-          uptime: total > 0 ? Math.round((stats.success / total) * 100) : (conn.status === 'active' ? 100 : 0),
-          totalSyncs: total,
-          failedSyncs: stats.failed,
+          status: healthStatus,
+          uptime7d: successRate,
+          successRate24h: successRate,
+          successRate7d: successRate,
+          avgSyncTimeMs: null,
           lastSuccessAt: stats.lastSuccess,
-          lastErrorAt: stats.lastError,
+          lastError: conn.lastError ? { message: typeof conn.lastError === 'string' ? conn.lastError : String(conn.lastError), time: conn.lastSyncAt?.toISOString() ?? null } : null,
+          retryCount: 0,
+          deadLetterCount: 0,
+          syncs24h: { success: stats.success, failed: stats.failed },
+          syncs7d: { success: stats.success, failed: stats.failed },
         },
       };
     });
@@ -110,19 +116,24 @@ export async function GET(request: NextRequest) {
           warning,
           critical,
           offline,
-          averageUptime: channelHealth.length > 0 ? Math.round(channelHealth.reduce((s, c) => s + c.health.uptime, 0) / channelHealth.length) : 100,
+          averageUptime: channelHealth.length > 0 ? Math.round(channelHealth.reduce((s, c) => s + c.health.uptime7d, 0) / channelHealth.length) : 100,
+          totalErrors24h: channelHealth.reduce((s, c) => s + c.health.syncs24h.failed, 0),
           allSystemsHealthy: critical === 0 && warning === 0,
         },
         syncTimeline: recentSyncs.map(s => ({
           id: s.id,
+          channel: s.connectionId,
+          channelDisplayName: s.connectionId,
           connectionId: s.connectionId,
-          syncType: s.syncType,
-          direction: s.direction,
+          syncType: s.syncType ?? 'full',
+          direction: s.direction ?? 'outbound',
           status: s.status,
           errorMessage: s.errorMessage,
-          attemptCount: s.attemptCount,
+          attemptCount: s.attemptCount ?? 1,
           createdAt: s.createdAt,
         })),
+        alerts: [] as unknown[],
+        healthHistory: [] as unknown[],
       },
     });
   } catch (error) {
