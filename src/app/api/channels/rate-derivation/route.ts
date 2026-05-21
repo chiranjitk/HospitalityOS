@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // Helper: derive rate based on operation, adjustment value, and rounding method
 function deriveRate(baseRate: number, operation: string, adjustmentValue: number, roundingMethod: string): number {
@@ -63,6 +64,9 @@ function applyConstraints(
 
 // GET /api/channels/rate-derivation - List all derivation rules
 export async function GET(request: NextRequest) {
+  const ctx = await requirePermission(request, 'channels.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const tenantId = searchParams.get('tenantId');
@@ -133,6 +137,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/channels/rate-derivation - Create a new rule or perform actions
 export async function POST(request: NextRequest) {
+  const ctx = await requirePermission(request, 'channels.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const body = await request.json();
     const { action, ...data } = body;
@@ -370,6 +377,9 @@ export async function POST(request: NextRequest) {
 
 // PUT /api/channels/rate-derivation - Update an existing rule
 export async function PUT(request: NextRequest) {
+  const ctx = await requirePermission(request, 'channels.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const body = await request.json();
     const { id, ...updates } = body;
@@ -426,6 +436,9 @@ export async function PUT(request: NextRequest) {
 
 // DELETE /api/channels/rate-derivation - Delete a rule
 export async function DELETE(request: NextRequest) {
+  const ctx = await requirePermission(request, 'channels.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const body = await request.json();
     const { id } = body;

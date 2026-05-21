@@ -123,9 +123,21 @@ export class GatewayRegistry {
       case 'upi':
         gateway = createUpGateway(config);
         break;
-      case 'square':
-        // Square would be implemented similarly
-        throw new Error('Square gateway not yet implemented');
+      case 'square': {
+        // Square gateway stub — returns an unavailable gateway with a clear description
+        // TODO: Implement full Square gateway with Square Connect API v2
+        console.warn('[GatewayRegistry] Square gateway is not yet fully implemented — returning stub');
+        gateway = createManualGateway({
+          ...config,
+          name: 'Square (Stub)',
+          isActive: false,
+          healthStatus: 'unhealthy',
+        });
+        // Mark as unavailable so routing skips it
+        config.isActive = false;
+        config.healthStatus = 'unhealthy';
+        break;
+      }
       default:
         throw new Error(`Unknown gateway type: ${config.type}`);
     }

@@ -361,6 +361,102 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
       data: { status: 'completed', completedAt: new Date(), performedBy: userId, result: JSON.stringify({ scheduledChargesPosted: summary.scheduledChargesPosted, scheduledChargeTotal: summary.scheduledChargeTotal }) },
     });
 
+    // GAP 9: Post WiFi usage charges for active in-house guests with billable WiFi sessions
+    try {
+      const wifiBookings = await tx.booking.findMany({
+        where: {
+          tenantId: audit.tenantId,
+          propertyId: audit.propertyId,
+          status: 'checked_in',
+          actualCheckIn: { lte: endOfDay },
+          actualCheckOut: null,
+        },
+        include: {
+          primaryGuest: { select: { id: true } },
+          folios: { where: { status: 'open' }, select: { id: true, currency: true } },
+        },
+      });
+
+      for (const booking of wifiBookings) {
+        if (booking.folios.length === 0) continue;
+
+        // Query WiFiUser for this booking to check data usage
+        const wifiUsers = await tx.wiFiUser.findMany({
+          where: {
+            bookingId: booking.id,
+            status: { in: ['active', 'suspended'] },
+          },
+          select: {
+            id: true,
+            username: true,
+            totalBytesIn: true,
+            totalBytesOut: true,
+            lastAccountingAt: true,
+            planId: true,
+          },
+        });
+
+        for (const wifiUser of wifiUsers) {
+          // Check if there's a billable plan with overage charges
+          if (!wifiUser.planId) continue;
+
+          const wifiPlan = await tx.wiFiPlan.findUnique({
+            where: { id: wifiUser.planId },
+            select: { dataLimit: true, overageRatePerMB: true, name: true },
+          });
+
+          if (!wifiPlan || !wifiPlan.dataLimit || !wifiPlan.overageRatePerMB) continue;
+
+          // Calculate total usage in MB
+          const totalBytesIn = Number(wifiUser.totalBytesIn || BigInt(0));
+          const totalBytesOut = Number(wifiUser.totalBytesOut || BigInt(0));
+          const totalUsageMB = Math.floor((totalBytesIn + totalBytesOut) / (1024 * 1024));
+          const dataLimitMB = wifiPlan.dataLimit;
+
+          if (totalUsageMB > dataLimitMB) {
+            const overageMB = totalUsageMB - dataLimitMB;
+            const overageCharge = Math.round(overageMB * wifiPlan.overageRatePerMB * 100) / 100;
+
+            if (overageCharge > 0) {
+              await tx.folioLineItem.create({
+                data: {
+                  folioId: booking.folios[0].id,
+                  description: `WiFi overage - ${overageMB}MB over ${dataLimitMB}MB limit (${wifiPlan.name})`,
+                  category: 'wifi',
+                  quantity: overageMB,
+                  unitPrice: wifiPlan.overageRatePerMB,
+                  totalAmount: overageCharge,
+                  serviceDate: audit.businessDayDate,
+                  referenceType: 'NightAudit',
+                  referenceId: audit.id,
+                  postedBy: 'system',
+                },
+              });
+
+              await tx.folio.update({
+                where: { id: booking.folios[0].id },
+                data: { subtotal: { increment: overageCharge }, totalAmount: { increment: overageCharge }, balance: { increment: overageCharge } },
+              });
+
+              summary.otherRevenue += overageCharge;
+            }
+          }
+        }
+      }
+    } catch (wifiBillingError) {
+      console.warn('[NightAudit] WiFi usage billing step failed (non-blocking):', wifiBillingError);
+      await tx.nightAuditLog.create({
+        data: {
+          nightAuditId: audit.id,
+          action: 'wifi_billing_failed',
+          entityType: 'NightAudit',
+          entityId: audit.id,
+          newValue: `WiFi usage billing failed: ${wifiBillingError instanceof Error ? wifiBillingError.message : 'Unknown error'}`,
+          performedBy: userId,
+        },
+      });
+    }
+
     // ── Step 3: Process no-shows (with configurable buffer from Property.noShowSettings) ──
     const tomorrow = new Date(startOfDay);
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -598,6 +694,44 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
     // ── Step 5: Generate occupancy and revenue summary ──
     const totalRooms = await tx.room.count({ where: { propertyId: audit.propertyId, deletedAt: null } });
     const occupiedRooms = await tx.room.count({ where: { propertyId: audit.propertyId, status: 'occupied', deletedAt: null } });
+
+    // GAP 8: Close open folios for bookings checked out more than 1 day ago
+    const oneDayAgo = new Date(endOfDay.getTime() - 24 * 60 * 60 * 1000);
+    const staleOpenFolios = await tx.folio.findMany({
+      where: {
+        propertyId: audit.propertyId,
+        tenantId: audit.tenantId,
+        status: { in: ['open', 'partially_paid'] },
+        booking: {
+          status: 'checked_out',
+          actualCheckOut: { lte: oneDayAgo },
+        },
+      },
+      select: { id: true },
+    });
+
+    for (const staleFolio of staleOpenFolios) {
+      await tx.folio.update({
+        where: { id: staleFolio.id },
+        data: {
+          status: 'closed',
+          closedAt: new Date(),
+        },
+      });
+    }
+
+    if (staleOpenFolios.length > 0) {
+      await tx.nightAuditLog.create({
+        data: {
+          nightAuditId: audit.id,
+          action: 'stale_folios_closed',
+          entityType: 'Folio',
+          entityId: audit.id,
+          newValue: `Closed ${staleOpenFolios.length} open folio(s) for departed guests (checked out > 1 day ago)`,
+          performedBy: userId,
+        },
+      });
+    }
 
     // BUG-017 FIX: Use folio totalAmount as the source of truth for totalRevenue
     // instead of summing line items (which exclude taxes/discounts and may not

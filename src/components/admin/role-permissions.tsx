@@ -422,7 +422,7 @@ export function RolePermissions() {
       const queryParams = isPlatformAdmin && selectedTenantId 
         ? `?tenantId=${selectedTenantId}&entityType=Role&limit=50` 
         : '?entityType=Role&limit=50';
-      const response = await fetch('/api/admin/audit-logs' + queryParams);
+      const response = await fetch('/api/audit-logs' + queryParams);
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data) {

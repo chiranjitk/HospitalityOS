@@ -153,6 +153,12 @@ if (typeof window !== 'undefined') {
 // Dashboard Store
 // ============================================
 
+/**
+ * @deprecated Use `useDashboardData` from `@/hooks/use-dashboard-data` instead.
+ * The hooks version includes auto-refresh, deduplication, and a richer data shape.
+ * This store remains for backward compatibility but should not be used in new code.
+ */
+
 interface DashboardStats {
   revenue: {
     today: number;

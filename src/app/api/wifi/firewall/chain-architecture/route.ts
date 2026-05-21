@@ -16,8 +16,13 @@ const CHAIN_ARCHITECTURE = [
 
 // GET /api/wifi/firewall/chain-architecture — Return chain metadata
 export async function GET(request: NextRequest) {
-  const user = await requirePermission(request, 'wifi.manage');
-  if (user instanceof NextResponse) return user;
+  try {
+    const user = await requirePermission(request, 'wifi.manage');
+    if (user instanceof NextResponse) return user;
 
-  return NextResponse.json({ success: true, data: { chains: CHAIN_ARCHITECTURE } });
+    return NextResponse.json({ success: true, data: { chains: CHAIN_ARCHITECTURE } });
+  } catch (error) {
+    console.error('[Chain Architecture] GET error:', error);
+    return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 });
+  }
 }

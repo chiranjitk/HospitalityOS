@@ -207,7 +207,10 @@ export function SystemHealthStatusWidget() {
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   const [lastChecked, setLastChecked] = useState<string>('--:--:--');
-  const [tableCount, setTableCount] = useState<number>(272);
+  // NOTE: Table count comes from the /api/system-health endpoint when available.
+  // The dashboard API does not return a table count, so we use a placeholder.
+  // This will be replaced with a real value when the system-health API is extended.
+  const [tableCount, setTableCount] = useState<number | null>(null);
 
   // Initial fetch + auto-refresh every 30 seconds
   useEffect(() => {
@@ -227,15 +230,19 @@ export function SystemHealthStatusWidget() {
         }));
         setIsError(false);
 
-        // Fetch dashboard for database table count
+        // The system-health API does not currently return database table count.
+        // When it does, we'll parse it from the response.
+        // For now, tableCount remains null and we show a placeholder.
         try {
-          const dashRes = await fetch('/api/dashboard');
+          const dashRes = await fetch('/api/system-health');
           if (dashRes.ok) {
-            // Dashboard API doesn't return table count, use hardcoded value
-            setTableCount(272);
+            const dashJson = await dashRes.json();
+            if (dashJson.dbTableCount) {
+              setTableCount(dashJson.dbTableCount);
+            }
           }
         } catch {
-          // Silent fail — keep default 272
+          // Silent fail — keep placeholder
         }
       } catch {
         if (!cancelled) setIsError(true);
@@ -350,7 +357,7 @@ export function SystemHealthStatusWidget() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div className="rounded-lg bg-muted/40 border border-border/30 px-3 py-2">
               <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">PostgreSQL</p>
-              <p className="text-sm font-semibold text-foreground mt-0.5">{tableCount} tables</p>
+              <p className="text-sm font-semibold text-foreground mt-0.5">{tableCount ?? '—'} tables</p>
             </div>
             <div className="rounded-lg bg-muted/40 border border-border/30 px-3 py-2">
               <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">Connection Pool</p>

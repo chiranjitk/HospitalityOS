@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import {
   getOverbookingConfig,
   updateOverbookingConfig,
@@ -15,10 +15,8 @@ import {
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
     const { searchParams } = new URL(request.url);
     const propertyId = searchParams.get('propertyId');
@@ -30,14 +28,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Get configuration
-    const config = await getOverbookingConfig(user.tenantId, propertyId);
+    const config = await getOverbookingConfig(ctx.tenantId, propertyId);
 
     // Get current overbooking status
     const targetDate = dateStr ? new Date(dateStr) : undefined;
-    const status = await getOverbookingStatus(user.tenantId, propertyId, targetDate);
+    const status = await getOverbookingStatus(ctx.tenantId, propertyId, targetDate);
 
     // Get logs if requested
-    const logs = includeLogs ? await getOverbookingLogs(user.tenantId, propertyId) : [];
+    const logs = includeLogs ? await getOverbookingLogs(ctx.tenantId, propertyId) : [];
 
     // Calculate summary stats
     const totalActiveSlots = status.reduce((sum, s) => sum + s.activeSlots, 0);
@@ -78,10 +76,8 @@ export async function GET(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
     const body = await request.json();
     const { propertyId, ...configUpdate } = body;
@@ -90,7 +86,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'propertyId is required' }, { status: 400 });
     }
 
-    const config = await updateOverbookingConfig(user.tenantId, propertyId, configUpdate);
+    const config = await updateOverbookingConfig(ctx.tenantId, propertyId, configUpdate);
 
     return NextResponse.json({
       success: true,
@@ -111,10 +107,8 @@ export async function PUT(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
     const body = await request.json();
     const { propertyId, date: dateStr } = body;
@@ -126,10 +120,10 @@ export async function POST(request: NextRequest) {
     const targetDate = dateStr ? new Date(dateStr) : undefined;
 
     const result = await applyAutoOverbooking(
-      user.tenantId,
+      ctx.tenantId,
       propertyId,
       targetDate,
-      user.id
+      ctx.userId
     );
 
     return NextResponse.json({

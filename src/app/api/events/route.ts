@@ -1,21 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth-helpers';
+import { db } from '@/lib/db';
 import eventBus, { ALL_EVENT_TYPES, EVENT_SCHEMAS } from '@/lib/event-bus';
 
 /**
  * GET /api/events
- * List available event types and their schemas.
+ * List available event types, schemas, and upcoming events/BEOs.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const user = await getUserFromRequest(request);
+
     const eventTypes = ALL_EVENT_TYPES.map((type) => ({
       name: type,
       ...EVENT_SCHEMAS[type],
     }));
 
+    // Query actual events and BEOs from the database
+    let upcomingEvents = [];
+    let upcomingBeos = [];
+
+    if (user?.tenantId) {
+      const [events, beos] = await Promise.all([
+        db.event.findMany({
+          where: {
+            tenantId: user.tenantId,
+            startDate: { gte: new Date() },
+          },
+          orderBy: { startDate: 'asc' },
+          take: 10,
+          select: { id: true, name: true, type: true, startDate: true, endDate: true, status: true, venue: true },
+        }),
+        db.bEO.findMany({
+          where: {
+            tenantId: user.tenantId,
+            eventDate: { gte: new Date() },
+          },
+          orderBy: { eventDate: 'asc' },
+          take: 10,
+          select: { id: true, eventName: true, eventDate: true, status: true, pax: true, venue: true },
+        }),
+      ]);
+
+      upcomingEvents = events;
+      upcomingBeos = beos;
+    }
+
     return NextResponse.json({
       events: eventTypes,
-      total: eventTypes.length,
+      totalEventTypes: eventTypes.length,
+      upcomingEvents,
+      upcomingBeos,
     });
   } catch (error) {
     console.error('[Events] GET error:', error);

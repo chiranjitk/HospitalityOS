@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { db } from '@/lib/db';
 
-// GET /api/rates - Rates module overview
-// Provides an overview of the rate-plans and pricing sub-system
+// GET /api/rates - Rates module overview with actual rate plan summary data
 export async function GET(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
@@ -20,11 +20,45 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const tenantId = user.tenantId;
+
+    // Query rate plan summary from the database
+    const [totalPlans, activePlans, avgBasePrice, recentRatePlans] = await Promise.all([
+      db.ratePlan.count({
+        where: { tenantId },
+      }),
+      db.ratePlan.count({
+        where: { tenantId, status: 'active' },
+      }),
+      db.ratePlan.aggregate({
+        where: { tenantId, status: 'active' },
+        _avg: { basePrice: true },
+      }),
+      db.ratePlan.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: { id: true, name: true, basePrice: true, status: true, season: true, roomType: { select: { name: true } } },
+      }),
+    ]);
+
+    // Get pricing rules count
+    const activePricingRules = await db.pricingRule.count({
+      where: { tenantId, isActive: true },
+    });
+
     return NextResponse.json({
       success: true,
       data: {
         module: 'rates',
-        description: 'Rates module for managing rate plans, pricing rules, overrides, and revenue optimization',
+        summary: {
+          totalPlans,
+          activePlans,
+          inactivePlans: totalPlans - activePlans,
+          averageBasePrice: avgBasePrice._avg.basePrice || 0,
+          activePricingRules,
+        },
+        recentRatePlans,
         endpoints: {
           ratePlans: '/api/rate-plans',
           ratePlanById: '/api/rate-plans/[id]',
@@ -45,7 +79,6 @@ export async function GET(request: NextRequest) {
           dashboardRatePlans: '/api/dashboard/rate-plans',
         },
       },
-      message: 'Rates module — use /api/rate-plans to manage rate plans, or explore the endpoints above for pricing rules and overrides',
     });
   } catch (error) {
     console.error('Rates overview API error:', error);

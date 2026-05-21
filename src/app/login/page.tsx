@@ -193,23 +193,30 @@ export default function LoginPage() {
     }
   };
 
-  // Quick Admin Login — directly calls the auth API
+  // Quick Admin Login — uses env var credentials in demo mode
   const handleQuickAdminLogin = async () => {
+    const demoUser = process.env.NEXT_PUBLIC_DEMO_USER;
+    const demoPass = process.env.NEXT_PUBLIC_DEMO_PASS;
+    if (!demoUser || !demoPass) {
+      setError('Demo credentials not configured.');
+      return;
+    }
+
     setError('');
     setIsQuickLogin(true);
 
     try {
-      const result = await login('admin@royalstay.in', 'admin123', false);
+      const result = await login(demoUser, demoPass, false);
 
       if (result.success) {
         if (result.requireTwoFactor) {
           setRequireTwoFactor(true);
           setTempToken(result.tempToken || '');
-          setEmail('admin@royalstay.in');
+          setEmail(demoUser);
         }
         toast({
-          title: 'Admin Access',
-          description: 'Logged in as admin@royalstay.in',
+          title: 'Demo Access',
+          description: 'Logged in with demo credentials',
         });
       } else {
         setError(result.error || t('loginError'));
@@ -269,12 +276,12 @@ export default function LoginPage() {
     );
   }
 
-  // Demo credentials are only available in development mode
-  const showDemoCredentials = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production';
-  const demoCredentials = showDemoCredentials ? [
-    { role: 'Admin', email: 'admin@royalstay.in', password: 'admin123', color: 'bg-gradient-to-br from-violet-500 to-purple-600', ring: 'ring-violet-500/30', icon: Shield, barColor: 'bg-violet-500', textColor: 'text-violet-700 dark:text-violet-300', borderColor: 'hover:border-violet-300/60 dark:hover:border-violet-700/40', bgColor: 'bg-violet-50/40 dark:bg-violet-950/20' },
-    { role: 'Front Desk', email: 'frontdesk@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-emerald-500 to-teal-600', ring: 'ring-emerald-500/30', icon: ConciergeBell, barColor: "bg-emerald-500", textColor: 'text-emerald-700 dark:text-emerald-300', borderColor: 'hover:border-emerald-300/60 dark:hover:border-emerald-700/40', bgColor: 'bg-emerald-50/40 dark:bg-emerald-950/20' },
-    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-orange-500 to-amber-500', ring: 'ring-orange-500/30', icon: Bath, barColor: "bg-orange-500", textColor: 'text-orange-700 dark:text-orange-300', borderColor: 'hover:border-orange-300/60 dark:hover:border-orange-700/40', bgColor: 'bg-orange-50/40 dark:bg-orange-950/20' },
+  // Demo credentials are only available when NEXT_PUBLIC_DEMO_MODE is explicitly enabled
+  const showDemoCredentials = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+  const demoUser = process.env.NEXT_PUBLIC_DEMO_USER || '';
+  const demoPass = process.env.NEXT_PUBLIC_DEMO_PASS || '';
+  const demoCredentials = showDemoCredentials && demoUser && demoPass ? [
+    { role: 'Demo', email: demoUser, password: demoPass, color: 'bg-gradient-to-br from-violet-500 to-purple-600', ring: 'ring-violet-500/30', icon: Shield, barColor: 'bg-violet-500', textColor: 'text-violet-700 dark:text-violet-300', borderColor: 'hover:border-violet-300/60 dark:hover:border-violet-700/40', bgColor: 'bg-violet-50/40 dark:bg-violet-950/20' },
   ] : [];
 
   return (

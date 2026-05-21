@@ -10,6 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // ============================================
 // TYPES
@@ -53,13 +54,10 @@ interface ParityBridgeSummary {
 
 export async function GET(request: NextRequest) {
   try {
-    const tenantId = request.headers.get('x-tenant-id');
-    if (!tenantId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'x-tenant-id header is required' } },
-        { status: 401 },
-      );
-    }
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
+    const tenantId = ctx.tenantId;
 
     const searchParams = request.nextUrl.searchParams;
     const propertyId = searchParams.get('propertyId');

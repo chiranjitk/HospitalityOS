@@ -213,7 +213,8 @@ export async function fetchExpediaReviews(
 
     // Expedia Partner API call
     // TODO: Implement Expedia API integration when credentials are available
-    return { reviews: [], error: 'Expedia API not yet implemented' };
+    console.warn('Expedia API integration not configured — returning empty reviews');
+    return { reviews: [] };
   } catch (error) {
     console.error('Error fetching Expedia reviews:', error);
     return { reviews: [], error: 'Failed to fetch Expedia reviews' };

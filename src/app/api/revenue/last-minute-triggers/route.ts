@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import {
   getTriggers,
   createTrigger,
@@ -17,10 +17,8 @@ import {
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
     const { searchParams } = new URL(request.url);
     const propertyId = searchParams.get('propertyId');
@@ -31,10 +29,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Get triggers
-    const triggers = await getTriggers(user.tenantId, propertyId);
+    const triggers = await getTriggers(ctx.tenantId, propertyId);
 
     // Get logs if requested
-    const logs = includeLogs ? await getTriggerLogs(user.tenantId, propertyId) : [];
+    const logs = includeLogs ? await getTriggerLogs(ctx.tenantId, propertyId) : [];
 
     // Summary stats
     const enabledCount = triggers.filter(t => t.enabled).length;
@@ -75,10 +73,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
     const body = await request.json();
     const { action: opAction, propertyId, ...triggerData } = body;
@@ -88,7 +84,7 @@ export async function POST(request: NextRequest) {
       if (!propertyId) {
         return NextResponse.json({ success: false, error: 'propertyId is required for evaluate' }, { status: 400 });
       }
-      const results = await evaluateLastMinuteTriggers(user.tenantId, propertyId);
+      const results = await evaluateLastMinuteTriggers(ctx.tenantId, propertyId);
       return NextResponse.json({
         success: true,
         data: {
@@ -101,7 +97,7 @@ export async function POST(request: NextRequest) {
 
     // Run mode (actually execute)
     if (opAction === 'run') {
-      const result = await runLastMinuteAutomation(user.tenantId, propertyId || undefined);
+      const result = await runLastMinuteAutomation(ctx.tenantId, propertyId || undefined);
       return NextResponse.json({
         success: true,
         data: result,
@@ -125,7 +121,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const trigger = await createTrigger(user.tenantId, propertyId, {
+    const trigger = await createTrigger(ctx.tenantId, propertyId, {
       name: triggerData.name,
       enabled: triggerData.enabled ?? true,
       triggerHoursBeforeCheckin: triggerData.triggerHoursBeforeCheckin ?? 48,
@@ -155,10 +151,8 @@ export async function POST(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
     const body = await request.json();
     const { triggerId, ...updates } = body;
@@ -167,7 +161,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'triggerId is required' }, { status: 400 });
     }
 
-    const trigger = await updateTrigger(user.tenantId, triggerId, updates);
+    const trigger = await updateTrigger(ctx.tenantId, triggerId, updates);
 
     if (!trigger) {
       return NextResponse.json({ success: false, error: 'Trigger not found' }, { status: 404 });
@@ -190,10 +184,8 @@ export async function PUT(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
     const body = await request.json();
     const { triggerId } = body;
@@ -202,7 +194,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'triggerId is required' }, { status: 400 });
     }
 
-    const deleted = await deleteTrigger(user.tenantId, triggerId);
+    const deleted = await deleteTrigger(ctx.tenantId, triggerId);
 
     if (!deleted) {
       return NextResponse.json({ success: false, error: 'Trigger not found' }, { status: 404 });

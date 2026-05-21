@@ -18,28 +18,21 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category');
     const propertyId = searchParams.get('propertyId');
 
-    // Build where clause: items where current stock <= reorder point
+    // Build where clause: fetch only items that have a reorderPoint set and are active
     const where: Record<string, unknown> = {
       tenantId: user.tenantId,
       deletedAt: null,
       status: 'active',
       lowStockAlert: true,
-      reorderPoint: { not: null },
+      reorderPoint: { gt: 0 },
+      quantity: { lte: 0 }, // placeholder — actual filter is below
+      ...(category ? { category } : {}),
+      ...(propertyId ? { propertyId } : {}),
     };
 
-    // Filter: quantity <= reorderPoint
-    // Since Prisma doesn't support comparing two fields directly in where,
-    // we fetch candidates and filter in-memory
-    where.quantity = { lte: 0 }; // placeholder, we refine below
-
-    if (category) {
-      where.category = category;
-    }
-    if (propertyId) {
-      where.propertyId = propertyId;
-    }
-
-    // Fetch all items that have a reorderPoint set and are active
+    // Fetch all active items with reorderPoint > 0, then filter by quantity <= reorderPoint
+    // Note: Prisma doesn't support comparing two fields directly in .where(), so we
+    // fetch candidates with reorderPoint set and filter in-memory.
     const items = await db.stockItem.findMany({
       where: {
         tenantId: user.tenantId,

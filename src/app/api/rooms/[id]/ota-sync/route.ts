@@ -271,12 +271,8 @@ export async function POST(
     for (const image of imagesToSync) {
       for (const channel of channels) {
         try {
-          // Simulate OTA sync - generate a mock remote URL and ID
-          const channelType = channel.type;
-          const simulatedRemoteId = `ota-${channelType}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-          const simulatedRemoteUrl = `https://${channelType}.example.com/images/${simulatedRemoteId}`;
-
-          // Upsert the OtaImageSync record
+          // TODO: Implement real OTA channel sync via channel-manager integration
+          // For now, update sync records with pending status and return current room state
           const existingSync = await db.otaImageSync.findFirst({
             where: {
               imageId: image.id,
@@ -288,9 +284,7 @@ export async function POST(
             await db.otaImageSync.update({
               where: { id: existingSync.id },
               data: {
-                status: 'synced',
-                remoteUrl: simulatedRemoteUrl,
-                remoteId: simulatedRemoteId,
+                status: 'pending',
                 lastSyncedAt: now,
                 error: null,
               },
@@ -300,42 +294,20 @@ export async function POST(
               data: {
                 imageId: image.id,
                 channelId: channel.id,
-                status: 'synced',
-                remoteUrl: simulatedRemoteUrl,
-                remoteId: simulatedRemoteId,
+                status: 'pending',
                 lastSyncedAt: now,
                 error: null,
               },
             });
           }
 
-          // Update the RoomImage.otaSyncStatus JSON field
-          let otaSyncStatus: Record<string, { status: string; remoteUrl: string; remoteId: string; lastSyncedAt: string }> = {};
-          try {
-            otaSyncStatus = JSON.parse(image.otaSyncStatus || '{}');
-          } catch {
-            otaSyncStatus = {};
-          }
-
-          otaSyncStatus[channel.id] = {
-            status: 'synced',
-            remoteUrl: simulatedRemoteUrl,
-            remoteId: simulatedRemoteId,
-            lastSyncedAt: now.toISOString(),
-          };
-
-          await db.roomImage.update({
-            where: { id: image.id },
-            data: { otaSyncStatus: JSON.stringify(otaSyncStatus) },
-          });
-
           syncedCount++;
           results.push({
             imageId: image.id,
             channelId: channel.id,
-            status: 'synced',
-            remoteUrl: simulatedRemoteUrl,
-            remoteId: simulatedRemoteId,
+            status: 'pending',
+            remoteUrl: image.url || null,
+            remoteId: null,
             error: null,
           });
         } catch (syncError) {

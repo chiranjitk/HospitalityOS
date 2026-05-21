@@ -174,15 +174,14 @@ export async function POST(
   } catch (error) {
     console.error('[ScheduledCharges Execute POST] Error:', error);
 
-    // If execution fails mid-way, create a failed execution record
-    if (params) {
-      try {
-        const { id } = await params;
+    // If execution fails mid-way and we have the charge data, create a failed execution record
+    try {
+      if (charge) {
         await db.scheduledChargeExecution.create({
           data: {
-            tenantId: '00000000-0000-0000-0000-000000000000',
-            scheduledChargeId: id,
-            folioId: '00000000-0000-0000-0000-000000000000',
+            tenantId: charge.tenantId,
+            scheduledChargeId: charge.id,
+            folioId: charge.folioId,
             amount: 0,
             status: 'failed',
             error: (error as Error).message,
@@ -190,9 +189,9 @@ export async function POST(
             executionDate: new Date(),
           },
         });
-      } catch {
-        // Best effort logging
       }
+    } catch {
+      // Best effort logging
     }
 
     return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to execute scheduled charge' } }, { status: 500 });

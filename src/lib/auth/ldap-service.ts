@@ -847,7 +847,10 @@ export class LDAPService {
               roleId: defaultRole?.id || null,
               status: 'active',
               isVerified: true, // LDAP users are pre-verified
-              passwordHash: '$2b$10$placeholder.ldap.sso.user', // Placeholder, LDAP handles auth
+              // Use a pre-computed valid bcrypt hash for "password-required" — SSO users
+              // authenticate via LDAP, not local password. Authentication logic should
+              // check ssoProviderId to skip password verification for these users.
+              passwordHash: '$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36Kz2Vw6XpN6tV7tKV7FPCG', // bcrypt hash of "password-placeholder-ldap-sso"
               ssoProviderId: ldapUser.dn,
             },
           });

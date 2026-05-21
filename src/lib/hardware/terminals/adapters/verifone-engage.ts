@@ -27,6 +27,7 @@ const NOT_SUPPORTED_MESSAGE =
   'Verifone Engage API integration requires partner registration at developer.verifone.com. Contact StaySuite support.';
 
 function stubNotSupported<T>(method: string): HardwareResult<T> {
+  console.warn(`[VerifoneEngageAdapter] ${method} called — not yet implemented`);
   return {
     success: false,
     error: NOT_SUPPORTED_MESSAGE,

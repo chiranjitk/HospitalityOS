@@ -100,6 +100,7 @@ export async function POST(request: NextRequest) {    const user = await require
     const {
       guestId,
       propertyId,
+      bookingId,
       type,
       category,
       subject,
@@ -125,10 +126,24 @@ export async function POST(request: NextRequest) {    const user = await require
       );
     }
 
+    // GAP 7: Validate bookingId if provided
+    if (bookingId) {
+      const booking = await db.booking.findFirst({
+        where: { id: bookingId, primaryGuestId: guestId },
+      });
+      if (!booking) {
+        return NextResponse.json(
+          { success: false, error: { message: 'Booking not found or does not belong to this guest' } },
+          { status: 400 }
+        );
+      }
+    }
+
     const feedback = await db.guestFeedback.create({
       data: {
         guestId,
         propertyId,
+        bookingId: bookingId || null,
         type,
         category,
         subject,

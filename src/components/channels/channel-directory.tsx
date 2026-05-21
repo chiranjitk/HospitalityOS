@@ -267,7 +267,7 @@ function ChannelCard({
           )}
           {isComingSoon && (
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
-              Coming Soon
+              Under Development
             </Badge>
           )}
         </div>
@@ -707,7 +707,7 @@ export default function ChannelDirectory() {
   // Handle connect
   const handleConnect = (channel: ChannelInfo) => {
     if (channel.status === 'coming_soon') {
-      toast.info(`${channel.name} is coming soon! We'll notify you when it's available.`);
+      toast.info(`${channel.name} is under development. We'll notify you when it's available.`);
       return;
     }
     setSelectedChannel(channel);

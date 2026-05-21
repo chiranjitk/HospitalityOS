@@ -504,13 +504,11 @@ async function handleTestSms(
   const provider = rawProvider as SmsProvider;
   const config = rawConfig ?? {};
 
-  // Simulate sending a test SMS (in production, integrate with actual APIs)
+  // Real SMS gateway integration needed
+  // Attempt to send via the configured provider; fall back to mock if no gateway configured
   console.log(`[SMS TEST] Sending test SMS via ${provider} to ${to}`);
 
-  // Small delay to simulate network
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  // For mock provider, always succeed
+  // For mock provider, always succeed without real sending
   if (provider === 'mock') {
     return NextResponse.json({
       success: true,
@@ -524,7 +522,7 @@ async function handleTestSms(
     });
   }
 
-  // Simulate success for other providers (check that at least one config field is present)
+  // Check if credentials are configured
   const hasConfig = Object.values(config).some(
     (v) => typeof v === 'string' && v.trim() !== '' && v !== '••••••••',
   );
@@ -539,14 +537,19 @@ async function handleTestSms(
     });
   }
 
+  // TODO: Real SMS gateway integration needed — replace this mock response
+  // with actual provider API calls (e.g., Twilio, Vonage, MSG91)
+  // For now, simulate a small network delay and return a mock delivery result
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
   return NextResponse.json({
     success: true,
     data: {
       provider,
       to,
-      messageId: `test_${Date.now()}`,
+      messageId: `test_${provider}_${Date.now()}`,
       status: 'delivered',
-      message: `Test SMS sent successfully via ${providerDisplayName(provider)}`,
+      message: `Test SMS sent successfully via ${providerDisplayName(provider)} (mock delivery — real gateway integration pending)`,
     },
   });
 }

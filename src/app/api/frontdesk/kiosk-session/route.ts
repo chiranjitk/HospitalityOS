@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // GET /api/frontdesk/kiosk-session - Verify booking code for kiosk check-in/check-out
 export async function GET(request: NextRequest) {
+  const ctx = await requireAuth(request);
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const code = searchParams.get('code');

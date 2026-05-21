@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { db } from '@/lib/db';
 
-// GET /api/crm - CRM module overview
+// GET /api/crm - CRM module overview with actual summary data
 export async function GET(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
@@ -19,11 +20,42 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const tenantId = user.tenantId;
+
+    // Query CRM summary data from the database
+    const [totalGuests, totalLeads, totalReviews, avgRating, recentFeedback] = await Promise.all([
+      db.guest.count({ where: { tenantId } }),
+      db.lead.count({ where: { tenantId } }),
+      db.review.count({ where: { tenantId } }),
+      db.review.aggregate({
+        where: { tenantId },
+        _avg: { rating: true },
+      }),
+      db.feedback.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: { id: true, type: true, rating: true, status: true, createdAt: true },
+      }),
+    ]);
+
+    // Count loyalty members (guests with loyalty tier)
+    const loyaltyMembers = await db.guestProfile.count({
+      where: { tenantId, loyaltyTier: { not: null } },
+    });
+
     return NextResponse.json({
       success: true,
       data: {
         module: 'crm',
-        description: 'CRM module for managing leads, guest reviews, and feedback',
+        summary: {
+          totalGuests,
+          totalLeads,
+          totalReviews,
+          averageRating: avgRating._avg.rating || 0,
+          loyaltyMembers,
+        },
+        recentFeedback,
         endpoints: {
           leads: '/api/crm/leads',
           leadsAnalytics: '/api/crm/leads/analytics',
@@ -34,7 +66,6 @@ export async function GET(request: NextRequest) {
           feedback: '/api/crm/feedback',
         },
       },
-      message: 'CRM module — use the endpoints above to manage leads, reviews, and feedback',
     });
   } catch (error) {
     console.error('CRM overview API error:', error);

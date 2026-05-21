@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // Helper: apply a single override to a base rate
 function applyOverride(baseRate: number, overrideType: string, overrideValue: number, minRate?: number | null, maxRate?: number | null): number {
@@ -64,6 +65,9 @@ function isEffective(override: { effectiveFrom?: Date | null; effectiveTo?: Date
 
 // GET /api/channels/rate-overrides - List overrides with filtering
 export async function GET(request: NextRequest) {
+  const ctx = await requirePermission(request, 'channels.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const tenantId = searchParams.get('tenantId');
@@ -139,6 +143,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/channels/rate-overrides - Create override, calculate, or batch-calculate
 export async function POST(request: NextRequest) {
+  const ctx = await requirePermission(request, 'channels.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const body = await request.json();
     const { action } = body;
@@ -438,6 +445,9 @@ export async function POST(request: NextRequest) {
 
 // PUT /api/channels/rate-overrides - Update an override
 export async function PUT(request: NextRequest) {
+  const ctx = await requirePermission(request, 'channels.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const body = await request.json();
     const { id, ...updates } = body;
@@ -492,6 +502,9 @@ export async function PUT(request: NextRequest) {
 
 // DELETE /api/channels/rate-overrides - Delete an override
 export async function DELETE(request: NextRequest) {
+  const ctx = await requirePermission(request, 'channels.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const body = await request.json();
     const { id } = body;

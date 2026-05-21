@@ -1,25 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { hasPermission } from '@/lib/auth-helpers';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import { format, addDays, eachDayOfInterval, subDays, getDay, getMonth, parseISO } from 'date-fns';
-import { getUserFromRequest } from '@/lib/auth-helpers';
 
 // GET /api/revenue/demand-forecast - Get demand forecast
-export async function GET(request: NextRequest) {    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } }, { status: 401 });
-    }
-
+export async function GET(request: NextRequest) {
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
   try {
-    if (!hasPermission(user, 'revenue:read')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-        { status: 403 }
-      );
-    }
-
-    const tenantId = user.tenantId;
+    const tenantId = ctx.tenantId;
     const searchParams = request.nextUrl.searchParams;
     const horizon = Math.min(parseInt(searchParams.get('horizon') || '30', 10), 90); // Cap at 90 days
     const roomType = searchParams.get('roomType');

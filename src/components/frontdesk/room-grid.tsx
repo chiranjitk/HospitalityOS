@@ -38,7 +38,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUIStore } from '@/store';
-import { useSocket, RoomStatusEvent, RoomInitialState } from '@/hooks/use-socket';
+import { useRealtime, RoomStatusEvent, RoomInitialState } from '@/hooks/use-realtime';
 import { useTranslations } from 'next-intl';
 
 interface Room {
@@ -193,10 +193,9 @@ export default function RoomGrid() {
     requestRoomStatusChange,
     reconnect,
     disconnect 
-  } = useSocket({
-    tenantId: user?.tenantId || '',
-    userId: user?.id || '',
+  } = useRealtime({
     autoConnect: isAuthenticated,
+    showToasts: false,
     onRoomStatusChange: handleRoomStatusChange,
     onInitialState: handleInitialState,
     onError: (error) => {

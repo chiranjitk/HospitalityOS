@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { emitBookingCheckedIn } from '@/lib/events/booking-events';
 import { fireAutomationEvent } from '@/lib/automation/hooks';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // POST /api/frontdesk/kiosk-checkin - Process express check-in from kiosk
 export async function POST(request: NextRequest) {
+  const ctx = await requireAuth(request);
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const body = await request.json();
     const { bookingId, idVerified, termsAccepted } = body;

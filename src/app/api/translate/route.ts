@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getUserFromRequest } from '@/lib/auth-helpers';
 import ZAI from 'z-ai-web-dev-sdk';
 import fs from 'fs';
 import path from 'path';
+import { z } from 'zod';
+import { requirePlatformAdmin } from '@/lib/auth/tenant-context';
 
 const LANGUAGE_NAMES: Record<string, string> = {
   ar: 'Arabic', bn: 'Bengali', de: 'German', es: 'Spanish',
@@ -9,6 +12,15 @@ const LANGUAGE_NAMES: Record<string, string> = {
   ml: 'Malayalam', mr: 'Marathi', pt: 'Portuguese-Brazilian', ta: 'Tamil',
   te: 'Telugu', zh: 'Chinese Simplified'
 };
+
+// Locale whitelist — only these locales are allowed (prevents path traversal)
+const ALLOWED_LOCALES = new Set(Object.keys(LANGUAGE_NAMES));
+
+// Zod schema for request validation
+const translateRequestSchema = z.object({
+  locale: z.string().min(2).max(10),
+  namespace: z.string().max(100).optional().default(''),
+});
 
 function flatten(obj: any, prefix = ''): Record<string, string> {
   const map: Record<string, string> = {};
@@ -47,10 +59,27 @@ async function translateWithRetry(zai: any, messages: any[], retries = 3): Promi
 }
 
 export async function POST(req: NextRequest) {
-  const { locale, namespace } = await req.json();
+  const ctx = await requirePlatformAdmin(request);
+  if (ctx instanceof NextResponse) return ctx;
+
+  try {
+    // Auth check — this route writes files to disk, require authentication
+    const user = await getUserFromRequest(req);
+    if (!user || !user.isPlatformAdmin) {
+      return NextResponse.json({ error: 'Platform admin access required' }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const parsed = translateRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request parameters' }, { status: 400 });
+    }
+
+    const { locale, namespace } = parsed.data;
   
-  if (!locale || !LANGUAGE_NAMES[locale]) {
-    return NextResponse.json({ error: 'Invalid locale' }, { status: 400 });
+  // Validate locale against whitelist to prevent path traversal
+  if (!ALLOWED_LOCALES.has(locale)) {
+    return NextResponse.json({ error: `Unsupported locale: ${locale}` }, { status: 400 });
   }
 
   const langName = LANGUAGE_NAMES[locale];
@@ -160,10 +189,17 @@ Rules:
     failedBatches,
     batchesProcessed: batches.length
   });
+  } catch (error) {
+    console.error('[Translate] POST error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }
 
 // GET endpoint to check translation status
 export async function GET() {
+  const ctx = await requirePlatformAdmin(request);
+  if (ctx instanceof NextResponse) return ctx;
+
   const msgsDir = path.join(process.cwd(), 'src', 'messages');
   const en = JSON.parse(fs.readFileSync(path.join(msgsDir, 'en.json'), 'utf8'));
   const enFlat = flatten(en);

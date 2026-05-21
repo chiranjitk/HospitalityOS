@@ -573,6 +573,7 @@ model Booking {
   auditLogs           BookingAuditLog[]
   folios              Folio[]
   guestStays          GuestStay[]
+  feedback            GuestFeedback[]
   waitlist               WaitlistEntry?
   scheduledCharges        ScheduledCharge[]
   cancellationPenalties   CancellationPenalty[]
@@ -2786,6 +2787,7 @@ model GuestFeedback {
   id          String    @id @default(uuid()) @db.Uuid
   guestId     String    @db.Uuid
   propertyId  String    @db.Uuid
+  bookingId   String?   @db.Uuid
   type        String
   category    String
   subject     String
@@ -2798,9 +2800,11 @@ model GuestFeedback {
   createdAt   DateTime  @default(now()) @db.Timestamptz
   updatedAt   DateTime  @updatedAt @db.Timestamptz
   guest       Guest     @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  booking     Booking?  @relation(fields: [bookingId], references: [id])
 
   @@index([guestId])
   @@index([propertyId])
+  @@index([bookingId])
 }
 
 model GuestJourney {

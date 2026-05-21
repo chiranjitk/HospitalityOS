@@ -144,10 +144,10 @@ export function DocumentUpload({ token, documents, kycComplete, onUpdate }: Docu
         try {
           const uploadFormData = new FormData();
           uploadFormData.append('file', selectedFile);
-          const uploadRes = await fetch('/api/guests/kyc/upload', { method: 'POST', body: uploadFormData });
+          const uploadRes = await fetch('/api/upload', { method: 'POST', body: uploadFormData });
           const uploadResult = await uploadRes.json();
-          if (uploadResult.fileUrl) {
-            fileUrl = uploadResult.fileUrl;
+          if (uploadResult.success && uploadResult.data?.fileUrl) {
+            fileUrl = uploadResult.data.fileUrl;
           } else {
             fileUrl = `documents/kyc/${Date.now()}_${selectedFile.name}`;
           }

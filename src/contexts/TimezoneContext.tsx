@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { formatDateWithFormat, formatTimeWithFormat } from '@/lib/timezone';
 
 interface TimezoneSettings {
   timezone: string;
@@ -259,30 +260,12 @@ export function useTimezone() {
   return context;
 }
 
-// Utility function for non-React contexts
+// Utility function for non-React contexts (uses lib/timezone for consistency)
 export function formatDateDefault(date: Date | string, format: string = 'DD/MM/YYYY'): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  
-  switch (format) {
-    case 'MM/DD/YYYY':
-      return `${month}/${day}/${year}`;
-    case 'YYYY-MM-DD':
-      return `${year}-${month}-${day}`;
-    default:
-      return `${day}/${month}/${year}`;
-  }
+  return formatDateWithFormat(date, format as 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD');
 }
 
-// Utility function for time formatting
+// Utility function for time formatting (uses lib/timezone for consistency)
 export function formatTimeDefault(time: string | Date, use24Hour: boolean = false): string {
-  const date = typeof time === 'string' ? new Date(`2000-01-01T${time}`) : time;
-  
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: !use24Hour,
-  });
+  return formatTimeWithFormat(time, use24Hour);
 }

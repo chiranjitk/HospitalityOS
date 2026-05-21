@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { z } from 'zod';
 import crypto from 'crypto';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // =============================================================================
 // KIOSK PAYMENT: Attempts real payment gateway first (Stripe), falls back to
@@ -55,6 +56,9 @@ function generateFolioNumber(bookingId: string): string {
 // --- POST: Process a kiosk payment ---
 
 export async function POST(request: NextRequest) {
+  const ctx = await requireAuth(request);
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const body = await request.json();
 
@@ -328,6 +332,9 @@ export async function POST(request: NextRequest) {
 // --- GET: Get payment summary for a booking ---
 
 export async function GET(request: NextRequest) {
+  const ctx = await requireAuth(request);
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const bookingId = searchParams.get('bookingId');

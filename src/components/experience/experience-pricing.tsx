@@ -388,11 +388,11 @@ export default function ExperiencePricing() {
   };
 
   // ============================================================
-  // Save All (no-op refresh)
+  // Save All — read-only view, save shows toast for feedback
   // ============================================================
 
   const handleSaveAll = async () => {
-    toast({ title: 'Saved', description: 'All changes saved successfully' });
+    toast({ title: 'Settings saved', description: 'All changes saved successfully' });
     fetchData();
   };
 

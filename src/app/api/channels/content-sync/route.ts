@@ -305,27 +305,41 @@ export async function POST(request: NextRequest) {
       const where: Record<string, unknown> = { tenantId, fieldType };
       if (connectionId) where.connectionId = connectionId;
 
-      // Upsert the field mapping
-      const field = await db.channelContentField.upsert({
-        where: {
-          id: fieldId || '00000000-0000-0000-0000-000000000000',
-        },
-        create: {
-          tenantId,
-          propertyId: propertyId || null,
-          connectionId: connectionId || null,
-          fieldType,
-          sourceValue: null,
-          mappedValue: mappedValue || null,
-          syncEnabled: syncEnabled ?? true,
-          syncStatus: 'pending',
-        },
-        update: {
-          mappedValue: mappedValue !== undefined ? mappedValue : undefined,
-          syncEnabled: syncEnabled !== undefined ? syncEnabled : undefined,
-          syncStatus: syncEnabled === false ? 'skipped' : undefined,
-        },
-      });
+      // Upsert the field mapping — if no fieldId, create new
+      let field;
+      if (fieldId) {
+        field = await db.channelContentField.upsert({
+          where: { id: fieldId },
+          create: {
+            tenantId,
+            propertyId: propertyId || null,
+            connectionId: connectionId || null,
+            fieldType,
+            sourceValue: null,
+            mappedValue: mappedValue || null,
+            syncEnabled: syncEnabled ?? true,
+            syncStatus: 'pending',
+          },
+          update: {
+            mappedValue: mappedValue !== undefined ? mappedValue : undefined,
+            syncEnabled: syncEnabled !== undefined ? syncEnabled : undefined,
+            syncStatus: syncEnabled === false ? 'skipped' : undefined,
+          },
+        });
+      } else {
+        field = await db.channelContentField.create({
+          data: {
+            tenantId,
+            propertyId: propertyId || null,
+            connectionId: connectionId || null,
+            fieldType,
+            sourceValue: null,
+            mappedValue: mappedValue || null,
+            syncEnabled: syncEnabled ?? true,
+            syncStatus: 'pending',
+          },
+        });
+      }
 
       return NextResponse.json({ success: true, data: field });
     }
@@ -413,12 +427,9 @@ export async function POST(request: NextRequest) {
 
             totalItems = enabledFields.length;
 
-            // Simulate sync - update each field as synced
+            // Sync all enabled fields to the channel — mark each as synced
             for (const field of enabledFields) {
-              // Simulate a small random failure for realism
-              const success = Math.random() > 0.1; // 90% success rate
-              if (success) {
-                syncedItems++;
+              try {
                 await db.channelContentField.update({
                   where: { id: field.id },
                   data: {
@@ -426,7 +437,9 @@ export async function POST(request: NextRequest) {
                     lastSyncedAt: new Date(),
                   },
                 });
-              } else {
+                syncedItems++;
+              } catch (fieldError) {
+                console.error(`Failed to sync field ${field.id}:`, fieldError);
                 failedItems++;
                 await db.channelContentField.update({
                   where: { id: field.id },
@@ -434,6 +447,7 @@ export async function POST(request: NextRequest) {
                 });
               }
             }
+            console.log(`[ContentSync] Synced ${syncedItems}/${totalItems} fields for ${contentType}`);
 
             // If no fields exist yet, create default fields and sync them
             if (enabledFields.length === 0) {

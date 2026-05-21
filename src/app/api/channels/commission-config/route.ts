@@ -1,23 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // GET /api/channels/commission-config - List commission configs with filtering
 // Supports action=summary for per-channel summary
 export async function GET(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const searchParams = request.nextUrl.searchParams;
-    const tenantId = searchParams.get('tenantId');
     const connectionId = searchParams.get('connectionId');
     const channelCode = searchParams.get('channelCode');
     const isActive = searchParams.get('isActive');
     const action = searchParams.get('action');
 
-    if (!tenantId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'tenantId is required' } },
-        { status: 400 }
-      );
-    }
+    const tenantId = ctx.tenantId;
 
     // Handle summary action
     if (action === 'summary') {
@@ -131,6 +129,9 @@ export async function GET(request: NextRequest) {
 // POST /api/channels/commission-config - Create config or perform actions
 export async function POST(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const body = await request.json();
     const { action, ...data } = body;
 
@@ -404,6 +405,9 @@ export async function POST(request: NextRequest) {
 // PUT /api/channels/commission-config - Update a commission config
 export async function PUT(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const body = await request.json();
     const { id, ...updates } = body;
 
@@ -464,6 +468,9 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/channels/commission-config - Delete a commission config
 export async function DELETE(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const body = await request.json();
     const { id } = body;
 

@@ -49,6 +49,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 // --- Types ---
 interface Property { id: string; name: string; }
@@ -283,7 +284,7 @@ export default function FinancingPage() {
     }
   };
 
-  const formatCurrency = (amount: number) => `$${(amount || 0).toFixed(2)}`;
+  const { formatCurrency } = useCurrency();
 
   const filteredInstallments = installments.filter(inst => {
     if (!searchTerm) return true;

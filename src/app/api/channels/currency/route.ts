@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // =====================================================
 // Helper: Apply rounding
@@ -37,19 +38,16 @@ function convertRate(
 // =====================================================
 export async function GET(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const searchParams = request.nextUrl.searchParams;
-    const tenantId = searchParams.get('tenantId');
     const connectionId = searchParams.get('connectionId');
     const channelCode = searchParams.get('channelCode');
     const isActive = searchParams.get('isActive');
     const includeHistory = searchParams.get('include') === 'history';
 
-    if (!tenantId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'tenantId is required' } },
-        { status: 400 }
-      );
-    }
+    const tenantId = ctx.tenantId;
 
     const where: Record<string, unknown> = { tenantId };
 
@@ -133,6 +131,9 @@ export async function GET(request: NextRequest) {
 // =====================================================
 export async function POST(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const body = await request.json();
     const { action } = body;
 
@@ -343,6 +344,9 @@ export async function POST(request: NextRequest) {
 // =====================================================
 export async function PUT(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const body = await request.json();
     const { id, changedBy, ...updates } = body;
 
@@ -461,6 +465,9 @@ export async function PUT(request: NextRequest) {
 // =====================================================
 export async function DELETE(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const body = await request.json();
     const { id } = body;
 

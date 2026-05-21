@@ -204,7 +204,7 @@ export default function WifiHeatmap() {
         const res = await fetch('/api/wifi/heatmap/floor-plans?propertyId=dummy');
         if (res.ok) {
           // Get properties list from existing API
-          const propRes = await fetch('/api/wifi/gateway-radius');
+          const propRes = await fetch('/api/wifi/nas');
           if (propRes.ok) {
             const propData = await propRes.json();
             // Extract unique properties from gateways

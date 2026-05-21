@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import crypto from 'crypto';
+import { requirePlatformAdmin } from '@/lib/auth/tenant-context';
 
 // Plan prefix mapping
 const PLAN_PREFIXES: Record<string, string> = {
@@ -22,26 +23,8 @@ function generateLicenseKey(planPrefix: string): string {
 export async function POST(request: NextRequest) {
   try {
     // Auth check
-    const sessionToken = request.cookies.get('session_token')?.value;
-    if (!sessionToken) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await db.session.findFirst({
-      where: { token: sessionToken, expiresAt: { gt: new Date() } },
-      include: { user: { include: { tenant: true } } },
-    });
-    if (!session) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Platform admin only
-    if (!session.user.isPlatformAdmin) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Platform admin access required' } },
-        { status: 403 }
-      );
-    }
+    const ctx = await requirePlatformAdmin(request);
+    if (ctx instanceof NextResponse) return ctx;
 
     const { planId, count = 1, note, generatedFor, expiresInDays } = await request.json();
 
@@ -157,7 +140,7 @@ export async function POST(request: NextRequest) {
                 key: licenseKey,
                 planId,
                 status: 'active',
-                generatedBy: session.user.id,
+                generatedBy: ctx.userId,
                 generatedFor: sanitizedGeneratedFor || null,
                 note: note || null,
                 batchId,

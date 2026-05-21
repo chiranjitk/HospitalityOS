@@ -165,8 +165,23 @@ export async function requirePermission(
   }
 
   if (!hasPermission(context, permission)) {
-    // TODO (GAP-18): Consider logging permission-denied attempts for security monitoring
-    // e.g., await logAudit(context.tenantId, 'permission_denied', 'system', null, { permission, userId: context.userId });
+    // Log permission-denied attempts for security monitoring (GAP-18)
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId: context.tenantId,
+          userId: context.userId,
+          module: 'security',
+          action: 'access_denied',
+          entityType: 'permission',
+          newValue: JSON.stringify({ permission, role: context.role, isPlatformAdmin: context.isPlatformAdmin }),
+        },
+      });
+    } catch (logError) {
+      // Don't let logging failure break the auth check
+      console.error('[TenantContext] Failed to log permission-denied attempt:', logError);
+    }
+
     return NextResponse.json(
       { success: false, error: `Permission denied: ${permission}` },
       { status: 403 }

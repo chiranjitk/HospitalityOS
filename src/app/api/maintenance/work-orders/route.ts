@@ -349,6 +349,19 @@ export async function POST(request: NextRequest) {
           propertyId,
         });
       }
+
+      // GAP 6: Block room for high/urgent priority work orders
+      if (priority === 'high' || priority === 'urgent') {
+        try {
+          await db.room.update({
+            where: { id: roomId },
+            data: { status: 'out_of_order' },
+          });
+          console.log(`[WorkOrder] Room ${roomId} set to 'out_of_order' due to ${priority} priority work order ${workOrder.workOrderNumber}`);
+        } catch (roomBlockError) {
+          console.error(`[WorkOrder] Failed to block room ${roomId}:`, roomBlockError);
+        }
+      }
     }
 
     return NextResponse.json({ success: true, data: workOrder }, { status: 201 });
