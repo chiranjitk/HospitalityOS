@@ -988,32 +988,9 @@ export default function LoginPage() {
                 <span>All systems operational</span>
               </motion.div>
 
-              {/* ── Seamless footer ── */}
-              <div className="mt-6 pt-4 border-t border-border/30">
-                <div className="lg:hidden text-center text-xs text-muted-foreground/40 pt-2">
-                  <span>&copy; 2026 Cryptsk Pvt Ltd</span>
-                  <span className="mx-1.5 text-muted-foreground/20">&middot;</span>
-                  <span className="hover:text-muted-foreground transition-colors cursor-pointer">Privacy</span>
-                  <span className="mx-1.5 text-muted-foreground/20">&middot;</span>
-                  <span className="hover:text-muted-foreground transition-colors cursor-pointer">Terms</span>
-                  <span className="mx-1.5 text-muted-foreground/20">&middot;</span>
-                  <span className="text-[10px] font-mono">v2.0</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Desktop inline footer — seamless, no gradient/card separation */}
-      <div className="hidden lg:flex items-center justify-center py-4 text-xs text-muted-foreground/40">
-        <span>&copy; 2026 Cryptsk Pvt Ltd</span>
-        <span className="mx-2 text-muted-foreground/15">&middot;</span>
-        <span className="hover:text-muted-foreground transition-colors cursor-pointer">Privacy</span>
-        <span className="mx-2 text-muted-foreground/15">&middot;</span>
-        <span className="hover:text-muted-foreground transition-colors cursor-pointer">Terms</span>
-        <span className="mx-2 text-muted-foreground/15">|</span>
-        <span className="text-[10px] font-mono text-muted-foreground/30">v2.0</span>
       </div>
     </div>
   );
