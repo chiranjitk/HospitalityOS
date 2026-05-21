@@ -58,8 +58,11 @@ export function hasAnyPermission(
  * This extends TenantContext with additional user profile fields
  * needed by downstream API routes (email, name, avatar, tenant, etc.)
  */
-export async function getUserFromRequest(request: NextRequest) {
+export async function getUserFromRequest(request?: NextRequest) {
   try {
+    if (!request) {
+      return null;
+    }
     const token = request.cookies.get('session_token')?.value;
 
     if (!token) {

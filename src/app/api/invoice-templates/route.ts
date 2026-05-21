@@ -3,9 +3,9 @@ import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 // GET /api/invoice-templates - List invoice templates
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromRequest();
+    const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
     }
@@ -34,7 +34,7 @@ export async function GET() {
 // POST /api/invoice-templates - Create custom template
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUserFromRequest();
+    const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
     }

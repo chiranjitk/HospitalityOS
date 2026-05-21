@@ -8,12 +8,12 @@ export async function GET(req: NextRequest) {
       _count: { id: true },
       _min: { price: true },
       _max: { price: true },
-      where: { isActive: true },
+      where: { isAvailable: true, deletedAt: null },
     });
 
-    const categories = await db.menuCategory.findMany({
-      where: { isActive: true },
-      include: { items: { where: { isActive: true }, take: 5, orderBy: { name: 'asc' } } },
+    const categories = await db.orderCategory.findMany({
+      where: { status: 'active' },
+      include: { menuItems: { where: { isAvailable: true, deletedAt: null }, take: 5, orderBy: { name: 'asc' } } },
       orderBy: { name: 'asc' },
     });
 
@@ -23,12 +23,12 @@ export async function GET(req: NextRequest) {
       name: `${cat.name} Menu Board`,
       screen: `Screen ${index + 1}`,
       categoryIds: [cat.id],
-      categories: [{ id: cat.id, name: cat.name, itemCount: cat.items.length }],
+      categories: [{ id: cat.id, name: cat.name, itemCount: cat.menuItems.length }],
       status: 'active' as const,
       lastUpdated: new Date().toISOString(),
     }));
 
-    const totalItems = await db.menuItem.count({ where: { isActive: true } });
+    const totalItems = await db.menuItem.count({ where: { isAvailable: true, deletedAt: null } });
 
     return NextResponse.json({
       success: true,
@@ -55,9 +55,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const categories = await db.menuCategory.findMany({
-      where: { id: { in: categoryIds }, isActive: true },
-      include: { items: { where: { isActive: true }, take: 10 } },
+    const categories = await db.orderCategory.findMany({
+      where: { id: { in: categoryIds }, status: 'active' },
+      include: { menuItems: { where: { isAvailable: true, deletedAt: null }, take: 10 } },
     });
 
     const board = {
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       name,
       screen: screen || 'Screen 1',
       categoryIds,
-      categories: categories.map((c) => ({ id: c.id, name: c.name, itemCount: c.items.length })),
+      categories: categories.map((c) => ({ id: c.id, name: c.name, itemCount: c.menuItems.length })),
       status: 'active' as const,
       lastUpdated: new Date().toISOString(),
     };

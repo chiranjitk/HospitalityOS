@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const categoryId = searchParams.get('categoryId');
 
     const where: Record<string, unknown> = { tenantId: user.tenantId, deletedAt: null };
-    if (propertyId) where.propertyId = propertyId;
+    if (propertyId) where.menuItem = { propertyId };
 
     const recipes = await db.recipe.findMany({
       where,
