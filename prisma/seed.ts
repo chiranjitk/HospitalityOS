@@ -467,8 +467,8 @@ async function main() {
 
   // Create users
   console.log('Seeding users...');
-  const adminPasswordHash = await seedHashPassword('admin123');
-  const staffPasswordHash = await seedHashPassword('staff123');
+  const adminPasswordHash = await seedHashPassword('Admin@123');
+  const staffPasswordHash = await seedHashPassword('Staff@123');
   
   await prisma.user.createMany({
     data: [
