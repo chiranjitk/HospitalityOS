@@ -44,11 +44,23 @@ import {
   XCircle,
   Crown,
   Info,
+  Globe,
+  GripVertical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { usePropertyId } from '@/hooks/use-property';
+
+interface PlanPool {
+  id: string;
+  poolId: string;
+  priority: number;
+  pool: {
+    id: string;
+    name: string;
+  };
+}
 
 interface WiFiPlan {
   id: string;
@@ -71,6 +83,9 @@ interface WiFiPlan {
   validityDays: number;
   validityMinutes: number;
   status: string;
+  ipPoolId?: string | null;
+  ipPool?: { id: string; name: string } | null;
+  planPools?: PlanPool[];
   _count?: {
     vouchers: number;
     sessions: number;
@@ -171,6 +186,7 @@ export default function WifiPlans() {
 
   const [fupPolicies, setFupPolicies] = useState<Array<{ id: string; name: string }>>([]);
   const [ipPools, setIpPools] = useState<Array<{ id: string; name: string; isDefault: boolean }>>([]);
+  const [selectedPoolIds, setSelectedPoolIds] = useState<string[]>([]);
   const [defaultPlanId, setDefaultPlanId] = useState<string | null>(null);
   const { propertyId } = usePropertyId();
 
@@ -193,7 +209,6 @@ export default function WifiPlans() {
     sessionLimit: '',
     maxDevices: '1',
     fupPolicyId: '',
-    ipPoolId: '',
     price: '0',
     currency: 'USD',
     priority: '0',
@@ -314,7 +329,9 @@ export default function WifiPlans() {
           sessionLimit: formData.unlimitedSession ? null : (formData.sessionLimit ? parseInt(formData.sessionLimit) : null),
           maxDevices: parseInt(formData.maxDevices),
           fupPolicyId: formData.fupPolicyId && formData.fupPolicyId !== 'none' ? formData.fupPolicyId : undefined,
-          ipPoolId: formData.ipPoolId && formData.ipPoolId !== 'none' ? formData.ipPoolId : undefined,
+          ipPoolIds: selectedPoolIds.length > 0
+            ? selectedPoolIds.map((poolId, index) => ({ poolId, priority: index }))
+            : undefined,
           price: parseFloat(formData.price),
           currency: formData.currency,
           priority: parseInt(formData.priority),
@@ -376,7 +393,9 @@ export default function WifiPlans() {
           sessionLimit: formData.unlimitedSession ? null : (formData.sessionLimit ? parseInt(formData.sessionLimit) : null),
           maxDevices: parseInt(formData.maxDevices),
           fupPolicyId: formData.fupPolicyId && formData.fupPolicyId !== 'none' ? formData.fupPolicyId : null,
-          ipPoolId: formData.ipPoolId && formData.ipPoolId !== 'none' ? formData.ipPoolId : null,
+          ipPoolIds: selectedPoolIds.length > 0
+            ? selectedPoolIds.map((poolId, index) => ({ poolId, priority: index }))
+            : [],
           price: parseFloat(formData.price),
           currency: formData.currency,
           priority: parseInt(formData.priority),
@@ -459,6 +478,13 @@ export default function WifiPlans() {
   const openEditDialog = (plan: WiFiPlan) => {
     setSelectedPlan(plan);
     const unit = parseBestUnit(plan.validityMinutes || plan.validityDays * 1440);
+    // Populate multi-pool selections: prefer planPools (junction), fallback to legacy ipPoolId
+    const poolIds = plan.planPools && plan.planPools.length > 0
+      ? plan.planPools.sort((a, b) => a.priority - b.priority).map(pp => pp.poolId)
+      : plan.ipPoolId
+        ? [plan.ipPoolId]
+        : [];
+    setSelectedPoolIds(poolIds);
     setFormData({
       name: plan.name,
       description: plan.description || '',
@@ -469,8 +495,7 @@ export default function WifiPlans() {
       dataLimit: plan.dataLimit?.toString() || '',
       sessionLimit: plan.sessionLimit?.toString() || '',
       maxDevices: (plan.maxDevices ?? 1).toString(),
-      fupPolicyId: (plan as Record<string, unknown>).fupPolicyId?.toString() || '',
-      ipPoolId: (plan as Record<string, unknown>).ipPoolId?.toString() || (plan as Record<string, unknown>).ipPool?.id?.toString() || '',
+      fupPolicyId: plan.fupPolicyId?.toString() || '',
       price: plan.price.toString(),
       currency: plan.currency,
       priority: plan.priority.toString(),
@@ -502,7 +527,6 @@ export default function WifiPlans() {
       sessionLimit: '',
       maxDevices: '1',
       fupPolicyId: '',
-      ipPoolId: '',
       price: '0',
       currency: 'USD',
       priority: '0',
@@ -514,6 +538,7 @@ export default function WifiPlans() {
       unlimitedData: true,
       unlimitedSession: true,
     });
+    setSelectedPoolIds([]);
   };
 
   const getStatusBadge = (status: string) => {
@@ -824,6 +849,32 @@ export default function WifiPlans() {
                         <span className="truncate">Session: {formatSeconds(plan.sessionTimeoutSec)}</span>
                       </div>
                     ) : null}
+                    {/* Multi-pool assignment display */}
+                    {plan.planPools && plan.planPools.length > 0 ? (
+                      <div className="flex items-center gap-1.5 text-muted-foreground col-span-2 flex-wrap">
+                        <Globe className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">Pools:</span>
+                        <div className="flex flex-wrap gap-1">
+                          {plan.planPools
+                            .sort((a, b) => a.priority - b.priority)
+                            .map(pp => (
+                              <Badge key={pp.poolId} variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                                {pp.pool.name}
+                              </Badge>
+                            ))}
+                        </div>
+                      </div>
+                    ) : (plan as Record<string, unknown>).ipPool?.name ? (
+                      <div className="flex items-center gap-1.5 text-muted-foreground col-span-2">
+                        <Globe className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">Pool: {(plan as Record<string, unknown>).ipPool?.name as string}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-muted-foreground col-span-2">
+                        <Globe className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">Any pool</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Price + Stats divider */}
@@ -884,7 +935,7 @@ export default function WifiPlans() {
           setSelectedPlan(null);
         }
       }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isEditOpen ? 'Edit WiFi Plan' : 'Create WiFi Plan'}</DialogTitle>
             <DialogDescription>
@@ -1056,21 +1107,95 @@ export default function WifiPlans() {
                 Apply Fair Usage Policy to throttle/block after data limit
               </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="ipPoolId">IP Pool Restriction</Label>
-              <Select value={formData.ipPoolId} onValueChange={(v) => setFormData(prev => ({ ...prev, ipPoolId: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="None (use default pool)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None (use default pool)</SelectItem>
-                  {ipPools.map(pool => (
-                    <SelectItem key={pool.id} value={pool.id}>{pool.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="space-y-3">
+              <div className="flex items-center gap-1.5">
+                <Label>IP Pool Assignment</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p>Select one or more IP pools for this plan. Users on this plan will only be able to connect from these pools. Order determines priority (top = highest). If none selected, any enabled pool is allowed.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              {ipPools.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">No IP pools configured. Create pools in IP Pool management first.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto rounded-md border bg-background p-2">
+                  {ipPools.map(pool => {
+                    const isSelected = selectedPoolIds.includes(pool.id);
+                    const priority = selectedPoolIds.indexOf(pool.id);
+                    return (
+                      <div
+                        key={pool.id}
+                        className={cn(
+                          'flex items-center gap-2 rounded-md px-2.5 py-2 cursor-pointer transition-colors text-sm',
+                          isSelected
+                            ? 'bg-primary/10 text-primary border border-primary/20'
+                            : 'hover:bg-muted/50 border border-transparent'
+                        )}
+                        onClick={() => {
+                          setSelectedPoolIds(prev => {
+                            if (isSelected) {
+                              return prev.filter(id => id !== pool.id);
+                            }
+                            return [...prev, pool.id];
+                          });
+                        }}
+                      >
+                        <div className={cn(
+                          'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
+                          isSelected ? 'bg-primary border-primary' : 'border-muted-foreground/30'
+                        )}>
+                          {isSelected && <CheckCircle2 className="h-3 w-3 text-primary-foreground" />}
+                        </div>
+                        <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="flex-1 font-medium">{pool.name}</span>
+                        {isSelected && priority >= 0 && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-mono">
+                            P{priority + 1}
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {selectedPoolIds.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedPoolIds.map((poolId, idx) => {
+                    const pool = ipPools.find(p => p.id === poolId);
+                    return pool ? (
+                      <Badge
+                        key={poolId}
+                        variant="outline"
+                        className="text-[11px] gap-1 pr-1 cursor-grab"
+                      >
+                        <GripVertical className="h-3 w-3 text-muted-foreground" />
+                        <span className="font-mono text-muted-foreground">#{idx + 1}</span>
+                        {pool.name}
+                        <button
+                          type="button"
+                          className="ml-0.5 rounded-full hover:bg-destructive/20 p-0.5 transition-colors"
+                          onClick={() => setSelectedPoolIds(prev => prev.filter(id => id !== poolId))}
+                        >
+                          <XCircle className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                        </button>
+                      </Badge>
+                    ) : null;
+                  })}
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
-                Restrict users on this plan to connect only from the selected IP pool
+                {selectedPoolIds.length === 0
+                  ? 'No pool restriction — users can connect from any enabled pool'
+                  : `${selectedPoolIds.length} pool${selectedPoolIds.length > 1 ? 's' : ''} assigned. Priority order: ${selectedPoolIds.map((id, i) => {
+                      const pool = ipPools.find(p => p.id === id);
+                      return `${i + 1}:${pool?.name || 'unknown'}`;
+                    }).join(' → ')}`}
               </p>
             </div>
             {/* Price & Currency */}
