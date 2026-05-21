@@ -142,3 +142,4 @@ tests/pms/*.test-state*.json
 
 # Development environment (contains real credentials - do not commit)
 .env.development
+freeradius-install/var/

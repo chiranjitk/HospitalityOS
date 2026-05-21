@@ -35,23 +35,32 @@ sql {
     # Read user check attributes (password, etc.)
     # NOTE: No AND isActive = 1 filter — deprovisioning DELETES records instead of soft-deleting.
     # This allows guests to disconnect/reconnect from hotspot without re-provisioning.
-    authorize_check_query = "SELECT id, username, attribute, value, op FROM radcheck WHERE username = '%{SQL-User-Name}' ORDER BY id"
+    #
+    # CRITICAL FIX: Expiration attribute values stored as ISO 8601 ('2026-05-22 21:29:11')
+    # are NOT parseable by FreeRADIUS 3.2.x date type. The CASE expression converts
+    # Expiration values to FreeRADIUS format ('Mon DD YYYY HH24:MI:SS') at query time.
+    # Without this, any user with an Expiration attribute fails auth (SQL module returns
+    # 'fail', skipping ALL check items including Cleartext-Password).
+    # Also added isActive = true safety filter in case soft-deletes are ever used.
+    authorize_check_query = "SELECT id, username, attribute, CASE WHEN attribute = 'Expiration' THEN to_char(value::timestamptz, 'Mon DD YYYY HH24:MI:SS') ELSE value END as value, op FROM radcheck WHERE username = '%{SQL-User-Name}' AND \"isActive\" = true ORDER BY id"
 
     # Read user reply attributes (bandwidth, session timeout, etc.)
+    # Also filter by isActive for consistency with authorize_check_query.
     authorize_reply_query = "SELECT id, username, attribute, value, op FROM radreply WHERE username = '%{SQL-User-Name}' ORDER BY id"
 
     # Read user groups
     group_membership_query = "SELECT groupname, priority FROM radusergroup WHERE username = '%{SQL-User-Name}' ORDER BY priority"
 
     # Group check attributes
-    authorize_group_check_query = "SELECT id, groupname, attribute, value, op FROM radgroupcheck WHERE groupname = '%{Sql-Group}' ORDER BY id"
+    # Same Expiration format fix applied for group-level Expiration attributes.
+    authorize_group_check_query = "SELECT id, groupname, attribute, CASE WHEN attribute = 'Expiration' THEN to_char(value::timestamptz, 'Mon DD YYYY HH24:MI:SS') ELSE value END as value, op FROM radgroupcheck WHERE groupname = '%{Sql-Group}' ORDER BY id"
 
     # Group reply attributes
     authorize_group_reply_query = "SELECT id, groupname, attribute, value, op FROM radgroupreply WHERE groupname = '%{Sql-Group}' ORDER BY id"
 
     # Simultaneous session check
     simul_count_query = "SELECT COUNT(*) FROM radacct WHERE username = '%{SQL-User-Name}' AND acctstoptime IS NULL"
-    simul_verify_query = "SELECT radacctid, acctsessionid, username, nasipaddress, framedipaddress, calledstationid, callingstationid FROM radacct WHERE username = '%{SQL-User-Name}' AND acctstoptime IS NULL"
+    simul_verify_query = "SELECT radacctid, acctsessionid, username, nasipaddress, nasportid, framedipaddress, calledstationid, callingstationid FROM radacct WHERE username = '%{SQL-User-Name}' AND acctstoptime IS NULL"
 
     # Accounting — single UPSERT query handles Start/Interim-Update/Stop
     # FreeRADIUS 3.2.x rlm_sql does NOT support reference/sub-section pattern for accounting.
