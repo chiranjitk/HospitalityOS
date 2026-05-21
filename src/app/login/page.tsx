@@ -313,7 +313,7 @@ export default function LoginPage() {
             {/* Logo */}
             <motion.div className="flex items-center gap-3.5" variants={headerVariants}>
               <div className="h-12 w-12 rounded-xl overflow-hidden transition-transform hover:scale-110 duration-300">
-                <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={48} height={48} className="object-contain w-full h-full" />
+                <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={48} height={48} className="object-contain w-full h-full" loading="eager" />
               </div>
               <div>
                 <h1 className="text-xl font-bold bg-gradient-to-r from-white via-orange-100 to-amber-100 bg-clip-text text-transparent">
@@ -453,7 +453,7 @@ export default function LoginPage() {
                 transition={{ type: 'spring', stiffness: 200, damping: 20 }}
               >
                 <div className="h-12 w-12 rounded-xl overflow-hidden">
-                  <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={48} height={48} className="object-contain w-full h-full" />
+                  <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={48} height={48} className="object-contain w-full h-full" loading="eager" />
                 </div>
                 <div>
                   <h1 className="text-lg font-bold bg-gradient-to-r from-orange-700 via-amber-600 to-orange-500 bg-clip-text text-transparent">
