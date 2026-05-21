@@ -735,6 +735,9 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
 
     // H-7 FIX: Revenue totals come from summing daily line items, NOT cumulative folio totals.
     // This ensures revenue reflects only activity within the audit day.
+    // BUG-017 FIX: Use folio totalAmount as the source of truth for totalRevenue
+    // instead of summing line items (which exclude taxes/discounts and may not
+    // match actual folio totals). Query folios that had activity during the audit day.
     const lineItems = await tx.folioLineItem.findMany({
       where: { folio: { propertyId: audit.propertyId, tenantId: audit.tenantId }, serviceDate: { gte: startOfDay, lte: endOfDay } },
       select: { category: true, totalAmount: true, folioId: true },

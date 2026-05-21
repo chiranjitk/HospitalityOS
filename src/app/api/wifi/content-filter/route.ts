@@ -50,5 +50,18 @@ export async function DELETE(request: NextRequest) {
   const ctx = await requirePermission(request, 'wifi.manage');
   if (ctx instanceof NextResponse) return ctx;
 
+export async function GET() {
+  return deprecatedResponse('This endpoint is deprecated. Use /api/wifi/firewall/content-filter instead.');
+}
+
+export async function POST() {
+  return deprecatedResponse('This endpoint is deprecated. Use /api/wifi/firewall/content-filter instead.');
+}
+
+export async function PUT() {
+  return deprecatedResponse('This endpoint is deprecated. Use /api/wifi/firewall/content-filter/:id with PUT instead.');
+}
+
+export async function DELETE() {
   return deprecatedResponse('This endpoint is deprecated. Use /api/wifi/firewall/content-filter/:id with DELETE instead.');
 }

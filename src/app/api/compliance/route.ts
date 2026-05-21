@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
 
 // GET /api/compliance - Compliance module overview with actual compliance data
@@ -16,11 +17,13 @@ export async function GET(request: NextRequest) {
     }
 
     const tenantId = ctx.tenantId;
+    const tenantId = user.tenantId;
 
     // Query compliance data from the database
     const [gdprConsentRecords, recentAuditLogs, totalAuditLogs, dataExports] = await Promise.all([
       // Count GDPR consent records
       db.consentRecord.count({
+      db.gdprConsent.count({
         where: { tenantId },
       }),
       // Recent audit logs (last 10)
@@ -37,12 +40,16 @@ export async function GET(request: NextRequest) {
       // Data export requests
       db.gDPRRequest.count({
         where: { tenantId, requestType: 'export', status: { in: ['pending', 'processing'] } },
+      db.gdprDataRequest.count({
+        where: { tenantId, type: 'export', status: { in: ['pending', 'processing'] } },
       }),
     ]);
 
     // Check if IP whitelist is configured
     const ipWhitelistCount = await db.ipWhitelistRule.count({
       where: { tenantId },
+    const ipWhitelistCount = await db.securitySetting.count({
+      where: { tenantId, type: 'ip_whitelist' },
     });
 
     return NextResponse.json({

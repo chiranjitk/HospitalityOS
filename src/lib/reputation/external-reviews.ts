@@ -260,6 +260,10 @@ export async function fetchExpediaReviews(
       const message = apiError instanceof Error ? apiError.message : 'Unknown API error';
       return { reviews: [], enabled: true, error: message };
     }
+    // Expedia Partner API call
+    // TODO: Implement Expedia API integration when credentials are available
+    console.warn('Expedia API integration not configured — returning empty reviews');
+    return { reviews: [] };
   } catch (error) {
     console.error('Error fetching Expedia reviews:', error);
     return { reviews: [], enabled: false, error: 'Failed to fetch Expedia reviews' };

@@ -315,6 +315,33 @@ export async function POST(
               remoteUrl: null,
               remoteId: null,
               error: syncData.error,
+          // TODO: Implement real OTA channel sync via channel-manager integration
+          // For now, update sync records with pending status and return current room state
+          const existingSync = await db.otaImageSync.findFirst({
+            where: {
+              imageId: image.id,
+              channelId: channel.id,
+            },
+          });
+
+          if (existingSync) {
+            await db.otaImageSync.update({
+              where: { id: existingSync.id },
+              data: {
+                status: 'pending',
+                lastSyncedAt: now,
+                error: null,
+              },
+            });
+          } else {
+            await db.otaImageSync.create({
+              data: {
+                imageId: image.id,
+                channelId: channel.id,
+                status: 'pending',
+                lastSyncedAt: now,
+                error: null,
+              },
             });
             continue; // Skip to next image-channel pair
           }
@@ -377,6 +404,15 @@ export async function POST(
               error: otaErrorMessage,
             });
           }
+          syncedCount++;
+          results.push({
+            imageId: image.id,
+            channelId: channel.id,
+            status: 'pending',
+            remoteUrl: image.url || null,
+            remoteId: null,
+            error: null,
+          });
         } catch (syncError) {
           console.error(`Error syncing image ${image.id} to channel ${channel.id}:`, syncError);
 

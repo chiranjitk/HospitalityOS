@@ -235,6 +235,37 @@ export async function POST(
       } catch (dispatchError) {
         console.error('[Communication] Failed to dispatch message:', dispatchError);
         // Don't fail the entire request — message is still saved in the DB
+    // TODO: Send message through channel (WhatsApp, SMS, Email) if senderType is 'staff'
+    // This would call the appropriate integration service
+    if (senderType === 'staff') {
+      try {
+        // Queue message via the notification service for staff-sent messages
+        const { notificationService } = await import('@/lib/services/notification-service');
+        await notificationService.sendImmediate(
+          conversation.tenantId,
+          user.id,
+          'message_sent',
+          `Message sent in conversation`,
+          content.substring(0, 100), // Truncate for notification preview
+          {
+            category: 'info',
+            link: `/communication/${conversationId}`,
+            data: { conversationId, messageId: message.id },
+          }
+        );
+      } catch (notifyError) {
+        // Non-blocking: don't fail message creation if notification fails
+        console.error('[Communication] Failed to queue notification:', notifyError);
+      }
+
+      // TODO: WhatsApp/SMS specific integration
+      // If the conversation channel is WhatsApp or SMS, send via the corresponding adapter:
+      // - WhatsApp: use the WhatsApp Business API adapter
+      // - SMS: use the SMS gateway adapter (Twilio, MSG91, etc.)
+      if (conversation.channel === 'whatsapp') {
+        console.log(`[Communication] WhatsApp send not yet implemented for conversation ${conversationId}`);
+      } else if (conversation.channel === 'sms') {
+        console.log(`[Communication] SMS send not yet implemented for conversation ${conversationId}`);
       }
     }
 
