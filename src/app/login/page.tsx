@@ -515,18 +515,7 @@ export default function LoginPage() {
                         ? 'Enter your verification code'
                         : t('signInToYourAccountToContinue')}
                     </motion.p>
-                    {/* Premium trust badge */}
-                    <motion.div
-                      className="mt-3.5 pl-[18px]"
-                      initial={{ opacity: 0, y: 5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 22, delay: 0.12 }}
-                    >
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-950/30 border border-orange-200/60 dark:border-orange-800/30 text-[11px] font-semibold text-orange-700 dark:text-orange-300 tracking-wide">
-                        <Crown className="h-3 w-3" />
-                        Trusted by 2,500+ premium properties
-                      </span>
-                    </motion.div>
+
                   </div>
 
                   {/* Form */}
@@ -656,12 +645,7 @@ export default function LoginPage() {
                               {showPassword ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
                             </button>
                           </div>
-                          {showDemoCredentials && (
-                            <p className="mt-1.5 text-[11px] text-orange-600/40 dark:text-orange-400/40 font-medium pl-1 flex items-center gap-1">
-                              <Zap className="h-3 w-3 text-amber-500/60" />
-                              Use admin123 for quick demo access
-                            </p>
-                          )}
+
                         </motion.div>
 
                         {/* Remember me — refined */}
@@ -976,18 +960,6 @@ export default function LoginPage() {
                   </button>
                 </p>
               </motion.div>
-
-              {/* ── System Status indicator ── */}
-              <motion.div
-                className="flex items-center justify-end gap-1.5 mt-4 text-[11px] text-muted-foreground/40 font-medium"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.8, duration: 0.5 }}
-              >
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                <span>All systems operational</span>
-              </motion.div>
-
             </div>
           </div>
         </div>
