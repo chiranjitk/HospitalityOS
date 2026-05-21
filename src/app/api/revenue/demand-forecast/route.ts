@@ -273,7 +273,7 @@ export async function GET(request: NextRequest) {    const user = await getUserF
         endDate: { gte: startDate },
         status: { in: ['confirmed', 'active'] },
       },
-      select: { id: true, name: true, type: true, startDate: true, expectedAttendees: true },
+      select: { id: true, name: true, type: true, startDate: true, expectedAttendance: true },
     });
 
     const eventImpacts = dbEvents
@@ -282,9 +282,9 @@ export async function GET(request: NextRequest) {    const user = await getUserF
         name: e.name,
         type: e.type || 'event',
         date: format(new Date(e.startDate), 'yyyy-MM-dd'),
-        expectedImpact: Math.min(30, Math.round((e.expectedAttendees || 50) / totalRooms * 2)),
+        expectedImpact: Math.min(30, Math.round((e.expectedAttendance || 50) / totalRooms * 2)),
         confidence: 85,
-        radius: Math.ceil((e.expectedAttendees || 50) / totalRooms * 2),
+        radius: Math.ceil((e.expectedAttendance || 50) / totalRooms * 2),
       }))
       .sort((a, b) => a.expectedImpact - b.expectedImpact);
 

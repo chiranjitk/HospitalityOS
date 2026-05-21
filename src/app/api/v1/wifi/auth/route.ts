@@ -1009,7 +1009,7 @@ export async function POST(request: NextRequest) {
         }
 
         const bookings = await db.booking.findMany({
-          where: { room: { roomNumber: roomNumber.trim().toUpperCase() }, status: 'checked_in' },
+          where: { room: { number: roomNumber.trim().toUpperCase() }, status: 'checked_in' },
           include: { primaryGuest: true, room: true, roomType: { select: { wifiPlanId: true } } },
           take: 10,
         });
@@ -1200,7 +1200,7 @@ export async function POST(request: NextRequest) {
         }
 
         // ── No PMS user found — fallback: create room-{number} user ──
-        console.log(`[Room Auth] No PMS user found for booking ${match.id} / guest ${match.primaryGuestId} — falling back to room-${match.room?.roomNumber?.toLowerCase() || roomNumber.trim().toLowerCase()}`);
+        console.log(`[Room Auth] No PMS user found for booking ${match.id} / guest ${match.primaryGuestId} — falling back to room-${match.room?.number?.toLowerCase() || roomNumber.trim().toLowerCase()}`);
 
         const pool = await getValidatedPool(request, resolveAllowedPoolIds(roomPlanIpPoolId, undefined, !!roomPlanIpPoolId));
         if (!pool) {
@@ -1209,7 +1209,7 @@ export async function POST(request: NextRequest) {
         }
 
         const validUntil = new Date(now.getTime() + portalSessionTimeoutMin * 60 * 1000);
-        const wifiUsername = `room-${match.room?.roomNumber?.toLowerCase() || roomNumber.trim().toLowerCase()}`;
+        const wifiUsername = `room-${match.room?.number?.toLowerCase() || roomNumber.trim().toLowerCase()}`;
         const userPassword = `${match.primaryGuest.lastName.toLowerCase()}-${match.id.slice(0, 8)}`;
 
         // Resolve plan attrs for bandwidth, device limit and data cap

@@ -7,8 +7,13 @@ export async function GET(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
 
-    const settings = await db.tenantSettings.findFirst({ where: { tenantId: user.tenantId, key: 'receipt_template' } });
-    const data = settings ? JSON.parse(settings.value) : null;
+    const tenant = await db.tenant.findUnique({
+      where: { id: user.tenantId },
+      select: { settings: true },
+    });
+
+    const settings = tenant?.settings as Record<string, unknown> | null;
+    const data = settings?.receipt_template || null;
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
@@ -23,10 +28,13 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
 
     const body = await request.json();
-    await db.tenantSettings.upsert({
-      where: { tenantId_key: { tenantId: user.tenantId, key: 'receipt_template' } },
-      update: { value: JSON.stringify(body) },
-      create: { tenantId: user.tenantId, key: 'receipt_template', value: JSON.stringify(body) },
+
+    const tenant = await db.tenant.findUnique({ where: { id: user.tenantId }, select: { settings: true } });
+    const currentSettings = (tenant?.settings as Record<string, unknown>) || {};
+
+    await db.tenant.update({
+      where: { id: user.tenantId },
+      data: { settings: { ...currentSettings, receipt_template: body } },
     });
 
     return NextResponse.json({ success: true, data: body });
@@ -42,10 +50,13 @@ export async function PUT(request: NextRequest) {
     if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
 
     const body = await request.json();
-    await db.tenantSettings.upsert({
-      where: { tenantId_key: { tenantId: user.tenantId, key: 'receipt_template' } },
-      update: { value: JSON.stringify(body) },
-      create: { tenantId: user.tenantId, key: 'receipt_template', value: JSON.stringify(body) },
+
+    const tenant = await db.tenant.findUnique({ where: { id: user.tenantId }, select: { settings: true } });
+    const currentSettings = (tenant?.settings as Record<string, unknown>) || {};
+
+    await db.tenant.update({
+      where: { id: user.tenantId },
+      data: { settings: { ...currentSettings, receipt_template: body } },
     });
 
     return NextResponse.json({ success: true, data: body });

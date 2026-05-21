@@ -8,11 +8,14 @@ export async function GET(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
 
-    const settings = await db.tenantSettings.findMany({ where: { tenantId: user.tenantId, key: { startsWith: 'discount_rule_' } } });
-    const data = settings.map(s => JSON.parse(s.value));
+    const data = await db.discount.findMany({
+      where: { tenantId: user.tenantId, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
+    console.error('[Discounts GET]', error);
     return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR' } }, { status: 500 });
   }
 }
@@ -23,10 +26,28 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
 
     const body = await request.json();
-    const { name, type, value, startTime, endTime, days } = body;
+    const { name, type, value, code, minAmount, maxDiscount, applicableTo, validFrom, validUntil, maxUses } = body;
 
-    const discount = await db.tenantSettings.create({
-      data: { tenantId: user.tenantId, key: `discount_rule_${Date.now()}`, value: JSON.stringify({ name, type, value, startTime, endTime, days }) },
+    if (!name || !type || value === undefined) {
+      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'name, type, and value are required' } }, { status: 400 });
+    }
+
+    const discountCode = code || `DISC-${Date.now()}`;
+
+    const discount = await db.discount.create({
+      data: {
+        tenantId: user.tenantId,
+        name,
+        code: discountCode,
+        type,
+        value: parseFloat(String(value)),
+        minAmount: minAmount ? parseFloat(String(minAmount)) : 0,
+        maxDiscount: maxDiscount ? parseFloat(String(maxDiscount)) : null,
+        applicableTo: applicableTo || 'room',
+        validFrom: validFrom ? new Date(validFrom) : new Date(),
+        validUntil: validUntil ? new Date(validUntil) : null,
+        maxUses: maxUses ? parseInt(String(maxUses), 10) : null,
+      },
     });
 
     // Audit log
@@ -38,15 +59,16 @@ export async function POST(request: NextRequest) {
         action: 'create',
         entityType: 'discount',
         entityId: discount.id,
-        newValue: { name, type, value, startTime, endTime, days },
+        newValue: { name, type, value, code: discountCode },
         description: `Created discount: ${name}`,
       }, request);
     } catch (auditError) {
       console.error('Audit log failed for discount create:', auditError);
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, data: discount });
   } catch (error) {
+    console.error('[Discounts POST]', error);
     return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR' } }, { status: 500 });
   }
 }

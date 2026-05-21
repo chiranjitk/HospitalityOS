@@ -43,7 +43,7 @@ export async function GET(
         room: {
           select: {
             id: true,
-            roomNumber: true,
+            number: true,
             floor: true,
           },
         },
@@ -78,7 +78,7 @@ export async function GET(
         keySecret,
         maskedSecret,
         guestName: `${booking.primaryGuest.firstName} ${booking.primaryGuest.lastName}`,
-        roomNumber: booking.room?.roomNumber || 'N/A',
+        roomNumber: booking.room?.number || 'N/A',
         roomType: booking.roomType?.name || '',
         floor: booking.room?.floor || 0,
         hotelName: booking.property?.name || '',
