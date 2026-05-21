@@ -23,6 +23,7 @@ import { seedWiFiData } from './wifi-seed';
 import { seedSupplementData } from './seed-supplement';
 import { seedBillingData } from './seed-supplement-billing';
 import { seedExtrasData } from './seed-supplement-extras';
+import { seedPageData } from './seed-pages';
 
 const prisma = new PrismaClient();
 
@@ -34,11 +35,12 @@ async function seedHashPassword(password: string): Promise<string> {
 async function main() {
   console.log('Starting database seed...');
   
-  // ─── Clean seed data (safe deleteMany — never TRUNCATE CASCADE) ───
-  // TRUNCATE CASCADE destroys views, functions, and triggers.
-  // deleteMany is safe: it only removes data rows, never schema objects.
+  // ─── Clean seed data ───
   console.log('Cleaning core seed data...');
   try {
+    // Disable FK triggers temporarily for safe cleanup — avoids FK order issues
+    await prisma.$executeRawUnsafe('SET session_replication_role = replica;');
+    
     // Order matters: child tables first due to FK constraints
     // ─── Supplement tables cleanup (deepest children first) ───
     await prisma.casinoTransaction.deleteMany({});
@@ -151,6 +153,30 @@ async function main() {
     await prisma.cashFlowForecast.deleteMany({});
     await prisma.overbookingLog.deleteMany({});
     // ─── End supplement cleanup ───
+    // ─── Page data cleanup (seed-pages.ts) ───
+    await prisma.adPerformance.deleteMany({});
+    await prisma.mealPlanMapping.deleteMany({});
+    await prisma.inventoryTransferItem.deleteMany({});
+    await prisma.inventoryTransfer.deleteMany({});
+    await prisma.purchaseRequisitionItem.deleteMany({});
+    await prisma.purchaseRequisition.deleteMany({});
+    await prisma.devicePolicyAssignment.deleteMany({});
+    await prisma.devicePolicy.deleteMany({});
+    await prisma.deviceGroup.deleteMany({});
+    await prisma.bandwidthPolicyDetail.deleteMany({});
+    await prisma.bandwidthTopup.deleteMany({});
+    await prisma.kioskSettings.deleteMany({});
+    await prisma.registrationCard.deleteMany({});
+    await prisma.folioRoutingRule.deleteMany({});
+    await prisma.cityLedgerAccount.deleteMany({});
+    await prisma.maintenanceBlock.deleteMany({});
+    await prisma.lateCheckoutRequest.deleteMany({});
+    await prisma.earlyCheckoutRequest.deleteMany({});
+    await prisma.earlyCheckinRequest.deleteMany({});
+    await prisma.promotion.deleteMany({});
+    await prisma.campaignSegment.deleteMany({});
+    await prisma.leadActivity.deleteMany({});
+    // ─── End page data cleanup ───
     // Core tables cleanup
     await prisma.staffChatMessage.deleteMany({});
     await prisma.staffChannelMember.deleteMany({});
@@ -171,18 +197,25 @@ async function main() {
     await prisma.floorPlan.deleteMany({});
     await prisma.competitorPrice.deleteMany({});
     await prisma.cancellationPolicy.deleteMany({});
+    await prisma.cancellationPenalty.deleteMany({});
     await prisma.payment.deleteMany({});
     await prisma.invoice.deleteMany({});
+    await prisma.minibarConsumption.deleteMany({});
     await prisma.folioLineItem.deleteMany({});
     await prisma.scheduledCharge.deleteMany({});
     await prisma.folio.deleteMany({});
     await prisma.discount.deleteMany({});
+    // Booking child tables (all reference bookingId)
+    await prisma.commissionRecord.deleteMany({});
+    await prisma.laundryOrder.deleteMany({});
+    await prisma.guestStay.deleteMany({});
+    await prisma.bookingAuditLog.deleteMany({});
     await prisma.booking.deleteMany({});
     await prisma.ratePlan.deleteMany({});
-    await prisma.restaurantTable.deleteMany({});
-    await prisma.menuItem.deleteMany({});
     await prisma.orderItem.deleteMany({});
     await prisma.order.deleteMany({});
+    await prisma.restaurantTable.deleteMany({});
+    await prisma.menuItem.deleteMany({});
     await prisma.orderCategory.deleteMany({});
     await prisma.stockItem.deleteMany({});
     await prisma.vendor.deleteMany({});
@@ -238,8 +271,12 @@ async function main() {
     await prisma.subscriptionPlan.deleteMany({});
     await prisma.property.deleteMany({});
     await prisma.tenant.deleteMany({});
+    // Re-enable FK triggers
+    await prisma.$executeRawUnsafe('SET session_replication_role = DEFAULT;');
     console.log('Core seed data cleaned.');
   } catch (e: any) {
+    // Re-enable FK triggers on error
+    try { await prisma.$executeRawUnsafe('SET session_replication_role = DEFAULT;'); } catch {}
     console.log('Cleanup note:', e.message);
   }
   
@@ -4191,6 +4228,14 @@ async function main() {
     await seedExtrasData(prisma);
   } catch (e: any) {
     console.log('Extras seed error:', e.message);
+  }
+
+  // ─── Seed page data (Chat Messages, CRM, Housekeeping, etc.) ───
+  console.log('Seeding page data (Chat Messages, CRM, Housekeeping, Promotions)...');
+  try {
+    await seedPageData(prisma);
+  } catch (e: any) {
+    console.log('Page data seed error:', e.message);
   }
 
   console.log('\n✅ Database seed completed successfully!');
