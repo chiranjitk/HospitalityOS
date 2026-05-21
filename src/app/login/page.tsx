@@ -272,9 +272,9 @@ export default function LoginPage() {
   // Demo credentials are only available in development mode
   const showDemoCredentials = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production';
   const demoCredentials = showDemoCredentials ? [
-    { role: 'Admin', email: 'admin@royalstay.in', password: 'admin123', color: 'bg-gradient-to-br from-orange-600 to-amber-600', ring: 'ring-orange-500/30', icon: Shield, barColor: 'bg-orange-400' },
-    { role: 'Front Desk', email: 'frontdesk@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-amber-500 to-orange-500', ring: 'ring-amber-500/30', icon: ConciergeBell, barColor: "bg-amber-400" },
-    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-orange-500 to-amber-500', ring: 'ring-orange-500/30', icon: Bath, barColor: "bg-orange-400" },
+    { role: 'Admin', email: 'admin@royalstay.in', password: 'admin123', color: 'bg-gradient-to-br from-violet-500 to-purple-600', ring: 'ring-violet-500/30', icon: Shield, barColor: 'bg-violet-500', textColor: 'text-violet-700 dark:text-violet-300', borderColor: 'hover:border-violet-300/60 dark:hover:border-violet-700/40', bgColor: 'bg-violet-50/40 dark:bg-violet-950/20' },
+    { role: 'Front Desk', email: 'frontdesk@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-emerald-500 to-teal-600', ring: 'ring-emerald-500/30', icon: ConciergeBell, barColor: "bg-emerald-500", textColor: 'text-emerald-700 dark:text-emerald-300', borderColor: 'hover:border-emerald-300/60 dark:hover:border-emerald-700/40', bgColor: 'bg-emerald-50/40 dark:bg-emerald-950/20' },
+    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-orange-500 to-amber-500', ring: 'ring-orange-500/30', icon: Bath, barColor: "bg-orange-500", textColor: 'text-orange-700 dark:text-orange-300', borderColor: 'hover:border-orange-300/60 dark:hover:border-orange-700/40', bgColor: 'bg-orange-50/40 dark:bg-orange-950/20' },
   ] : [];
 
   return (
@@ -905,12 +905,12 @@ export default function LoginPage() {
                                 whileTap={{ scale: 0.99, y: 0 }}
                                 className={cn(
                                   "w-full flex items-center gap-3 p-3.5 rounded-xl border text-left",
-                                  "border-orange-100/50 dark:border-orange-900/30",
+                                  "border-border/60",
                                   "bg-white/30 dark:bg-[#1a1210]/30",
                                   "backdrop-blur-sm",
                                   "transition-all duration-300",
                                   "hover:bg-white/60 dark:hover:bg-[#1a1210]/60",
-                                  "hover:border-orange-200/60 dark:hover:border-orange-700/40",
+                                  cred.borderColor,
                                   "group",
                                   "relative overflow-hidden"
                                 )}
@@ -928,15 +928,15 @@ export default function LoginPage() {
                                   <CredIcon className="h-5 w-5 text-white" />
                                 </motion.div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="text-sm font-semibold text-foreground">{cred.role}</div>
+                                  <div className={cn("text-sm font-semibold", cred.textColor)}>{cred.role}</div>
                                   <div className="text-xs text-muted-foreground/40 truncate">{cred.email}</div>
                                 </div>
                                 <motion.div
-                                  className="h-6 w-6 rounded-lg flex items-center justify-center bg-orange-50/80 dark:bg-orange-950/30"
+                                  className={cn("h-6 w-6 rounded-lg flex items-center justify-center", cred.bgColor)}
                                   whileHover={{ x: 2 }}
                                   transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                                 >
-                                  <ChevronRight className="h-3 w-3 text-orange-400/50" />
+                                  <ChevronRight className={cn("h-3 w-3", cred.textColor, "opacity-50")} />
                                 </motion.div>
                               </motion.button>
                             );
