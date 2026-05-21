@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -77,6 +78,7 @@ export function ShiftSummaryWidget() {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showAllHighlights, setShowAllHighlights] = useState(false);
   const [liveStats, setLiveStats] = useState<LiveStats>({
     activeStaff: 0,
@@ -139,8 +141,8 @@ export function ShiftSummaryWidget() {
         { id: 'h4', type: 'info', message: t('checkOutsTodayCount', { count: newStats.checkOutsToday }), time: timeStr },
         { id: 'h5', type: 'success', message: t('occupancyChangeValue', { value: `${occupancyChange > 0 ? '+' : ''}${occupancyChange}%` }), time: timeStr },
       ]);
-    } catch {
-      // Keep existing stats on error
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('fetchError'));
     }
   }, [t]);
 
@@ -165,14 +167,48 @@ export function ShiftSummaryWidget() {
 
   if (isLoading) {
     return (
-      <Card className="border border-border/50 shadow-sm rounded-2xl">
+      <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+        <div className="h-[2px] bg-gradient-to-r from-amber-400 via-orange-400 to-emerald-400" />
         <CardContent className="p-5">
-          <div className="animate-pulse space-y-3">
-            <div className="h-5 w-32 bg-muted rounded" />
-            <div className="h-3 w-full bg-muted rounded" />
+          <div className="space-y-3">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-3 w-full" />
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[0,1,2,3].map(i => <div key={i} className="h-14 bg-muted rounded-lg" />)}
+              {[0,1,2,3].map(i => <Skeleton key={i} className="h-14 rounded-lg" />)}
             </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
+        <div className="h-[2px] bg-gradient-to-r from-amber-400 via-orange-400 to-emerald-400" />
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
+              <Coffee className="h-3.5 w-3.5 text-white" />
+            </div>
+            {getShiftName(t)}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col items-center justify-center py-6 gap-3">
+            <AlertTriangle className="h-8 w-8 text-amber-500" />
+            <p className="text-sm text-muted-foreground text-center">{error}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setError(null);
+                setIsLoading(true);
+                fetchLiveData().finally(() => setIsLoading(false));
+              }}
+            >
+              {tc('retry')}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -182,11 +218,14 @@ export function ShiftSummaryWidget() {
   const occupancyChange = getOccupancyChange();
 
   return (
-    <Card className="border border-border/50 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 rounded-2xl">
+    <Card className="border border-border/50 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 rounded-2xl overflow-hidden">
+      <div className="h-[2px] bg-gradient-to-r from-amber-400 via-orange-400 to-emerald-400" />
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Coffee className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
+              <Coffee className="h-3.5 w-3.5 text-white" />
+            </div>
             {getShiftName(t)}
           </CardTitle>
           <Badge variant="outline" className="text-xs rounded-full border-primary/40 text-primary bg-primary/10">

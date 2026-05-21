@@ -13,9 +13,9 @@ import {
   Plus,
   ListTodo,
   X,
-  Loader2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -178,12 +178,12 @@ export function TaskRemindersWidget() {
   return (
     <Card className="border border-border/50 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 rounded-2xl overflow-hidden">
       {/* Gradient accent bar */}
-      <div className="h-0.5 bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400" />
+      <div className="h-[2px] bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400" />
 
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <ListTodo className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm"><ListTodo className="h-3.5 w-3.5 text-white" /></div>
             Tasks &amp; Reminders
           </CardTitle>
           <div className="flex items-center gap-2">
@@ -212,9 +212,26 @@ export function TaskRemindersWidget() {
       <CardContent className="space-y-4">
         {/* Loading state */}
         {isLoading && (
-          <div className="flex items-center justify-center py-6 gap-2">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Loading tasks...</span>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-3 w-8" />
+              </div>
+              <Skeleton className="h-2 w-full rounded-full" />
+            </div>
+            <div className="space-y-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex items-center gap-3 p-2.5">
+                  <Skeleton className="h-4.5 w-4.5 rounded-full flex-shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-1/3" />
+                  </div>
+                  <Skeleton className="h-5 w-12 rounded-full" />
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

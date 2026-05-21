@@ -16,6 +16,7 @@ import {
   Target,
   Crown,
   Award,
+  AlertTriangle,
 } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 
@@ -110,8 +111,8 @@ function getTargetValue(metric: MetricKey, period: TimePeriod): number {
 
 function LoadingSkeleton() {
   return (
-    <Card className="border border-border/60 rounded-xl shadow-md overflow-hidden">
-      <div className="h-0.5 w-full bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500" />
+    <Card className="border border-border/60 rounded-2xl shadow-md overflow-hidden">
+      <div className="h-[2px] w-full bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500" />
       <CardHeader className="pb-3 px-4 sm:px-5 pt-4">
         <div className="flex items-center gap-2">
           <Skeleton className="h-7 w-7 rounded-lg" />
@@ -131,7 +132,7 @@ function LoadingSkeleton() {
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           {[1, 2, 3, 4].map(i => (
-            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+            <Skeleton key={i} className="h-16 w-full rounded-2xl" />
           ))}
         </div>
       </CardContent>
@@ -145,8 +146,8 @@ function LoadingSkeleton() {
 
 function EmptyState() {
   return (
-    <Card className="border border-border/60 rounded-xl shadow-md overflow-hidden">
-      <div className="h-0.5 w-full bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500" />
+    <Card className="border border-border/60 rounded-2xl shadow-md overflow-hidden">
+      <div className="h-[2px] w-full bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500" />
       <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
         <BarChart3 className="h-10 w-10 text-muted-foreground/40" />
         <p className="text-sm text-muted-foreground">No property performance data available.</p>
@@ -368,7 +369,7 @@ function SummaryItem({
 }) {
   return (
     <motion.div
-      className="flex items-center gap-2.5 p-2.5 rounded-xl bg-muted/30 border border-border/30"
+      className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-muted/30 border border-border/30"
       initial={{ opacity: 0, y: 8 }}
       animate={isVisible ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
       transition={{ delay, duration: 0.35, ease: 'easeOut' }}
@@ -484,8 +485,8 @@ export function PropertyPerformanceWidget() {
   if (loading) return <LoadingSkeleton />;
   if (error) {
     return (
-      <Card className="border border-border/60 rounded-xl shadow-md overflow-hidden">
-        <div className="h-0.5 w-full bg-gradient-to-r from-red-400 to-red-500" />
+      <Card className="border border-border/60 rounded-2xl shadow-md overflow-hidden">
+        <div className="h-[2px] w-full bg-gradient-to-r from-red-400 to-red-500" />
         <CardContent className="flex flex-col items-center justify-center py-12 gap-3">
           <AlertTriangle className="h-8 w-8 text-red-400" />
           <p className="text-sm text-muted-foreground">Failed to load property performance data.</p>
@@ -504,9 +505,9 @@ export function PropertyPerformanceWidget() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: 'easeOut' }}
     >
-      <Card className="border border-border/60 rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
+      <Card className="border border-border/60 rounded-2xl shadow-md overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
         {/* Top accent gradient bar */}
-        <div className="h-0.5 w-full bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500" />
+        <div className="h-[2px] w-full bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500" />
 
         <CardHeader className="pb-3 px-4 sm:px-5 pt-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
