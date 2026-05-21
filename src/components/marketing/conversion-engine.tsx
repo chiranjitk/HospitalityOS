@@ -1351,7 +1351,7 @@ export default function ConversionEngine() {
                 <div className="border rounded-xl p-6 bg-background space-y-4">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-8 h-8 rounded-full overflow-hidden">
-                      <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={32} height={32} className="object-contain w-full h-full" />
+                      <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={32} height={32} className="object-contain w-full h-full" loading="eager" />
                     </div>
                     <span className="font-bold text-lg">StaySuite</span>
                   </div>

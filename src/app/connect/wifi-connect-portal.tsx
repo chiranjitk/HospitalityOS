@@ -1888,7 +1888,7 @@ function SocialLinksBlock({ design }: { design: PortalDesignConfig }) {
 function PortalLogo({ design, size }: { design: PortalDesignConfig; size?: 'large' | 'medium' | 'small' }) {
   const dark = isDarkBackground(design);
   const sz = size || (design.logoSize as 'large' | 'medium' | 'small') || 'large';
-  const sizeClasses = sz === 'large' ? 'h-[72px] mb-4' : sz === 'medium' ? 'h-[56px]' : 'h-[40px]';
+  const sizeClasses = sz === 'large' ? 'h-[72px] w-auto mb-4' : sz === 'medium' ? 'h-[56px] w-auto' : 'h-[40px] w-auto';
   const containerClasses = sz === 'large' ? 'w-[72px] h-[72px] rounded-2xl mb-4' : sz === 'medium' ? 'w-[56px] h-[56px] rounded-xl' : 'w-[40px] h-[40px] rounded-xl';
   const iconSize = sz === 'large' ? 'w-8 h-8' : sz === 'medium' ? 'w-6 h-6' : 'w-5 h-5';
 
@@ -1908,6 +1908,7 @@ function PortalLogo({ design, size }: { design: PortalDesignConfig; size?: 'larg
       alt="Cryptsk"
       width={40}
       height={40}
+      loading="eager"
       className={cn('object-contain mx-auto drop-shadow-lg transition-transform duration-300 hover:scale-105', sizeClasses)}
     />
   );
