@@ -56,6 +56,11 @@
 --       Cryptsk-Rate-Limit, Cryptsk-Total-Limit, Cryptsk-Bandwidth-Max-Down/Up
 --   [16] v_session_history + v_active_sessions: added burst/ceil columns
 --       burstDownloadSpeed, burstUploadSpeed from WiFiPlan
+--   [17] WiFiPlanIPPool junction table for multi-pool plan mapping
+--       Many-to-many: a plan can have multiple IP pools
+--       fn_check_ip_pool updated: checks WiFiPlanIPPool before legacy ipPoolId
+--       fn_get_user_pool_info updated: returns all pools for a plan
+--       fn_get_pool_attr updated: prefers highest-priority pool from junction
 -- ============================================================================
 
 SET client_encoding = 'UTF8';
@@ -731,9 +736,9 @@ CREATE VIEW v_fup_switch_logs AS  SELECT fsl.id::text AS id,
 -- SECTION 5: Database Functions (8 functions)
 -- ============================================================================
 
--- fn_check_ip_pool
+-- fn_check_ip_pool (see after COMMIT for the function — it references WiFiPlanIPPool)
 
--- fn_get_user_pool_info
+-- fn_get_user_pool_info (multi-pool aware)
 CREATE OR REPLACE FUNCTION public.fn_get_user_pool_info(p_username text)
  RETURNS TABLE(pool_name text, pool_id uuid, is_override boolean, source text)
  LANGUAGE plpgsql
@@ -741,29 +746,62 @@ CREATE OR REPLACE FUNCTION public.fn_get_user_pool_info(p_username text)
 AS $function$
 DECLARE
     v_user_pool_id UUID;
-    v_plan_pool_id UUID;
+    v_plan_id UUID;
     v_plan_name TEXT;
+    v_mapped_count INT;
+    v_plan_pool_id UUID;
 BEGIN
-    SELECT wu."ipPoolId", wp."ipPoolId", wp.name
-    INTO v_user_pool_id, v_plan_pool_id, v_plan_name
-    FROM "WiFiUser" wu LEFT JOIN "WiFiPlan" wp ON wu."planId" = wp.id
+    SELECT wu."ipPoolId", wu."planId"
+    INTO v_user_pool_id, v_plan_id
+    FROM "WiFiUser" wu
     WHERE wu.username = p_username LIMIT 1;
+
+    IF v_plan_id IS NOT NULL THEN
+        SELECT wp."ipPoolId", wp.name INTO v_plan_pool_id, v_plan_name
+        FROM "WiFiPlan" wp WHERE wp.id = v_plan_id LIMIT 1;
+    END IF;
+
+    -- Priority 1: User override
     IF v_user_pool_id IS NOT NULL THEN
         RETURN QUERY SELECT ip.name, ip.id, true::boolean, 'User Override'::TEXT
         FROM "IpPool" ip WHERE ip.id = v_user_pool_id;
-    ELSIF v_plan_pool_id IS NOT NULL THEN
+        RETURN;
+    END IF;
+
+    -- No plan → return default pool
+    IF v_plan_id IS NULL THEN
+        RETURN QUERY SELECT ip.name, ip.id, false::boolean, 'Default Pool'::TEXT
+        FROM "IpPool" ip WHERE ip."isDefault" = true AND ip.enabled = true LIMIT 1;
+        RETURN;
+    END IF;
+
+    -- Priority 2: Multi-pool mappings
+    SELECT COUNT(*) INTO v_mapped_count FROM "WiFiPlanIPPool" WHERE "planId" = v_plan_id;
+    IF v_mapped_count > 0 THEN
+        RETURN QUERY
+        SELECT ip.name, ip.id, false::boolean, ('Plan: ' || v_plan_name || ' [multi-pool]')::TEXT
+        FROM "WiFiPlanIPPool" pp
+        JOIN "IpPool" ip ON ip.id = pp."poolId"
+        WHERE pp."planId" = v_plan_id
+        ORDER BY pp."priority" ASC, ip.name ASC;
+        RETURN;
+    END IF;
+
+    -- Priority 3: Legacy single pool
+    IF v_plan_pool_id IS NOT NULL THEN
         RETURN QUERY SELECT ip.name, ip.id, false::boolean, ('Plan: ' || v_plan_name)::TEXT
         FROM "IpPool" ip WHERE ip.id = v_plan_pool_id;
-    ELSE
-        RETURN QUERY SELECT ip.name, ip.id, false::boolean, 'Default Pool'::TEXT
-        FROM "IpPool" ip WHERE ip."isDefault" = true LIMIT 1;
+        RETURN;
     END IF;
-    RETURN;
+
+    -- Priority 4: Default pool
+    RETURN QUERY SELECT ip.name, ip.id, false::boolean, 'Default Pool'::TEXT
+    FROM "IpPool" ip WHERE ip."isDefault" = true AND ip.enabled = true LIMIT 1;
 END;
 $function$
 ;
 
--- fn_get_pool_attr
+-- fn_get_pool_attr (multi-pool aware)
 CREATE OR REPLACE FUNCTION public.fn_get_pool_attr(p_username text, p_attr text)
  RETURNS text
  LANGUAGE plpgsql
@@ -772,16 +810,39 @@ AS $function$
 DECLARE
     v_pool_id UUID;
     v_value TEXT;
+    v_plan_id UUID;
+    v_mapped_count INT;
 BEGIN
-    SELECT COALESCE(wu."ipPoolId", wp."ipPoolId")
-    INTO v_pool_id
-    FROM "WiFiUser" wu LEFT JOIN "WiFiPlan" wp ON wu."planId" = wp.id
+    -- User-level override first
+    SELECT wu."ipPoolId", wu."planId"
+    INTO v_pool_id, v_plan_id
+    FROM "WiFiUser" wu
     WHERE wu.username = p_username LIMIT 1;
+
+    IF v_pool_id IS NOT NULL THEN
+        NULL; -- use v_pool_id from user override
+    ELSIF v_plan_id IS NOT NULL THEN
+        -- Check multi-pool mappings first (highest priority pool)
+        SELECT COUNT(*) INTO v_mapped_count FROM "WiFiPlanIPPool" WHERE "planId" = v_plan_id;
+        IF v_mapped_count > 0 THEN
+            SELECT pp."poolId" INTO v_pool_id
+            FROM "WiFiPlanIPPool" pp
+            WHERE pp."planId" = v_plan_id
+            ORDER BY pp."priority" ASC LIMIT 1;
+        ELSE
+            -- Fall back to legacy single pool
+            SELECT wp."ipPoolId" INTO v_pool_id
+            FROM "WiFiPlan" wp WHERE wp.id = v_plan_id LIMIT 1;
+        END IF;
+    END IF;
+
     IF v_pool_id IS NULL THEN
         SELECT id INTO v_pool_id FROM "IpPool" WHERE "isDefault" = true AND enabled = true LIMIT 1;
     END IF;
     IF v_pool_id IS NULL THEN RETURN NULL; END IF;
-    IF p_attr = 'gateway' THEN
+    IF p_attr = 'pool_name' THEN
+        SELECT name INTO v_value FROM "IpPool" WHERE id = v_pool_id;
+    ELSIF p_attr = 'gateway' THEN
         SELECT host(gateway) INTO v_value FROM "IpPool" WHERE id = v_pool_id;
     END IF;
     RETURN v_value;
@@ -949,7 +1010,14 @@ END; $function$
 
 
 COMMIT;
--- fn_check_ip_pool (text, inet)
+-- fn_check_ip_pool (text, inet) — multi-pool aware
+-- Returns 1 = IP allowed, 0 = IP rejected
+-- Logic:
+--   1. User-level override pool → check only that pool
+--   2. Plan has mapped pools (WiFiPlanIPPool junction) → check those pools
+--   3. Plan has legacy ipPoolId (single pool FK) → check that pool
+--   4. Plan exists but NO pools mapped → check ALL enabled pools (any pool is OK)
+--   5. No plan at all → allow (no restriction)
 CREATE OR REPLACE FUNCTION public.fn_check_ip_pool(p_username text, p_ip inet)
  RETURNS integer
  LANGUAGE plpgsql
@@ -958,10 +1026,11 @@ AS $function$
 DECLARE
     v_user_pool_id UUID;
     v_plan_id UUID;
-    v_plan_pool_id UUID;
     v_in_pool BOOLEAN;
+    v_mapped_count INT;
+    v_plan_pool_id UUID;
 BEGIN
-    -- Resolve user's pool assignment and plan
+    -- Resolve user's pool override and plan
     SELECT wu."ipPoolId", wu."planId"
     INTO v_user_pool_id, v_plan_id
     FROM "WiFiUser" wu
@@ -977,12 +1046,25 @@ BEGIN
         IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
     END IF;
 
-    -- Priority 2: No plan at all → don't check, allow
+    -- Priority 2: No plan at all → allow
     IF v_plan_id IS NULL THEN
         RETURN 1;
     END IF;
 
-    -- Priority 3: Plan has a specific pool → check that pool only
+    -- Priority 3: Plan has multi-pool mappings (WiFiPlanIPPool junction table)
+    SELECT COUNT(*) INTO v_mapped_count
+    FROM "WiFiPlanIPPool" WHERE "planId" = v_plan_id;
+
+    IF v_mapped_count > 0 THEN
+        SELECT EXISTS (
+            SELECT 1 FROM "WiFiPlanIPPool" pp
+            JOIN "IpPoolRange" r ON r."poolId" = pp."poolId"
+            WHERE pp."planId" = v_plan_id AND p_ip >= r."startIp" AND p_ip <= r."endIp"
+        ) INTO v_in_pool;
+        IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
+    END IF;
+
+    -- Priority 4: Plan has legacy single ipPoolId
     SELECT wp."ipPoolId" INTO v_plan_pool_id
     FROM "WiFiPlan" wp WHERE wp.id = v_plan_id LIMIT 1;
 
@@ -994,9 +1076,14 @@ BEGIN
         IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
     END IF;
 
-    -- Priority 4: Plan exists but has NO pool (use default) → don't check IP binding
-    -- When plan is set to "none / use default pool", skip IP pool restriction entirely
-    RETURN 1;
+    -- Priority 5: Plan exists but has NO pools → check ALL enabled pools
+    -- IP must exist in at least one pool, otherwise reject
+    SELECT EXISTS (
+        SELECT 1 FROM "IpPoolRange" r
+        JOIN "IpPool" p ON p.id = r."poolId"
+        WHERE p.enabled = true AND p_ip >= r."startIp" AND p_ip <= r."endIp"
+    ) INTO v_in_pool;
+    IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
 END;
 $function$
 ;

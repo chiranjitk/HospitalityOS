@@ -891,6 +891,25 @@ post-auth {
                 &Pool-Name := "%{sql:SELECT fn_get_pool_attr('%{User-Name}', 'pool_name')}"
         }
 
+        #  StaySuite: IP Pool validation — reject if client IP not in assigned pool(s)
+        #  fn_check_ip_pool returns 1 (allowed) or 0 (rejected)
+        #  Multi-pool logic: checks WiFiPlanIPPool junction table first,
+        #  then legacy ipPoolId, then any enabled pool.
+        if ("%{sql:SELECT fn_check_ip_pool('%{User-Name}', '%{Framed-IP-Address}')}" == "0") {
+                update reply {
+                        Reply-Message := "IP address not in allowed pool"
+                }
+                reject
+        }
+
+        #  StaySuite: Push framed route for the user's pool gateway
+        #  Only set when a pool with gateway is found (gateway mode / MULTIMODE)
+        if ("%{sql:SELECT fn_get_pool_attr('%{User-Name}', 'gateway')}" != "") {
+                update reply {
+                        Framed-Route := "%{sql:SELECT fn_get_pool_attr('%{User-Name}', 'gateway')}"
+                }
+        }
+
         #  Cryptsk: Native FUP rate limit via PostgreSQL function
         #  Used in MULTIMODE when Cryptsk is the gateway (Vendor ID 64179)
         #  Cryptsk-Rate-Limit uses the same "D/U" format as MikroTik for compatibility

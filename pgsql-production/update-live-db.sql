@@ -23,6 +23,11 @@
 --   [8] v_session_history: updated with DeviceProfile LATERAL join + loginType
 --   [9] v_active_sessions: recreated to include new columns
 --   [10] RadPostAuth: added clientipaddress column if missing
+--   [11] WiFiPlanIPPool junction table for multi-pool plan mapping
+--   [12] fn_check_ip_pool updated: multi-pool aware (WiFiPlanIPPool → legacy ipPoolId → any pool)
+--   [13] fn_get_user_pool_info updated: returns all pools for a plan via junction table
+--   [14] fn_get_pool_attr updated: prefers highest-priority pool from junction
+--   [15] Migrate existing plan→pool assignments to WiFiPlanIPPool
 -- ============================================================================
 
 BEGIN;
@@ -576,6 +581,202 @@ SELECT pa.id::text AS id,
 COMMIT;
 
 -- ============================================================================
+-- [11] WiFiPlanIPPool junction table for multi-pool plan mapping
+-- ============================================================================
+-- Created by Prisma db push, but ensure it exists for manual deployments
+CREATE TABLE IF NOT EXISTS "WiFiPlanIPPool" (
+    "id"        UUID NOT NULL DEFAULT gen_random_uuid(),
+    "planId"    UUID NOT NULL,
+    "poolId"    UUID NOT NULL,
+    "priority"  INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT "WiFiPlanIPPool_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "WiFiPlanIPPool_planId_fkey" FOREIGN KEY ("planId") REFERENCES "WiFiPlan"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "WiFiPlanIPPool_poolId_fkey" FOREIGN KEY ("poolId") REFERENCES "IpPool"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "WiFiPlanIPPool_planId_poolId_key" UNIQUE ("planId", "poolId")
+);
+
+CREATE INDEX IF NOT EXISTS "WiFiPlanIPPool_planId_idx" ON "WiFiPlanIPPool"("planId");
+CREATE INDEX IF NOT EXISTS "WiFiPlanIPPool_poolId_idx" ON "WiFiPlanIPPool"("poolId");
+
+-- ============================================================================
+-- [12] fn_check_ip_pool — multi-pool aware
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.fn_check_ip_pool(p_username text, p_ip inet)
+ RETURNS integer
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+DECLARE
+    v_user_pool_id UUID;
+    v_plan_id UUID;
+    v_in_pool BOOLEAN;
+    v_mapped_count INT;
+    v_plan_pool_id UUID;
+BEGIN
+    SELECT wu."ipPoolId", wu."planId"
+    INTO v_user_pool_id, v_plan_id
+    FROM "WiFiUser" wu
+    WHERE wu.username = p_username AND wu.status = 'active'
+    LIMIT 1;
+
+    IF v_user_pool_id IS NOT NULL THEN
+        SELECT EXISTS (
+            SELECT 1 FROM "IpPoolRange"
+            WHERE "poolId" = v_user_pool_id AND p_ip >= "startIp" AND p_ip <= "endIp"
+        ) INTO v_in_pool;
+        IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
+    END IF;
+
+    IF v_plan_id IS NULL THEN RETURN 1; END IF;
+
+    SELECT COUNT(*) INTO v_mapped_count FROM "WiFiPlanIPPool" WHERE "planId" = v_plan_id;
+    IF v_mapped_count > 0 THEN
+        SELECT EXISTS (
+            SELECT 1 FROM "WiFiPlanIPPool" pp
+            JOIN "IpPoolRange" r ON r."poolId" = pp."poolId"
+            WHERE pp."planId" = v_plan_id AND p_ip >= r."startIp" AND p_ip <= r."endIp"
+        ) INTO v_in_pool;
+        IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
+    END IF;
+
+    SELECT wp."ipPoolId" INTO v_plan_pool_id FROM "WiFiPlan" wp WHERE wp.id = v_plan_id LIMIT 1;
+    IF v_plan_pool_id IS NOT NULL THEN
+        SELECT EXISTS (
+            SELECT 1 FROM "IpPoolRange"
+            WHERE "poolId" = v_plan_pool_id AND p_ip >= "startIp" AND p_ip <= "endIp"
+        ) INTO v_in_pool;
+        IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
+    END IF;
+
+    SELECT EXISTS (
+        SELECT 1 FROM "IpPoolRange" r
+        JOIN "IpPool" p ON p.id = r."poolId"
+        WHERE p.enabled = true AND p_ip >= r."startIp" AND p_ip <= r."endIp"
+    ) INTO v_in_pool;
+    IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
+END;
+$function$;
+
+-- ============================================================================
+-- [13] fn_get_user_pool_info — multi-pool aware
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.fn_get_user_pool_info(p_username text)
+ RETURNS TABLE(pool_name text, pool_id uuid, is_override boolean, source text)
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+DECLARE
+    v_user_pool_id UUID;
+    v_plan_id UUID;
+    v_plan_name TEXT;
+    v_mapped_count INT;
+    v_plan_pool_id UUID;
+BEGIN
+    SELECT wu."ipPoolId", wu."planId"
+    INTO v_user_pool_id, v_plan_id
+    FROM "WiFiUser" wu
+    WHERE wu.username = p_username LIMIT 1;
+
+    IF v_plan_id IS NOT NULL THEN
+        SELECT wp."ipPoolId", wp.name INTO v_plan_pool_id, v_plan_name
+        FROM "WiFiPlan" wp WHERE wp.id = v_plan_id LIMIT 1;
+    END IF;
+
+    IF v_user_pool_id IS NOT NULL THEN
+        RETURN QUERY SELECT ip.name, ip.id, true::boolean, 'User Override'::TEXT
+        FROM "IpPool" ip WHERE ip.id = v_user_pool_id;
+        RETURN;
+    END IF;
+
+    IF v_plan_id IS NULL THEN
+        RETURN QUERY SELECT ip.name, ip.id, false::boolean, 'Default Pool'::TEXT
+        FROM "IpPool" ip WHERE ip."isDefault" = true AND ip.enabled = true LIMIT 1;
+        RETURN;
+    END IF;
+
+    SELECT COUNT(*) INTO v_mapped_count FROM "WiFiPlanIPPool" WHERE "planId" = v_plan_id;
+    IF v_mapped_count > 0 THEN
+        RETURN QUERY
+        SELECT ip.name, ip.id, false::boolean, ('Plan: ' || v_plan_name || ' [multi-pool]')::TEXT
+        FROM "WiFiPlanIPPool" pp
+        JOIN "IpPool" ip ON ip.id = pp."poolId"
+        WHERE pp."planId" = v_plan_id
+        ORDER BY pp."priority" ASC, ip.name ASC;
+        RETURN;
+    END IF;
+
+    IF v_plan_pool_id IS NOT NULL THEN
+        RETURN QUERY SELECT ip.name, ip.id, false::boolean, ('Plan: ' || v_plan_name)::TEXT
+        FROM "IpPool" ip WHERE ip.id = v_plan_pool_id;
+        RETURN;
+    END IF;
+
+    RETURN QUERY SELECT ip.name, ip.id, false::boolean, 'Default Pool'::TEXT
+    FROM "IpPool" ip WHERE ip."isDefault" = true AND ip.enabled = true LIMIT 1;
+END;
+$function$;
+
+-- ============================================================================
+-- [14] fn_get_pool_attr — multi-pool aware
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.fn_get_pool_attr(p_username text, p_attr text)
+ RETURNS text
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+DECLARE
+    v_pool_id UUID;
+    v_value TEXT;
+    v_plan_id UUID;
+    v_mapped_count INT;
+BEGIN
+    SELECT wu."ipPoolId", wu."planId"
+    INTO v_pool_id, v_plan_id
+    FROM "WiFiUser" wu
+    WHERE wu.username = p_username LIMIT 1;
+
+    IF v_pool_id IS NOT NULL THEN
+        NULL;
+    ELSIF v_plan_id IS NOT NULL THEN
+        SELECT COUNT(*) INTO v_mapped_count FROM "WiFiPlanIPPool" WHERE "planId" = v_plan_id;
+        IF v_mapped_count > 0 THEN
+            SELECT pp."poolId" INTO v_pool_id
+            FROM "WiFiPlanIPPool" pp
+            WHERE pp."planId" = v_plan_id
+            ORDER BY pp."priority" ASC LIMIT 1;
+        ELSE
+            SELECT wp."ipPoolId" INTO v_pool_id
+            FROM "WiFiPlan" wp WHERE wp.id = v_plan_id LIMIT 1;
+        END IF;
+    END IF;
+
+    IF v_pool_id IS NULL THEN
+        SELECT id INTO v_pool_id FROM "IpPool" WHERE "isDefault" = true AND enabled = true LIMIT 1;
+    END IF;
+    IF v_pool_id IS NULL THEN RETURN NULL; END IF;
+    IF p_attr = 'pool_name' THEN
+        SELECT name INTO v_value FROM "IpPool" WHERE id = v_pool_id;
+    ELSIF p_attr = 'gateway' THEN
+        SELECT host(gateway) INTO v_value FROM "IpPool" WHERE id = v_pool_id;
+    END IF;
+    RETURN v_value;
+END;
+$function$;
+
+-- ============================================================================
+-- [15] Migrate existing plan→pool assignments to WiFiPlanIPPool
+-- ============================================================================
+INSERT INTO "WiFiPlanIPPool" ("id", "planId", "poolId", "priority", "createdAt")
+SELECT gen_random_uuid(), wp.id, wp."ipPoolId", 0, now()
+FROM "WiFiPlan" wp
+WHERE wp."ipPoolId" IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM "WiFiPlanIPPool" pp WHERE pp."planId" = wp.id AND pp."poolId" = wp."ipPoolId"
+  );
+
+-- ============================================================================
 -- Summary
 -- ============================================================================
 -- All updates applied successfully. Changes made:
@@ -589,5 +790,9 @@ COMMIT;
 --   [8]  v_session_history: DeviceProfile LATERAL join + loginType
 --   [9]  v_active_sessions: includes new DeviceProfile columns
 --   [10] radpostauth."clientipaddress" column (if missing)
---   [11] v_auth_logs: replyMessage priority fix + DISTINCT ON + LATERAL radusergroup
+--   [11] WiFiPlanIPPool junction table created (if not exists)
+--   [12] fn_check_ip_pool: multi-pool aware (WiFiPlanIPPool → legacy → any pool)
+--   [13] fn_get_user_pool_info: returns all pools for a plan
+--   [14] fn_get_pool_attr: prefers highest-priority pool from junction
+--   [15] Migrated existing plan→pool assignments to WiFiPlanIPPool
 -- ============================================================================

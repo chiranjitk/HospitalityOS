@@ -338,9 +338,10 @@ function getClientIpString(request: NextRequest): string {
  *
  * Priority:
  * 1. WiFiUser.ipPoolId — user-level override → restrict to that pool only
- * 2. WiFiPlan.ipPoolId — plan default → restrict to that pool only
- * 3. Plan exists but has NO pool → check ALL pools (any pool is OK)
- * 4. No plan at all → don't check, allow any IP
+ * 2. WiFiPlanIPPool junction — multi-pool mappings from plan → restrict to those pools
+ * 3. WiFiPlan.ipPoolId — legacy single pool → restrict to that pool only
+ * 4. Plan exists but has NO pool → check ALL pools (any pool is OK)
+ * 5. No plan at all → don't check, allow any IP
  *
  * Returns:
  *   - string[] — specific pool IDs the user is restricted to
@@ -351,9 +352,13 @@ function resolveAllowedPoolIds(
   planIpPoolId?: string | null,
   userIpPoolId?: string | null,
   hasPlan?: boolean,
+  planPoolIds?: string[],
 ): string[] | 'ANY' | null {
   // User-level override takes priority over plan-level
   if (userIpPoolId) return [userIpPoolId];
+  // Multi-pool mappings from WiFiPlanIPPool junction table
+  if (planPoolIds && planPoolIds.length > 0) return planPoolIds;
+  // Legacy single pool from WiFiPlan.ipPoolId
   if (planIpPoolId) return [planIpPoolId];
   // Plan exists but has no pool → check all pools
   if (hasPlan) return 'ANY';
@@ -775,6 +780,7 @@ export async function POST(request: NextRequest) {
     // Used by SMS OTP and Open Access where no existing user/plan is available.
     // Voucher and PMS Credentials resolve their own plan from user/voucher data.
     let portalPlanIpPoolId: string | null = null;
+    let portalPlanPoolIds: string[] = [];
     if (portal?.propertyId) {
       const aaaConfig = await db.wiFiAAAConfig.findUnique({
         where: { propertyId: portal.propertyId },
@@ -783,9 +789,10 @@ export async function POST(request: NextRequest) {
       if (aaaConfig?.defaultPlanId) {
         const portalPlan = await db.wiFiPlan.findUnique({
           where: { id: aaaConfig.defaultPlanId },
-          select: { ipPoolId: true },
+          select: { ipPoolId: true, planPools: { select: { poolId: true }, orderBy: { priority: 'asc' } } },
         });
         portalPlanIpPoolId = portalPlan?.ipPoolId ?? null;
+        portalPlanPoolIds = portalPlan?.planPools?.map((pp: any) => pp.poolId) || [];
       }
     }
 
@@ -839,7 +846,7 @@ export async function POST(request: NextRequest) {
 
         const voucher = await db.wiFiVoucher.findUnique({
           where: { code: voucherCode.trim().toUpperCase() },
-          include: { plan: true },
+          include: { plan: { include: { planPools: { select: { poolId: true }, orderBy: { priority: 'asc' } } } } },
         });
 
         if (!voucher) {
@@ -870,7 +877,8 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Credentials valid — now check IP pool ──
-        const allowedPools = resolveAllowedPoolIds(voucher.plan?.ipPoolId, undefined, !!voucher.plan);
+        const voucherPlanPoolIds = voucher.plan?.planPools?.map((pp: any) => pp.poolId) || [];
+        const allowedPools = resolveAllowedPoolIds(voucher.plan?.ipPoolId, undefined, !!voucher.plan, voucherPlanPoolIds);
         const pool = await getValidatedPool(request, allowedPools);
         if (!pool) {
           await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
@@ -1027,14 +1035,16 @@ export async function POST(request: NextRequest) {
         // Priority: roomType's WiFi plan → property's default AAA plan
         // This plan determines bandwidth, device limit, data cap, session timeout
         let roomPlanIpPoolId: string | null = null;
+        let roomPlanPoolIds: string[] = [];
         let roomPlanId: string | null = match.roomType?.wifiPlanId ?? null;
 
         if (roomPlanId) {
           const roomPlan = await db.wiFiPlan.findUnique({
             where: { id: roomPlanId },
-            select: { ipPoolId: true },
+            select: { ipPoolId: true, planPools: { select: { poolId: true }, orderBy: { priority: 'asc' } } },
           });
           roomPlanIpPoolId = roomPlan?.ipPoolId ?? null;
+          roomPlanPoolIds = roomPlan?.planPools?.map((pp: any) => pp.poolId) || [];
         } else {
           // No plan on room type — fall back to property's default AAA plan
           const aaaConfig = await db.wiFiAAAConfig.findUnique({
@@ -1045,9 +1055,10 @@ export async function POST(request: NextRequest) {
             roomPlanId = aaaConfig.defaultPlanId;
             const defaultPlan = await db.wiFiPlan.findUnique({
               where: { id: roomPlanId },
-              select: { ipPoolId: true },
+              select: { ipPoolId: true, planPools: { select: { poolId: true }, orderBy: { priority: 'asc' } } },
             });
             roomPlanIpPoolId = defaultPlan?.ipPoolId ?? null;
+            roomPlanPoolIds = defaultPlan?.planPools?.map((pp: any) => pp.poolId) || [];
           }
         }
 
@@ -1057,14 +1068,14 @@ export async function POST(request: NextRequest) {
         // Priority 1: Exact booking match (most precise — created at check-in)
         const existingByBooking = await db.wiFiUser.findFirst({
           where: { bookingId: match.id, status: { in: ['active', 'suspended'] } },
-          include: { plan: { select: { ipPoolId: true, maxDevices: true, validityMinutes: true, validityDays: true, downloadSpeed: true, uploadSpeed: true, name: true } } },
+          include: { plan: { select: { ipPoolId: true, maxDevices: true, validityMinutes: true, validityDays: true, downloadSpeed: true, uploadSpeed: true, name: true, planPools: { select: { poolId: true }, orderBy: { priority: 'asc' } } } } },
         });
 
         // Priority 2: Same guest, active user (covers cases where bookingId wasn't set)
         const existingByGuest = !existingByBooking
           ? await db.wiFiUser.findFirst({
               where: { guestId: match.primaryGuestId, status: 'active', propertyId: match.propertyId },
-              include: { plan: { select: { ipPoolId: true, maxDevices: true, validityMinutes: true, validityDays: true, downloadSpeed: true, uploadSpeed: true, name: true } } },
+              include: { plan: { select: { ipPoolId: true, maxDevices: true, validityMinutes: true, validityDays: true, downloadSpeed: true, uploadSpeed: true, name: true, planPools: { select: { poolId: true }, orderBy: { priority: 'asc' } } } } },
             })
           : null;
 
@@ -1086,7 +1097,8 @@ export async function POST(request: NextRequest) {
             return errorResponse('ACCOUNT_EXPIRED', 'Your WiFi session has expired. Please contact front desk to renew.');
           }
 
-          const allowedPools = resolveAllowedPoolIds(pmsUser.plan?.ipPoolId || roomPlanIpPoolId, pmsUser.ipPoolId, !!(pmsUser.plan?.ipPoolId || roomPlanIpPoolId));
+          const pmsPlanPoolIds = pmsUser.plan?.planPools?.map((pp: any) => pp.poolId) || [];
+          const allowedPools = resolveAllowedPoolIds(pmsUser.plan?.ipPoolId || roomPlanIpPoolId, pmsUser.ipPoolId, !!(pmsUser.plan?.ipPoolId || roomPlanIpPoolId), pmsPlanPoolIds);
           const pool = await getValidatedPool(request, allowedPools);
           if (!pool) {
             await logAuthAttempt(pmsUser.username, 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
@@ -1202,7 +1214,7 @@ export async function POST(request: NextRequest) {
         // ── No PMS user found — fallback: create room-{number} user ──
         console.log(`[Room Auth] No PMS user found for booking ${match.id} / guest ${match.primaryGuestId} — falling back to room-${match.room?.number?.toLowerCase() || roomNumber.trim().toLowerCase()}`);
 
-        const pool = await getValidatedPool(request, resolveAllowedPoolIds(roomPlanIpPoolId, undefined, !!roomPlanIpPoolId));
+        const pool = await getValidatedPool(request, resolveAllowedPoolIds(roomPlanIpPoolId, undefined, !!roomPlanIpPoolId, roomPlanPoolIds));
         if (!pool) {
           await logAuthAttempt(`room-${roomNumber.trim().toLowerCase()}`, 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
           return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
@@ -1322,7 +1334,7 @@ export async function POST(request: NextRequest) {
         const wifiUser = await db.wiFiUser.findUnique({
           where: { username: username.trim() },
           include: {
-            plan: { select: { ipPoolId: true, maxDevices: true, validityMinutes: true, downloadSpeed: true, uploadSpeed: true } },
+            plan: { select: { ipPoolId: true, maxDevices: true, validityMinutes: true, downloadSpeed: true, uploadSpeed: true, planPools: { select: { poolId: true }, orderBy: { priority: 'asc' } } } },
             ipPool: { select: { id: true } },
           },
         });
@@ -1349,7 +1361,8 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Credentials valid — now check IP pool ──
-        const allowedPools = resolveAllowedPoolIds(wifiUser.plan?.ipPoolId, wifiUser.ipPoolId, !!wifiUser.planId);
+        const wifiUserPlanPoolIds = wifiUser.plan?.planPools?.map((pp: any) => pp.poolId) || [];
+        const allowedPools = resolveAllowedPoolIds(wifiUser.plan?.ipPoolId, wifiUser.ipPoolId, !!wifiUser.planId, wifiUserPlanPoolIds);
         const pool = await getValidatedPool(request, allowedPools);
         if (!pool) {
           await logAuthAttempt(username.trim(), 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
@@ -1528,7 +1541,7 @@ export async function POST(request: NextRequest) {
           }
 
           // ── OTP verified — check IP pool ──
-          const smsPool = await getValidatedPool(request, resolveAllowedPoolIds(portalPlanIpPoolId, undefined, !!portalPlanIpPoolId));
+          const smsPool = await getValidatedPool(request, resolveAllowedPoolIds(portalPlanIpPoolId, undefined, !!portalPlanIpPoolId, portalPlanPoolIds));
           if (!smsPool) {
             await logAuthAttempt(`sms-${normalizedPhone.replace(/[^a-z0-9]/gi, '')}`, 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
             return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
@@ -1746,7 +1759,7 @@ export async function POST(request: NextRequest) {
       // ─── Open Access ──────────────────────────────────────
       // No credential validation needed — only IP pool check
       case 'open_access': {
-        const pool = await getValidatedPool(request, resolveAllowedPoolIds(portalPlanIpPoolId, undefined, !!portalPlanIpPoolId));
+        const pool = await getValidatedPool(request, resolveAllowedPoolIds(portalPlanIpPoolId, undefined, !!portalPlanIpPoolId, portalPlanPoolIds));
         if (!pool) {
           await logAuthAttempt('open-access', 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
           return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);

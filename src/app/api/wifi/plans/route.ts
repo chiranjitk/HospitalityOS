@@ -46,6 +46,14 @@ export async function GET(request: NextRequest) {
         ipPool: {
           select: { id: true, name: true },
         },
+        planPools: {
+          include: {
+            pool: {
+              select: { id: true, name: true },
+            },
+          },
+          orderBy: { priority: 'asc' },
+        },
       },
       orderBy: [
         { priority: 'desc' },
@@ -123,6 +131,7 @@ export async function POST(request: NextRequest) {
       maxDevices = 1,
       fupPolicyId,
       ipPoolId,
+      ipPoolIds,
       price = 0,
       currency = 'USD',
       priority = 0,
@@ -174,6 +183,14 @@ export async function POST(request: NextRequest) {
         maxDevices: parseInt(maxDevices, 10),
         ...(fupPolicyId && { fupPolicyId }),
         ...(ipPoolId && { ipPoolId }),
+        ...(ipPoolIds?.length && {
+          planPools: {
+            create: ipPoolIds.map((p: { poolId: string; priority?: number }, i: number) => ({
+              poolId: p.poolId,
+              priority: p.priority ?? i,
+            })),
+          },
+        }),
         price: parseFloat(price),
         currency,
         priority: parseInt(priority, 10),
@@ -182,6 +199,16 @@ export async function POST(request: NextRequest) {
         ...(sessionTimeoutSec !== undefined && { sessionTimeoutSec: parseInt(sessionTimeoutSec, 10) || null }),
         ...(idleTimeoutSec !== undefined && { idleTimeoutSec: parseInt(idleTimeoutSec, 10) || null }),
         status,
+      },
+      include: {
+        planPools: {
+          include: {
+            pool: {
+              select: { id: true, name: true },
+            },
+          },
+          orderBy: { priority: 'asc' },
+        },
       },
     });
 
@@ -276,6 +303,35 @@ export async function PUT(request: NextRequest) {
         ...(updateData.sessionTimeoutSec !== undefined && { sessionTimeoutSec: updateData.sessionTimeoutSec ? parseInt(updateData.sessionTimeoutSec, 10) : null }),
         ...(updateData.idleTimeoutSec !== undefined && { idleTimeoutSec: updateData.idleTimeoutSec ? parseInt(updateData.idleTimeoutSec, 10) : null }),
         ...(updateData.status && { status: updateData.status }),
+      },
+    });
+
+    // Update multi-pool mappings: delete all existing and recreate if provided
+    if (updateData.ipPoolIds !== undefined) {
+      await db.wiFiPlanIPPool.deleteMany({ where: { planId: id } });
+      if (updateData.ipPoolIds.length > 0) {
+        await db.wiFiPlanIPPool.createMany({
+          data: updateData.ipPoolIds.map((p: { poolId: string; priority?: number }, i: number) => ({
+            planId: id,
+            poolId: p.poolId,
+            priority: p.priority ?? i,
+          })),
+        });
+      }
+    }
+
+    // Reload plan with planPools included for response
+    const planWithPools = await db.wiFiPlan.findUnique({
+      where: { id },
+      include: {
+        planPools: {
+          include: {
+            pool: {
+              select: { id: true, name: true },
+            },
+          },
+          orderBy: { priority: 'asc' },
+        },
       },
     });
 
@@ -431,7 +487,7 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, data: plan });
+    return NextResponse.json({ success: true, data: planWithPools || plan });
   } catch (error) {
     console.error('Error updating WiFi plan:', error);
     return NextResponse.json(
