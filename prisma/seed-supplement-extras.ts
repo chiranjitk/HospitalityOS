@@ -328,34 +328,38 @@ export async function seedExtrasData(prisma: PrismaClient) {
   const subEntPlan = subPlans.find(p => p.name === 'enterprise') || subPlans[0];
   const subProPlan = subPlans.find(p => p.name === 'professional') || subPlans[1];
 
-  await prisma.subscription.createMany({
-    data: [
-      {
-        id: uuid('sub-1'),
-        tenantId,
-        planId: subEntPlan?.id || '',
-        planName: 'Enterprise Cloud',
-        billingCycle: 'monthly',
-        amount: 17999,
-        currency: 'INR',
-        status: 'active',
-        currentPeriodStart: daysAgo(15),
-        currentPeriodEnd: daysFromNow(15),
-      },
-      {
-        id: uuid('sub-2'),
-        tenantId,
-        planId: subProPlan?.id || '',
-        planName: 'Professional Cloud',
-        billingCycle: 'yearly',
-        amount: 99990,
-        currency: 'INR',
-        status: 'active',
-        currentPeriodStart: daysAgo(180),
-        currentPeriodEnd: daysFromNow(185),
-      },
-    ],
-  });
+  if (subEntPlan && subProPlan) {
+    await prisma.subscription.createMany({
+      data: [
+        {
+          id: uuid('sub-1'),
+          tenantId,
+          planId: subEntPlan.id,
+          planName: 'Enterprise Cloud',
+          billingCycle: 'monthly',
+          amount: 17999,
+          currency: 'INR',
+          status: 'active',
+          currentPeriodStart: daysAgo(15),
+          currentPeriodEnd: daysFromNow(15),
+        },
+        {
+          id: uuid('sub-2'),
+          tenantId,
+          planId: subProPlan.id,
+          planName: 'Professional Cloud',
+          billingCycle: 'yearly',
+          amount: 99990,
+          currency: 'INR',
+          status: 'active',
+          currentPeriodStart: daysAgo(180),
+          currentPeriodEnd: daysFromNow(185),
+        },
+      ],
+    });
+  } else {
+    console.warn('  ⚠️ Subscription plans not found, skipping subscriptions');
+  }
 
   await prisma.subscriptionInvoice.createMany({
     data: [
