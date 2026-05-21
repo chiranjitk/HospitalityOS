@@ -1305,8 +1305,12 @@ function PacketCaptureTool() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Tool 7: SPEED TEST — Live Ookla meter with animated SVG gauge
+// Tool 7: SPEED TEST — Browser-based real speed test with animated SVG gauge
 // ═══════════════════════════════════════════════════════════════════
+// Tests actual bandwidth between browser and server (gateway).
+// Download: fetches random data from /api/wifi/speedtest-probe
+// Upload: POSTs random data to /api/wifi/speedtest-probe
+// Ping: small XHR round-trip measurements
 
 const GAUGE_SCALES = [10, 25, 50, 100, 250, 500, 1000, 2000, 5000];
 
@@ -1462,6 +1466,9 @@ function SpeedGauge({
   );
 }
 
+/** AbortController ref to cancel the running test */
+const abortRef = { current: null as AbortController | null };
+
 function SpeedTestTool() {
   const { toast } = useToast();
 
@@ -1476,12 +1483,10 @@ function SpeedTestTool() {
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Refs
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const animRef = useRef<number | null>(null);
   const currentSpeedRef = useRef(0);
   const targetSpeedRef = useRef(0);
   const maxScaleRef = useRef(100);
-  const prevPhaseRef = useRef<string>('idle');
   const lastSpeedTimeRef = useRef<number>(Date.now());
   const isDecayingRef = useRef(false);
   const staleCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -1518,15 +1523,11 @@ function SpeedTestTool() {
       setIsTransitioning(false);
       return;
     }
-    // Reset decay state when new phase starts
-    if (phase !== prevPhaseRef.current) {
-      isDecayingRef.current = false;
-      setIsTransitioning(false);
-    }
+    isDecayingRef.current = false;
+    setIsTransitioning(false);
     staleCheckRef.current = setInterval(() => {
       const elapsed = Date.now() - lastSpeedTimeRef.current;
       if (elapsed > 1500 && !isDecayingRef.current && currentSpeedRef.current > 1) {
-        // Speed hasn't updated in 1.5s — phase is transitioning, start smooth decay
         isDecayingRef.current = true;
         targetSpeedRef.current = 0;
         setIsTransitioning(true);
@@ -1538,11 +1539,122 @@ function SpeedTestTool() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
       if (animRef.current) cancelAnimationFrame(animRef.current);
       if (staleCheckRef.current) clearInterval(staleCheckRef.current);
+      abortRef.current?.abort();
     };
   }, []);
+
+  // ── Helper: measure single ping ──
+  const measurePing = async (signal: AbortSignal): Promise<number> => {
+    const start = performance.now();
+    const res = await fetch('/api/wifi/speedtest-probe?action=ping', {
+      signal,
+      cache: 'no-store',
+    });
+    await res.text();
+    return performance.now() - start;
+  };
+
+  // ── Helper: run download test ──
+  const runDownloadTest = async (
+    signal: AbortSignal,
+    onSpeed: (mbps: number, prog: number) => void,
+  ): Promise<{ mbps: number; bytes: number; elapsed: number }> => {
+    // Progressive download: 100KB → 1MB → 5MB → 10MB → 25MB
+    const sizes = [100_000, 1_000_000, 5_000_000, 10_000_000, 25_000_000];
+    let totalBytes = 0;
+    const startTime = performance.now();
+    let peakSpeed = 0;
+
+    for (let i = 0; i < sizes.length; i++) {
+      const size = sizes[i];
+      const res = await fetch(`/api/wifi/speedtest-probe?action=download&bytes=${size}`, {
+        signal,
+        cache: 'no-store',
+      });
+
+      if (!res.ok || !res.body) throw new Error(`Download failed: ${res.status}`);
+
+      const reader = res.body.getReader();
+      let received = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value.byteLength;
+        totalBytes += value.byteLength;
+
+        const elapsed = (performance.now() - startTime) / 1000;
+        const speed = (totalBytes * 8) / (elapsed * 1_000_000);
+        if (speed > peakSpeed) peakSpeed = speed;
+
+        // Report speed periodically
+        if (totalBytes % 500_000 < value.byteLength) {
+          onSpeed(speed, (i + received / size) / sizes.length);
+        }
+      }
+
+      onSpeed(peakSpeed, (i + 1) / sizes.length);
+    }
+
+    const elapsed = (performance.now() - startTime) / 1000;
+    return {
+      mbps: parseFloat(peakSpeed.toFixed(2)),
+      bytes: totalBytes,
+      elapsed: parseFloat(elapsed.toFixed(1)),
+    };
+  };
+
+  // ── Helper: run upload test ──
+  const runUploadTest = async (
+    signal: AbortSignal,
+    onSpeed: (mbps: number, prog: number) => void,
+  ): Promise<{ mbps: number; bytes: number; elapsed: number }> => {
+    // Progressive upload: 100KB → 1MB → 5MB → 10MB → 25MB
+    const sizes = [100_000, 1_000_000, 5_000_000, 10_000_000, 25_000_000];
+    const chunk = new Uint8Array(256_000); // 256KB chunks
+    crypto.getRandomValues(chunk);
+
+    let totalBytes = 0;
+    const startTime = performance.now();
+    let peakSpeed = 0;
+
+    for (let i = 0; i < sizes.length; i++) {
+      const size = sizes[i];
+      let sent = 0;
+
+      while (sent < size) {
+        const blockSize = Math.min(chunk.length, size - sent);
+        const data = blockSize < chunk.length ? chunk.subarray(0, blockSize) : chunk;
+
+        const res = await fetch('/api/wifi/speedtest-probe?action=upload', {
+          method: 'POST',
+          body: data,
+          signal,
+        });
+
+        if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+        sent += blockSize;
+        totalBytes += blockSize;
+
+        const elapsed = (performance.now() - startTime) / 1000;
+        const speed = (totalBytes * 8) / (elapsed * 1_000_000);
+        if (speed > peakSpeed) peakSpeed = speed;
+
+        onSpeed(speed, (i + sent / size) / sizes.length);
+      }
+
+      onSpeed(peakSpeed, (i + 1) / sizes.length);
+    }
+
+    const elapsed = (performance.now() - startTime) / 1000;
+    return {
+      mbps: parseFloat(peakSpeed.toFixed(2)),
+      bytes: totalBytes,
+      elapsed: parseFloat(elapsed.toFixed(1)),
+    };
+  };
 
   const startTest = useCallback(async () => {
     // Reset state
@@ -1556,105 +1668,120 @@ function SpeedTestTool() {
     setPingData(null);
     setFinalResult(null);
     setErrorMsg(null);
-    prevPhaseRef.current = 'starting';
     lastSpeedTimeRef.current = Date.now();
     isDecayingRef.current = false;
 
+    // Cancel any previous test
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    const { signal } = ac;
+
     try {
-      const res = await fetch('/api/wifi/diagnostics?action=speed-test');
-      const json = await res.json();
-      if (!json.success) {
-        setPhase('error');
-        setErrorMsg(json.error || 'Failed to start speed test');
-        toast({ title: 'Speed Test Failed', description: json.error, variant: 'destructive' });
-        return;
+      // ── Phase 1: Ping Test (10 samples) ──
+      setPhase('ping');
+      const pings: number[] = [];
+      for (let i = 0; i < 10; i++) {
+        if (signal.aborted) return;
+        const ms = await measurePing(signal);
+        pings.push(ms);
+        const avg = pings.reduce((a, b) => a + b, 0) / pings.length;
+        setProgress((i + 1) / 10);
+        setPingData({
+          latency: avg,
+          jitter: pings.length > 1
+            ? pings.slice(1).reduce((sum, v, idx) => sum + Math.abs(v - pings[idx]), 0) / (pings.length - 1)
+            : 0,
+        });
       }
-      const testId = json.data?.testId;
-      if (!testId) {
-        setPhase('error');
-        setErrorMsg('No test ID returned');
-        return;
-      }
 
-      // Poll for live progress every 300ms
-      pollRef.current = setInterval(async () => {
-        try {
-          const pr = await fetch(`/api/wifi/diagnostics?action=speed-test-status&testId=${testId}`);
-          const pj = await pr.json();
-          const d = pj.data;
-          if (!d) return;
+      const pingResult = {
+        latency: parseFloat((pings.reduce((a, b) => a + b, 0) / pings.length).toFixed(1)),
+        jitter: parseFloat(pings.slice(1).reduce((sum, v, idx) => sum + Math.abs(v - pings[idx]), 0) / (pings.length - 1).toFixed(1)),
+      };
 
-          const newPhase = d.phase as string;
-          setPhase(newPhase);
-          setProgress(d.progress ?? 0);
+      if (signal.aborted) return;
 
-          // Handle download → upload transition (reset gauge)
-          if (newPhase !== prevPhaseRef.current) {
-            if (newPhase === 'upload' && prevPhaseRef.current === 'download') {
-              targetSpeedRef.current = 0;
-              currentSpeedRef.current = 0;
-              setDisplaySpeed(0);
-            }
-            prevPhaseRef.current = newPhase;
-          }
+      // ── Phase 2: Download Test ──
+      setPhase('download');
+      targetSpeedRef.current = 0;
+      currentSpeedRef.current = 0;
+      lastSpeedTimeRef.current = Date.now();
 
-          if (d.ping) setPingData(d.ping);
-          if (d.download) {
-            const dl = d.download as { currentSpeed: number };
-            const spd = dl.currentSpeed || 0;
-            if (spd > 0) {
-              targetSpeedRef.current = spd;
-              lastSpeedTimeRef.current = Date.now();
-              isDecayingRef.current = false;
-              setIsTransitioning(false);
-              const newMax = getAutoScale(spd, maxScaleRef.current);
-              if (newMax !== maxScaleRef.current) {
-                maxScaleRef.current = newMax;
-                setMaxScale(newMax);
-              }
-            }
+      const dlResult = await runDownloadTest(signal, (mbps, prog) => {
+        if (mbps > 0) {
+          targetSpeedRef.current = mbps;
+          lastSpeedTimeRef.current = Date.now();
+          isDecayingRef.current = false;
+          setIsTransitioning(false);
+          const newMax = getAutoScale(mbps, maxScaleRef.current);
+          if (newMax !== maxScaleRef.current) {
+            maxScaleRef.current = newMax;
+            setMaxScale(newMax);
           }
-          if (d.upload) {
-            const ul = d.upload as { currentSpeed: number };
-            const spd = ul.currentSpeed || 0;
-            if (spd > 0) {
-              targetSpeedRef.current = spd;
-              lastSpeedTimeRef.current = Date.now();
-              isDecayingRef.current = false;
-              setIsTransitioning(false);
-            }
-          }
-          if (d.result) {
-            setFinalResult(d.result as Record<string, unknown>);
-            const dlRes = (d.result as Record<string, unknown>).download as Record<string, unknown> | undefined;
-            const ulRes = (d.result as Record<string, unknown>).upload as Record<string, unknown> | undefined;
-            if (dlRes) targetSpeedRef.current = Number(dlRes.megabitsPerSecond || dlRes.currentSpeed || 0);
-            else if (ulRes) targetSpeedRef.current = Number(ulRes.megabitsPerSecond || ulRes.currentSpeed || 0);
-          }
-          if (d.error) setErrorMsg(String(d.error));
+        }
+        setProgress(prog);
+      });
 
-          if (newPhase === 'complete') {
-            if (pollRef.current) clearInterval(pollRef.current);
-            const fr = d.result as Record<string, unknown> | undefined;
-            const dl2 = fr?.download as Record<string, unknown> | undefined;
-            const ul2 = fr?.upload as Record<string, unknown> | undefined;
-            const pg2 = fr?.ping as Record<string, unknown> | undefined;
-            const parts: string[] = [];
-            if (dl2) parts.push(`↓ ${dl2.megabitsPerSecond} Mbps`);
-            if (ul2) parts.push(`↑ ${ul2.megabitsPerSecond} Mbps`);
-            if (pg2) parts.push(`⚡ ${pg2.latency} ms`);
-            toast({ title: 'Speed Test Complete', description: parts.join(' | ') });
-          }
-          if (newPhase === 'error') {
-            if (pollRef.current) clearInterval(pollRef.current);
-            toast({ title: 'Speed Test Failed', description: String(d.error || 'Unknown error'), variant: 'destructive' });
-          }
-        } catch { /* ignore poll errors */ }
-      }, 300);
-    } catch {
+      if (signal.aborted) return;
+
+      // Transition: decay gauge to zero
+      targetSpeedRef.current = 0;
+      setIsTransitioning(true);
+      await new Promise(r => setTimeout(r, 600));
+      if (signal.aborted) return;
+
+      // ── Phase 3: Upload Test ──
+      setPhase('upload');
+      targetSpeedRef.current = 0;
+      currentSpeedRef.current = 0;
+      lastSpeedTimeRef.current = Date.now();
+      setIsTransitioning(false);
+      setProgress(0);
+
+      const ulResult = await runUploadTest(signal, (mbps, prog) => {
+        if (mbps > 0) {
+          targetSpeedRef.current = mbps;
+          lastSpeedTimeRef.current = Date.now();
+          isDecayingRef.current = false;
+          setIsTransitioning(false);
+        }
+        setProgress(prog);
+      });
+
+      if (signal.aborted) return;
+
+      // ── Complete ──
+      setPhase('complete');
+      setProgress(1);
+      targetSpeedRef.current = dlResult.mbps; // Show download as final
+
+      const result = {
+        download: {
+          megabitsPerSecond: dlResult.mbps,
+          totalMB: parseFloat((dlResult.bytes / 1_048_576).toFixed(2)),
+          elapsed: dlResult.elapsed,
+        },
+        upload: {
+          megabitsPerSecond: ulResult.mbps,
+          totalMB: parseFloat((ulResult.bytes / 1_048_576).toFixed(2)),
+          elapsed: ulResult.elapsed,
+        },
+        ping: pingResult,
+        server: { name: 'Local Gateway', location: window.location.hostname },
+      };
+      setFinalResult(result);
+
+      toast({
+        title: 'Speed Test Complete',
+        description: `↓ ${dlResult.mbps} Mbps | ↑ ${ulResult.mbps} Mbps | ⚡ ${pingResult.latency} ms`,
+      });
+    } catch (err: unknown) {
+      if (signal.aborted) return;
       setPhase('error');
-      setErrorMsg('Network error');
-      toast({ title: 'Error', description: 'Failed to start speed test', variant: 'destructive' });
+      const msg = err instanceof Error ? err.message : 'Speed test failed';
+      setErrorMsg(msg);
+      toast({ title: 'Speed Test Failed', description: msg, variant: 'destructive' });
     }
   }, [toast]);
 
@@ -1675,9 +1802,6 @@ function SpeedTestTool() {
   const upload = finalResult?.upload as Record<string, unknown> | null;
   const ping = finalResult?.ping as Record<string, unknown> | null;
   const server = finalResult?.server as Record<string, unknown> | null;
-  const isp = finalResult?.isp as string | null;
-  const packetLoss = finalResult?.packetLoss as number | null;
-  const netIface = finalResult?.interface as Record<string, unknown> | null;
   const dlMbps = download ? Number(download.megabitsPerSecond ?? 0) : 0;
   const ulMbps = upload ? Number(upload.megabitsPerSecond ?? 0) : 0;
   const pingLat = ping ? Number(ping.latency ?? 0) : 0;
@@ -1686,11 +1810,11 @@ function SpeedTestTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Gauge} title="Speed Test" description="Real Ookla-powered bandwidth test with live speed meter" gradient="from-orange-500 to-red-500" />
+        <ToolHeader icon={Gauge} title="Speed Test" description="Real-time bandwidth test — measures browser ↔ gateway speed" gradient="from-orange-500 to-red-500" />
 
         <div className="flex items-center gap-3">
           <RunButton loading={isRunning} onClick={startTest} label={isRunning ? 'Testing...' : 'Start Speed Test'} disabled={isRunning} />
-          {isComplete && <Badge variant="outline" className="text-[10px] ml-1">Powered by Ookla</Badge>}
+          {isComplete && <Badge variant="outline" className="text-[10px] ml-1">Browser-Based Test</Badge>}
         </div>
 
         {errorMsg && <ErrorBox message={errorMsg} />}
@@ -1711,10 +1835,10 @@ function SpeedTestTool() {
                 variant="outline"
                 className={cn(
                   'text-xs transition-colors',
-                  phase === 'download' && !isTransitioning && 'border-primary/50 text-primary',
+                  phase === 'download' && !isTransitioning && 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400',
                   phase === 'upload' && !isTransitioning && 'border-orange-500/50 text-orange-600 dark:text-orange-400',
                   phase === 'ping' && 'border-cyan-500/50 text-cyan-600 dark:text-cyan-400',
-                  phase === 'complete' && 'border-primary/50 text-primary',
+                  phase === 'complete' && 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400',
                   isTransitioning && 'border-amber-500/50 text-amber-600 dark:text-amber-400',
                 )}
               >
@@ -1748,13 +1872,13 @@ function SpeedTestTool() {
           <div className="mt-6 space-y-5">
             {/* 3-card metrics */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="rounded-xl border bg-primary/5 dark:bg-primary/5 p-5 text-center">
+              <div className="rounded-xl border bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 p-5 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  <Download className="h-4 w-4 text-primary" />
+                  <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Download</span>
                 </div>
                 <div className="flex items-end justify-center gap-1">
-                  <span className="text-3xl font-bold tabular-nums text-primary">{dlMbps.toFixed(2)}</span>
+                  <span className="text-3xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{dlMbps.toFixed(2)}</span>
                   <span className="text-sm text-muted-foreground mb-0.5">Mbps</span>
                 </div>
                 {download && (
@@ -1793,37 +1917,20 @@ function SpeedTestTool() {
               </div>
             </div>
 
-            {/* Server & ISP */}
-            {(server || isp || netIface || packetLoss !== null) && (
+            {/* Server info */}
+            {server && (
               <div className="rounded-xl border bg-muted/30 p-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                  {isp && (
-                    <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">ISP</p>
-                      <p className="text-xs font-medium mt-1 truncate">{isp}</p>
-                    </div>
-                  )}
-                  {server && (
-                    <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Server</p>
-                      <p className="text-xs font-medium mt-1 truncate">{String(server.name)}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">{String(server.location)}{server.country ? `, ${String(server.country)}` : ''}</p>
-                    </div>
-                  )}
-                  {netIface?.externalIp && (
-                    <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">External IP</p>
-                      <p className="text-xs font-mono mt-1">{String(netIface.externalIp)}</p>
-                    </div>
-                  )}
-                  {packetLoss !== null && packetLoss !== undefined && (
-                    <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Packet Loss</p>
-                      <p className={cn('text-xs font-medium mt-1', packetLoss === 0 ? 'text-primary' : 'text-red-600 dark:text-red-400')}>
-                        {packetLoss.toFixed(1)}%
-                      </p>
-                    </div>
-                  )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Test Server</p>
+                    <p className="text-xs font-medium mt-1 truncate">{String(server.name)}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{String(server.location)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Test Type</p>
+                    <p className="text-xs font-medium mt-1">Browser ↔ Gateway</p>
+                    <p className="text-[10px] text-muted-foreground">Measures actual guest WiFi bandwidth</p>
+                  </div>
                 </div>
               </div>
             )}
