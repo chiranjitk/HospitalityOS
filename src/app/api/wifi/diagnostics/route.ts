@@ -445,7 +445,7 @@ async function handlePacketCapture(
     const pcapPath = path.join(/*turbopackIgnore: true*/ CAPTURE_DIR, `${captureId}.pcap`);
     const pcapArgs = ['-i', iface, '-c', String(count), '-w', pcapPath];
     if (filter) pcapArgs.push(filter);
-    const pcapResult = await execSafe('tcpdump', pcapArgs, (durationSec + 5) * 1000);
+    await execSafe('tcpdump', pcapArgs, (durationSec + 5) * 1000);
     try {
       const st = fs.statSync(/*turbopackIgnore: true*/ pcapPath);
       pcapSaved = st.size > 0;
@@ -615,8 +615,8 @@ async function handleInterfaceStats() {
       const parts = lines[i].trim().split(/\s+/);
       if (parts.length < 17) continue;
       const name = parts[0].replace(':', '');
-      // Skip loopback header
-      if (name === 'lo' && name === 'Inter-|' && name === 'face') continue;
+      // Skip loopback and header lines
+      if (name === 'lo' || name.startsWith('Inter-')) continue;
       interfaces.push({
         name,
         rxBytes: parseInt(parts[1]) || 0,
