@@ -19,7 +19,6 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Table,
@@ -56,9 +55,9 @@ import {
   Search,
   Shield,
   Terminal,
-  Upload,
   XCircle,
   Zap,
+  ExternalLink,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
@@ -1305,637 +1304,193 @@ function PacketCaptureTool() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Tool 7: SPEED TEST — Browser-based real speed test with animated SVG gauge
+// Tool 7: SPEED TEST — Real speed test website embed
 // ═══════════════════════════════════════════════════════════════════
-// Tests actual bandwidth between browser and server (gateway).
-// Download: fetches random data from /api/wifi/speedtest-probe
-// Upload: POSTs random data to /api/wifi/speedtest-probe
-// Ping: small XHR round-trip measurements
+// Embeds popular real-world speed test services (LibreSpeed, Fast.com,
+// Speedtest.net, Cloudflare) via iframe with graceful fallback.
 
-const GAUGE_SCALES = [10, 25, 50, 100, 250, 500, 1000, 2000, 5000];
+const SPEED_TEST_SOURCES = [
+  {
+    id: 'librespeed',
+    name: 'LibreSpeed',
+    description: 'Open source speed test — lightweight, no ads, privacy-focused',
+    url: 'https://speed.librespeed.org/',
+    icon: Gauge,
+    gradient: 'from-teal-500 to-emerald-600',
+  },
+  {
+    id: 'fast',
+    name: 'Fast.com',
+    description: 'Netflix internet speed test — measures download speed',
+    url: 'https://fast.com/',
+    icon: Activity,
+    gradient: 'from-red-500 to-rose-600',
+  },
+  {
+    id: 'speedtest',
+    name: 'Speedtest.net',
+    description: 'Ookla speed test — comprehensive upload, download & ping',
+    url: 'https://www.speedtest.net/',
+    icon: Zap,
+    gradient: 'from-sky-500 to-indigo-600',
+  },
+  {
+    id: 'cloudflare',
+    name: 'Cloudflare',
+    description: 'Cloudflare network speed & latency test',
+    url: 'https://speed.cloudflare.com/',
+    icon: Globe,
+    gradient: 'from-orange-500 to-amber-600',
+  },
+] as const;
 
-function getAutoScale(speed: number, current: number): number {
-  if (speed > current * 0.8) {
-    for (const s of GAUGE_SCALES) {
-      if (s > speed * 1.3) return s;
-    }
-    return 5000;
-  }
-  return current;
-}
-
-function getScaleSteps(max: number): number[] {
-  const nice = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000];
-  let interval = 1;
-  for (const s of nice) {
-    if (max / s <= 6) { interval = s; break; }
-  }
-  const marks: number[] = [];
-  for (let i = 0; i <= max + 0.001; i += interval) {
-    marks.push(Math.min(Math.round(i), max));
-  }
-  if (marks[marks.length - 1] < max) marks.push(max);
-  return marks;
-}
-
-function SpeedGauge({
-  speed,
-  maxScale,
-  phase,
-  pingMs,
-}: {
-  speed: number;
-  maxScale: number;
-  phase: string;
-  pingMs?: number | null;
-}) {
-  const CX = 150;
-  const CY = 150;
-  const R = 108;
-  const STROKE = 8;
-  const CIRC = 2 * Math.PI * R;
-  const ARC = Math.PI * R;
-
-  const ratio = Math.min(Math.max(speed, 0) / maxScale, 1);
-  const offset = ARC * (1 - ratio);
-
-  const phaseColor: Record<string, string> = {
-    starting: 'rgb(148 163 184)',
-    ping: 'rgb(6 182 212)',
-    download: 'rgb(20 184 166)',
-    upload: 'rgb(249 115 22)',
-    complete: 'rgb(16 185 129)',
-    error: 'rgb(239 68 68)',
-  };
-  const color = phaseColor[phase] || phaseColor.starting;
-
-  const steps = getScaleSteps(maxScale);
-  const pos = (t: number, r = R) => {
-    const a = Math.PI * (1 - t);
-    return { x: CX + r * Math.cos(a), y: CY - r * Math.sin(a) };
-  };
-
-  const isPing = phase === 'ping';
-  const centerNum = isPing ? (pingMs != null ? pingMs.toFixed(1) : '...') : speed.toFixed(2);
-  const centerUnit = isPing ? 'ms' : 'Mbps';
-
-  return (
-    <svg viewBox="0 0 300 200" className="w-full max-w-xs mx-auto" aria-label="Speed gauge">
-      <defs>
-        <filter id="g-glow">
-          <feGaussianBlur stdDeviation="4" result="b" />
-          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
-        <linearGradient id={`grad-${phase}`} x1="0%" y1="0%" x2="100%" y2="0%">
-          {phase === 'download' && (
-            <>
-              <stop offset="0%" stopColor="rgb(20 184 166)" />
-              <stop offset="100%" stopColor="rgb(16 185 129)" />
-            </>
-          )}
-          {phase === 'upload' && (
-            <>
-              <stop offset="0%" stopColor="rgb(249 115 22)" />
-              <stop offset="100%" stopColor="rgb(239 68 68)" />
-            </>
-          )}
-          {phase !== 'download' && phase !== 'upload' && (
-            <stop offset="0%" stopColor={color} />
-          )}
-        </linearGradient>
-      </defs>
-
-      {/* Background arc */}
-      <circle
-        cx={CX} cy={CY} r={R} fill="none"
-        stroke="rgb(148 163 184)" strokeWidth={STROKE}
-        strokeDasharray={`${ARC} ${CIRC}`}
-        strokeLinecap="round"
-        transform={`rotate(180 ${CX} ${CY})`}
-        opacity={0.15}
-      />
-
-      {/* Minor ticks */}
-      {Array.from({ length: 21 }, (_, idx) => idx / 20).map((t, idx) => {
-        const o = pos(t, R + 3);
-        const inner = pos(t, R - 4);
-        return (
-          <line key={`m${idx}`} x1={inner.x} y1={inner.y} x2={o.x} y2={o.y}
-            stroke="rgb(148 163 184)" strokeWidth={1} opacity={0.25} />
-        );
-      })}
-
-      {/* Active arc with glow */}
-      {ratio > 0.005 && (
-        <circle
-          cx={CX} cy={CY} r={R} fill="none"
-          stroke={`url(#grad-${phase})`} strokeWidth={STROKE}
-          strokeDasharray={`${ARC} ${CIRC}`}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          transform={`rotate(180 ${CX} ${CY})`}
-          filter="url(#g-glow)"
-          style={{ transition: 'stroke-dashoffset 0.35s ease-out' }}
-        />
-      )}
-
-      {/* Scale labels */}
-      {steps.map((v, i) => {
-        const t = v / maxScale;
-        const p = pos(t, R + 18);
-        return (
-          <text key={`l${i}`} x={p.x} y={p.y + 3} textAnchor="middle"
-            fill="rgb(100 116 139)" fontSize={9} fontFamily="ui-monospace,monospace">
-            {v}
-          </text>
-        );
-      })}
-
-      {/* Center speed number */}
-      <text x={CX} y={CY - 42} textAnchor="middle"
-        fill="currentColor" fontSize={38} fontWeight="700"
-        fontFamily="ui-monospace,monospace"
-        style={{ transition: 'all 0.15s ease-out' }}>
-        {centerNum}
-      </text>
-      <text x={CX} y={CY - 18} textAnchor="middle"
-        fill="rgb(100 116 139)" fontSize={13} fontWeight="500">
-        {centerUnit}
-      </text>
-    </svg>
-  );
-}
-
-/** AbortController ref to cancel the running test */
-const abortRef = { current: null as AbortController | null };
+type SpeedTestSource = (typeof SPEED_TEST_SOURCES)[number];
 
 function SpeedTestTool() {
-  const { toast } = useToast();
+  const [activeSource, setActiveSource] = useState<SpeedTestSource>(SPEED_TEST_SOURCES[0]);
+  const [iframeKey, setIframeKey] = useState(0);
+  const [showFallback, setShowFallback] = useState(false);
 
-  // State
-  const [phase, setPhase] = useState<string>('idle');
-  const [displaySpeed, setDisplaySpeed] = useState(0);
-  const [maxScale, setMaxScale] = useState(100);
-  const [progress, setProgress] = useState(0);
-  const [pingData, setPingData] = useState<{ latency: number; jitter: number } | null>(null);
-  const [finalResult, setFinalResult] = useState<Record<string, unknown> | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-
-  // Refs
-  const animRef = useRef<number | null>(null);
-  const currentSpeedRef = useRef(0);
-  const targetSpeedRef = useRef(0);
-  const maxScaleRef = useRef(100);
-  const lastSpeedTimeRef = useRef<number>(Date.now());
-  const isDecayingRef = useRef(false);
-  const staleCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Smooth animation loop — interpolates toward target speed at 60fps
-  useEffect(() => {
-    const running = ['starting', 'ping', 'download', 'upload'].includes(phase);
-    if (!running) {
-      setDisplaySpeed(targetSpeedRef.current);
-      currentSpeedRef.current = targetSpeedRef.current;
-      return;
-    }
-    const animate = () => {
-      const diff = targetSpeedRef.current - currentSpeedRef.current;
-      if (Math.abs(diff) < 0.02) {
-        currentSpeedRef.current = targetSpeedRef.current;
-        setDisplaySpeed(targetSpeedRef.current);
-      } else {
-        currentSpeedRef.current += diff * 0.12;
-        setDisplaySpeed(currentSpeedRef.current);
-      }
-      animRef.current = requestAnimationFrame(animate);
-    };
-    animRef.current = requestAnimationFrame(animate);
-    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-  }, [phase]);
-
-  // Stale speed detector: decays gauge after 1.5s of no speed updates during active test
-  useEffect(() => {
-    const running = ['download', 'upload'].includes(phase);
-    if (!running) {
-      if (staleCheckRef.current) { clearInterval(staleCheckRef.current); staleCheckRef.current = null; }
-      isDecayingRef.current = false;
-      setIsTransitioning(false);
-      return;
-    }
-    isDecayingRef.current = false;
-    setIsTransitioning(false);
-    staleCheckRef.current = setInterval(() => {
-      const elapsed = Date.now() - lastSpeedTimeRef.current;
-      if (elapsed > 1500 && !isDecayingRef.current && currentSpeedRef.current > 1) {
-        isDecayingRef.current = true;
-        targetSpeedRef.current = 0;
-        setIsTransitioning(true);
-      }
-    }, 500);
-    return () => { if (staleCheckRef.current) { clearInterval(staleCheckRef.current); staleCheckRef.current = null; } };
-  }, [phase]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (animRef.current) cancelAnimationFrame(animRef.current);
-      if (staleCheckRef.current) clearInterval(staleCheckRef.current);
-      abortRef.current?.abort();
-    };
+  const switchSource = useCallback((source: SpeedTestSource) => {
+    setActiveSource(source);
+    setIframeKey((k) => k + 1);
+    setShowFallback(false);
   }, []);
-
-  // ── Helper: measure single ping ──
-  const measurePing = async (signal: AbortSignal): Promise<number> => {
-    const start = performance.now();
-    const res = await fetch('/api/wifi/speedtest-probe?action=ping', {
-      signal,
-      cache: 'no-store',
-    });
-    await res.text();
-    return performance.now() - start;
-  };
-
-  // ── Helper: run download test ──
-  const runDownloadTest = async (
-    signal: AbortSignal,
-    onSpeed: (mbps: number, prog: number) => void,
-  ): Promise<{ mbps: number; bytes: number; elapsed: number }> => {
-    // Progressive download: 100KB → 1MB → 5MB → 10MB → 25MB
-    const sizes = [100_000, 1_000_000, 5_000_000, 10_000_000, 25_000_000];
-    let totalBytes = 0;
-    const startTime = performance.now();
-    let peakSpeed = 0;
-
-    for (let i = 0; i < sizes.length; i++) {
-      const size = sizes[i];
-      const res = await fetch(`/api/wifi/speedtest-probe?action=download&bytes=${size}`, {
-        signal,
-        cache: 'no-store',
-      });
-
-      if (!res.ok || !res.body) throw new Error(`Download failed: ${res.status}`);
-
-      const reader = res.body.getReader();
-      let received = 0;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        received += value.byteLength;
-        totalBytes += value.byteLength;
-
-        const elapsed = (performance.now() - startTime) / 1000;
-        const speed = (totalBytes * 8) / (elapsed * 1_000_000);
-        if (speed > peakSpeed) peakSpeed = speed;
-
-        // Report speed periodically
-        if (totalBytes % 500_000 < value.byteLength) {
-          onSpeed(speed, (i + received / size) / sizes.length);
-        }
-      }
-
-      onSpeed(peakSpeed, (i + 1) / sizes.length);
-    }
-
-    const elapsed = (performance.now() - startTime) / 1000;
-    return {
-      mbps: parseFloat(peakSpeed.toFixed(2)),
-      bytes: totalBytes,
-      elapsed: parseFloat(elapsed.toFixed(1)),
-    };
-  };
-
-  // ── Helper: run upload test ──
-  const runUploadTest = async (
-    signal: AbortSignal,
-    onSpeed: (mbps: number, prog: number) => void,
-  ): Promise<{ mbps: number; bytes: number; elapsed: number }> => {
-    // Progressive upload: 100KB → 1MB → 5MB → 10MB → 25MB
-    const sizes = [100_000, 1_000_000, 5_000_000, 10_000_000, 25_000_000];
-    const chunk = new Uint8Array(256_000); // 256KB chunks
-    crypto.getRandomValues(chunk);
-
-    let totalBytes = 0;
-    const startTime = performance.now();
-    let peakSpeed = 0;
-
-    for (let i = 0; i < sizes.length; i++) {
-      const size = sizes[i];
-      let sent = 0;
-
-      while (sent < size) {
-        const blockSize = Math.min(chunk.length, size - sent);
-        const data = blockSize < chunk.length ? chunk.subarray(0, blockSize) : chunk;
-
-        const res = await fetch('/api/wifi/speedtest-probe?action=upload', {
-          method: 'POST',
-          body: data,
-          signal,
-        });
-
-        if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-        sent += blockSize;
-        totalBytes += blockSize;
-
-        const elapsed = (performance.now() - startTime) / 1000;
-        const speed = (totalBytes * 8) / (elapsed * 1_000_000);
-        if (speed > peakSpeed) peakSpeed = speed;
-
-        onSpeed(speed, (i + sent / size) / sizes.length);
-      }
-
-      onSpeed(peakSpeed, (i + 1) / sizes.length);
-    }
-
-    const elapsed = (performance.now() - startTime) / 1000;
-    return {
-      mbps: parseFloat(peakSpeed.toFixed(2)),
-      bytes: totalBytes,
-      elapsed: parseFloat(elapsed.toFixed(1)),
-    };
-  };
-
-  const startTest = useCallback(async () => {
-    // Reset state
-    setPhase('starting');
-    targetSpeedRef.current = 0;
-    currentSpeedRef.current = 0;
-    setDisplaySpeed(0);
-    maxScaleRef.current = 100;
-    setMaxScale(100);
-    setProgress(0);
-    setPingData(null);
-    setFinalResult(null);
-    setErrorMsg(null);
-    lastSpeedTimeRef.current = Date.now();
-    isDecayingRef.current = false;
-
-    // Cancel any previous test
-    abortRef.current?.abort();
-    const ac = new AbortController();
-    abortRef.current = ac;
-    const { signal } = ac;
-
-    try {
-      // ── Phase 1: Ping Test (10 samples) ──
-      setPhase('ping');
-      const pings: number[] = [];
-      for (let i = 0; i < 10; i++) {
-        if (signal.aborted) return;
-        const ms = await measurePing(signal);
-        pings.push(ms);
-        const avg = pings.reduce((a, b) => a + b, 0) / pings.length;
-        setProgress((i + 1) / 10);
-        setPingData({
-          latency: avg,
-          jitter: pings.length > 1
-            ? pings.slice(1).reduce((sum, v, idx) => sum + Math.abs(v - pings[idx]), 0) / (pings.length - 1)
-            : 0,
-        });
-      }
-
-      const pingResult = {
-        latency: parseFloat((pings.reduce((a, b) => a + b, 0) / pings.length).toFixed(1)),
-        jitter: parseFloat(pings.slice(1).reduce((sum, v, idx) => sum + Math.abs(v - pings[idx]), 0) / (pings.length - 1).toFixed(1)),
-      };
-
-      if (signal.aborted) return;
-
-      // ── Phase 2: Download Test ──
-      setPhase('download');
-      targetSpeedRef.current = 0;
-      currentSpeedRef.current = 0;
-      lastSpeedTimeRef.current = Date.now();
-
-      const dlResult = await runDownloadTest(signal, (mbps, prog) => {
-        if (mbps > 0) {
-          targetSpeedRef.current = mbps;
-          lastSpeedTimeRef.current = Date.now();
-          isDecayingRef.current = false;
-          setIsTransitioning(false);
-          const newMax = getAutoScale(mbps, maxScaleRef.current);
-          if (newMax !== maxScaleRef.current) {
-            maxScaleRef.current = newMax;
-            setMaxScale(newMax);
-          }
-        }
-        setProgress(prog);
-      });
-
-      if (signal.aborted) return;
-
-      // Transition: decay gauge to zero
-      targetSpeedRef.current = 0;
-      setIsTransitioning(true);
-      await new Promise(r => setTimeout(r, 600));
-      if (signal.aborted) return;
-
-      // ── Phase 3: Upload Test ──
-      setPhase('upload');
-      targetSpeedRef.current = 0;
-      currentSpeedRef.current = 0;
-      lastSpeedTimeRef.current = Date.now();
-      setIsTransitioning(false);
-      setProgress(0);
-
-      const ulResult = await runUploadTest(signal, (mbps, prog) => {
-        if (mbps > 0) {
-          targetSpeedRef.current = mbps;
-          lastSpeedTimeRef.current = Date.now();
-          isDecayingRef.current = false;
-          setIsTransitioning(false);
-        }
-        setProgress(prog);
-      });
-
-      if (signal.aborted) return;
-
-      // ── Complete ──
-      setPhase('complete');
-      setProgress(1);
-      targetSpeedRef.current = dlResult.mbps; // Show download as final
-
-      const result = {
-        download: {
-          megabitsPerSecond: dlResult.mbps,
-          totalMB: parseFloat((dlResult.bytes / 1_048_576).toFixed(2)),
-          elapsed: dlResult.elapsed,
-        },
-        upload: {
-          megabitsPerSecond: ulResult.mbps,
-          totalMB: parseFloat((ulResult.bytes / 1_048_576).toFixed(2)),
-          elapsed: ulResult.elapsed,
-        },
-        ping: pingResult,
-        server: { name: 'Local Gateway', location: window.location.hostname },
-      };
-      setFinalResult(result);
-
-      toast({
-        title: 'Speed Test Complete',
-        description: `↓ ${dlResult.mbps} Mbps | ↑ ${ulResult.mbps} Mbps | ⚡ ${pingResult.latency} ms`,
-      });
-    } catch (err: unknown) {
-      if (signal.aborted) return;
-      setPhase('error');
-      const msg = err instanceof Error ? err.message : 'Speed test failed';
-      setErrorMsg(msg);
-      toast({ title: 'Speed Test Failed', description: msg, variant: 'destructive' });
-    }
-  }, [toast]);
-
-  const isRunning = ['starting', 'ping', 'download', 'upload'].includes(phase);
-  const isComplete = phase === 'complete';
-
-  const phaseLabel: Record<string, string> = {
-    starting: 'Initializing...',
-    ping: 'Testing Ping',
-    download: 'Testing Download',
-    upload: 'Testing Upload',
-    complete: 'Complete',
-    error: 'Error',
-    idle: '',
-  };
-
-  const download = finalResult?.download as Record<string, unknown> | null;
-  const upload = finalResult?.upload as Record<string, unknown> | null;
-  const ping = finalResult?.ping as Record<string, unknown> | null;
-  const server = finalResult?.server as Record<string, unknown> | null;
-  const dlMbps = download ? Number(download.megabitsPerSecond ?? 0) : 0;
-  const ulMbps = upload ? Number(upload.megabitsPerSecond ?? 0) : 0;
-  const pingLat = ping ? Number(ping.latency ?? 0) : 0;
-  const pingJit = ping ? Number(ping.jitter ?? 0) : 0;
 
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Gauge} title="Speed Test" description="Real-time bandwidth test — measures browser ↔ gateway speed" gradient="from-orange-500 to-red-500" />
+        <ToolHeader
+          icon={Gauge}
+          title="Speed Test"
+          description="Run real speed tests from popular services to measure your gateway's internet bandwidth"
+          gradient="from-orange-500 to-red-500"
+        />
 
-        <div className="flex items-center gap-3">
-          <RunButton loading={isRunning} onClick={startTest} label={isRunning ? 'Testing...' : 'Start Speed Test'} disabled={isRunning} />
-          {isComplete && <Badge variant="outline" className="text-[10px] ml-1">Browser-Based Test</Badge>}
+        {/* Speed test source selector */}
+        <div className="flex flex-wrap gap-2 mt-2">
+          {SPEED_TEST_SOURCES.map((source) => {
+            const Icon = source.icon;
+            const isActive = activeSource.id === source.id;
+            return (
+              <Button
+                key={source.id}
+                size="sm"
+                variant={isActive ? 'default' : 'outline'}
+                className={cn(
+                  'h-8 text-xs gap-1.5',
+                  isActive &&
+                    `bg-gradient-to-r ${source.gradient} text-white border-transparent hover:opacity-90 shadow-sm`,
+                )}
+                onClick={() => switchSource(source)}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {source.name}
+              </Button>
+            );
+          })}
         </div>
 
-        {errorMsg && <ErrorBox message={errorMsg} />}
+        {/* Active source description */}
+        <p className="text-xs text-muted-foreground mt-2">{activeSource.description}</p>
 
-        {/* ── Live Gauge ── */}
-        {(isRunning || isComplete) && (
-          <div className="mt-6">
-            <SpeedGauge
-              speed={displaySpeed}
-              maxScale={maxScale}
-              phase={phase}
-              pingMs={pingData?.latency}
+        {/* Embedded speed test iframe */}
+        <div className="mt-4 relative rounded-xl overflow-hidden border bg-muted/10">
+          {!showFallback ? (
+            <iframe
+              key={iframeKey}
+              src={activeSource.url}
+              className="w-full h-[520px] bg-white"
+              title={`${activeSource.name} Speed Test`}
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+              loading="lazy"
             />
-
-            {/* Phase badge */}
-            <div className="text-center mt-1">
-              <Badge
-                variant="outline"
-                className={cn(
-                  'text-xs transition-colors',
-                  phase === 'download' && !isTransitioning && 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400',
-                  phase === 'upload' && !isTransitioning && 'border-orange-500/50 text-orange-600 dark:text-orange-400',
-                  phase === 'ping' && 'border-cyan-500/50 text-cyan-600 dark:text-cyan-400',
-                  phase === 'complete' && 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400',
-                  isTransitioning && 'border-amber-500/50 text-amber-600 dark:text-amber-400',
-                )}
-              >
-                {isTransitioning ? (
-                  <span className="flex items-center gap-1.5">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    {phase === 'download' ? 'Finishing download...' : 'Preparing upload...'}
-                  </span>
-                ) : (
-                  <>
-                    {phase === 'ping' && '⚡ '}{phase === 'download' && '↓ '}{phase === 'upload' && '↑ '}
-                    {phaseLabel[phase] || ''}
-                    {isRunning && phase !== 'starting' && phase !== 'idle' && ` — ${Math.round(progress * 100)}%`}
-                  </>
-                )}
-              </Badge>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-[520px] bg-muted/10">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted/50 mb-4">
+                <Globe className="h-8 w-8 text-muted-foreground/40" />
+              </div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">
+                Unable to embed {activeSource.name}
+              </p>
+              <p className="text-xs text-muted-foreground text-center max-w-sm mb-4">
+                This speed test service doesn&apos;t allow embedded viewing. Try a different provider or open
+                it directly in a new tab.
+              </p>
+              <Button asChild size="sm">
+                <a
+                  href={activeSource.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="gap-1.5"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open {activeSource.name} in New Tab
+                </a>
+              </Button>
             </div>
+          )}
+        </div>
 
-            {/* Ping info */}
-            {pingData && !isComplete && (
-              <div className="flex justify-center gap-4 mt-2 text-xs text-muted-foreground">
-                <span>Ping: <strong className="text-foreground tabular-nums">{pingData.latency.toFixed(1)} ms</strong></span>
-                <span>Jitter: <strong className="text-foreground tabular-nums">{pingData.jitter.toFixed(1)} ms</strong></span>
-              </div>
+        {/* Quick action bar */}
+        <div className="flex items-center gap-1 mt-3 flex-wrap">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs text-muted-foreground gap-1.5"
+            onClick={() => {
+              setIframeKey((k) => k + 1);
+              setShowFallback(false);
+            }}
+          >
+            <Play className="h-3 w-3" />
+            Reload
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs text-muted-foreground gap-1.5"
+            asChild
+          >
+            <a
+              href={activeSource.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="gap-1.5"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Open in New Tab
+            </a>
+          </Button>
+          <div className="flex-1" />
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs text-muted-foreground gap-1.5"
+            onClick={() => setShowFallback((v) => !v)}
+          >
+            {showFallback ? (
+              <>
+                <Play className="h-3 w-3" />
+                Show Embed
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="h-3 w-3" />
+                Can&apos;t Load?
+              </>
             )}
-          </div>
-        )}
+          </Button>
+        </div>
 
-        {/* ── Final Results ── */}
-        {isComplete && finalResult && !errorMsg && (
-          <div className="mt-6 space-y-5">
-            {/* 3-card metrics */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="rounded-xl border bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 p-5 text-center">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Download</span>
-                </div>
-                <div className="flex items-end justify-center gap-1">
-                  <span className="text-3xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{dlMbps.toFixed(2)}</span>
-                  <span className="text-sm text-muted-foreground mb-0.5">Mbps</span>
-                </div>
-                {download && (
-                  <p className="text-[11px] text-muted-foreground mt-1.5 font-mono tabular-nums">
-                    {String(download.totalMB)} MB in {String(download.elapsed)}s
-                  </p>
-                )}
-              </div>
-              <div className="rounded-xl border bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 p-5 text-center">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <Upload className="h-4 w-4 text-orange-500" />
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Upload</span>
-                </div>
-                <div className="flex items-end justify-center gap-1">
-                  <span className="text-3xl font-bold tabular-nums text-orange-600 dark:text-orange-400">{ulMbps.toFixed(2)}</span>
-                  <span className="text-sm text-muted-foreground mb-0.5">Mbps</span>
-                </div>
-                {upload && (
-                  <p className="text-[11px] text-muted-foreground mt-1.5 font-mono tabular-nums">
-                    {String(upload.totalMB)} MB in {String(upload.elapsed)}s
-                  </p>
-                )}
-              </div>
-              <div className="rounded-xl border bg-gradient-to-br from-cyan-50 to-sky-50 dark:from-cyan-950/20 dark:to-sky-950/20 p-5 text-center">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <Activity className="h-4 w-4 text-cyan-500" />
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ping</span>
-                </div>
-                <div className="flex items-end justify-center gap-1">
-                  <span className="text-3xl font-bold tabular-nums text-cyan-600 dark:text-cyan-400">{pingLat.toFixed(1)}</span>
-                  <span className="text-sm text-muted-foreground mb-0.5">ms</span>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-1.5 font-mono tabular-nums">
-                  Jitter: {pingJit.toFixed(1)} ms
-                </p>
-              </div>
-            </div>
-
-            {/* Server info */}
-            {server && (
-              <div className="rounded-xl border bg-muted/30 p-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Test Server</p>
-                    <p className="text-xs font-medium mt-1 truncate">{String(server.name)}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{String(server.location)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Test Type</p>
-                    <p className="text-xs font-medium mt-1">Browser ↔ Gateway</p>
-                    <p className="text-[10px] text-muted-foreground">Measures actual guest WiFi bandwidth</p>
-                  </div>
-                </div>
-              </div>
-            )}
+        {/* Info banner */}
+        <div className="mt-3 flex items-start gap-2 rounded-lg bg-muted/30 border px-3 py-2.5">
+          <Activity className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <div className="text-[11px] text-muted-foreground leading-relaxed">
+            <span className="font-medium text-foreground">Real speed test services</span> measure your gateway&apos;s actual internet connection speed.
+            If an embed doesn&apos;t load (some sites block framing), click &quot;Can&apos;t Load?&quot; or &quot;Open in New Tab&quot; to run the test directly.
           </div>
-        )}
+        </div>
       </CardContent>
     </Card>
   );
