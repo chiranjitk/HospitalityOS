@@ -1,9 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { createHash } from 'crypto';
 
-const p = new PrismaClient();
-
-// Deterministic UUID v4 from seed string (same approach as seed.ts)
+// Generate deterministic UUIDs from seed strings for PostgreSQL @db.Uuid compatibility.
 const uuid = (seed: string): string => {
   const h = createHash('sha256').update('staysuite-seed:' + seed).digest('hex');
   return [
@@ -14,6 +12,8 @@ const uuid = (seed: string): string => {
     h.slice(19, 31),
   ].join('-');
 };
+
+const p = new PrismaClient();
 
 async function seed() {
   console.log('Seeding help categories...');
