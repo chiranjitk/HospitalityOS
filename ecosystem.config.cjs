@@ -52,6 +52,8 @@ module.exports = {
       env: {
         STAYSUITE_MAX_MEM: process.env.STAYSUITE_MAX_MEM || '7500',
         DATABASE_URL: process.env.DATABASE_URL || `postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30`,
+        NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || '79Q1J3CSfIAokhOOBcMfGKpJ00RHWKhdFwAUzWizPY0=',
+        NEXTAUTH_URL: process.env.NEXTAUTH_URL || 'http://localhost:3000',
         NODE_OPTIONS: '--max-old-space-size=4096',
       },
     },
