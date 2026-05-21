@@ -246,10 +246,10 @@ export default function LoginPage() {
     setError('');
   };
 
-  // Show loading while checking auth state — premium loader
+  // Show loading while checking auth state — clean white loader
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-950 via-stone-950 to-orange-950">
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#1a1210]">
         <motion.div
           className="flex flex-col items-center gap-5"
           initial={{ opacity: 0, scale: 0.9 }}
@@ -260,9 +260,9 @@ export default function LoginPage() {
             <Hotel className="h-7 w-7 text-white" />
           </div>
           <div className="flex items-center gap-2">
-            <div className="h-1.5 w-1.5 rounded-full bg-orange-400 animate-bounce [animation-delay:0ms]" />
-            <div className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-bounce [animation-delay:150ms]" />
-            <div className="h-1.5 w-1.5 rounded-full bg-orange-300 animate-bounce [animation-delay:300ms]" />
+            <div className="h-1.5 w-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600 animate-bounce [animation-delay:0ms]" />
+            <div className="h-1.5 w-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:150ms]" />
+            <div className="h-1.5 w-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600 animate-bounce [animation-delay:300ms]" />
           </div>
         </motion.div>
       </div>
@@ -429,19 +429,7 @@ export default function LoginPage() {
               </div>
             </motion.div>
 
-            {/* Left-side Footer */}
-            <motion.div
-              className="flex items-center gap-4 text-xs text-orange-200/40"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6, duration: 0.5 }}
-            >
-              <span>&copy; 2026 Cryptsk Pvt Ltd</span>
-              <span>&middot;</span>
-              <span className="hover:text-orange-200/70 transition-colors cursor-pointer">Privacy</span>
-              <span>&middot;</span>
-              <span className="hover:text-orange-200/70 transition-colors cursor-pointer">Terms</span>
-            </motion.div>
+
           </motion.div>
         </div>
 
