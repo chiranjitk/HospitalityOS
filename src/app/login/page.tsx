@@ -984,44 +984,36 @@ export default function LoginPage() {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.8, duration: 0.5 }}
               >
-                <span
-                  className="inline-block h-1.5 w-1.5 rounded-full bg-orange-500"
-                />
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 <span>All systems operational</span>
               </motion.div>
 
-              {/* ── Mobile footer ── */}
-              <div className="flex-1" />
-              <div className="lg:hidden h-px bg-gradient-to-r from-transparent via-orange-300/30 dark:via-orange-500/20 to-transparent mt-4" />
-
-              <div className="lg:hidden text-center text-xs text-muted-foreground/60 pt-4 mt-0 border-t border-orange-100/30 dark:border-orange-900/20">
-                <p className="flex items-center justify-center gap-1">
-                  <Zap className="h-3 w-3 text-orange-400" />
-                  Powered by StaySuite HospitalityOS
-                  <span className="px-1.5 py-0.5 rounded bg-orange-50/60 dark:bg-orange-950/30 text-orange-600/60 dark:text-orange-400/60 font-mono text-[10px]">v2.0</span>
-                </p>
+              {/* ── Seamless footer ── */}
+              <div className="mt-6 pt-4 border-t border-border/30">
+                <div className="lg:hidden text-center text-xs text-muted-foreground/40 pt-2">
+                  <span>&copy; 2026 Cryptsk Pvt Ltd</span>
+                  <span className="mx-1.5 text-muted-foreground/20">&middot;</span>
+                  <span className="hover:text-muted-foreground transition-colors cursor-pointer">Privacy</span>
+                  <span className="mx-1.5 text-muted-foreground/20">&middot;</span>
+                  <span className="hover:text-muted-foreground transition-colors cursor-pointer">Terms</span>
+                  <span className="mx-1.5 text-muted-foreground/20">&middot;</span>
+                  <span className="text-[10px] font-mono">v2.0</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ═══ Desktop sticky footer ═══ */}
-      <div className="hidden lg:block h-px bg-gradient-to-r from-transparent via-orange-300/30 dark:via-orange-500/20 to-transparent" />
-
-      <div className="hidden lg:flex items-center justify-center py-3 px-4 bg-gradient-to-r from-orange-50/40 via-white/60 to-orange-50/40 dark:from-[#1a1210]/80 dark:via-[#1a1210]/60 dark:to-[#1a1210]/80 backdrop-blur-sm border-t border-orange-100/30 dark:border-orange-900/20 text-xs text-muted-foreground/60">
-        <span className="flex items-center gap-1">
-          <Zap className="h-3 w-3 text-orange-400" />
-          <span>Powered by StaySuite HospitalityOS</span>
-        </span>
-        <span className="mx-2 text-orange-200/30 dark:text-orange-800/30">&middot;</span>
+      {/* Desktop inline footer — seamless, no gradient/card separation */}
+      <div className="hidden lg:flex items-center justify-center py-4 text-xs text-muted-foreground/40">
         <span>&copy; 2026 Cryptsk Pvt Ltd</span>
-        <span className="mx-2 text-orange-200/30 dark:text-orange-800/30">&middot;</span>
+        <span className="mx-2 text-muted-foreground/15">&middot;</span>
         <span className="hover:text-muted-foreground transition-colors cursor-pointer">Privacy</span>
-        <span className="mx-2 text-orange-200/30 dark:text-orange-800/30">&middot;</span>
+        <span className="mx-2 text-muted-foreground/15">&middot;</span>
         <span className="hover:text-muted-foreground transition-colors cursor-pointer">Terms</span>
-        <span className="mx-2 text-orange-200/30 dark:text-orange-800/30">&middot;</span>
-        <span className="px-1.5 py-0.5 rounded bg-orange-50/60 dark:bg-orange-950/30 text-orange-600/50 dark:text-orange-400/50 font-mono text-[10px]">v2.0</span>
+        <span className="mx-2 text-muted-foreground/15">|</span>
+        <span className="text-[10px] font-mono text-muted-foreground/30">v2.0</span>
       </div>
     </div>
   );
