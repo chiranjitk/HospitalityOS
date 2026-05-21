@@ -271,73 +271,112 @@ export async function POST(
     for (const image of imagesToSync) {
       for (const channel of channels) {
         try {
-          // Simulate OTA sync - generate a mock remote URL and ID
-          const channelType = channel.type;
-          const simulatedRemoteId = `ota-${channelType}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-          const simulatedRemoteUrl = `https://${channelType}.example.com/images/${simulatedRemoteId}`;
+          // Check if the channel has API credentials configured
+          const channelConfig = channel.config ? JSON.parse(channel.config) : {};
+          const hasCredentials = channelConfig.apiKey || channel.apiKey;
 
-          // Upsert the OtaImageSync record
-          const existingSync = await db.otaImageSync.findFirst({
-            where: {
+          if (!hasCredentials) {
+            // Mark the sync record as failed due to missing credentials
+            const existingSync = await db.otaImageSync.findFirst({
+              where: { imageId: image.id, channelId: channel.id },
+            });
+
+            const syncData = {
+              status: 'failed',
+              error: `${channel.name} channel has no API credentials configured`,
+              lastSyncedAt: now,
+            };
+
+            if (existingSync) {
+              await db.otaImageSync.update({
+                where: { id: existingSync.id },
+                data: syncData,
+              });
+            } else {
+              await db.otaImageSync.create({
+                data: { imageId: image.id, channelId: channel.id, ...syncData },
+              });
+            }
+
+            // Update RoomImage.otaSyncStatus
+            let otaSyncStatus: Record<string, Record<string, string>> = {};
+            try { otaSyncStatus = JSON.parse(image.otaSyncStatus || '{}'); } catch { otaSyncStatus = {}; }
+            otaSyncStatus[channel.id] = { status: 'failed', error: syncData.error };
+            await db.roomImage.update({
+              where: { id: image.id },
+              data: { otaSyncStatus: JSON.stringify(otaSyncStatus) },
+            });
+
+            failedCount++;
+            results.push({
               imageId: image.id,
               channelId: channel.id,
-            },
-          });
-
-          if (existingSync) {
-            await db.otaImageSync.update({
-              where: { id: existingSync.id },
-              data: {
-                status: 'synced',
-                remoteUrl: simulatedRemoteUrl,
-                remoteId: simulatedRemoteId,
-                lastSyncedAt: now,
-                error: null,
-              },
+              status: 'failed',
+              remoteUrl: null,
+              remoteId: null,
+              error: syncData.error,
             });
-          } else {
-            await db.otaImageSync.create({
-              data: {
-                imageId: image.id,
-                channelId: channel.id,
-                status: 'synced',
-                remoteUrl: simulatedRemoteUrl,
-                remoteId: simulatedRemoteId,
-                lastSyncedAt: now,
-                error: null,
-              },
-            });
+            continue; // Skip to next image-channel pair
           }
 
-          // Update the RoomImage.otaSyncStatus JSON field
-          let otaSyncStatus: Record<string, { status: string; remoteUrl: string; remoteId: string; lastSyncedAt: string }> = {};
+          // Channel has credentials — attempt real OTA sync via the channel service.
+          // If the OTA channel service endpoint is not reachable, the sync fails gracefully.
+          const channelType = channel.type;
+          let remoteId: string | null = null;
+          let remoteUrl: string | null = null;
+
           try {
-            otaSyncStatus = JSON.parse(image.otaSyncStatus || '{}');
-          } catch {
-            otaSyncStatus = {};
+            // Attempt a real OTA channel API push (conceptual).
+            // In production this would call the actual OTA partner API
+            // (e.g. Booking.com Extranet API, Expedia Partner API, etc.).
+            // For now we log the attempt and mark as pending until the
+            // channel service integration is completed.
+            console.log(`[OTA Sync] Attempting sync for image ${image.id} to ${channel.name} (${channelType})`);
+
+            // TODO: Replace with actual OTA channel API call when integration is built
+            throw new Error(`${channel.name} (${channelType}) OTA channel integration not yet implemented`);
+          } catch (otaError) {
+            const otaErrorMessage = otaError instanceof Error ? otaError.message : 'Unknown OTA sync error';
+
+            const existingSync = await db.otaImageSync.findFirst({
+              where: { imageId: image.id, channelId: channel.id },
+            });
+
+            const syncData = {
+              status: 'failed' as const,
+              error: otaErrorMessage,
+              lastSyncedAt: now,
+            };
+
+            if (existingSync) {
+              await db.otaImageSync.update({
+                where: { id: existingSync.id },
+                data: syncData,
+              });
+            } else {
+              await db.otaImageSync.create({
+                data: { imageId: image.id, channelId: channel.id, ...syncData },
+              });
+            }
+
+            let otaSyncStatus: Record<string, Record<string, string>> = {};
+            try { otaSyncStatus = JSON.parse(image.otaSyncStatus || '{}'); } catch { otaSyncStatus = {}; }
+            otaSyncStatus[channel.id] = { status: 'failed', error: otaErrorMessage };
+            await db.roomImage.update({
+              where: { id: image.id },
+              data: { otaSyncStatus: JSON.stringify(otaSyncStatus) },
+            });
+
+            failedCount++;
+            results.push({
+              imageId: image.id,
+              channelId: channel.id,
+              status: 'failed',
+              remoteUrl,
+              remoteId,
+              error: otaErrorMessage,
+            });
           }
-
-          otaSyncStatus[channel.id] = {
-            status: 'synced',
-            remoteUrl: simulatedRemoteUrl,
-            remoteId: simulatedRemoteId,
-            lastSyncedAt: now.toISOString(),
-          };
-
-          await db.roomImage.update({
-            where: { id: image.id },
-            data: { otaSyncStatus: JSON.stringify(otaSyncStatus) },
-          });
-
-          syncedCount++;
-          results.push({
-            imageId: image.id,
-            channelId: channel.id,
-            status: 'synced',
-            remoteUrl: simulatedRemoteUrl,
-            remoteId: simulatedRemoteId,
-            error: null,
-          });
         } catch (syncError) {
           console.error(`Error syncing image ${image.id} to channel ${channel.id}:`, syncError);
 

@@ -13,6 +13,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+/**
+ * Non-blocking audit log helper — fire-and-forget so it never blocks the request.
+ */
+function logAdminAction(userId: string, action: string, resource: string): void {
+  db.auditLog
+    .create({
+      data: {
+        tenantId: '00000000-0000-0000-0000-000000000000', // platform-level action
+        userId,
+        module: 'auth',
+        action,
+        entityType: resource,
+        newValue: 'Platform admin permission bypass',
+      },
+    })
+    .catch(() => {});
+}
+
+/**
+ * Non-blocking audit log for permission-denied attempts.
+ */
+function logPermissionDenied(
+  userId: string,
+  requiredPermissions: string,
+  context: TenantContext
+): void {
+  db.auditLog
+    .create({
+      data: {
+        tenantId: context.tenantId,
+        userId,
+        module: 'auth',
+        action: 'permission_denied',
+        entityType: 'permission_check',
+        newValue: JSON.stringify({ required: requiredPermissions, role: context.role }),
+      },
+    })
+    .catch(() => {});
+}
+
 export interface TenantContext {
   userId: string;
   tenantId: string;
@@ -141,7 +181,10 @@ export async function requirePlatformAdmin(request: NextRequest): Promise<Tenant
  * Check if user has a specific permission
  */
 export function hasPermission(context: TenantContext, permission: string): boolean {
-  if (context.isPlatformAdmin) return true;
+  if (context.isPlatformAdmin) {
+    logAdminAction(context.userId, 'admin_permission_bypass', permission);
+    return true;
+  }
   if (context.permissions.includes('*')) return true;
   
   // Check for wildcard module permission (e.g., 'bookings.*')
@@ -165,8 +208,7 @@ export async function requirePermission(
   }
 
   if (!hasPermission(context, permission)) {
-    // TODO (GAP-18): Consider logging permission-denied attempts for security monitoring
-    // e.g., await logAudit(context.tenantId, 'permission_denied', 'system', null, { permission, userId: context.userId });
+    logPermissionDenied(context.userId, permission, context);
     return NextResponse.json(
       { success: false, error: `Permission denied: ${permission}` },
       { status: 403 }

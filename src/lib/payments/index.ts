@@ -20,6 +20,7 @@ export {
 // Router
 export {
   PaymentRouter,
+  createPaymentRouter,
   paymentRouter,
   initializePaymentRouter,
   getPaymentRouter,

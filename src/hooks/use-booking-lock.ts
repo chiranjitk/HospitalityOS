@@ -373,13 +373,21 @@ export function useBookingLock(options: BookingLockOptions) {
     return () => {
       clearTimers();
       if (autoReleaseOnUnmount && sessionIdRef.current) {
-        // Use sendBeacon for reliable cleanup on page unload
-        const url = `/api/inventory/lock?sessionId=${sessionIdRef.current}`;
+        // Use sendBeacon for reliable cleanup on page unload.
+        // sendBeacon only supports GET/POST, so we POST to a dedicated endpoint.
+        const releaseUrl = '/api/bookings/release-lock';
+        const payload = JSON.stringify({ sessionId: sessionIdRef.current });
+
         if (navigator.sendBeacon) {
-          navigator.sendBeacon(url, JSON.stringify({ method: 'DELETE' }));
+          const blob = new Blob([payload], { type: 'application/json' });
+          navigator.sendBeacon(releaseUrl, blob);
         } else {
           // Fallback for browsers without sendBeacon
-          fetch(url, { method: 'DELETE' }).catch(console.error);
+          fetch(releaseUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+          }).catch(console.error);
         }
       }
     };

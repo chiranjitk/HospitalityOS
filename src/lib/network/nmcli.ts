@@ -52,6 +52,18 @@ function exec(cmd: string, timeout = NMCLI_TIMEOUT): string {
   }
 }
 
+/**
+ * Fire-and-forget wrapper for `nmcli con up <name>`.
+ * Logs errors but never throws — used for best-effort connection activation.
+ */
+function safeConnect(name: string): void {
+  try {
+    exec(`sudo nmcli con up ${name}`);
+  } catch (err) {
+    console.error(`[nmcli] safeConnect failed for "${name}":`, err instanceof Error ? err.message : err);
+  }
+}
+
 function execSafe(cmd: string, timeout = NMCLI_TIMEOUT): { stdout: string; ok: boolean; error: string } {
   try {
     const stdout = execSync(cmd, { encoding: 'utf-8', timeout, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -545,7 +557,7 @@ export function createVlan(params: VlanCreateParams): { name: string; success: b
   }
 
   // Bring up
-  try { exec(`sudo nmcli con up ${vlanName}`); } catch { /* may fail if parent is down */ }
+  safeConnect(vlanName); // may fail if parent is down
 
   return { name: vlanName, success: true };
 }
@@ -573,7 +585,7 @@ export function updateVlan(name: string, params: Partial<VlanCreateParams>): voi
   if (params.nettype !== undefined && isValidNetType(params.nettype)) {
     setNetTypeOnInterface(name, params.nettype);
   }
-  try { exec(`sudo nmcli con up ${name}`); } catch {}
+  safeConnect(name);
 }
 
 /**
@@ -652,7 +664,7 @@ export function createBridge(params: BridgeCreateParams): { name: string; succes
     try { setNetTypeOnInterface(name, nettype); } catch {}
   }
 
-  try { exec(`sudo nmcli con up ${name}`); } catch {}
+  safeConnect(name);
 
   return { name, success: true };
 }
@@ -679,7 +691,7 @@ export function updateBridge(name: string, params: Partial<BridgeCreateParams>):
   if (params.nettype !== undefined && isValidNetType(params.nettype)) {
     setNetTypeOnInterface(name, params.nettype);
   }
-  try { exec(`sudo nmcli con up ${name}`); } catch {}
+  safeConnect(name);
 }
 
 /**
@@ -802,7 +814,7 @@ export function createBond(params: BondCreateParams): { name: string; success: b
     try { setNetTypeOnInterface(name, nettype); } catch {}
   }
 
-  try { exec(`sudo nmcli con up ${name}`); } catch {}
+  safeConnect(name);
 
   return { name, success: true };
 }
@@ -830,7 +842,7 @@ export function updateBond(name: string, params: Partial<BondCreateParams>): voi
   if (params.nettype !== undefined && isValidNetType(params.nettype)) {
     setNetTypeOnInterface(name, params.nettype);
   }
-  try { exec(`sudo nmcli con up ${name}`); } catch {}
+  safeConnect(name);
 }
 
 /**
@@ -884,7 +896,7 @@ export function addRoute(name: string, destination: string, gateway: string, met
   withStaySuitePreserved(name, () => {
     exec(`sudo nmcli con mod ${name} +ipv4.routes "${destination} ${gateway}${metricArg}"`);
     // Bring the connection up so the route becomes active immediately
-    try { exec(`sudo nmcli con up ${name}`); } catch {}
+    safeConnect(name);
   });
 }
 
@@ -904,7 +916,7 @@ export function removeRoute(name: string, destination: string, gateway: string, 
       exec(`sudo nmcli con mod ${name} -ipv4.routes "${destination} ${gateway}"`);
     }
     // Bring the connection up so the route removal takes effect immediately
-    try { exec(`sudo nmcli con up ${name}`); } catch {}
+    safeConnect(name);
   });
 }
 
@@ -949,5 +961,5 @@ export function reloadConnections(): void {
 export function reloadConnection(name: string): void {
   sanitizeName(name);
   reloadConnections();
-  try { exec(`sudo nmcli con up ${name}`); } catch {}
+  safeConnect(name);
 }

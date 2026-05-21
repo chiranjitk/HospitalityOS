@@ -503,11 +503,12 @@ export async function detectAndProcessNoShows(
       }
     }
 
-    // Update last execution status
+    // Update last execution status (in-memory + persist to DB)
     lastExecutionStatus = {
       timestamp: new Date().toISOString(),
       ...result,
     };
+    await saveLastExecutionStatusToDB(lastExecutionStatus);
 
     console.log(
       `[NoShow] Batch complete: ${result.markedNoShow.length} no-shows, ${result.penaltiesApplied} penalties, ${result.roomsReleased} rooms released`
@@ -609,7 +610,7 @@ async function processPropertyNoShows(
 }
 
 // =====================================================
-// EXECUTION STATUS (in-memory for GET endpoint)
+// EXECUTION STATUS (DB-backed for persistence across restarts)
 // =====================================================
 
 export interface LastExecutionStatus {
@@ -621,9 +622,61 @@ export interface LastExecutionStatus {
   roomsReleased: number;
 }
 
+/** In-memory cache — loaded from DB on first access */
 let lastExecutionStatus: LastExecutionStatus | null = null;
+let dbLoaded = false;
 
-export function getLastExecutionStatus(): LastExecutionStatus | null {
+/**
+ * Load the last execution status from the database (NotificationLog used as
+ * a lightweight persistence store with a sentinel channel value).
+ */
+async function loadLastExecutionStatusFromDB(): Promise<LastExecutionStatus | null> {
+  try {
+    const record = await db.notificationLog.findFirst({
+      where: { channel: 'system_no_show_engine' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!record) return null;
+    try {
+      return JSON.parse(record.body) as LastExecutionStatus;
+    } catch {
+      return null;
+    }
+  } catch (error) {
+    console.error('[NoShow] Failed to load execution status from DB:', error);
+    return null;
+  }
+}
+
+/**
+ * Persist the execution status to the database.
+ */
+async function saveLastExecutionStatusToDB(status: LastExecutionStatus): Promise<void> {
+  try {
+    await db.notificationLog.create({
+      data: {
+        tenantId: '00000000-0000-0000-0000-000000000000', // system-level entry
+        recipientType: 'user',
+        recipientId: '00000000-0000-0000-0000-000000000000',
+        channel: 'system_no_show_engine',
+        subject: 'No-show engine execution',
+        body: JSON.stringify(status),
+        status: 'delivered',
+      },
+    });
+  } catch (error) {
+    console.error('[NoShow] Failed to save execution status to DB:', error);
+  }
+}
+
+/**
+ * Get the last execution status, loading from DB on first call.
+ */
+export async function getLastExecutionStatus(): Promise<LastExecutionStatus | null> {
+  if (!dbLoaded) {
+    lastExecutionStatus = await loadLastExecutionStatusFromDB();
+    dbLoaded = true;
+  }
   return lastExecutionStatus;
 }
 

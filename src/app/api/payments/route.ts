@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { paymentRouter, initializePaymentRouter } from '@/lib/payments';
+import { createPaymentRouter } from '@/lib/payments';
 import crypto from 'crypto';
 import { PaymentRequest } from '@/lib/payments/types';
 import { logPayment } from '@/lib/audit';
@@ -325,8 +325,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Initialize payment router
-    await initializePaymentRouter(tenantId);
+    // Create per-request payment router for this tenant
+    const router = await createPaymentRouter(tenantId);
 
     let paymentResult;
     let gateway = preferredGateway;
@@ -354,7 +354,7 @@ export async function POST(request: NextRequest) {
       };
 
       // Process payment through router
-      paymentResult = await paymentRouter.processPayment(paymentRequest);
+      paymentResult = await router.processPayment(paymentRequest);
 
       // Extract gateway details
       gateway = paymentResult.success ? paymentResult.metadata?.gateway : undefined;

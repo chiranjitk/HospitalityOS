@@ -1,10 +1,22 @@
 /**
- * Auth Helper Functions
+ * ⚠️  DEPRECATED — Auth Helper Functions
  *
- * DEPRECATED: Use @/lib/auth/tenant-context as the canonical source for
- * authentication and permission logic. This module is kept for backward
- * compatibility and delegates to tenant-context internally.
+ * **Canonical source:** `@/lib/auth/tenant-context.ts`
+ *
+ * This module is kept ONLY for backward compatibility. All new code should
+ * import from `@/lib/auth/tenant-context` directly. The key functions here
+ * (`hasPermission`, `requirePermission`, `getTenantFromRequest`) delegate
+ * to the canonical implementation so behaviour stays consistent.
+ *
+ * @deprecated Import from `@/lib/auth/tenant-context` instead.
  */
+
+if (process.env.NODE_ENV !== 'production') {
+  console.warn(
+    '[DEPRECATED] auth-helpers.ts is DEPRECATED. ' +
+    'Use src/lib/auth/tenant-context.ts instead for all auth/permission logic.'
+  );
+}
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from './db';

@@ -155,16 +155,51 @@ export async function GET(request: NextRequest) {
       take: 5,
     });
 
-    const formattedOrders = recentOrders.map(order => ({
-      id: order.id,
-      subject: order.subject,
-      items: [{ name: order.subject, quantity: 1 }],
-      status: order.status === 'completed' ? 'delivered' : order.status === 'in_progress' ? 'preparing' : 'pending',
-      orderedAt: order.createdAt.toISOString(),
-      estimatedDelivery: order.status === 'pending' ? '30 mins' : undefined,
-      roomNumber: room.number,
-      specialRequests: order.description,
-    }));
+    // Look up configurable delivery estimate from property settings
+    let defaultDeliveryEstimate = '30 mins';
+    if (propertyId) {
+      try {
+        const propertySettings = await db.property.findUnique({
+          where: { id: propertyId },
+          select: { noShowSettings: true },
+        });
+        if (propertySettings) {
+          try {
+            const parsed = JSON.parse(propertySettings.noShowSettings || '{}');
+            if (parsed.deliveryEstimate) {
+              defaultDeliveryEstimate = String(parsed.deliveryEstimate);
+            }
+          } catch {
+            // Ignore parse errors, keep default
+          }
+        }
+      } catch {
+        // Ignore query errors, keep default
+      }
+    }
+
+    const formattedOrders = recentOrders.map(order => {
+      let estimatedDelivery: string | undefined;
+      if (order.status === 'pending') {
+        // Use configured estimate; derive from menu item preparation time if available
+        const prepTime = (order as Record<string, unknown>).preparationTime;
+        if (typeof prepTime === 'number' && prepTime > 0) {
+          estimatedDelivery = `${prepTime} mins`;
+        } else {
+          estimatedDelivery = defaultDeliveryEstimate;
+        }
+      }
+      return {
+        id: order.id,
+        subject: order.subject,
+        items: [{ name: order.subject, quantity: 1 }],
+        status: order.status === 'completed' ? 'delivered' : order.status === 'in_progress' ? 'preparing' : 'pending',
+        orderedAt: order.createdAt.toISOString(),
+        estimatedDelivery,
+        roomNumber: room.number,
+        specialRequests: order.description,
+      };
+    });
 
     const portalData = {
       roomNumber: room.number,

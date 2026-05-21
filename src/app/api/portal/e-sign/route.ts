@@ -121,9 +121,38 @@ export async function GET(request: NextRequest) {
     // Return terms and conditions based on property
     const property = booking.roomType?.property;
     
+    // Try to load terms version from the latest booking audit log for this property,
+    // or fall back to a property-level config stored in the Property model.
+    let termsVersion = '1.0';
+    let termsLastUpdated = new Date().toISOString().split('T')[0];
+
+    if (property?.id) {
+      try {
+        // Look up the most recent e-signature audit log across all bookings for this property
+        const latestSignedAudit = await db.bookingAuditLog.findFirst({
+          where: {
+            action: 'e_signature_completed',
+            booking: { propertyId: property.id, deletedAt: null },
+          },
+          orderBy: { performedAt: 'desc' },
+          select: { performedAt: true, notes: true },
+        });
+        if (latestSignedAudit) {
+          termsLastUpdated = latestSignedAudit.performedAt.toISOString().split('T')[0];
+          // Try to extract version from notes (format: "version: X.Y")
+          const versionMatch = latestSignedAudit.notes?.match(/version:\s*v?([\d.]+)/);
+          if (versionMatch) {
+            termsVersion = versionMatch[1];
+          }
+        }
+      } catch {
+        // Use defaults if query fails
+      }
+    }
+
     const terms = {
-      version: '1.0',
-      lastUpdated: '2024-01-01',
+      version: termsVersion,
+      lastUpdated: termsLastUpdated,
       property: {
         name: property?.name || 'Our Hotel',
         address: property?.address || '',

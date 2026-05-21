@@ -7,6 +7,150 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================================
+// ENUMS — Core status and type enumerations
+// ============================================================
+
+enum BookingStatus {
+  draft
+  confirmed
+  checked_in
+  checked_out
+  cancelled
+  no_show
+  waitlisted
+}
+
+enum RoomStatus {
+  available
+  occupied
+  maintenance
+  out_of_service
+  reserved
+  cleaning
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refunded
+  partially_refunded
+  voided
+}
+
+enum PaymentMethod {
+  cash
+  credit_card
+  debit_card
+  bank_transfer
+  upi
+  wallet
+  cheque
+  split
+  complementary
+}
+
+enum FolioLineType {
+  room_charge
+  food_beverage
+  service
+  tax
+  discount
+  payment
+  adjustment
+  miscellaneous
+}
+
+enum GuestType {
+  transient
+  group
+  contract
+  airline
+  corporate
+  vip
+  walk_in
+}
+
+enum TaskStatus {
+  pending
+  in_progress
+  completed
+  cancelled
+  on_hold
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  preparing
+  ready
+  delivered
+  cancelled
+}
+
+enum InventoryTransactionType {
+  in
+  out
+  adjustment
+  transfer
+  return
+}
+
+enum HousekeepingStatus {
+  clean
+  dirty
+  inspected
+  out_of_service
+  in_progress
+}
+
+enum NotificationChannel {
+  email
+  sms
+  whatsapp
+  push
+  in_app
+}
+
+enum CommunicationChannelType {
+  email
+  sms
+  whatsapp
+  phone
+  in_app
+}
+
+enum AuditAction {
+  create
+  update
+  delete
+  login
+  logout
+  export
+  approve
+  reject
+}
+
+enum SubscriptionStatus {
+  trial
+  active
+  past_due
+  cancelled
+  expired
+}
+
+// ============================================================
+// MODELS
+// ============================================================
+
 /// SaaS Tenant - Each hotel/hotel chain is a tenant
 
 model AdCampaign {
@@ -164,7 +308,7 @@ model AuditLog {
   tenantId      String   @db.Uuid
   userId        String?  @db.Uuid
   module        String
-  action        String
+  action        AuditAction
   entityType    String
   entityId      String?  @db.Uuid
   oldValue      String?
@@ -526,7 +670,7 @@ model Booking {
   promoCode           String?
   source              String            @default("direct")
   channelId           String?           @db.Uuid
-  status              String            @default("draft")
+  status              BookingStatus     @default(draft)
   actualCheckIn       DateTime?         @db.Timestamptz
   actualCheckOut      DateTime?         @db.Timestamptz
   checkedInBy         String?
@@ -1574,7 +1718,7 @@ model CoaSessionDetail {
 model CommunicationChannel {
   id               String    @id @default(uuid()) @db.Uuid
   tenantId         String    @db.Uuid
-  type             String
+  type             CommunicationChannelType
   name             String
   provider         String?
   config           String
@@ -2499,7 +2643,7 @@ model FolioLineItem {
   id            String    @id @default(uuid()) @db.Uuid
   folioId       String    @db.Uuid
   description   String
-  category      String
+  category      FolioLineType
   quantity      Int       @default(1)
   unitPrice     Float
   totalAmount   Float
@@ -4005,7 +4149,7 @@ model NotificationLog {
   recipientId    String    @db.Uuid
   recipientEmail String?
   recipientPhone String?
-  channel        String
+  channel        NotificationChannel
   subject        String?
   body           String
   status         String    @default("pending")
@@ -4075,7 +4219,7 @@ model Order {
   discount            Float            @default(0)
   totalAmount         Float            @default(0)
   currency            String           @default("USD")
-  status              String           @default("pending")
+  status              OrderStatus       @default(pending)
   kitchenStatus       String           @default("pending")
   kitchenStartedAt    DateTime?        @db.Timestamptz
   kitchenCompletedAt  DateTime?        @db.Timestamptz
@@ -4169,7 +4313,7 @@ model Payment {
   folioId         String    @db.Uuid
   amount          Float
   currency        String    @default("USD")
-  method          String
+  method          PaymentMethod
   gateway         String?
   gatewayRef      String?
   gatewayFee      Float?
@@ -4182,7 +4326,7 @@ model Payment {
   cardExpiry      String?
   transactionId   String?   @db.Uuid
   reference       String?
-  status          String    @default("pending")
+  status          PaymentStatus @default(pending)
   refundAmount    Float     @default(0)
   refundedAt      DateTime? @db.Timestamptz
   refundReason    String?
@@ -5491,11 +5635,11 @@ model Room {
   hasBalcony         Boolean            @default(false)
   hasSeaView         Boolean            @default(false)
   hasMountainView    Boolean            @default(false)
-  status             String             @default("available")
+  status             RoomStatus         @default(available)
   smartRoomConfig    String?
   digitalKeyEnabled  Boolean            @default(true)
   digitalKeySecret   String?
-  housekeepingStatus String             @default("clean") // clean, dirty, cleaning, inspected
+  housekeepingStatus HousekeepingStatus @default(clean) // clean, dirty, cleaning, inspected
   lastCleanedAt      DateTime?          @db.Timestamptz
   lastInspectedAt    DateTime?          @db.Timestamptz
   inspectedBy        String?
@@ -6346,7 +6490,7 @@ model Subscription {
   billingCycle       String
   amount             Float
   currency           String                @default("USD")
-  status             String                @default("active")
+  status             SubscriptionStatus    @default(active)
   currentPeriodStart DateTime              @db.Timestamptz
   currentPeriodEnd   DateTime              @db.Timestamptz
   cancelledAt        DateTime?             @db.Timestamptz
@@ -6461,8 +6605,8 @@ model Task {
   category          String
   title             String
   description       String?
-  priority          String    @default("medium")
-  status            String    @default("pending")
+  priority          TaskPriority @default(medium)
+  status            TaskStatus   @default(pending)
   scheduledAt       DateTime? @db.Timestamptz
   startedAt         DateTime? @db.Timestamptz
   completedAt       DateTime? @db.Timestamptz
@@ -7278,7 +7422,7 @@ model User {
   phone                   String?
   jobTitle                String?
   department              String?
-  roleId                  String?                  @db.Uuid
+  roleId                  String                   @db.Uuid
   lastLoginAt             DateTime?                @db.Timestamptz
   lastLoginIp             String?
   passwordChangedAt       DateTime?                @db.Timestamptz // Track when password was last changed for expiry enforcement
@@ -7322,7 +7466,7 @@ model User {
   deliveredLaundryOrders  LaundryOrder[]       @relation("LaundryDeliveredBy")
   ipWhitelistRules        IpWhitelistRule[]
   reviewedFraudAlerts     FraudAlert[]             @relation("FraudAlertReviewer")
-  role                    Role?                    @relation(fields: [roleId], references: [id])
+  role                    Role                     @relation(fields: [roleId], references: [id])
   tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userPropertyAssignments UserProperty[]
 

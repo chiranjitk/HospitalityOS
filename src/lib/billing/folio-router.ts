@@ -79,7 +79,7 @@ export async function routeCharge(
         ? JSON.parse(rule.conditions)
         : rule.conditions;
 
-    if (!evaluateConditions(conditions, charge.amount, bookingSource, booking?.roomTypeId)) {
+    if (!evaluateConditions(conditions, charge.amount, bookingSource, booking?.roomTypeId, booking?.channelId ?? undefined)) {
       continue;
     }
 
@@ -92,6 +92,8 @@ export async function routeCharge(
     );
 
     if (targetFolioId) {
+      // Track routing stat for this rule
+      recordRoutingStat(rule.id, charge.amount);
       return {
         targetFolioId,
         routingRuleId: rule.id,
@@ -113,7 +115,8 @@ function evaluateConditions(
   conditions: RoutingRuleConditions,
   amount: number,
   source: string,
-  roomTypeId?: string
+  roomTypeId?: string,
+  channelId?: string
 ): boolean {
   // Check amount range
   if (conditions.amountMin !== undefined && amount < conditions.amountMin) {
@@ -135,8 +138,9 @@ function evaluateConditions(
 
   // Check channel
   if (conditions.channel && conditions.channel !== 'all') {
-    // Channel check would need the booking's channelId
-    // For now, treat 'all' as pass-through
+    if (!channelId || channelId !== conditions.channel) {
+      return false;
+    }
   }
 
   return true;
@@ -198,12 +202,93 @@ export async function getActiveRoutingRules(tenantId: string, propertyId: string
   });
 }
 
+// ─── In-Memory Rule Stats Tracking ──────────────────────────────────────────
+// LIMITATION: There is no dedicated FolioRoutingLog table in the schema.
+// Stats are tracked in-memory and periodically flushed. This means stats are
+// lost on process restart and are not shared across serverless function instances.
+// TODO: Add a FolioRoutingLog table to the schema for persistent, cross-instance stats.
+
+interface RuleStatRecord {
+  ruleId: string;
+  chargesRouted: number;
+  totalAmountRouted: number;
+  lastRoutedAt: Date | null;
+}
+
+// In-memory store keyed by ruleId
+const ruleStatsMap = new Map<string, RuleStatRecord>();
+
+/**
+ * Record a routed charge for stats tracking. Called after successful routing.
+ */
+export function recordRoutingStat(ruleId: string, amount: number): void {
+  if (!ruleId) return;
+  const existing = ruleStatsMap.get(ruleId);
+  if (existing) {
+    existing.chargesRouted += 1;
+    existing.totalAmountRouted += amount;
+    existing.lastRoutedAt = new Date();
+  } else {
+    ruleStatsMap.set(ruleId, {
+      ruleId,
+      chargesRouted: 1,
+      totalAmountRouted: amount,
+      lastRoutedAt: new Date(),
+    });
+  }
+}
+
 /**
  * getRuleStats - Returns statistics about a routing rule (how many charges it has routed).
+ *
+ * Queries in-memory stats first. If no in-memory data exists, falls back to querying
+ * FolioLineItem counts by category as an approximate measure.
  */
 export async function getRuleStats(ruleId: string) {
-  // In a production system, this would query a charge routing log table.
-  // For now, return default stats.
+  // Check in-memory stats first
+  const inMemory = ruleStatsMap.get(ruleId);
+  if (inMemory) {
+    return {
+      ruleId: inMemory.ruleId,
+      chargesRouted: inMemory.chargesRouted,
+      lastRoutedAt: inMemory.lastRoutedAt,
+      totalAmountRouted: Math.round(inMemory.totalAmountRouted * 100) / 100,
+    };
+  }
+
+  // No in-memory data — look up the rule to get its charge category, then count
+  // FolioLineItems matching that category as an approximate fallback.
+  try {
+    const rule = await db.folioRoutingRule.findUnique({
+      where: { id: ruleId },
+      select: { chargeCategory: true, propertyId: true, tenantId: true },
+    });
+
+    if (rule) {
+      const aggregate = await db.folioLineItem.aggregate({
+        where: {
+          folio: {
+            tenantId: rule.tenantId,
+            propertyId: rule.propertyId,
+          },
+          category: rule.chargeCategory as any, // chargeCategory is a string, category is an enum
+        },
+        _count: true,
+        _sum: { totalAmount: true },
+        _max: { createdAt: true },
+      });
+
+      return {
+        ruleId,
+        chargesRouted: aggregate._count || 0,
+        lastRoutedAt: aggregate._max?.createdAt || null,
+        totalAmountRouted: Math.round((aggregate._sum?.totalAmount || 0) * 100) / 100,
+      };
+    }
+  } catch (error) {
+    console.error(`[folio-router] Failed to query fallback stats for rule ${ruleId}:`, error);
+  }
+
   return {
     ruleId,
     chargesRouted: 0,

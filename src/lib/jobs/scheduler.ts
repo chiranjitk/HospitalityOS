@@ -350,7 +350,9 @@ async function processGatewayAutoSync(): Promise<{
             where: { id: gw.id },
             data: { lastError: `Auto-sync failed: ${msg}` },
           });
-        } catch {}
+        } catch (schedulerError) {
+          console.error('Scheduler error: failed to update gateway lastError:', schedulerError);
+        }
       }
     }
   } catch (error) {
@@ -445,7 +447,9 @@ export async function processScheduledReports() {
           where: { id: report.id },
           data: { lastRunAt: now, lastRunStatus: 'error', lastError: errorMessage },
         });
-      } catch {}
+      } catch (schedulerError) {
+        console.error('Scheduler error: failed to update scheduled report status:', schedulerError);
+      }
     }
   }
 
@@ -558,7 +562,9 @@ export async function triggerReport(reportId: string): Promise<{
         where: { id: reportId },
         data: { lastRunAt: new Date(), lastRunStatus: 'error', lastError: errorMessage },
       });
-    } catch {}
+    } catch (schedulerError) {
+      console.error('Scheduler error: failed to update report error status:', schedulerError);
+    }
     return { success: false, error: errorMessage };
   }
 }

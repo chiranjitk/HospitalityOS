@@ -60,7 +60,9 @@ if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
   try {
     const exists = fs.existsSync(SCRIPTS_DIR);
     console.log(`[Network Scripts] Resolved SCRIPTS_DIR: ${SCRIPTS_DIR} (exists: ${exists})`);
-  } catch {}
+  } catch (error) {
+    console.error('Network executor error:', error);
+  }
 }
 
 /** Default timeout for script execution (10 seconds) */

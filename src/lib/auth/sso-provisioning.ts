@@ -76,9 +76,9 @@ export class SSOProvisioningService {
         }
       }
 
-      // Check if user already exists
+      // Check if user already exists under the current tenant
       const existingUser = await db.user.findFirst({
-        where: { email },
+        where: { email, tenantId },
         include: { role: true },
       });
 
@@ -506,9 +506,9 @@ export class SSOProvisioningService {
     connectionId?: string,
     reason?: string
   ): Promise<number> {
-    const where: { userId: string; connectionId?: string; terminatedAt: null } = {
+    const where: { userId: string; connectionId?: string; terminatedAt: { is: null } } = {
       userId,
-      terminatedAt: null as unknown as null, // TypeScript hack for null filter
+      terminatedAt: { is: null },
     };
 
     if (connectionId) {

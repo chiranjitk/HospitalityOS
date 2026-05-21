@@ -12,6 +12,7 @@ import { emailService } from '@/lib/services/email-service';
 import { notifyBookingConfirmed, notifyBookingCancelled, notifyGuestCheckedIn, notifyGuestCheckedOut, notifyNoShow } from '@/lib/notify';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 import { fireAutomationEvent } from '@/lib/automation/hooks';
+import { emitDashboardUpdate } from '@/lib/realtime-events';
 
 // Helper: derive paymentStatus from folio data (BUG-010)
 function derivePaymentStatus(folios: Array<{ status: string }>): string {
@@ -700,6 +701,8 @@ export async function PUT(
         confirmationCode: booking.confirmationCode,
       });
 
+      emitDashboardUpdate('checkin:completed', { bookingId: booking.id, roomId: effectiveRoomId, guestId: booking.primaryGuestId });
+
       // Fire automation trigger for guest check-in
       fireAutomationEvent('guest.check_in', {
         tenantId: booking.tenantId,
@@ -994,6 +997,8 @@ export async function PUT(
         confirmationCode: booking.confirmationCode,
       });
 
+      emitDashboardUpdate('checkout:completed', { bookingId: booking.id, roomId: effectiveRoomId, guestId: booking.primaryGuestId });
+
       // Fire automation trigger for guest check-out
       fireAutomationEvent('guest.check_out', {
         tenantId: booking.tenantId,
@@ -1205,6 +1210,8 @@ export async function PUT(
         // Don't fail the cancellation if penalty application fails
       }
     }
+
+    emitDashboardUpdate('booking:updated', { bookingId: booking.id });
 
     return NextResponse.json({ 
       success: true, 

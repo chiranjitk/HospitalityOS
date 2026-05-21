@@ -1,6 +1,11 @@
 /**
  * Payment Router Service
  * Routes payments through gateways with failover and retry logic
+ *
+ * IMPORTANT: PaymentRouter instances are per-request — use createPaymentRouter()
+ * to create a new instance for each payment operation. The singleton pattern
+ * (getInstance) is DEPRECATED and kept only for backward compatibility.
+ * Gateway health status is cached by the shared gatewayRegistry, not by the router.
  */
 
 import { db } from '@/lib/db';
@@ -35,7 +40,9 @@ const DEFAULT_FAILOVER_CONFIG: FailoverConfig = {
     'api_connection_error',
     'api_error',
     'rate_limit_error',
-    'card_declined',
+    // NOTE: 'card_declined' is intentionally NOT listed here.
+    // A genuine card decline means the card itself was declined by the issuer.
+    // Retrying on a different gateway won't help — the card will still be declined.
     'processing_error',
   ],
   healthCheckIntervalMs: 60000,
@@ -48,33 +55,53 @@ const DEFAULT_FAILOVER_CONFIG: FailoverConfig = {
 
 /**
  * Payment Router
- * Handles payment routing, failover, and retry logic
+ * Handles payment routing, failover, and retry logic.
+ *
+ * Each instance is scoped to a single tenant and request. Create via
+ * createPaymentRouter() — do NOT use the deprecated getInstance() singleton.
+ * Gateway health status is shared via gatewayRegistry, not per-instance.
  */
 export class PaymentRouter {
+  // ── Singleton kept ONLY for backward compatibility ─────────────────────
+  // New code should use createPaymentRouter() instead.
   private static instance: PaymentRouter | null = null;
-  private failoverConfig: FailoverConfig;
-  private tenantId: string | null = null;
-  
-  private constructor() {
-    this.failoverConfig = DEFAULT_FAILOVER_CONFIG;
-  }
+
+  private readonly failoverConfig: FailoverConfig;
+  private readonly tenantId: string;
   
   /**
-   * Get singleton instance
+   * Create a new PaymentRouter for a specific tenant.
+   * Prefer createPaymentRouter() over this constructor.
+   */
+  private constructor(tenantId: string, config?: Partial<FailoverConfig>) {
+    this.tenantId = tenantId;
+    this.failoverConfig = { ...DEFAULT_FAILOVER_CONFIG, ...config };
+  }
+
+  /**
+   * DEPRECATED: Get singleton instance. Will use 'unknown' as tenant.
+   * Use createPaymentRouter(tenantId, config) instead for per-request instances.
    */
   static getInstance(): PaymentRouter {
     if (!PaymentRouter.instance) {
-      PaymentRouter.instance = new PaymentRouter();
+      PaymentRouter.instance = new PaymentRouter('unknown');
     }
     return PaymentRouter.instance;
   }
   
   /**
-   * Initialize router for tenant
+   * Initialize gateways for this router's tenant.
+   * Called automatically by createPaymentRouter.
    */
-  async initialize(tenantId: string): Promise<void> {
-    this.tenantId = tenantId;
-    await initializeGateways(tenantId);
+  async initialize(): Promise<void> {
+    await initializeGateways(this.tenantId);
+  }
+
+  /**
+   * Get the tenant ID this router is configured for.
+   */
+  getTenantId(): string {
+    return this.tenantId;
   }
   
   /**
@@ -132,7 +159,7 @@ export class PaymentRouter {
         
         // Log transaction
         await this.logTransaction({
-          tenantId: this.tenantId || 'unknown',
+          tenantId: this.tenantId,
           gateway: currentGateway,
           operation: 'payment',
           amount: request.amount,
@@ -204,7 +231,7 @@ export class PaymentRouter {
         
         // Log failed attempt
         await this.logTransaction({
-          tenantId: this.tenantId || 'unknown',
+          tenantId: this.tenantId,
           gateway: currentGateway,
           operation: 'payment',
           amount: request.amount,
@@ -267,7 +294,7 @@ export class PaymentRouter {
       
       // Log transaction
       await this.logTransaction({
-        tenantId: this.tenantId || 'unknown',
+        tenantId: this.tenantId,
         gateway: gateway.type,
         operation: 'refund',
         amount: request.amount,
@@ -358,7 +385,7 @@ export class PaymentRouter {
    * Update failover configuration
    */
   updateFailoverConfig(config: Partial<FailoverConfig>): void {
-    this.failoverConfig = { ...this.failoverConfig, ...config };
+    Object.assign(this.failoverConfig, config);
     gatewayRegistry.updateFailoverConfig(config);
   }
   
@@ -397,7 +424,8 @@ export class PaymentRouter {
   }
   
   /**
-   * Check if error is retryable
+   * Check if error is retryable (infrastructure/network errors only).
+   * Card declines are intentionally excluded — a different gateway won't fix them.
    */
   private isRetryableError(errorCode: string): boolean {
     const retryableErrors = [
@@ -416,23 +444,19 @@ export class PaymentRouter {
   }
   
   /**
-   * Check if should failover to next gateway
+   * Check if should failover to next gateway.
+   * card_declined is excluded — it's an issuer rejection, not a gateway problem.
    */
   private shouldFailover(
     errorCode: string,
     attempt: number,
     previousFailures: number
   ): boolean {
-    // Failover for specific errors
+    // Failover for specific infrastructure/gateway errors (not card declines)
     const failoverErrors = this.failoverConfig.failoverOnErrors;
     const shouldFailover = failoverErrors.some(e => 
       errorCode.toLowerCase().includes(e.toLowerCase())
     );
-    
-    // Don't failover on first attempt if it's a card decline
-    if (attempt === 1 && errorCode.toLowerCase().includes('card_declined')) {
-      return false;
-    }
     
     // Failover if we have more gateways to try
     return shouldFailover || previousFailures > 0;
@@ -497,20 +521,53 @@ export class PaymentRouter {
 }
 
 // ============================================
-// Singleton Export
+// Factory Function (recommended for new code)
 // ============================================
 
+/**
+ * Create a new PaymentRouter instance scoped to a specific tenant.
+ *
+ * Each call returns a fresh instance — safe for concurrent requests without
+ * race conditions on tenant-specific state. Gateway health status is shared
+ * across all instances via the global gatewayRegistry.
+ *
+ * @param tenantId - The tenant to route payments for
+ * @param config - Optional failover configuration overrides
+ * @returns A new PaymentRouter instance, already initialized with tenant gateways
+ */
+export async function createPaymentRouter(
+  tenantId: string,
+  config?: Partial<FailoverConfig>
+): Promise<PaymentRouter> {
+  const router = new PaymentRouter(tenantId, config);
+  await router.initialize();
+  return router;
+}
+
+// ============================================
+// Legacy Singleton Export (deprecated)
+// ============================================
+
+/**
+ * @deprecated Use createPaymentRouter(tenantId, config) instead.
+ * The singleton pattern causes race conditions when tenant state is shared
+ * across concurrent requests. This export is kept for backward compatibility only.
+ */
 export const paymentRouter = PaymentRouter.getInstance();
 
 /**
- * Initialize the payment router for a tenant
+ * @deprecated Use createPaymentRouter(tenantId) instead.
  */
 export async function initializePaymentRouter(tenantId: string): Promise<void> {
-  await paymentRouter.initialize(tenantId);
+  console.warn(
+    '[payments] initializePaymentRouter is deprecated. Use createPaymentRouter(tenantId) instead. ' +
+    'The singleton pattern causes race conditions on tenant-specific state.'
+  );
+  await initializeGateways(tenantId);
 }
 
 /**
- * Get the payment router instance
+ * @deprecated Use createPaymentRouter(tenantId) instead.
  */
 export function getPaymentRouter(): PaymentRouter {
   return paymentRouter;

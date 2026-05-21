@@ -24,6 +24,7 @@ export interface RoomChargeResult {
   rateSource: RateSource;
   taxComponents: TaxComponentDetail[];
   currency: string;
+  warning?: string;
 }
 
 export interface TaxComponentDetail {
@@ -114,6 +115,15 @@ export async function calculateRoomCharge(
     rateSource = 'booking_rate';
   }
 
+  // 1d. No pricing found — log a WARNING and set a flag so callers can handle it
+  if (baseRate === 0) {
+    const dateStr = normalizeDate(date).toISOString().split('T')[0];
+    console.warn(
+      `[room-charge] No pricing found for room type ${booking.roomTypeId} on ${dateStr}. ` +
+      `No active rate plan, price override, or booking rate configured. Returning $0 with NO_PRICING_FOUND warning.`
+    );
+  }
+
   // 2. Apply pricing rules if available
   baseRate = await applyPricingRules(
     baseRate,
@@ -138,6 +148,7 @@ export async function calculateRoomCharge(
     rateSource,
     taxComponents,
     currency,
+    warning: baseRate === 0 ? 'NO_PRICING_FOUND' : undefined,
   };
 }
 

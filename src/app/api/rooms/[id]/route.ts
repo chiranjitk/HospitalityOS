@@ -5,6 +5,7 @@ import { logRoom } from '@/lib/audit';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { notifyRoomMaintenance, notifyRoomStatusChange } from '@/lib/notify';
 import { fireAutomationEvent } from '@/lib/automation/hooks';
+import { cascadeRoomTypeChange } from '@/lib/room-type-change-cascade';
 
 // Room status transition validation
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -383,6 +384,21 @@ export async function PUT(
       }
 
       return NextResponse.json({ success: true, data: room });
+    }
+
+    // Cascade room type change effects (pricing updates for active bookings)
+    // Fire-and-forget: don't block the room update response
+    if (roomTypeId && roomTypeId !== existingRoom.roomTypeId) {
+      cascadeRoomTypeChange(
+        id,
+        existingRoom.roomTypeId,
+        roomTypeId,
+        existingRoom.propertyId,
+        user.tenantId,
+        user.id,
+      ).catch((err) => {
+        console.error('[Room Type Change] Cascade failed (non-blocking):', err);
+      });
     }
 
     // No room type change - simple update

@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     // Get plan limits
     const plan = tenant.plan || 'trial';
 
-    // Fix J: Replace hardcoded pricing and limits with DB lookup
+    // Look up plan pricing from DB; fall back to hardcoded defaults with a warning
     let basePrice: number;
     let apiCallsLimit: number;
     let messagesLimit: number;
@@ -106,7 +106,11 @@ export async function POST(request: NextRequest) {
         apiCallsLimit = planRecord.maxUsers > 0 ? planRecord.maxUsers * 10000 : tenant.maxUsers * 10000;
         messagesLimit = planRecord.maxUsers > 0 ? planRecord.maxUsers * 2000 : tenant.maxUsers * 2000;
       } else {
-        // Fallback to hardcoded values if plan not found in DB
+        // No SubscriptionPlan record found — fall back to hardcoded values
+        console.warn(
+          `[billing] No active SubscriptionPlan found for plan "${plan}" (tenant ${tenantId}). ` +
+          `Using hardcoded fallback pricing. Create a matching SubscriptionPlan record in the DB.`
+        );
         const pricing = planPricing[plan] || planPricing.trial;
         basePrice = billingPeriod === 'yearly' ? pricing.yearly / 12 : pricing.monthly;
         apiCallsLimit = plan === 'enterprise' ? 500000 :
@@ -116,8 +120,12 @@ export async function POST(request: NextRequest) {
                         plan === 'professional' ? 50000 :
                         plan === 'starter' ? 10000 : 2000;
       }
-    } catch {
-      // DB lookup failed, fallback to hardcoded values
+    } catch (error) {
+      // DB lookup failed — fall back to hardcoded values
+      console.warn(
+        `[billing] SubscriptionPlan DB lookup failed for plan "${plan}" (tenant ${tenantId}):`,
+        error instanceof Error ? error.message : error
+      );
       const pricing = planPricing[plan] || planPricing.trial;
       basePrice = billingPeriod === 'yearly' ? pricing.yearly / 12 : pricing.monthly;
       apiCallsLimit = plan === 'enterprise' ? 500000 :

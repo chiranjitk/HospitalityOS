@@ -145,7 +145,8 @@ export const useUIStore = create<UIState>()(
 );
 
 // Expose store on window for E2E testing (Playwright can call window.__UI_STORE__)
-if (typeof window !== 'undefined') {
+// Only in non-production environments
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
   (window as any).__UI_STORE__ = useUIStore;
 }
 

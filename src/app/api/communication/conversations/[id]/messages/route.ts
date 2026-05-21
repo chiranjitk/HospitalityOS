@@ -183,8 +183,60 @@ export async function POST(
       },
     });
 
-    // TODO: Send message through channel (WhatsApp, SMS, Email) if senderType is 'staff'
-    // This would call the appropriate integration service
+    // Dispatch message through the conversation's external channel if senderType is 'staff'
+    if (senderType === 'staff' && conversation.channel !== 'in_app') {
+      try {
+        const { dispatchMessage } = await import('@/lib/communication/dispatcher');
+
+        // Resolve guest contact info
+        let recipientEmail: string | null = null;
+        let recipientPhone: string | null = null;
+        if (conversation.guestId) {
+          const guest = await db.guest.findUnique({
+            where: { id: conversation.guestId },
+            select: { email: true, phone: true },
+          });
+          if (guest) {
+            recipientEmail = guest.email;
+            recipientPhone = guest.phone;
+          }
+        }
+
+        const dispatchResult = await dispatchMessage({
+          conversationId: conversationId,
+          messageId: message.id,
+          channel: conversation.channel,
+          tenantId: conversation.tenantId,
+          guestId: conversation.guestId,
+          recipientEmail,
+          recipientPhone,
+          content,
+          messageType,
+          propertyId: conversation.propertyId,
+        });
+
+        // Update message status based on dispatch result
+        if (dispatchResult.status === 'sent' || dispatchResult.status === 'delivered') {
+          await db.chatMessage.update({
+            where: { id: message.id },
+            data: { status: 'sent' },
+          });
+        } else if (dispatchResult.status === 'pending_delivery') {
+          await db.chatMessage.update({
+            where: { id: message.id },
+            data: { status: 'pending_delivery' },
+          });
+        } else {
+          await db.chatMessage.update({
+            where: { id: message.id },
+            data: { status: 'failed' },
+          });
+        }
+      } catch (dispatchError) {
+        console.error('[Communication] Failed to dispatch message:', dispatchError);
+        // Don't fail the entire request — message is still saved in the DB
+      }
+    }
 
     return NextResponse.json({
       success: true,

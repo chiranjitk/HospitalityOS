@@ -42,19 +42,16 @@ export async function rateLimit(
       });
     }
 
-    // Atomic upsert: increment count or create new entry
-    const entry = await db.rateLimitEntry.upsert({
-      where: { key },
-      update: {
-        count: { increment: 1 },
-        resetAt,
-      },
-      create: {
-        key,
-        count: 1,
-        resetAt,
-      },
-    });
+    // Atomic upsert using raw SQL (INSERT ... ON CONFLICT DO UPDATE)
+    // This is truly atomic at the database level, unlike Prisma's upsert
+    // which can race between read and write operations.
+    const { randomUUID } = await import('crypto');
+    const [entry] = await db.$queryRaw<Array<{ id: string; key: string; count: number; resetAt: Date }>>`
+      INSERT INTO "RateLimitEntry" ("id", "key", "count", "resetAt", "createdAt", "updatedAt")
+      VALUES (${randomUUID()}, ${key}, 1, ${resetAt}, NOW(), NOW())
+      ON CONFLICT ("key") DO UPDATE SET "count" = "RateLimitEntry"."count" + 1, "updatedAt" = NOW()
+      RETURNING "id", "key", "count", "resetAt", "createdAt", "updatedAt"
+    `;
 
     if (entry.count > maxAttempts) {
       // Calculate retry after in seconds
@@ -65,10 +62,10 @@ export async function rateLimit(
 
     return { allowed: true, retryAfter: null };
   } catch (error) {
-    console.error('Rate limit check failed (allowing request as fallback):', error);
-    // On DB error, allow the request (fail-open) to avoid blocking legitimate users
-    // due to database issues
-    return { allowed: true, retryAfter: null };
+    console.error('Rate limit check failed (denying request — fail closed):', error);
+    // On DB error, deny the request (fail-closed) to prevent abuse when
+    // the rate limiter database is unavailable
+    return { allowed: false, retryAfter: 60 };
   }
 }
 

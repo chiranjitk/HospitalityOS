@@ -1,6 +1,19 @@
 import { PrismaClient } from '@prisma/client';
+import { createHash } from 'crypto';
 
 const p = new PrismaClient();
+
+// Deterministic UUID v4 from seed string (same approach as seed.ts)
+const uuid = (seed: string): string => {
+  const h = createHash('sha256').update('staysuite-seed:' + seed).digest('hex');
+  return [
+    h.slice(0, 8),
+    h.slice(8, 12),
+    '4' + h.slice(12, 15),
+    ((parseInt(h.charAt(15), 16) & 3) | 8).toString(16) + h.slice(16, 19),
+    h.slice(19, 31),
+  ].join('-');
+};
 
 async function seed() {
   console.log('Seeding help categories...');
@@ -28,7 +41,7 @@ async function seed() {
 
   console.log('\nSeeding help articles...');
 
-  const tenantId = 'tenant-1';
+  const tenantId = uuid('default-tenant');
 
   const articles = [
     {

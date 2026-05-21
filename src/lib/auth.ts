@@ -1,3 +1,32 @@
+/**
+ * ## Dual Authentication System
+ *
+ * StaySuite uses TWO complementary auth mechanisms:
+ *
+ * 1. **NextAuth.js** — Used for **web session management** (browser-based login flow).
+ *    It manages JWT tokens stored in HTTP-only cookies, handles the credentials
+ *    provider, password verification, session serialization, and page redirects.
+ *
+ * 2. **Custom `session_token` cookie** — Used for **API authentication** (mobile apps,
+ *    third-party integrations, and programmatic access). The token is a random string
+ *    stored in the `Session` database table, looked up on every API request via
+ *    `getTenantContext()` from `@/lib/auth/tenant-context`.
+ *
+ * ### How they coexist:
+ * - Web browsers get BOTH: a NextAuth JWT cookie and a `session_token` cookie.
+ * - API clients (mobile, integrations) only use the `session_token` cookie/header.
+ * - `getAuthSession(request?)` is the **SINGLE recommended way** to get the
+ *   authenticated session in API routes. It tries the custom session first (fast,
+ *   DB-backed, tenant-aware), then falls back to NextAuth (JWT-based, browser-only).
+ *
+ * ### When to use which:
+ * - **API routes** → always use `getAuthSession(request)` or `requireAuth(request)`
+ *   from `@/lib/auth/tenant-context`.
+ * - **Server components / RSC** → use `getAuthSession()` (no request needed, uses
+ *   NextAuth session).
+ * - **Middleware** → reads `session_token` cookie directly for API routes.
+ */
+
 import { NextAuthOptions, getServerSession } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { db } from './db';
@@ -34,13 +63,27 @@ export function validatePasswordStrength(password: string): { valid: boolean; er
   return { valid: errors.length === 0, errors };
 }
 
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+export async function upgradeLegacyHash(userId: string, plaintextPassword: string): Promise<void> {
+  const newHash = await hashPassword(plaintextPassword);
+  await db.user.update({
+    where: { id: userId },
+    data: { passwordHash: newHash },
+  });
+}
+
+export async function verifyPassword(password: string, hash: string, userId?: string): Promise<boolean> {
   // Check if it's a legacy SHA256 hash (64 hex characters)
   if (hash.length === 64 && /^[a-f0-9]{64}$/.test(hash)) {
     // Legacy verification for backward compatibility
     const crypto = await import('crypto');
     const legacyHash = crypto.createHash('sha256').update(password + 'staysuite_salt').digest('hex');
     if (legacyHash === hash) {
+      // Auto-rehash to bcrypt on successful legacy verification
+      if (userId) {
+        upgradeLegacyHash(userId, password).catch((err) => {
+          console.error('[auth] Failed to upgrade legacy hash for user', userId, err);
+        });
+      }
       return true;
     }
   }
@@ -92,7 +135,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         // Verify password
-        const isValid = await verifyPassword(credentials.password, user.passwordHash);
+        const isValid = await verifyPassword(credentials.password, user.passwordHash, user.id);
         if (!isValid) {
           // Increment failed attempts
           await db.user.update({
@@ -195,7 +238,7 @@ export const authOptions: NextAuthOptions = {
     // During next build, NODE_ENV=production but secrets aren't available yet.
     // Only throw at runtime (not during static generation / build).
     if (process.env.NODE_ENV === 'production' && typeof window === 'undefined' && process.env.NEXT_PHASE !== 'phase-production-build') {
-      console.error('CRITICAL: NEXTAUTH_SECRET must be set in production. Using insecure fallback.');
+      throw new Error('CRITICAL: NEXTAUTH_SECRET must be set in production. Refusing to start without it.');
     }
     return 'dev-only-secret-' + (process.env.NODE_ENV || 'unknown');
   })(),

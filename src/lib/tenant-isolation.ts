@@ -146,7 +146,7 @@ export function createTenantScopedDb(tenantId: string) {
           if (writeMethods.includes(method)) {
             return (...args: unknown[]) => {
               if (args.length > 0 && args[0] && typeof args[0] === 'object') {
-                const injectData = ['create', 'upsert'].includes(method);
+                const injectData = ['create', 'update', 'upsert'].includes(method);
                 args[0] = injectTenant(args[0] as Record<string, unknown>, injectData);
               }
               return (original as (...a: unknown[]) => Promise<unknown>)(...args);

@@ -223,7 +223,7 @@ async function evaluateRule(
     evaluation.durationMs = Date.now() - ruleStart;
 
     // Log the failure
-    await logExecution(rule.id, context, 'failed', evaluation).catch(() => {});
+    await logExecution(rule.id, context, 'failed', evaluation).catch((err) => console.error('Automation audit log error:', err));
 
     return evaluation;
   }

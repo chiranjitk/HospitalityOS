@@ -82,25 +82,7 @@ async function main() {
     await prisma.user.deleteMany({});
     await prisma.role.deleteMany({});
     await prisma.amenity.deleteMany({});
-    // Addon module tables (cleaned here, not in a second pass later)
-    await prisma.workOrder.deleteMany({});
-    await prisma.purchaseOrderItem.deleteMany({});
-    await prisma.purchaseOrder.deleteMany({});
-    await prisma.pricingRule.deleteMany({});
-    await prisma.waitlistEntry.deleteMany({});
-    await prisma.groupBooking.deleteMany({});
-    await prisma.floorPlanRoom.deleteMany({});
-    await prisma.floorPlan.deleteMany({});
-    await prisma.staffChatMessage.deleteMany({});
-    await prisma.staffChannelMember.deleteMany({});
-    await prisma.staffChannel.deleteMany({});
-    await prisma.guestJourney.deleteMany({});
-    await prisma.guestStay.deleteMany({});
-    await prisma.guestDocument.deleteMany({});
-    await prisma.vehicle.deleteMany({});
-    await prisma.chatMessage.deleteMany({});
-    await prisma.chatConversation.deleteMany({});
-    await prisma.competitorPrice.deleteMany({});
+    // Additional addon module tables not covered above
     await prisma.demandForecast.deleteMany({});
     await prisma.energyMetric.deleteMany({});
     await prisma.brand.deleteMany({});

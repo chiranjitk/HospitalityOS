@@ -99,7 +99,7 @@ export async function GET() {
   if (!CRON_SECRET_VALUE) {
     return NextResponse.json({ error: 'Cron secret not configured' }, { status: 403 });
   }
-  const lastStatus = getLastExecutionStatus();
+  const lastStatus = await getLastExecutionStatus();
   const nextRun = getNextScheduledRun();
 
   return NextResponse.json({

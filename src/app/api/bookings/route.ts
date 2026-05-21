@@ -10,6 +10,7 @@ import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { notifyBookingCreated } from '@/lib/notify';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 import { fireAutomationEvent } from '@/lib/automation/hooks';
+import { emitDashboardUpdate } from '@/lib/realtime-events';
 
 // Helper function to generate confirmation code
 function generateConfirmationCode(): string {
@@ -914,6 +915,8 @@ export async function POST(request: NextRequest) {
         status: booking.status,
       },
     });
+
+    emitDashboardUpdate('booking:created', { bookingId: booking.id });
 
     return NextResponse.json({ success: true, data: transformedBooking }, { status: 201 });
   } catch (error) {

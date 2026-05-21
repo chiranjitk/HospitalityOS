@@ -200,23 +200,69 @@ export async function fetchTripAdvisorReviews(
 
 /**
  * Expedia Review Fetcher
+ *
+ * Checks for Expedia credentials and returns structured responses.
+ * When credentials are configured but the API call fails, the error is surfaced.
+ * When credentials are not configured, returns a clear "not enabled" response.
  */
 export async function fetchExpediaReviews(
   config: ReviewSourceConfig,
   propertyId: string
-): Promise<{ reviews: ExternalReview[]; error?: string }> {
+): Promise<{ reviews: ExternalReview[]; enabled?: boolean; error?: string }> {
   try {
     const externalPropertyId = config.propertyMapping?.[propertyId];
     if (!externalPropertyId) {
-      return { reviews: [], error: 'No property mapping found' };
+      return { reviews: [], enabled: false, error: 'No property mapping found for Expedia' };
     }
 
-    // Expedia Partner API call
-    // TODO: Implement Expedia API integration when credentials are available
-    return { reviews: [], error: 'Expedia API not yet implemented' };
+    // Check if Expedia API credentials are configured
+    if (!config.apiKey || !config.apiSecret) {
+      return { reviews: [], enabled: false, error: 'Expedia API credentials not configured' };
+    }
+
+    // Credentials are configured — attempt the real API call
+    try {
+      const response = await fetch(
+        `https://api.ean.com/2.0/properties/${externalPropertyId}/reviews`,
+        {
+          headers: {
+            'Authorization': `Bearer ${config.apiKey}`,
+            'X-Expedia-API-Key': config.apiKey,
+            'X-Expedia-API-Secret': config.apiSecret,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => response.statusText);
+        return { reviews: [], enabled: true, error: `Expedia API returned ${response.status}: ${errorText}` };
+      }
+
+      const data = await response.json();
+      const reviews: ExternalReview[] = (data.reviews || []).map((r: Record<string, unknown>) => ({
+        externalId: r.id as string || r.reviewId as string,
+        source: 'expedia',
+        propertyId,
+        guestName: (r.reviewer as Record<string, unknown>)?.name as string,
+        rating: typeof r.rating === 'number' ? r.rating : 5,
+        title: r.title as string,
+        content: r.content as string || r.text as string || '',
+        reviewDate: new Date(r.date as string || r.reviewDate as string),
+        responseDate: r.responseDate ? new Date(r.responseDate as string) : undefined,
+        responseContent: r.responseContent as string,
+        language: r.language as string,
+        verified: (r.verified as boolean) ?? false,
+      }));
+
+      return { reviews, enabled: true };
+    } catch (apiError) {
+      const message = apiError instanceof Error ? apiError.message : 'Unknown API error';
+      return { reviews: [], enabled: true, error: message };
+    }
   } catch (error) {
     console.error('Error fetching Expedia reviews:', error);
-    return { reviews: [], error: 'Failed to fetch Expedia reviews' };
+    return { reviews: [], enabled: false, error: 'Failed to fetch Expedia reviews' };
   }
 }
 
