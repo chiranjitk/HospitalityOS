@@ -298,10 +298,10 @@ export default function LoginPage() {
             />
           ))}
 
-          {/* Multi-layer overlay — warm orange-tinted for premium hospitality feel */}
-          <div className="absolute inset-0 bg-gradient-to-t from-orange-950/90 via-orange-950/40 to-orange-950/20" />
-          <div className="absolute inset-0 bg-gradient-to-r from-orange-950/85 via-orange-950/30 to-orange-950/60" />
-          <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-orange-950/95 to-transparent" />
+          {/* Clean dark overlay — no orange tint */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/20 to-black/50" />
+          <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/85 to-transparent" />
 
           {/* Content overlay */}
           <motion.div
