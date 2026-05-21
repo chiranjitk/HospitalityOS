@@ -24,6 +24,10 @@ import { seedSupplementData } from './seed-supplement';
 import { seedBillingData } from './seed-supplement-billing';
 import { seedExtrasData } from './seed-supplement-extras';
 import { seedPageData } from './seed-pages';
+import { seed12Tables } from './seed-12-tables';
+import { seedGroupBData } from './seed-group-b';
+import { seedEmptyTables } from './seed-empty-tables';
+import { seedFinalFix } from './seed-final-fix';
 
 const prisma = new PrismaClient();
 
@@ -178,6 +182,8 @@ async function main() {
     await prisma.leadActivity.deleteMany({});
     // ─── End page data cleanup ───
     // Core tables cleanup
+    await prisma.inspectionResult.deleteMany({});
+    await prisma.inspectionTemplate.deleteMany({});
     await prisma.staffChatMessage.deleteMany({});
     await prisma.staffChannelMember.deleteMany({});
     await prisma.staffChannel.deleteMany({});
@@ -4236,6 +4242,29 @@ async function main() {
     await seedPageData(prisma);
   } catch (e: any) {
     console.log('Page data seed error:', e.message);
+  }
+
+  // ─── Seed additional empty tables (Group A, B, C) ───
+  console.log('Seeding remaining empty tables (89 models)...');
+  try {
+    await seed12Tables(prisma);
+  } catch (e: any) {
+    console.log('Group A seed error:', e.message);
+  }
+  try {
+    await seedGroupBData(prisma);
+  } catch (e: any) {
+    console.log('Group B seed error:', e.message);
+  }
+  try {
+    await seedEmptyTables(prisma);
+  } catch (e: any) {
+    console.log('Group C seed error:', e.message);
+  }
+  try {
+    await seedFinalFix(prisma);
+  } catch (e: any) {
+    console.log('Final fix seed error:', e.message);
   }
 
   console.log('\n✅ Database seed completed successfully!');
