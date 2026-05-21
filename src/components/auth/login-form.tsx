@@ -72,9 +72,9 @@ export function LoginForm({ onLogin }: LoginFormProps) {
 
   const showDemoCredentials = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production';
   const demoCredentials = showDemoCredentials ? [
-    { role: 'Admin', email: 'admin@royalstay.in', password: 'Admin@123', color: 'bg-gradient-to-br from-orange-600 to-amber-600' },
-    { role: 'Front Desk', email: 'frontdesk@royalstay.in', password: 'Staff@123', color: 'bg-gradient-to-br from-amber-500 to-orange-500' },
-    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'Staff@123', color: 'bg-gradient-to-br from-orange-500 to-amber-500' },
+    { role: 'Admin', email: 'admin@royalstay.in', password: 'admin123', color: 'bg-gradient-to-br from-orange-600 to-amber-600' },
+    { role: 'Front Desk', email: 'frontdesk@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-amber-500 to-orange-500' },
+    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-orange-500 to-amber-500' },
   ] : [];
 
   return (
