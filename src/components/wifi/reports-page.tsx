@@ -1081,7 +1081,7 @@ function WebSurfingTab() {
         <Eye className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
         <div className="flex-1">
           <p className="text-sm text-muted-foreground">Domain-level access logs only. Full URL tracking disabled for guest privacy (GDPR/PIPL).</p>
-          <Badge variant={dataSource === 'clickhouse' ? 'default' : 'secondary'} className={cn('mt-1 text-xs', dataSource === 'clickhouse' && 'bg-primary')}>
+          <Badge variant={dataSource === 'clickhouse' ? 'default' : 'secondary'} className={cn('mt-1 text-xs', dataSource === 'clickhouse' && 'bg-emerald-600 text-white hover:bg-emerald-700')}>
             <Database className="h-3 w-3 mr-1" />
             {dataSource === 'clickhouse' ? 'ClickHouse Live' : dataSource === 'ulogd2' ? 'ulogd2 Live' : 'Demo Data'}
           </Badge>
@@ -1306,7 +1306,7 @@ function NATLogsTab() {
         <div className="flex-1">
           <p className="text-sm text-muted-foreground">NAT connection logs for IPDR compliance (TRAI). Data retained for minimum 1 year.</p>
           <div className="flex gap-2 mt-1">
-            <Badge variant={dataSource === 'clickhouse' ? 'default' : 'secondary'} className={cn('text-xs', dataSource === 'clickhouse' && 'bg-primary')}>
+            <Badge variant={dataSource === 'clickhouse' ? 'default' : 'secondary'} className={cn('text-xs', dataSource === 'clickhouse' && 'bg-emerald-600 text-white hover:bg-emerald-700')}>
               <Database className="h-3 w-3 mr-1" />
               {dataSource === 'clickhouse' ? 'ClickHouse Live' : dataSource === 'ulogd2' ? 'ulogd2 Live' : 'Demo Data'}
             </Badge>
