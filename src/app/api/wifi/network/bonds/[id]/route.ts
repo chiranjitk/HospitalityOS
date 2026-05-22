@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { db } from '@/lib/db';
-import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import { deleteBond as nmcliDeleteBond } from '@/lib/network/nmcli';
 
 interface RouteParams {
@@ -19,9 +19,9 @@ interface RouteParams {
 }
 
 // Helper: resolve [id] — look up by name (OS identifier) first, then UUID
-async function resolveBond(id: string) {
+async function resolveBond(id: string, tenantId: string) {
   const byName = await db.bondConfig.findFirst({
-    where: { name: id },
+    where: { name: id, tenantId },
     include: {
       members: { include: { networkInterface: { select: { id: true, name: true } } } },
     },
@@ -29,7 +29,7 @@ async function resolveBond(id: string) {
   if (byName) return byName;
 
   return db.bondConfig.findFirst({
-    where: { id },
+    where: { id, tenantId },
     include: {
       members: { include: { networkInterface: { select: { id: true, name: true } } } },
     },
@@ -38,15 +38,13 @@ async function resolveBond(id: string) {
 
 // PUT /api/wifi/network/bonds/[id] - Update bond config
 export async function PUT(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
     const body = await request.json();
-    const existing = await resolveBond(id);
+    const existing = await resolveBond(id, ctx.tenantId);
 
     if (!existing) {
       return NextResponse.json(
@@ -124,14 +122,12 @@ function fallbackDeleteBond(name: string): void {
 
 // DELETE /api/wifi/network/bonds/[id] - Delete bond config
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
-    const existing = await resolveBond(id);
+    const existing = await resolveBond(id, ctx.tenantId);
 
     if (!existing) {
       return NextResponse.json(

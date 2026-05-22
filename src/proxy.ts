@@ -38,6 +38,10 @@ const PUBLIC_PATHS = [
   '/api/wifi/partners/validate',  // Promo code validation (public, captive portal)
   '/api/wifi/satisfaction/active', // Guest survey config (public, no auth)
   '/api/wifi/satisfaction/submit', // Guest survey submission (public, no auth)
+  '/api/wifi/captive/auth',       // Guest captive portal authentication (public)
+  '/api/wifi/otp/send',           // Guest SMS OTP send (public, rate-limited)
+  '/api/wifi/otp/verify',         // Guest SMS OTP verify (public, rate-limited)
+  '/api/wifi/social-auth/',       // Guest social auth callbacks (public)
   // Tenant listing (for signup flow)
   '/api/tenants',
   // Registration (public, license key based)

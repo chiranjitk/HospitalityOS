@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -14,16 +14,14 @@ interface RouteParams {
 
 // GET /api/wifi/dhcp/reservations/[id] - Get single reservation
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
 
     const reservation = await db.dhcpReservation.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId: ctx.tenantId },
       include: {
         dhcpSubnet: {
           select: { id: true, name: true, subnet: true },
@@ -50,17 +48,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 // PUT /api/wifi/dhcp/reservations/[id] - Update reservation
 export async function PUT(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
     const body = await request.json();
 
     const existing = await db.dhcpReservation.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId: ctx.tenantId },
     });
 
     if (!existing) {
@@ -80,7 +76,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       const normalizedMac = macAddress.toLowerCase().trim();
       if (normalizedMac !== existing.macAddress) {
         const duplicate = await db.dhcpReservation.findFirst({
-          where: { subnetId: existing.subnetId, macAddress: normalizedMac, tenantId, id: { not: id } },
+          where: { subnetId: existing.subnetId, macAddress: normalizedMac, tenantId: ctx.tenantId, id: { not: id } },
         });
         if (duplicate) {
           return NextResponse.json(
@@ -94,7 +90,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Check for duplicate IP if changing
     if (ipAddress && ipAddress !== existing.ipAddress) {
       const duplicate = await db.dhcpReservation.findFirst({
-        where: { subnetId: existing.subnetId, ipAddress, tenantId, id: { not: id } },
+        where: { subnetId: existing.subnetId, ipAddress, tenantId: ctx.tenantId, id: { not: id } },
       });
       if (duplicate) {
         return NextResponse.json(
@@ -132,16 +128,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/wifi/dhcp/reservations/[id] - Delete reservation
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
 
     const existing = await db.dhcpReservation.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId: ctx.tenantId },
     });
 
     if (!existing) {

@@ -124,6 +124,7 @@ export function GDPRManager({ tenantId }: GDPRManagerProps) {
   const [selectedGuestId, setSelectedGuestId] = useState('');
   const [exportFormat, setExportFormat] = useState('json');
   const [processing, setProcessing] = useState<string | null>(null);
+  const [deletingConsentId, setDeletingConsentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -157,6 +158,34 @@ export function GDPRManager({ tenantId }: GDPRManagerProps) {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Handle delete consent record
+  const handleDeleteConsent = async (consentId: string) => {
+    setDeletingConsentId(null);
+    // Optimistic UI update: remove immediately
+    const previousRecords = [...consentRecords];
+    setConsentRecords(prev => prev.filter(r => r.id !== consentId));
+
+    try {
+      const res = await fetch(`/api/gdpr/consent?consentId=${encodeURIComponent(consentId)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        toast({ title: 'Deleted', description: 'Consent record deleted successfully' });
+        fetchData();
+      } else {
+        // Restore on error
+        setConsentRecords(previousRecords);
+        toast({ title: 'Error', description: data.error?.message || 'Failed to delete consent record', variant: 'destructive' });
+      }
+    } catch {
+      // Restore on error
+      setConsentRecords(previousRecords);
+      toast({ title: 'Error', description: 'Failed to delete consent record', variant: 'destructive' });
+    }
+  };
 
   // Handle export request
   const handleExport = async () => {
@@ -575,12 +604,36 @@ export function GDPRManager({ tenantId }: GDPRManagerProps) {
                             </p>
                           )}
                         </div>
-                        <div className="text-right">
-                          {consent.revoked && (
-                            <p className="text-xs text-red-500 dark:text-red-400">
-                              Revoked: {formatDate(consent.revokedAt)}
-                            </p>
-                          )}
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            {consent.revoked && (
+                              <p className="text-xs text-red-500 dark:text-red-400">
+                                Revoked: {formatDate(consent.revokedAt)}
+                              </p>
+                            )}
+                          </div>
+                          <AlertDialog open={deletingConsentId === consent.id} onOpenChange={(open) => { if (!open) setDeletingConsentId(null); }}>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="destructive" size="icon" className="h-8 w-8" aria-label={`Delete consent record for ${consent.consentType}`}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Consent Record?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently delete the {consent.consentType} consent record
+                                  {consent.guestId ? ` for guest ${consent.guestId}` : ''}. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteConsent(consent.id)}>
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       </div>
                     ))}

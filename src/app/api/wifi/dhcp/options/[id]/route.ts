@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -14,16 +14,14 @@ interface RouteParams {
 
 // GET /api/wifi/dhcp/options/[id] - Get single option
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
 
     const option = await db.dhcpOption.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId: ctx.tenantId },
       include: {
         dhcpSubnet: true,
       },
@@ -48,17 +46,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 // PUT /api/wifi/dhcp/options/[id] - Update option
 export async function PUT(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
     const body = await request.json();
 
     const existing = await db.dhcpOption.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId: ctx.tenantId },
     });
 
     if (!existing) {
@@ -75,7 +71,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // If changing subnet, verify it exists
     if (subnetId !== undefined && subnetId !== null) {
       const subnet = await db.dhcpSubnet.findFirst({
-        where: { id: subnetId, tenantId },
+        where: { id: subnetId, tenantId: ctx.tenantId },
       });
       if (!subnet) {
         return NextResponse.json(
@@ -112,16 +108,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/wifi/dhcp/options/[id] - Delete option
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
 
     const existing = await db.dhcpOption.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId: ctx.tenantId },
     });
 
     if (!existing) {

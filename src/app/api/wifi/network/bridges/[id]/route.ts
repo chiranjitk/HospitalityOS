@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { db } from '@/lib/db';
-import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import { deleteBridge as nmcliDeleteBridge } from '@/lib/network/nmcli';
 
 interface RouteParams {
@@ -19,28 +19,26 @@ interface RouteParams {
 }
 
 // Helper: resolve [id] — look up by name (OS identifier) first, then UUID
-async function resolveBridge(id: string) {
+async function resolveBridge(id: string, tenantId: string) {
   const byName = await db.bridgeConfig.findFirst({
-    where: { name: id },
+    where: { name: id, tenantId },
   });
   if (byName) return byName;
 
   return db.bridgeConfig.findFirst({
-    where: { id },
+    where: { id, tenantId },
   });
 }
 
 // PUT /api/wifi/network/bridges/[id] - Update bridge config
 export async function PUT(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
     const body = await request.json();
-    const existing = await resolveBridge(id);
+    const existing = await resolveBridge(id, ctx.tenantId);
 
     if (!existing) {
       return NextResponse.json(
@@ -105,14 +103,12 @@ function fallbackDeleteBridge(name: string): void {
 
 // DELETE /api/wifi/network/bridges/[id] - Delete bridge config
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
-    const existing = await resolveBridge(id);
+    const existing = await resolveBridge(id, ctx.tenantId);
 
     if (!existing) {
       return NextResponse.json(

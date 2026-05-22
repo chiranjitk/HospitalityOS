@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 /**
  * DEPRECATED — This endpoint is no longer active.
@@ -24,18 +25,30 @@ function deprecatedResponse(message: string) {
   );
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   return deprecatedResponse('This endpoint is deprecated. Use /api/wifi/firewall/content-filter instead.');
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   return deprecatedResponse('This endpoint is deprecated. Use /api/wifi/firewall/content-filter instead.');
 }
 
-export async function PUT() {
+export async function PUT(request: NextRequest) {
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   return deprecatedResponse('This endpoint is deprecated. Use /api/wifi/firewall/content-filter/:id with PUT instead.');
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   return deprecatedResponse('This endpoint is deprecated. Use /api/wifi/firewall/content-filter/:id with DELETE instead.');
 }

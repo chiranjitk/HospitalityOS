@@ -6,18 +6,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/dhcp/lease-scripts - List all lease scripts
 export async function GET(request: NextRequest) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const scripts = await db.dhcpLeaseScript.findMany({
-      where: { tenantId },
+      where: { tenantId: ctx.tenantId },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -46,10 +44,8 @@ export async function GET(request: NextRequest) {
 
 // POST /api/wifi/dhcp/lease-scripts - Create lease script
 export async function POST(request: NextRequest) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const body = await request.json();
@@ -64,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     const created = await db.dhcpLeaseScript.create({
       data: {
-        tenantId,
+        tenantId: ctx.tenantId,
         propertyId,
         name,
         scriptPath,

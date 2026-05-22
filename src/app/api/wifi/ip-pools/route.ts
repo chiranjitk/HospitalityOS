@@ -2,6 +2,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import { syncRestrictedNetwork } from '@/lib/restricted-network';
 
 // ─── IP Overlap Helpers ─────────────────────────────────────────────────────
@@ -62,7 +63,7 @@ function findSelfOverlaps(ranges: RangeInput[]): string[] {
 }
 
 /** Check cross-pool overlap using PostgreSQL inet comparison */
-async function findCrossPoolOverlaps(ranges: RangeInput[], excludePoolId?: string): Promise<string[]> {
+async function findCrossPoolOverlaps(ranges: RangeInput[], excludePoolId?: string, tenantId?: string): Promise<string[]> {
   if (ranges.length === 0) return [];
   const errors: string[] = [];
   for (const range of ranges) {
@@ -76,8 +77,9 @@ async function findCrossPoolOverlaps(ranges: RangeInput[], excludePoolId?: strin
       JOIN "IpPool" ip ON ip.id = r."poolId"
       WHERE ($1::inet <= r."endIp" AND r."startIp" <= $2::inet)
       ${excludePoolId ? 'AND r."poolId" != $3::uuid' : ''}
+      ${tenantId ? 'AND ip."tenantId" = $4::uuid' : ''}
       LIMIT 3
-    `, s, e, ...(excludePoolId ? [excludePoolId] : [])) as any[];
+    `, s, e, ...(excludePoolId ? [excludePoolId] : []), ...(tenantId ? [tenantId] : [])) as any[];
 
     for (const hit of overlapping) {
       const hitStart = hit.startIp.replace(/\/\d+$/, '');
@@ -89,7 +91,7 @@ async function findCrossPoolOverlaps(ranges: RangeInput[], excludePoolId?: strin
 }
 
 /** Full validation pass — returns combined error messages */
-async function validateRanges(ranges: RangeInput[], excludePoolId?: string): Promise<string[]> {
+async function validateRanges(ranges: RangeInput[], excludePoolId?: string, tenantId?: string): Promise<string[]> {
   const errors: string[] = [];
 
   // 1. Per-range format validation
@@ -105,7 +107,7 @@ async function validateRanges(ranges: RangeInput[], excludePoolId?: string): Pro
   if (selfErrors.length) return errors;
 
   // 3. Cross-pool overlap check
-  const crossErrors = await findCrossPoolOverlaps(ranges, excludePoolId);
+  const crossErrors = await findCrossPoolOverlaps(ranges, excludePoolId, tenantId);
   errors.push(...crossErrors);
 
   return errors;
@@ -113,6 +115,9 @@ async function validateRanges(ranges: RangeInput[], excludePoolId?: string): Pro
 
 // ─── GET: List all IP pools with ranges ─────────────────────────────────────
 export async function GET(request: NextRequest) {
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
@@ -132,10 +137,11 @@ export async function GET(request: NextRequest) {
       LEFT JOIN (SELECT "ipPoolId", COUNT(*)::int as cnt FROM "WiFiPlan" WHERE "ipPoolId" IS NOT NULL GROUP BY "ipPoolId") pc ON pc."ipPoolId" = ip.id
       LEFT JOIN (SELECT "ipPoolId", COUNT(*)::int as cnt FROM "WiFiUser" WHERE "ipPoolId" IS NOT NULL GROUP BY "ipPoolId") uc ON uc."ipPoolId" = ip.id
       LEFT JOIN (SELECT "poolId", COUNT(*)::int as cnt FROM "IpPoolRange" GROUP BY "poolId") rc ON rc."poolId" = ip.id
-      WHERE ($1::text = '' OR ip.name ILIKE '%' || $1 || '%' OR ip.description ILIKE '%' || $1 || '%')
+      WHERE ip."tenantId" = $3::uuid
+      AND ($1::text = '' OR ip.name ILIKE '%' || $1 || '%' OR ip.description ILIKE '%' || $1 || '%')
       AND ($2::text = '' OR ip."propertyId"::text = $2)
       ORDER BY ip."isDefault" DESC, ip.enabled DESC, ip.name ASC
-    `, search, propertyId);
+    `, search, propertyId, ctx.tenantId);
 
     // Fetch ranges for each pool
     const poolIds = (pools as any[]).map((p: any) => p.id);
@@ -188,6 +194,9 @@ export async function GET(request: NextRequest) {
 
 // ─── POST: Create IP pool ───────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const body = await request.json();
     const { name, description, gateway, subnet, isDefault, captivePortal, propertyId, enabled, ranges } = body;
@@ -207,7 +216,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    const validationErrors = await validateRanges(validRanges);
+    const validationErrors = await validateRanges(validRanges, undefined, ctx.tenantId);
     if (validationErrors.length > 0) {
       return NextResponse.json(
         { success: false, error: { message: 'IP range validation failed', details: validationErrors } },
@@ -215,19 +224,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get tenant ID
-    const tenants = await db.$queryRawUnsafe(`SELECT id FROM "Tenant" LIMIT 1`) as any[];
-    if (!tenants.length) {
-      return NextResponse.json(
-        { success: false, error: { message: 'No tenant found' } },
-        { status: 400 }
-      );
-    }
-    const tenantId = tenants[0].id;
-
     // If setting as default, clear existing default
     if (isDefault) {
-      await db.$executeRawUnsafe(`UPDATE "IpPool" SET "isDefault" = false WHERE "tenantId" = $1::uuid`, tenantId);
+      await db.$executeRawUnsafe(`UPDATE "IpPool" SET "isDefault" = false WHERE "tenantId" = $1::uuid`, ctx.tenantId);
     }
 
     // Sanitize inet fields: only pass valid IP/CIDR, otherwise null
@@ -242,7 +241,7 @@ export async function POST(request: NextRequest) {
                 gateway::text as gateway, subnet::text as subnet,
                 "isDefault", "captivePortal", enabled, "createdAt", "updatedAt"
     `, 
-      tenantId,
+      ctx.tenantId,
       propertyId || null,
       name.trim(),
       description || null,
@@ -288,6 +287,9 @@ export async function POST(request: NextRequest) {
 
 // ─── PUT: Update IP pool ────────────────────────────────────────────────────
 export async function PUT(request: NextRequest) {
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const body = await request.json();
     const { id, name, description, gateway, subnet, isDefault, captivePortal, enabled, ranges } = body;
@@ -308,7 +310,7 @@ export async function PUT(request: NextRequest) {
           { status: 400 }
         );
       }
-      const validationErrors = await validateRanges(validRanges, id);
+      const validationErrors = await validateRanges(validRanges, id, ctx.tenantId);
       if (validationErrors.length > 0) {
         return NextResponse.json(
           { success: false, error: { message: 'IP range validation failed', details: validationErrors } },
@@ -317,19 +319,16 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // If setting as default, clear existing default
+    // If setting as default, clear existing default for this tenant
     if (isDefault) {
-      const tenants = await db.$queryRawUnsafe(`SELECT "tenantId" FROM "IpPool" WHERE id = $1::uuid`, id) as any[];
-      if (tenants.length) {
-        await db.$executeRawUnsafe(`UPDATE "IpPool" SET "isDefault" = false WHERE "tenantId" = $1::uuid AND id != $2::uuid`, tenants[0].tenantId, id);
-      }
+      await db.$executeRawUnsafe(`UPDATE "IpPool" SET "isDefault" = false WHERE "tenantId" = $1::uuid AND id != $2::uuid`, ctx.tenantId, id);
     }
 
     // Sanitize inet fields: only pass valid IP/CIDR, otherwise null
     const safeGateway = (gateway && gateway.trim() && isValidIp(gateway.trim())) ? gateway.trim() : null;
     const safeSubnet = (subnet && subnet.trim() && subnet.trim().includes('/') && isValidIp(subnet.trim().split('/')[0])) ? subnet.trim() : null;
 
-    // Update pool
+    // Update pool with tenant isolation
     const result = await db.$queryRawUnsafe(`
       UPDATE "IpPool" SET
         name = $2,
@@ -340,11 +339,11 @@ export async function PUT(request: NextRequest) {
         "captivePortal" = $7,
         enabled = $8,
         "updatedAt" = now()
-      WHERE id = $1::uuid
+      WHERE id = $1::uuid AND "tenantId" = $9::uuid
       RETURNING id, "tenantId", "propertyId", name, description,
                 gateway::text as gateway, subnet::text as subnet,
                 "isDefault", "captivePortal", enabled, "createdAt", "updatedAt"
-    `, id, name, description || null, safeGateway, safeSubnet, isDefault ? true : false, captivePortal ? true : false, enabled !== false) as any[];
+    `, id, name, description || null, safeGateway, safeSubnet, isDefault ? true : false, captivePortal ? true : false, enabled !== false, ctx.tenantId) as any[];
 
     if (!result.length) {
       return NextResponse.json(
@@ -384,6 +383,9 @@ export async function PUT(request: NextRequest) {
 
 // ─── DELETE: Delete IP pool ─────────────────────────────────────────────────
 export async function DELETE(request: NextRequest) {
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -395,14 +397,22 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Check if pool exists and belongs to this tenant
+    const poolCheck = await db.$queryRawUnsafe(`SELECT id, name, "isDefault" FROM "IpPool" WHERE id = $1::uuid AND "tenantId" = $2::uuid`, id, ctx.tenantId) as any[];
+
+    if (!poolCheck.length) {
+      return NextResponse.json(
+        { success: false, error: { message: 'IP pool not found' } },
+        { status: 404 }
+      );
+    }
+
     // Check if pool is assigned to any plans or users
     const assignments = await db.$queryRawUnsafe(`
       SELECT 
         (SELECT COUNT(*)::int FROM "WiFiPlan" WHERE "ipPoolId" = $1::uuid) as plan_count,
         (SELECT COUNT(*)::int FROM "WiFiUser" WHERE "ipPoolId" = $1::uuid) as user_count
     `, id) as any[];
-
-    const poolInfo = await db.$queryRawUnsafe(`SELECT name, "isDefault" FROM "IpPool" WHERE id = $1::uuid`, id) as any[];
 
     if (assignments[0].plan_count > 0 || assignments[0].user_count > 0) {
       // Clear assignments instead of deleting
@@ -411,14 +421,14 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete pool (ranges cascade)
-    await db.$executeRawUnsafe(`DELETE FROM "IpPool" WHERE id = $1::uuid`, id);
+    await db.$executeRawUnsafe(`DELETE FROM "IpPool" WHERE id = $1::uuid AND "tenantId" = $2::uuid`, id, ctx.tenantId);
 
     // Sync /etc/restrictednetwork
     await syncRestrictedNetwork();
 
     return NextResponse.json({ 
       success: true, 
-      message: `IP pool "${poolInfo[0]?.name}" deleted successfully`,
+      message: `IP pool "${poolCheck[0]?.name}" deleted successfully`,
       unassigned: {
         plans: assignments[0].plan_count,
         users: assignments[0].user_count,

@@ -216,7 +216,6 @@ export default function WiFiIdentityVerification() {
   const [showFailDialog, setShowFailDialog] = useState(false);
   const [failReason, setFailReason] = useState('');
   const [showComplianceReport, setShowComplianceReport] = useState(false);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   // Settings saving state
   const [savingSettings, setSavingSettings] = useState(false);
@@ -288,54 +287,12 @@ export default function WiFiIdentityVerification() {
 
   // Load data and stats on mount and when dependencies change
   useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        setLoading(true);
-        const params = new URLSearchParams();
-        if (methodFilter !== 'all') params.append('verificationMethod', methodFilter);
-        if (statusFilter !== 'all') params.append('verificationStatus', statusFilter);
-        if (startDate) params.append('startDate', startDate);
-        if (endDate) params.append('endDate', endDate);
-        if (searchQuery) params.append('search', searchQuery);
-        params.append('limit', String(pageSize));
-        params.append('offset', String((page - 1) * pageSize));
-
-        const res = await fetch(`/api/wifi/identity-logs?${params}`);
-        const json = await res.json();
-        if (!cancelled && json.success) {
-          setLogs(json.data || []);
-          setTotal(json.pagination?.total || 0);
-        }
-      } catch {
-        // Silently handle
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, [methodFilter, statusFilter, startDate, endDate, searchQuery, page, pageSize]);
+    fetchLogs();
+  }, [fetchLogs]);
 
   useEffect(() => {
-    let cancelled = false;
-    const loadStats = async () => {
-      try {
-        setStatsLoading(true);
-        const res = await fetch('/api/wifi/identity-logs/stats');
-        const json = await res.json();
-        if (!cancelled && json.success) {
-          setStats(json.data);
-        }
-      } catch {
-        // Stats are supplementary
-      } finally {
-        if (!cancelled) setStatsLoading(false);
-      }
-    };
-    loadStats();
-    return () => { cancelled = true; };
-  }, []);
+    fetchStats();
+  }, [fetchStats]);
 
   // Load settings on mount
   useEffect(() => {
@@ -478,31 +435,6 @@ export default function WiFiIdentityVerification() {
       }
     } catch {
       toast({ title: 'Error', description: 'Failed to generate compliance report', variant: 'destructive' });
-    }
-  };
-
-  const handleCreateLog = async () => {
-    try {
-      const res = await fetch('/api/wifi/identity-logs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: `guest_${Date.now()}`,
-          verificationMethod: 'room_number',
-          ipAddress: '192.168.1.100',
-        }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        toast({ title: 'Created', description: 'Test log created successfully' });
-        setShowCreateDialog(false);
-        fetchLogs();
-        fetchStats();
-      } else {
-        toast({ title: 'Error', description: json.error?.message || 'Failed to create log', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Error', description: 'Failed to create log', variant: 'destructive' });
     }
   };
 
@@ -776,7 +708,6 @@ export default function WiFiIdentityVerification() {
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={fetchLogs}><RefreshCw className="h-3.5 w-3.5 mr-1" />Refresh</Button>
                   <Button variant="outline" size="sm" onClick={handleExport}><Download className="h-3.5 w-3.5 mr-1" />Export CSV</Button>
-                  <Button size="sm" onClick={() => setShowCreateDialog(true)}>Add Test Log</Button>
                 </div>
               </div>
             </CardContent>
@@ -1218,22 +1149,7 @@ export default function WiFiIdentityVerification() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── Create Test Log Dialog ─── */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Create Test Log Entry</DialogTitle>
-            <DialogDescription>Add a sample identity verification log for testing</DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-muted-foreground">This will create a test identity verification log with sample data to help you verify the system is working correctly.</p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>Cancel</Button>
-            <Button onClick={handleCreateLog}>Create</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
     </div>
   );
 }

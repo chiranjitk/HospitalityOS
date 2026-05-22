@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -14,16 +14,14 @@ interface RouteParams {
 
 // GET /api/wifi/dhcp/subnets/[id] - Get single subnet
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
 
     const subnet = await db.dhcpSubnet.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId: ctx.tenantId },
       include: {
         vlanConfig: true,
         reservations: {
@@ -62,17 +60,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 // PUT /api/wifi/dhcp/subnets/[id] - Update subnet
 export async function PUT(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
     const body = await request.json();
 
     const existing = await db.dhcpSubnet.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId: ctx.tenantId },
     });
 
     if (!existing) {
@@ -123,16 +119,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/wifi/dhcp/subnets/[id] - Delete subnet
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
 
     const existing = await db.dhcpSubnet.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId: ctx.tenantId },
       include: {
         _count: {
           select: {

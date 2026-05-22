@@ -6,18 +6,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/dhcp/hostname-filters - List all hostname filters
 export async function GET(request: NextRequest) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const filters = await db.dhcpHostnameFilter.findMany({
-      where: { tenantId },
+      where: { tenantId: ctx.tenantId },
       include: {
         dhcpSubnet: {
           select: { id: true, name: true },
@@ -43,10 +41,8 @@ export async function GET(request: NextRequest) {
 
 // POST /api/wifi/dhcp/hostname-filters - Create hostname filter
 export async function POST(request: NextRequest) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const body = await request.json();
@@ -61,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     const created = await db.dhcpHostnameFilter.create({
       data: {
-        tenantId,
+        tenantId: ctx.tenantId,
         propertyId,
         pattern,
         action: action ?? 'ignore',

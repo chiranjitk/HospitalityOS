@@ -10,17 +10,17 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
 // Helper: resolve [id] — look up by name (OS identifier) first, then UUID
-async function resolveInterface(id: string) {
+async function resolveInterface(id: string, tenantId: string) {
   // Try name first (the natural OS identifier)
   const byName = await db.networkInterface.findFirst({
-    where: { name: id },
+    where: { name: id, tenantId },
     include: {
       roles: true,
       vlans: true,
@@ -31,7 +31,7 @@ async function resolveInterface(id: string) {
 
   // Fallback: try as UUID id
   return db.networkInterface.findFirst({
-    where: { id },
+    where: { id, tenantId },
     include: {
       roles: true,
       vlans: true,
@@ -42,14 +42,12 @@ async function resolveInterface(id: string) {
 
 // GET /api/wifi/network/interfaces/[id] - Get single interface
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
-    const iface = await resolveInterface(id);
+    const iface = await resolveInterface(id, ctx.tenantId);
 
     if (!iface) {
       return NextResponse.json(
@@ -70,15 +68,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 // PUT /api/wifi/network/interfaces/[id] - Update interface
 export async function PUT(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
     const body = await request.json();
-    const existing = await resolveInterface(id);
+    const existing = await resolveInterface(id, ctx.tenantId);
 
     if (!existing) {
       return NextResponse.json(
@@ -129,14 +125,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/wifi/network/interfaces/[id] - Delete interface
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const ctx = await requirePermission(request, 'wifi.manage');
+  if (ctx instanceof NextResponse) return ctx;
 
   try {
     const { id } = await params;
-    const existing = await resolveInterface(id);
+    const existing = await resolveInterface(id, ctx.tenantId);
 
     if (!existing) {
       return NextResponse.json(
