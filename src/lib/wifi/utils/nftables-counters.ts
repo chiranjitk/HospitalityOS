@@ -18,33 +18,10 @@ const { execSync } = /*turbopackIgnore: true*/ require('child_process');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const path = /*turbopackIgnore: true*/ require('path');
 import { STAYSUITE_SCRIPTS_DIR } from '@/lib/wifi/paths';
+import { normalizeIPv4 as _normalizeIPv4 } from '@/lib/utils/ip';
 
-/**
- * Normalize an IP address to plain IPv4.
- *
- * On dual-stack Linux systems (Rocky, RHEL, CentOS), Node.js and FreeRADIUS
- * often report IPv4 addresses with an IPv6-mapped prefix: "::ffff:10.10.10.198".
- * This causes nftables to fail because nft doesn't accept the ::ffff: prefix
- * in "ip daddr" / "ip saddr" rules or set element operations.
- *
- * Strips:
- *   ::ffff:10.10.10.198  →  10.10.10.198
- *   [::ffff:10.10.10.198] →  10.10.10.198
- *
- * Returns the original string if it's already plain IPv4 or can't be normalized.
- */
-export function normalizeIPv4(ip: string): string {
-  if (!ip) return ip;
-  // Strip surrounding brackets (e.g. [::ffff:10.0.0.1] from headers)
-  let clean = ip.trim();
-  if (clean.startsWith('[') && clean.includes(']')) {
-    clean = clean.slice(1, clean.indexOf(']'));
-  }
-  // Strip IPv6-mapped IPv4 prefix
-  const v4Match = clean.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-  if (v4Match) return v4Match[1];
-  return clean;
-}
+/** Re-export for consumers that import from here */
+export { normalizeIPv4 } from '@/lib/utils/ip';
 
 // Counter script path: production uses STAYSUITE_SCRIPTS_DIR (same as login/logout),
 // dev/sandbox falls back to project-relative path.

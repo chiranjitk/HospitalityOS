@@ -22,7 +22,7 @@ const { execSync } = /*turbopackIgnore: true*/ require('child_process');
  */
 
 import { STAYSUITE_SCRIPTS_DIR } from '@/lib/wifi/paths';
-import { normalizeIPv4 } from '@/lib/wifi/utils/nftables-counters';
+import { normalizeIPv4 } from '@/lib/utils/ip';
 
 // ─── Configuration (production defaults, overridable via env) ────────
 

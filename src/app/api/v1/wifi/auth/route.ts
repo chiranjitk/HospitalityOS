@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizeIPv4, getClientIp } from '@/lib/utils/ip';
 import { db } from '@/lib/db';
 import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
 import { sendSMSNow } from '@/lib/services/sms-service';
@@ -99,9 +100,7 @@ async function upsertDeviceProfileWithFingerprint(params: {
   console.log(`[Auth] DeviceProfile upsert for ${username}: fp=${effectiveFingerprint ? effectiveFingerprint.substring(0, 16) + '...' : 'none'} mac=${formattedMac || 'none'} synthetic=${isSynthetic}`);
 
   try {
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      || request.headers.get('x-real-ip')
-      || 'unknown';
+    const clientIp = getClientIp(request) || 'unknown';
     const userAgent = request.headers.get('user-agent') || '';
     const deviceType = parseDeviceTypeFromUA(userAgent);
     const deviceName = parseDeviceNameFromUA(userAgent);
@@ -2224,9 +2223,7 @@ async function logAuthAttempt(
   macAddress?: string,
 ) {
   try {
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      || request.headers.get('x-real-ip')
-      || '';
+    const clientIp = getClientIp(request) || '';
 
     // Resolve MAC: use provided MAC, then fall back to DeviceProfile lookup
     let effectiveMac = macAddress || null;
@@ -2279,9 +2276,7 @@ async function createAccountingSession(
   pool?: MatchedPool | null
 ): Promise<string> {
   try {
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      || request.headers.get('x-real-ip')
-      || '0.0.0.0';
+    const clientIp = getClientIp(request) || '0.0.0.0';
 
     const now = new Date();
     const acctSessionId = `${Date.now()}-${randomUUID().slice(0, 8)}`;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { randomUUID, createHash } from 'crypto';
-import { radiusAuth, getRejectMessage } from '@/lib/wifi/utils/radius-auth';
+import { normalizeIPv4, getClientIp, extractClientIp } from '@/lib/utils/ip';
 import { addUserCounter } from '@/lib/wifi/utils/nftables-counters';
 import {
   runLoginScript,
@@ -14,29 +14,6 @@ import { getExternalGatewayConfig, buildGatewayAuthResponse, type ExternalGatewa
 // ────────────────────────────────────────────────────────────
 // IP Pool Validation Helpers (shared with wifi/auth)
 // ────────────────────────────────────────────────────────────
-
-function extractClientIp(request: NextRequest): string | null {
-  const xff = request.headers.get('x-forwarded-for');
-  if (xff) {
-    const firstIp = xff.split(',')[0].trim();
-    if (firstIp) return firstIp;
-  }
-  const xRealIp = request.headers.get('x-real-ip');
-  if (xRealIp) return xRealIp.trim();
-  return null;
-}
-
-function normalizeIp(raw: string | null): string | null {
-  if (!raw) return null;
-  let ip = raw.trim();
-  if (ip.startsWith('[') && ip.includes(']')) {
-    ip = ip.slice(1, ip.indexOf(']'));
-  }
-  const v4Match = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-  if (v4Match) return v4Match[1];
-  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) return ip;
-  return null;
-}
 
 async function validateClientIpInPool(
   clientIp: string,
@@ -270,10 +247,7 @@ export async function POST(request: NextRequest) {
           });
 
           if (wifiUser) {
-            const clientIp =
-              request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-              request.headers.get('x-real-ip') ||
-              'unknown';
+            const clientIp = getClientIp(request) || 'unknown';
             const userAgent = request.headers.get('user-agent') || null;
 
             // Normalize MAC address: strip separators, format as AA:BB:CC:DD:EE:FF
@@ -394,10 +368,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Update DeviceProfile stats ──
-    const clientIp =
-      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      request.headers.get('x-real-ip') ||
-      'unknown';
+    const clientIp = getClientIp(request) || 'unknown';
     const userAgent = request.headers.get('user-agent') || null;
 
     // Parse device type from UA
@@ -518,7 +489,7 @@ export async function POST(request: NextRequest) {
     //   - Sandbox environments (no real nftables)
     //   - Guests roaming between zones with different subnets
     const autoAuthRawIp = extractClientIp(request);
-    const autoAuthClientIp = normalizeIp(autoAuthRawIp);
+    const autoAuthClientIp = normalizeIPv4(autoAuthRawIp) || null;
     let matchedPool: { poolId: string; poolName: string; subnet?: string } | null = null;
     let skipFirewall = false; // Flag: skip firewall if IP not in any pool
 
@@ -613,7 +584,7 @@ export async function POST(request: NextRequest) {
     // Pass client IP for subnet-based multi-gateway routing.
     let externalGateway: ExternalGatewayConfig | null = null;
     try {
-      const gatewayClientIp = autoAuthClientIp || normalizeIp(clientIp);
+      const gatewayClientIp = autoAuthClientIp || normalizeIPv4(clientIp);
       externalGateway = await getExternalGatewayConfig(
         wifiUser.propertyId,
         wifiUser.tenantId,
@@ -630,7 +601,7 @@ export async function POST(request: NextRequest) {
     // Only activate firewall when client IP is in a managed IP pool AND
     // there is no external gateway (external gateway handles its own firewall).
     if (!skipFirewall && !externalGateway) {
-      const firewallIp = autoAuthClientIp || normalizeIp(clientIp);
+      const firewallIp = autoAuthClientIp || normalizeIPv4(clientIp);
       if (firewallIp && firewallIp !== '0.0.0.0') {
         await activateUserFirewall({
           username: wifiUser.username,
@@ -650,7 +621,7 @@ export async function POST(request: NextRequest) {
       }
 
       // ── Add per-IP byte counter rules for session engine tracking ──
-      const counterIp = autoAuthClientIp || normalizeIp(clientIp);
+      const counterIp = autoAuthClientIp || normalizeIPv4(clientIp);
       if (counterIp && counterIp !== '0.0.0.0') {
         addUserCounter(counterIp);
       }
@@ -784,7 +755,7 @@ async function activateUserFirewall(params: {
   subnet?: string | null;
 }) {
   try {
-    const clientIp = normalizeIp(params.clientIp);
+    const clientIp = normalizeIPv4(params.clientIp);
     if (!clientIp || clientIp === '0.0.0.0') {
       console.warn('[AutoAuth Firewall] Skipping activation — no valid client IP');
       return;
@@ -930,9 +901,7 @@ async function logAuthAttempt(
   macAddress?: string,
 ) {
   try {
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      || request.headers.get('x-real-ip')
-      || '';
+    const clientIp = normalizeIPv4(getClientIp(request) || '');
 
     // Resolve MAC: use provided MAC, then fall back to DeviceProfile lookup
     let effectiveMac = macAddress || null;
