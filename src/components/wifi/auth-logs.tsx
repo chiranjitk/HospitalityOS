@@ -5,8 +5,8 @@
  *
  * Real RADIUS authentication log viewer.
  * Queries v_auth_logs view (built on radpostauth).
- * Shows: full timestamp, username, result, source IP, client IP, NAS IP,
- *        reply message, MAC addresses, plan info, RADIUS group, property, room.
+ * Shows: timestamp, result, username, request-from (NAS IP), plan/group,
+ *        reply message (includes client IP), MAC, property, room.
  * Auto-refreshes every 30s. Fetches from /api/wifi/radius?action=auth-logs
  */
 
@@ -272,12 +272,12 @@ export default function AuthLogs() {
     );
   };
 
-  /** Get the client's assigned IP (from RADIUS pool / radacct.framedipaddress) */
-  const getClientIp = (log: AuthLogEntry) => {
-    return log.clientIpAddress || '';
+  /** Get the request source IP — where the RADIUS auth request came from (NAS) */
+  const getRequestFromIp = (log: AuthLogEntry) => {
+    return log.nasIpAddress || '';
   };
 
-  /** Get an enhanced reply message with username and source IP */
+  /** Get an enhanced reply message with context */
   const getEnhancedReplyMessage = (log: AuthLogEntry) => {
     if (log.replyMessage && log.replyMessage !== '—') return log.replyMessage;
     const isReject = log.authResult?.toLowerCase().includes('reject');
@@ -285,9 +285,10 @@ export default function AuthLogs() {
     if (isReject) parts.push('Authentication rejected');
     else parts.push('Authenticated');
     if (log.username) parts.push(`user: ${log.username}`);
-    const clientIp = getClientIp(log);
+    const clientIp = log.clientIpAddress || '';
     if (clientIp) parts.push(`IP: ${clientIp}`);
-    else if (log.nasIpAddress) parts.push(`NAS: ${log.nasIpAddress}`);
+    const nasIp = log.nasIpAddress || '';
+    if (nasIp) parts.push(`from: ${nasIp}`);
     return parts.join(' — ');
   };
 
@@ -449,24 +450,27 @@ export default function AuthLogs() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Wifi className="h-4 w-4 text-muted-foreground" />
-                        <p className="font-medium text-sm">{log.username}</p>
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-xs font-mono tabular-nums">
+                          {formatShortTimestamp(log.timestamp)}
+                        </span>
                       </div>
                       {getResultBadge(log.authResult)}
                     </div>
                     <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Wifi className="h-4 w-4 text-muted-foreground" />
+                        <p className="font-medium text-sm">{log.username}</p>
+                      </div>
                       {(() => {
-                        const cip = getClientIp(log);
-                        return cip ? (
+                        const reqIp = getRequestFromIp(log);
+                        return reqIp ? (
                           <div className="flex items-center gap-1.5">
-                            <Monitor className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs font-mono">{cip}</span>
+                            <Server className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs font-mono">{reqIp}</span>
                           </div>
                         ) : <span />;
                       })()}
-                      <span className="text-xs text-muted-foreground">
-                        {timeFormat === 'full' ? formatShortTimestamp(log.timestamp) : formatRelativeTime(log.timestamp)}
-                      </span>
                     </div>
                     {(() => {
                       const msg = getEnhancedReplyMessage(log);
@@ -507,15 +511,9 @@ export default function AuthLogs() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[70px]">Result</TableHead>
-                      <TableHead>Username</TableHead>
-                      <TableHead>Client IP</TableHead>
-                      <TableHead>NAS (Router)</TableHead>
-                      <TableHead>Plan / Group</TableHead>
-                      <TableHead>Reply</TableHead>
-                      <TableHead>MAC</TableHead>
                       <TableHead className="w-[170px]">
                         <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
                           Timestamp
                           <button
                             type="button"
@@ -527,12 +525,18 @@ export default function AuthLogs() {
                           </button>
                         </div>
                       </TableHead>
+                      <TableHead className="w-[70px]">Result</TableHead>
+                      <TableHead>Username</TableHead>
+                      <TableHead>Request From</TableHead>
+                      <TableHead>Plan / Group</TableHead>
+                      <TableHead>Reply</TableHead>
+                      <TableHead>MAC</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredLogs.map((log, index) => {
                       const isReject = log.authResult?.toLowerCase().includes('reject');
-                      const clientIp = log.clientIpAddress || '';
+                      const requestFromIp = getRequestFromIp(log);
                       return (
                         <TableRow
                           key={`${index}-${log.id || ''}`}
@@ -542,6 +546,18 @@ export default function AuthLogs() {
                           )}
                           onClick={() => setSelectedLog(log)}
                         >
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="text-xs font-mono tabular-nums">
+                                {timeFormat === 'full' ? formatShortTimestamp(log.timestamp) : formatRelativeTime(log.timestamp)}
+                              </span>
+                              {timeFormat === 'full' && log.timestamp && (
+                                <span className="text-[10px] text-muted-foreground tabular-nums">
+                                  {formatRelativeTime(log.timestamp)}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>{getResultBadge(log.authResult)}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -555,18 +571,11 @@ export default function AuthLogs() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {clientIp ? (
-                              <Badge variant="outline" className="font-mono text-[11px] bg-primary/5 dark:bg-primary/5 text-primary border-primary/20 dark:border-primary/30 whitespace-nowrap">
-                                <Monitor className="h-2.5 w-2.5 mr-1" />
-                                {clientIp}
+                            {requestFromIp ? (
+                              <Badge variant="outline" className="font-mono text-[11px] bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 whitespace-nowrap">
+                                <Server className="h-2.5 w-2.5 mr-1" />
+                                {requestFromIp}
                               </Badge>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">No IP assigned</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {log.nasIpAddress ? (
-                              <span className="text-xs font-mono text-muted-foreground">{log.nasIpAddress}</span>
                             ) : (
                               <span className="text-xs text-muted-foreground">—</span>
                             )}
@@ -599,18 +608,6 @@ export default function AuthLogs() {
                           </TableCell>
                           <TableCell>
                             <p className="text-xs font-mono text-muted-foreground">{log.callingStationId || '—'}</p>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span className="text-xs font-mono tabular-nums">
-                                {timeFormat === 'full' ? formatShortTimestamp(log.timestamp) : formatRelativeTime(log.timestamp)}
-                              </span>
-                              {timeFormat === 'full' && log.timestamp && (
-                                <span className="text-[10px] text-muted-foreground tabular-nums">
-                                  {formatRelativeTime(log.timestamp)}
-                                </span>
-                              )}
-                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -677,32 +674,30 @@ export default function AuthLogs() {
                 </div>
               </div>
 
-              {/* IP Addresses */}
+              {/* Network */}
               <div className="border-t pt-4">
                 <p className="text-xs font-medium text-muted-foreground mb-3">Network Information</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-muted-foreground">Client IP (Assigned from Pool)</p>
-                    {selectedLog.clientIpAddress ? (
-                      <Badge variant="outline" className="mt-1 font-mono text-xs bg-primary/5 dark:bg-primary/5 text-primary border-primary/20 dark:border-primary/30">
-                        <Monitor className="h-3 w-3 mr-1" />
-                        {selectedLog.clientIpAddress}
-                      </Badge>
-                    ) : (
-                      <p className="text-sm text-muted-foreground mt-1">Not assigned</p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">NAS IP (Access Point / Router)</p>
+                    <p className="text-xs text-muted-foreground">Request From (NAS)</p>
                     {selectedLog.nasIpAddress ? (
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <Server className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-sm font-mono">{selectedLog.nasIpAddress}</span>
-                      </div>
+                      <Badge variant="outline" className="mt-1 font-mono text-xs bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800">
+                        <Server className="h-3 w-3 mr-1" />
+                        {selectedLog.nasIpAddress}
+                      </Badge>
                     ) : (
                       <p className="text-sm text-muted-foreground mt-1">—</p>
                     )}
                   </div>
+                  {selectedLog.clientIpAddress && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Client IP (Assigned from Pool)</p>
+                      <Badge variant="outline" className="mt-1 font-mono text-xs bg-primary/5 dark:bg-primary/5 text-primary border-primary/20 dark:border-primary/30">
+                        <Monitor className="h-3 w-3 mr-1" />
+                        {selectedLog.clientIpAddress}
+                      </Badge>
+                    </div>
+                  )}
                   {selectedLog.sourceIpAddress && (
                     <div>
                       <p className="text-xs text-muted-foreground">RADIUS Client Source IP</p>
