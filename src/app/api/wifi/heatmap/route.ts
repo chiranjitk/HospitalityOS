@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requireAuth, requirePermission } from '@/lib/auth/tenant-context';
 
 const MAX_LIMIT = 200;
 
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
 // POST - Add a new reading
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requirePermission(request, 'wifi.manage');
     if (auth instanceof NextResponse) return auth;
     const { tenantId } = auth;
 

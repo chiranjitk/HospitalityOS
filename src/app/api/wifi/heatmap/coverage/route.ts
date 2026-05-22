@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // Signal quality classification
 function classifySignal(rssi: number) {
@@ -18,9 +19,13 @@ function coverageRadius(rssi: number) {
   return 7;
 }
 
-// GET - Get coverage data for a property (public endpoint)
+// GET - Get coverage data for a property
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const { tenantId } = auth;
+
     const { searchParams } = new URL(request.url);
     const propertyId = searchParams.get('propertyId') || '';
 
@@ -33,13 +38,13 @@ export async function GET(request: NextRequest) {
 
     // Get floor plans for the property
     const floorPlans = await db.wiFiFloorPlan.findMany({
-      where: { propertyId, isActive: true },
+      where: { propertyId, tenantId, isActive: true },
       orderBy: { floorNumber: 'asc' },
     });
 
     // Get latest readings per AP (grouped by apName, taking most recent)
     const allReadings = await db.wiFiHeatmapReading.findMany({
-      where: { propertyId },
+      where: { propertyId, tenantId },
       orderBy: { recordedAt: 'desc' },
       take: 500,
     });

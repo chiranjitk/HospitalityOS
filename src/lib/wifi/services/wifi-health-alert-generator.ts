@@ -22,6 +22,7 @@ import { db } from '@/lib/db';
 import { getLastNasHealthCheck } from './nas-health-check';
 import type { NasHealthCheckResult, ProbeResult } from './nas-health-check';
 import * as SELog from './session-engine-logger';
+import { dispatchAlertNotifications } from './wifi-alert-notifier';
 
 // ────────────────────────────────────────────────────────────
 // Constants
@@ -288,7 +289,7 @@ async function findActiveAlert(
  * Create a new WiFiAlert record.
  */
 async function createAlert(input: AlertInput): Promise<void> {
-  await db.wiFiAlert.create({
+  const createdAlert = await db.wiFiAlert.create({
     data: {
       tenantId: input.tenantId,
       propertyId: input.propertyId,
@@ -300,6 +301,18 @@ async function createAlert(input: AlertInput): Promise<void> {
       metadata: input.metadata,
     },
   });
+
+  // Fire-and-forget: dispatch notifications to staff without blocking alert creation
+  dispatchAlertNotifications({
+    id: createdAlert.id,
+    tenantId: createdAlert.tenantId,
+    propertyId: createdAlert.propertyId,
+    type: createdAlert.type,
+    severity: createdAlert.severity,
+    source: createdAlert.source,
+    message: createdAlert.message,
+    title: createdAlert.title,
+  }).catch(() => {});
 }
 
 /**

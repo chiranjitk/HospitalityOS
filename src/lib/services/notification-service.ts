@@ -814,6 +814,8 @@ export class NotificationService {
       maintenance: ['push', 'in_app'],
       system: ['email', 'push', 'in_app'],
       marketing: ['email'],
+      wifi_alert: ['email', 'push', 'in_app'],
+      health_alert: ['email', 'push', 'in_app'],
     };
 
     return defaultChannels[data.type] || ['in_app'];

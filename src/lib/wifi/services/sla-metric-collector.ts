@@ -19,6 +19,7 @@
 
 import { db } from '@/lib/db';
 import { bridgeSLABreachesToAlerts } from '@/lib/services/sla-alert-bridge';
+import { dispatchAlertNotifications } from '@/lib/wifi/services/wifi-alert-notifier';
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -366,7 +367,7 @@ async function createBreachAlert(
       avgLatency: metrics.avgLatency,
     };
 
-    await db.wiFiAlert.create({
+    const createdAlert = await db.wiFiAlert.create({
       data: {
         tenantId,
         propertyId,
@@ -378,6 +379,9 @@ async function createBreachAlert(
         status: 'active',
       },
     });
+
+    // Fire-and-forget: notify staff without blocking metric collection
+    dispatchAlertNotifications(createdAlert).catch(() => {});
 
     console.info(
       `[SlaMetricCollector] SLA breach alert created for property ${propertyId}: ${readableBreaches.join(', ')}`

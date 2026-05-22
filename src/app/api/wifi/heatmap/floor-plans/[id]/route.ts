@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requireAuth, requirePermission } from '@/lib/auth/tenant-context';
 
 // GET - Single floor plan with latest readings
 export async function GET(
@@ -40,7 +40,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requirePermission(request, 'wifi.manage');
     if (auth instanceof NextResponse) return auth;
     const { tenantId } = auth;
     const { id } = await params;
@@ -83,7 +83,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requirePermission(request, 'wifi.manage');
     if (auth instanceof NextResponse) return auth;
     const { tenantId } = auth;
     const { id } = await params;

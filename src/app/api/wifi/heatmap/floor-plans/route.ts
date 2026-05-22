@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requireAuth, requirePermission } from '@/lib/auth/tenant-context';
 
 // GET - List floor plans for a property
 export async function GET(request: NextRequest) {
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 // POST - Create floor plan with SVG data
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requirePermission(request, 'wifi.manage');
     if (auth instanceof NextResponse) return auth;
     const { tenantId } = auth;
 

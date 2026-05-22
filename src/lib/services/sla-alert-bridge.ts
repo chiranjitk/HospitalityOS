@@ -16,6 +16,7 @@
  */
 
 import { db } from '@/lib/db';
+import { dispatchAlertNotifications } from '@/lib/wifi/services/wifi-alert-notifier';
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -223,7 +224,7 @@ async function handleActiveBreach(params: {
   const title = formatAlertTitle(breachType);
   const message = formatAlertMessage(breachType, propertyName, metric, config);
 
-  await db.wiFiAlert.create({
+  const createdAlert = await db.wiFiAlert.create({
     data: {
       tenantId,
       propertyId,
@@ -236,6 +237,9 @@ async function handleActiveBreach(params: {
       status: 'active',
     },
   });
+
+  // Fire-and-forget: notify staff without blocking breach processing
+  dispatchAlertNotifications(createdAlert).catch(() => {});
 
   console.info(
     `[SLABridge] Created ${alertType} alert for property ${propertyId}`

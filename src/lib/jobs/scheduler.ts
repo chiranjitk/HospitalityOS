@@ -255,7 +255,7 @@ export function stopScheduler(): void {
 // Gateway Auto-Sync (inline — avoids pulling in heavy adapters at module load)
 // ---------------------------------------------------------------------------
 
-async function processGatewayAutoSync(): Promise<{
+export async function processGatewayAutoSync(): Promise<{
   synced: number;
   succeeded: number;
   failed: number;
