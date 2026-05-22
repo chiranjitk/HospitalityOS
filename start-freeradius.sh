@@ -33,7 +33,7 @@ case "${1:-start}" in
     echo "  Log:   $RADLOG"
     echo "  DB:    staysuite (PostgreSQL)"
     echo ""
-    $FREERADIUS_HOME/sbin/radiusd -f -d "$RADDB" -l "$RADLOG" &
+    $FREERADIUS_HOME/sbin/radiusd -f -d "$RADDB" -D "$FREERADIUS_HOME/share/freeradius" -l "$RADLOG" &
     echo "  PID: $!"
     sleep 2
     if kill -0 $! 2>/dev/null; then
@@ -45,7 +45,7 @@ case "${1:-start}" in
     ;;
   -d|daemon)
     echo "Starting FreeRADIUS as daemon..."
-    $FREERADIUS_HOME/sbin/radiusd -d "$RADDB" -l "$RADLOG"
+    $FREERADIUS_HOME/sbin/radiusd -d "$RADDB" -D "$FREERADIUS_HOME/share/freeradius" -l "$RADLOG"
     sleep 2
     if [ -f "$RADPID" ]; then
       echo "  ✓ FreeRADIUS started (PID: $(cat $RADPID))"
@@ -80,7 +80,7 @@ case "${1:-start}" in
     ;;
   test|check)
     echo "Testing configuration..."
-    $FREERADIUS_HOME/sbin/radiusd -XC -d "$RADDB" 2>&1 | tail -5
+    $FREERADIUS_HOME/sbin/radiusd -XC -d "$RADDB" -D "$FREERADIUS_HOME/share/freeradius" 2>&1 | tail -5
     ;;
   *)
     echo "Usage: $0 {start|-d|stop|restart|status|test}"
