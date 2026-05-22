@@ -439,6 +439,8 @@ export async function publishWebsite(websiteId: string) {
       analytics,
       domain: website.domain,
       preview: false,
+      websiteId: website.id,
+      propertyId: website.propertyId,
     });
     renderedPages[page.slug] = html;
   }

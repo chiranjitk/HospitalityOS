@@ -225,6 +225,8 @@ export default async function PublicWebsitePage({ params, searchParams }: PagePr
     analytics,
     domain,
     preview: isPreview,
+    websiteId: website.id,
+    propertyId: website.propertyId,
   });
 
   return (

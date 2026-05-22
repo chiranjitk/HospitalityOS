@@ -268,10 +268,10 @@ function renderHero(
             <option value="4" style="color:#333;">4+ Guests</option>
           </select>
         </div>
-        <button style="padding:10px 28px;background:${colors.secondary};color:#fff;border:none;border-radius:${colors.radius};font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap;">${esc(ctaText)}</button>
+        <button onclick="document.getElementById('booking')?.scrollIntoView({behavior:'smooth'})" style="padding:10px 28px;background:${colors.secondary};color:#fff;border:none;border-radius:${colors.radius};font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap;">${esc(ctaText)}</button>
       </div>
     </div>` : `
-    <a href="#booking" style="display:inline-block;margin-top:32px;padding:14px 40px;background:${colors.secondary};color:#fff;text-decoration:none;border-radius:${colors.radius};font-size:16px;font-weight:600;letter-spacing:0.5px;transition:transform 0.2s;">${esc(ctaText)}</a>`;
+    <a href="#booking" style="display:inline-block;margin-top:32px;padding:14px 40px;background:${colors.secondary};color:#fff;text-decoration:none;border-radius:${colors.radius};font-size:16px;font-weight:600;letter-spacing:0.5px;transition:transform 0.2s;">${esc(ctaText)}</a`;
 
   return `
     <section style="min-height:${minHeight};${bgStyle}display:flex;align-items:center;justify-content:center;padding:60px 24px;">
@@ -335,8 +335,9 @@ function renderRoomsGrid(
             </div>
           </div>
           ${amenitiesHtml}
+          <a href="#booking" onclick="document.getElementById('ss-room-type') && (document.getElementById('ss-room-type').value = '${room.id}')" style="display:inline-block;margin-top:12px;padding:8px 20px;background:${colors.primary};color:#fff;text-decoration:none;border-radius:${colors.radius};font-size:13px;font-weight:600;">Book Now</a>
         </div>
-      </div>`;
+      </div`;
   }).join('');
 
   return sectionWrapper(
@@ -698,15 +699,52 @@ function renderContactForm(
       ${headingHtml(heading, colors, template)}
       <div style="display:flex;flex-wrap:wrap;gap:40px;justify-content:center;">
         <div style="flex:1;min-width:280px;max-width:500px;">
-          <form style="display:flex;flex-direction:column;gap:16px;">
+          <form id="ss-contact-form" style="display:flex;flex-direction:column;gap:16px;">
+            <div id="ss-contact-msg" style="display:none;padding:12px 16px;border-radius:${colors.radius};font-size:14px;"></div>
             <div style="display:flex;gap:12px;flex-wrap:wrap;">
-              <input type="text" placeholder="Your Name" style="flex:1;min-width:120px;padding:12px 16px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;font-family:'${colors.font}',sans-serif;" />
-              <input type="email" placeholder="Email Address" style="flex:1;min-width:120px;padding:12px 16px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;font-family:'${colors.font}',sans-serif;" />
+              <input type="text" name="ss-contact-name" placeholder="Your Name" style="flex:1;min-width:120px;padding:12px 16px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;font-family:'${colors.font}',sans-serif;" />
+              <input type="email" name="ss-contact-email" placeholder="Email Address" style="flex:1;min-width:120px;padding:12px 16px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;font-family:'${colors.font}',sans-serif;" />
             </div>
-            <input type="text" placeholder="Subject" style="padding:12px 16px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;font-family:'${colors.font}',sans-serif;" />
-            <textarea placeholder="Your Message" rows="5" style="padding:12px 16px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;resize:vertical;font-family:'${colors.font}',sans-serif;"></textarea>
+            <input type="text" name="ss-contact-subject" placeholder="Subject" style="padding:12px 16px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;font-family:'${colors.font}',sans-serif;" />
+            <input type="tel" name="ss-contact-phone" placeholder="Phone Number (optional)" style="padding:12px 16px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;font-family:'${colors.font}',sans-serif;" />
+            <textarea name="ss-contact-message" placeholder="Your Message" rows="5" style="padding:12px 16px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;resize:vertical;font-family:'${colors.font}',sans-serif;"></textarea>
             <button type="submit" style="padding:12px 32px;background:${colors.primary};color:#fff;border:none;border-radius:${colors.radius};font-size:15px;font-weight:600;cursor:pointer;align-self:flex-start;">Send Message</button>
           </form>
+          <script>
+          (function(){
+            var form=document.getElementById('ss-contact-form');
+            if(!form)return;
+            var msgBox=document.getElementById('ss-contact-msg');
+            function showMsg(text,ok){
+              if(!msgBox)return;
+              msgBox.style.display='block';
+              msgBox.style.background=ok?'#d1fae5':'#fee2e2';
+              msgBox.style.color=ok?'#065f46':'#991b1b';
+              msgBox.textContent=text;
+            }
+            form.addEventListener('submit',function(e){
+              e.preventDefault();
+              var name=(form.querySelector('[name="ss-contact-name"]').value||'').trim();
+              var email=(form.querySelector('[name="ss-contact-email"]').value||'').trim();
+              var phone=(form.querySelector('[name="ss-contact-phone"]').value||'').trim();
+              var subject=(form.querySelector('[name="ss-contact-subject"]').value||'').trim();
+              var message=(form.querySelector('[name="ss-contact-message"]').value||'').trim();
+              if(!name){showMsg('Please enter your name.',false);return;}
+              if(!email||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)){showMsg('Please enter a valid email address.',false);return;}
+              if(!message||message.length<5){showMsg('Please enter a message (at least 5 characters).',false);return;}
+              var btn=form.querySelector('button[type="submit"]');
+              var origText=btn.textContent;btn.textContent='Sending...';btn.disabled=true;
+              fetch('/api/site/contact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({websiteId:window.__STAYSUITE.websiteId,propertyId:window.__STAYSUITE.propertyId,name:name,email:email,phone:phone,subject:subject,message:message})})
+              .then(function(r){return r.json();})
+              .then(function(data){
+                if(data.success){showMsg('Thank you! Your message has been sent successfully. We will get back to you soon.',true);form.reset();}
+                else{showMsg(data.error&&data.error.message?data.error.message:'Something went wrong. Please try again.',false);}
+              })
+              .catch(function(){showMsg('Network error. Please check your connection and try again.',false);})
+              .finally(function(){btn.textContent=origText;btn.disabled=false;});
+            });
+          })();
+          </script>
         </div>
         <div style="flex:1;min-width:280px;max-width:400px;">
           ${contactInfoHtml}
@@ -727,47 +765,150 @@ function renderBookingWidget(
   rooms: RoomTypeData[]
 ): string {
   const colors = getThemeColors(theme);
+  const config = getTemplateConfig(template);
   const heading = (content.heading as string) || 'Book Your Stay';
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const dayAfter = new Date();
+  dayAfter.setDate(dayAfter.getDate() + 2);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  const dayAfterStr = dayAfter.toISOString().split('T')[0];
 
   const roomOptions = rooms.map(r => `<option value="${esc(r.id)}" style="color:#333;">${esc(r.name)} - ${formatCurrency(r.basePrice, r.currency)}/night</option>`).join('');
 
   return sectionWrapper(
     containerWrapper(`
       ${headingHtml(heading, colors, template)}
-      <div style="max-width:700px;margin:0 auto;background:#fff;border-radius:${colors.radius};padding:32px;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
-        <form style="display:flex;flex-direction:column;gap:16px;" id="booking">
-          <div style="display:flex;gap:12px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:180px;">
-              <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Check-in</label>
-              <input type="date" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;" />
+      <div style="max-width:700px;margin:0 auto;background:#fff;border-radius:${colors.radius};padding:32px;box-shadow:0 4px 20px rgba(0,0,0,0.08);" id="booking">
+        <form id="ss-booking-form" style="display:flex;flex-direction:column;gap:16px;">
+          <div id="ss-booking-error" style="display:none;padding:12px 16px;background:#fee2e2;color:#991b1b;border-radius:${colors.radius};font-size:14px;"></div>
+          <!-- Step 1: Search -->
+          <div id="ss-step1">
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:180px;">
+                <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Check-in</label>
+                <input type="date" id="ss-checkin" value="${tomorrowStr}" min="${tomorrowStr}" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;" />
+              </div>
+              <div style="flex:1;min-width:180px;">
+                <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Check-out</label>
+                <input type="date" id="ss-checkout" value="${dayAfterStr}" min="${dayAfterStr}" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;" />
+              </div>
             </div>
-            <div style="flex:1;min-width:180px;">
-              <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Check-out</label>
-              <input type="date" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;" />
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:200px;">
+                <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Room Type</label>
+                <select id="ss-room-type" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;color:#333;">
+                  <option value="" style="color:#333;">Select a room</option>
+                  ${roomOptions}
+                </select>
+              </div>
+              <div style="flex:1;min-width:100px;">
+                <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Guests</label>
+                <select id="ss-guests" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;color:#333;">
+                  <option value="1" style="color:#333;">1 Guest</option>
+                  <option value="2" style="color:#333;" selected>2 Guests</option>
+                  <option value="3" style="color:#333;">3 Guests</option>
+                  <option value="4" style="color:#333;">4 Guests</option>
+                  <option value="5" style="color:#333;">5+ Guests</option>
+                </select>
+              </div>
+            </div>
+            <button type="button" id="ss-to-step2" style="padding:14px 32px;background:${colors.primary};color:#fff;border:none;border-radius:${colors.radius};font-size:16px;font-weight:600;cursor:pointer;margin-top:8px;">Continue</button>
+          </div>
+          <!-- Step 2: Guest Details (hidden initially) -->
+          <div id="ss-step2" style="display:none;">
+            <h3 style="margin:0 0 12px;font-size:18px;font-weight:600;color:#1a1a2e;">Guest Details</h3>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:200px;">
+                <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Full Name *</label>
+                <input type="text" id="ss-guest-name" placeholder="John Doe" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;" />
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:200px;">
+                <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Email *</label>
+                <input type="email" id="ss-guest-email" placeholder="john@example.com" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;" />
+              </div>
+              <div style="flex:1;min-width:200px;">
+                <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Phone</label>
+                <input type="tel" id="ss-guest-phone" placeholder="+1 234 567 8900" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;" />
+              </div>
+            </div>
+            <div style="margin-top:4px;">
+              <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Special Requests</label>
+              <textarea id="ss-special-requests" rows="3" placeholder="Any special requirements?" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;resize:vertical;"></textarea>
+            </div>
+            <div style="display:flex;gap:12px;margin-top:8px;">
+              <button type="button" id="ss-back-step1" style="padding:12px 24px;background:#e5e7eb;color:#374151;border:none;border-radius:${colors.radius};font-size:14px;font-weight:600;cursor:pointer;">Back</button>
+              <button type="button" id="ss-submit-booking" style="padding:12px 32px;background:${colors.primary};color:#fff;border:none;border-radius:${colors.radius};font-size:16px;font-weight:600;cursor:pointer;">Confirm Booking</button>
             </div>
           </div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:120px;">
-              <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Room Type</label>
-              <select style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;color:#333;">
-                <option value="" style="color:#333;">Select a room</option>
-                ${roomOptions}
-              </select>
-            </div>
-            <div style="flex:1;min-width:100px;">
-              <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Guests</label>
-              <select style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:${colors.radius};font-size:14px;outline:none;color:#333;">
-                <option value="1" style="color:#333;">1 Guest</option>
-                <option value="2" style="color:#333;" selected>2 Guests</option>
-                <option value="3" style="color:#333;">3 Guests</option>
-                <option value="4" style="color:#333;">4+ Guests</option>
-              </select>
-            </div>
+          <!-- Step 3: Confirmation (hidden initially) -->
+          <div id="ss-step3" style="display:none;text-align:center;">
+            <div style="font-size:48px;margin-bottom:16px;">&#10003;</div>
+            <h3 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1a1a2e;">Booking Confirmed!</h3>
+            <p style="margin:0 0 4px;font-size:14px;color:#6b7280;">Your booking has been submitted successfully.</p>
+            <p id="ss-confirmation-code" style="margin:0 0 16px;font-size:16px;font-weight:600;color:${colors.primary};"></p>
+            <button type="button" id="ss-new-booking" style="padding:12px 24px;background:${colors.primary};color:#fff;border:none;border-radius:${colors.radius};font-size:14px;font-weight:600;cursor:pointer;">Book Another Stay</button>
           </div>
-          <button type="submit" style="padding:14px 32px;background:${colors.primary};color:#fff;border:none;border-radius:${colors.radius};font-size:16px;font-weight:600;cursor:pointer;margin-top:8px;">Check Availability</button>
         </form>
         <p style="margin:16px 0 0;font-size:12px;color:#9ca3af;text-align:center;">Check-in: ${esc(property.checkInTime)} | Check-out: ${esc(property.checkOutTime)}</p>
       </div>
+      <script>
+      (function(){
+        var form=document.getElementById('ss-booking-form');
+        if(!form)return;
+        var step1=document.getElementById('ss-step1');
+        var step2=document.getElementById('ss-step2');
+        var step3=document.getElementById('ss-step3');
+        var errorBox=document.getElementById('ss-booking-error');
+        function showError(msg){if(!errorBox)return;errorBox.style.display='block';errorBox.textContent=msg;}
+        function hideError(){if(!errorBox)return;errorBox.style.display='none';}
+        function showStep(n){step1.style.display=n===1?'block':'none';step2.style.display=n===2?'block':'none';step3.style.display=n===3?'block':'none';}
+        document.getElementById('ss-to-step2').addEventListener('click',function(){
+          hideError();
+          var checkin=document.getElementById('ss-checkin').value;
+          var checkout=document.getElementById('ss-checkout').value;
+          var roomType=document.getElementById('ss-room-type').value;
+          if(!checkin){showError('Please select a check-in date.');return;}
+          if(!checkout){showError('Please select a check-out date.');return;}
+          if(new Date(checkout)<=new Date(checkin)){showError('Check-out date must be after check-in date.');return;}
+          if(!roomType){showError('Please select a room type.');return;}
+          var nights=Math.ceil((new Date(checkout)-new Date(checkin))/(1000*60*60*24));
+          if(nights>90){showError('Maximum stay is 90 nights.');return;}
+          showStep(2);
+        });
+        document.getElementById('ss-back-step1').addEventListener('click',function(){hideError();showStep(1);});
+        document.getElementById('ss-submit-booking').addEventListener('click',function(){
+          hideError();
+          var name=(document.getElementById('ss-guest-name').value||'').trim();
+          var email=(document.getElementById('ss-guest-email').value||'').trim();
+          var phone=(document.getElementById('ss-guest-phone').value||'').trim();
+          var requests=(document.getElementById('ss-special-requests').value||'').trim();
+          if(!name){showError('Please enter your full name.');return;}
+          if(!email||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)){showError('Please enter a valid email address.');return;}
+          var btn=this;var origText=btn.textContent;btn.textContent='Submitting...';btn.disabled=true;
+          var payload={websiteId:window.__STAYSUITE.websiteId,propertyId:window.__STAYSUITE.propertyId,roomTypeId:document.getElementById('ss-room-type').value,checkIn:document.getElementById('ss-checkin').value,checkOut:document.getElementById('ss-checkout').value,guests:parseInt(document.getElementById('ss-guests').value)||2,adults:parseInt(document.getElementById('ss-guests').value)||2,children:0,guestName:name,guestEmail:email,guestPhone:phone,specialRequests:requests};
+          fetch('/api/site/booking',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+          .then(function(r){return r.json();})
+          .then(function(data){
+            if(data.success){showStep(3);var codeEl=document.getElementById('ss-confirmation-code');if(codeEl&&data.confirmationCode){codeEl.textContent='Confirmation: '+data.confirmationCode;}}
+            else{showError(data.error&&data.error.message?data.error.message:'Booking failed. Please try again.');}
+          })
+          .catch(function(){showError('Network error. Please check your connection and try again.');})
+          .finally(function(){btn.textContent=origText;btn.disabled=false;});
+        });
+        document.getElementById('ss-new-booking').addEventListener('click',function(){
+          form.reset();
+          showStep(1);
+          var t=new Date();t.setDate(t.getDate()+1);
+          var t2=new Date();t2.setDate(t2.getDate()+2);
+          document.getElementById('ss-checkin').value=t.toISOString().split('T')[0];
+          document.getElementById('ss-checkout').value=t2.toISOString().split('T')[0];
+        });
+      })();
+      </script>
     `),
     template,
     config.sectionSpacing
@@ -949,10 +1090,12 @@ export interface RenderPageOptions {
   analytics: Record<string, unknown>;
   domain: string;
   preview: boolean;
+  websiteId: string;
+  propertyId: string;
 }
 
 export function renderFullPage(opts: RenderPageOptions): string {
-  const { property, rooms, reviews, theme, template, pages, currentPage, seo, analytics, domain, preview } = opts;
+  const { property, rooms, reviews, theme, template, pages, currentPage, seo, analytics, domain, preview, websiteId, propertyId } = opts;
   const colors = getThemeColors(theme);
   const config = getTemplateConfig(template);
 
@@ -1068,37 +1211,11 @@ export function renderFullPage(opts: RenderPageOptions): string {
   ${footerHtml}
   ${previewBanner}
   <script>
-  (function() {
-    // Booking form handler — intercepts form#booking submit and redirects to /book
-    document.addEventListener('submit', function(e) {
-      var form = e.target;
-      if (form.id === 'booking' || form.closest && form.closest('#booking')) {
-        e.preventDefault();
-        var f = form.id === 'booking' ? form : form.closest('#booking');
-        var checkin = '', checkout = '', room = '', guests = '';
-        var inputs = f.querySelectorAll('input[type="date"], input, select');
-        inputs.forEach(function(el) {
-          var label = el.previousElementSibling;
-          var labelText = label ? label.textContent.toLowerCase().trim() : '';
-          if (el.type === 'date') {
-            if (labelText.indexOf('check-in') !== -1 || el.name === 'checkin' || el.name === 'check-in') checkin = el.value;
-            if (labelText.indexOf('check-out') !== -1 || el.name === 'checkout' || el.name === 'check-out') checkout = el.value;
-            // Fallback: first date = checkin, second = checkout
-            if (!checkin && !checkout) { if (!checkin) checkin = el.value; else if (!checkout) checkout = el.value; }
-          }
-          if (labelText.indexOf('room') !== -1 || el.name === 'room' || el.name === 'roomType') room = el.value;
-          if (labelText.indexOf('guest') !== -1 || el.name === 'guests') guests = el.value;
-        });
-        var params = [];
-        if (checkin) params.push('checkin=' + encodeURIComponent(checkin));
-        if (checkout) params.push('checkout=' + encodeURIComponent(checkout));
-        if (room) params.push('room=' + encodeURIComponent(room));
-        if (guests) params.push('guests=' + encodeURIComponent(guests));
-        var url = '/book' + (params.length ? '?' + params.join('&') : '');
-        window.location.href = url;
-      }
-    });
-  })();
+  window.__STAYSUITE = {
+    websiteId: ${JSON.stringify(websiteId)},
+    propertyId: ${JSON.stringify(propertyId)},
+    propertySlug: ${JSON.stringify(property.slug)}
+  };
   </script>
 </body>
 </html>`;

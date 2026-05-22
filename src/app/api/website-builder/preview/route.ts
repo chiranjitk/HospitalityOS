@@ -138,6 +138,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
     analytics,
     domain: website.domain,
     preview: true,
+    websiteId: website.id,
+    propertyId: website.propertyId,
   });
 
   return new NextResponse(html, {

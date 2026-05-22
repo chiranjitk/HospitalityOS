@@ -49,6 +49,8 @@ import {
   ExternalLink,
   Copy,
   RefreshCw,
+  ChevronUp,
+  ChevronDown,
   FileText,
   Link2,
   Save,
@@ -1128,6 +1130,37 @@ export default function WebsiteBuilder() {
     setPages(updated);
   };
 
+  const handleMoveSectionUp = (pageIdx: number, sectionIdx: number) => {
+    if (sectionIdx === 0) return;
+    const updated = [...pages];
+    const page = { ...updated[pageIdx] };
+    const sections = [...page.sections];
+    const temp = sections[sectionIdx];
+    const prevSection = sections[sectionIdx - 1];
+    // Swap orders
+    sections[sectionIdx] = { ...temp, order: prevSection.order };
+    sections[sectionIdx - 1] = { ...prevSection, order: temp.order };
+    // Swap positions in array
+    [sections[sectionIdx], sections[sectionIdx - 1]] = [sections[sectionIdx - 1], sections[sectionIdx]];
+    page.sections = sections;
+    updated[pageIdx] = page;
+    setPages(updated);
+  };
+
+  const handleMoveSectionDown = (pageIdx: number, sectionIdx: number) => {
+    const updated = [...pages];
+    const page = updated[pageIdx];
+    if (sectionIdx >= page.sections.length - 1) return;
+    const sections = [...page.sections];
+    const temp = sections[sectionIdx];
+    const nextSection = sections[sectionIdx + 1];
+    sections[sectionIdx] = { ...temp, order: nextSection.order };
+    sections[sectionIdx + 1] = { ...nextSection, order: temp.order };
+    [sections[sectionIdx], sections[sectionIdx + 1]] = [sections[sectionIdx + 1], sections[sectionIdx]];
+    updated[pageIdx] = { ...page, sections };
+    setPages(updated);
+  };
+
   const handleAddSection = (pageIdx: number, type: string) => {
     const updated = [...pages];
     const newSection: PageSection = {
@@ -1191,22 +1224,10 @@ export default function WebsiteBuilder() {
         }),
       });
       const json = await res.json();
-      if (json.success && json.data?.sectionUpdates) {
-        const { sectionUpdates } = json.data;
-        // Merge section updates into pages state
-        setPages(prev => prev.map(page => ({
-          ...page,
-          sections: page.sections.map(section => {
-            if (sectionUpdates[section.type]) {
-              return {
-                ...section,
-                content: { ...section.content, ...sectionUpdates[section.type] },
-              };
-            }
-            return section;
-          }),
-        })));
-        toast.success('Property data synced! Save pages to apply.');
+      if (json.success) {
+        toast.success('Property data synced successfully!');
+        await fetchWebsite();
+        setPreviewKey(Date.now());
       } else {
         toast.error(json.error?.message || 'Failed to sync property data');
       }
@@ -1664,6 +1685,28 @@ export default function WebsiteBuilder() {
                                 <Badge variant="outline" className="text-xs">Hidden</Badge>
                               )}
                             </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              disabled={sectionIdx === 0}
+                              onClick={() => handleMoveSectionUp(pageIdx, sectionIdx)}
+                              title="Move up"
+                            >
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              disabled={sectionIdx === page.sections.length - 1}
+                              onClick={() => handleMoveSectionDown(pageIdx, sectionIdx)}
+                              title="Move down"
+                            >
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                           <Button
                             variant="ghost"
