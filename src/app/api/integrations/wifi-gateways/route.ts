@@ -4,6 +4,7 @@ import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { encrypt, decrypt } from '@/lib/encryption';
 import { createGatewayAdapter, DEFAULT_PORTS } from '@/lib/wifi/adapters';
 import type { GatewayConfig, GatewayVendor, BandwidthPolicy } from '@/lib/wifi/adapters';
+import { insertFreeRadiusNas, syncClientsConf } from '@/lib/wifi/nas-sync';
 
 export const runtime = 'nodejs';
 
@@ -958,21 +959,14 @@ export async function POST(request: NextRequest) {
     if (['mikrotik', 'cisco', 'ubiquiti', 'aruba', 'ruckus', 'fortinet', 'juniper', 'tplink', 'grandstream', 'other'].includes(type)) {
       try {
         // propertyId is required for RadiusNAS — if not provided, look up
-        // the tenant's default or first property.
+        // the tenant's first property.
         let nasPropertyId = propertyId;
         if (!nasPropertyId) {
-          const defaultProperty = await db.property.findFirst({
-            where: { tenantId, isDefaultProperty: true },
+          const firstProperty = await db.property.findFirst({
+            where: { tenantId },
             select: { id: true },
           });
-          nasPropertyId = defaultProperty?.id;
-          if (!nasPropertyId) {
-            const firstProperty = await db.property.findFirst({
-              where: { tenantId },
-              select: { id: true },
-            });
-            nasPropertyId = firstProperty?.id;
-          }
+          nasPropertyId = firstProperty?.id;
         }
 
         if (!nasPropertyId) {
@@ -988,18 +982,32 @@ export async function POST(request: NextRequest) {
                 tenantId,
                 propertyId: nasPropertyId,
                 name: name || `${type} Gateway`,
-                shortName: type?.substring(0, 8) || 'gateway',
+                shortname: type?.substring(0, 8) || 'gateway',
                 type: type === 'mikrotik' ? 'mikrotik' : 'cryptsk',
                 ipAddress,
                 secret: plainSecret,
                 ports: 0, // 0 = default (1812/1813)
                 coaPort: coaPort || defaults.coa || 3799,
                 coaEnabled: coaEnabled ?? true,
-                coaSecret: coaSecret || null,
                 status: 'active',
               },
             });
-            console.log(`[Gateway] Auto-created NAS client for ${name} at ${ipAddress} (property: ${nasPropertyId})`);
+
+            // Also insert into the FreeRADIUS native `nas` table so that
+            // FreeRADIUS actually accepts RADIUS packets from this device.
+            await insertFreeRadiusNas({
+              ipAddress,
+              shortname: type?.substring(0, 8) || 'gateway',
+              type: type === 'mikrotik' ? 'mikrotik' : 'other',
+              secret: plainSecret,
+              coaPort: coaPort || defaults.coa || 3799,
+              description: name || `${type} Gateway`,
+            });
+
+            // Rebuild clients.conf and reload FreeRADIUS
+            await syncClientsConf();
+
+            console.log(`[Gateway] Auto-created NAS client for ${name} at ${ipAddress} (property: ${nasPropertyId}) + FreeRADIUS nas table synced`);
           }
         }
       } catch (nasErr) {

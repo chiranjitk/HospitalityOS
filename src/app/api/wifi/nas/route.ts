@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
-import { execSync } from 'child_process';
-import { readFileSync, writeFileSync } from 'fs';
+import { syncClientsConf } from '@/lib/wifi/nas-sync';
 
 // System NAS constants — Cryptsk Multimode gateway (127.0.0.1 / cryptsk type)
 // This entry represents the physical Cryptsk machine acting as gateway + RADIUS.
@@ -10,101 +9,6 @@ import { readFileSync, writeFileSync } from 'fs';
 // It must ALWAYS be visible regardless of property filter.
 const SYSTEM_NAS_IP = '127.0.0.1';
 const SYSTEM_NAS_TYPE = 'cryptsk';
-
-// Section markers for StaySuite managed block in clients.conf
-const STAYSUITE_CLIENT_BEGIN = '# >>> StaySuite Managed NAS Clients BEGIN <<<';
-const STAYSUITE_CLIENT_END = '# >>> StaySuite Managed NAS Clients END <<<';
-
-// RADIUS clients.conf path (production: /etc/raddb/clients.conf)
-const CLIENTS_CONF_PATH = process.env.RADDB_PATH
-  ? `${process.env.RADDB_PATH}/clients.conf`
-  : (process.env.NODE_ENV === 'production' ? '/etc/raddb/clients.conf' : '/etc/raddb/clients.conf');
-
-/**
- * Rebuild the StaySuite managed section in /etc/raddb/clients.conf from PostgreSQL nas table.
- * Called after every NAS create/update/delete to keep FreeRADIUS client whitelist in sync.
- */
-async function syncClientsConf(): Promise<boolean> {
-  try {
-    // Read all NAS clients from PostgreSQL nas table
-    const rows = await db.$queryRawUnsafe<Array<{
-      nasname: string; shortname: string; type: string; ports: number; secret: string; description: string;
-    }>>('SELECT nasname, shortname, type, ports, secret, description FROM nas ORDER BY id');
-
-    // Build managed section
-    const lines: string[] = [STAYSUITE_CLIENT_BEGIN];
-    for (const row of rows) {
-      // Skip 127.0.0.1 — already covered by default 'client localhost' in clients.conf.
-      // Adding it again causes "Failed to add duplicate client" error.
-      if (row.nasname === '127.0.0.1' || row.nasname === '::1') continue;
-
-      const shortname = row.shortname || row.nasname.replace(/\s+/g, '_');
-      const coaPort = row.ports || 3799;
-      lines.push('');
-      lines.push(`# NAS Client: ${row.nasname}${row.description ? ' — ' + row.description : ''}`);
-      lines.push(`client ${shortname} {`);
-      lines.push(`    ipaddr = ${row.nasname}`);
-      lines.push(`    secret = "${row.secret}"`);
-      lines.push(`    shortname = ${shortname}`);
-      if (coaPort !== 3799) {
-        lines.push(`    coa_port = ${coaPort}`);
-      }
-      lines.push(`    nas_type = ${row.type || 'other'}`);
-      lines.push(`    require_message_authenticator = yes`);
-      lines.push(`    limit_proxy_state = yes`);
-      lines.push(`    response_window = 6`);
-      lines.push(`}`);
-    }
-    lines.push('');
-    lines.push(STAYSUITE_CLIENT_END);
-    const managedSection = lines.join('\n');
-
-    // Read existing clients.conf or start empty
-    let existingContent = '';
-    try {
-      existingContent = readFileSync(CLIENTS_CONF_PATH, 'utf-8');
-    } catch {
-      // File doesn't exist yet
-    }
-
-    // Replace or append our managed section
-    let newContent: string;
-    const beginIdx = existingContent.indexOf(STAYSUITE_CLIENT_BEGIN);
-    const endIdx = existingContent.indexOf(STAYSUITE_CLIENT_END);
-
-    if (beginIdx !== -1 && endIdx !== -1 && endIdx > beginIdx) {
-      newContent = existingContent.slice(0, beginIdx) + managedSection + existingContent.slice(endIdx + STAYSUITE_CLIENT_END.length);
-    } else {
-      newContent = existingContent + (existingContent.length > 0 ? '\n' : '') + managedSection + '\n';
-    }
-
-    writeFileSync(CLIENTS_CONF_PATH, newContent, 'utf-8');
-
-    // Set ownership for production
-    try {
-      execSync(`chown radiusd:radiusd "${CLIENTS_CONF_PATH}" && chmod 640 "${CLIENTS_CONF_PATH}"`, { timeout: 3000 });
-    } catch {
-      // Sandbox or non-root — ignore
-    }
-
-    // Reload FreeRADIUS to pick up changes
-    try {
-      execSync('systemctl restart radiusd', { timeout: 10000 });
-    } catch {
-      // Sandbox — try SIGHUP
-      try {
-        const pid = execSync("pgrep -x radiusd | head -1", { encoding: 'utf-8', timeout: 3000 }).trim();
-        if (pid) process.kill(Number(pid), 'SIGHUP');
-      } catch { /* ignore */ }
-    }
-
-    console.log(`[NAS] Synced ${rows.length} clients to ${CLIENTS_CONF_PATH}`);
-    return true;
-  } catch (error) {
-    console.error('[NAS] Failed to sync clients.conf:', error);
-    return false;
-  }
-}
 
 // GET /api/wifi/nas - List NAS clients, always including the system gateway
 export async function GET(request: NextRequest) {
@@ -201,14 +105,11 @@ export async function POST(request: NextRequest) {
        now, now);
 
     // Also insert into native FreeRADIUS nas table (ports = coaPort for RADIUS disconnect)
-    try {
-      await db.$executeRawUnsafe(`
-        INSERT INTO nas (nasname, shortname, type, ports, secret, server, community, description)
-        VALUES ($1, $2, $3, $4, $5, NULL, NULL, $6)
-      `, ipAddress, shortname || name.replace(/\s+/g, '_').toLowerCase().slice(0, 32), type || 'other', coaPort || 3799, nasSecret, description || name);
-    } catch (nasErr) {
-      console.warn('[NAS] Native nas table insert warning:', nasErr);
-    }
+    const shortname = shortname || name.replace(/\s+/g, '_').toLowerCase().slice(0, 32);
+    await db.$executeRawUnsafe(`
+      INSERT INTO nas (nasname, shortname, type, ports, secret, server, community, description)
+      VALUES ($1, $2, $3, $4, $5, NULL, NULL, $6)
+    `, ipAddress, shortname, type || 'other', coaPort || 3799, nasSecret, description || name);
 
     // Sync clients.conf — FreeRADIUS needs this to accept packets from the new NAS
     await syncClientsConf();
@@ -272,21 +173,17 @@ export async function PUT(request: NextRequest) {
     }
 
     // Sync native FreeRADIUS nas table (including ports = coaPort)
-    try {
-      await db.$executeRawUnsafe(`
-        UPDATE nas
-        SET nasname = $1, shortname = $2, type = $3, secret = $4, ports = $5
-        WHERE nasname = $6
-      `, ipAddress || oldIpAddress,
-        shortname || name?.replace(/\s+/g, '_').toLowerCase().slice(0, 32),
-        type || 'other',
-        sharedSecret || secret || 'changeme',
-        coaPort || 3799,
-        oldIpAddress
-      );
-    } catch (nasErr) {
-      console.warn('[NAS] Native nas table update warning:', nasErr);
-    }
+    await db.$executeRawUnsafe(`
+      UPDATE nas
+      SET nasname = $1, shortname = $2, type = $3, secret = $4, ports = $5
+      WHERE nasname = $6
+    `, ipAddress || oldIpAddress,
+      shortname || name?.replace(/\s+/g, '_').toLowerCase().slice(0, 32),
+      type || 'other',
+      sharedSecret || secret || 'changeme',
+      coaPort || 3799,
+      oldIpAddress
+    );
 
     // Sync clients.conf — FreeRADIUS needs this to accept packets from the updated NAS
     await syncClientsConf();
@@ -329,11 +226,7 @@ export async function DELETE(request: NextRequest) {
     await db.$executeRawUnsafe(`DELETE FROM "RadiusNAS" WHERE id = $1::uuid AND "tenantId" = $2::uuid`, id, context.tenantId);
 
     // Also delete from native FreeRADIUS nas table
-    try {
-      await db.$executeRawUnsafe(`DELETE FROM nas WHERE nasname = $1`, nasRecord[0].ipAddress);
-    } catch (nasErr) {
-      console.warn('[NAS] Native nas table delete warning:', nasErr);
-    }
+    await db.$executeRawUnsafe(`DELETE FROM nas WHERE nasname = $1`, nasRecord[0].ipAddress);
 
     // Sync clients.conf — remove the deleted NAS from FreeRADIUS client whitelist
     await syncClientsConf();
