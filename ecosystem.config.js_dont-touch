@@ -265,6 +265,30 @@ module.exports = {
         SNI_LOG_FILE: '/var/log/ulogd2/sni.json',
       },
     }),
+
+    // =========================================================================
+    // Background Scheduler (session engine, NAS health, WiFi alerts, reports)
+    // =========================================================================
+    // CRITICAL: Session engine MUST run for WiFi accounting to work.
+    // Runs cron jobs in a separate process to isolate heavy deps from Next.js.
+    {
+      ...BASE_DEFAULTS,
+      name: 'staysuite-scheduler',
+      description: 'Cron jobs — session engine, NAS health, WiFi alerts, reports',
+      script: 'npx',
+      args: 'tsx scripts/scheduler-runner.ts',
+      cwd: APP_DIR,
+      max_memory_restart: '800M',
+      env: {
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+        NODE_OPTIONS: '--max-old-space-size=512',
+        CRON_SECRET: 'staysuite-cron-secret-2025',
+      },
+      error_file: `${LOG_DIR}/scheduler-error.log`,
+      out_file: `${LOG_DIR}/scheduler-out.log`,
+      merge_logs: true,
+    },
   ],
 
   // ===========================================================================
