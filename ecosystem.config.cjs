@@ -13,8 +13,35 @@
  */
 
 const path = require('path');
+const fs = require('fs');
+
 const INSTALL_DIR = process.env.INSTALL_DIR || __dirname;
 const FREERADIUS_HOME = process.env.FREERADIUS_HOME || path.join(INSTALL_DIR, 'freeradius-install');
+
+// Load .env file for PM2 (Next.js reads .env automatically, but PM2 env overrides it)
+function loadDotEnv() {
+  const envPath = path.join(INSTALL_DIR, '.env');
+  const env = {};
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, 'utf-8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx === -1) continue;
+      const key = trimmed.slice(0, eqIdx).trim();
+      let val = trimmed.slice(eqIdx + 1).trim();
+      // Remove surrounding quotes
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      env[key] = val;
+    }
+  }
+  return env;
+}
+
+const dotEnv = loadDotEnv();
 
 module.exports = {
   apps: [
@@ -42,10 +69,8 @@ module.exports = {
       kill_timeout: 15000,
       listen_timeout: 30000,
       env: {
+        ...dotEnv,
         PORT: 3000,
-        DATABASE_URL: process.env.DATABASE_URL || 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-        NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || 'sandbox-nextauth-secret-dev-64chars-long-xxxx',
-        NEXTAUTH_URL: process.env.NEXTAUTH_URL || 'http://localhost:3000',
         NODE_ENV: 'development',
       },
     },
