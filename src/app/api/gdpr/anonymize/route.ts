@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       tenantId: ctx.tenantId,
       guestId,
       requestType: 'anonymize',
-      requesterEmail: requesterEmail || userProfile?.email ?? 'system',
+      requesterEmail: requesterEmail || (userProfile?.email ?? 'system'),
       requesterName: requesterName || (userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'System Admin'),
     });
 
