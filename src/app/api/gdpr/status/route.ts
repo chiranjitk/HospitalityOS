@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { gdprService } from '@/lib/gdpr/gdpr-service';
-import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 
 // GET /api/gdpr/status - Check GDPR request status
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
+    const ctx = await requireAuth(request);
+    if (ctx instanceof NextResponse) return ctx;
 
     // Check permission
-    if (!hasPermission(user, 'gdpr.view') && !hasPermission(user, 'gdpr.*') && !hasPermission(user, 'guests.*')) {
+    if (!hasPermission(ctx, 'gdpr.view') && !hasPermission(ctx, 'gdpr.*') && !hasPermission(ctx, 'guests.*')) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
         { status: 403 }
@@ -29,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     // If specific request ID is provided, return that request
     if (requestId) {
-      const gdprRequest = await gdprService.getRequest(requestId, user.tenantId);
+      const gdprRequest = await gdprService.getRequest(requestId, ctx.tenantId);
       
       if (!gdprRequest) {
         return NextResponse.json(
@@ -63,7 +58,7 @@ export async function GET(request: NextRequest) {
       filters.guestId = guestId;
     }
 
-    const requests = await gdprService.getRequests(user.tenantId, filters);
+    const requests = await gdprService.getRequests(ctx.tenantId, filters);
 
     // Calculate statistics
     const stats = {

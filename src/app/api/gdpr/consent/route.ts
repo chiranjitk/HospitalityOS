@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { gdprService } from '@/lib/gdpr/gdpr-service';
 import { db } from '@/lib/db';
-import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 
 // GET /api/gdpr/consent - Get consent records
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
+    const ctx = await requireAuth(request);
+    if (ctx instanceof NextResponse) return ctx;
 
     // Check permission
-    if (!hasPermission(user, 'gdpr.view') && !hasPermission(user, 'gdpr.*') && !hasPermission(user, 'guests.*')) {
+    if (!hasPermission(ctx, 'gdpr.view') && !hasPermission(ctx, 'gdpr.*') && !hasPermission(ctx, 'guests.*')) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
         { status: 403 }
@@ -38,7 +33,7 @@ export async function GET(request: NextRequest) {
     if (guestId) {
       // Verify guest belongs to user's tenant
       const guest = await db.guest.findFirst({
-        where: { id: guestId, tenantId: user.tenantId },
+        where: { id: guestId, tenantId: ctx.tenantId },
       });
       if (!guest) {
         return NextResponse.json(
@@ -55,12 +50,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Get consent records
-    const consentRecords = await gdprService.getConsentRecords(user.tenantId, filters);
+    const consentRecords = await gdprService.getConsentRecords(ctx.tenantId, filters);
 
     // Get stats if requested
     let stats: Record<string, unknown> | null = null;
     if (includeStats) {
-      stats = await gdprService.getConsentStats(user.tenantId);
+      stats = await gdprService.getConsentStats(ctx.tenantId);
     }
 
     return NextResponse.json({
@@ -82,16 +77,11 @@ export async function GET(request: NextRequest) {
 // POST /api/gdpr/consent - Record consent
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
+    const ctx = await requireAuth(request);
+    if (ctx instanceof NextResponse) return ctx;
 
     // Check permission
-    if (!hasPermission(user, 'gdpr.consent') && !hasPermission(user, 'gdpr.*') && !hasPermission(user, 'guests.*')) {
+    if (!hasPermission(ctx, 'gdpr.consent') && !hasPermission(ctx, 'gdpr.*') && !hasPermission(ctx, 'guests.*')) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
         { status: 403 }
@@ -136,7 +126,7 @@ export async function POST(request: NextRequest) {
     // Verify guest belongs to user's tenant if specified
     if (guestId) {
       const guest = await db.guest.findFirst({
-        where: { id: guestId, tenantId: user.tenantId },
+        where: { id: guestId, tenantId: ctx.tenantId },
       });
       if (!guest) {
         return NextResponse.json(
@@ -157,7 +147,7 @@ export async function POST(request: NextRequest) {
 
     // Create or update consent
     const consentRecord = await gdprService.createConsent({
-      tenantId: user.tenantId,
+      tenantId: ctx.tenantId,
       guestId,
       userId: targetUserId,
       consentType,
@@ -184,8 +174,8 @@ export async function POST(request: NextRequest) {
     // Create audit log
     await db.auditLog.create({
       data: {
-        tenantId: user.tenantId,
-        userId: user.id,
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
         module: 'gdpr',
         action: granted ? 'gdpr.consent.granted' : 'gdpr.consent.denied',
         entityType: 'ConsentRecord',
@@ -215,16 +205,11 @@ export async function POST(request: NextRequest) {
 // DELETE /api/gdpr/consent - Revoke consent
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
+    const ctx = await requireAuth(request);
+    if (ctx instanceof NextResponse) return ctx;
 
     // Check permission
-    if (!hasPermission(user, 'gdpr.consent') && !hasPermission(user, 'gdpr.*') && !hasPermission(user, 'guests.*')) {
+    if (!hasPermission(ctx, 'gdpr.consent') && !hasPermission(ctx, 'gdpr.*') && !hasPermission(ctx, 'guests.*')) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
         { status: 403 }
@@ -244,7 +229,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Revoke consent - the service already checks tenant ownership
-    const consentRecord = await gdprService.revokeConsent(consentId, user.tenantId, {
+    const consentRecord = await gdprService.revokeConsent(consentId, ctx.tenantId, {
       revokedVia: revokedVia || 'api',
       reason: reason || undefined,
     });
@@ -263,8 +248,8 @@ export async function DELETE(request: NextRequest) {
     // Create audit log
     await db.auditLog.create({
       data: {
-        tenantId: user.tenantId,
-        userId: user.id,
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
         module: 'gdpr',
         action: 'gdpr.consent.revoked',
         entityType: 'ConsentRecord',

@@ -1,26 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { gdprService } from '@/lib/gdpr/gdpr-service';
 import { db } from '@/lib/db';
-import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 
 // POST /api/gdpr/export - Request data export for a guest
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
+    const ctx = await requireAuth(request);
+    if (ctx instanceof NextResponse) return ctx;
 
     // Check permission
-    if (!hasPermission(user, 'gdpr.export') && !hasPermission(user, 'gdpr.*') && !hasPermission(user, 'guests.*')) {
+    if (!hasPermission(ctx, 'gdpr.export') && !hasPermission(ctx, 'gdpr.*') && !hasPermission(ctx, 'guests.*')) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
         { status: 403 }
       );
     }
+
+    // Lookup user profile for email/name (TenantContext does not include these)
+    const userProfile = await db.user.findUnique({
+      where: { id: ctx.userId },
+      select: { email: true, firstName: true, lastName: true },
+    });
 
     const body = await request.json();
     const { guestId, format = 'json', requesterEmail, requesterName } = body;
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     // Verify guest exists and belongs to user's tenant
     const guest = await db.guest.findFirst({
-      where: { id: guestId, tenantId: user.tenantId, deletedAt: null },
+      where: { id: guestId, tenantId: ctx.tenantId, deletedAt: null },
     });
 
     if (!guest) {
@@ -46,11 +47,11 @@ export async function POST(request: NextRequest) {
 
     // Create export request
     const gdprRequest = await gdprService.createRequest({
-      tenantId: user.tenantId,
+      tenantId: ctx.tenantId,
       guestId,
       requestType: 'export',
-      requesterEmail: requesterEmail || user.email,
-      requesterName: requesterName || user.name,
+      requesterEmail: requesterEmail || userProfile?.email ?? 'system',
+      requesterName: requesterName || (userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'System Admin'),
     });
 
     // NOTE: This export runs synchronously within the request. In production,
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     // Immediately process the export (in production, this might be queued)
     try {
-      const exportData = await gdprService.exportGuestData(guestId, user.tenantId, {
+      const exportData = await gdprService.exportGuestData(guestId, ctx.tenantId, {
         format: format === 'csv' ? 'csv' : 'json',
         includeBookings: true,
         includePayments: true,
@@ -71,15 +72,15 @@ export async function POST(request: NextRequest) {
       });
 
       // Update request as completed
-      await gdprService.updateRequestStatus(gdprRequest.id, user.tenantId, 'completed', {
-        completedBy: user.id,
+      await gdprService.updateRequestStatus(gdprRequest.id, ctx.tenantId, 'completed', {
+        completedBy: ctx.userId,
       });
 
       // Create audit log
       await db.auditLog.create({
         data: {
-          tenantId: user.tenantId,
-          userId: user.id,
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
           module: 'gdpr',
           action: 'gdpr.export.completed',
           entityType: 'Guest',
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest) {
       });
     } catch (exportError) {
       // Update request as failed
-      await gdprService.updateRequestStatus(gdprRequest.id, user.tenantId, 'failed', {
+      await gdprService.updateRequestStatus(gdprRequest.id, ctx.tenantId, 'failed', {
         notes: exportError instanceof Error ? exportError.message : 'Export failed',
       });
       throw exportError;
@@ -138,16 +139,11 @@ export async function POST(request: NextRequest) {
 // GET /api/gdpr/export - Get export data for a guest
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
+    const ctx = await requireAuth(request);
+    if (ctx instanceof NextResponse) return ctx;
 
     // Check permission
-    if (!hasPermission(user, 'gdpr.export') && !hasPermission(user, 'gdpr.*') && !hasPermission(user, 'guests.*')) {
+    if (!hasPermission(ctx, 'gdpr.export') && !hasPermission(ctx, 'gdpr.*') && !hasPermission(ctx, 'guests.*')) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
         { status: 403 }
@@ -167,7 +163,7 @@ export async function GET(request: NextRequest) {
 
     // Verify guest exists and belongs to user's tenant
     const guest = await db.guest.findFirst({
-      where: { id: guestId, tenantId: user.tenantId, deletedAt: null },
+      where: { id: guestId, tenantId: ctx.tenantId, deletedAt: null },
     });
 
     if (!guest) {
@@ -181,7 +177,7 @@ export async function GET(request: NextRequest) {
     const MAX_EXPORT_RECORDS = 10000;
 
     // Export data
-    const exportData = await gdprService.exportGuestData(guestId, user.tenantId, {
+    const exportData = await gdprService.exportGuestData(guestId, ctx.tenantId, {
       format: format === 'csv' ? 'csv' : 'json',
       includeBookings: true,
       includePayments: true,
@@ -194,8 +190,8 @@ export async function GET(request: NextRequest) {
     // Create audit log
     await db.auditLog.create({
       data: {
-        tenantId: user.tenantId,
-        userId: user.id,
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
         module: 'gdpr',
         action: 'gdpr.export.viewed',
         entityType: 'Guest',

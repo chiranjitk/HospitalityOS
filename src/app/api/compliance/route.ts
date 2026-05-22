@@ -1,31 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
 
 // GET /api/compliance - Compliance module overview with actual compliance data
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
+    const ctx = await requireAuth(request);
+    if (ctx instanceof NextResponse) return ctx;
 
-    if (!hasPermission(user, 'compliance.view') && !hasPermission(user, 'settings.view') && !hasPermission(user, 'gdpr.view')) {
+    if (!hasPermission(ctx, 'compliance.view') && !hasPermission(ctx, 'settings.view') && !hasPermission(ctx, 'gdpr.view')) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
         { status: 403 }
       );
     }
 
-    const tenantId = user.tenantId;
+    const tenantId = ctx.tenantId;
 
     // Query compliance data from the database
     const [gdprConsentRecords, recentAuditLogs, totalAuditLogs, dataExports] = await Promise.all([
       // Count GDPR consent records
-      db.gdprConsent.count({
+      db.consentRecord.count({
         where: { tenantId },
       }),
       // Recent audit logs (last 10)
@@ -40,14 +35,14 @@ export async function GET(request: NextRequest) {
         where: { tenantId },
       }),
       // Data export requests
-      db.gdprDataRequest.count({
-        where: { tenantId, type: 'export', status: { in: ['pending', 'processing'] } },
+      db.gDPRRequest.count({
+        where: { tenantId, requestType: 'export', status: { in: ['pending', 'processing'] } },
       }),
     ]);
 
     // Check if IP whitelist is configured
-    const ipWhitelistCount = await db.securitySetting.count({
-      where: { tenantId, type: 'ip_whitelist' },
+    const ipWhitelistCount = await db.ipWhitelistRule.count({
+      where: { tenantId },
     });
 
     return NextResponse.json({

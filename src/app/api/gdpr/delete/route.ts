@@ -1,26 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { gdprService } from '@/lib/gdpr/gdpr-service';
 import { db } from '@/lib/db';
-import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 
 // POST /api/gdpr/delete - Request data deletion for a guest
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
+    const ctx = await requireAuth(request);
+    if (ctx instanceof NextResponse) return ctx;
 
     // Check permission - deletion requires admin or specific GDPR permission
-    if (!hasPermission(user, 'gdpr.delete') && !hasPermission(user, 'gdpr.*') && user.roleName !== 'admin') {
+    if (!hasPermission(ctx, 'gdpr.delete') && !hasPermission(ctx, 'gdpr.*') && ctx.role !== 'admin' && !ctx.isPlatformAdmin) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions. Only admins can delete guest data.' } },
         { status: 403 }
       );
     }
+
+    // Lookup user profile for email/name (TenantContext does not include these)
+    const userProfile = await db.user.findUnique({
+      where: { id: ctx.userId },
+      select: { email: true, firstName: true, lastName: true },
+    });
 
     const body = await request.json();
     const { guestId, requesterEmail, requesterName, hardDelete, preserveFinancialRecords } = body;
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     // Verify guest exists and belongs to user's tenant
     const guest = await db.guest.findFirst({
-      where: { id: guestId, tenantId: user.tenantId, deletedAt: null },
+      where: { id: guestId, tenantId: ctx.tenantId, deletedAt: null },
       include: {
         bookings: {
           where: {
@@ -67,33 +68,33 @@ export async function POST(request: NextRequest) {
 
     // Create deletion request
     const gdprRequest = await gdprService.createRequest({
-      tenantId: user.tenantId,
+      tenantId: ctx.tenantId,
       guestId,
       requestType: 'delete',
-      requesterEmail: requesterEmail || user.email,
-      requesterName: requesterName || user.name,
+      requesterEmail: requesterEmail || userProfile?.email ?? 'system',
+      requesterName: requesterName || (userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'System Admin'),
     });
 
     // Update request status to processing
-    await gdprService.updateRequestStatus(gdprRequest.id, user.tenantId, 'processing');
+    await gdprService.updateRequestStatus(gdprRequest.id, ctx.tenantId, 'processing');
 
     try {
       // Perform deletion
-      const result = await gdprService.deleteGuestData(guestId, user.tenantId, {
+      const result = await gdprService.deleteGuestData(guestId, ctx.tenantId, {
         hardDelete: hardDelete || false,
         preserveFinancialRecords: preserveFinancialRecords !== false, // Default to true
       });
 
       // Update request as completed
-      await gdprService.updateRequestStatus(gdprRequest.id, user.tenantId, 'completed', {
-        completedBy: user.id,
+      await gdprService.updateRequestStatus(gdprRequest.id, ctx.tenantId, 'completed', {
+        completedBy: ctx.userId,
       });
 
       // Create audit log
       await db.auditLog.create({
         data: {
-          tenantId: user.tenantId,
-          userId: user.id,
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
           module: 'gdpr',
           action: 'gdpr.delete.completed',
           entityType: 'Guest',
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
       });
     } catch (deleteError) {
       // Update request as failed
-      await gdprService.updateRequestStatus(gdprRequest.id, user.tenantId, 'failed', {
+      await gdprService.updateRequestStatus(gdprRequest.id, ctx.tenantId, 'failed', {
         notes: deleteError instanceof Error ? deleteError.message : 'Deletion failed',
       });
       throw deleteError;

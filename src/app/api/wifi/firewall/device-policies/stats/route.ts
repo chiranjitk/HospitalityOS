@@ -66,11 +66,6 @@ export async function GET(request: NextRequest) {
     // Quota usage per policy (top 10 by assignments)
     const topPolicies = await db.devicePolicy.findMany({
       where: { ...propFilter, isActive: true },
-      include: {
-        _count: {
-          select: { assignments: true },
-        },
-      },
       orderBy: {
         assignments: { _count: 'desc' },
       },

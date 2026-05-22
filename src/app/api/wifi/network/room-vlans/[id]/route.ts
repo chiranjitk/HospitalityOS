@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import { requireFeature } from '@/lib/api-feature-flags';
 import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
 
@@ -20,13 +20,11 @@ interface RouteParams {
 // ─── GET /api/wifi/network/room-vlans/[id] ────────────────────────────────────
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const user = await requirePermission(request, 'wifi.manage');
+  if (user instanceof NextResponse) return user;
 
   // Feature gate
-  const featureGate = await requireFeature('room_vlan_isolation', tenantId);
+  const featureGate = await requireFeature('room_vlan_isolation', user.tenantId);
   if (featureGate) return featureGate;
 
   try {
@@ -40,7 +38,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const record = await db.roomVlan.findFirst({
-      where: tenantWhere(tenantId, { id }),
+      where: tenantWhere(user, { id }),
       include: {
         bandwidthPolicy: { select: { id: true, name: true } },
         parentInterface: { select: { id: true, name: true, type: true, status: true, description: true } },
@@ -68,13 +66,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // ─── PUT /api/wifi/network/room-vlans/[id] ────────────────────────────────────
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const user = await requirePermission(request, 'wifi.manage');
+  if (user instanceof NextResponse) return user;
 
   // Feature gate
-  const featureGate = await requireFeature('room_vlan_isolation', tenantId);
+  const featureGate = await requireFeature('room_vlan_isolation', user.tenantId);
   if (featureGate) return featureGate;
 
   try {
@@ -90,7 +86,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // Verify record exists
     const existing = await db.roomVlan.findFirst({
-      where: tenantWhere(tenantId, { id }),
+      where: tenantWhere(user, { id }),
     });
 
     if (!existing) {
@@ -119,7 +115,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Check roomNumber uniqueness if changing
     if (roomNumber && roomNumber !== existing.roomNumber) {
       const dup = await db.roomVlan.findFirst({
-        where: tenantWhere(tenantId, { propertyId: existing.propertyId, roomNumber, id: { not: existing.id } }),
+        where: tenantWhere(user, { propertyId: existing.propertyId, roomNumber, id: { not: existing.id } }),
       });
       if (dup) {
         return NextResponse.json(
@@ -135,7 +131,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Check vlanId uniqueness if changing
     if (vlanId !== undefined && vlanId !== existing.vlanId) {
       const dup = await db.roomVlan.findFirst({
-        where: tenantWhere(tenantId, { propertyId: existing.propertyId, vlanId: parseInt(vlanId, 10), id: { not: existing.id } }),
+        where: tenantWhere(user, { propertyId: existing.propertyId, vlanId: parseInt(vlanId, 10), id: { not: existing.id } }),
       });
       if (dup) {
         return NextResponse.json(
@@ -211,13 +207,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 // ─── DELETE /api/wifi/network/room-vlans/[id] ─────────────────────────────────
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const user = await requirePermission(request, 'wifi.manage');
+  if (user instanceof NextResponse) return user;
 
   // Feature gate
-  const featureGate = await requireFeature('room_vlan_isolation', tenantId);
+  const featureGate = await requireFeature('room_vlan_isolation', user.tenantId);
   if (featureGate) return featureGate;
 
   try {
@@ -231,7 +225,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     const existing = await db.roomVlan.findFirst({
-      where: tenantWhere(tenantId, { id }),
+      where: tenantWhere(user, { id }),
     });
 
     if (!existing) {

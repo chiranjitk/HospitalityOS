@@ -13,7 +13,7 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { db } from '@/lib/db';
-import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import { deleteVlan as nmcliDeleteVlan } from '@/lib/network/nmcli';
 
 interface RouteParams {
@@ -52,10 +52,8 @@ function fallbackDeleteVlan(ifaceName: string): { deleted: boolean; message: str
 
 // GET /api/wifi/network/vlans/[id] - Get single VLAN
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const user = await requirePermission(request, 'wifi.manage');
+  if (user instanceof NextResponse) return user;
 
   try {
     const { id } = await params;
@@ -80,10 +78,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 // PUT /api/wifi/network/vlans/[id] - Update VLAN
 export async function PUT(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const user = await requirePermission(request, 'wifi.manage');
+  if (user instanceof NextResponse) return user;
 
   try {
     const { id } = await params;
@@ -149,10 +145,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/wifi/network/vlans/[id] - Delete VLAN
 // [id] can be a DB UUID or a subInterface name (e.g. eth1.100)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const tenantId = await getTenantIdFromSession(request);
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-  }
+  const user = await requirePermission(request, 'wifi.manage');
+  if (user instanceof NextResponse) return user;
 
   try {
     const { id } = await params;
