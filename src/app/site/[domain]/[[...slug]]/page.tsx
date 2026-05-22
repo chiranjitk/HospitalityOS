@@ -11,20 +11,29 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function generateMetadata({ params }: PageProps) {
-  const { domain } = await params;
+  const { domain, slug } = await params;
 
-  // Look up the website by domain or customDomain
-  const website = await db.hotelWebsite.findFirst({
+  // Try looking up by domain/customDomain first, then by property slug
+  let website = await db.hotelWebsite.findFirst({
     where: {
       OR: [
         { domain },
         { customDomain: domain },
       ],
     },
-    include: {
-      property: true,
-    },
+    include: { property: true },
   });
+
+  // Fallback: look up by property slug
+  if (!website) {
+    const property = await db.property.findFirst({ where: { slug: domain } });
+    if (property) {
+      website = await db.hotelWebsite.findFirst({
+        where: { propertyId: property.id },
+        include: { property: true },
+      });
+    }
+  }
 
   if (!website) {
     return { title: 'Not Found' };
@@ -57,8 +66,8 @@ export default async function PublicWebsitePage({ params, searchParams }: PagePr
   const { preview } = await searchParams;
   const isPreview = preview === 'true';
 
-  // ─── 1. Look up the website by domain ────────────────────────────────────
-  const website = await db.hotelWebsite.findFirst({
+  // ─── 1. Look up the website by domain/customDomain ──────────────────────
+  let website = await db.hotelWebsite.findFirst({
     where: {
       OR: [
         { domain },
@@ -70,16 +79,27 @@ export default async function PublicWebsitePage({ params, searchParams }: PagePr
     },
   });
 
+  // ─── 2. Fallback: look up by property slug ──────────────────────────────
+  if (!website) {
+    const property = await db.property.findFirst({ where: { slug: domain } });
+    if (property) {
+      website = await db.hotelWebsite.findFirst({
+        where: { propertyId: property.id },
+        include: { property: true },
+      });
+    }
+  }
+
   if (!website) {
     notFound();
   }
 
-  // ─── 2. Check published status ───────────────────────────────────────────
+  // ─── 3. Check published status ───────────────────────────────────────────
   if (website.status !== 'published' && !isPreview) {
     notFound();
   }
 
-  // ─── 3. Parse JSON fields ────────────────────────────────────────────────
+  // ─── 4. Parse JSON fields ────────────────────────────────────────────────
   const theme: WebsiteTheme = typeof website.theme === 'string'
     ? JSON.parse(website.theme)
     : website.theme || {};
@@ -93,7 +113,7 @@ export default async function PublicWebsitePage({ params, searchParams }: PagePr
     ? JSON.parse(website.analytics)
     : website.analytics || {};
 
-  // ─── 4. Determine the current page from slug ─────────────────────────────
+  // ─── 5. Determine the current page from slug ─────────────────────────────
   const pageSlug = slug && slug.length > 0 ? slug[0] : 'home';
   const currentPage = pages.find(p => p.slug === pageSlug);
 
@@ -116,7 +136,7 @@ export default async function PublicWebsitePage({ params, searchParams }: PagePr
     notFound();
   }
 
-  // ─── 5. Fetch Room Types ─────────────────────────────────────────────────
+  // ─── 6. Fetch Room Types ─────────────────────────────────────────────────
   const roomTypesRaw = await db.roomType.findMany({
     where: {
       propertyId: website.propertyId,
@@ -141,7 +161,7 @@ export default async function PublicWebsitePage({ params, searchParams }: PagePr
     sizeSqMeters: rt.sizeSqMeters,
   }));
 
-  // ─── 6. Fetch Guest Reviews ──────────────────────────────────────────────
+  // ─── 7. Fetch Guest Reviews ──────────────────────────────────────────────
   const reviewsRaw = await db.guestReview.findMany({
     where: {
       propertyId: website.propertyId,
@@ -165,34 +185,34 @@ export default async function PublicWebsitePage({ params, searchParams }: PagePr
     guest: { firstName: r.guest.firstName, lastName: r.guest.lastName },
   }));
 
-  // ─── 7. Prepare property data ────────────────────────────────────────────
+  // ─── 8. Prepare property data ────────────────────────────────────────────
   const property: PropertyData = {
     id: website.property.id,
-    name: website.property.name,
-    slug: website.property.slug,
-    description: website.property.description,
-    type: website.property.type,
-    address: website.property.address,
-    city: website.property.city,
-    state: website.property.state,
-    country: website.property.country,
-    postalCode: website.property.postalCode,
+    name: website.property.name || 'Hotel',
+    slug: website.property.slug || '',
+    description: website.property.description || null,
+    type: website.property.type || 'hotel',
+    address: website.property.address || '',
+    city: website.property.city || '',
+    state: website.property.state || null,
+    country: website.property.country || '',
+    postalCode: website.property.postalCode || null,
     latitude: website.property.latitude,
     longitude: website.property.longitude,
-    email: website.property.email,
-    phone: website.property.phone,
-    logo: website.property.logo,
-    primaryColor: website.property.primaryColor,
-    checkInTime: website.property.checkInTime,
-    checkOutTime: website.property.checkOutTime,
-    currency: website.property.currency,
-    totalRooms: website.property.totalRooms,
-    amenities: website.property.amenities,
+    email: website.property.email || null,
+    phone: website.property.phone || null,
+    logo: website.property.logo || null,
+    primaryColor: website.property.primaryColor || null,
+    checkInTime: website.property.checkInTime || '14:00',
+    checkOutTime: website.property.checkOutTime || '11:00',
+    currency: website.property.currency || 'INR',
+    totalRooms: website.property.totalRooms || 0,
+    amenities: website.property.amenities || null,
   };
 
   const template = (website.template || 'modern') as TemplateType;
 
-  // ─── 8. Render full HTML ─────────────────────────────────────────────────
+  // ─── 9. Render full HTML ─────────────────────────────────────────────────
   const html = renderFullPage({
     property,
     rooms,

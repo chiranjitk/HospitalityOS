@@ -1247,8 +1247,15 @@ export default function WebsiteBuilder() {
 
   const previewUrl = useMemo(() => {
     if (!website) return '';
-    return `/site/${website.customDomain || website.domain}?preview=true`;
-  }, [website]);
+    const slug = currentProperty?.slug || website.customDomain || website.domain;
+    return `/site/${slug}?preview=true`;
+  }, [website, currentProperty]);
+
+  const visitUrl = useMemo(() => {
+    if (!website) return '';
+    const slug = currentProperty?.slug || website.customDomain || website.domain;
+    return `/site/${slug}`;
+  }, [website, currentProperty]);
 
   // ─── Loading State ──────────────────────────────────────────────────────
 
@@ -1398,9 +1405,9 @@ export default function WebsiteBuilder() {
               Preview
             </a>
           </Button>
-          {/* Visit button — links to /site/{domain} */}
+          {/* Visit button — links to /site/{propertySlug} */}
           <Button variant="outline" size="sm" asChild>
-            <a href={`/site/${website.customDomain || website.domain}`} target="_blank" rel="noopener noreferrer">
+            <a href={visitUrl} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="h-4 w-4 mr-2" />
               Visit
             </a>

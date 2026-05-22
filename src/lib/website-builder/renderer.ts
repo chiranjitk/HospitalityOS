@@ -1067,6 +1067,39 @@ export function renderFullPage(opts: RenderPageOptions): string {
   </main>
   ${footerHtml}
   ${previewBanner}
+  <script>
+  (function() {
+    // Booking form handler — intercepts form#booking submit and redirects to /book
+    document.addEventListener('submit', function(e) {
+      var form = e.target;
+      if (form.id === 'booking' || form.closest && form.closest('#booking')) {
+        e.preventDefault();
+        var f = form.id === 'booking' ? form : form.closest('#booking');
+        var checkin = '', checkout = '', room = '', guests = '';
+        var inputs = f.querySelectorAll('input[type="date"], input, select');
+        inputs.forEach(function(el) {
+          var label = el.previousElementSibling;
+          var labelText = label ? label.textContent.toLowerCase().trim() : '';
+          if (el.type === 'date') {
+            if (labelText.indexOf('check-in') !== -1 || el.name === 'checkin' || el.name === 'check-in') checkin = el.value;
+            if (labelText.indexOf('check-out') !== -1 || el.name === 'checkout' || el.name === 'check-out') checkout = el.value;
+            // Fallback: first date = checkin, second = checkout
+            if (!checkin && !checkout) { if (!checkin) checkin = el.value; else if (!checkout) checkout = el.value; }
+          }
+          if (labelText.indexOf('room') !== -1 || el.name === 'room' || el.name === 'roomType') room = el.value;
+          if (labelText.indexOf('guest') !== -1 || el.name === 'guests') guests = el.value;
+        });
+        var params = [];
+        if (checkin) params.push('checkin=' + encodeURIComponent(checkin));
+        if (checkout) params.push('checkout=' + encodeURIComponent(checkout));
+        if (room) params.push('room=' + encodeURIComponent(room));
+        if (guests) params.push('guests=' + encodeURIComponent(guests));
+        var url = '/book' + (params.length ? '?' + params.join('&') : '');
+        window.location.href = url;
+      }
+    });
+  })();
+  </script>
 </body>
 </html>`;
 }

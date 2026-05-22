@@ -59,41 +59,116 @@ export interface PageSection {
   visible: boolean;
 }
 
-const DEFAULT_PAGES: HotelWebsitePage[] = [
-  {
-    id: 'page-home',
-    slug: 'home',
-    title: 'Home',
-    sections: [
-      { id: 's1', type: 'hero', content: { heading: 'Welcome to Our Hotel', subheading: 'Experience luxury and comfort', ctaText: 'Book Now', showBookingWidget: true }, order: 0, visible: true },
-      { id: 's2', type: 'rooms_grid', content: { heading: 'Our Rooms', showPrices: true }, order: 1, visible: true },
-      { id: 's3', type: 'features', content: { heading: 'Why Choose Us' }, order: 2, visible: true },
-      { id: 's4', type: 'testimonials', content: { heading: 'Guest Reviews', maxReviews: 6 }, order: 3, visible: true },
-      { id: 's5', type: 'cta', content: { heading: 'Ready to Book?', subheading: 'Best rates guaranteed', buttonText: 'Reserve Now' }, order: 4, visible: true },
-    ],
-    published: true,
-  },
-  {
-    id: 'page-rooms',
-    slug: 'rooms',
-    title: 'Rooms & Suites',
-    sections: [
-      { id: 's1', type: 'rooms_grid', content: { heading: 'Accommodations', showPrices: true, showAmenities: true }, order: 0, visible: true },
-      { id: 's2', type: 'gallery', content: { heading: 'Gallery' }, order: 1, visible: true },
-    ],
-    published: true,
-  },
-  {
-    id: 'page-contact',
-    slug: 'contact',
-    title: 'Contact Us',
-    sections: [
-      { id: 's1', type: 'contact_form', content: { heading: 'Get in Touch', showMap: true, showPhone: true, showEmail: true }, order: 0, visible: true },
-      { id: 's2', type: 'map', content: {}, order: 1, visible: true },
-    ],
-    published: true,
-  },
-];
+// ─── Amenity → Feature Mapping ──────────────────────────────────────────
+
+const AMENITY_FEATURE_MAP: Record<string, { icon: string; description: string }> = {
+  'free wifi': { icon: 'wifi', description: 'Complimentary high-speed internet throughout the property' },
+  'wifi': { icon: 'wifi', description: 'High-speed internet access throughout the property' },
+  'swimming pool': { icon: 'pool', description: 'Outdoor heated pool for your relaxation' },
+  'pool': { icon: 'pool', description: 'Swimming pool for your relaxation' },
+  'spa': { icon: 'spa', description: 'Full-service spa and wellness center' },
+  'fitness center': { icon: 'gym', description: 'State-of-the-art fitness equipment' },
+  'gym': { icon: 'gym', description: 'Well-equipped gym open 24/7' },
+  'restaurant': { icon: 'restaurant', description: 'On-site restaurant with local and international cuisine' },
+  'parking': { icon: 'parking', description: 'Complimentary on-site parking' },
+  'free parking': { icon: 'parking', description: 'Free on-site parking for all guests' },
+  'room service': { icon: 'roomservice', description: '24-hour in-room dining service' },
+  'air conditioning': { icon: 'ac', description: 'Climate-controlled rooms for your comfort' },
+  'breakfast': { icon: 'breakfast', description: 'Delicious breakfast included with your stay' },
+  'free breakfast': { icon: 'breakfast', description: 'Complimentary breakfast served daily' },
+  'bar': { icon: 'bar', description: 'Full-service bar with crafted cocktails' },
+  'concierge': { icon: 'concierge', description: 'Dedicated concierge for personalized service' },
+  'shuttle': { icon: 'shuttle', description: 'Complimentary airport shuttle service' },
+  'pet friendly': { icon: 'pet', description: 'We welcome your furry companions' },
+  'garden': { icon: 'garden', description: 'Beautiful landscaped gardens to explore' },
+  'laundry': { icon: 'laundry', description: 'Full laundry and dry-cleaning service' },
+  'business center': { icon: 'business', description: 'Business center with meeting facilities' },
+  'elevator': { icon: 'elevator', description: 'Elevator access to all floors' },
+  'security': { icon: 'security', description: '24-hour security and CCTV monitoring' },
+  'beach': { icon: 'beach', description: 'Direct beach access for guests' },
+  'kids club': { icon: 'kids', description: 'Supervised kids activities and play area' },
+  'minibar': { icon: 'minibar', description: 'Well-stocked minibar in every room' },
+  'tv': { icon: 'tv', description: 'Flat-screen TV with premium channels' },
+  'coffee': { icon: 'coffee', description: 'Premium coffee maker in every room' },
+  'bathtub': { icon: 'bathtub', description: 'Luxurious bathtub in private bathroom' },
+  'balcony': { icon: 'balcony', description: 'Private balcony with scenic views' },
+  'sauna': { icon: 'sauna', description: 'Relaxing sauna and steam room' },
+};
+
+function generateDefaultPages(
+  propertyAmenities: string | null,
+  roomImages: Array<{ url: string; alt: string }>
+): HotelWebsitePage[] {
+  // Parse amenities
+  const amenities: string[] = (() => {
+    try { return JSON.parse(propertyAmenities || '[]'); } catch { return []; }
+  })();
+
+  // Auto-generate feature items from amenities
+  const featureItems = amenities.slice(0, 6).map(amenity => {
+    const key = amenity.toLowerCase();
+    const mapping = Object.entries(AMENITY_FEATURE_MAP).find(
+      ([k]) => key.includes(k) || k.includes(key)
+    );
+    if (mapping) {
+      const [, value] = mapping;
+      return { icon: value.icon, title: amenity, description: value.description };
+    }
+    return { icon: 'default', title: amenity, description: `${amenity} available for all guests` };
+  });
+
+  // Build gallery from room images
+  const galleryImages = roomImages.map(img => ({ url: img.url, alt: img.alt }));
+
+  // Build sections for home page
+  const homeSections = [
+    { id: 's1', type: 'hero' as const, content: { heading: `Welcome to ${propertyAmenities ? 'Our Hotel' : 'Our Hotel'}`, subheading: 'Experience luxury and comfort', ctaText: 'Book Now', showBookingWidget: true }, order: 0, visible: true },
+    { id: 's2', type: 'rooms_grid' as const, content: { heading: 'Our Rooms', showPrices: true }, order: 1, visible: true },
+    { id: 's3', type: 'amenities' as const, content: { heading: 'Hotel Amenities' }, order: 2, visible: true },
+    { id: 's4', type: 'features' as const, content: { heading: 'Why Choose Us', items: featureItems }, order: 3, visible: featureItems.length > 0 },
+    { id: 's5', type: 'testimonials' as const, content: { heading: 'Guest Reviews', maxReviews: 6 }, order: 4, visible: true },
+    { id: 's6', type: 'cta' as const, content: { heading: 'Ready to Book?', subheading: 'Best rates guaranteed', buttonText: 'Reserve Now' }, order: 5, visible: true },
+  ];
+
+  // Build sections for rooms page
+  const roomsSections = [
+    { id: 's1', type: 'rooms_grid' as const, content: { heading: 'Accommodations', showPrices: true, showAmenities: true }, order: 0, visible: true },
+    { id: 's2', type: 'booking_widget' as const, content: { heading: 'Book Your Stay' }, order: 1, visible: true },
+    ...(galleryImages.length > 0
+      ? [{ id: 's3', type: 'gallery' as const, content: { heading: 'Room Gallery', images: galleryImages }, order: 2, visible: true }]
+      : []),
+  ];
+
+  // Build sections for contact page
+  const contactSections = [
+    { id: 's1', type: 'contact_form' as const, content: { heading: 'Get in Touch', showMap: true, showPhone: true, showEmail: true }, order: 0, visible: true },
+    { id: 's2', type: 'map' as const, content: {}, order: 1, visible: true },
+  ];
+
+  return [
+    {
+      id: 'page-home',
+      slug: 'home',
+      title: 'Home',
+      sections: homeSections,
+      published: true,
+    },
+    {
+      id: 'page-rooms',
+      slug: 'rooms',
+      title: 'Rooms & Suites',
+      sections: roomsSections,
+      published: true,
+    },
+    {
+      id: 'page-contact',
+      slug: 'contact',
+      title: 'Contact Us',
+      sections: contactSections,
+      published: true,
+    },
+  ];
+}
 
 const TEMPLATE_THEMES: Record<string, { primaryColor: string; secondaryColor: string; fontFamily: string; borderRadius: string }> = {
   modern: { primaryColor: '#0d9488', secondaryColor: '#f59e0b', fontFamily: 'Inter', borderRadius: '8px' },
@@ -130,6 +205,26 @@ export async function createWebsite(
   });
   if (existing) throw new Error('Website already exists for this property');
 
+  // ─── Auto-populate: fetch room images for gallery ──────────────────────
+  const roomTypes = await db.roomType.findMany({
+    where: { propertyId, status: 'active', deletedAt: null },
+    orderBy: { sortOrder: 'asc' },
+    take: 8,
+  });
+
+  const roomImages: Array<{ url: string; alt: string }> = [];
+  for (const rt of roomTypes) {
+    try {
+      const images: string[] = JSON.parse(rt.images || '[]');
+      for (const imgUrl of images.slice(0, 2)) {
+        roomImages.push({ url: imgUrl, alt: rt.name });
+      }
+    } catch { /* skip invalid JSON */ }
+  }
+
+  // ─── Generate dynamic default pages ────────────────────────────────────
+  const defaultPages = generateDefaultPages(property.amenities, roomImages);
+
   const website = await db.hotelWebsite.create({
     data: {
       tenantId,
@@ -139,7 +234,7 @@ export async function createWebsite(
       status: 'draft',
       template: config.template || 'modern',
       theme: JSON.stringify({ ...getDefaultTheme(config.template || 'modern'), ...config.theme }),
-      pages: JSON.stringify(DEFAULT_PAGES),
+      pages: JSON.stringify(defaultPages),
       seo: JSON.stringify({
         title: `${property.name} - Official Website`,
         description: `Book your stay at ${property.name}. Best rates guaranteed.`,
