@@ -18,7 +18,7 @@ const { execSync } = /*turbopackIgnore: true*/ require('child_process');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const path = /*turbopackIgnore: true*/ require('path');
 import { STAYSUITE_SCRIPTS_DIR } from '@/lib/wifi/paths';
-import { normalizeIPv4 as _normalizeIPv4 } from '@/lib/utils/ip';
+import { normalizeIPv4 } from '@/lib/utils/ip';
 
 /** Re-export for consumers that import from here */
 export { normalizeIPv4 } from '@/lib/utils/ip';
