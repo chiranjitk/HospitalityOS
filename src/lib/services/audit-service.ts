@@ -264,11 +264,23 @@ class AuditLogService {
       }
 
       return auditLog;
-    } catch (error) {
-      // Don't break the application if audit logging fails
-      // Just log the error and rethrow
-      console.error('[AUDIT] Failed to create audit log:', error);
-      throw error;
+    } catch (error: unknown) {
+      // Audit logging must NEVER break the calling operation.
+      // Log the error with context and return a stub entry.
+      const prismaErr = error as { meta?: { code?: string; message?: string } };
+      const fkHint = prismaErr?.meta?.code === 'P2003'
+        ? ` (FK violation — tenantId="${tenantId}" may not exist in Tenant table)`
+        : '';
+      console.error(`[AUDIT] Failed to create audit log${fkHint}:`, error);
+      return {
+        id: '00000000-0000-0000-0000-000000000000',
+        tenantId: '',
+        userId: safeUUID(userId),
+        module: 'system' as const,
+        action: 'error' as const,
+        entityType: 'audit_log',
+        createdAt: new Date(),
+      } as AuditLog;
     }
   }
 
@@ -324,8 +336,13 @@ class AuditLogService {
     const validData = data.filter(d => d.tenantId !== '');
     if (validData.length === 0) return 0;
 
-    const result = await db.auditLog.createMany({ data: validData });
-    return result.count;
+    try {
+      const result = await db.auditLog.createMany({ data: validData });
+      return result.count;
+    } catch (error) {
+      console.error('[AUDIT] Batch create failed:', error);
+      return 0;
+    }
   }
 
   /**
