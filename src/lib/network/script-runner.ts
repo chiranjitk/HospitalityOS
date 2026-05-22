@@ -22,6 +22,7 @@ const { execSync } = /*turbopackIgnore: true*/ require('child_process');
  */
 
 import { STAYSUITE_SCRIPTS_DIR } from '@/lib/wifi/paths';
+import { normalizeIPv4 } from '@/lib/wifi/utils/nftables-counters';
 
 // ─── Configuration (production defaults, overridable via env) ────────
 
@@ -203,7 +204,8 @@ export interface ScriptResult {
  */
 export function runLoginScript(params: LoginScriptParams): ScriptResult {
   const args: string[] = [];
-  args.push('-i', params.ip);
+  const cleanIp = normalizeIPv4(params.ip);
+  args.push('-i', cleanIp);
   args.push('-a', params.action || DEFAULT_NAT_ACTION);
 
   if (params.snatIp) args.push('-s', params.snatIp);
@@ -264,7 +266,8 @@ export interface LogoutScriptParams {
 
 export function runLogoutScript(params: LogoutScriptParams): ScriptResult {
   const args: string[] = [];
-  args.push('-i', params.ip);
+  const cleanIp = normalizeIPv4(params.ip);
+  args.push('-i', cleanIp);
   if (params.sessionId) args.push('-S', params.sessionId);
   if (params.dnClassid) args.push('-d', String(params.dnClassid));
   if (params.upClassid) args.push('-u', String(params.upClassid));

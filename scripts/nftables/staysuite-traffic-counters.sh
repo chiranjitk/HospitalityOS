@@ -52,6 +52,10 @@ log() {
 
 validate_ip() {
     local ip="$1"
+    # Strip IPv6-mapped IPv4 prefix (::ffff:) — common on dual-stack Linux (Rocky/RHEL)
+    if [[ "$ip" =~ ^::ffff:(.*) ]]; then
+        ip="${BASH_REMATCH[1]}"
+    fi
     if [[ "$ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
         local IFS='.'
         read -ra octets <<< "$ip"
@@ -60,6 +64,7 @@ validate_ip() {
                 return 1
             fi
         done
+        echo "$ip"
         return 0
     fi
     return 1
@@ -96,10 +101,12 @@ cmd_teardown() {
 
 cmd_add() {
     local ip="$1"
-    if ! validate_ip "$ip"; then
+    local clean_ip
+    if ! clean_ip=$(validate_ip "$ip"); then
         log "ERROR" "Invalid IP: $ip"
         return 1
     fi
+    ip="$clean_ip"
 
     # Ensure table exists
     if ! nft list tables 2>/dev/null | grep -q "staysuite_count"; then
@@ -140,9 +147,11 @@ cmd_add() {
 
 cmd_remove() {
     local ip="$1"
-    if ! validate_ip "$ip"; then
+    local clean_ip
+    if ! clean_ip=$(validate_ip "$ip"); then
         return 1
     fi
+    ip="$clean_ip"
 
     local safe_ip
     safe_ip=$(ip_to_counter_name "$ip")
@@ -172,9 +181,11 @@ cmd_remove() {
 
 cmd_read() {
     local ip="$1"
-    if ! validate_ip "$ip"; then
+    local clean_ip
+    if ! clean_ip=$(validate_ip "$ip"); then
         return 1
     fi
+    ip="$clean_ip"
 
     local safe_ip
     safe_ip=$(ip_to_counter_name "$ip")

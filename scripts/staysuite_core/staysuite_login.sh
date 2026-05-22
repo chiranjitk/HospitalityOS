@@ -182,7 +182,9 @@ while getopts "i:a:s:L:P:R:C:r:c:d:u:D:U:g:G:W:S:m:X:o:f:t:e:E:" opt; do
     esac
 done
 
-# ─── Validate required ───────────────────────────────────────────────
+# ─── Normalize & Validate IP ─────────────────────────────────────────
+# Strip IPv6-mapped IPv4 prefix (::ffff:) — common on dual-stack Linux (Rocky/RHEL/CentOS)
+[[ "$IP" =~ ^::ffff:(.*) ]] && IP="${BASH_REMATCH[1]}"
 [[ -z "$IP" ]] && { log_err "Missing: -i <ip>"; exit 1; }
 [[ "$IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]] || { log_err "Bad IP: $IP"; exit 1; }
 [[ "$ACTION" != "accept" && "$ACTION" != "snat" && "$ACTION" != "masq" ]] && { log_err "Bad action: $ACTION"; exit 1; }

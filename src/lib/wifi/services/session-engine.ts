@@ -84,6 +84,7 @@ import {
   deauthIP,
   doesAuthenticatedSetExist,
   getAllAuthenticatedIPs,
+  normalizeIPv4,
   type IPByteCount,
 } from '@/lib/wifi/utils/nftables-counters';
 import { runLogoutScript } from '@/lib/network/script-runner';
@@ -278,7 +279,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
 
         for (const session of sessions) {
           try {
-            const ip = session.framedipaddress;
+            const ip = normalizeIPv4(session.framedipaddress);
             const counter = counters.get(ip);
             const now = Date.now();
             const sessionTime = Math.floor((now - safeGetTime(session.acctstarttime)) / 1000);
@@ -401,7 +402,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
               );
               await disconnectSession(session, reason, dl, ul);
               result.disconnectedSessions.push({ username: session.username, ip: session.framedipaddress, reason });
-              lastActivityMap.delete(session.framedipaddress);
+              lastActivityMap.delete(normalizeIPv4(session.framedipaddress));
 
               switch (reason) {
                 case 'Idle-Timeout': result.idleTimeoutDisconnected++; break;
@@ -609,8 +610,8 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
                   await Promise.allSettled(batch.map(async ({ session, reason, dl, ul }) => {
                     try {
                       await disconnectSessionFallback(session, reason, dl, ul);
-                      lastActivityMap.delete(session.framedipaddress);
-                      result.disconnectedSessions.push({ username: session.username, ip: session.framedipaddress, reason });
+                      lastActivityMap.delete(normalizeIPv4(session.framedipaddress));
+                      result.disconnectedSessions.push({ username: session.username, ip: normalizeIPv4(session.framedipaddress), reason });
                       switch (reason) {
                         case 'Idle-Timeout': result.idleTimeoutDisconnected++; break;
                         case 'Session-Timeout': result.sessionTimeoutDisconnected++; break;
@@ -630,7 +631,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
         }
 
         // ── Step 4e: GC lastActivityMap ──
-        const allActiveIps = new Set(sessions.map(s => s.framedipaddress));
+        const allActiveIps = new Set(sessions.map(s => normalizeIPv4(s.framedipaddress)));
         for (const [mapIp] of lastActivityMap) {
           if (!allActiveIps.has(mapIp)) {
             lastActivityMap.delete(mapIp);
@@ -915,7 +916,7 @@ async function disconnectSessionFallback(
     SELog.warn(`[FALLBACK] CoA disconnect failed for ${session.username}: ${coaErr instanceof Error ? coaErr.message : String(coaErr)}`);
   }
 
-  lastActivityMap.delete(session.framedipaddress);
+  lastActivityMap.delete(normalizeIPv4(session.framedipaddress));
 }
 
 /**
@@ -927,7 +928,7 @@ async function disconnectSession(
   downloadBytes: number,
   uploadBytes: number
 ): Promise<void> {
-  const ip = session.framedipaddress;
+  const ip = normalizeIPv4(session.framedipaddress);
   const sessionTime = Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000);
 
   // 1. Remove from nftables
@@ -1041,7 +1042,7 @@ async function closeSession(
   downloadBytes: number,
   uploadBytes: number
 ): Promise<void> {
-  const ip = session.framedipaddress;
+  const ip = normalizeIPv4(session.framedipaddress);
   const sessionTime = Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000);
 
   try {

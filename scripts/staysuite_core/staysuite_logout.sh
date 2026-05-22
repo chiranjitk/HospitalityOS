@@ -77,6 +77,10 @@ fi
 
 [[ -z "$IP" ]] && exit 0
 
+# ─── Normalize IP ───────────────────────────────────────────────────
+# Strip IPv6-mapped IPv4 prefix (::ffff:) — common on dual-stack Linux (Rocky/RHEL/CentOS)
+[[ "$IP" =~ ^::ffff:(.*) ]] && IP="${BASH_REMATCH[1]}"
+
 # Compute mark if not loaded from state
 # Uses 32-bit mark = (full IP | 0x10000000), same as 24online's IPMARK
 if [[ -z "$MARK" ]]; then

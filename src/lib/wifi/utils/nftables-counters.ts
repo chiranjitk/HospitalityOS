@@ -19,6 +19,33 @@ const { execSync } = /*turbopackIgnore: true*/ require('child_process');
 const path = /*turbopackIgnore: true*/ require('path');
 import { STAYSUITE_SCRIPTS_DIR } from '@/lib/wifi/paths';
 
+/**
+ * Normalize an IP address to plain IPv4.
+ *
+ * On dual-stack Linux systems (Rocky, RHEL, CentOS), Node.js and FreeRADIUS
+ * often report IPv4 addresses with an IPv6-mapped prefix: "::ffff:10.10.10.198".
+ * This causes nftables to fail because nft doesn't accept the ::ffff: prefix
+ * in "ip daddr" / "ip saddr" rules or set element operations.
+ *
+ * Strips:
+ *   ::ffff:10.10.10.198  →  10.10.10.198
+ *   [::ffff:10.10.10.198] →  10.10.10.198
+ *
+ * Returns the original string if it's already plain IPv4 or can't be normalized.
+ */
+export function normalizeIPv4(ip: string): string {
+  if (!ip) return ip;
+  // Strip surrounding brackets (e.g. [::ffff:10.0.0.1] from headers)
+  let clean = ip.trim();
+  if (clean.startsWith('[') && clean.includes(']')) {
+    clean = clean.slice(1, clean.indexOf(']'));
+  }
+  // Strip IPv6-mapped IPv4 prefix
+  const v4Match = clean.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  if (v4Match) return v4Match[1];
+  return clean;
+}
+
 // Counter script path: production uses STAYSUITE_SCRIPTS_DIR (same as login/logout),
 // dev/sandbox falls back to project-relative path.
 const SCRIPTS_DIR = STAYSUITE_SCRIPTS_DIR;
@@ -151,8 +178,9 @@ export function setupCounterTable(): boolean {
  */
 export function addUserCounter(ip: string): boolean {
   if (!isNftablesAvailable()) return false;
+  const cleanIp = normalizeIPv4(ip);
   try {
-    execSync(`bash ${getCOUNTER_SCRIPT()} add ${ip} 2>&1`, {
+    execSync(`bash ${getCOUNTER_SCRIPT()} add ${cleanIp} 2>&1`, {
       encoding: 'utf-8',
       timeout: 5000,
     });
@@ -170,8 +198,9 @@ export function addUserCounter(ip: string): boolean {
  * silently swallowed making counter leaks impossible to diagnose.
  */
 export function removeUserCounter(ip: string): boolean {
+  const cleanIp = normalizeIPv4(ip);
   if (!isNftablesAvailable()) {
-    console.warn(`[Counter] removeUserCounter(${ip}) skipped — nftables not available`);
+    console.warn(`[Counter] removeUserCounter(${cleanIp}) skipped — nftables not available`);
     return false;
   }
 
@@ -179,29 +208,29 @@ export function removeUserCounter(ip: string): boolean {
   try {
     const script = getCOUNTER_SCRIPT();
     require('fs').accessSync(script, require('fs').constants.R_OK);
-    const output = execSync(`bash ${script} remove ${ip} 2>&1`, {
+    const output = execSync(`bash ${script} remove ${cleanIp} 2>&1`, {
       encoding: 'utf-8',
       timeout: 5000,
     });
     const trimmed = output.trim();
     if (trimmed) {
-      console.log(`[Counter] removeUserCounter(${ip}): ${trimmed}`);
+      console.log(`[Counter] removeUserCounter(${cleanIp}): ${trimmed}`);
     }
     return true;
   } catch (err) {
-    console.warn(`[Counter] removeUserCounter(${ip}) script failed, falling back to direct nft: ${err instanceof Error ? err.message : String(err)}`);
+    console.warn(`[Counter] removeUserCounter(${cleanIp}) script failed, falling back to direct nft: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // Strategy 2: Direct nft commands (no dependency on external script)
   try {
-    const safeIp = ip.replace(/\./g, '_');
+    const safeIp = cleanIp.replace(/\./g, '_');
     const handles = execSync(
       `nft -a list chain inet staysuite_count forward 2>/dev/null | grep -E "user_(in|out)_${safeIp}" | grep -oP 'handle \\K[0-9]+' | sort -rn`,
       { encoding: 'utf-8', timeout: 5000 }
     ).trim();
 
     if (!handles) {
-      console.log(`[Counter] removeUserCounter(${ip}): no counter rules found`);
+      console.log(`[Counter] removeUserCounter(${cleanIp}): no counter rules found`);
       return true;
     }
 
@@ -219,11 +248,11 @@ export function removeUserCounter(ip: string): boolean {
         // Handle may have shifted — continue with next
       }
     }
-    console.log(`[Counter] removeUserCounter(${ip}): removed ${removed} counter rules via direct nft`);
+    console.log(`[Counter] removeUserCounter(${cleanIp}): removed ${removed} counter rules via direct nft`);
     return removed > 0;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[Counter] removeUserCounter(${ip}) FAILED (all strategies): ${msg}`);
+    console.error(`[Counter] removeUserCounter(${cleanIp}) FAILED (all strategies): ${msg}`);
     return false;
   }
 }
@@ -234,8 +263,9 @@ export function removeUserCounter(ip: string): boolean {
  */
 export function readUserCounter(ip: string): IPByteCount | null {
   if (!isNftablesAvailable()) return null;
+  const cleanIp = normalizeIPv4(ip);
   try {
-    const output = execSync(`bash ${getCOUNTER_SCRIPT()} read ${ip} 2>&1`, {
+    const output = execSync(`bash ${getCOUNTER_SCRIPT()} read ${cleanIp} 2>&1`, {
       encoding: 'utf-8',
       timeout: 5000,
     });
@@ -346,15 +376,16 @@ export function isIPAuthenticated(ip: string): boolean {
     return true;
   }
 
+  const cleanIp = normalizeIPv4(ip);
   // Detect the actual table name dynamically (could be 'mangle', 'staysuite_mangle', etc.)
   const tableName = getMangleTableName();
 
   try {
     const output = execSync(
-      `nft get element inet ${tableName} loggedinusers "{ ${ip} }" 2>&1`,
+      `nft get element inet ${tableName} loggedinusers "{ ${cleanIp} }" 2>&1`,
       { encoding: 'utf-8', timeout: 3000 }
     );
-    return output.includes(ip);
+    return output.includes(cleanIp);
   } catch {
     return false;
   }
@@ -416,10 +447,11 @@ export function getAllAuthenticatedIPs(): Set<string> | null {
  * This is the "disconnect" action at the firewall level.
  */
 export function deauthIP(ip: string): boolean {
+  const cleanIp = normalizeIPv4(ip);
   const tableName = getMangleTableName();
   try {
     execSync(
-      `nft delete element inet ${tableName} loggedinusers "{ ${ip} }" 2>/dev/null`,
+      `nft delete element inet ${tableName} loggedinusers "{ ${cleanIp} }" 2>/dev/null`,
       { encoding: 'utf-8', timeout: 3000 }
     );
     return true;
