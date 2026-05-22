@@ -4249,6 +4249,104 @@ async function main() {
     console.log('Final fix seed error:', e.message);
   }
 
+  // ─── Website Builder Seed Data ────────────────────────────────────────────
+  console.log('🌐 Seeding Website Builder data...');
+  try {
+    const TENANT_ID = uuid('tenant-1');
+    const PROPERTY_ID = uuid('property-1');
+
+    const defaultPages: string = JSON.stringify([
+      {
+        id: uuid('wb-page-home'),
+        slug: 'home',
+        title: 'Home',
+        published: true,
+        sections: [
+          { id: uuid('wb-sec-hero'), type: 'hero', content: { heading: 'Welcome to Royal Stay Kolkata', subheading: 'Experience luxury and comfort in the heart of the city', ctaText: 'Book Your Stay', showBookingWidget: true }, order: 1, visible: true },
+          { id: uuid('wb-sec-rooms'), type: 'rooms_grid', content: { heading: 'Our Rooms & Suites', showPrices: true, showAmenities: true }, order: 2, visible: true },
+          { id: uuid('wb-sec-features'), type: 'features', content: { heading: 'Why Choose Royal Stay', items: [
+            { icon: 'wifi', title: 'High-Speed WiFi', description: 'Complimentary high-speed internet throughout the property' },
+            { icon: 'pool', title: 'Rooftop Pool', description: 'Stunning infinity pool with panoramic city views' },
+            { icon: 'spa', title: 'Luxury Spa', description: 'Rejuvenate with our world-class spa treatments' },
+            { icon: 'restaurant', title: 'Fine Dining', description: 'Award-winning restaurants with international cuisine' },
+            { icon: 'concierge', title: '24/7 Concierge', description: 'Dedicated concierge service for all your needs' },
+            { icon: 'security', title: 'Secure & Safe', description: 'Round-the-clock security for your peace of mind' }
+          ] }, order: 3, visible: true },
+          { id: uuid('wb-sec-testimonials'), type: 'testimonials', content: { heading: 'What Our Guests Say', maxReviews: 6 }, order: 4, visible: true },
+          { id: uuid('wb-sec-cta'), type: 'cta', content: { heading: 'Ready to Experience Luxury?', subheading: 'Book your stay today and discover the Royal Stay difference', buttonText: 'Book Now', buttonUrl: '#booking' }, order: 5, visible: true },
+          { id: uuid('wb-sec-booking'), type: 'booking_widget', content: { heading: 'Book Your Stay' }, order: 6, visible: true },
+          { id: uuid('wb-sec-contact'), type: 'contact_form', content: { heading: 'Get In Touch', showMap: true, showPhone: true, showEmail: true }, order: 7, visible: true },
+        ]
+      },
+      {
+        id: uuid('wb-page-rooms'),
+        slug: 'rooms',
+        title: 'Rooms & Suites',
+        published: true,
+        sections: [
+          { id: uuid('wb-sec-rooms-hero'), type: 'hero', content: { heading: 'Our Rooms & Suites', subheading: 'Find the perfect room for your stay', ctaText: 'View Availability', showBookingWidget: false }, order: 1, visible: true },
+          { id: uuid('wb-sec-rooms-grid'), type: 'rooms_grid', content: { heading: 'All Room Types', showPrices: true, showAmenities: true }, order: 2, visible: true },
+          { id: uuid('wb-sec-amenities'), type: 'amenities', content: { heading: 'Room Amenities' }, order: 3, visible: true },
+        ]
+      },
+      {
+        id: uuid('wb-page-contact'),
+        slug: 'contact',
+        title: 'Contact Us',
+        published: true,
+        sections: [
+          { id: uuid('wb-sec-contact-hero'), type: 'hero', content: { heading: 'Contact Us', subheading: "We'd love to hear from you", ctaText: 'Get Directions', showBookingWidget: false }, order: 1, visible: true },
+          { id: uuid('wb-sec-contact-form'), type: 'contact_form', content: { heading: 'Send Us a Message', showMap: true, showPhone: true, showEmail: true }, order: 2, visible: true },
+          { id: uuid('wb-sec-map'), type: 'map', content: { heading: 'Our Location', zoom: 14 }, order: 3, visible: true },
+        ]
+      }
+    ]);
+
+    const defaultTheme: string = JSON.stringify({
+      primaryColor: '#0d9488',
+      secondaryColor: '#f59e0b',
+      fontFamily: 'Inter',
+      borderRadius: '8px',
+    });
+
+    const defaultSeo: string = JSON.stringify({
+      title: 'Royal Stay Kolkata — Luxury Hotel in the Heart of the City',
+      description: 'Experience world-class hospitality at Royal Stay Kolkata. Luxury rooms, fine dining, rooftop pool, and spa. Book directly for the best rates.',
+      keywords: ['luxury hotel kolkata', 'royal stay', 'best hotel kolkata', '5 star hotel', 'boutique hotel'],
+    });
+
+    const defaultAnalytics: string = JSON.stringify({});
+
+    await prisma.hotelWebsite.upsert({
+      where: { tenantId_propertyId: { tenantId: TENANT_ID, propertyId: PROPERTY_ID } },
+      update: {
+        domain: 'royal-stay-kolkata',
+        status: 'draft',
+        template: 'modern',
+        theme: defaultTheme,
+        pages: defaultPages,
+        seo: defaultSeo,
+        analytics: defaultAnalytics,
+      },
+      create: {
+        id: uuid('hotelwebsite-1'),
+        tenantId: TENANT_ID,
+        propertyId: PROPERTY_ID,
+        domain: 'royal-stay-kolkata',
+        status: 'draft',
+        template: 'modern',
+        theme: defaultTheme,
+        pages: defaultPages,
+        seo: defaultSeo,
+        analytics: defaultAnalytics,
+      },
+    });
+
+    console.log('✓ 1 HotelWebsite seeded (Royal Stay Kolkata — Modern template, 3 pages, draft status)');
+  } catch (e: any) {
+    console.log('Website Builder seed error:', e.message);
+  }
+
   console.log('\n✅ Database seed completed successfully!');
 
   // IMPORTANT: These demo credentials should be removed or changed before deploying to production.

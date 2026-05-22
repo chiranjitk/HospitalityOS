@@ -209,7 +209,7 @@ function renderHero(
 ): string {
   const colors = getThemeColors(theme);
   const config = getTemplateConfig(template);
-  const heading = (content.heading as string) || `Welcome to ${esc(property.name)}`;
+  const heading = esc((content.heading as string) || `Welcome to ${property.name}`);
   const subheading = (content.subheading as string) || property.description || '';
   const ctaText = (content.ctaText as string) || 'Book Now';
   const showBooking = content.showBookingWidget as boolean;
@@ -271,7 +271,7 @@ function renderHero(
         <button onclick="document.getElementById('booking')?.scrollIntoView({behavior:'smooth'})" style="padding:10px 28px;background:${colors.secondary};color:#fff;border:none;border-radius:${colors.radius};font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap;">${esc(ctaText)}</button>
       </div>
     </div>` : `
-    <a href="#booking" style="display:inline-block;margin-top:32px;padding:14px 40px;background:${colors.secondary};color:#fff;text-decoration:none;border-radius:${colors.radius};font-size:16px;font-weight:600;letter-spacing:0.5px;transition:transform 0.2s;">${esc(ctaText)}</a`;
+    <a href="#booking" style="display:inline-block;margin-top:32px;padding:14px 40px;background:${colors.secondary};color:#fff;text-decoration:none;border-radius:${colors.radius};font-size:16px;font-weight:600;letter-spacing:0.5px;transition:transform 0.2s;">${esc(ctaText)}</a>`;
 
   return `
     <section style="min-height:${minHeight};${bgStyle}display:flex;align-items:center;justify-content:center;padding:60px 24px;">
@@ -337,7 +337,7 @@ function renderRoomsGrid(
           ${amenitiesHtml}
           <a href="#booking" onclick="document.getElementById('ss-room-type') && (document.getElementById('ss-room-type').value = '${room.id}')" style="display:inline-block;margin-top:12px;padding:8px 20px;background:${colors.primary};color:#fff;text-decoration:none;border-radius:${colors.radius};font-size:13px;font-weight:600;">Book Now</a>
         </div>
-      </div`;
+      </div>`;
   }).join('');
 
   return sectionWrapper(
@@ -893,7 +893,7 @@ function renderBookingWidget(
           fetch('/api/site/booking',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
           .then(function(r){return r.json();})
           .then(function(data){
-            if(data.success){showStep(3);var codeEl=document.getElementById('ss-confirmation-code');if(codeEl&&data.confirmationCode){codeEl.textContent='Confirmation: '+data.confirmationCode;}}
+            if(data.success){showStep(3);var codeEl=document.getElementById('ss-confirmation-code');if(codeEl){var code=data.confirmationCode||(data.data&&data.data.confirmationCode)||'';if(code)codeEl.textContent='Confirmation: '+code;}}
             else{showError(data.error&&data.error.message?data.error.message:'Booking failed. Please try again.');}
           })
           .catch(function(){showError('Network error. Please check your connection and try again.');})
