@@ -1135,8 +1135,8 @@ async function main() {
       { id: uuid('orderitem-9'), orderId: uuid('order-3'), menuItemId: uuid('menu-4'), quantity: 1, unitPrice: 180, totalAmount: 180, status: 'ready' },
       { id: uuid('orderitem-10'), orderId: uuid('order-3'), menuItemId: uuid('menu-12'), quantity: 1, unitPrice: 60, totalAmount: 60, status: 'ready' },
       // Order 4 items
-      { id: uuid('orderitem-11'), orderId: uuid('order-4'), menuItemId: uuid('menu-6'), quantity: 1, unitPrice: 280, totalAmount: 280, status: 'served' },
-      { id: uuid('orderitem-12'), orderId: uuid('order-4'), menuItemId: uuid('menu-13'), quantity: 1, unitPrice: 80, totalAmount: 80, status: 'served' },
+      { id: uuid('orderitem-11'), orderId: uuid('order-4'), menuItemId: uuid('menu-6'), quantity: 1, unitPrice: 280, totalAmount: 280, status: 'delivered' },
+      { id: uuid('orderitem-12'), orderId: uuid('order-4'), menuItemId: uuid('menu-13'), quantity: 1, unitPrice: 80, totalAmount: 80, status: 'delivered' },
     ],
   });
 
