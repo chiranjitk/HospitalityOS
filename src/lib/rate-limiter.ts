@@ -47,10 +47,10 @@ export async function rateLimit(
     // which can race between read and write operations.
     const { randomUUID } = await import('crypto');
     const [entry] = await db.$queryRaw<Array<{ id: string; key: string; count: number; resetAt: Date }>>`
-      INSERT INTO "RateLimitEntry" ("id", "key", "count", "resetAt", "createdAt", "updatedAt")
-      VALUES (${randomUUID()}, ${key}, 1, ${resetAt}, NOW(), NOW())
-      ON CONFLICT ("key") DO UPDATE SET "count" = "RateLimitEntry"."count" + 1, "updatedAt" = NOW()
-      RETURNING "id", "key", "count", "resetAt", "createdAt", "updatedAt"
+      INSERT INTO "RateLimitEntry" ("id", "key", "count", "resetAt", "createdAt")
+      VALUES (${randomUUID()}, ${key}, 1, ${resetAt}, NOW())
+      ON CONFLICT ("key") DO UPDATE SET "count" = "RateLimitEntry"."count" + 1
+      RETURNING "id", "key", "count", "resetAt", "createdAt"
     `;
 
     if (entry.count > maxAttempts) {
@@ -62,9 +62,12 @@ export async function rateLimit(
 
     return { allowed: true, retryAfter: null };
   } catch (error) {
-    console.error('Rate limit check failed (denying request — fail closed):', error);
-    // On DB error, deny the request (fail-closed) to prevent abuse when
-    // the rate limiter database is unavailable
+    console.error('Rate limit check failed:', error);
+    // In development, fail-open to avoid blocking legitimate logins
+    if (process.env.NODE_ENV !== 'production') {
+      return { allowed: true, retryAfter: null };
+    }
+    // In production, deny the request (fail-closed) to prevent abuse
     return { allowed: false, retryAfter: 60 };
   }
 }
