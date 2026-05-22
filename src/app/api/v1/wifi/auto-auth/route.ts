@@ -337,6 +337,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ── Check device-level auto-auth toggle (F9 fix) ──
+    // The admin can toggle WiFiDevice.autoAuth per-device in the device management UI.
+    // This allows selective disabling of auto-auth for specific devices while keeping
+    // the portal-level autoAuthEnabled toggle ON for other devices.
+    const normalizeMac = (raw: string | undefined | null): string | null => {
+      if (!raw) return null;
+      const stripped = raw.replace(/[:\-\.\s]/g, '').toUpperCase();
+      if (stripped.length === 12) return stripped.match(/.{2}/g)?.join(':') || null;
+      return null;
+    };
+    const effectiveMac = normalizeMac(macAddress) || deviceProfile.macAddress || null;
+    if (effectiveMac && tenantId) {
+      try {
+        const wifiDevice = await db.wiFiDevice.findFirst({
+          where: { macAddress: effectiveMac, tenantId },
+          select: { autoAuth: true },
+        });
+        if (wifiDevice && !wifiDevice.autoAuth) {
+          console.log(`[AutoAuth] Device ${effectiveMac} has autoAuth=DISABLED — showing login form`);
+          return NextResponse.json(
+            { success: false, error: { code: 'DEVICE_AUTO_AUTH_DISABLED', message: 'Auto-authentication is disabled for this device' } },
+            { status: 404 }
+          );
+        }
+      } catch (deviceCheckErr) {
+        console.warn('[AutoAuth] WiFiDevice lookup failed (non-critical, proceeding):', deviceCheckErr);
+      }
+    }
+
     // ── Check max device limit ──
     const maxDevices = wifiUser.maxSessions || wifiUser.plan?.maxDevices || 1;
     if (maxDevices > 0) {

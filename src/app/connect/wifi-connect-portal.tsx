@@ -76,6 +76,7 @@ import {
   Bug,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import SurveyWidget from '@/components/wifi/survey-widget';
 import {
   PortalDesignConfig,
   DEFAULT_PORTAL_DESIGN,
@@ -129,6 +130,8 @@ type FormFieldsConfig = Record<string, boolean | FormFieldConfig>;
 interface PortalConfig {
   name: string;
   slug: string;
+ tenantId?: string;
+  propertyId?: string;
   authMethod: string;
   sessionTimeout: number;
   autoAuthEnabled?: boolean;
@@ -149,6 +152,8 @@ interface AuthResult {
   bandwidthDown: number;
   bandwidthUp: number;
   message: string;
+  sessionId?: string;
+  guestId?: string;
   // External gateway fields (MikroTik, etc.)
   needGatewayLogin?: boolean;
   gatewayCallbackUrl?: string;
@@ -526,10 +531,51 @@ function MarketingConsentPlaceholder({ design }: { design: PortalDesignConfig })
 // Post-Connect Guest Survey (Feature 4)
 // ────────────────────────────────────────────────────────────
 
-function GuestSurvey({ design }: { design: PortalDesignConfig }) {
+// ── Rating mapping helper ──
+function optionToRating(option: string, options: string[]): number {
+  // Try known label mapping first
+  const knownMap: Record<string, number> = {
+    'excellent': 5, 'great': 5, 'amazing': 5, 'love it': 5,
+    'good': 4, 'like it': 4, 'satisfied': 4,
+    'average': 3, 'okay': 3, 'neutral': 3, 'so-so': 3,
+    'poor': 2, 'dislike': 2, 'unsatisfied': 2,
+    'terrible': 1, 'hate it': 1, 'very bad': 1,
+  };
+  const lower = option.toLowerCase().trim();
+  if (knownMap[lower]) return knownMap[lower];
+
+  // Fallback: map by position (first option = best = 5, last = 1)
+  const idx = options.indexOf(option);
+  if (idx >= 0 && options.length > 0) {
+    return Math.max(1, options.length - idx);
+  }
+  return 3; // neutral default
+}
+
+// ── Device type detection ──
+function detectDeviceType(): string {
+  if (typeof window === 'undefined') return 'unknown';
+  const ua = navigator.userAgent;
+  if (/tablet|ipad|playbook|silk/i.test(ua) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 1)) return 'tablet';
+  if (/mobile|iphone|ipod|android|blackberry|opera mini|iemobile/i.test(ua)) return 'phone';
+  return 'desktop';
+}
+
+function GuestSurvey({
+  design,
+  tenantId,
+  propertyId,
+  sessionId,
+}: {
+  design: PortalDesignConfig;
+  tenantId?: string;
+  propertyId?: string;
+  sessionId?: string;
+}) {
   const lang = usePortalLang();
   const surveyConfig = design.surveyConfig;
   const [selected, setSelected] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   if (!surveyConfig?.enabled || !surveyConfig.question || !surveyConfig.options?.length) return null;
 
@@ -537,15 +583,48 @@ function GuestSurvey({ design }: { design: PortalDesignConfig }) {
   const textColor = getCardTextColor(design);
   const accent = design.accentColor;
 
+  // ── Handle option selection ──
+  const handleSelect = async (option: string) => {
+    setSelected(option);
+
+    // Only persist to DB if we have tenantId and propertyId
+    if (!tenantId || !propertyId) return;
+
+    setSubmitting(true);
+    try {
+      const rating = optionToRating(option, surveyConfig.options);
+      await fetch('/api/wifi/satisfaction/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId,
+          propertyId,
+          sessionId: sessionId || undefined,
+          rating,
+          comment: option, // Store the selected option text as comment
+          deviceType: detectDeviceType(),
+        }),
+      });
+    } catch {
+      // Silent failure — the thank-you message is already showing
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (selected) {
     return (
       <div className="text-center space-y-2 mt-4">
-        <div
-          className="inline-flex items-center justify-center w-12 h-12 rounded-full"
-          style={{ backgroundColor: accent + '15' }}
-        >
-          <Check className="w-6 h-6" style={{ color: accent }} />
-        </div>
+        {submitting ? (
+          <Loader2 className="w-6 h-6 animate-spin mx-auto" style={{ color: accent }} />
+        ) : (
+          <div
+            className="inline-flex items-center justify-center w-12 h-12 rounded-full"
+            style={{ backgroundColor: accent + '15' }}
+          >
+            <Check className="w-6 h-6" style={{ color: accent }} />
+          </div>
+        )}
         <p className="text-sm font-medium" style={{ color: textColor }}>
           {surveyConfig.thankYouMessage || getUIString(lang, 'thankYouForFeedback')}
         </p>
@@ -562,7 +641,7 @@ function GuestSurvey({ design }: { design: PortalDesignConfig }) {
         {surveyConfig.options.map((option) => (
           <button
             key={option}
-            onClick={() => setSelected(option)}
+            onClick={() => handleSelect(option)}
             className="px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
             style={{
               backgroundColor: accent + '15',
@@ -1579,10 +1658,14 @@ function SuccessScreen({
   authResult,
   design,
   onDisconnect,
+  tenantId,
+  propertyId,
 }: {
   authResult: AuthResult;
   design: PortalDesignConfig;
   onDisconnect: () => void;
+  tenantId?: string;
+  propertyId?: string;
 }) {
   const lang = usePortalLang();
   const [countdown, setCountdown] = useState(10);
@@ -1729,7 +1812,19 @@ function SuccessScreen({
       </button>
 
       {/* Post-Connect Guest Survey (Feature 4) */}
-      <GuestSurvey design={design} />
+      <GuestSurvey design={design} tenantId={tenantId} propertyId={propertyId} sessionId={authResult?.sessionId} />
+
+      {/* F12: Detailed Survey Widget — rendered below GuestSurvey when tenantId/propertyId available */}
+      {tenantId && propertyId && (
+        <div className="mt-4">
+          <SurveyWidget
+            tenantId={tenantId}
+            propertyId={propertyId}
+            sessionId={authResult?.sessionId}
+            guestId={authResult?.guestId}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -2093,7 +2188,7 @@ function PortalContent() {
       return;
     }
     if (portalConfig?.slug && !autoAuthAttempted && state === 'auth_form') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setAutoAuthAttempted(true);
       attemptAutoAuth(portalConfig.slug);
     }
@@ -2486,7 +2581,7 @@ function PortalContent() {
   // ── Render the card content (shared across layouts) ──
   const renderCardContent = () => {
     if (state === 'success' && authResult) {
-      return <SuccessScreen authResult={authResult} design={design} onDisconnect={handleDisconnect} />;
+      return <SuccessScreen authResult={authResult} design={design} onDisconnect={handleDisconnect} tenantId={portalConfig?.tenantId} propertyId={portalConfig?.propertyId} />;
     }
 
     if (useUnifiedForm && formFields) {

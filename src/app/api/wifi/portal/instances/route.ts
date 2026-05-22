@@ -245,6 +245,41 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Auto-create a default PortalPage using the "Executive Suite" template (non-critical)
+    try {
+      const defaultDesignSettings = JSON.stringify({
+        layoutType: 'card',
+        backgroundType: 'solid',
+        fontFamily: 'Inter',
+        headingFontFamily: 'Inter',
+        formStyle: 'square',
+        inputStyle: 'rounded',
+        buttonStyle: 'rounded',
+        buttonSize: 'medium',
+        cardShadow: 'medium',
+        animationType: 'fade',
+        gradientFrom: '#f8fafc',
+        gradientTo: '#e2e8f0',
+      });
+
+      await db.portalPage.create({
+        data: {
+          tenantId,
+          portalId: instance.id,
+          language: 'en',
+          title: 'Welcome',
+          subtitle: 'Connect to WiFi',
+          backgroundColor: '#f8fafc',
+          textColor: '#1e293b',
+          accentColor: '#2563eb',
+          designSettings: defaultDesignSettings,
+        },
+      });
+    } catch (pageError) {
+      // Non-critical: portal creation should succeed even if page creation fails
+      console.error('Auto-creation of default PortalPage failed (non-critical):', pageError);
+    }
+
     return NextResponse.json({ success: true, data: instance }, { status: 201 });
   } catch (error: unknown) {
     // Handle unique constraint violation on slug

@@ -64,10 +64,14 @@ import {
   Power,
   Zap,
   Info,
+  CheckCircle2,
+  AlertTriangle,
+  Smartphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { format, formatDistanceToNow } from 'date-fns';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -123,6 +127,11 @@ interface DeliverySummary {
   successRate: number;
 }
 
+interface AdapterStatus {
+  email: { configured: boolean; provider: string | null; name: string | null };
+  sms: { configured: boolean; provider: string | null; name: string | null };
+}
+
 // ─── Constants ─────────────────────────────────────────────────────────────
 
 const HOUR_OPTIONS = [
@@ -158,6 +167,9 @@ export default function WifiPreArrival() {
   const [plans, setPlans] = useState<WiFiPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState<string | null>(null); // config id being saved
+
+  // Adapter status state
+  const [adapterStatus, setAdapterStatus] = useState<AdapterStatus | null>(null);
 
   // Delivery logs state
   const [logs, setLogs] = useState<DeliveryLog[]>([]);
@@ -202,6 +214,18 @@ export default function WifiPreArrival() {
     }
   }, []);
 
+  const fetchAdapterStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/wifi/pre-arrival/adapter-status');
+      const result = await res.json();
+      if (result.success) {
+        setAdapterStatus(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching adapter status:', error);
+    }
+  }, []);
+
   const fetchLogs = useCallback(async () => {
     setLogsLoading(true);
     try {
@@ -230,9 +254,10 @@ export default function WifiPreArrival() {
     (async () => {
       try { if (!cancelled) await fetchConfigs(); } catch { /* ignore */ }
       try { if (!cancelled) await fetchPlans(); } catch { /* ignore */ }
+      try { if (!cancelled) await fetchAdapterStatus(); } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
-  }, [fetchConfigs, fetchPlans]);
+  }, [fetchConfigs, fetchPlans, fetchAdapterStatus]);
 
   useEffect(() => {
     let cancelled = false;
@@ -402,6 +427,96 @@ export default function WifiPreArrival() {
         </Card>
       </div>
 
+      {/* ── Communication Adapter Status ────────────────────────────── */}
+      {adapterStatus && (
+        <div className="space-y-3">
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                Communication Providers
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Email Provider */}
+                <div className={cn(
+                  'flex items-center gap-3 rounded-lg border p-3',
+                  adapterStatus.email.configured
+                    ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30'
+                    : 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30',
+                )}>
+                  {adapterStatus.email.configured ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400 shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-sm font-medium">Email</span>
+                    </div>
+                    {adapterStatus.email.configured ? (
+                      <span className="text-xs text-muted-foreground truncate block">
+                        {adapterStatus.email.name || adapterStatus.email.provider}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-red-600 dark:text-red-400 truncate block">
+                        Not configured
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* SMS Provider */}
+                <div className={cn(
+                  'flex items-center gap-3 rounded-lg border p-3',
+                  adapterStatus.sms.configured
+                    ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30'
+                    : 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30',
+                )}>
+                  {adapterStatus.sms.configured ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400 shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <Smartphone className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-sm font-medium">SMS</span>
+                    </div>
+                    {adapterStatus.sms.configured ? (
+                      <span className="text-xs text-muted-foreground truncate block">
+                        {adapterStatus.sms.name || adapterStatus.sms.provider}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-red-600 dark:text-red-400 truncate block">
+                        Not configured
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Warning banner for unconfigured providers */}
+          {!adapterStatus.email.configured || !adapterStatus.sms.configured ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Communication Provider Missing</AlertTitle>
+              <AlertDescription>
+                {!adapterStatus.email.configured && !adapterStatus.sms.configured
+                  ? 'Email and SMS delivery require configured providers. Configure them in Settings > Integrations.'
+                  : !adapterStatus.email.configured
+                    ? 'Email delivery requires a configured provider. Configure it in Settings > Integrations.'
+                    : 'SMS delivery requires a configured provider. Configure it in Settings > Integrations.'}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+        </div>
+      )}
+
       {/* ── Configuration Cards ────────────────────────────────────── */}
       {isLoading ? (
         <Card className="p-8">
@@ -429,6 +544,7 @@ export default function WifiPreArrival() {
               config={config}
               plans={plans}
               isSaving={isSaving === config.id}
+              adapterStatus={adapterStatus}
               onToggleEnabled={() => handleToggleEnabled(config)}
               onSave={(updates) => handleSaveConfig(config, updates)}
               onPreview={() => handlePreview(config)}
@@ -676,6 +792,7 @@ interface PropertyConfigCardProps {
   config: PreArrivalConfig;
   plans: WiFiPlan[];
   isSaving: boolean;
+  adapterStatus: AdapterStatus | null;
   onToggleEnabled: () => void;
   onSave: (updates: Partial<PreArrivalConfig>) => void;
   onPreview: () => void;
@@ -685,6 +802,7 @@ function PropertyConfigCard({
   config,
   plans,
   isSaving,
+  adapterStatus,
   onToggleEnabled,
   onSave,
   onPreview,
@@ -821,14 +939,14 @@ function PropertyConfigCard({
               label="Email"
               checked={localConfig.sendEmail}
               onChange={(v) => handleChange('sendEmail', v)}
-              disabled={isSaving}
+              disabled={isSaving || !adapterStatus?.email.configured}
             />
             <ToggleSetting
               icon={<MessageSquare className="h-4 w-4 text-primary" />}
               label="SMS"
               checked={localConfig.sendSms}
               onChange={(v) => handleChange('sendSms', v)}
-              disabled={isSaving}
+              disabled={isSaving || !adapterStatus?.sms.configured}
             />
             <ToggleSetting
               icon={<QrCode className="h-4 w-4 text-purple-500" />}

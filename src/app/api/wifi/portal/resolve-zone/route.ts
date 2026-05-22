@@ -129,10 +129,14 @@ async function buildPortalConfig(portalId: string) {
     (designSettings.socialLinks as Array<{ platform: string; url: string }>) || [];
   const amenities: string[] = (designSettings.amenities as string[]) || [];
 
-  // Build the safe response object — NO internal IDs, secrets, tenant info
+  // Build the safe response object
+  // tenantId and propertyId are included so the SurveyWidget can call
+  // the public satisfaction API endpoints (which require these as query params).
   return {
     name: portal.name,
     slug: portal.slug,
+    tenantId: portal.tenantId,
+    propertyId: portal.propertyId,
     authMethod: portal.authMethod,
     sessionTimeout: portal.sessionTimeout,
     autoAuthEnabled: portal.autoAuthEnabled ?? true,
