@@ -5,8 +5,8 @@
  *
  * Real RADIUS authentication log viewer.
  * Queries v_auth_logs view (built on radpostauth).
- * Shows: timestamp, username, result, source IP, reply message, MAC address.
- * Reject messages now include username, source IP, and specific reason.
+ * Shows: full timestamp, username, result, source IP, client IP, NAS IP,
+ *        reply message, MAC addresses, plan info, RADIUS group, property, room.
  * Auto-refreshes every 30s. Fetches from /api/wifi/radius?action=auth-logs
  */
 
@@ -52,9 +52,16 @@ import {
   Wifi,
   Monitor,
   Globe,
+  Zap,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Database,
+  Users,
+  MapPin,
+  Server,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
@@ -74,6 +81,12 @@ interface AuthLogEntry {
   propertyName?: string;
   guestName?: string;
   roomNumber?: string;
+  propertyId?: string;
+  radiusGroup?: string;
+  planName?: string;
+  planDownloadSpeed?: number | null;
+  planUploadSpeed?: number | null;
+  planDataLimit?: number | null;
 }
 
 interface AuthLogStats {
@@ -83,6 +96,51 @@ interface AuthLogStats {
   successRate: number;
   last24hTrend: number;
 }
+
+// ─── Helpers ────────────────────────────────────────────────────────────────────
+
+const formatSpeed = (mbps: number | null | undefined): string => {
+  if (!mbps) return '—';
+  return `${mbps} Mbps`;
+};
+
+const formatDataSize = (mb: number | null | undefined): string => {
+  if (!mb) return 'Unlimited';
+  if (mb >= 1024) return `${(mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)} GB`;
+  return `${mb} MB`;
+};
+
+/** Full timestamp with date + time + seconds */
+const formatFullTimestamp = (ts: string): string => {
+  if (!ts) return '—';
+  try {
+    const d = new Date(ts);
+    return format(d, 'dd MMM yyyy, HH:mm:ss');
+  } catch {
+    return ts;
+  }
+};
+
+/** Short timestamp for table — date + time */
+const formatShortTimestamp = (ts: string): string => {
+  if (!ts) return '—';
+  try {
+    const d = new Date(ts);
+    return format(d, 'dd MMM, HH:mm:ss');
+  } catch {
+    return ts;
+  }
+};
+
+/** Relative time */
+const formatRelativeTime = (ts: string): string => {
+  if (!ts) return '—';
+  try {
+    return formatDistanceToNow(new Date(ts)) + ' ago';
+  } catch {
+    return '—';
+  }
+};
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 
@@ -103,6 +161,7 @@ export default function AuthLogs() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedLog, setSelectedLog] = useState<AuthLogEntry | null>(null);
+  const [timeFormat, setTimeFormat] = useState<'full' | 'relative'>('full');
 
   // ─── Fetch Logs ────────────────────────────────────────────────────────────
 
@@ -135,7 +194,6 @@ export default function AuthLogs() {
         setLogs(Array.isArray(logsData.data) ? logsData.data : []);
       } else {
         setLogs([]);
-        // Show meaningful error to user
         const msg = logsData.error || `HTTP ${logsRes.status}`;
         console.error('[auth-logs] API error:', msg);
         if (logsRes.status === 401) {
@@ -185,7 +243,11 @@ export default function AuthLogs() {
       const matchesSourceIp = (log.sourceIpAddress || '').toLowerCase().includes(q);
       const matchesNasIp = (log.nasIpAddress || '').toLowerCase().includes(q);
       const matchesMac = (log.callingStationId || '').toLowerCase().includes(q);
-      if (!matchesUsername && !matchesClientIp && !matchesSourceIp && !matchesNasIp && !matchesMac) return false;
+      const matchesPlan = (log.planName || '').toLowerCase().includes(q);
+      const matchesProperty = (log.propertyName || '').toLowerCase().includes(q);
+      const matchesGuest = (log.guestName || '').toLowerCase().includes(q);
+      const matchesGroup = (log.radiusGroup || '').toLowerCase().includes(q);
+      if (!matchesUsername && !matchesClientIp && !matchesSourceIp && !matchesNasIp && !matchesMac && !matchesPlan && !matchesProperty && !matchesGuest && !matchesGroup) return false;
     }
     return true;
   });
@@ -218,7 +280,6 @@ export default function AuthLogs() {
   /** Get an enhanced reply message with username and source IP */
   const getEnhancedReplyMessage = (log: AuthLogEntry) => {
     if (log.replyMessage && log.replyMessage !== '—') return log.replyMessage;
-    // Build a fallback from available fields
     const isReject = log.authResult?.toLowerCase().includes('reject');
     const parts: string[] = [];
     if (isReject) parts.push('Authentication rejected');
@@ -320,7 +381,7 @@ export default function AuthLogs() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by username, IP, or MAC..."
+                placeholder="Search by username, IP, MAC, plan, property..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9"
@@ -402,7 +463,9 @@ export default function AuthLogs() {
                           </div>
                         ) : <span />;
                       })()}
-                      <span className="text-xs text-muted-foreground">{log.timestamp ? formatDistanceToNow(new Date(log.timestamp)) + ' ago' : '—'}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {timeFormat === 'full' ? formatShortTimestamp(log.timestamp) : formatRelativeTime(log.timestamp)}
+                      </span>
                     </div>
                     {(() => {
                       const msg = getEnhancedReplyMessage(log);
@@ -414,12 +477,25 @@ export default function AuthLogs() {
                         )}>{msg}</div>
                       ) : null;
                     })()}
-                    {log.propertyName && (
-                      <div className="flex items-center gap-1">
-                        <Building2 className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">{log.propertyName}</span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {log.propertyName && (
+                        <div className="flex items-center gap-1">
+                          <Building2 className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">{log.propertyName}</span>
+                        </div>
+                      )}
+                      {log.planName && (
+                        <Badge variant="secondary" className="text-[10px] gap-0.5">
+                          <Zap className="h-2.5 w-2.5" />
+                          {log.planName}
+                        </Badge>
+                      )}
+                      {log.radiusGroup && (
+                        <Badge variant="outline" className="text-[10px]">
+                          {log.radiusGroup}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -432,16 +508,30 @@ export default function AuthLogs() {
                     <TableRow>
                       <TableHead className="w-[70px]">Result</TableHead>
                       <TableHead>Username</TableHead>
-                      <TableHead>Source IP</TableHead>
+                      <TableHead>Client IP</TableHead>
+                      <TableHead>NAS IP</TableHead>
+                      <TableHead>Plan / Group</TableHead>
                       <TableHead>Reply</TableHead>
                       <TableHead>MAC</TableHead>
-                      <TableHead className="w-[140px]">Time</TableHead>
+                      <TableHead className="w-[170px]">
+                        <div className="flex items-center gap-1">
+                          Timestamp
+                          <button
+                            type="button"
+                            className="ml-1 p-0.5 rounded hover:bg-muted transition-colors"
+                            onClick={() => setTimeFormat(prev => prev === 'full' ? 'relative' : 'full')}
+                            title={timeFormat === 'full' ? 'Switch to relative time' : 'Switch to full timestamp'}
+                          >
+                            <Clock className="h-3 w-3 text-muted-foreground" />
+                          </button>
+                        </div>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredLogs.map((log, index) => {
                       const isReject = log.authResult?.toLowerCase().includes('reject');
-                      const sourceIp = getSourceIp(log);
+                      const sourceIp = log.clientIpAddress || log.sourceIpAddress || '';
                       return (
                         <TableRow
                           key={`${index}-${log.id || ''}`}
@@ -455,7 +545,12 @@ export default function AuthLogs() {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Wifi className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                              <p className="font-medium text-sm">{log.username}</p>
+                              <div>
+                                <p className="font-medium text-sm">{log.username}</p>
+                                {log.guestName && (
+                                  <p className="text-[10px] text-muted-foreground">{log.guestName}</p>
+                                )}
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -469,8 +564,33 @@ export default function AuthLogs() {
                             )}
                           </TableCell>
                           <TableCell>
+                            {log.nasIpAddress ? (
+                              <span className="text-xs font-mono text-muted-foreground">{log.nasIpAddress}</span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-0.5">
+                              {log.planName ? (
+                                <Badge variant="secondary" className="text-[10px] gap-0.5 w-fit">
+                                  <Zap className="h-2.5 w-2.5" />
+                                  {log.planName}
+                                </Badge>
+                              ) : null}
+                              {log.radiusGroup ? (
+                                <Badge variant="outline" className="text-[10px] w-fit">
+                                  {log.radiusGroup}
+                                </Badge>
+                              ) : null}
+                              {!log.planName && !log.radiusGroup && (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
                             <span className={cn(
-                              'text-xs leading-tight block',
+                              'text-xs leading-tight block max-w-[200px] truncate',
                               isReject ? 'text-red-600 dark:text-red-400' : 'text-primary'
                             )}>
                               {getEnhancedReplyMessage(log)}
@@ -480,7 +600,16 @@ export default function AuthLogs() {
                             <p className="text-xs font-mono text-muted-foreground">{log.callingStationId || '—'}</p>
                           </TableCell>
                           <TableCell>
-                            <span className="text-xs text-muted-foreground">{log.timestamp ? formatDistanceToNow(new Date(log.timestamp)) + ' ago' : '—'}</span>
+                            <div className="flex flex-col">
+                              <span className="text-xs font-mono tabular-nums">
+                                {timeFormat === 'full' ? formatShortTimestamp(log.timestamp) : formatRelativeTime(log.timestamp)}
+                              </span>
+                              {timeFormat === 'full' && log.timestamp && (
+                                <span className="text-[10px] text-muted-foreground tabular-nums">
+                                  {formatRelativeTime(log.timestamp)}
+                                </span>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -496,7 +625,7 @@ export default function AuthLogs() {
 
       {/* Auth Log Detail Dialog */}
       <Dialog open={!!selectedLog} onOpenChange={(open) => { if (!open) setSelectedLog(null); }}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Eye className="h-5 w-5" />
@@ -507,6 +636,20 @@ export default function AuthLogs() {
           {selectedLog && (
             <div className="grid gap-4 py-4">
               <div className="flex items-center justify-between">{getResultBadge(selectedLog.authResult)}</div>
+
+              {/* Timestamp — Full */}
+              <div className="border-t pt-4">
+                <p className="text-xs font-medium text-muted-foreground mb-3">Timestamp</p>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-semibold tabular-nums">{formatFullTimestamp(selectedLog.timestamp)}</p>
+                    <p className="text-xs text-muted-foreground tabular-nums">{formatRelativeTime(selectedLog.timestamp)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* User Information */}
               <div className="border-t pt-4">
                 <p className="text-xs font-medium text-muted-foreground mb-3">User Information</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -518,24 +661,60 @@ export default function AuthLogs() {
                     <p className="text-xs text-muted-foreground">Guest Name</p>
                     <p className="text-sm">{selectedLog.guestName || '—'}</p>
                   </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">RADIUS Group</p>
+                    {selectedLog.radiusGroup ? (
+                      <Badge variant="outline" className="mt-0.5 text-xs">{selectedLog.radiusGroup}</Badge>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">—</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Auth Type</p>
+                    <Badge variant="outline" className="mt-0.5 text-xs">{selectedLog.authType || 'RADIUS'}</Badge>
+                  </div>
                 </div>
               </div>
+
+              {/* IP Addresses */}
               <div className="border-t pt-4">
                 <p className="text-xs font-medium text-muted-foreground mb-3">IP Addresses</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
+                    <p className="text-xs text-muted-foreground">Client IP (Assigned)</p>
+                    {selectedLog.clientIpAddress ? (
+                      <Badge variant="outline" className="mt-1 font-mono text-xs bg-primary/5 dark:bg-primary/5 text-primary border-primary/20 dark:border-primary/30">
+                        <Monitor className="h-3 w-3 mr-1" />
+                        {selectedLog.clientIpAddress}
+                      </Badge>
+                    ) : (
+                      <p className="text-sm text-muted-foreground mt-1">—</p>
+                    )}
+                  </div>
+                  <div>
                     <p className="text-xs text-muted-foreground">Source IP</p>
                     {(() => {
-                      const ip = getSourceIp(selectedLog);
+                      const ip = selectedLog.sourceIpAddress;
                       return ip ? (
                         <Badge variant="outline" className="mt-1 font-mono text-xs bg-primary/5 dark:bg-primary/5 text-primary border-primary/20 dark:border-primary/30">
-                          <Monitor className="h-3 w-3 mr-1" />
+                          <Globe className="h-3 w-3 mr-1" />
                           {ip}
                         </Badge>
                       ) : (
                         <p className="text-sm text-muted-foreground mt-1">—</p>
                       );
                     })()}
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">NAS IP</p>
+                    {selectedLog.nasIpAddress ? (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Server className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-sm font-mono">{selectedLog.nasIpAddress}</span>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground mt-1">—</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Client MAC</p>
@@ -547,8 +726,49 @@ export default function AuthLogs() {
                   </div>
                 </div>
               </div>
+
+              {/* WiFi Plan */}
               <div className="border-t pt-4">
-                <p className="text-xs font-medium text-muted-foreground mb-3">Reply</p>
+                <p className="text-xs font-medium text-muted-foreground mb-3">WiFi Plan</p>
+                {selectedLog.planName ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Plan Name</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <Zap className="h-3.5 w-3.5 text-primary" />
+                        <p className="text-sm font-medium">{selectedLog.planName}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Download</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <ArrowDownToLine className="h-3.5 w-3.5 text-primary" />
+                        <p className="text-sm">{formatSpeed(selectedLog.planDownloadSpeed)}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Upload</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <ArrowUpFromLine className="h-3.5 w-3.5 text-amber-500" />
+                        <p className="text-sm">{formatSpeed(selectedLog.planUploadSpeed)}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Data Limit</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <Database className="h-3.5 w-3.5 text-muted-foreground" />
+                        <p className="text-sm">{formatDataSize(selectedLog.planDataLimit)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No plan associated</p>
+                )}
+              </div>
+
+              {/* Reply */}
+              <div className="border-t pt-4">
+                <p className="text-xs font-medium text-muted-foreground mb-3">Reply Message</p>
                 <div className={cn(
                   'text-sm px-3 py-2 rounded-lg',
                   (selectedLog.authResult || '').toLowerCase().includes('reject')
@@ -558,6 +778,8 @@ export default function AuthLogs() {
                   {getEnhancedReplyMessage(selectedLog)}
                 </div>
               </div>
+
+              {/* Location */}
               <div className="border-t pt-4">
                 <p className="text-xs font-medium text-muted-foreground mb-3">Location</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -571,29 +793,12 @@ export default function AuthLogs() {
                   {selectedLog.roomNumber && (
                     <div>
                       <p className="text-xs text-muted-foreground">Room</p>
-                      <p className="text-sm">{selectedLog.roomNumber}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                        <p className="text-sm">{selectedLog.roomNumber}</p>
+                      </div>
                     </div>
                   )}
-                </div>
-              </div>
-              <div className="border-t pt-4">
-                <p className="text-xs font-medium text-muted-foreground mb-3">Authentication Details</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Timestamp</p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                      <p className="text-sm">
-                        {selectedLog.timestamp
-                          ? new Date(selectedLog.timestamp).toLocaleString()
-                          : '—'}
-                      </p>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Auth Type</p>
-                    <Badge variant="outline" className="mt-1 text-xs">{selectedLog.authType || 'RADIUS'}</Badge>
-                  </div>
                 </div>
               </div>
             </div>

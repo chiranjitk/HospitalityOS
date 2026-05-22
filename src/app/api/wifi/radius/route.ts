@@ -360,7 +360,9 @@ export async function GET(request: NextRequest) {
                    client_ip_address, nas_ip_address, source_ip_address,
                    calling_station_id, called_station_id,
                    reply_message,
-                   guest_first_name, guest_last_name, room_number, property_name
+                   guest_first_name, guest_last_name, room_number, property_name,
+                   property_id, radius_group, plan_name,
+                   plan_download_speed, plan_upload_speed, plan_data_limit
             FROM v_auth_logs
             ${whereClause}
             ORDER BY "timestamp" DESC
@@ -368,6 +370,14 @@ export async function GET(request: NextRequest) {
           `, ...sqlParams);
 
           const stripCidr = (v: string | null) => (v || '').replace(/\/\d+$/, '');
+          const formatSpeed = (v: unknown) => {
+            const n = typeof v === 'number' ? v : parseInt(String(v || '0'), 10);
+            return n > 0 ? n : null;
+          };
+          const formatDataLimit = (v: unknown) => {
+            const n = typeof v === 'number' ? v : parseInt(String(v || '0'), 10);
+            return n > 0 ? n : null;
+          };
           const mapped = authEvents.map((e) => ({
             id: e.id || `auth_${e.id}`,
             timestamp: e.timestamp || '',
@@ -389,6 +399,13 @@ export async function GET(request: NextRequest) {
             propertyName: e.property_name || '',
             guestName: [e.guest_first_name, e.guest_last_name].filter(Boolean).join(' ') || '',
             roomNumber: e.room_number || '',
+            // Plan & RADIUS group info (from v_auth_logs)
+            propertyId: (e.property_id as string) || '',
+            radiusGroup: (e.radius_group as string) || '',
+            planName: (e.plan_name as string) || '',
+            planDownloadSpeed: formatSpeed(e.plan_download_speed),
+            planUploadSpeed: formatSpeed(e.plan_upload_speed),
+            planDataLimit: formatDataLimit(e.plan_data_limit),
           }));
 
           console.log(`[auth-logs] Returning ${mapped.length} entries`);
