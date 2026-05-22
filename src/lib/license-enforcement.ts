@@ -370,7 +370,7 @@ export async function checkConcurrentUsers(tenantId: string): Promise<LicenseChe
   const allowed = isUnlimited || !isExceeded || !entitlement.hardLimit;
 
   // Update current usage in real time using atomic SQL to prevent peakUsage race condition
-  await db.$executeRaw`UPDATE "LicenseModuleEntitlement" SET "currentUsage" = ${current}, "peakUsage" = GREATEST("peakUsage", ${current}) WHERE id = ${entitlement.id}`;
+  await db.$executeRaw`UPDATE "LicenseModuleEntitlement" SET "currentUsage" = ${current}, "peakUsage" = GREATEST("peakUsage", ${current}) WHERE id = ${entitlement.id}::uuid`;
 
   const result: LicenseCheckResult = {
     allowed,
@@ -410,7 +410,7 @@ export async function incrementUsage(
     UPDATE "LicenseModuleEntitlement" 
     SET "currentUsage" = "currentUsage" + ${amount},
         "peakUsage" = GREATEST("peakUsage", "currentUsage" + ${amount})
-    WHERE id = ${entitlement.id}
+    WHERE id = ${entitlement.id}::uuid
   `;
 
   invalidateCache(tenantId, moduleKey);
@@ -434,7 +434,7 @@ export async function decrementUsage(
   await db.$executeRaw`
     UPDATE "LicenseModuleEntitlement" 
     SET "currentUsage" = GREATEST(0, "currentUsage" - ${amount})
-    WHERE id = ${entitlement.id}
+    WHERE id = ${entitlement.id}::uuid
   `;
 
   invalidateCache(tenantId, moduleKey);
@@ -470,7 +470,7 @@ export async function refreshUsage(
 
   // Atomic update: set currentUsage and peakUsage in a single SQL statement
   // to prevent race conditions between the read of peakUsage and the write.
-  await db.$executeRaw`UPDATE "LicenseModuleEntitlement" SET "currentUsage" = ${currentUsage}, "peakUsage" = GREATEST("peakUsage", ${currentUsage}) WHERE id = ${entitlement.id}`;
+  await db.$executeRaw`UPDATE "LicenseModuleEntitlement" SET "currentUsage" = ${currentUsage}, "peakUsage" = GREATEST("peakUsage", ${currentUsage}) WHERE id = ${entitlement.id}::uuid`;
 
   // Log usage snapshot
   const isUnlimited = entitlement.limitValue === 0;

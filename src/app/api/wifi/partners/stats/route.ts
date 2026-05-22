@@ -92,13 +92,13 @@ export async function GET(request: NextRequest) {
       }),
 
       // Daily auth trend (last N days)
-      db.$queryRaw<Array<{ date: string; auths: number; revenue: number }>>(`
+      db.$queryRaw<Array<{ date: string; auths: number; revenue: number }>>`
         SELECT DATE(createdAt) as date, COUNT(*) as auths, SUM(costToPartner) as revenue
         FROM "WiFiPartnerAuth"
-        WHERE "tenantId" = ${tenantId} AND "createdAt" >= ${since.toISOString()}
+        WHERE "tenantId" = ${tenantId}::uuid AND "createdAt" >= ${since.toISOString()}
         GROUP BY DATE(createdAt)
         ORDER BY date ASC
-      `),
+      `,
     ]);
 
     // Enrich partner breakdown with partner names

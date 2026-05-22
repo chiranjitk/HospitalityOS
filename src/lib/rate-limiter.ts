@@ -48,7 +48,7 @@ export async function rateLimit(
     const { randomUUID } = await import('crypto');
     const [entry] = await db.$queryRaw<Array<{ id: string; key: string; count: number; resetAt: Date }>>`
       INSERT INTO "RateLimitEntry" ("id", "key", "count", "resetAt", "createdAt")
-      VALUES (${randomUUID()}, ${key}, 1, ${resetAt}, NOW())
+      VALUES (${randomUUID()}::uuid, ${key}, 1, ${resetAt}, NOW())
       ON CONFLICT ("key") DO UPDATE SET "count" = "RateLimitEntry"."count" + 1
       RETURNING "id", "key", "count", "resetAt", "createdAt"
     `;

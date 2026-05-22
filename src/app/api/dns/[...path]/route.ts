@@ -610,11 +610,11 @@ async function handleRequest(request: NextRequest, method: string) {
           const id = crypto.randomUUID();
           await db.$executeRaw(
             Prisma.sql`INSERT INTO "DnsForwarder" (id, "tenantId", "propertyId", address, port, description, enabled)
-             VALUES (${id}, ${tenantId}, ${propertyId || tenantId}, ${(b.address as string) || ''}, ${(b.port as number) || 53}, ${(b.description as string) || null}, ${b.enabled !== false})
+             VALUES (${id}::uuid, ${tenantId}::uuid, ${propertyId || tenantId}::uuid, ${(b.address as string) || ''}, ${(b.port as number) || 53}, ${(b.description as string) || null}, ${b.enabled !== false})
              ON CONFLICT ON CONSTRAINT "DnsForwarder_address_port_propertyId_key" DO NOTHING`
           );
           const rows = await db.$queryRaw<DnsForwarderRow[]>(
-            Prisma.sql`SELECT * FROM "DnsForwarder" WHERE id = ${id}`
+            Prisma.sql`SELECT * FROM "DnsForwarder" WHERE id = ${id}::uuid`
           );
           return NextResponse.json({
             success: true,
@@ -628,7 +628,7 @@ async function handleRequest(request: NextRequest, method: string) {
         const id = segments[1];
         // DELETE /forwarders/:id
         if (method === 'DELETE') {
-          await db.$executeRaw`DELETE FROM "DnsForwarder" WHERE id = ${id}`;
+          await db.$executeRaw`DELETE FROM "DnsForwarder" WHERE id = ${id}::uuid`;
           return NextResponse.json({ success: true, message: 'Forwarder removed' });
         }
         // PUT /forwarders/:id
@@ -655,7 +655,7 @@ async function handleRequest(request: NextRequest, method: string) {
           }
 
           await db.$executeRaw(
-            Prisma.sql`UPDATE "DnsForwarder" SET ${Prisma.join(setClauses, ', ')} WHERE id = ${id}`
+            Prisma.sql`UPDATE "DnsForwarder" SET ${Prisma.join(setClauses, ', ')} WHERE id = ${id}::uuid`
           );
           return NextResponse.json({ success: true, message: 'Forwarder updated' });
         }

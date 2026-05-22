@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
       db.$queryRaw<Array<{ date: string; count: bigint }>>`
         SELECT DATE("createdAt") as date, COUNT(*)::bigint as count
         FROM "FraudAlert"
-        WHERE "tenantId" = ${user.tenantId}
+        WHERE "tenantId" = ${user.tenantId}::uuid
           AND "createdAt" >= ${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)}
         GROUP BY DATE("createdAt")
         ORDER BY date ASC
