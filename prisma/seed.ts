@@ -1109,7 +1109,7 @@ async function main() {
         subtotal: 380,
         taxes: 68,
         totalAmount: 448,
-        status: 'served',
+        status: 'delivered',
         kitchenStatus: 'ready',
         createdAt: new Date(Date.now() - 60 * 60 * 1000),
         completedAt: new Date(Date.now() - 45 * 60 * 1000),
@@ -1290,10 +1290,10 @@ async function main() {
   // Update room housekeeping statuses based on tasks
   console.log('Updating room housekeeping statuses...');
   // room-101 remains 'available' and 'clean' - booking-5 is confirmed but check-in is 7 days in the future
-  await prisma.room.updateMany({ where: { id: uuid('room-102') }, data: { housekeepingStatus: 'cleaning' } });
+  await prisma.room.updateMany({ where: { id: uuid('room-102') }, data: { housekeepingStatus: 'in_progress' } });
   await prisma.room.updateMany({ where: { id: uuid('room-305') }, data: { housekeepingStatus: 'dirty', hkPriority: 'vip' } });
   await prisma.room.updateMany({ where: { id: uuid('room-103') }, data: { housekeepingStatus: 'clean' } });
-  await prisma.room.updateMany({ where: { id: uuid('room-501') }, data: { housekeepingStatus: 'cleaning', hkPriority: 'high' } });
+  await prisma.room.updateMany({ where: { id: uuid('room-501') }, data: { housekeepingStatus: 'in_progress', hkPriority: 'high' } });
 
   console.log('Housekeeping seed data completed!');
 
@@ -2335,7 +2335,7 @@ async function main() {
         { id: uuid('comm-1'), tenantId: uuid('tenant-1'), type: 'email', name: 'SMTP Email', provider: 'sendgrid', config: JSON.stringify({ host: 'smtp.sendgrid.net', port: 587, fromEmail: 'noreply@royalstay.in', fromName: 'Royal Stay Hotels' }), status: 'active', capabilities: '["send", "receive"]', messagesSent: 4520, messagesReceived: 1200, lastMessageAt: new Date(today.getTime() - 1 * 24 * 60 * 60 * 1000) },
         { id: uuid('comm-2'), tenantId: uuid('tenant-1'), type: 'sms', name: 'SMS Gateway', provider: 'msg91', config: JSON.stringify({ apiKey: '***masked***', senderId: 'RSTAY' }), status: 'active', capabilities: '["send"]', messagesSent: 8950, lastMessageAt: new Date() },
         { id: uuid('comm-3'), tenantId: uuid('tenant-1'), type: 'whatsapp', name: 'WhatsApp Business', provider: 'meta', config: JSON.stringify({ phoneNumberId: '919830012345', businessAccountId: 'BA-RS-001' }), status: 'active', capabilities: '["send", "receive", "template"]', messagesSent: 3200, messagesReceived: 1800, lastMessageAt: new Date(today.getTime() - 2 * 24 * 60 * 60 * 1000) },
-        { id: uuid('comm-4'), tenantId: uuid('tenant-1'), type: 'push', name: 'Push Notifications', provider: 'firebase', config: JSON.stringify({ projectId: 'royal-stay-001' }), status: 'active', capabilities: '["send"]', messagesSent: 12500, lastMessageAt: new Date() },
+        { id: uuid('comm-4'), tenantId: uuid('tenant-1'), type: 'in_app', name: 'In-App Notifications', provider: 'firebase', config: JSON.stringify({ projectId: 'royal-stay-001' }), status: 'active', capabilities: '["send"]', messagesSent: 12500, lastMessageAt: new Date() },
       ],
     });
     console.log('4 communication channels seeded!');

@@ -1,16 +1,15 @@
 /**
- * PM2 Ecosystem Configuration — StaySuite-HospitalityOS
+ * PM2 Ecosystem Configuration — StaySuite-HospitalityOS (Development)
  *
- * Portable across environments — no hardcoded paths.
- * All paths are derived from INSTALL_DIR (defaults to cwd).
+ * Usage:
+ *   pm2 start ecosystem.config.cjs                    # Start all
+ *   pm2 start ecosystem.config.cjs --only staysuite-nextjs    # Start Next.js only
+ *   pm2 start ecosystem.config.cjs --only staysuite-freeradius  # Start FreeRADIUS only
+ *   pm2 logs staysuite-nextjs                         # View Next.js logs
+ *   pm2 logs staysuite-freeradius                     # View FreeRADIUS logs
+ *   pm2 status                                        # Check all services
  *
- * Environment variables:
- *   INSTALL_DIR           - Project root (default: cwd)
- *   DATABASE_URL          - PostgreSQL connection string
- *   FREERADIUS_HOME       - FreeRADIUS install prefix
- *   STAYSUITE_MAX_MEM     - Memory limit for Next.js watchdog (MB)
- *   NEXTAUTH_SECRET       - NextAuth.js secret key
- *   NEXTAUTH_URL          - NextAuth.js URL
+ * NOTE: PostgreSQL starts manually via pg_ctl, NOT via PM2
  */
 
 const path = require('path');
@@ -19,15 +18,6 @@ const FREERADIUS_HOME = process.env.FREERADIUS_HOME || path.join(INSTALL_DIR, 'f
 
 module.exports = {
   apps: [
-    {
-      name: 'staysuite-postgresql',
-      script: path.join(INSTALL_DIR, 'pgsql-runtime', 'bin', 'pg_ctl'),
-      args: `-D ${path.join(INSTALL_DIR, 'pgsql-runtime', 'data')} start -o "-p 5432 -k /tmp/.s.PGSQL.5432" -w`,
-      cwd: INSTALL_DIR,
-      interpreter: 'none',
-      watch: false,
-      autorestart: false,
-    },
     {
       name: 'staysuite-freeradius',
       script: path.join(FREERADIUS_HOME, 'sbin', 'radiusd'),
@@ -42,10 +32,9 @@ module.exports = {
     },
     {
       name: 'staysuite-nextjs',
-      script: 'npx',
-      args: 'next start -p 3000',
+      script: 'bun',
+      args: 'run dev',
       cwd: INSTALL_DIR,
-      interpreter: 'none',
       watch: false,
       autorestart: true,
       max_restarts: 30,
@@ -53,10 +42,11 @@ module.exports = {
       kill_timeout: 15000,
       listen_timeout: 30000,
       env: {
-        DATABASE_URL: process.env.DATABASE_URL || `postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30`,
-        NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || '79Q1J3CSfIAokhOOBcMfGKpJ00RHWKhdFwAUzWizPY0=',
+        PORT: 3000,
+        DATABASE_URL: process.env.DATABASE_URL || 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+        NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || 'sandbox-nextauth-secret-dev-64chars-long-xxxx',
         NEXTAUTH_URL: process.env.NEXTAUTH_URL || 'http://localhost:3000',
-        NODE_OPTIONS: '--max-old-space-size=1024',
+        NODE_ENV: 'development',
       },
     },
   ],

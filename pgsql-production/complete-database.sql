@@ -311,7 +311,7 @@ CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS
     wp."sessionTimeoutSec",
     wp."idleTimeoutSec",
     COALESCE(b."confirmationCode", ''::text) AS booking_code,
-    COALESCE(b.status, ''::text) AS booking_status,
+    COALESCE(b.status::text, ''::text) AS booking_status,
     COALESCE(s.id::text, r.acctuniqueid) AS acctuniqueid,
     r.framedipv6address,
     COALESCE(r.nasipaddress, '127.0.0.1'::text) AS nasipaddress,
@@ -640,7 +640,7 @@ CREATE VIEW v_user_usage AS  SELECT u.id AS user_id,
     wp."uploadSpeed" AS plan_upload_speed,
     wp."dataLimit" AS plan_data_limit,
     COALESCE(b."confirmationCode", ''::text) AS booking_code,
-    COALESCE(b.status, ''::text) AS booking_status
+    COALESCE(b.status::text, ''::text) AS booking_status
    FROM "WiFiUser" u
      LEFT JOIN "Guest" g ON u."guestId" = g.id
      LEFT JOIN "Booking" b ON u."bookingId" = b.id
@@ -697,7 +697,7 @@ CREATE VIEW v_wifi_users AS  SELECT u.id,
     wp."uploadSpeed" AS plan_upload_speed,
     wp."dataLimit" AS plan_data_limit,
     b."confirmationCode" AS booking_code,
-    b.status AS booking_status,
+    b.status::text AS booking_status,
     b."checkIn" AS booking_check_in,
     b."checkOut" AS booking_check_out
    FROM "WiFiUser" u

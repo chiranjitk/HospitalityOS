@@ -137,6 +137,10 @@ enum AuditAction {
   export
   approve
   reject
+  booking_create
+  payment_received
+  guest_checkin
+  settings_update
 }
 
 enum SubscriptionStatus {
