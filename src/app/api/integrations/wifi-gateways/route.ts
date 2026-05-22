@@ -881,6 +881,7 @@ export async function POST(request: NextRequest) {
       radiusAuthPort,
       radiusAcctPort,
       managementUrl,
+      propertyId,
     } = body;
 
     // Validate required fields
@@ -956,27 +957,50 @@ export async function POST(request: NextRequest) {
     // accepts auth/accounting packets from this device.
     if (['mikrotik', 'cisco', 'ubiquiti', 'aruba', 'ruckus', 'fortinet', 'juniper', 'tplink', 'grandstream', 'other'].includes(type)) {
       try {
-        const plainSecret = radiusSecret || 'staysecret';
-        const existingNas = await db.radiusNAS.findFirst({
-          where: { ipAddress, tenantId },
-        });
-        if (!existingNas) {
-          await db.radiusNAS.create({
-            data: {
-              tenantId,
-              name: name || `${type} Gateway`,
-              shortName: type?.substring(0, 8) || 'gateway',
-              type: type === 'mikrotik' ? 'mikrotik' : 'cryptsk',
-              ipAddress,
-              secret: plainSecret,
-              ports: 0, // 0 = default (1812/1813)
-              coaPort: coaPort || defaults.coa || 3799,
-              coaEnabled: coaEnabled ?? true,
-              coaSecret: coaSecret || null,
-              status: 'active',
-            },
+        // propertyId is required for RadiusNAS — if not provided, look up
+        // the tenant's default or first property.
+        let nasPropertyId = propertyId;
+        if (!nasPropertyId) {
+          const defaultProperty = await db.property.findFirst({
+            where: { tenantId, isDefaultProperty: true },
+            select: { id: true },
           });
-          console.log(`[Gateway] Auto-created NAS client for ${name} at ${ipAddress}`);
+          nasPropertyId = defaultProperty?.id;
+          if (!nasPropertyId) {
+            const firstProperty = await db.property.findFirst({
+              where: { tenantId },
+              select: { id: true },
+            });
+            nasPropertyId = firstProperty?.id;
+          }
+        }
+
+        if (!nasPropertyId) {
+          console.warn('[Gateway] Skipped auto-NAS creation: no property found for tenant');
+        } else {
+          const plainSecret = radiusSecret || 'staysecret';
+          const existingNas = await db.radiusNAS.findFirst({
+            where: { ipAddress, tenantId, propertyId: nasPropertyId },
+          });
+          if (!existingNas) {
+            await db.radiusNAS.create({
+              data: {
+                tenantId,
+                propertyId: nasPropertyId,
+                name: name || `${type} Gateway`,
+                shortName: type?.substring(0, 8) || 'gateway',
+                type: type === 'mikrotik' ? 'mikrotik' : 'cryptsk',
+                ipAddress,
+                secret: plainSecret,
+                ports: 0, // 0 = default (1812/1813)
+                coaPort: coaPort || defaults.coa || 3799,
+                coaEnabled: coaEnabled ?? true,
+                coaSecret: coaSecret || null,
+                status: 'active',
+              },
+            });
+            console.log(`[Gateway] Auto-created NAS client for ${name} at ${ipAddress} (property: ${nasPropertyId})`);
+          }
         }
       } catch (nasErr) {
         // Non-blocking — NAS auto-creation is a convenience, not a requirement

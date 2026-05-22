@@ -66,6 +66,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { usePropertyId } from '@/hooks/use-property';
 import { format, formatDistanceToNow } from 'date-fns';
 
 interface WiFiGateway {
@@ -166,6 +167,7 @@ const statusConfig = {
 
 export default function GatewayIntegration() {
   const { toast } = useToast();
+  const { propertyId } = usePropertyId();
   const [gateways, setGateways] = useState<WiFiGateway[]>([]);
   const [stats, setStats] = useState<GatewayStats>({
     total: 0,
@@ -394,6 +396,7 @@ export default function GatewayIntegration() {
       // Merge walledGardenIps into config_wifi for save
       const savePayload = {
         ...formData,
+        propertyId,
         config: {
           ...(formData.config || {}),
           ...(externalPortalMode ? {
