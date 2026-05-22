@@ -143,3 +143,14 @@ tests/pms/*.test-state*.json
 # Development environment (contains real credentials - do not commit)
 .env.development
 freeradius-install/var/
+# QEMU & MikroTik binaries (too large for git)
+qemu-system-x86_64
+qemu-img
+qemu-share/
+qemu-bios/
+libslirp.so*
+mikrotik-chr.img
+mikrotik-qemu.pid
+qemu-input
+libslirp-dev_*.deb
+*.img
