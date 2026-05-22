@@ -211,16 +211,16 @@ export default function Promotions() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (activeTab !== 'all') params.set('tab', activeTab);
+      if (activeTab !== 'all') params.set('status', activeTab);
       if (searchQuery) params.set('search', searchQuery);
-      if (discountFilter !== 'all') params.set('discountType', discountFilter);
+      if (discountFilter !== 'all') params.set('type', discountFilter);
 
       const res = await fetch(`/api/marketing/promotions?${params}`);
       if (!res.ok) throw new Error('Failed to fetch');
       const json = await res.json();
       if (json.success) {
-        setPromotions(json.data || []);
-        if (json.stats) setStats(json.stats);
+        setPromotions(json.data?.promotions || []);
+        if (json.data?.stats) setStats(json.data.stats);
       }
     } catch {
       toast.error('Failed to load promotions');

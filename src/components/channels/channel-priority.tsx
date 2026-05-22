@@ -148,6 +148,13 @@ export function ChannelPrioritySettings() {
     maxInventoryPercent: 100,
   });
 
+  // Refresh function — must be declared before useEffect that depends on it
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const refresh = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -176,13 +183,6 @@ export function ChannelPrioritySettings() {
   const priorities = useMemo(() => data?.priorities || [], [data]);
   const unconfigured = useMemo(() => data?.unconfigured || [], [data]);
   const summary = useMemo(() => data?.summary, [data]);
-
-  // Refresh function (not used in initial mount)
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  const refresh = useCallback(() => {
-    setRefreshKey((k) => k + 1);
-  }, []);
 
   // =====================================================
   // ACTIONS
