@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
 
 // ────────────────────────────────────────────────────────────────
 // POST /api/cron/sla-metrics
@@ -75,49 +76,62 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Dynamic import for db access (server-side only)
-    const { db } = await import('@/lib/db');
+    // Use Prisma's built-in findMany instead of $queryRawUnsafe
+    // to avoid datasource URL re-validation issues in sandbox environments.
+    // We fetch all metrics and deduplicate in JavaScript to simulate DISTINCT ON.
+    const allMetrics = await db.wiFiSLAMetric.findMany({
+      orderBy: { periodStart: 'desc' },
+      select: {
+        tenantId: true,
+        propertyId: true,
+        periodStart: true,
+        periodEnd: true,
+        actualUptime: true,
+        avgSpeedDown: true,
+        avgSpeedUp: true,
+        avgLatency: true,
+        totalSessions: true,
+        totalBandwidth: true,
+        breached: true,
+        breachTypes: true,
+        createdAt: true,
+        slaConfig: {
+          select: {
+            property: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+    });
 
-    // Use DISTINCT ON to fetch the most recent metric per (tenantId, propertyId)
-    const metrics = await db.$queryRawUnsafe<
-      Array<{
-        tenantId: string;
-        propertyId: string;
-        periodStart: Date;
-        periodEnd: Date;
-        actualUptime: number | null;
-        avgSpeedDown: number | null;
-        avgSpeedUp: number | null;
-        avgLatency: number | null;
-        totalSessions: number;
-        totalBandwidth: number;
-        breached: boolean;
-        breachTypes: string | null;
-        createdAt: Date;
-        propertyName: string | null;
-      }>
-    >(
-      `
-      SELECT DISTINCT ON (m."tenantId", m."propertyId")
-        m."tenantId",
-        m."propertyId",
-        m."periodStart",
-        m."periodEnd",
-        m."actualUptime",
-        m."avgSpeedDown",
-        m."avgSpeedUp",
-        m."avgLatency",
-        m."totalSessions",
-        m."totalBandwidth",
-        m."breached",
-        m."breachTypes",
-        m."createdAt",
-        p.name AS "propertyName"
-      FROM "WiFiSLAMetric" m
-      LEFT JOIN "Property" p ON p.id = m."propertyId"
-      ORDER BY m."tenantId", m."propertyId", m."periodStart" DESC
-      `
-    );
+    // Deduplicate: keep only the most recent metric per (tenantId, propertyId)
+    const seen = new Set<string>();
+    const latestMetrics: typeof allMetrics = [];
+    for (const m of allMetrics) {
+      const key = `${m.tenantId}::${m.propertyId}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        latestMetrics.push(m);
+      }
+    }
+
+    const metrics = latestMetrics.map((m) => ({
+      tenantId: m.tenantId,
+      propertyId: m.propertyId,
+      periodStart: m.periodStart,
+      periodEnd: m.periodEnd,
+      actualUptime: m.actualUptime,
+      avgSpeedDown: m.avgSpeedDown,
+      avgSpeedUp: m.avgSpeedUp,
+      avgLatency: m.avgLatency,
+      totalSessions: m.totalSessions,
+      totalBandwidth: m.totalBandwidth,
+      breached: m.breached,
+      breachTypes: m.breachTypes,
+      createdAt: m.createdAt,
+      propertyName: m.slaConfig?.property?.name ?? null,
+    }));
 
     return NextResponse.json({
       success: true,
