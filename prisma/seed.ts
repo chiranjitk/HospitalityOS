@@ -2608,7 +2608,27 @@ async function main() {
   // END ADDITIONAL SEED DATA
   // ============================================================
 
-  await seedWiFiData();
+  // WiFi seed is the heaviest — it creates its own PrismaClient and operates on
+  // 20+ WiFi tables. On fresh deploys the connection can drop mid-seed (P1001).
+  // Retry up to 3 times with a fresh run each time.
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      console.log(`\nSeeding WiFi data (attempt ${attempt}/3)...`);
+      await seedWiFiData();
+      console.log('WiFi data seeded successfully.');
+      break;
+    } catch (e: any) {
+      const isConnectionError = e.code === 'P1001' || e.code === 'P2024' ||
+        (e.message && e.message.includes('Can\'t reach database'));
+      if (isConnectionError && attempt < 3) {
+        console.warn(`WiFi seed attempt ${attempt} failed (connection error). Retrying in 5s...`);
+        await new Promise(r => setTimeout(r, 5000));
+        continue;
+      }
+      console.error('WiFi seed failed after 3 attempts:', e.message);
+      throw e;
+    }
+  }
 
   // ─── Notifications ────────────────────────────────────────
   console.log('Seeding notifications...');

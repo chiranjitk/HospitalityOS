@@ -356,6 +356,12 @@ max_connections = 1000
 superuser_reserved_connections = 5
 log_min_duration_statement = 500
 log_line_prefix = '%t [%p]: db=%d,user=%u,app=%a,client=%h '
+# Seed-friendly: disable statement/session timeouts so long-running seed scripts don't get killed
+statement_timeout = 0
+idle_in_transaction_session_timeout = 0
+tcp_keepalives_idle = 60
+tcp_keepalives_interval = 10
+tcp_keepalives_count = 6
 # End StaySuite Tuning
 PGTUNE
 
@@ -1133,8 +1139,11 @@ step 12 "Seed" "Inserting demo data"
 cd "$APP_DIR"
 export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
 
+# Disable PG statement timeout for the seed session (long-running 274-table operation)
+psql -h 127.0.0.1 -U staysuite -d staysuite -c "SET statement_timeout = 0; SET idle_in_transaction_session_timeout = 0;" >/dev/null 2>&1 || true
+
 if [[ -f "prisma/seed.ts" ]]; then
-  info "Running seed script..."
+  info "Running seed script (this takes 2-5 minutes for 274 tables)..."
   set -o pipefail
   if bun prisma/seed.ts 2>&1 | tee /tmp/staysuite-seed.log; then
     set +o pipefail
