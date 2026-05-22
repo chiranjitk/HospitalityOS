@@ -1068,7 +1068,7 @@ export function getConnectionStats() {
   }
 }
 
-const PORT = 3003
+const PORT = parseInt(process.env.PORT || '3003', 10)
 httpServer.listen(PORT, () => {
   console.log(`[Realtime Service] Running on port ${PORT} (WebSocket + HTTP)`)
   console.log(`[Realtime Service] HTTP Bridge: POST /emit | GET /health`)

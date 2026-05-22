@@ -5,7 +5,7 @@
  * so that the dashboard can update in real-time when backend operations occur.
  */
 
-const REALTIME_SERVICE_PORT = process.env.REALTIME_SERVICE_PORT || '3004';
+const REALTIME_SERVICE_PORT = process.env.NEXT_PUBLIC_REALTIME_SERVICE_PORT || '3003';
 
 /**
  * Emit a dashboard update event to the realtime service.

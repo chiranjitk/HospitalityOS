@@ -1,12 +1,16 @@
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 
-const PORT = 3003;
+const PORT = parseInt(process.env.PORT || '3004', 10);
 
 const httpServer = createServer();
 const io = new Server(httpServer, {
   cors: {
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    origin: [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      process.env.CORS_ORIGIN || '',
+    ].filter(Boolean),
     methods: ['GET', 'POST'],
     credentials: true,
   },
