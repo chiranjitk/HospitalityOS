@@ -74,5 +74,23 @@ module.exports = {
         NODE_ENV: 'development',
       },
     },
+    // ─── Background Scheduler (session engine, NAS health, WiFi alerts) ────
+    // Runs cron jobs in a separate process — session engine won't work without this.
+    {
+      name: 'staysuite-scheduler',
+      script: 'npx',
+      args: 'tsx scripts/scheduler-runner.ts',
+      cwd: INSTALL_DIR,
+      env: {
+        DATABASE_URL: process.env.DATABASE_URL || 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
+        NODE_OPTIONS: '--max-old-space-size=512',
+        CRON_SECRET: process.env.CRON_SECRET || 'dev-cron-secret',
+      },
+      max_memory_restart: '800M',
+      max_restarts: 10,
+      restart_delay: 5000,
+      autorestart: true,
+      watch: false,
+    },
   ],
 };
