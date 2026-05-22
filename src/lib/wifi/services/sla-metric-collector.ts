@@ -541,7 +541,7 @@ export async function collectSlaMetrics(): Promise<{
               "totalBandwidth"= $7,
               "breached"      = $8,
               "breachTypes"   = $9
-            WHERE id = $10
+            WHERE id = $10::uuid
             `,
             periodEnd,
             actualUptime,
