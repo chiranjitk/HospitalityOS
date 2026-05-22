@@ -881,6 +881,39 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Auto-create a NAS client for MikroTik / RADIUS-based gateways so the
+    // MikroTik script generator can find the RADIUS secret and so FreeRADIUS
+    // accepts auth/accounting packets from this device.
+    if (['mikrotik', 'cisco', 'ubiquiti', 'aruba', 'ruckus', 'fortinet', 'juniper', 'tplink', 'grandstream', 'other'].includes(type)) {
+      try {
+        const plainSecret = radiusSecret || 'staysecret';
+        const existingNas = await db.radiusNAS.findFirst({
+          where: { ipAddress, tenantId },
+        });
+        if (!existingNas) {
+          await db.radiusNAS.create({
+            data: {
+              tenantId,
+              name: name || `${type} Gateway`,
+              shortName: type?.substring(0, 8) || 'gateway',
+              type: type === 'mikrotik' ? 'mikrotik' : 'cryptsk',
+              ipAddress,
+              secret: plainSecret,
+              ports: 0, // 0 = default (1812/1813)
+              coaPort: coaPort || defaults.coa || 3799,
+              coaEnabled: coaEnabled ?? true,
+              coaSecret: coaSecret || null,
+              status: 'active',
+            },
+          });
+          console.log(`[Gateway] Auto-created NAS client for ${name} at ${ipAddress}`);
+        }
+      } catch (nasErr) {
+        // Non-blocking — NAS auto-creation is a convenience, not a requirement
+        console.warn(`[Gateway] Failed to auto-create NAS client:`, nasErr);
+      }
+    }
+
     return NextResponse.json(
       {
         success: true,

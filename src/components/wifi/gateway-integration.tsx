@@ -181,6 +181,8 @@ export default function GatewayIntegration() {
   const [isSaving, setIsSaving] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'failed' | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showRadiusSecret, setShowRadiusSecret] = useState(false);
+  const [showCoaSecret, setShowCoaSecret] = useState(false);
   const [deleteGatewayId, setDeleteGatewayId] = useState<string | null>(null);
   const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
   const [filterStatus, setFilterStatus] = useState<'all' | 'connected' | 'disconnected' | 'error'>('all');
@@ -569,14 +571,22 @@ export default function GatewayIntegration() {
   const openEditDialog = (gateway: WiFiGateway) => {
     setSelectedGateway(gateway);
     const wifiConfig = (gateway.config || {}) as Record<string, unknown>;
+    // Preserve ALL existing config_wifi fields, merge with defaults for any missing
+    const mergedConfig: WiFiGateway['config'] = {
+      ssid: (wifiConfig.ssid as string) || '',
+      vlanId: wifiConfig.vlanId as number | undefined,
+      captivePortal: (wifiConfig.captivePortal as boolean) ?? false,
+      splashPage: (wifiConfig.splashPage as string) || '',
+      sessionTimeout: (wifiConfig.sessionTimeout as number) || 3600,
+      idleTimeout: (wifiConfig.idleTimeout as number) || 300,
+      externalPortalMode: (wifiConfig.externalPortalMode as boolean) ?? false,
+      portalCallbackUrl: (wifiConfig.portalCallbackUrl as string) || '',
+      staySuiteServerIp: (wifiConfig.staySuiteServerIp as string) || '',
+      subnet: (wifiConfig.subnet as string) || '',
+    };
     setFormData({
       ...gateway,
-      config: wifiConfig.ssid ? wifiConfig as WiFiGateway['config'] : {
-        ssid: '',
-        captivePortal: false,
-        sessionTimeout: 3600,
-        idleTimeout: 300,
-      },
+      config: mergedConfig,
       radiusSecret: (gateway as any).radiusSecret || '',
       coaEnabled: (gateway as any).coaEnabled ?? true,
       coaPort: (gateway as any).coaPort || 3799,
@@ -589,6 +599,9 @@ export default function GatewayIntegration() {
         ? (wifiConfig.walledGardenIps as string[])
         : []
     );
+    setShowApiKey(false);
+    setShowRadiusSecret(false);
+    setShowCoaSecret(false);
     setShowMikrotikScript(false);
     setMikrotikScript('');
     setIsConfigOpen(true);
@@ -1113,7 +1126,7 @@ export default function GatewayIntegration() {
                   <div className="relative">
                     <Input
                       id="radiusSecret"
-                      type={showApiKey ? 'text' : 'password'}
+                      type={showRadiusSecret ? 'text' : 'password'}
                       value={formData.radiusSecret || ''}
                       onChange={(e) => setFormData({ ...formData, radiusSecret: e.target.value })}
                       placeholder="Enter RADIUS shared secret"
@@ -1123,9 +1136,9 @@ export default function GatewayIntegration() {
                       variant="ghost"
                       size="sm"
                       className="absolute right-0 top-0 h-full px-3"
-                      onClick={() => setShowApiKey(!showApiKey)}
+                      onClick={() => setShowRadiusSecret(!showRadiusSecret)}
                     >
-                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showRadiusSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
@@ -1155,7 +1168,7 @@ export default function GatewayIntegration() {
                   <div className="relative">
                     <Input
                       id="coaSecret"
-                      type={showApiKey ? 'text' : 'password'}
+                      type={showCoaSecret ? 'text' : 'password'}
                       value={formData.coaSecret || ''}
                       onChange={(e) => setFormData({ ...formData, coaSecret: e.target.value })}
                       placeholder="Enter CoA shared secret"
@@ -1165,9 +1178,9 @@ export default function GatewayIntegration() {
                       variant="ghost"
                       size="sm"
                       className="absolute right-0 top-0 h-full px-3"
-                      onClick={() => setShowApiKey(!showApiKey)}
+                      onClick={() => setShowCoaSecret(!showCoaSecret)}
                     >
-                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showCoaSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
