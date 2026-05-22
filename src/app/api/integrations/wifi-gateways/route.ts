@@ -982,11 +982,11 @@ export async function POST(request: NextRequest) {
                 tenantId,
                 propertyId: nasPropertyId,
                 name: name || `${type} Gateway`,
-                shortname: type?.substring(0, 8) || 'gateway',
+                shortname: `${type}-${ipAddress.replace(/\./g, '-')}`, // unique: vendor + IP
                 type: type === 'mikrotik' ? 'mikrotik' : 'cryptsk',
                 ipAddress,
                 secret: plainSecret,
-                ports: 0, // 0 = default (1812/1813)
+                ports: '1812,1813', // RADIUS auth + acct ports (String field)
                 coaPort: coaPort || defaults.coa || 3799,
                 coaEnabled: coaEnabled ?? true,
                 status: 'active',
@@ -995,9 +995,10 @@ export async function POST(request: NextRequest) {
 
             // Also insert into the FreeRADIUS native `nas` table so that
             // FreeRADIUS actually accepts RADIUS packets from this device.
+            const nasShortname = `${type}-${ipAddress.replace(/\./g, '-')}`;
             await insertFreeRadiusNas({
               ipAddress,
-              shortname: type?.substring(0, 8) || 'gateway',
+              shortname: nasShortname,
               type: type === 'mikrotik' ? 'mikrotik' : 'other',
               secret: plainSecret,
               coaPort: coaPort || defaults.coa || 3799,
