@@ -529,7 +529,6 @@ export default function AuthLogs() {
                       <TableHead>Username</TableHead>
                       <TableHead>Request From</TableHead>
                       <TableHead>Reply</TableHead>
-                      <TableHead>MAC</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -581,14 +580,11 @@ export default function AuthLogs() {
                           </TableCell>
                           <TableCell>
                             <span className={cn(
-                              'text-xs leading-tight block max-w-[200px] truncate',
+                              'text-xs leading-tight',
                               isReject ? 'text-red-600 dark:text-red-400' : 'text-primary'
                             )}>
                               {getEnhancedReplyMessage(log)}
                             </span>
-                          </TableCell>
-                          <TableCell>
-                            <p className="text-xs font-mono text-muted-foreground">{log.callingStationId || '—'}</p>
                           </TableCell>
                         </TableRow>
                       );
