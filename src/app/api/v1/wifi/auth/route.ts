@@ -2120,16 +2120,10 @@ async function getValidatedPool(request: NextRequest, allowedPoolIds?: string[] 
     };
   }
 
-  // No restriction (no plan) → skip pool validation entirely
+  // No restriction (no plan) → still validate IP is in at least one managed pool.
+  // Treat same as 'ANY': check all enabled pools, reject if IP not found in any.
   if (allowedPoolIds === null) {
-    return {
-      poolId: 'unrestricted',
-      poolName: 'Unrestricted',
-      subnet: null,
-      gateway: null,
-      captivePortal: false,
-      isDefault: false,
-    };
+    allowedPoolIds = 'ANY';
   }
 
   const pool = await validateClientIpInPool(clientIp, allowedPoolIds);

@@ -1046,9 +1046,15 @@ BEGIN
         IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
     END IF;
 
-    -- Priority 2: No plan at all → allow
+    -- Priority 2: No plan at all → still check ALL enabled pools.
+    -- IP must exist in at least one managed pool, otherwise reject.
     IF v_plan_id IS NULL THEN
-        RETURN 1;
+        SELECT EXISTS (
+            SELECT 1 FROM "IpPoolRange" r
+            JOIN "IpPool" p ON p.id = r."poolId"
+            WHERE p.enabled = true AND p_ip >= r."startIp" AND p_ip <= r."endIp"
+        ) INTO v_in_pool;
+        IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
     END IF;
 
     -- Priority 3: Plan has multi-pool mappings (WiFiPlanIPPool junction table)

@@ -629,7 +629,14 @@ BEGIN
         IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
     END IF;
 
-    IF v_plan_id IS NULL THEN RETURN 1; END IF;
+    IF v_plan_id IS NULL THEN
+        SELECT EXISTS (
+            SELECT 1 FROM "IpPoolRange" r
+            JOIN "IpPool" p ON p.id = r."poolId"
+            WHERE p.enabled = true AND p_ip >= r."startIp" AND p_ip <= r."endIp"
+        ) INTO v_in_pool;
+        IF v_in_pool THEN RETURN 1; ELSE RETURN 0; END IF;
+    END IF;
 
     SELECT COUNT(*) INTO v_mapped_count FROM "WiFiPlanIPPool" WHERE "planId" = v_plan_id;
     IF v_mapped_count > 0 THEN

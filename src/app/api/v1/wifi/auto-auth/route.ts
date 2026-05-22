@@ -40,16 +40,16 @@ function normalizeIp(raw: string | null): string | null {
 
 async function validateClientIpInPool(
   clientIp: string,
-  allowedPoolIds?: string[] | null
+  allowedPoolIds?: string[] | 'ANY' | null
 ): Promise<{ poolId: string; poolName: string } | null> {
   try {
     // Build pool restriction clause when plan is bound to specific pools
-    const poolFilter = (allowedPoolIds && allowedPoolIds.length > 0)
+    const poolFilter = (Array.isArray(allowedPoolIds) && allowedPoolIds.length > 0)
       ? `AND ip.id = ANY($2::uuid[])`
       : '';
 
     const params: unknown[] = [clientIp];
-    if (allowedPoolIds && allowedPoolIds.length > 0) {
+    if (Array.isArray(allowedPoolIds) && allowedPoolIds.length > 0) {
       params.push(allowedPoolIds);
     }
 
@@ -74,20 +74,24 @@ async function validateClientIpInPool(
  * Resolve allowed IP pool IDs for a user based on their plan binding.
  *
  * Priority:
- * 1. WiFiPlan.ipPoolId — plan explicitly bound to a pool
- * 2. WiFiUser.ipPoolId — user-level override
- * 3. null — no restriction, any captive portal pool allowed
+ * 1. WiFiUser.ipPoolId — user-level override
+ * 2. WiFiPlanIPPool junction — multi-pool mappings from plan
+ * 3. WiFiPlan.ipPoolId — legacy single pool
+ * 4. Plan exists but no pool → 'ANY' (check all pools)
+ * 5. No plan at all → 'ANY' (still check all pools)
  *
- * Returns an array of pool UUIDs, or null if unrestricted.
+ * Returns string[] of pool IDs, 'ANY', or null.
  */
 function resolveAllowedPoolIds(
   planIpPoolId?: string | null,
-  userIpPoolId?: string | null
-): string[] | null {
-  // User-level override takes priority over plan-level
+  userIpPoolId?: string | null,
+  planPoolIds?: string[],
+): string[] | 'ANY' | null {
   if (userIpPoolId) return [userIpPoolId];
+  if (planPoolIds && planPoolIds.length > 0) return planPoolIds;
   if (planIpPoolId) return [planIpPoolId];
-  return null; // No restriction
+  // No pool restriction — but IP must still be in at least one pool
+  return 'ANY';
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -519,20 +523,32 @@ export async function POST(request: NextRequest) {
     let skipFirewall = false; // Flag: skip firewall if IP not in any pool
 
     if (autoAuthClientIp) {
+      // Resolve multi-pool IDs from WiFiPlanIPPool junction
+      let autoAuthPlanPoolIds: string[] | undefined;
+      if (wifiUser.planId) {
+        try {
+          const poolRows = await db.wiFiPlanIPPool.findMany({
+            where: { planId: wifiUser.planId },
+            select: { poolId: true },
+          });
+          autoAuthPlanPoolIds = poolRows.map(r => r.poolId);
+        } catch { /* junction table may not exist yet */ }
+      }
       const allowedPools = resolveAllowedPoolIds(
         wifiUser.plan?.ipPoolId,
-        wifiUser.ipPoolId as string | null | undefined
+        wifiUser.ipPoolId as string | null | undefined,
+        autoAuthPlanPoolIds
       );
       const poolMatch = await validateClientIpInPool(autoAuthClientIp, allowedPools);
       if (!poolMatch) {
-        const poolInfo = allowedPools?.length
+        const poolInfo = Array.isArray(allowedPools)
           ? `allowed: [${allowedPools.join(', ')}]`
           : 'any pool';
         console.warn(`[AutoAuth] IP pool check: ${autoAuthClientIp} not in ${poolInfo} — proceeding without firewall activation`);
         skipFirewall = true;
       } else {
         matchedPool = poolMatch;
-        console.log(`[AutoAuth] IP pool check PASSED: ${autoAuthClientIp} → pool "${poolMatch.poolName}"${allowedPools?.length ? ' [plan-restricted]' : ''}`);
+        console.log(`[AutoAuth] IP pool check PASSED: ${autoAuthClientIp} → pool "${poolMatch.poolName}"${Array.isArray(allowedPools) ? ' [plan-restricted]' : ''}`);
       }
     } else {
       console.warn(`[AutoAuth] No valid client IP detected — proceeding without firewall activation`);
