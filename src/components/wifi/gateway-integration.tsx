@@ -192,6 +192,9 @@ export default function GatewayIntegration() {
   const [showMikrotikScript, setShowMikrotikScript] = useState(false);
   const [mikrotikScript, setMikrotikScript] = useState('');
   const [externalPortalMode, setExternalPortalMode] = useState(false);
+  // Push Config result script (for MikroTik vendors)
+  const [showPushScript, setShowPushScript] = useState(false);
+  const [pushConfigScript, setPushConfigScript] = useState('');
 
   // Form state for new/edit gateway
   const [formData, setFormData] = useState<Partial<WiFiGateway>>({
@@ -614,7 +617,14 @@ export default function GatewayIntegration() {
       });
       const result = await response.json();
       if (result.success) {
-        toast({ title: 'Config Pushed', description: result.message || 'Configuration pushed to gateway successfully' });
+        // If the response includes a script (MikroTik), show it in a dialog
+        if (result.data?.script) {
+          setPushConfigScript(result.data.script);
+          setShowPushScript(true);
+          toast({ title: 'Script Generated', description: 'MikroTik RouterOS script is ready — copy and paste it into your MikroTik terminal.' });
+        } else {
+          toast({ title: 'Config Pushed', description: result.message || 'Configuration pushed to gateway successfully' });
+        }
       } else {
         toast({ title: 'Push Failed', description: result.error?.message || 'Failed to push configuration', variant: 'destructive' });
       }
@@ -955,7 +965,7 @@ export default function GatewayIntegration() {
                               variant="outline"
                               size="sm"
                               onClick={() => handlePushConfig(gateway)}
-                              disabled={gateway.status !== 'connected'}
+                              disabled={gateway.status !== 'connected' && gateway.type !== 'mikrotik'}
                             >
                               <Upload className="h-3 w-3 mr-1" />
                               Push Config
@@ -1516,6 +1526,63 @@ export default function GatewayIntegration() {
                   Test Connection
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Push Config Script Dialog (MikroTik) */}
+      <Dialog open={showPushScript} onOpenChange={setShowPushScript}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              MikroTik RouterOS Configuration Script
+            </DialogTitle>
+            <DialogDescription>
+              Copy this script and paste it into your MikroTik terminal (SSH, WinBox Terminal, or New Terminal window).
+              This configures the hotspot, RADIUS, walled garden, and CoA settings for StaySuite captive portal.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="relative">
+              <pre className="bg-zinc-900 text-zinc-100 dark:bg-zinc-950 dark:text-zinc-200 rounded-lg p-4 text-xs overflow-x-auto max-h-96 overflow-y-auto font-mono leading-relaxed">
+                {pushConfigScript}
+              </pre>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="absolute top-2 right-2"
+                onClick={() => {
+                  navigator.clipboard.writeText(pushConfigScript);
+                  toast({ title: 'Copied!', description: 'RouterOS script copied to clipboard.' });
+                }}
+              >
+                <Copy className="w-3 h-3 mr-1" /> Copy Script
+              </Button>
+            </div>
+
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-amber-800 dark:text-amber-200 space-y-1">
+                  <p className="font-medium">Before running this script:</p>
+                  <ul className="list-disc list-inside space-y-0.5 text-xs">
+                    <li>Replace <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">&lt;STAYSUITE_IP&gt;</code> with your actual StaySuite server IP address</li>
+                    <li>Replace <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">&lt;SHARED_SECRET&gt;</code> with your RADIUS shared secret</li>
+                    <li>Make sure the <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">bridge</code> interface name matches your MikroTik LAN bridge</li>
+                    <li>If you already have a hotspot named <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">staysuite-hotspot</code>, remove the <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">/ip hotspot add</code> line first</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPushScript(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

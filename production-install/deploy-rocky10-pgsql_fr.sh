@@ -1135,10 +1135,20 @@ export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysu
 
 if [[ -f "prisma/seed.ts" ]]; then
   info "Running seed script..."
-  bun prisma/seed.ts 2>&1 | tail -10
-  success "Database seeded"
+  set -o pipefail
+  if bun prisma/seed.ts 2>&1 | tee /tmp/staysuite-seed.log; then
+    set +o pipefail
+    success "Database seeded"
+  else
+    set +o pipefail
+    error "Seed script failed — last 30 lines:"
+    tail -30 /tmp/staysuite-seed.log
+    exit 1
+  fi
 elif [[ -f "prisma/wifi-seed.ts" ]]; then
-  bun prisma/wifi-seed.ts 2>&1 | tail -10
+  set -o pipefail
+  bun prisma/wifi-seed.ts 2>&1 | tee /tmp/staysuite-seed.log
+  set +o pipefail
   success "WiFi seed data inserted"
 else
   warn "No seed file found, skipping"

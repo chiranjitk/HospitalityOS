@@ -29,7 +29,19 @@ import { seedGroupBData } from './seed-group-b';
 import { seedEmptyTables } from './seed-empty-tables';
 import { seedFinalFix } from './seed-final-fix';
 
-const prisma = new PrismaClient();
+// Build a seed-optimized DATABASE_URL with higher pool limits.
+// The seed script runs 270+ sequential deleteMany + createMany operations,
+// which can exhaust the default connection pool on a fresh deploy.
+function seedDbUrl(): string {
+  const base = process.env.DATABASE_URL || '';
+  if (base.includes('connection_limit=')) return base;
+  const sep = base.includes('?') ? '&' : '?';
+  return `${base}${sep}connection_limit=5&pool_timeout=60`;
+}
+
+const prisma = new PrismaClient({
+  datasources: { db: { url: seedDbUrl() } },
+});
 
 // Password hashing using bcrypt (production-grade)
 async function seedHashPassword(password: string): Promise<string> {

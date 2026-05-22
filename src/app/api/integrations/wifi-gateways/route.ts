@@ -124,6 +124,131 @@ function isPrivateIp(ipAddress: string): boolean {
   );
 }
 
+/**
+ * Generate a complete MikroTik RouterOS configuration script for StaySuite captive portal.
+ *
+ * This script configures:
+ * 1. Hotspot profile (external portal mode, RADIUS auth)
+ * 2. Walled garden entries (guest-accessible endpoints)
+ * 3. RADIUS client (points to StaySuite FreeRADIUS)
+ * 4. CoA port configuration
+ * 5. Accounting enablement
+ */
+async function buildMikrotikScript(
+  parsed: Record<string, unknown>,
+  wifiConfig: Record<string, unknown>,
+): Promise<string> {
+  const mikrotikIp = (parsed.ipAddress as string) || '192.168.1.1';
+  const staySuiteIp = (wifiConfig.staySuiteServerIp as string) || '';
+  const ssid = (wifiConfig.ssid as string) || '';
+  const portalCallbackUrl = (wifiConfig.portalCallbackUrl as string) || '';
+  const walledGardenIps = Array.isArray(wifiConfig.walledGardenIps)
+    ? (wifiConfig.walledGardenIps as string[])
+    : [];
+
+  // Fetch the RADIUS secret from the NAS client for this gateway
+  let radiusSecret = '<SHARED_SECRET>';
+  try {
+    const nasClient = await db.radiusNAS.findFirst({
+      where: {
+        ipAddress: mikrotikIp,
+        status: 'active',
+      },
+      select: { secret: true },
+    });
+    if (nasClient?.secret) {
+      radiusSecret = nasClient.secret;
+    }
+  } catch { /* non-critical */ }
+
+  const ip = staySuiteIp || '<STAYSUITE_IP>';
+  const lines: string[] = [];
+
+  // ── Header ──
+  lines.push('# ═══════════════════════════════════════════════════════════════');
+  lines.push('# StaySuite Captive Portal — MikroTik RouterOS Configuration');
+  lines.push(`# Generated: ${new Date().toISOString()}`);
+  lines.push(`# MikroTik IP: ${mikrotikIp}`);
+  lines.push(`# StaySuite Server IP: ${staySuiteIp || '(replace with your StaySuite server IP)'}`);
+  lines.push('# ═══════════════════════════════════════════════════════════════');
+  lines.push('');
+
+  // ── 1. Hotspot server (create if missing) ──
+  lines.push('# ── 1. Create hotspot server on the bridge interface ──');
+  lines.push('#    Replace "bridge" with your actual bridge/lan interface name if different');
+  lines.push('/ip hotspot add name=staysuite-hotspot interface=bridge disabled=no \\');
+  lines.push('  address-per-mac=yes');
+  lines.push('');
+
+  // ── 2. Hotspot profile — disable built-in portal, use StaySuite ──
+  lines.push('# ── 2. Configure hotspot profile for external RADIUS authentication ──');
+  lines.push('/ip hotspot profile set numbers=1 \\');
+  lines.push('  html-directory=none \\');
+  if (portalCallbackUrl) {
+    // If user provided explicit MikroTik login URL, use it
+    lines.push(`  login-url=${portalCallbackUrl} \\`);
+  } else {
+    // Default: redirect to StaySuite captive portal with RADIUS vars
+    lines.push(`  login-url=http://${ip}/connect?mac=$mac&identity=$identity&ip=$ip \\`);
+  }
+  lines.push('  use-radius=yes \\');
+  lines.push('  accounting=yes');
+  lines.push('');
+
+  // ── 3. Walled garden — guest-accessible endpoints (portal, not RADIUS) ──
+  lines.push('# ── 3. Walled garden — allow guests to reach StaySuite portal ──');
+  lines.push('#    Note: RADIUS ports (1812/1813) are NOT added here — they are used by');
+  lines.push('#    MikroTik itself to talk to FreeRADIUS, not by guest traffic.');
+  if (staySuiteIp) {
+    // Broad entry: all HTTP/HTTPS to StaySuite
+    lines.push(`/ip hotspot walled-garden add dst-host=${staySuiteIp} dst-port=80 comment="StaySuite Portal HTTP"`);
+    lines.push(`/ip hotspot walled-garden add dst-host=${staySuiteIp} dst-port=443 comment="StaySuite Portal HTTPS"`);
+    // Next.js dev server port (optional — production usually uses 80/443 via proxy)
+    lines.push(`/ip hotspot walled-garden add dst-host=${staySuiteIp} dst-port=3000 comment="StaySuite Next.js"`);
+  } else {
+    lines.push(`/ip hotspot walled-garden add dst-host=${ip} dst-port=80 comment="StaySuite Portal HTTP"`);
+    lines.push(`/ip hotspot walled-garden add dst-host=${ip} dst-port=443 comment="StaySuite Portal HTTPS"`);
+    lines.push(`/ip hotspot walled-garden add dst-host=${ip} dst-port=3000 comment="StaySuite Next.js"`);
+  }
+
+  if (walledGardenIps.length > 0) {
+    lines.push('');
+    lines.push('# Additional whitelisted destinations');
+    for (const addr of walledGardenIps) {
+      lines.push(`/ip hotspot walled-garden add dst-host=${addr} comment="Whitelisted"`);
+    }
+  }
+  lines.push('');
+
+  // ── 4. RADIUS client ──
+  lines.push('# ── 4. RADIUS client — MikroTik authenticates via StaySuite FreeRADIUS ──');
+  lines.push(`/radius add address=${ip} secret=${radiusSecret} service=hotspot timeout=3000ms \\`);
+  lines.push('  comment="StaySuite FreeRADIUS"');
+  lines.push('');
+
+  // ── 5. CoA port ──
+  lines.push('# ── 5. CoA (Change of Authorization) port ──');
+  lines.push('#    Allows StaySuite to disconnect sessions & change bandwidth in real-time');
+  lines.push('/radius outgoing-port 3799');
+  lines.push('');
+
+  // ── 6. Optional: hotspot user profiles (for RADIUS group-based limits) ──
+  if (ssid) {
+    lines.push('# ── 6. Hotspot server profile bind ──');
+    lines.push(`/ip hotspot set [find name=staysuite-hotspot] profile=default \\`);
+    lines.push(`  hotspot-address=10.5.50.1 \\`);
+    lines.push(`  addresses-per-mac=2`);
+    lines.push('');
+  }
+
+  lines.push('# ═══════════════════════════════════════════════════════════════');
+  lines.push('# Done! Guest devices will be redirected to the StaySuite login page.');
+  lines.push('# Test by connecting a device to the WiFi network.');
+  lines.push('# ═══════════════════════════════════════════════════════════════');
+
+  return lines.join('\n');
+}
+
 /** Load a wifi_gateway integration scoped to the given tenant, or return a 404. */
 async function loadGatewayOrFail(
   gatewayId: string,
@@ -531,7 +656,7 @@ export async function GET(request: NextRequest) {
 
       try {
         const adapter = await createGatewayAdapter(gwConfig);
-        let pushResult: { success: boolean; error?: string; message?: string } = { success: false, error: 'This vendor does not support configuration push' };
+        let pushResult: { success: boolean; error?: string; message?: string; script?: string } = { success: false, error: 'This vendor does not support configuration push' };
 
         // Vendor-specific push logic
         if (gwConfig.vendor === 'grandstream' && 'configureSSID' in adapter) {
@@ -556,11 +681,19 @@ export async function GET(request: NextRequest) {
             }
           );
           pushResult = { success: true, message: `SSID "${wifiConfig.ssid}" updated on Cisco Meraki` };
+        } else if (gwConfig.vendor === 'mikrotik') {
+          // MikroTik: generate a complete RouterOS script for the admin to paste
+          const script = await buildMikrotikScript(config, wifiConfig);
+          pushResult = {
+            success: true,
+            message: 'MikroTik RouterOS script generated. Copy and paste it into the MikroTik terminal (SSH or WinBox).',
+            script,
+          };
         } else {
           // Generic: store config and inform user to configure manually
           pushResult = {
             success: true,
-            message: `Configuration saved. For ${gwConfig.vendor} controllers, please also configure SSID "${wifiConfig.ssid}" on the controller directly (vendor API push not yet available for this vendor — settings stored for RADIUS attribute generation)`,
+            message: `Configuration saved. For ${gwConfig.vendor} controllers, please also configure SSID "${wifiConfig.ssid || 'default'}" on the controller directly (vendor API push not yet available — settings stored for RADIUS attribute generation)`,
           };
         }
 
@@ -596,13 +729,13 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ success: false, error: { code: 'MISSING_ID', message: 'Gateway ID is required' } }, { status: 400 });
       }
 
-      // Fetch the gateway integration
-      const gateway = await db.integration.findUnique({
-        where: { id },
+      // Tenant-scoped lookup — prevents cross-tenant script generation
+      const gateway = await db.integration.findFirst({
+        where: { id, tenantId, type: 'wifi_gateway' },
         select: { config: true, tenantId: true },
       });
 
-      if (!gateway || gateway.type !== 'wifi_gateway') {
+      if (!gateway) {
         return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Gateway not found' } }, { status: 404 });
       }
 
@@ -616,70 +749,7 @@ export async function GET(request: NextRequest) {
       }
 
       const wifiConfig = (parsed.config_wifi || {}) as Record<string, unknown>;
-      const mikrotikIp = (parsed.ipAddress as string) || '192.168.1.1';
-      const portalCallbackUrl = (wifiConfig.portalCallbackUrl as string) || '';
-      const staySuiteIp = (wifiConfig.staySuiteServerIp as string) || '';
-      const walledGardenIps = Array.isArray(wifiConfig.walledGardenIps)
-        ? (wifiConfig.walledGardenIps as string[])
-        : [];
-
-      // Fetch the RADIUS secret from the NAS client for this gateway
-      let radiusSecret = '<SHARED_SECRET>';
-      try {
-        const nasClient = await db.radiusNAS.findFirst({
-          where: {
-            ipAddress: mikrotikIp,
-            status: 'active',
-          },
-          select: { secret: true },
-        });
-        if (nasClient?.secret) {
-          radiusSecret = nasClient.secret;
-        }
-      } catch { /* non-critical */ }
-
-      // Build the RouterOS script
-      const lines: string[] = [];
-      lines.push(`# ═══════════════════════════════════════════════════════════════`);
-      lines.push(`# StaySuite External Portal — MikroTik RouterOS Configuration`);
-      lines.push(`# Generated: ${new Date().toISOString()}`);
-      lines.push(`# MikroTik IP: ${mikrotikIp}`);
-      lines.push(`# StaySuite IP: ${staySuiteIp || '(auto-detect from your network)'}`);
-      lines.push(`# ═══════════════════════════════════════════════════════════════`);
-      lines.push('');
-      lines.push('# 1. Hotspot profile — disable built-in portal, use StaySuite');
-      lines.push('/ip hotspot profile set numbers=1 \\');
-      lines.push('  html-directory=none \\');
-      lines.push(`  login-url=http://${staySuiteIp || '<STAYSUITE_IP>'}/connect?mac=$mac&identity=$identity \\`);
-      lines.push('  use-radius=yes');
-      lines.push('');
-      lines.push('# 2. Walled garden — allow access to StaySuite server');
-      if (staySuiteIp) {
-        lines.push(`/ip hotspot walled-garden add dst-host=${staySuiteIp} comment="StaySuite Portal"`);
-        lines.push(`/ip hotspot walled-garden add dst-host=${staySuiteIp} dst-port=3000 comment="StaySuite HTTP"`);
-      }
-      lines.push(`/ip hotspot walled-garden add dst-host=${staySuiteIp || '<STAYSUITE_IP>'} dst-port=1812 comment="StaySuite RADIUS Auth"`);
-      lines.push(`/ip hotspot walled-garden add dst-host=${staySuiteIp || '<STAYSUITE_IP>'} dst-port=1813 comment="StaySuite RADIUS Acct"`);
-
-      if (walledGardenIps.length > 0) {
-        lines.push('');
-        lines.push('# 3. Additional walled garden IPs');
-        for (const ip of walledGardenIps) {
-          lines.push(`/ip hotspot walled-garden add dst-host=${ip} comment="Whitelisted"`);
-        }
-      }
-
-      lines.push('');
-      lines.push('# RADIUS client — points to StaySuite FreeRADIUS');
-      lines.push(`/radius add address=${staySuiteIp || '<STAYSUITE_IP>'} secret=${radiusSecret} service=hotspot`);
-      lines.push('');
-      lines.push('# CoA port (for disconnect/bandwidth changes from StaySuite)');
-      lines.push('/radius outgoing-port 3799');
-      lines.push('');
-      lines.push('# Enable accounting for session tracking');
-      lines.push('/ip hotspot profile set numbers=1 accounting=yes');
-
-      const script = lines.join('\n');
+      const script = await buildMikrotikScript(parsed, wifiConfig);
 
       return NextResponse.json({ success: true, data: { script } });
     }

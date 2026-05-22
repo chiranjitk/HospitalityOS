@@ -13,7 +13,18 @@ const uuid = (seed: string): string => {
   ].join('-');
 };
 
-const prisma = new PrismaClient();
+// Seed-optimized connection pool (wifi-seed is called from main seed.ts
+// but can also run standalone)
+function wifiSeedDbUrl(): string {
+  const base = process.env.DATABASE_URL || '';
+  if (base.includes('connection_limit=')) return base;
+  const sep = base.includes('?') ? '&' : '?';
+  return `${base}${sep}connection_limit=5&pool_timeout=60`;
+}
+
+const prisma = new PrismaClient({
+  datasources: { db: { url: wifiSeedDbUrl() } },
+});
 
 const TENANT_ID = uuid('tenant-1');
 const PROPERTY_ID = uuid('property-1');
