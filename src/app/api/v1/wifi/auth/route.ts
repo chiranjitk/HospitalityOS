@@ -643,15 +643,31 @@ setInterval(() => {
   }
 }, 60_000).unref();
 
-function checkRateLimit(ip: string, maxAttempts: number = 10, windowMs: number = 60000): boolean {
+/**
+ * Check if the IP is currently rate-limited (only blocks, does NOT increment).
+ * Call this BEFORE processing the request.
+ */
+function isRateLimited(ip: string, maxAttempts: number = 30, windowMs: number = 60000): boolean {
+  const now = Date.now();
+  const entry = authAttempts.get(ip);
+  if (!entry || now > entry.resetAt) return false;
+  return entry.count >= maxAttempts;
+}
+
+/** Record a FAILED auth attempt (increments counter). */
+function recordFailedAttempt(ip: string, maxAttempts: number = 30, windowMs: number = 60000): void {
   const now = Date.now();
   const entry = authAttempts.get(ip);
   if (!entry || now > entry.resetAt) {
     authAttempts.set(ip, { count: 1, resetAt: now + windowMs });
-    return true;
+  } else {
+    entry.count++;
   }
-  entry.count++;
-  return entry.count <= maxAttempts;
+}
+
+/** Reset rate limit counter on successful auth. */
+function resetRateLimit(ip: string): void {
+  authAttempts.delete(ip);
 }
 
 // ────────────────────────────────────────────────────────────
@@ -676,7 +692,7 @@ export async function POST(request: NextRequest) {
     // STEP 0: Rate limit check (per-IP)
     // ════════════════════════════════════════════════════════════
     const clientRateLimitIp = extractClientIp(request) || 'unknown';
-    if (!checkRateLimit(clientRateLimitIp)) {
+    if (isRateLimited(clientRateLimitIp)) {
       return errorResponse('RATE_LIMITED', 'Too many authentication attempts. Please try again later.', 429);
     }
 
@@ -986,6 +1002,7 @@ export async function POST(request: NextRequest) {
           }
         } catch { /* best effort */ }
 
+        resetRateLimit(clientRateLimitIp);
         return successResponse(
           {
             authenticated: true, method: 'voucher', username: wifiUsername,
@@ -1197,6 +1214,7 @@ export async function POST(request: NextRequest) {
             marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
           }).catch(() => {});
 
+          resetRateLimit(clientRateLimitIp);
           return successResponse(
             {
               authenticated: true, method: 'room_number', username: pmsUser.username,
@@ -1310,6 +1328,7 @@ export async function POST(request: NextRequest) {
           }
         } catch { /* best effort */ }
 
+        resetRateLimit(clientRateLimitIp);
         return successResponse(
           {
             authenticated: true, method: 'room_number', username: wifiUsername,
@@ -1487,6 +1506,7 @@ export async function POST(request: NextRequest) {
             marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
           }).catch(() => {});
 
+        resetRateLimit(clientRateLimitIp);
         return successResponse(
           {
             authenticated: true, method: 'pms_credentials', username: wifiUser.username,
@@ -1663,6 +1683,7 @@ export async function POST(request: NextRequest) {
             } catch { /* best effort */ }
           }
 
+          resetRateLimit(clientRateLimitIp);
           return successResponse(
             {
               authenticated: true, method: 'sms_otp', username: wifiUsername,
@@ -1858,6 +1879,7 @@ export async function POST(request: NextRequest) {
           }).catch(() => {});
         }
 
+        resetRateLimit(clientRateLimitIp);
         return successResponse(
           {
             authenticated: true, method: 'open_access', username: wifiUsername,
@@ -1875,6 +1897,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('[Guest Auth API] Error:', error);
+    recordFailedAttempt(clientRateLimitIp);
     return errorResponse('INTERNAL_ERROR', 'An unexpected error occurred. Please try again or contact front desk.');
   }
 }
@@ -2224,6 +2247,11 @@ async function logAuthAttempt(
 ) {
   try {
     const clientIp = getClientIp(request) || '';
+
+    // Record failed auth attempt for rate limiting (only on actual rejections)
+    if (reply === 'Access-Reject') {
+      recordFailedAttempt(extractClientIp(request) || 'unknown');
+    }
 
     // Resolve MAC: use provided MAC, then fall back to DeviceProfile lookup
     let effectiveMac = macAddress || null;
