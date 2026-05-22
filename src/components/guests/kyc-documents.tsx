@@ -183,7 +183,7 @@ export function KYCDocuments({ guestId }: KYCDocumentsProps) {
       uploadFormData.append('guestId', guestId);
       uploadFormData.append('type', formData.type);
 
-      const uploadRes = await fetch('/api/guests/kyc/upload', {
+      const uploadRes = await fetch('/api/upload', {
         method: 'POST',
         body: uploadFormData,
       });
@@ -194,7 +194,7 @@ export function KYCDocuments({ guestId }: KYCDocumentsProps) {
       }
       const uploadResult = await uploadRes.json();
       if (!uploadResult.success || !uploadResult.data?.fileUrl) {
-        throw new Error(uploadResult.error?.message || 'File upload failed');
+        throw new Error(uploadResult.error || 'File upload failed');
       }
       const fileUrl = uploadResult.data.fileUrl;
       

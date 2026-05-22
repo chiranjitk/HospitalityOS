@@ -154,13 +154,23 @@ export async function processInspectionResult(
 
     // 6. If passed → update room
     if (passed) {
+      // GAP 5: Also set room status to 'available' when inspection passes,
+      // but only if the room is currently 'dirty' or 'inspected'.
+      // Don't override 'occupied', 'reserved', 'out_of_order', 'maintenance'.
+      const allowedStatuses = ['dirty', 'inspected', 'available'];
+      const roomUpdateData: Record<string, unknown> = {
+        housekeepingStatus: 'inspected',
+        lastInspectedAt: new Date(),
+        inspectedBy: inspectorId,
+      };
+
+      if (allowedStatuses.includes(room.status)) {
+        roomUpdateData.status = 'available';
+      }
+
       await tx.room.update({
         where: { id: roomId },
-        data: {
-          housekeepingStatus: 'inspected',
-          lastInspectedAt: new Date(),
-          inspectedBy: inspectorId,
-        },
+        data: roomUpdateData,
       });
     } else {
       // Even on failure, update the inspection tracking fields

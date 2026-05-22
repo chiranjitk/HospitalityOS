@@ -366,7 +366,7 @@ function CaptivePortalContent() {
             whileHover={{ scale: 1.05, rotate: 3 }}
             transition={{ type: 'spring', stiffness: 400 }}
           >
-            <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={80} height={80} className="object-contain w-full h-full" />
+            <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={80} height={80} className="object-contain w-full h-full" loading="eager" />
           </motion.div>
 
           <div className="text-center space-y-1.5">
@@ -703,7 +703,7 @@ function CaptivePortalContent() {
         custom={5}
       >
         <div className="flex items-center justify-center gap-2">
-          <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={20} height={20} className="object-contain" />
+          <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={20} height={20} className="object-contain" loading="eager" />
           <span className="text-xs text-emerald-200/25 dark:text-muted-foreground/40 font-medium">
             Powered by{' '}
             <span className="text-emerald-300/40 dark:text-primary/60">StaySuite HospitalityOS</span>
@@ -725,7 +725,7 @@ export default function CaptivePortalPage() {
             transition={{ duration: 1.5, repeat: Infinity }}
           >
             <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-xl shadow-emerald-500/30">
-              <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={64} height={64} className="object-contain w-full h-full" />
+              <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={64} height={64} className="object-contain w-full h-full" loading="eager" />
             </div>
           </motion.div>
         </div>

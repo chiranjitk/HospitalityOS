@@ -483,35 +483,85 @@ async function handleBookingCreated(channel: string, connection: { id: string; t
   const confirmationCode = `OTA-${Date.now().toString(36).toUpperCase()}`;
   const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
   const roomRate = pricing.totalAmount > 0 ? Math.round(pricing.totalAmount / nights * 100) / 100 : 0;
+  const propertyId = mapping?.connection.propertyId || connection.propertyId || '';
 
-  await db.booking.create({
-    data: {
-      tenantId: connection.tenantId,
-      propertyId: mapping?.connection.propertyId || connection.propertyId || '',
-      confirmationCode,
-      externalRef: reservationId,
-      primaryGuestId: guestId,
-      roomId,
-      roomTypeId: mapping?.roomTypeId || '',
-      checkIn,
-      checkOut,
-      adults: guests.adults,
-      children: guests.children,
-      roomRate,
-      taxes: pricing.taxes,
-      fees: pricing.fees,
-      discount: pricing.discount,
-      totalAmount: pricing.totalAmount,
-      currency: pricing.currency || 'USD',
-      source: channel,
-      channelId: connection.id,
-      status: 'confirmed',
-      specialRequests: eventData.specialRequests as string | undefined,
-      notes: eventData.notes as string | undefined,
-    },
+  const booking = await db.$transaction(async (tx) => {
+    // Create the booking
+    const newBooking = await tx.booking.create({
+      data: {
+        tenantId: connection.tenantId,
+        propertyId,
+        confirmationCode,
+        externalRef: reservationId,
+        primaryGuestId: guestId,
+        roomId,
+        roomTypeId: mapping?.roomTypeId || '',
+        checkIn,
+        checkOut,
+        adults: guests.adults,
+        children: guests.children,
+        roomRate,
+        taxes: pricing.taxes,
+        fees: pricing.fees,
+        discount: pricing.discount,
+        totalAmount: pricing.totalAmount,
+        currency: pricing.currency || 'USD',
+        source: channel,
+        channelId: connection.id,
+        status: 'confirmed',
+        specialRequests: eventData.specialRequests as string | undefined,
+        notes: eventData.notes as string | undefined,
+      },
+    });
+
+    // GAP 1: Auto-create folio for the booking (same pattern as direct bookings)
+    const folioNumber = `FOL-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+    await tx.folio.create({
+      data: {
+        tenantId: connection.tenantId,
+        propertyId,
+        bookingId: newBooking.id,
+        guestId,
+        folioNumber,
+        currency: pricing.currency || 'USD',
+        status: 'open',
+        subtotal: roomRate * nights,
+        taxes: pricing.taxes,
+        discount: pricing.discount,
+        totalAmount: pricing.totalAmount,
+        balance: pricing.totalAmount,
+      },
+    });
+
+    // GAP 1: Auto-create GuestStay record for stay history tracking (upsert to avoid duplicates)
+    await tx.guestStay.upsert({
+      where: {
+        guestId_bookingId: {
+          guestId,
+          bookingId: newBooking.id,
+        },
+      },
+      create: {
+        guestId,
+        bookingId: newBooking.id,
+        totalAmount: pricing.totalAmount,
+        roomNights: nights,
+      },
+      update: {},
+    });
+
+    // GAP 2: Set room status to 'reserved' when a room is assigned
+    if (roomId) {
+      await tx.room.update({
+        where: { id: roomId },
+        data: { status: 'reserved' },
+      });
+    }
+
+    return newBooking;
   });
 
-  console.log(`[Webhook:${channel}] Created booking ${confirmationCode} for reservation ${reservationId}`);
+  console.log(`[Webhook:${channel}] Created booking ${confirmationCode} with folio and guest stay for reservation ${reservationId}`);
 }
 
 async function handleBookingModified(channel: string, connection: { id: string; tenantId: string }, eventData: Record<string, unknown>): Promise<void> {
@@ -567,14 +617,35 @@ async function handleBookingCancelled(channel: string, connection: { id: string;
 
   if (!booking) return;
 
-  await db.booking.update({
-    where: { id: booking.id },
-    data: {
-      status: 'cancelled',
-      cancelledAt: new Date(),
-      cancellationReason: (eventData.cancellationReason as string) || 'Cancelled via OTA',
-      updatedAt: new Date(),
-    },
+  await db.$transaction(async (tx) => {
+    await tx.booking.update({
+      where: { id: booking.id },
+      data: {
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        cancellationReason: (eventData.cancellationReason as string) || 'Cancelled via OTA',
+        updatedAt: new Date(),
+      },
+    });
+
+    // GAP 3: Release room if no other active bookings exist for it
+    if (booking.roomId) {
+      const otherActiveBookings = await tx.booking.count({
+        where: {
+          roomId: booking.roomId,
+          status: { in: ['confirmed', 'checked_in'] },
+          id: { not: booking.id },
+        },
+      });
+
+      if (otherActiveBookings === 0) {
+        await tx.room.update({
+          where: { id: booking.roomId },
+          data: { status: 'available' },
+        });
+        console.log(`[Webhook:${channel}] Released room ${booking.roomId} (no other active bookings)`);
+      }
+    }
   });
 
   console.log(`[Webhook:${channel}] Cancelled booking ${booking.confirmationCode} for reservation ${reservationId}`);

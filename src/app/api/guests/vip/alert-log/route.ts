@@ -50,22 +50,21 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         vipRule: {
-          select: { name: true, ruleType: true, alertLevel: true },
-        },
-        guest: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            loyaltyTier: true,
-            isVip: true,
-          },
+          select: { name: true, ruleType: true, alertLevel: true, alertMessage: true },
         },
       },
       orderBy: { createdAt: 'desc' },
       take: limit,
       skip: offset,
     });
+
+    // Fetch guest data separately since VipAlert has no `guest` relation
+    const guestIds = [...new Set(alerts.map(a => a.guestId).filter(Boolean))];
+    const guests = guestIds.length > 0 ? await db.guest.findMany({
+      where: { id: { in: guestIds } },
+      select: { id: true, firstName: true, lastName: true, loyaltyTier: true, isVip: true },
+    }) : [];
+    const guestMap = new Map(guests.map(g => [g.id, g]));
 
     const total = await db.vipAlert.count({ where });
     const unreadCount = await db.vipAlert.count({
@@ -74,15 +73,14 @@ export async function GET(request: NextRequest) {
 
     // Transform for frontend compatibility
     const transformedAlerts = alerts.map((a) => {
-      let ruleConditions: Record<string, unknown> = {};
-      // Infer notification channel from rule conditions
+      const guest = guestMap.get(a.guestId);
       const channel = 'front_desk' as string;
 
       return {
         id: a.id,
         timestamp: a.createdAt.toISOString().replace('T', ' ').substring(0, 16),
-        guestName: a.guest ? `${a.guest.firstName} ${a.guest.lastName}` : 'Unknown Guest',
-        guestTier: a.guest?.loyaltyTier || a.alertLevel || 'bronze',
+        guestName: guest ? `${guest.firstName} ${guest.lastName}` : 'Unknown Guest',
+        guestTier: guest?.loyaltyTier || a.alertLevel || 'bronze',
         alertType: a.vipRule?.ruleType || 'check_in',
         message: a.message || a.vipRule?.alertMessage || `${a.vipRule?.name || 'VIP alert'} triggered`,
         channel,

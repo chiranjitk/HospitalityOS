@@ -314,7 +314,7 @@ export default function SmartLockManagement() {
       });
       if (logs.length > 0) return logs;
       // Fallback endpoint
-      return safeFetch<AccessLogEntry>('/api/security/audit-logs?limit=100', (json) => {
+      return safeFetch<AccessLogEntry>('/api/audit-logs?category=security&limit=100', (json) => {
         const items = (json.logs ?? json.data ?? json.items ?? []) as Record<string, unknown>[];
         return items.map((d) => ({
           id: d.id as string,

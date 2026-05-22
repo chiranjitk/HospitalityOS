@@ -717,6 +717,7 @@ model Booking {
   auditLogs           BookingAuditLog[]
   folios              Folio[]
   guestStays          GuestStay[]
+  feedback            GuestFeedback[]
   waitlist               WaitlistEntry?
   scheduledCharges        ScheduledCharge[]
   cancellationPenalties   CancellationPenalty[]
@@ -2930,6 +2931,7 @@ model GuestFeedback {
   id          String    @id @default(uuid()) @db.Uuid
   guestId     String    @db.Uuid
   propertyId  String    @db.Uuid
+  bookingId   String?   @db.Uuid
   type        String
   category    String
   subject     String
@@ -2942,9 +2944,11 @@ model GuestFeedback {
   createdAt   DateTime  @default(now()) @db.Timestamptz
   updatedAt   DateTime  @updatedAt @db.Timestamptz
   guest       Guest     @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  booking     Booking?  @relation(fields: [bookingId], references: [id])
 
   @@index([guestId])
   @@index([propertyId])
+  @@index([bookingId])
 }
 
 model GuestJourney {
@@ -7891,6 +7895,7 @@ model IpPool {
   ranges        IpPoolRange[]
   plans         WiFiPlan[]
   users         WiFiUser[]    @relation("UserIpPoolOverride")
+  planMappings  WiFiPlanIPPool[]
   tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, name])
@@ -7911,6 +7916,25 @@ model IpPoolRange {
   createdAt DateTime @default(now()) @db.Timestamptz
   pool      IpPool   @relation(fields: [poolId], references: [id], onDelete: Cascade)
 
+  @@index([poolId])
+}
+
+/// WiFiPlanIPPool — Many-to-many junction table for Plan ↔ Pool mapping
+/// A plan can have multiple IP pools. If a plan has mapped pools, the user's
+/// IP must be in one of those pools. If a plan has NO mapped pools (and no
+/// legacy ipPoolId), the IP must exist in ANY enabled pool.
+model WiFiPlanIPPool {
+  id        String   @id @default(uuid()) @db.Uuid
+  planId    String   @db.Uuid
+  poolId    String   @db.Uuid
+  priority  Int      @default(0) // Lower = higher priority. Used for Framed-Route selection.
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  plan      WiFiPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  pool      IpPool   @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, poolId])
+  @@index([planId])
   @@index([poolId])
 }
 
@@ -7941,6 +7965,7 @@ model WiFiPlan {
   aaaaConfigs   WiFiAAAConfig[]
   fupPolicy     FairAccessPolicy? @relation(fields: [fupPolicyId], references: [id])
   ipPool        IpPool?           @relation(fields: [ipPoolId], references: [id])
+  planPools     WiFiPlanIPPool[]
   roomTypes     RoomType[]        @relation("RoomTypeWiFiPlan")
   tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   sessions      WiFiSession[]

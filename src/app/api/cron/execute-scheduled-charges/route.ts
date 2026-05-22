@@ -8,14 +8,15 @@ export async function POST(request: NextRequest) {
   try {
     // Simple API key check for cron endpoint
     const authHeader = request.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET || 'staysuite-cron-secret';
+    const cronSecret = process.env.CRON_SECRET;
+
+    if (!cronSecret) {
+      console.error('[Cron] CRON_SECRET environment variable is not set. Refusing to process.');
+      return NextResponse.json({ success: false, error: { code: 'CONFIG_ERROR', message: 'Cron secret not configured' } }, { status: 500 });
+    }
 
     if (authHeader !== `Bearer ${cronSecret}`) {
-      // Also allow if called with a system header from internal scheduler
-      const internalHeader = request.headers.get('x-internal-cron');
-      if (internalHeader !== 'true') {
-        return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid cron credentials' } }, { status: 401 });
-      }
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid cron credentials' } }, { status: 401 });
     }
 
     const now = new Date();

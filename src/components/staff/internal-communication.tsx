@@ -756,7 +756,7 @@ export default function InternalCommunication() {
                     onKeyDown={handleKeyPress}
                     className="flex-1"
                   />
-                  <Button variant="ghost" size="icon" title="Emoji" onClick={() => toast.info('Emoji picker coming soon')}>
+                  <Button variant="ghost" size="icon" disabled title="Emoji picker is under development">
                     <Smile className="h-4 w-4" />
                   </Button>
                   <Button onClick={sendMessage} disabled={!messageInput.trim() && pendingAttachments.length === 0}>

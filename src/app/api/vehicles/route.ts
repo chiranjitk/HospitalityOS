@@ -40,13 +40,10 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = { tenantId };
 
-    // Filter by property - vehicles may not have direct propertyId,
-    // so filter through related booking or slot
+    // Filter by property - vehicles don't have direct propertyId,
+    // so filter through related slot (ParkingSlot has propertyId)
     if (propertyId) {
-      where.OR = [
-        { booking: { propertyId } },
-        { slot: { propertyId } },
-      ];
+      where.slot = { propertyId };
     }
 
     if (status) {
@@ -67,17 +64,7 @@ export async function GET(request: NextRequest) {
         { make: { contains: search } },
         { model: { contains: search } },
       ];
-      if (propertyId) {
-        // Merge with existing OR clause for property filtering
-        const existingOr = (where.OR as Record<string, unknown>[]) || [];
-        where.AND = [
-          { OR: existingOr },
-          { OR: searchClause },
-        ];
-        delete where.OR;
-      } else {
-        where.OR = searchClause;
-      }
+      where.OR = searchClause;
     }
 
     const vehicles = await db.vehicle.findMany({

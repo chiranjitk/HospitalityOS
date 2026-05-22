@@ -372,7 +372,7 @@ async function processNoShows(audit: { id: string; propertyId: string; tenantId:
         tenantId: audit.tenantId,
         bookingId: booking.id,
         folioId: booking.folios[0]?.id,
-        policyId: policy?.id || '00000000-0000-0000-0000-000000000000',
+        policyId: policy?.id || null,
         policyName: policy?.name || 'Default no-show policy',
         penaltyType: 'percentage',
         penaltyAmount,

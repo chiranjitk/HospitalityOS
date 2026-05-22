@@ -143,10 +143,6 @@ export default function Incidents() {
     cameraId: '',
   });
 
-  useEffect(() => {
-    fetchIncidents();
-  }, [fetchIncidents]);
-
   const fetchIncidents = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -178,6 +174,10 @@ export default function Incidents() {
       setIsLoading(false);
     }
   }, [statusFilter, severityFilter, toast]);
+
+  useEffect(() => {
+    fetchIncidents();
+  }, [fetchIncidents]);
 
   const filteredIncidents = incidents.filter(i => {
     if (searchQuery) {

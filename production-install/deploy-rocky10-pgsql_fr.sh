@@ -941,12 +941,14 @@ success "Project ready at ${APP_DIR}"
 step 8 "Environment" "Creating .env from .env.production template"
 
 # ── 8a: Generate secrets ──────────────────────────────────────────────────
+# Generate cryptographically random secrets for production.
+# If env vars are already set (e.g. from previous deploy), reuse them.
 NEXTAUTH_SECRET_VAL="${NEXTAUTH_SECRET_VAL:-$(head -c 32 /dev/urandom | xxd -p | tr -d '\n' | head -c 64)}"
 CRON_SECRET_VAL="${CRON_SECRET_VAL:-$(head -c 24 /dev/urandom | xxd -p | tr -d '\n' | head -c 48)}"
 ENCRYPTION_KEY_VAL="${ENCRYPTION_KEY_VAL:-$(head -c 48 /dev/urandom | base64 | tr -d '\n' | head -c 64)}"
 SERVICE_SECRET_VAL="${SERVICE_SECRET_VAL:-$(head -c 24 /dev/urandom | xxd -p | tr -d '\n' | head -c 48)}"
 
-info "Generated NEXTAUTH_SECRET, CRON_SECRET, ENCRYPTION_KEY, SERVICE_AUTH_SECRET"
+info "Generated secrets: NEXTAUTH_SECRET (64-char), CRON_SECRET (48-char), ENCRYPTION_KEY (64-char), SERVICE_AUTH_SECRET (48-char)"
 
 # ── 8b: Auto-detect APP_URL if not provided ───────────────────────────────
 if [[ -z "$APP_URL" ]]; then
@@ -1022,6 +1024,8 @@ fi
 
 # Also rename the old ecosystem.config.js (has hardcoded /home/z paths)
 # if ecosystem.config.cjs exists (the new portable version).
+# IMPORTANT: Never rename ecosystem.config.js_dont-touch — this is the
+# user's production PM2 config that must not be modified by the deploy script.
 if [[ -f "${APP_DIR}/ecosystem.config.cjs" && -f "${APP_DIR}/ecosystem.config.js" ]]; then
   mv "${APP_DIR}/ecosystem.config.js" "${APP_DIR}/ecosystem.config.js.old"
   success "Renamed ecosystem.config.js → ecosystem.config.js.old (using portable .cjs)"

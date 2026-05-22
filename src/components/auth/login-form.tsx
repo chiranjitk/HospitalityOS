@@ -70,11 +70,11 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     }
   };
 
-  const showDemoCredentials = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production';
-  const demoCredentials = showDemoCredentials ? [
-    { role: 'Admin', email: 'admin@royalstay.in', password: 'admin123', color: 'bg-gradient-to-br from-orange-600 to-amber-600' },
-    { role: 'Front Desk', email: 'frontdesk@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-amber-500 to-orange-500' },
-    { role: 'Housekeeping', email: 'housekeeping@royalstay.in', password: 'staff123', color: 'bg-gradient-to-br from-orange-500 to-amber-500' },
+  const showDemoCredentials = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+  const demoUser = process.env.NEXT_PUBLIC_DEMO_USER || '';
+  const demoPass = process.env.NEXT_PUBLIC_DEMO_PASS || '';
+  const demoCredentials = showDemoCredentials && demoUser && demoPass ? [
+    { role: 'Demo', email: demoUser, password: demoPass, color: 'bg-gradient-to-br from-orange-600 to-amber-600' },
   ] : [];
 
   return (

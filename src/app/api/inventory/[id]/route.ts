@@ -9,7 +9,8 @@ import { notifyInventoryAlert } from '@/lib/notify';
  * NOT room inventory. No PMS page currently calls this endpoint.
  * Room inventory is managed via /api/inventory-locks and /api/inventory (without [id]).
  * If you need room-level inventory operations, use those endpoints instead.
- * TODO: Consider moving this to /api/inventory/stock/[id] for clarity.
+ *
+ * DEPRECATED: Use /api/inventory/stock/[id] instead.
  */
 
 // GET /api/inventory/[id] - Get a single stock item by ID
@@ -19,12 +20,18 @@ export async function GET(
 ) {
   const user = await getUserFromRequest(request);
   if (!user) {
-    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+    const resp = NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+    resp.headers.set('Deprecation', 'true');
+    resp.headers.set('Link', '</api/inventory/stock/[id]>; rel="successor-version"');
+    return resp;
   }
 
   // RBAC check
   if (!hasPermission(user, 'inventory.view') && !hasPermission(user, 'inventory.*') && user.roleName !== 'admin') {
-    return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    const resp = NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    resp.headers.set('Deprecation', 'true');
+    resp.headers.set('Link', '</api/inventory/stock/[id]>; rel="successor-version"');
+    return resp;
   }
 
   try {
@@ -48,13 +55,16 @@ export async function GET(
     });
 
     if (!stockItem) {
-      return NextResponse.json(
+      const resp = NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Stock item not found' } },
         { status: 404 }
       );
+      resp.headers.set('Deprecation', 'true');
+      resp.headers.set('Link', '</api/inventory/stock/[id]>; rel="successor-version"');
+      return resp;
     }
 
-    return NextResponse.json({
+    const resp = NextResponse.json({
       success: true,
       data: {
         ...stockItem,
@@ -64,6 +74,9 @@ export async function GET(
           : null,
       },
     });
+    resp.headers.set('Deprecation', 'true');
+    resp.headers.set('Link', '</api/inventory/stock/[id]>; rel="successor-version"');
+    return resp;
   } catch (error) {
     console.error('Error fetching stock item:', error);
     return NextResponse.json(

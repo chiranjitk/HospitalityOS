@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requirePlatformAdmin } from '@/lib/auth/tenant-context';
 
 // PATCH /api/admin/license-keys/[id] (AUTH REQUIRED)
 export async function PATCH(
@@ -8,26 +9,8 @@ export async function PATCH(
 ) {
   try {
     // Auth check
-    const sessionToken = request.cookies.get('session_token')?.value;
-    if (!sessionToken) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await db.session.findFirst({
-      where: { token: sessionToken, expiresAt: { gt: new Date() } },
-      include: { user: { include: { tenant: true } } },
-    });
-    if (!session) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Platform admin only
-    if (!session.user.isPlatformAdmin) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Platform admin access required' } },
-        { status: 403 }
-      );
-    }
+    const ctx = await requirePlatformAdmin(request);
+    if (ctx instanceof NextResponse) return ctx;
 
     const { id } = await params;
 
@@ -142,8 +125,8 @@ export async function PATCH(
       try {
         await db.auditLog.create({
           data: {
-            userId: session.user.id,
-            tenantId: session.user.tenantId,
+            userId: ctx.userId,
+            tenantId: ctx.tenantId,
             action: 'license_key_revoke',
             entity: 'LicenseKey',
             entityId: id,
@@ -151,7 +134,7 @@ export async function PATCH(
               licenseKey: updatedKey.key,
               previousStatus: licenseKey.status,
               newStatus: updatedKey.status,
-              performedBy: session.user.email,
+              performedBy: ctx.userId,
             }),
             ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown',
           },

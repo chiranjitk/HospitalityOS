@@ -188,7 +188,13 @@ export default function proxy(request: NextRequest) {
   // --- 3. Cron route protection (CRON_SECRET header) ---
   if (pathname.startsWith('/api/cron/')) {
     const cronSecret = request.headers.get('x-cron-secret');
-    const validSecret = process.env.CRON_SECRET || (process.env.NODE_ENV !== 'production' ? 'dev-only-cron-secret' : '');
+    const validSecret = process.env.CRON_SECRET;
+    if (!validSecret) {
+      return NextResponse.json(
+        { success: false, error: { code: 'CONFIGURATION_ERROR', message: 'CRON_SECRET environment variable is not configured' } },
+        { status: 500 }
+      );
+    }
     if (!cronSecret || cronSecret !== validSecret) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or missing cron secret' } },

@@ -20,7 +20,10 @@ import { NextRequest, NextResponse } from 'next/server';
 // Logs are written to: logs/session-engine.log
 // ────────────────────────────────────────────────────────────────
 
-const CRON_SECRET = process.env.CRON_SECRET || (process.env.NODE_ENV !== 'production' ? 'dev-only-cron-secret' : '');
+const CRON_SECRET = process.env.CRON_SECRET;
+if (!CRON_SECRET) {
+  console.error('[session-engine] CRON_SECRET environment variable is required');
+}
 
 function verifyCronSecret(request: NextRequest): boolean {
   if (!CRON_SECRET) return false;
@@ -30,6 +33,13 @@ function verifyCronSecret(request: NextRequest): boolean {
 
 // POST — Trigger session engine cycle
 export async function POST(request: NextRequest) {
+  // Verify cron secret is configured
+  if (!CRON_SECRET) {
+    return NextResponse.json(
+      { success: false, error: 'Server configuration error: CRON_SECRET not set' },
+      { status: 500 }
+    );
+  }
   // Verify cron secret
   if (!verifyCronSecret(request)) {
     return NextResponse.json(
@@ -59,6 +69,12 @@ export async function POST(request: NextRequest) {
 
 // GET — Get session engine diagnostics (status + logs + health)
 export async function GET(request: NextRequest) {
+  if (!CRON_SECRET) {
+    return NextResponse.json(
+      { success: false, error: 'Server configuration error: CRON_SECRET not set' },
+      { status: 500 }
+    );
+  }
   if (!verifyCronSecret(request)) {
     return NextResponse.json(
       { success: false, error: 'Unauthorized' },

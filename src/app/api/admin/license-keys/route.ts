@@ -1,30 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requirePlatformAdmin } from '@/lib/auth/tenant-context';
 
 // GET /api/admin/license-keys (AUTH REQUIRED)
 export async function GET(request: NextRequest) {
   try {
     // Auth check
-    const sessionToken = request.cookies.get('session_token')?.value;
-    if (!sessionToken) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = await db.session.findFirst({
-      where: { token: sessionToken, expiresAt: { gt: new Date() } },
-      include: { user: { include: { tenant: true } } },
-    });
-    if (!session) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Platform admin only
-    if (!session.user.isPlatformAdmin) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Platform admin access required' } },
-        { status: 403 }
-      );
-    }
+    const ctx = await requirePlatformAdmin(request);
+    if (ctx instanceof NextResponse) return ctx;
 
     // Parse query params
     const { searchParams } = new URL(request.url);

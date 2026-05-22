@@ -4226,6 +4226,8 @@
     "failedToUpdateTemplateStatus": "Failed to update template status"
   },
   "staff": {
+    "performance": "Staff Performance",
+    "performanceDesc": "Monitor team productivity, reviews, and goals",
     "attendanceTracking": "Attendance Tracking",
     "monitorStaffAttendanceAndClockInoutTimes": "Monitor staff attendance and clock in/out times",
     "export": "Export",

@@ -18,8 +18,30 @@
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-/** Project root — always derived from cwd, never hardcoded */
-const PROJECT_ROOT = process.cwd();
+/** Project root — lazy to avoid process.cwd() at module scope (Edge Runtime) */
+let _projectRoot: string | null = null;
+function getProjectRoot(): string {
+  if (_projectRoot !== null) return _projectRoot;
+  try {
+    _projectRoot = /*turbopackIgnore: true*/ process.cwd();
+  } catch {
+    // Edge Runtime fallback — use env or empty string
+    _projectRoot = process.env.PROJECT_ROOT || '';
+  }
+  return _projectRoot;
+}
+/** @deprecated Use getProjectRoot() for Edge-safe access */
+const PROJECT_ROOT = new Proxy({} as string, {
+  get(_, prop) {
+    const root = getProjectRoot();
+    if (prop === 'length') return root.length;
+    if (typeof prop === 'string' && !isNaN(Number(prop))) return root[Number(prop)];
+    if (prop === Symbol.toPrimitive) return () => root;
+    if (prop === 'toString') return () => root;
+    if (prop === 'valueOf') return () => root;
+    return root[prop as keyof string];
+  },
+});
 
 // ── Auto-detect FreeRADIUS install prefix ──────────────────────────
 // Probes for the radclient binary in the most common locations.

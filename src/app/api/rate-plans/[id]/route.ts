@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { audit } from '@/lib/audit';
+import { triggerARIUpdate } from '@/lib/channel-manager/event-driven-sync';
 
 // GET /api/rate-plans/[id] - Get a single rate plan
 export async function GET(
@@ -183,6 +184,32 @@ export async function PUT(
       }, { tenantId: user.tenantId, userId: user.id });
     } catch (auditError) {
       console.error('Audit log failed (non-blocking):', auditError);
+    }
+
+    // GAP 10: Trigger bidirectional rate sync to connected OTA channels
+    // Non-blocking — channel sync failures should not affect the rate plan update
+    if (ratePlan.roomTypeId && ratePlan.status === 'active') {
+      try {
+        // Resolve property from room type
+        const roomType = await db.roomType.findUnique({
+          where: { id: ratePlan.roomTypeId },
+          select: { propertyId: true },
+        });
+
+        if (roomType?.propertyId) {
+          await triggerARIUpdate('rate_changed', {
+            propertyId: roomType.propertyId,
+            roomTypeId: ratePlan.roomTypeId,
+            tenantId: user.tenantId,
+            rate: ratePlan.basePrice,
+            currency: ratePlan.currency || 'USD',
+            ratePlanId: ratePlan.id,
+          });
+          console.log(`[RatePlan Update] Triggered ARI rate sync for rate plan ${ratePlan.id} (${ratePlan.name})`);
+        }
+      } catch (syncError) {
+        console.error('[RatePlan Update] Failed to trigger channel rate sync (non-blocking):', syncError);
+      }
     }
 
     return NextResponse.json({ success: true, data: ratePlan });

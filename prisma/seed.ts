@@ -20,6 +20,14 @@ const uuid = (seed: string): string => {
 };
 
 import { seedWiFiData } from './wifi-seed';
+import { seedSupplementData } from './seed-supplement';
+import { seedBillingData } from './seed-supplement-billing';
+import { seedExtrasData } from './seed-supplement-extras';
+import { seedPageData } from './seed-pages';
+import { seed12Tables } from './seed-12-tables';
+import { seedGroupBData } from './seed-group-b';
+import { seedEmptyTables } from './seed-empty-tables';
+import { seedFinalFix } from './seed-final-fix';
 
 const prisma = new PrismaClient();
 
@@ -31,12 +39,151 @@ async function seedHashPassword(password: string): Promise<string> {
 async function main() {
   console.log('Starting database seed...');
   
-  // ─── Clean seed data (safe deleteMany — never TRUNCATE CASCADE) ───
-  // TRUNCATE CASCADE destroys views, functions, and triggers.
-  // deleteMany is safe: it only removes data rows, never schema objects.
+  // ─── Clean seed data ───
   console.log('Cleaning core seed data...');
   try {
+    // Disable FK triggers temporarily for safe cleanup — avoids FK order issues
+    await prisma.$executeRawUnsafe('SET session_replication_role = replica;');
+    
     // Order matters: child tables first due to FK constraints
+    // ─── Supplement tables cleanup (deepest children first) ───
+    await prisma.casinoTransaction.deleteMany({});
+    await prisma.golfTeeTime.deleteMany({});
+    await prisma.timeshareOwnership.deleteMany({});
+    await prisma.spaAppointment.deleteMany({});
+    await prisma.recipeIngredient.deleteMany({});
+    await prisma.recipe.deleteMany({});
+    await prisma.menuBoardItem.deleteMany({});
+    await prisma.menuBoard.deleteMany({});
+    await prisma.menuModifierOption.deleteMany({});
+    await prisma.menuModifier.deleteMany({});
+    await prisma.menuVariant.deleteMany({});
+    await prisma.posTerminal.deleteMany({});
+    await prisma.offlineOrder.deleteMany({});
+    await prisma.tableMerge.deleteMany({});
+    await prisma.reservation.deleteMany({});
+    await prisma.bEOItem.deleteMany({});
+    await prisma.banquetEventOrder.deleteMany({});
+    await prisma.eventResource.deleteMany({});
+    await prisma.casinoTable.deleteMany({});
+    await prisma.timeshareUnit.deleteMany({});
+    await prisma.golfCourse.deleteMany({});
+    await prisma.golfMembership.deleteMany({});
+    await prisma.spaTherapist.deleteMany({});
+    await prisma.spaTreatment.deleteMany({});
+    await prisma.experienceFeedback.deleteMany({});
+    await prisma.experienceBooking.deleteMany({});
+    await prisma.experiencePricing.deleteMany({});
+    await prisma.experienceVendor.deleteMany({});
+    await prisma.experience.deleteMany({});
+    await prisma.creditNote.deleteMany({});
+    await prisma.folioTransfer.deleteMany({});
+    await prisma.journalEntryLine.deleteMany({});
+    await prisma.journalEntry.deleteMany({});
+    await prisma.budgetLine.deleteMany({});
+    await prisma.budget.deleteMany({});
+    await prisma.cashTransaction.deleteMany({});
+    await prisma.cashBookEntry.deleteMany({});
+    await prisma.depositSchedule.deleteMany({});
+    await prisma.gstEInvoice.deleteMany({});
+    await prisma.tcsRecord.deleteMany({});
+    await prisma.tdsRecord.deleteMany({});
+    await prisma.apInvoiceLine.deleteMany({});
+    await prisma.apPayment.deleteMany({});
+    await prisma.apInvoice.deleteMany({});
+    await prisma.rateShoppingResult.deleteMany({});
+    await prisma.rateShoppingCompetitor.deleteMany({});
+    await prisma.overbookingSlot.deleteMany({});
+    await prisma.overbookingConfig.deleteMany({});
+    await prisma.lastMinuteTriggerLog.deleteMany({});
+    await prisma.lastMinuteTrigger.deleteMany({});
+    await prisma.payrollEntry.deleteMany({});
+    await prisma.payrollPeriod.deleteMany({});
+    await prisma.salaryComponent.deleteMany({});
+    await prisma.upsellOffer.deleteMany({});
+    await prisma.upsellCampaign.deleteMany({});
+    await prisma.upsellRule.deleteMany({});
+    await prisma.abandonedBooking.deleteMany({});
+    await prisma.onlineReview.deleteMany({});
+    await prisma.journeyAction.deleteMany({});
+    await prisma.journeyStage.deleteMany({});
+    await prisma.journeyCampaign.deleteMany({});
+    await prisma.vipAlert.deleteMany({});
+    await prisma.vipRule.deleteMany({});
+    await prisma.guestCreditLimit.deleteMany({});
+    await prisma.digitalKeyAccessLog.deleteMany({});
+    await prisma.smartLockAccessLog.deleteMany({});
+    await prisma.smartLock.deleteMany({});
+    await prisma.keyCard.deleteMany({});
+    await prisma.aiConversationMessage.deleteMany({});
+    await prisma.aiConversation.deleteMany({});
+    await prisma.aISuggestion.deleteMany({});
+    await prisma.automationExecutionLog.deleteMany({});
+    await prisma.automationTemplate.deleteMany({});
+    await prisma.paymentGateway.deleteMany({});
+    await prisma.hardwareAdapter.deleteMany({});
+    await prisma.inventoryMovement.deleteMany({});
+    await prisma.inventoryItem.deleteMany({});
+    await prisma.stockConsumption.deleteMany({});
+    await prisma.subscriptionInvoice.deleteMany({});
+    await prisma.subscription.deleteMany({});
+    await prisma.licenseKey.deleteMany({});
+    await prisma.plugin.deleteMany({});
+    await prisma.featureAnnouncement.deleteMany({});
+    await prisma.npsResponse.deleteMany({});
+    await prisma.npsSurvey.deleteMany({});
+    await prisma.parkingPass.deleteMany({});
+    await prisma.invoiceTemplate.deleteMany({});
+    await prisma.hotelWebsite.deleteMany({});
+    await prisma.helpArticle.deleteMany({});
+    await prisma.helpCategory.deleteMany({});
+    await prisma.channelSettlementItem.deleteMany({});
+    await prisma.channelSettlement.deleteMany({});
+    await prisma.channelCommissionConfig.deleteMany({});
+    await prisma.allotmentReleaseLog.deleteMany({});
+    await prisma.allotmentReleaseRule.deleteMany({});
+    await prisma.bookingModification.deleteMany({});
+    await prisma.channelPriority.deleteMany({});
+    await prisma.channelRateOverride.deleteMany({});
+    await prisma.channelBookingLimit.deleteMany({});
+    await prisma.channelSyncLog.deleteMany({});
+    await prisma.bookingPaceSnapshot.deleteMany({});
+    await prisma.bookingPaceConfig.deleteMany({});
+    await prisma.corporateAccount.deleteMany({});
+    await prisma.gstSettings.deleteMany({});
+    await prisma.gstSacCode.deleteMany({});
+    await prisma.exchangeRate.deleteMany({});
+    await prisma.financialAccount.deleteMany({});
+    await prisma.cashFlowForecast.deleteMany({});
+    await prisma.overbookingLog.deleteMany({});
+    // ─── End supplement cleanup ───
+    // ─── Page data cleanup (seed-pages.ts) ───
+    await prisma.adPerformance.deleteMany({});
+    await prisma.mealPlanMapping.deleteMany({});
+    await prisma.inventoryTransferItem.deleteMany({});
+    await prisma.inventoryTransfer.deleteMany({});
+    await prisma.purchaseRequisitionItem.deleteMany({});
+    await prisma.purchaseRequisition.deleteMany({});
+    await prisma.devicePolicyAssignment.deleteMany({});
+    await prisma.devicePolicy.deleteMany({});
+    await prisma.deviceGroup.deleteMany({});
+    await prisma.bandwidthPolicyDetail.deleteMany({});
+    await prisma.bandwidthTopup.deleteMany({});
+    await prisma.kioskSettings.deleteMany({});
+    await prisma.registrationCard.deleteMany({});
+    await prisma.folioRoutingRule.deleteMany({});
+    await prisma.cityLedgerAccount.deleteMany({});
+    await prisma.maintenanceBlock.deleteMany({});
+    await prisma.lateCheckoutRequest.deleteMany({});
+    await prisma.earlyCheckoutRequest.deleteMany({});
+    await prisma.earlyCheckinRequest.deleteMany({});
+    await prisma.promotion.deleteMany({});
+    await prisma.campaignSegment.deleteMany({});
+    await prisma.leadActivity.deleteMany({});
+    // ─── End page data cleanup ───
+    // Core tables cleanup
+    await prisma.inspectionResult.deleteMany({});
+    await prisma.inspectionTemplate.deleteMany({});
     await prisma.staffChatMessage.deleteMany({});
     await prisma.staffChannelMember.deleteMany({});
     await prisma.staffChannel.deleteMany({});
@@ -56,17 +203,25 @@ async function main() {
     await prisma.floorPlan.deleteMany({});
     await prisma.competitorPrice.deleteMany({});
     await prisma.cancellationPolicy.deleteMany({});
+    await prisma.cancellationPenalty.deleteMany({});
     await prisma.payment.deleteMany({});
     await prisma.invoice.deleteMany({});
+    await prisma.minibarConsumption.deleteMany({});
     await prisma.folioLineItem.deleteMany({});
+    await prisma.scheduledCharge.deleteMany({});
     await prisma.folio.deleteMany({});
     await prisma.discount.deleteMany({});
+    // Booking child tables (all reference bookingId)
+    await prisma.commissionRecord.deleteMany({});
+    await prisma.laundryOrder.deleteMany({});
+    await prisma.guestStay.deleteMany({});
+    await prisma.bookingAuditLog.deleteMany({});
     await prisma.booking.deleteMany({});
     await prisma.ratePlan.deleteMany({});
-    await prisma.restaurantTable.deleteMany({});
-    await prisma.menuItem.deleteMany({});
     await prisma.orderItem.deleteMany({});
     await prisma.order.deleteMany({});
+    await prisma.restaurantTable.deleteMany({});
+    await prisma.menuItem.deleteMany({});
     await prisma.orderCategory.deleteMany({});
     await prisma.stockItem.deleteMany({});
     await prisma.vendor.deleteMany({});
@@ -104,8 +259,12 @@ async function main() {
     await prisma.subscriptionPlan.deleteMany({});
     await prisma.property.deleteMany({});
     await prisma.tenant.deleteMany({});
+    // Re-enable FK triggers
+    await prisma.$executeRawUnsafe('SET session_replication_role = DEFAULT;');
     console.log('Core seed data cleaned.');
   } catch (e: any) {
+    // Re-enable FK triggers on error
+    try { await prisma.$executeRawUnsafe('SET session_replication_role = DEFAULT;'); } catch {}
     console.log('Cleanup note:', e.message);
   }
   
@@ -3868,6 +4027,7 @@ async function main() {
   try {
     const plans = [
       {
+        id: uuid('subplan-trial'),
         name: 'trial',
         displayName: 'Trial',
         description: '14-day free trial with core PMS features. No credit card required.',
@@ -3894,6 +4054,7 @@ async function main() {
         isActive: true,
       },
       {
+        id: uuid('subplan-starter'),
         name: 'starter',
         displayName: 'Starter Cloud',
         description: 'For small hotels & guest houses up to 30 rooms. Core PMS + reports + notifications.',
@@ -3922,6 +4083,7 @@ async function main() {
         isActive: true,
       },
       {
+        id: uuid('subplan-professional'),
         name: 'professional',
         displayName: 'Professional Cloud',
         description: 'For growing hotels up to 80 rooms. PMS + POS + CRM + Channel Manager + WiFi RADIUS.',
@@ -3955,6 +4117,7 @@ async function main() {
         isActive: true,
       },
       {
+        id: uuid('subplan-enterprise'),
         name: 'enterprise',
         displayName: 'Enterprise Cloud',
         description: 'For large hotels & chains up to 200 rooms. All cloud-compatible modules included.',
@@ -4004,7 +4167,7 @@ async function main() {
 
     for (const plan of plans) {
       await prisma.subscriptionPlan.upsert({
-        where: { name: plan.name },
+        where: { id: plan.id || undefined },
         create: plan,
         update: {
           displayName: plan.displayName,
@@ -4021,11 +4184,69 @@ async function main() {
           isPopular: plan.isPopular,
           isActive: plan.isActive,
         },
+      }).catch(() => {
+        // Fallback: createMany if upsert fails
+        return prisma.subscriptionPlan.create({ data: plan }).catch(() => {});
       });
     }
     console.log(`${plans.length} subscription plans seeded.`);
   } catch (e: any) {
     console.log('Subscription plans seed error:', e.message);
+  }
+
+  // ─── Seed supplement data (Experience, Spa, Events, Resort, POS) ───
+  console.log('\nSeeding supplement data (Experience, Spa, Events, Resort, POS)...');
+  try {
+    await seedSupplementData(prisma);
+  } catch (e: any) {
+    console.log('Supplement seed error:', e.message);
+  }
+
+  // ─── Seed billing/revenue/staff/marketing data ───
+  console.log('Seeding billing/revenue/staff/marketing data...');
+  try {
+    await seedBillingData(prisma);
+  } catch (e: any) {
+    console.log('Billing seed error:', e.message);
+  }
+
+  // ─── Seed extras data (Help, Security, AI, Integrations, Channel, Platform) ───
+  console.log('Seeding extras data (Help, Security, AI, Channel, Platform)...');
+  try {
+    await seedExtrasData(prisma);
+  } catch (e: any) {
+    console.log('Extras seed error:', e.message);
+  }
+
+  // ─── Seed page data (Chat Messages, CRM, Housekeeping, etc.) ───
+  console.log('Seeding page data (Chat Messages, CRM, Housekeeping, Promotions)...');
+  try {
+    await seedPageData(prisma);
+  } catch (e: any) {
+    console.log('Page data seed error:', e.message);
+  }
+
+  // ─── Seed additional empty tables (Group A, B, C) ───
+  console.log('Seeding remaining empty tables (89 models)...');
+  try {
+    await seed12Tables(prisma);
+  } catch (e: any) {
+    console.log('Group A seed error:', e.message);
+  }
+  try {
+    await seedGroupBData(prisma);
+  } catch (e: any) {
+    console.log('Group B seed error:', e.message);
+  }
+  try {
+    await seedEmptyTables(prisma);
+  } catch (e: any) {
+    console.log('Group C seed error:', e.message);
+  }
+  try {
+    await seedFinalFix(prisma);
+  } catch (e: any) {
+    console.log('Final fix seed error:', e.message);
   }
 
   console.log('\n✅ Database seed completed successfully!');

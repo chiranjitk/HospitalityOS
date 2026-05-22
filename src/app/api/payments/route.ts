@@ -405,6 +405,22 @@ export async function POST(request: NextRequest) {
           },
         });
 
+        // GAP 4: Update booking payment status to 'failed' so it's visible
+        // Don't auto-cancel — that's a business decision. Just make the status visible.
+        if (folio.bookingId) {
+          try {
+            await db.booking.update({
+              where: { id: folio.bookingId },
+              data: {
+                paymentStatus: 'failed',
+                notes: `Payment of ${amount} ${resolvedCurrency} failed via ${method}${paymentResult.errorMessage ? ': ' + paymentResult.errorMessage : ''}`,
+              },
+            });
+          } catch (bookingUpdateError) {
+            console.error('[Payment] Failed to update booking payment status:', bookingUpdateError);
+          }
+        }
+
         notifyPaymentFailed({
           tenantId,
           userId: user.id,

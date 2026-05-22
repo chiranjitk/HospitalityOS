@@ -229,8 +229,16 @@ class AuditLogService {
       // tenantId is required — skip the entire audit log if invalid
       if (!isValidUUID(tenantId)) {
         console.warn(`[AUDIT] Skipping log: invalid tenantId "${tenantId}" for ${module}.${action}`);
-        // Return a dummy-like object to avoid breaking callers
-        return {} as AuditLog;
+        // Return an empty result set matching the expected return type to avoid breaking callers
+        return {
+          id: '00000000-0000-0000-0000-000000000000',
+          tenantId: '',
+          userId: safeUUID(userId),
+          module: 'system' as const,
+          action: 'error' as const,
+          entityType: 'audit_log',
+          createdAt: new Date(),
+        } as AuditLog;
       }
 
       // Build the audit log entry

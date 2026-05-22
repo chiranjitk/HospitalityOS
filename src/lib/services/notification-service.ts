@@ -432,18 +432,28 @@ export class NotificationService {
       }
     }
 
-    // Mock mode - just log
-    console.log('[Push Mock]', {
-      to: tokens.map(t => t.token),
-      title: data.title,
-      body: data.message,
-    });
+    // Only use mock mode if explicitly enabled via env var or if no push service is configured
+    const isMockMode = process.env.PUSH_NOTIFICATIONS_MOCK === 'true';
+    
+    if (!fcmConfig.serverKey && !isMockMode) {
+      // In production mode without FCM configured, throw a clear error
+      throw new Error('Push notification service not configured. Set PUSH_NOTIFICATIONS_MOCK=true for development or configure FCM.');
+    }
 
-    return {
-      success: true,
-      messageId: `mock-push-${Date.now()}`,
-      sentCount: tokens.length,
-    };
+    if (!fcmConfig.serverKey) {
+      // Mock mode — log and return fake IDs
+      console.log('[Push Mock]', {
+        to: tokens.map(t => t.token),
+        title: data.title,
+        body: data.message,
+      });
+
+      return {
+        success: true,
+        messageId: `mock-push-${Date.now()}`,
+        sentCount: tokens.length,
+      };
+    }
   }
 
   /**

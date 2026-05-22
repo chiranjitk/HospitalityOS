@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runScheduledPricingUpdate } from '@/lib/revenue/pricing-scheduler';
 import { db } from '@/lib/db';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 export async function GET(request: NextRequest) {
   try {
-    const tenantId = request.headers.get('x-tenant-id');
-    if (!tenantId) {
-      return NextResponse.json({ success: false, error: 'Tenant ID required' }, { status: 400 });
-    }
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
+    const tenantId = ctx.tenantId;
     const { searchParams } = new URL(request.url);
     const propertyId = searchParams.get('propertyId');
     const limit = parseInt(searchParams.get('limit') || '10', 10);
@@ -48,10 +48,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const tenantId = request.headers.get('x-tenant-id');
-    if (!tenantId) {
-      return NextResponse.json({ success: false, error: 'Tenant ID required' }, { status: 400 });
-    }
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
+    const tenantId = ctx.tenantId;
 
     const body = await request.json();
     const propertyId = body.propertyId;

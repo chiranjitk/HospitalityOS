@@ -7,13 +7,18 @@ import { openApiSpec } from '@/lib/api-docs/openapi-spec';
  */
 
 export async function GET() {
-  return NextResponse.json(openApiSpec, {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET',
-      'Cache-Control': 'public, max-age=3600',
-    },
-  });
+  try {
+    return NextResponse.json(openApiSpec, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
+  } catch (error) {
+    console.error('[OpenAPI Spec] GET error:', error);
+    return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 });
+  }
 }

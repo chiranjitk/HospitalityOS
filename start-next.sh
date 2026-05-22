@@ -3,8 +3,8 @@
 # Gives 5-minute grace period for compilation, then monitors memory.
 # If next-server exceeds MAX_MEM_MB after grace period, restarts gracefully.
 
-MAX_MEM_MB=${STAYSUITE_MAX_MEM:-5500}  # 5.5GB limit (OOM killer hits at ~6.5GB)
-GRACE_PERIOD=300  # 5 minutes grace for initial compilation
+MAX_MEM_MB=${STAYSUITE_MAX_MEM:-7500}  # 5.5GB limit (OOM killer hits at ~6.5GB)
+GRACE_PERIOD=600  # 5 minutes grace for initial compilation
 CHECK_INTERVAL=60  # Check every 60 seconds after grace period
 LOG_FILE="${INSTALL_DIR:-$(pwd)}/logs/memory-watchdog.log"
 START_TIME=$(date +%s)

@@ -407,7 +407,7 @@ function MetricBar({
 function PerformanceScoreSkeleton() {
   return (
     <Card className="border border-border/40 rounded-2xl overflow-hidden">
-      <div className="h-[3px] w-full bg-gradient-to-r from-muted/60 via-muted/30 to-muted/60" />
+      <div className="h-[2px] w-full bg-gradient-to-r from-muted/60 via-muted/30 to-muted/60" />
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <Skeleton className="h-5 w-44 rounded-md" />
@@ -492,7 +492,8 @@ export function DailyPerformanceScoreWidget() {
   if (isLoading) return <PerformanceScoreSkeleton />;
   if (error || !data) {
     return (
-      <Card className="border border-border/40 rounded-2xl overflow-hidden">
+      <Card className="border border-red-200 dark:border-red-900/40 rounded-2xl overflow-hidden">
+        <div className="h-[2px] w-full bg-gradient-to-r from-red-500 via-rose-400 to-orange-500" />
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <Target className="h-4 w-4 text-muted-foreground" />
@@ -535,12 +536,12 @@ export function DailyPerformanceScoreWidget() {
     >
       <Card className="border border-border/40 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 rounded-2xl overflow-hidden">
         {/* Top accent gradient line */}
-        <div className={cn('h-[3px] w-full', accentGradientClass)} />
+        <div className={cn('h-[2px] w-full', accentGradientClass)} />
 
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Target className="h-4 w-4 text-primary" />
+              <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-gradient-to-br from-emerald-400 to-cyan-500 shadow-sm"><Target className="h-3.5 w-3.5 text-white" /></div>
               {t('dailyScore')}
             </CardTitle>
             <div className="flex items-center gap-2">

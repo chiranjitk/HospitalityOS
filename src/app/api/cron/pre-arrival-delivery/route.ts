@@ -20,7 +20,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // ─── Cron Secret Configuration ──────────────────────────────────────
 
-const CRON_SECRET = process.env.CRON_SECRET || (process.env.NODE_ENV !== 'production' ? 'dev-only-cron-secret' : '');
+const CRON_SECRET = process.env.CRON_SECRET;
+if (!CRON_SECRET) {
+  console.error('[pre-arrival-delivery] CRON_SECRET environment variable is required');
+}
 
 /**
  * Verify the x-cron-secret header matches the configured secret.
@@ -34,6 +37,13 @@ function verifyCronSecret(request: NextRequest): boolean {
 // ─── POST — Trigger Pre-Arrival Delivery ────────────────────────────
 
 export async function POST(request: NextRequest) {
+  // Verify cron secret is configured
+  if (!CRON_SECRET) {
+    return NextResponse.json(
+      { success: false, error: 'Server configuration error: CRON_SECRET not set' },
+      { status: 500 },
+    );
+  }
   // Verify cron secret
   if (!verifyCronSecret(request)) {
     return NextResponse.json(
@@ -71,6 +81,13 @@ export async function POST(request: NextRequest) {
 // ─── GET — Count Upcoming Deliveries ────────────────────────────────
 
 export async function GET(request: NextRequest) {
+  // Verify cron secret is configured
+  if (!CRON_SECRET) {
+    return NextResponse.json(
+      { success: false, error: 'Server configuration error: CRON_SECRET not set' },
+      { status: 500 },
+    );
+  }
   // Verify cron secret
   if (!verifyCronSecret(request)) {
     return NextResponse.json(

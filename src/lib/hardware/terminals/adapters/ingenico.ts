@@ -27,6 +27,7 @@ const NOT_SUPPORTED_MESSAGE =
   'Ingenico/Worldline terminal integration requires regional middleware setup. Contact StaySuite support.';
 
 function stubNotSupported<T>(method: string): HardwareResult<T> {
+  console.warn(`[IngenicoAdapter] ${method} called — not yet implemented`);
   return {
     success: false,
     error: NOT_SUPPORTED_MESSAGE,

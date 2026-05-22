@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
 import {
@@ -100,11 +101,13 @@ export function OperationsBoardWidget() {
   const tc = useTranslations('common');
   const [operations, setOperations] = useState<OperationItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterType>('all');
   const [isLive, setIsLive] = useState(true);
 
   const fetchData = useCallback(async () => {
     try {
+      setError(null);
       const response = await fetch('/api/dashboard');
       const result = await response.json();
       if (result.success && result.data?.commandCenter?.todaysTasks) {
@@ -115,10 +118,11 @@ export function OperationsBoardWidget() {
       }
     } catch {
       setOperations([]);
+      setError(tc('fetchError'));
     } finally {
       setIsLoading(false);
     }
-  }, [t]);
+  }, [t, tc]);
 
   useEffect(() => {
     fetchData();
@@ -140,11 +144,11 @@ export function OperationsBoardWidget() {
     return (
       <Card className="border border-border/50 shadow-sm rounded-2xl">
         <CardHeader className="pb-3">
-          <div className="h-5 w-48 bg-muted/50 animate-pulse rounded" />
+          <Skeleton className="h-5 w-48" />
         </CardHeader>
         <CardContent className="space-y-3">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-16 bg-muted/40 animate-pulse rounded-lg" />
+            <Skeleton key={i} className="h-16 rounded-lg" />
           ))}
         </CardContent>
       </Card>
@@ -158,7 +162,9 @@ export function OperationsBoardWidget() {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Radio className="h-4 w-4 text-primary" />
+            <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-gradient-to-br from-rose-400 to-amber-500 shadow-sm">
+              <Radio className="h-3.5 w-3.5 text-white" />
+            </div>
             {t('operationsBoard')}
             {isLive && (
               <span className="relative flex h-2 w-2 ml-1">
@@ -218,6 +224,22 @@ export function OperationsBoardWidget() {
       </CardHeader>
 
       <CardContent>
+        {error && (
+          <div className="flex flex-col items-center justify-center py-8 text-center gap-3">
+            <div className="rounded-full bg-red-100 dark:bg-red-950/50 p-2.5">
+              <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-red-700 dark:text-red-300">{error}</p>
+              <p className="text-xs text-muted-foreground mt-1">{tc('tryAgain')}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={fetchData} className="gap-1.5">
+              <RefreshCw className="h-3.5 w-3.5" />
+              {tc('retry')}
+            </Button>
+          </div>
+        )}
+        {!error && (
         <AnimatePresence mode="popLayout">
           <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar">
             {filteredOps.length === 0 ? (
@@ -297,6 +319,7 @@ export function OperationsBoardWidget() {
             )}
           </div>
         </AnimatePresence>
+        )}
 
         <style>{`
           .custom-scrollbar::-webkit-scrollbar {

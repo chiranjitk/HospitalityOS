@@ -38,6 +38,7 @@ const DORMAKABA_NOT_SUPPORTED_MESSAGE =
   'Dormakaba SAFLOK SOAP integration requires on-premise middleware. Contact StaySuite support.';
 
 function notSupportedResult<T>(method: string): HardwareResult<T> {
+  console.warn(`[DormakabaAdapter] ${method} called — not yet implemented`);
   return {
     success: false,
     error: `${method}: ${DORMAKABA_NOT_SUPPORTED_MESSAGE}`,

@@ -112,7 +112,7 @@ function formatDueTime(scheduledAt: string | null): string {
 function TodaysTasksSkeleton() {
   return (
     <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
-      <div className="h-0.5 bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-400" />
+      <div className="h-[2px] bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-400" />
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <Skeleton className="h-5 w-36" />
@@ -277,7 +277,7 @@ export function TodaysTasksWidget() {
   if (error) {
     return (
       <Card className="border border-border/50 shadow-sm rounded-2xl overflow-hidden">
-        <div className="h-0.5 bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-400" />
+        <div className="h-[2px] bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-400" />
         <CardContent className="p-6 flex items-center justify-center min-h-[300px]">
           <div className="text-center">
             <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-destructive" />
@@ -294,12 +294,12 @@ export function TodaysTasksWidget() {
   return (
     <Card className="border border-border/50 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 rounded-2xl overflow-hidden">
       {/* Gradient accent bar */}
-      <div className="h-0.5 bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-400" />
+      <div className="h-[2px] bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-400" />
 
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <ListChecks className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 shadow-sm"><ListChecks className="h-3.5 w-3.5 text-white" /></div>
             {t('todaysTasksTitle')}
           </CardTitle>
           <div className="flex items-center gap-2">

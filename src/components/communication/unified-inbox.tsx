@@ -949,7 +949,7 @@ export default function UnifiedInbox() {
                     <ListOrdered className="h-4 w-4" />
                   </Button>
                   <Separator orientation="vertical" className="h-5 mx-1" />
-                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Emoji" onClick={() => toast({ title: 'Emoji', description: 'Emoji picker coming soon' })}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled title="Emoji picker is under development">
                     <Smile className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="icon" className="h-7 w-7" title="Attach File" onClick={() => {

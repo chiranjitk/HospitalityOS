@@ -1,6 +1,15 @@
 /**
  * PayPal Payment Gateway Implementation
- * Basic PayPal integration placeholder
+ * 
+ * TODO: This is a functional implementation but needs production hardening:
+ * - Add webhook verification for PayPal IPN/webhook events
+ * - Implement proper idempotency key handling for order creation
+ * - Add support for subscription/recurring payments via PayPal Billing API
+ * - Implement card tokenization via PayPal Vault API
+ * - Add support for partial captures (authorize → capture flow)
+ * - Implement proper error retry with exponential backoff
+ * - Add logging and monitoring integration
+ * - Handle currency conversion for multi-currency transactions
  */
 
 import {

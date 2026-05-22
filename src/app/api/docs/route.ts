@@ -6,7 +6,8 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 
 export async function GET(request: NextRequest) {
-  const html = `
+  try {
+    const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -219,11 +220,15 @@ export async function GET(request: NextRequest) {
 </html>
   `;
 
-  return new NextResponse(html, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600',
-    },
-  });
+    return new NextResponse(html, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
+  } catch (error) {
+    console.error('[Docs] GET error:', error);
+    return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 });
+  }
 }

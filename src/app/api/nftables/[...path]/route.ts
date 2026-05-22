@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 const NFTABLES_SERVICE_PORT = 3013;
 const NFTABLES_SERVICE_HOST = `http://127.0.0.1:${NFTABLES_SERVICE_PORT}`;
@@ -135,21 +136,31 @@ async function proxyRequest(request: NextRequest, method: string) {
 }
 
 export async function GET(request: NextRequest) {
+  const context = await requireAuth(request);
+  if (context instanceof NextResponse) return context;
   return proxyRequest(request, 'GET');
 }
 
 export async function POST(request: NextRequest) {
+  const context = await requireAuth(request);
+  if (context instanceof NextResponse) return context;
   return proxyRequest(request, 'POST');
 }
 
 export async function PUT(request: NextRequest) {
+  const context = await requireAuth(request);
+  if (context instanceof NextResponse) return context;
   return proxyRequest(request, 'PUT');
 }
 
 export async function DELETE(request: NextRequest) {
+  const context = await requireAuth(request);
+  if (context instanceof NextResponse) return context;
   return proxyRequest(request, 'DELETE');
 }
 
 export async function PATCH(request: NextRequest) {
+  const context = await requireAuth(request);
+  if (context instanceof NextResponse) return context;
   return proxyRequest(request, 'PATCH');
 }

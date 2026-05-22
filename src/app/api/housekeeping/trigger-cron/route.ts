@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const CRON_SECRET = process.env.CRON_SECRET;
-if (!CRON_SECRET && process.env.NODE_ENV === 'production') {
-  console.error('[trigger-cron] CRON_SECRET environment variable is required in production');
+if (!CRON_SECRET) {
+  console.error('[trigger-cron] CRON_SECRET environment variable is required');
 }
-const CRON_SECRET_VALUE = CRON_SECRET || (process.env.NODE_ENV !== 'production' ? 'dev-only-cron-secret' : '');
+const CRON_SECRET_VALUE = CRON_SECRET;
 
 type CronAction = 'recurring-tasks' | 'pm-autotrigger' | 'no-show-detection';
 
@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
 
     if (!CRON_SECRET_VALUE) {
       return NextResponse.json(
-        { success: false, error: 'Cron secret not configured' },
-        { status: 403 }
+        { success: false, error: 'Server configuration error: CRON_SECRET not set' },
+        { status: 500 }
       );
     }
 

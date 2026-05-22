@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // ── Auth required ──
+    const context = await requireAuth(req);
+    if (context instanceof NextResponse) return context;
+
     const { id } = await params;
     const body = await req.json();
     const { command, payload } = body;

@@ -139,3 +139,7 @@ e2e/.auth/
 tests/pms/.test-state.json
 tests/pms/*.test-state*.json
 .env.local
+
+# Development environment (contains real credentials - do not commit)
+.env.development
+freeradius-install/var/

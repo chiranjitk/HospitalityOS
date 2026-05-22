@@ -42,7 +42,10 @@ interface PostedChargeDetail {
 // ─── Cron Secret ──────────────────────────────────────────────────────────────
 
 const CRON_SECRET = process.env.CRON_SECRET;
-const CRON_SECRET_VALUE = CRON_SECRET || (process.env.NODE_ENV !== 'production' ? 'dev-only-cron-secret' : '');
+if (!CRON_SECRET) {
+  console.error('[auto-room-posting] CRON_SECRET environment variable is required');
+}
+const CRON_SECRET_VALUE = CRON_SECRET;
 
 // ─── Core Logic ───────────────────────────────────────────────────────────────
 
@@ -283,7 +286,7 @@ export async function GET(request: NextRequest) {
 
   if (cronMode) {
     if (!CRON_SECRET_VALUE) {
-      return NextResponse.json({ error: 'Cron secret not configured' }, { status: 403 });
+      return NextResponse.json({ error: 'Server configuration error: CRON_SECRET not set' }, { status: 500 });
     }
     if (providedSecret !== CRON_SECRET_VALUE) {
       return NextResponse.json(

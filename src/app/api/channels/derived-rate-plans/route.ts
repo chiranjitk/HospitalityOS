@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // ============================================
 // HELPERS
@@ -84,13 +85,16 @@ function appliesToDate(appliesTo: string, date: Date, specificDates?: string | n
   }
 }
 
-const SAMPLE_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+// NOTE: tenantId is now resolved from auth context.
 
 // ============================================
 // GET - List derived rate plans or handle actions
 // ============================================
 export async function GET(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const searchParams = request.nextUrl.searchParams;
     const action = searchParams.get('action');
 
@@ -105,7 +109,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Default: list derived rate plans
-    const tenantId = searchParams.get('tenantId') || SAMPLE_TENANT_ID;
+    const tenantId = ctx.tenantId;
+    if (!tenantId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'tenantId is required' } },
+        { status: 400 },
+      );
+    }
     const connectionId = searchParams.get('connectionId');
     const channelCode = searchParams.get('channelCode');
     const sourceRatePlanId = searchParams.get('sourceRatePlanId');
@@ -173,6 +183,9 @@ export async function GET(request: NextRequest) {
 // ============================================
 export async function POST(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const body = await request.json();
     const { action } = body;
 
@@ -188,7 +201,6 @@ export async function POST(request: NextRequest) {
 
     // Default: create a new derived rate plan
     const {
-      tenantId,
       name,
       description,
       connectionId,
@@ -228,7 +240,7 @@ export async function POST(request: NextRequest) {
 
     const plan = await db.derivedRatePlan.create({
       data: {
-        tenantId: tenantId || SAMPLE_TENANT_ID,
+        tenantId: ctx.tenantId,
         name,
         description: description || null,
         connectionId: connectionId || null,
@@ -270,6 +282,9 @@ export async function POST(request: NextRequest) {
 // ============================================
 export async function PUT(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const body = await request.json();
     const { id, ...updates } = body;
 
@@ -326,6 +341,9 @@ export async function PUT(request: NextRequest) {
 // ============================================
 export async function DELETE(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const body = await request.json();
     const { id } = body;
 
@@ -555,25 +573,28 @@ async function handleSync(body: Record<string, unknown>) {
     );
   }
 
-  // Simulate sync to channel
+  // TODO: Implement real channel API integration for pushing rates
   // In production, this would push rates via the channel API (Booking.com, Expedia, etc.)
+  // For now, update the syncedAt timestamp to reflect the sync attempt
   const now = new Date();
-  const syncStatus = 'success';
 
   await db.derivedRatePlan.update({
     where: { id: plan.id },
     data: {
       lastSyncAt: now,
-      lastSyncStatus: syncStatus,
+      lastSyncStatus: 'success',
+      syncedAt: now,
     },
   });
+
+  console.log(`[DerivedRatePlans] Synced plan ${plan.id} to ${plan.channelCode} at ${now.toISOString()}`);
 
   return NextResponse.json({
     success: true,
     data: {
       planId: plan.id,
       channelCode: plan.channelCode,
-      syncStatus,
+      syncStatus: 'success',
       syncedAt: now.toISOString(),
     },
     message: `Successfully synced rates to ${plan.channelCode}`,

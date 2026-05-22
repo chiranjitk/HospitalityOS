@@ -776,10 +776,11 @@ export function ChannelHealth() {
       setLoading(true);
       setError(null);
       const res = await fetch('/api/channels/health');
-      if (!res.ok) throw new Error('Failed to fetch health data');
+      if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch health data`);
       const json = await res.json();
+      if (!json) throw new Error('Empty response from server');
       if (json.success) {
-        setData(json.data);
+        setData(json.data || { channels: [], overall: { totalChannels: 0, healthy: 0, warning: 0, critical: 0, offline: 0, averageUptime: 100, totalErrors24h: 0, allSystemsHealthy: true }, alerts: [], syncTimeline: [], healthHistory: [] });
       } else {
         throw new Error(json.error?.message || 'Unknown error');
       }

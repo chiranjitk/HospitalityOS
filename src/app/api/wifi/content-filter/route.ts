@@ -14,54 +14,28 @@ import { NextResponse } from 'next/server';
  *   GET    /api/wifi/firewall/content-filter/categories — List categories
  */
 
-export async function GET() {
+function deprecatedResponse(message: string) {
   return NextResponse.json(
     {
       success: false,
-      error: {
-        code: 'DEPRECATED',
-        message: 'This endpoint is deprecated. Use /api/wifi/firewall/content-filter instead.',
-      },
+      error: { code: 'DEPRECATED', message },
     },
     { status: 410 },
   );
+}
+
+export async function GET() {
+  return deprecatedResponse('This endpoint is deprecated. Use /api/wifi/firewall/content-filter instead.');
 }
 
 export async function POST() {
-  return NextResponse.json(
-    {
-      success: false,
-      error: {
-        code: 'DEPRECATED',
-        message: 'This endpoint is deprecated. Use /api/wifi/firewall/content-filter instead.',
-      },
-    },
-    { status: 410 },
-  );
+  return deprecatedResponse('This endpoint is deprecated. Use /api/wifi/firewall/content-filter instead.');
 }
 
 export async function PUT() {
-  return NextResponse.json(
-    {
-      success: false,
-      error: {
-        code: 'DEPRECATED',
-        message: 'This endpoint is deprecated. Use /api/wifi/firewall/content-filter/:id with PUT instead.',
-      },
-    },
-    { status: 410 },
-  );
+  return deprecatedResponse('This endpoint is deprecated. Use /api/wifi/firewall/content-filter/:id with PUT instead.');
 }
 
 export async function DELETE() {
-  return NextResponse.json(
-    {
-      success: false,
-      error: {
-        code: 'DEPRECATED',
-        message: 'This endpoint is deprecated. Use /api/wifi/firewall/content-filter/:id with DELETE instead.',
-      },
-    },
-    { status: 410 },
-  );
+  return deprecatedResponse('This endpoint is deprecated. Use /api/wifi/firewall/content-filter/:id with DELETE instead.');
 }

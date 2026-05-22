@@ -1,22 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // GET /api/channels/meal-plan-mapping - List all meal plan mappings
 export async function GET(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const searchParams = request.nextUrl.searchParams;
-    const tenantId = searchParams.get('tenantId');
     const connectionId = searchParams.get('connectionId');
     const channelCode = searchParams.get('channelCode');
     const mealPlanType = searchParams.get('mealPlanType');
     const isActive = searchParams.get('isActive');
 
-    if (!tenantId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'tenantId is required' } },
-        { status: 400 }
-      );
-    }
+    const tenantId = ctx.tenantId;
 
     const where: Record<string, unknown> = { tenantId };
 
@@ -91,19 +89,24 @@ export async function GET(request: NextRequest) {
 // POST /api/channels/meal-plan-mapping - Create a new mapping or bulk-sync
 export async function POST(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const body = await request.json();
     const { action } = body;
 
     // Handle 'bulk-sync' action
     if (action === 'bulk-sync') {
-      const { connectionId, tenantId } = body;
+      const { connectionId } = body;
 
-      if (!connectionId || !tenantId) {
+      if (!connectionId) {
         return NextResponse.json(
-          { success: false, error: { code: 'VALIDATION_ERROR', message: 'connectionId and tenantId are required for bulk-sync' } },
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'connectionId is required for bulk-sync' } },
           { status: 400 }
         );
       }
+
+      const tenantId = ctx.tenantId;
 
       // Verify the connection exists
       const connection = await db.channelConnection.findUnique({
@@ -166,7 +169,6 @@ export async function POST(request: NextRequest) {
 
     // Default: create a new mapping
     const {
-      tenantId,
       propertyId,
       connectionId,
       internalMealPlanId,
@@ -186,7 +188,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
-    if (!tenantId || !internalMealPlanId || !internalMealPlanName || !channelCode || !channelMealPlanCode) {
+    if (!ctx.tenantId || !internalMealPlanId || !internalMealPlanName || !channelCode || !channelMealPlanCode) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'tenantId, internalMealPlanId, internalMealPlanName, channelCode, and channelMealPlanCode are required' } },
         { status: 400 }
@@ -253,6 +255,9 @@ export async function POST(request: NextRequest) {
 // PUT /api/channels/meal-plan-mapping - Update an existing mapping
 export async function PUT(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const body = await request.json();
     const { id, ...updates } = body;
 
@@ -312,6 +317,9 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/channels/meal-plan-mapping - Delete a mapping
 export async function DELETE(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const body = await request.json();
     const { id } = body;
 

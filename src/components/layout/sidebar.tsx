@@ -703,7 +703,7 @@ function Logo({ showClose, onClose, collapsed }: LogoProps) {
               "group-hover/logo:shadow-xl group-hover/logo:shadow-sidebar-primary/40",
               "h-9 w-9"
             )}>
-              <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={36} height={36} className="object-contain" />
+              <Image src="/images/cryptsk-logo.png" alt="Cryptsk" width={36} height={36} className="object-contain" loading="eager" priority />
             </div>
             {/* Theme icon badge */}
             {!collapsed && (

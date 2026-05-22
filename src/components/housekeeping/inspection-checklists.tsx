@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1161,6 +1162,7 @@ function InspectTab() {
   const [inspectionItems, setInspectionItems] = useState<InspectionItem[]>([]);
   const [inspectionNotes, setInspectionNotes] = useState('');
   const [submittedResult, setSubmittedResult] = useState<{ score: number; passed: boolean; reAssigned: boolean } | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Load properties
   useEffect(() => {
@@ -1171,6 +1173,8 @@ function InspectTab() {
         if (result.success) setProperties(result.data);
       } catch (error) {
         console.error('Error fetching properties:', error);
+        setLoadError('Failed to load properties');
+        toast({ title: 'Error', description: 'Failed to load checklists. Properties could not be fetched.', variant: 'destructive' });
       }
     };
     fetchProperties();
@@ -1190,6 +1194,7 @@ function InspectTab() {
         }
       } catch (error) {
         console.error('Error fetching rooms:', error);
+        setLoadError('Failed to load rooms');
       }
     };
     fetchRooms();
@@ -1207,6 +1212,7 @@ function InspectTab() {
         }
       } catch (error) {
         console.error('Error fetching templates:', error);
+        toast({ title: 'Error', description: 'Failed to load checklists', variant: 'destructive' });
       }
     };
     fetchTemplates();
@@ -1333,6 +1339,16 @@ function InspectTab() {
       return next;
     });
   };
+
+  if (loadError) {
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Failed to load checklists</AlertTitle>
+        <AlertDescription>{loadError}. Please check your connection and try again.</AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <div className="space-y-4">

@@ -1,12 +1,16 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getChannelStats } from '@/lib/ota/extended-channels';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 /**
  * GET /api/channel-manager/channels/stats
  * Get channel statistics: totals by category, region, and status
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const ctx = await requirePermission(request, 'channels.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const stats = getChannelStats();
     return NextResponse.json({ stats });
   } catch (error) {
