@@ -528,7 +528,6 @@ export default function AuthLogs() {
                       <TableHead className="w-[70px]">Result</TableHead>
                       <TableHead>Username</TableHead>
                       <TableHead>Request From</TableHead>
-                      <TableHead>Plan / Group</TableHead>
                       <TableHead>Reply</TableHead>
                       <TableHead>MAC</TableHead>
                     </TableRow>
@@ -579,24 +578,6 @@ export default function AuthLogs() {
                             ) : (
                               <span className="text-xs text-muted-foreground">—</span>
                             )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-0.5">
-                              {log.planName ? (
-                                <Badge variant="secondary" className="text-[10px] gap-0.5 w-fit">
-                                  <Zap className="h-2.5 w-2.5" />
-                                  {log.planName}
-                                </Badge>
-                              ) : null}
-                              {log.radiusGroup ? (
-                                <Badge variant="outline" className="text-[10px] w-fit">
-                                  {log.radiusGroup}
-                                </Badge>
-                              ) : null}
-                              {!log.planName && !log.radiusGroup && (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              )}
-                            </div>
                           </TableCell>
                           <TableCell>
                             <span className={cn(
