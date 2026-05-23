@@ -110,8 +110,8 @@ interface LiveSession {
   avgSpeedUp?: number;
   liveSpeedDown?: number;
   liveSpeedUp?: number;
-  // Login type tracking
-  loginType?: string;   // 'portal' | 'auto_reauth'
+  // Auth method tracking — shows the RADIUS protocol used for authentication
+  loginType?: string;   // 'pap' | 'chap' | 'mschapv2' | 'eap-peap' | 'eap-ttls' | 'eap-tls' | 'eap-md5' | 'eap' | 'mac-auth' | 'voucher' | 'portal' | 'auto_reauth' | 'unknown'
   authCount?: number;    // Total times this device has authenticated
 }
 
@@ -608,20 +608,88 @@ export default function LiveSessions() {
   };
 
   const getLoginTypeBadge = (loginType?: string) => {
-    if (loginType === 'auto_reauth') {
-      return (
-        <Badge className="bg-violet-500 hover:bg-violet-600 text-white border-0 text-[10px] px-1.5 py-0">
-          <RefreshCw className="h-2.5 w-2.5 mr-0.5" />
-          Auto ReAuth
-        </Badge>
-      );
+    switch (loginType) {
+      case 'pap':
+        return (
+          <Badge className="bg-sky-500 hover:bg-sky-600 text-white border-0 text-[10px] px-1.5 py-0">
+            PAP
+          </Badge>
+        );
+      case 'chap':
+        return (
+          <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-[10px] px-1.5 py-0">
+            CHAP
+          </Badge>
+        );
+      case 'mschapv2':
+        return (
+          <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-[10px] px-1.5 py-0">
+            MS-CHAPv2
+          </Badge>
+        );
+      case 'eap-peap':
+        return (
+          <Badge className="bg-purple-500 hover:bg-purple-600 text-white border-0 text-[10px] px-1.5 py-0">
+            EAP-PEAP
+          </Badge>
+        );
+      case 'eap-ttls':
+        return (
+          <Badge className="bg-pink-500 hover:bg-pink-600 text-white border-0 text-[10px] px-1.5 py-0">
+            EAP-TTLS
+          </Badge>
+        );
+      case 'eap-tls':
+        return (
+          <Badge className="bg-rose-500 hover:bg-rose-600 text-white border-0 text-[10px] px-1.5 py-0">
+            EAP-TLS
+          </Badge>
+        );
+      case 'eap-md5':
+        return (
+          <Badge className="bg-indigo-500 hover:bg-indigo-600 text-white border-0 text-[10px] px-1.5 py-0">
+            EAP-MD5
+          </Badge>
+        );
+      case 'eap':
+        return (
+          <Badge className="bg-fuchsia-500 hover:bg-fuchsia-600 text-white border-0 text-[10px] px-1.5 py-0">
+            EAP
+          </Badge>
+        );
+      case 'mac-auth':
+        return (
+          <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-0 text-[10px] px-1.5 py-0">
+            MAC-Auth
+          </Badge>
+        );
+      case 'voucher':
+        return (
+          <Badge className="bg-teal-500 hover:bg-teal-600 text-white border-0 text-[10px] px-1.5 py-0">
+            Voucher
+          </Badge>
+        );
+      case 'auto_reauth':
+        return (
+          <Badge className="bg-violet-500 hover:bg-violet-600 text-white border-0 text-[10px] px-1.5 py-0">
+            <RefreshCw className="h-2.5 w-2.5 mr-0.5" />
+            Auto ReAuth
+          </Badge>
+        );
+      case 'portal':
+        return (
+          <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-0 text-[10px] px-1.5 py-0">
+            <Wifi className="h-2.5 w-2.5 mr-0.5" />
+            Portal
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+            {loginType || 'Unknown'}
+          </Badge>
+        );
     }
-    return (
-      <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-0 text-[10px] px-1.5 py-0">
-        <Wifi className="h-2.5 w-2.5 mr-0.5" />
-        Portal
-      </Badge>
-    );
   };
 
   // Unique NAS list for filter

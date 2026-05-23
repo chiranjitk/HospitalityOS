@@ -149,4 +149,7 @@ ATTRIBUTE       Cryptsk-QoS-Priority            44      integer
 # Billing class / tariff identifier
 ATTRIBUTE       Cryptsk-Billing-Class           45      string
 
+# Auth method tracking (set by StaySuite in authorize section)
+ATTRIBUTE       Cryptsk-Auth-Method              46      string
+
 END-VENDOR Cryptsk

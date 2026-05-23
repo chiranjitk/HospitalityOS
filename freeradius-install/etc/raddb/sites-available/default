@@ -520,6 +520,64 @@ authorize {
                 }
         }
 
+        # ── StaySuite: Auth method detection ──
+        # Detect which RADIUS auth protocol is being used and store it
+        # so it can be written to radpostauth and radacct for UI display.
+        # EAP type detection: check EAP-Message sub-type
+        #   21 = EAP-TTLS, 25 = EAP-PEAP, 13 = EAP-TLS, 4 = EAP-MD5
+        if (&EAP-Message) {
+                if ("%{EAP-Type}" == "21") {
+                        update request {
+                                &Cryptsk-Auth-Method := "eap-ttls"
+                        }
+                }
+                elsif ("%{EAP-Type}" == "25") {
+                        update request {
+                                &Cryptsk-Auth-Method := "eap-peap"
+                        }
+                }
+                elsif ("%{EAP-Type}" == "13") {
+                        update request {
+                                &Cryptsk-Auth-Method := "eap-tls"
+                        }
+                }
+                elsif ("%{EAP-Type}" == "4") {
+                        update request {
+                                &Cryptsk-Auth-Method := "eap-md5"
+                        }
+                }
+                else {
+                        update request {
+                                &Cryptsk-Auth-Method := "eap"
+                        }
+                }
+        }
+        elsif (User-Name =~ /^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/ || User-Name =~ /^[0-9A-Fa-f]{12}$/) {
+                update request {
+                        &Cryptsk-Auth-Method := "mac-auth"
+                }
+        }
+        elsif (&CHAP-Password) {
+                update request {
+                        &Cryptsk-Auth-Method := "chap"
+                }
+        }
+        elsif (&MS-CHAP-Challenge || &MS-CHAP-Response || &MS-CHAP2-Response) {
+                update request {
+                        &Cryptsk-Auth-Method := "mschapv2"
+                }
+        }
+        elsif (&User-Password || request:User-Password) {
+                update request {
+                        &Cryptsk-Auth-Method := "pap"
+                }
+        }
+        else {
+                update request {
+                        &Cryptsk-Auth-Method := "unknown"
+                }
+        }
+
         # ── StaySuite: Per-NAS auth method enforcement ──
         # Query the RadiusNAS table for allowed auth methods for this NAS
         # If the incoming auth type is not in the NAS's authMethods list, reject the request
