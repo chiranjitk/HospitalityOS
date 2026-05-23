@@ -401,7 +401,7 @@ export async function GET(request: NextRequest) {
     const roomsNeedingAttention = await db.room.count({
       where: {
         propertyId: { in: propertyIds },
-        status: { in: ['maintenance', 'dirty'] },
+        status: { in: ['maintenance', 'cleaning'] },
         deletedAt: null,
       },
     });
