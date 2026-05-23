@@ -1756,8 +1756,16 @@ export async function POST(request: NextRequest) {
       }
 
       case 'generate-secret': {
-        const result = await freeradiusRequest('/api/nas/generate-secret', { method: 'POST' });
-        return NextResponse.json(result);
+        // Generate a strong random shared secret locally (no FreeRADIUS API needed)
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const array = new Uint8Array(32);
+        const { randomBytes } = await import('node:crypto');
+        const bytes = randomBytes(32);
+        let secret = '';
+        for (let i = 0; i < 32; i++) {
+          secret += chars[bytes[i] % chars.length];
+        }
+        return NextResponse.json({ success: true, data: { secret } });
       }
 
       case 'sync': {
