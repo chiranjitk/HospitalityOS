@@ -91,14 +91,29 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verify the plan exists
-    const plan = await db.registrationPlan.findUnique({
-      where: { id: planId },
-    });
+    // Verify the plan exists — support both UUID and plan name (e.g. "starter")
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(planId);
+    let plan;
+    if (isUUID) {
+      plan = await db.registrationPlan.findUnique({
+        where: { id: planId },
+      });
+    }
+    if (!plan) {
+      plan = await db.registrationPlan.findFirst({
+        where: { name: planId },
+      });
+    }
+    if (!plan && !isUUID) {
+      // Plan name didn't match — try UUID as fallback
+      plan = await db.registrationPlan.findUnique({
+        where: { id: planId },
+      });
+    }
 
     if (!plan) {
       return NextResponse.json(
-        { success: false, error: 'Plan not found' },
+        { success: false, error: `Plan not found: ${planId}` },
         { status: 404 }
       );
     }
@@ -138,7 +153,7 @@ export async function POST(request: NextRequest) {
             const keyRecord = await tx.licenseKey.create({
               data: {
                 key: licenseKey,
-                planId,
+                planId: plan.id,
                 status: 'active',
                 generatedBy: ctx.userId,
                 generatedFor: sanitizedGeneratedFor || null,
@@ -190,9 +205,10 @@ export async function POST(request: NextRequest) {
       count: keys.length,
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to generate license keys';
     console.error('License key generation error:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to generate license keys' },
+      { success: false, error: message },
       { status: 500 }
     );
   }

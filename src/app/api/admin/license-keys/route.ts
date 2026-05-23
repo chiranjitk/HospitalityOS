@@ -114,6 +114,9 @@ export async function GET(request: NextRequest) {
         batchId: k.batchId,
         createdAt: k.createdAt,
         updatedAt: k.updatedAt,
+        serverFingerprint: (k as Record<string, unknown>).serverFingerprint as string | null || null,
+        licenseSignature: (k as Record<string, unknown>).licenseSignature as string | null || null,
+        reactivationCount: (k as Record<string, unknown>).reactivationCount as number | null || 0,
       };
     });
 

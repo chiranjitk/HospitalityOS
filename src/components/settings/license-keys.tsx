@@ -58,6 +58,9 @@ import {
   ChevronRight,
   Download,
   AlertTriangle,
+  Fingerprint,
+  Building2,
+  Monitor,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -74,11 +77,20 @@ interface LicenseKey {
   key: string;
   planId: string;
   planName?: string;
+  plan?: { id: string; name: string; displayName?: string };
   status: 'active' | 'activated' | 'expired' | 'revoked';
   generatedFor?: string;
   note?: string;
   activatedAt?: string;
+  activatedByName?: string;
+  activatedByEmail?: string;
   expiresAt?: string;
+  tenantId?: string;
+  tenantName?: string;
+  serverFingerprint?: string;
+  licenseSignature?: string;
+  reactivationCount?: number;
+  batchId?: string;
   createdAt: string;
 }
 
@@ -151,10 +163,22 @@ export default function LicenseKeysManagement() {
   // Copy state
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
+  // Expanded row detail
+  const [expandedKeyId, setExpandedKeyId] = useState<string | null>(null);
+
   // ── Helpers ────────────────────────────────────────────────────────
   const truncateKey = (key: string) => {
     if (key.length <= 20) return key;
     return `${key.slice(0, 8)}...${key.slice(-8)}`;
+  };
+
+  const maskFingerprint = (fp?: string | null) => {
+    if (!fp || fp.length < 12) return '—';
+    return `${fp.slice(0, 8)}...${fp.slice(-4)}`;
+  };
+
+  const toggleExpanded = (keyId: string) => {
+    setExpandedKeyId((prev) => (prev === keyId ? null : keyId));
   };
 
   const formatDate = (dateStr?: string) => {
@@ -767,8 +791,9 @@ export default function LicenseKeysManagement() {
                     <TableHead className="text-xs font-semibold uppercase tracking-wider">Key</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider">Plan</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider">Status</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider hidden md:table-cell">Generated For</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider hidden lg:table-cell">Activated At</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider hidden md:table-cell">Tenant</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider hidden lg:table-cell">Fingerprint</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider hidden xl:table-cell">Generated For</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider hidden lg:table-cell">Expires At</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-right">Actions</TableHead>
                   </TableRow>
@@ -778,7 +803,7 @@ export default function LicenseKeysManagement() {
                     renderTableSkeleton()
                   ) : keys.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12">
+                      <TableCell colSpan={8} className="text-center py-12">
                         <div className="flex flex-col items-center gap-2 text-muted-foreground">
                           <Key className="h-10 w-10 opacity-30" />
                           <p className="font-medium">No license keys found</p>
@@ -791,78 +816,168 @@ export default function LicenseKeysManagement() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    keys.map((key) => (
-                      <TableRow key={key.id} className="group">
-                        <TableCell className="font-mono text-xs max-w-[200px]">
-                          <div className="flex items-center gap-1.5">
-                            <span className="truncate">{truncateKey(key.key)}</span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => copyToClipboard(key.key, key.id)}
-                              className="h-6 w-6 p-0 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              {copiedKeyId === key.id ? (
-                                <Check className="h-3 w-3 text-emerald-600" />
-                              ) : (
-                                <Copy className="h-3 w-3 text-muted-foreground" />
-                              )}
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm font-medium">{key.planName || key.planId}</span>
-                        </TableCell>
-                        <TableCell>{renderStatusBadge(key.status)}</TableCell>
-                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground max-w-[150px] truncate">
-                          {key.generatedFor || '—'}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {formatDate(key.activatedAt)}
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {formatDate(key.expiresAt)}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => copyToClipboard(key.key, key.id)}
-                              className="h-7 w-7 p-0 md:hidden"
-                              title="Copy key"
-                            >
-                              {copiedKeyId === key.id ? (
-                                <Check className="h-3.5 w-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="h-3.5 w-3.5" />
-                              )}
-                            </Button>
-                            {(key.status === 'active' || key.status === 'activated') && (
+                    keys.map((key) => {
+                      const isExpanded = expandedKeyId === key.id;
+                      return (
+                        <>
+                        <TableRow key={key.id} className="group cursor-pointer" onClick={() => toggleExpanded(key.id)}>
+                          <TableCell className="font-mono text-xs max-w-[200px]">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                className="flex items-center gap-1 hover:text-foreground transition-colors"
+                                onClick={(e) => { e.stopPropagation(); copyToClipboard(key.key, key.id); }}
+                                title="Click to copy full key"
+                              >
+                                <span className="truncate">{truncateKey(key.key)}</span>
+                                {copiedKeyId === key.id ? (
+                                  <Check className="h-3 w-3 text-emerald-600 shrink-0" />
+                                ) : (
+                                  <Copy className="h-3 w-3 text-muted-foreground shrink-0" />
+                                )}
+                              </button>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm font-medium">{key.plan?.displayName || key.plan?.name || key.planName || key.planId}</span>
+                          </TableCell>
+                          <TableCell>{renderStatusBadge(key.status)}</TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {key.tenantName ? (
+                              <div className="flex items-center gap-1.5">
+                                <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="text-sm text-foreground max-w-[140px] truncate" title={key.tenantName}>{key.tenantName}</span>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell">
+                            {key.serverFingerprint ? (
+                              <div className="flex items-center gap-1.5">
+                                <Fingerprint className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <span className="font-mono text-xs text-foreground" title={key.serverFingerprint}>{maskFingerprint(key.serverFingerprint)}</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="hidden xl:table-cell text-sm text-muted-foreground max-w-[140px] truncate">
+                            {key.generatedFor || '—'}
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {formatDate(key.expiresAt)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1">
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => {
-                                  setRevokingKey(key);
-                                  setRevokeDialogOpen(true);
-                                }}
-                                className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-500/10 dark:text-red-400 dark:hover:text-red-300"
-                                title="Revoke key"
+                                onClick={() => copyToClipboard(key.key, key.id)}
+                                className="h-7 w-7 p-0 md:hidden"
+                                title="Copy key"
                               >
-                                <ShieldX className="h-3.5 w-3.5 mr-1" />
-                                Revoke
+                                {copiedKeyId === key.id ? (
+                                  <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5" />
+                                )}
                               </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                              {(key.status === 'active' || key.status === 'activated') && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => { setRevokingKey(key); setRevokeDialogOpen(true); }}
+                                  className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-500/10 dark:text-red-400 dark:hover:text-red-300"
+                                  title="Revoke key"
+                                >
+                                  <ShieldX className="h-3.5 w-3.5 mr-1" />
+                                  Revoke
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {/* Expanded Detail Row */}
+                        {isExpanded && (
+                          <TableRow key={`${key.id}-detail`} className="bg-muted/20 hover:bg-muted/20">
+                            <TableCell colSpan={8} className="py-4 px-6">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                    <Key className="h-3.5 w-3.5" /> License Key
+                                  </h4>
+                                  <div className="rounded-lg border bg-background/80 p-3 space-y-1.5">
+                                    <p className="font-mono text-xs break-all">{key.key}</p>
+                                    <p className="text-xs text-muted-foreground">Created: {formatDate(key.createdAt)}</p>
+                                    {key.note && <p className="text-xs text-muted-foreground italic">Note: {key.note}</p>}
+                                    {key.batchId && <p className="text-xs text-muted-foreground">Batch: {key.batchId.slice(0, 8)}...</p>}
+                                  </div>
+                                </div>
+                                <div className="space-y-2">
+                                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                    <Fingerprint className="h-3.5 w-3.5" /> Hardware Fingerprint
+                                  </h4>
+                                  <div className="rounded-lg border bg-background/80 p-3 space-y-1.5">
+                                    {key.serverFingerprint ? (
+                                      <>
+                                        <div className="flex items-center gap-2">
+                                          <div className="flex items-center gap-1.5">
+                                            <Monitor className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Bound</span>
+                                          </div>
+                                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+                                            {key.licenseSignature ? 'Signed' : 'Unsigned'}
+                                          </Badge>
+                                        </div>
+                                        <p className="font-mono text-xs break-all">{key.serverFingerprint}</p>
+                                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                          <span>Reactivations: {key.reactivationCount ?? 0}/5</span>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="flex items-center gap-2 text-muted-foreground">
+                                        <Monitor className="h-4 w-4 opacity-40" />
+                                        <span className="text-xs">Not yet bound (key not activated)</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="space-y-2">
+                                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                    <Building2 className="h-3.5 w-3.5" /> Tenant & Activation
+                                  </h4>
+                                  <div className="rounded-lg border bg-background/80 p-3 space-y-1.5">
+                                    {key.tenantName ? (
+                                      <>
+                                        <p className="text-sm font-medium">{key.tenantName}</p>
+                                        <p className="text-xs text-muted-foreground">Tenant ID: {key.tenantId?.slice(0, 12)}...</p>
+                                        {key.activatedByName && (
+                                          <p className="text-xs text-muted-foreground">Activated by: {key.activatedByName} ({key.activatedByEmail})</p>
+                                        )}
+                                        <p className="text-xs text-muted-foreground">Activated: {formatDate(key.activatedAt)}</p>
+                                      </>
+                                    ) : (
+                                      <div className="flex items-center gap-2 text-muted-foreground">
+                                        <Building2 className="h-4 w-4 opacity-40" />
+                                        <span className="text-xs">No tenant assigned (key not yet used)</span>
+                                      </div>
+                                    )}
+                                    {key.expiresAt && (
+                                      <p className="text-xs text-muted-foreground">Expires: {formatDate(key.expiresAt)}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        </>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>

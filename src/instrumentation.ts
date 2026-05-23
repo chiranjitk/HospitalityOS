@@ -23,4 +23,12 @@ export async function register() {
   // to prevent Turbopack from tracing the heavy dependency tree during
   // Edge Runtime analysis (which causes OOM on 8GB memory limits).
   console.log('[Instrumentation] Next.js server started — pool init deferred to scheduler');
+
+  // Start periodic license verification (runs every 5 minutes)
+  try {
+    const { startPeriodicLicenseCheck } = await import('@/lib/license/startup-check');
+    startPeriodicLicenseCheck();
+  } catch (err) {
+    console.error('[Instrumentation] Failed to start periodic license check:', err);
+  }
 }
