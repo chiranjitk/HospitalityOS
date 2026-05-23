@@ -198,6 +198,14 @@ export default function GatewayIntegration() {
   const [showPushScript, setShowPushScript] = useState(false);
   const [pushConfigScript, setPushConfigScript] = useState('');
 
+  // Sentinel value used by API to mask secrets — clear on focus so user can type new value
+  const SECRET_MASK = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'; // "••••••••"
+  const clearIfMasked = (field: 'apiKey' | 'radiusSecret' | 'coaSecret') => {
+    if (formData[field] === SECRET_MASK) {
+      setFormData({ ...formData, [field]: '' });
+    }
+  };
+
   // Form state for new/edit gateway
   const [formData, setFormData] = useState<Partial<WiFiGateway>>({
     name: '',
@@ -593,10 +601,12 @@ export default function GatewayIntegration() {
     setFormData({
       ...gateway,
       config: mergedConfig,
-      radiusSecret: (gateway as any).radiusSecret || '',
-      coaEnabled: (gateway as any).coaEnabled ?? true,
-      coaPort: (gateway as any).coaPort || 3799,
-      coaSecret: (gateway as any).coaSecret || '',
+      // These fields are now returned by the GET endpoint with masked values (••••••••)
+      // The PUT handler preserves existing secrets when it receives the sentinel value
+      radiusSecret: gateway.radiusSecret || '',
+      coaEnabled: gateway.coaEnabled ?? true,
+      coaPort: gateway.coaPort || 3799,
+      coaSecret: gateway.coaSecret || '',
     });
     // Load MikroTik external portal state
     setExternalPortalMode(wifiConfig.externalPortalMode === true);
@@ -1112,7 +1122,8 @@ export default function GatewayIntegration() {
                       type={showApiKey ? 'text' : 'password'}
                       value={formData.apiKey || ''}
                       onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
-                      placeholder="Enter API key"
+                      onFocus={() => clearIfMasked('apiKey')}
+                      placeholder={selectedGateway ? 'Leave unchanged or enter new key' : 'Enter API key'}
                     />
                     <Button
                       type="button"
@@ -1142,7 +1153,8 @@ export default function GatewayIntegration() {
                       type={showRadiusSecret ? 'text' : 'password'}
                       value={formData.radiusSecret || ''}
                       onChange={(e) => setFormData({ ...formData, radiusSecret: e.target.value })}
-                      placeholder="Enter RADIUS shared secret"
+                      onFocus={() => clearIfMasked('radiusSecret')}
+                      placeholder={selectedGateway ? 'Leave unchanged or enter new secret' : 'Enter RADIUS shared secret'}
                     />
                     <Button
                       type="button"
@@ -1184,7 +1196,8 @@ export default function GatewayIntegration() {
                       type={showCoaSecret ? 'text' : 'password'}
                       value={formData.coaSecret || ''}
                       onChange={(e) => setFormData({ ...formData, coaSecret: e.target.value })}
-                      placeholder="Enter CoA shared secret"
+                      onFocus={() => clearIfMasked('coaSecret')}
+                      placeholder={selectedGateway ? 'Leave unchanged or enter new secret' : 'Enter CoA shared secret'}
                     />
                     <Button
                       type="button"

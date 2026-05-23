@@ -787,6 +787,14 @@ export async function GET(request: NextRequest) {
         nextSyncAt = nextDate.toISOString();
       }
 
+      // Decrypt secrets for masked display — never return raw plaintext
+      const MASK = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'; // "••••••••"
+      const maskIfSet = (encryptedVal: string | undefined): string => {
+        if (!encryptedVal) return '';
+        const plain = decrypt(encryptedVal);
+        return plain ? MASK : '';
+      };
+
       return {
         id: i.id,
         name: i.name || i.provider,
@@ -796,6 +804,8 @@ export async function GET(request: NextRequest) {
         port: config.port || DEFAULT_PORTS[vendor]?.api || 443,
         status: i.status === 'active' ? 'connected' : i.status === 'error' ? 'error' : 'disconnected',
         apiEndpoint: config.apiEndpoint,
+        username: config.username || '',
+        apiKey: maskIfSet(config.apiKey),
         lastSync: i.lastSyncAt?.toISOString(),
         nextSync: nextSyncAt,
         totalAPs: config.totalAPs || 0,
@@ -808,6 +818,10 @@ export async function GET(request: NextRequest) {
         tenantId: i.tenantId,
         firmwareVersion: config.firmwareVersion,
         lastSyncLatency: config.lastSyncLatency,
+        radiusSecret: maskIfSet(config.radiusSecret),
+        coaEnabled: config.coaEnabled ?? true,
+        coaPort: config.coaPort || DEFAULT_PORTS[vendor]?.coa || 3799,
+        coaSecret: maskIfSet(config.coaSecret),
         // Return config so edit dialog can populate
         config: config.config_wifi || {
           ssid: config.ssid || '',
@@ -1092,15 +1106,43 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Encrypt sensitive fields if provided
+    // Sentinel value used by GET endpoint to mask secrets (••••••••)
+    const MASK_SENTINEL = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+
+    // Encrypt sensitive fields if provided — but skip sentinel values (unchanged by user)
+    // and skip empty strings (user didn't fill the field) to avoid overwriting existing secrets
+    const existingConfig = JSON.parse(existing.config || '{}');
+
     if (updates.apiKey) {
-      updates.apiKey = encrypt(updates.apiKey);
+      if (updates.apiKey === MASK_SENTINEL) {
+        // User didn't change the API key — preserve the existing encrypted value
+        delete updates.apiKey;
+      } else {
+        updates.apiKey = encrypt(updates.apiKey);
+      }
+    } else {
+      // Empty string — don't overwrite existing secret with blank
+      delete updates.apiKey;
     }
+
     if (updates.radiusSecret) {
-      updates.radiusSecret = encrypt(updates.radiusSecret);
+      if (updates.radiusSecret === MASK_SENTINEL) {
+        delete updates.radiusSecret;
+      } else {
+        updates.radiusSecret = encrypt(updates.radiusSecret);
+      }
+    } else {
+      delete updates.radiusSecret;
     }
+
     if (updates.coaSecret) {
-      updates.coaSecret = encrypt(updates.coaSecret);
+      if (updates.coaSecret === MASK_SENTINEL) {
+        delete updates.coaSecret;
+      } else {
+        updates.coaSecret = encrypt(updates.coaSecret);
+      }
+    } else {
+      delete updates.coaSecret;
     }
 
     // Extract WiFi config sub-object before merging to avoid collision with top-level config keys
@@ -1109,7 +1151,6 @@ export async function PUT(request: NextRequest) {
       delete updates.config;
     }
 
-    const existingConfig = JSON.parse(existing.config || '{}');
     const newConfig = JSON.stringify({
       ...existingConfig,
       ...updates,
@@ -1128,6 +1169,14 @@ export async function PUT(request: NextRequest) {
     const config = JSON.parse(integration.config || '{}');
     const vendor = PROVIDER_TO_VENDOR[integration.provider] || 'generic';
 
+    // Mask secrets for response
+    const MASK = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+    const maskIfSet = (encryptedVal: string | undefined): string => {
+      if (!encryptedVal) return '';
+      const plain = decrypt(encryptedVal);
+      return plain ? MASK : '';
+    };
+
     return NextResponse.json({
       success: true,
       data: {
@@ -1138,12 +1187,18 @@ export async function PUT(request: NextRequest) {
         ipAddress: config.ipAddress,
         port: config.port || DEFAULT_PORTS[vendor]?.api || 443,
         status: integration.status === 'active' ? 'connected' : 'disconnected',
+        username: config.username || '',
+        apiKey: maskIfSet(config.apiKey),
         location: config.location,
         autoSync: config.autoSync ?? true,
         syncInterval: config.syncInterval || 5,
         totalAPs: config.totalAPs || 0,
         activeSessions: config.activeSessions || 0,
         bandwidth: config.bandwidth || { upload: 0, download: 0 },
+        radiusSecret: maskIfSet(config.radiusSecret),
+        coaEnabled: config.coaEnabled ?? true,
+        coaPort: config.coaPort || DEFAULT_PORTS[vendor]?.coa || 3799,
+        coaSecret: maskIfSet(config.coaSecret),
       },
       message: 'WiFi gateway updated successfully',
     });

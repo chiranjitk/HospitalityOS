@@ -3,12 +3,12 @@
 # Runs via QEMU 9.2.0 TCG (software emulation)
 #
 # Port forwarding (host → CHR guest):
-#   8728  → RouterOS API       |  8291  → Winbox
-#   2222  → SSH                |  8080  → WebFig (HTTP)
-#   8729  → API-SSL
+#   8080  → Hotspot (HTTP port 80)  |  8728  → RouterOS API
+#   8291  → Winbox                  |  2222  → SSH
+#   8729  → API-SSL                 |  8081  → REST API (port 81)
 #
-# Login: admin (no password on fresh CHR)
-# Run: python3 configure-mikrotik.py  (after first boot)
+# Login: admin / staysuite2025
+# Serial: socat - UNIX-CONNECT:/home/z/my-project/mikrotik-serial.sock
 
 export LD_LIBRARY_PATH="/home/z/my-project:${LD_LIBRARY_PATH:-}"
 
@@ -22,8 +22,11 @@ hostfwd=tcp::8728-:8728,\
 hostfwd=tcp::8291-:8291,\
 hostfwd=tcp::2222-:22,\
 hostfwd=tcp::8080-:80,\
+hostfwd=tcp::8081-:81,\
 hostfwd=tcp::8729-:8729 \
   -device virtio-net-pci,netdev=net0 \
+  -monitor unix:/home/z/my-project/mikrotik-monitor.sock,server,nowait \
+  -serial unix:/home/z/my-project/mikrotik-serial.sock,server,nowait \
   -nographic \
   -no-reboot \
   -accel tcg,thread=multi
