@@ -151,9 +151,16 @@ export function generateRegistrationAlertHtml(params: {
     registeredAt,
   } = params;
 
-  const maskedFp = serverFingerprint.length > 12
-    ? `${serverFingerprint.slice(0, 8)}...${serverFingerprint.slice(-4)}`
-    : 'N/A';
+  // Handle CRY-{hash} format: show CRY- prefix + first 8 of hash + ... + last 4
+  let maskedFp = 'N/A';
+  if (serverFingerprint && serverFingerprint.length > 12) {
+    if (serverFingerprint.startsWith('CRY-')) {
+      const hash = serverFingerprint.slice(4);
+      maskedFp = `CRY-${hash.slice(0, 8)}${'*'.repeat(28)}${hash.slice(-4)}`;
+    } else {
+      maskedFp = `${serverFingerprint.slice(0, 8)}...${serverFingerprint.slice(-4)}`;
+    }
+  }
 
   return `
 <!DOCTYPE html>
@@ -272,8 +279,9 @@ export function generateRegistrationAlertHtml(params: {
           </div>
           ${generatedFor ? `<div class="info-item" style="grid-column: span 2"><div class="info-label">Generated For</div><div class="info-value">${generatedFor}</div></div>` : ''}
           <div class="fp-box">
-            <div class="fp-label">Hardware Fingerprint (SHA-256)</div>
+            <div class="fp-label">Hardware Fingerprint (CRY-{SHA-256})</div>
             <div class="fp-value">${maskedFp}</div>
+            <div style="margin-top: 8px; font-size: 10px; color: #15803d; opacity: 0.8;">Signals: Disk Serial + Primary NIC MAC</div>
           </div>
         </div>
 
