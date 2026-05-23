@@ -1604,15 +1604,7 @@ export default function AAAConfig() {
                           );
                         })}
                       </div>
-                      {nasForm.authMethods.split(',').map(s => s.trim()).some(m => m.startsWith('eap')) && (
-                        <div className="flex items-start gap-2 p-2 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-xs">
-                          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                          <span className="text-amber-700 dark:text-amber-300">
-                            EAP requires a WiFi access point/gateway with wireless hardware. MikroTik CHR (QEMU) does not have wireless interfaces.
-                            EAP methods work with physical APs that support 802.1X (e.g., Aruba, Cisco, UniFi, Ruckus).
-                          </span>
-                        </div>
-                      )}
+
                       <p className="text-xs text-muted-foreground">
                         Selected: <span className="font-mono font-medium">{nasForm.authMethods.split(',').map(s => {
                           const opt = NAS_AUTH_METHOD_OPTIONS.find(o => o.value === s.trim());
@@ -1969,15 +1961,7 @@ export default function AAAConfig() {
                     );
                   })}
                 </div>
-                {aaaConfig.authMethods.split(',').map(s => s.trim()).some(m => m.startsWith('eap')) && (
-                  <div className="flex items-start gap-2 p-2 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-xs">
-                    <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                    <span className="text-amber-700 dark:text-amber-300">
-                      EAP requires a WiFi access point/gateway with wireless hardware. MikroTik CHR (QEMU) does not have wireless interfaces.
-                      EAP methods work with physical APs that support 802.1X (e.g., Aruba, Cisco, UniFi, Ruckus).
-                    </span>
-                  </div>
-                )}
+
                 <p className="text-xs text-muted-foreground">
                   Selected: <span className="font-mono font-medium">{aaaConfig.authMethods.split(',').map(s => {
                     const opt = AAA_AUTH_METHOD_OPTIONS.find(o => o.value === s.trim());
