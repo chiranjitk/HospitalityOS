@@ -54,7 +54,9 @@ module.exports = {
       watch: false,
       autorestart: true,
       env: {
-        LD_LIBRARY_PATH: path.join(FREERADIUS_HOME, 'lib'),
+        LD_LIBRARY_PATH: path.join(FREERADIUS_HOME, 'lib') + ':' + path.join(INSTALL_DIR, 'openssl-compat', 'lib64'),
+        OPENSSL_MODULES: path.join(INSTALL_DIR, 'openssl-compat', 'lib64', 'ossl-modules'),
+        OPENSSL_CONF: path.join(INSTALL_DIR, 'freeradius-install', 'etc', 'raddb', 'openssl.cnf'),
       },
     },
     {

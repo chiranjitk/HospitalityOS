@@ -542,7 +542,7 @@
 #define HAVE_SYS_WAIT_H 1
 
 /* Define to 1 if you have the function talloc_set_memlimit. */
-#define HAVE_TALLOC_SET_MEMLIMIT 1
+/* #undef HAVE_TALLOC_SET_MEMLIMIT */
 
 /* 128 bit unsigned integer */
 /* #undef HAVE_UINT128_T */

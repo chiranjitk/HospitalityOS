@@ -6,7 +6,7 @@
 # Version:	$Id: 6b7103214f283fd0fd8ac61eda852a92c2008d33 $
 #
 
-prefix="/home/z/freeradius-install"
+prefix="/home/z/my-project/freeradius-install"
 exec_prefix="${prefix}"
 bindir="${exec_prefix}/bin"
 

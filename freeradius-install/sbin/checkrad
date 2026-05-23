@@ -1,68 +1,68 @@
 #!/usr/bin/perl
 #
-# checkrad      See if a user is (still) logged in on a certain port.
+# checkrad	See if a user is (still) logged in on a certain port.
 #
-#               This is used by the FreeRADIUS server to check
-#               if its idea of a user logged in on a certain port/nas
-#               is correct if a double login is detected.
+#		This is used by the FreeRADIUS server to check
+#		if its idea of a user logged in on a certain port/nas
+#		is correct if a double login is detected.
 #
-# Called as:    nas_type nas_ip nas_port login session_id
+# Called as:	nas_type nas_ip nas_port login session_id
 #
-# Returns:      0 = no duplicate, 1 = duplicate, >1 = error.
+# Returns:	0 = no duplicate, 1 = duplicate, >1 = error.
 #
-# Version:      $Id: c0cf440106232184228ec3d4dc79dacb21037ff8 $
+# Version:	$Id: c0cf440106232184228ec3d4dc79dacb21037ff8 $
 #
-#               livingston_snmp  1.2    Author: miquels@cistron.nl
-#               cvx_snmp         1.0    Author: miquels@cistron.nl
-#               portslave_finger 1.0    Author: miquels@cistron.nl
-#               max40xx_finger   1.0    Author: costa@mdi.ca
-#               ascend_snmp      1.1    Author: blaz@amis.net
-#               computone_finger 1.2    Author: pacman@world.std.com
-#               sub tc_tccheck   1.1    Author: alexisv@compass.com.ph
-#               cyclades_telnet  1.2    Author: accdias@sst.com.br
-#               patton_snmp      1.0    Author: accdias@sst.com.br
-#               digitro_rusers   1.1    Author: accdias@sst.com.br
-#               cyclades_snmp    1.0    Author: accdias@sst.com.br
-#               usrhiper_snmp    1.0    Author: igor@ipass.net
-#               juniper_e_snmp   1.1    Author: guilhermefranco@gmail.com
-#               multitech_snmp   1.0    Author: ehonzay@willmar.com
-#               netserver_telnet 1.0    Author: mts@interplanet.es
-#               versanet_snmp    1.0    Author: support@versanetcomm.com
-#               bay_finger       1.0    Author: chris@shenton.org
-#               cisco_l2tp       1.14   Author: paul@distributel.net
-#               mikrotik_telnet  1.1    Author: Evren Yurtesen <yurtesen@ispro.net.tr>
-#               mikrotik_snmp    1.0    Author: Evren Yurtesen <yurtesen@ispro.net.tr>
-#               redback_telnet          Author: Eduardo Roldan
+#		livingston_snmp  1.2	Author: miquels@cistron.nl
+#		cvx_snmp	 1.0	Author: miquels@cistron.nl
+#		portslave_finger 1.0	Author: miquels@cistron.nl
+#		max40xx_finger	 1.0	Author: costa@mdi.ca
+#		ascend_snmp      1.1    Author: blaz@amis.net
+#		computone_finger 1.2	Author: pacman@world.std.com
+#		sub tc_tccheck	 1.1	Author: alexisv@compass.com.ph
+#		cyclades_telnet	 1.2	Author: accdias@sst.com.br
+#		patton_snmp	 1.0	Author: accdias@sst.com.br
+#		digitro_rusers	 1.1	Author: accdias@sst.com.br
+#		cyclades_snmp	 1.0	Author: accdias@sst.com.br
+#		usrhiper_snmp    1.0    Author: igor@ipass.net
+#		juniper_e_snmp   1.1    Author: guilhermefranco@gmail.com
+#		multitech_snmp   1.0    Author: ehonzay@willmar.com
+#		netserver_telnet 1.0	Author: mts@interplanet.es
+#		versanet_snmp    1.0    Author: support@versanetcomm.com
+#		bay_finger	 1.0	Author: chris@shenton.org
+#		cisco_l2tp	 1.14	Author: paul@distributel.net
+#		mikrotik_telnet  1.1    Author: Evren Yurtesen <yurtesen@ispro.net.tr>
+#		mikrotik_snmp    1.0    Author: Evren Yurtesen <yurtesen@ispro.net.tr>
+#		redback_telnet          Author: Eduardo Roldan
 #
-#       Config: $debug is the file you want to put debug messages in
-#               $snmpget is the location of your ``snmpget'' program
-#               $snmpwalk is the location of your ``snmpwalk'' program
-#               $snmp_timeout is the timeout for snmp queries
-#               $snmp_retries is the number of retries for timed out snmp queries
-#               $snmp_version is the version of to use for snmp queries [1,2c,3]
-#               $rusers is the location of your ``rusers'' program
-#               $naspass is the location of your NAS admin password file
+#	Config: $debug is the file you want to put debug messages in
+#		$snmpget is the location of your ``snmpget'' program
+#		$snmpwalk is the location of your ``snmpwalk'' program
+#	        $snmp_timeout is the timeout for snmp queries
+#	        $snmp_retries is the number of retries for timed out snmp queries
+#		$snmp_version is the version of to use for snmp queries [1,2c,3]
+#		$rusers is the location of your ``rusers'' program
+#		$naspass is the location of your NAS admin password file
 #
 
-$prefix         = "/home/z/my-project/StaySuite-HospitalityOS/freeradius-install";
-$localstatedir  = "${prefix}/var";
-$logdir         = "${localstatedir}/log/radius";
-$sysconfdir     = "${prefix}/etc";
-$raddbdir       = "${sysconfdir}/raddb";
+$prefix		= "/home/z/my-project/freeradius-install";
+$localstatedir	= "${prefix}/var";
+$logdir		= "${localstatedir}/log/radius";
+$sysconfdir	= "${prefix}/etc";
+$raddbdir	= "${sysconfdir}/raddb";
 
-$debug          = "";
-#$debug         = "$logdir/checkrad.log";
+$debug		= "";
+#$debug		= "$logdir/checkrad.log";
 
-$snmpget        = "";
-$snmpwalk       = "";
-$snmp_timeout   = 5;
-$snmp_retries   = 1;
-$snmp_version   = "2c";
-$rusers         = "/usr/bin/rusers";
-$naspass        = "$raddbdir/naspasswd";
+$snmpget	= "";
+$snmpwalk	= "";
+$snmp_timeout	= 5;
+$snmp_retries	= 1;
+$snmp_version	= "2c";
+$rusers		= "/usr/bin/rusers";
+$naspass	= "$raddbdir/naspasswd";
 
 # Community string. Change this if yours isn't "public".
-$cmmty_string   = "public";
+$cmmty_string	= "public";
 # path to finger command
 $finger = "/usr/bin/finger";
 
@@ -73,397 +73,397 @@ $portisdescr = 0;
 $realm = '';
 
 #
-#       USR-Hiper: $hiper_density is the reported port density (default 256
-#       but 24 makes more sense)
+#	USR-Hiper: $hiper_density is the reported port density (default 256
+#	but 24 makes more sense)
 #
 $hiper_density = 256;
 
 #
-#       Try to load Net::Telnet, SNMP_Session etc.
-#       Do not complain if we cannot find it.
-#       Prefer a locally installed copy.
+#	Try to load Net::Telnet, SNMP_Session etc.
+#	Do not complain if we cannot find it.
+#	Prefer a locally installed copy.
 #
 BEGIN {
-        unshift @INC, "/usr/local/lib/site_perl";
+	unshift @INC, "/usr/local/lib/site_perl";
 
-        eval "use Net::Telnet 3.00;";
-        $::HAVE_NET_TELNET = ($@ eq "");
+	eval "use Net::Telnet 3.00;";
+	$::HAVE_NET_TELNET = ($@ eq "");
 
-        eval "use SNMP_Session;";
-        if ($@ eq "") {
-                eval "use BER;";
-                $::HAVE_SNMP_SESSION = ($@ eq "");
-                eval "use Socket;";
-        }
+	eval "use SNMP_Session;";
+	if ($@ eq "") {
+		eval "use BER;";
+		$::HAVE_SNMP_SESSION = ($@ eq "");
+		eval "use Socket;";
+	}
 };
 
 #
-#       Get password from /etc/raddb/naspasswd file.
-#       Returns (login, password).
+#	Get password from /etc/raddb/naspasswd file.
+#	Returns (login, password).
 #
 sub naspasswd {
-        my ($terminalserver, $emptyok) = @_;
-        my ($login, $password);
-        my ($ts, $log, $pass);
+	my ($terminalserver, $emptyok) = @_;
+	my ($login, $password);
+	my ($ts, $log, $pass);
 
-        unless (open(NFD, $naspass)) {
-                if (!$emptyok) {
-                        print LOG "checkrad: naspasswd file not found; " .
-                        "possible match for $ARGV[3]\n" if ($debug);
-                        print STDERR "checkrad: naspasswd file not found; " .
-                        "possible match for $ARGV[3]\n";
-                }
-                return ();
-        }
-        while (<NFD>) {
-                chop;
-                next if (m/^(#|$|[\t ]+$)/);
-                ($ts, $log, $pass) = split(/\s+/, $_, 3);
-                if ($ts eq $terminalserver) {
-                        $login = $log;
-                        $password = $pass;
-                        last;
-                }
-        }
-        close NFD;
-        if ($password eq "" && !$emptyok) {
-                print LOG "checkrad: password for $ARGV[1] is null; " .
-                        "possible match for $ARGV[3] on " .
-                        "port $ARGV[2]\n" if ($debug);
-                print STDERR "checkrad: password for $ARGV[1] is null; " .
-                        "possible match for $ARGV[3] on port $ARGV[2]\n";
-        }
-        ($login, $password);
+	unless (open(NFD, $naspass)) {
+		if (!$emptyok) {
+			print LOG "checkrad: naspasswd file not found; " .
+			"possible match for $ARGV[3]\n" if ($debug);
+			print STDERR "checkrad: naspasswd file not found; " .
+			"possible match for $ARGV[3]\n";
+		}
+		return ();
+	}
+	while (<NFD>) {
+		chop;
+		next if (m/^(#|$|[\t ]+$)/);
+		($ts, $log, $pass) = split(/\s+/, $_, 3);
+		if ($ts eq $terminalserver) {
+			$login = $log;
+			$password = $pass;
+			last;
+		}
+	}
+	close NFD;
+	if ($password eq "" && !$emptyok) {
+		print LOG "checkrad: password for $ARGV[1] is null; " .
+			"possible match for $ARGV[3] on " .
+			"port $ARGV[2]\n" if ($debug);
+		print STDERR "checkrad: password for $ARGV[1] is null; " .
+			"possible match for $ARGV[3] on port $ARGV[2]\n";
+	}
+	($login, $password);
 }
 
 #
-#       See if Net::Telnet is there.
+#	See if Net::Telnet is there.
 #
 sub check_net_telnet {
-        if (!$::HAVE_NET_TELNET) {
-                print LOG
-                "  checkrad: Net::Telnet 3.00+ CPAN module not installed\n"
-                if ($debug);
-                print STDERR
-                "checkrad: Net::Telnet 3.00+ CPAN module not installed\n";
-                return 0;
-        }
-        1;
+	if (!$::HAVE_NET_TELNET) {
+		print LOG
+		"  checkrad: Net::Telnet 3.00+ CPAN module not installed\n"
+		if ($debug);
+		print STDERR
+		"checkrad: Net::Telnet 3.00+ CPAN module not installed\n";
+		return 0;
+	}
+	1;
 }
 
 #
 #       Do snmpwalk by calling snmpwalk.
 #
 sub snmpwalk_prog {
-        my ($host, $community, $oid) = @_;
-        local $_;
+	my ($host, $community, $oid) = @_;
+	local $_;
 
-        print LOG "snpwalk: $snmpwalk -r $snmp_retries -t $snmp_timeout -v$snmp_version -c '$community' $host $oid\n";
-        $_ = `$snmpwalk -r $snmp_retries -t $snmp_timeout -v$snmp_version -c '$community' $host $oid`;
+	print LOG "snpwalk: $snmpwalk -r $snmp_retries -t $snmp_timeout -v$snmp_version -c '$community' $host $oid\n";
+	$_ = `$snmpwalk -r $snmp_retries -t $snmp_timeout -v$snmp_version -c '$community' $host $oid`;
 
-        return $_;
+	return $_;
 }
 
 #
 #       Do snmpwalk.
 #
 sub snmpwalk {
-        my $ret;
+	my $ret;
 
-        if (-x $snmpwalk) {
-                $ret = snmpwalk_prog(@_);
-        } else {
-                $e = "$snmpwalk not found!";
-                print LOG "$e\n" if ($debug);
-                print STDERR "checkrad: $e\n";
-                $ret = "";
-        }
-        $ret;
+	if (-x $snmpwalk) {
+		$ret = snmpwalk_prog(@_);
+	} else {
+		$e = "$snmpwalk not found!";
+		print LOG "$e\n" if ($debug);
+		print STDERR "checkrad: $e\n";
+		$ret = "";
+	}
+	$ret;
 }
 
 
 #
-#       Do snmpget by calling snmpget.
+#	Do snmpget by calling snmpget.
 #
 sub snmpget_prog {
-        my ($host, $community, $oid) = @_;
-        my ($ret);
-        local $_;
+	my ($host, $community, $oid) = @_;
+	my ($ret);
+	local $_;
 
-        print LOG "snmpget: $snmpget -r $snmp_retries -t $snmp_timeout -v$snmp_version -c '$community' $host $oid\n";
-        $_ = `$snmpget -r $snmp_retries -t $snmp_timeout -v$snmp_version -c '$community' $host $oid`;
-        if (/^.*(\s|\")([0-9A-Za-z]{8})(\s|\"|$).*$/) {
-                # Session ID format.
-                $ret = $2;
-        } elsif (/^.*=.*"(.*)"/) {
-                # oid = "...." junk format.
-                $ret = $1;
-        } elsif (/^.*=\s*(?:.*:\s*)?(\S+)/) {
-                # oid = string format
-                $ret = $1;
-        }
+	print LOG "snmpget: $snmpget -r $snmp_retries -t $snmp_timeout -v$snmp_version -c '$community' $host $oid\n";
+	$_ = `$snmpget -r $snmp_retries -t $snmp_timeout -v$snmp_version -c '$community' $host $oid`;
+	if (/^.*(\s|\")([0-9A-Za-z]{8})(\s|\"|$).*$/) {
+		# Session ID format.
+		$ret = $2;
+	} elsif (/^.*=.*"(.*)"/) {
+		# oid = "...." junk format.
+		$ret = $1;
+	} elsif (/^.*=\s*(?:.*:\s*)?(\S+)/) {
+		# oid = string format
+		$ret = $1;
+	}
 
-        # Strip trailing junk if any.
-        $ret =~ s/\s*Hex:.*$//;
-        $ret;
+	# Strip trailing junk if any.
+	$ret =~ s/\s*Hex:.*$//;
+	$ret;
 }
 
 #
-#       Do snmpget by using SNMP_Session.
-#       Coded by Jerry Workman <jerry@newwave.net>
+#	Do snmpget by using SNMP_Session.
+#	Coded by Jerry Workman <jerry@newwave.net>
 #
 sub snmpget_session {
-        my ($host, $community, $OID) = @_;
-        my ($ret);
-        local $_;
-        my (@enoid, $var,$response, $bindings, $binding, $value);
-        my ($inoid, $outoid, $upoid, $oid, @retvals);
+	my ($host, $community, $OID) = @_;
+	my ($ret);
+	local $_;
+	my (@enoid, $var,$response, $bindings, $binding, $value);
+	my ($inoid, $outoid, $upoid, $oid, @retvals);
 
-        $OID =~ s/^.iso.org.dod.internet.private.enterprises/.1.3.6.1.4.1/;
+	$OID =~ s/^.iso.org.dod.internet.private.enterprises/.1.3.6.1.4.1/;
 
-        push @enoid,  encode_oid((split /\./, $OID));
-        srand();
+	push @enoid,  encode_oid((split /\./, $OID));
+	srand();
 
-        my $session = SNMP_Session->open($host, $community, 161);
-        if (!$session->get_request_response(@enoid)) {
-                $e = "No SNMP answer from $ARGV[0].";
-                print LOG "$e\n" if ($debug);
-                print STDERR "checkrad: $e\n";
-                return "";
-        }
-        $response = $session->pdu_buffer;
-        ($bindings) = $session->decode_get_response ($response);
-        $session->close ();
-        while ($bindings) {
-                ($binding,$bindings) = decode_sequence ($bindings);
-                ($oid,$value) = decode_by_template ($binding, "%O%@");
-                my $tempo = pretty_print($value);
-                $tempo=~s/\t/ /g;
-                $tempo=~s/\n/ /g;
-                $tempo=~s/^\s+//;
-                $tempo=~s/\s+$//;
+	my $session = SNMP_Session->open($host, $community, 161);
+	if (!$session->get_request_response(@enoid)) {
+		$e = "No SNMP answer from $ARGV[0].";
+		print LOG "$e\n" if ($debug);
+		print STDERR "checkrad: $e\n";
+		return "";
+	}
+	$response = $session->pdu_buffer;
+	($bindings) = $session->decode_get_response ($response);
+	$session->close ();
+	while ($bindings) {
+		($binding,$bindings) = decode_sequence ($bindings);
+		($oid,$value) = decode_by_template ($binding, "%O%@");
+		my $tempo = pretty_print($value);
+		$tempo=~s/\t/ /g;
+		$tempo=~s/\n/ /g;
+		$tempo=~s/^\s+//;
+		$tempo=~s/\s+$//;
 
-                push @retvals, $tempo;
-        }
-        $retvals[0];
+		push @retvals, $tempo;
+	}
+	$retvals[0];
 }
 
 #
-#       Do snmpget
+#	Do snmpget
 #
 sub snmpget {
-        my $ret;
+	my $ret;
 
-        if ($::HAVE_SNMP_SESSION) {
-                $ret = snmpget_session(@_);
-        } elsif (-x $snmpget) {
-                $ret = snmpget_prog(@_);
-        } else {
-                $e = "Neither SNMP_Session module or $snmpget found!";
-                print LOG "$e\n" if ($debug);
-                print STDERR "checkrad: $e\n";
-                $ret = "";
-        }
-        $ret;
+	if ($::HAVE_SNMP_SESSION) {
+		$ret = snmpget_session(@_);
+	} elsif (-x $snmpget) {
+		$ret = snmpget_prog(@_);
+	} else {
+		$e = "Neither SNMP_Session module or $snmpget found!";
+		print LOG "$e\n" if ($debug);
+		print STDERR "checkrad: $e\n";
+		$ret = "";
+	}
+	$ret;
 }
 
 #
 #   Get ifindex from description
 #
 sub ifindex {
-        my $port = shift;
-        
-        # If its not an integer, portisdescr lies!
-        return $port unless $portisdescr || $port !~ /^[0-9]*$/;
-        
-        $_ = snmpwalk($ARGV[1], "$cmmty_string", ".1.3.6.1.2.1.2.2.1.2");
-        
-        foreach (split /\n/){
-                if(/\.([0-9]+)\s*=.*$port"?$/){
-                        print LOG "  port descr $port is at SNMP ifIndex $1\n" if ($debug);
-                        return $1;
-                }
-        }
-        
+	my $port = shift;
+	
+	# If its not an integer, portisdescr lies!
+	return $port unless $portisdescr || $port !~ /^[0-9]*$/;
+	
+	$_ = snmpwalk($ARGV[1], "$cmmty_string", ".1.3.6.1.2.1.2.2.1.2");
+	
+	foreach (split /\n/){
+		if(/\.([0-9]+)\s*=.*$port"?$/){
+			print LOG "  port descr $port is at SNMP ifIndex $1\n" if ($debug);
+			return $1;
+		}
+	}
+	
 
-        return $port;
+	return $port;
 }
 
 #
-#       Strip domains, prefixes and suffixes from username
+#	Strip domains, prefixes and suffixes from username
 #
-#       Known prefixes: (P)PP, (S)LIP e (C)SLIP
-#       Known suffixes: .ppp, .slip e .cslip
+#	Known prefixes: (P)PP, (S)LIP e (C)SLIP
+#	Known suffixes: .ppp, .slip e .cslip
 #
-#       Author: Antonio Dias of SST Internet <accdias@sst.com.br>
+#	Author: Antonio Dias of SST Internet <accdias@sst.com.br>
 #
 sub strip_username {
-        my ($user) = @_;
-        #
-        #       Trim white spaces.
-        #
-        $user =~ s/^\s*(.*?)\s*$/$1/;
-        #
-        #       Strip out domains, prefix and suffixes
-        #
-        $user =~ s/\@(.)*$//;
-        $user =~ s/^[PSC]//;
-        $user =~ s/\.(ppp|slip|cslip)$//;
-        $user;
+	my ($user) = @_;
+	#
+	#	Trim white spaces.
+	#
+	$user =~ s/^\s*(.*?)\s*$/$1/;
+	#
+	#	Strip out domains, prefix and suffixes
+	#
+	$user =~ s/\@(.)*$//;
+	$user =~ s/^[PSC]//;
+	$user =~ s/\.(ppp|slip|cslip)$//;
+	$user;
 }
 
 #
-#       Check whether a session is current on any device which implements the standard IEEE 802.1X MIB
+#	Check whether a session is current on any device which implements the standard IEEE 802.1X MIB
 #
-#       Note: Vendors use different formats for the session ID, and it often doesn't map
-#       between Acct-Session-ID so can't be used to identify and 802.1X session (we ignore it).
+#	Note: Vendors use different formats for the session ID, and it often doesn't map
+#	between Acct-Session-ID so can't be used to identify and 802.1X session (we ignore it).
 #
-#       If a session matching the username is found on the port specified, and the 
-#       session is still active then thats good enough...
+#	If a session matching the username is found on the port specified, and the 
+#	session is still active then thats good enough...
 #
-#       Author: Arran Cudbard-Bell <arran.cudbard-bell@freeradius.org>
+#	Author: Arran Cudbard-Bell <arran.cudbard-bell@freeradius.org>
 #
 $ieeedot1m   = '.iso.0.8802.1.1';
 sub dot1x_snmp {
-        $ifIndex = ifindex($ARGV[2]);
-        
-        # User matches and not terminated yet?
-        if(
-                snmpget($ARGV[1], "$cmmty_string", "$ieeedot1m.1.1.2.4.1.9.$ifIndex") eq $ARGV[3] &&
-                snmpget($ARGV[1], "$cmmty_string", "$ieeedot1m.1.1.2.4.1.8.$ifIndex") eq '999'
-        ){
-                print LOG "  found user $ARGV[3] at port $ARGV[2] ($ifIndex)" if $debug;
-                return 1;
-        }
-        
-        0;
+	$ifIndex = ifindex($ARGV[2]);
+	
+	# User matches and not terminated yet?
+	if(
+		snmpget($ARGV[1], "$cmmty_string", "$ieeedot1m.1.1.2.4.1.9.$ifIndex") eq $ARGV[3] &&
+		snmpget($ARGV[1], "$cmmty_string", "$ieeedot1m.1.1.2.4.1.8.$ifIndex") eq '999'
+	){
+		print LOG "  found user $ARGV[3] at port $ARGV[2] ($ifIndex)" if $debug;
+		return 1;
+	}
+	
+	0;
 }
 
 #
-#       See if the user is logged in using the Livingston MIB.
-#       We don't check the username but the session ID.
+#	See if the user is logged in using the Livingston MIB.
+#	We don't check the username but the session ID.
 #
-$lvm     = '.iso.org.dod.internet.private.enterprises.307';
+$lvm	 = '.iso.org.dod.internet.private.enterprises.307';
 sub livingston_snmp {
 
-        #
-        #       We don't know at which ifIndex S0 is, and
-        #       there might be a hole at S23, or at S30+S31.
-        #       So we figure out dynamically which offset to use.
-        #
-        #       If the port < S23, probe ifIndex 5.
-        #       If the port < S30, probe IfIndex 23.
-        #       Otherwise probe ifIndex 32.
-        #
-        my $ifIndex;
-        my $test_index;
-        if ($ARGV[2] < 23) {
-                $test_index = 5;
-        } elsif ($ARGV[2] < 30) {
-                $test_index = 23;
-        } else {
-                $test_index = 32;
-        }
-        $_ = snmpget($ARGV[1], "$cmmty_string", "$lvm.3.2.1.1.1.2.$test_index");
-        /S([0-9]+)/;
-        $xport = $1 + 0;
-        $ifIndex = $ARGV[2] + ($test_index - $xport);
+	#
+	#	We don't know at which ifIndex S0 is, and
+	#	there might be a hole at S23, or at S30+S31.
+	#	So we figure out dynamically which offset to use.
+	#
+	#	If the port < S23, probe ifIndex 5.
+	#	If the port < S30, probe IfIndex 23.
+	#	Otherwise probe ifIndex 32.
+	#
+	my $ifIndex;
+	my $test_index;
+	if ($ARGV[2] < 23) {
+		$test_index = 5;
+	} elsif ($ARGV[2] < 30) {
+		$test_index = 23;
+	} else {
+		$test_index = 32;
+	}
+	$_ = snmpget($ARGV[1], "$cmmty_string", "$lvm.3.2.1.1.1.2.$test_index");
+	/S([0-9]+)/;
+	$xport = $1 + 0;
+	$ifIndex = $ARGV[2] + ($test_index - $xport);
 
-        print LOG "  port S$ARGV[2] at SNMP ifIndex $ifIndex\n"
-                if ($debug);
+	print LOG "  port S$ARGV[2] at SNMP ifIndex $ifIndex\n"
+		if ($debug);
 
-        #
-        #       Now get the session id from the terminal server.
-        #
-        $sessid = snmpget($ARGV[1], "$cmmty_string", "$lvm.3.2.1.1.1.5.$ifIndex");
+	#
+	#	Now get the session id from the terminal server.
+	#
+	$sessid = snmpget($ARGV[1], "$cmmty_string", "$lvm.3.2.1.1.1.5.$ifIndex");
 
-        print LOG "  session id at port S$ARGV[2]: $sessid\n" if ($debug);
+	print LOG "  session id at port S$ARGV[2]: $sessid\n" if ($debug);
 
-        ($sessid eq $ARGV[4]) ? 1 : 0;
+	($sessid eq $ARGV[4]) ? 1 : 0;
 }
 
 #
-#       See if the user is logged in using the Aptis MIB.
-#       We don't check the username but the session ID.
+#	See if the user is logged in using the Aptis MIB.
+#	We don't check the username but the session ID.
 #
 # sessionStatusActiveName
-$apm1    = '.iso.org.dod.internet.private.enterprises.2637.2.2.102.1.12';
+$apm1	 = '.iso.org.dod.internet.private.enterprises.2637.2.2.102.1.12';
 # sessionStatusActiveStopTime
-$apm2    = '.iso.org.dod.internet.private.enterprises.2637.2.2.102.1.20';
+$apm2	 = '.iso.org.dod.internet.private.enterprises.2637.2.2.102.1.20';
 sub cvx_snmp {
 
-        # Remove unique identifier, then take remainder of the
-        # session-id as a hex number, convert that to decimal.
-        my $sessid = $ARGV[4];
-        $sessid =~ s/^.*://;
-        $sessid =~ s/^0*//;
-        $sessid = "0" if ($sessid eq '');
+	# Remove unique identifier, then take remainder of the
+	# session-id as a hex number, convert that to decimal.
+	my $sessid = $ARGV[4];
+	$sessid =~ s/^.*://;
+	$sessid =~ s/^0*//;
+	$sessid = "0" if ($sessid eq '');
 
-        #
-        #       Now get the login from the terminal server.
-        #       Blech - the SNMP table is called 'sessionStatusActiveTable,
-        #       but it sometimes lists inactive sessions too.
-        #       However an active session doesn't have a Stop time,
-        #       so we can differentiate that way.
-        #
-        my $login = snmpget($ARGV[1], "$cmmty_string", "$apm1." . hex($sessid));
-        my $stopt = snmpget($ARGV[1], "$cmmty_string", "$apm2." . hex($sessid));
-        $login = "--" if ($stopt > 0);
+	#
+	#	Now get the login from the terminal server.
+	#	Blech - the SNMP table is called 'sessionStatusActiveTable,
+	#	but it sometimes lists inactive sessions too.
+	#	However an active session doesn't have a Stop time,
+	#	so we can differentiate that way.
+	#
+	my $login = snmpget($ARGV[1], "$cmmty_string", "$apm1." . hex($sessid));
+	my $stopt = snmpget($ARGV[1], "$cmmty_string", "$apm2." . hex($sessid));
+	$login = "--" if ($stopt > 0);
 
-        print LOG "  login with session-id $ARGV[4]: $login\n" if ($debug);
+	print LOG "  login with session-id $ARGV[4]: $login\n" if ($debug);
 
-        (strip_username($login) eq strip_username($ARGV[3])) ? 1 : 0;
+	(strip_username($login) eq strip_username($ARGV[3])) ? 1 : 0;
 }
 
 #
-#       See if the user is logged in using the Cisco MIB
+#	See if the user is logged in using the Cisco MIB
 #
-$csm     = '.iso.org.dod.internet.private.enterprises.9';
+$csm	 = '.iso.org.dod.internet.private.enterprises.9';
 sub cisco_snmp {
 
-        # Look up community string in naspasswd file.
-        my ($login, $pass) = naspasswd($ARGV[1], 1);
-        if ($login eq '') {
-                $pass = $cmmty_string;
-        } elsif ($login ne 'SNMP') {
-                if ($debug) {
-                        print LOG
-                        "   Error: Need SNMP community string for $ARGV[1]\n";
-                }
-                return 2;
-        }
+	# Look up community string in naspasswd file.
+	my ($login, $pass) = naspasswd($ARGV[1], 1);
+	if ($login eq '') {
+		$pass = $cmmty_string;
+	} elsif ($login ne 'SNMP') {
+		if ($debug) {
+			print LOG
+			"   Error: Need SNMP community string for $ARGV[1]\n";
+		}
+		return 2;
+	}
 
-        my $port = $ARGV[2];
-        my $sess_id = hex($ARGV[4]);
+	my $port = $ARGV[2];
+	my $sess_id = hex($ARGV[4]);
 
-        if ($port < 20000) {
-                #
-                #       The AS5350 doesn't support polling the session ID,
-                #       so we do it based on nas-port-id. This only works
-                #       for analog sessions where port < 20000.
-                #       Yes, this means that simultaneous-use on the as5350
-                #       doesn't work for ISDN users.
-                #
-                $login = snmpget($ARGV[1], $pass, "$csm.2.9.2.1.18.$port");
-                print LOG "  user at port S$port: $login\n" if ($debug);
-        } else {
-                $login = snmpget($ARGV[1], $pass,
-                                "$csm.9.150.1.1.3.1.2.$sess_id");
-                print LOG "  user with session id $ARGV[4] ($sess_id): " .
-                        "$login\n" if ($debug);
-        }
+	if ($port < 20000) {
+		#
+		#	The AS5350 doesn't support polling the session ID,
+		#	so we do it based on nas-port-id. This only works
+		#	for analog sessions where port < 20000.
+		#	Yes, this means that simultaneous-use on the as5350
+		#	doesn't work for ISDN users.
+		#
+		$login = snmpget($ARGV[1], $pass, "$csm.2.9.2.1.18.$port");
+		print LOG "  user at port S$port: $login\n" if ($debug);
+	} else {
+		$login = snmpget($ARGV[1], $pass,
+				"$csm.9.150.1.1.3.1.2.$sess_id");
+		print LOG "  user with session id $ARGV[4] ($sess_id): " .
+			"$login\n" if ($debug);
+	}
 
-        #       ($login eq $ARGV[3]) ? 1 : 0;
-        if($login eq $ARGV[3]) {
-                return 1;
-        }else{
-                $out=snmpwalk($ARGV[1],$pass,".iso.org.dod.internet.private.enterprises.9.10.19.1.3.1.1.3");
-                if($out=~/\"$ARGV[3]\"/){
-                        return 1;
-                }else{
-                        return 0;
-                }
-        }
+	#	($login eq $ARGV[3]) ? 1 : 0;
+	if($login eq $ARGV[3]) {
+		return 1;
+	}else{
+		$out=snmpwalk($ARGV[1],$pass,".iso.org.dod.internet.private.enterprises.9.10.19.1.3.1.1.3");
+		if($out=~/\"$ARGV[3]\"/){
+			return 1;
+		}else{
+			return 0;
+		}
+	}
 }
 
 #
@@ -472,17 +472,17 @@ sub cisco_snmp {
 #       Author: Guilherme Franco <guilhermefranco@gmail.com>
 #
 sub juniper_e_snmp {
-                #receives acct_session
-                my $temp = $ARGV[4];
-                #removes the leading 0s
-                my $clean_temp = int $temp;
+		#receives acct_session
+		my $temp = $ARGV[4];
+		#removes the leading 0s
+		my $clean_temp = int $temp;
 
-                $out=snmpget($ARGV[1], $cmmty_string, ".1.3.6.1.4.1.4874.2.2.20.1.8.4.1.2.$clean_temp");
-                if($out=~/\"$ARGV[3]\"/){
-                        return 1;
-                }else{
-                        return 0;
-                }
+		$out=snmpget($ARGV[1], $cmmty_string, ".1.3.6.1.4.1.4874.2.2.20.1.8.4.1.2.$clean_temp");
+		if($out=~/\"$ARGV[3]\"/){
+			return 1;
+		}else{
+			return 0;
+		}
 }
 
 #
@@ -492,12 +492,12 @@ sub juniper_e_snmp {
 #
 $msm    = '.iso.org.dod.internet.private.enterprises.995';
 sub multitech_snmp {
-        my $temp = $ARGV[2] + 1;
+	my $temp = $ARGV[2] + 1;
 
-        $login = snmpget($ARGV[1], "$cmmty_string", "$msm.2.31.1.1.1.$temp");
-        print LOG " user at port S$ARGV[2]: $login\n" if ($debug);
+	$login = snmpget($ARGV[1], "$cmmty_string", "$msm.2.31.1.1.1.$temp");
+	print LOG " user at port S$ARGV[2]: $login\n" if ($debug);
 
-        ($login eq $ARGV[3]) ? 1 : 0;
+	($login eq $ARGV[3]) ? 1 : 0;
 }
 
 #
@@ -522,392 +522,392 @@ sub multitech_snmp {
 # Yes, the fields run together. Long Usernames Considered Harmful.
 #
 sub computone_finger {
-        my $trunc, $ver;
+	my $trunc, $ver;
 
-        open(FD, "$finger \@$ARGV[1]|") or return 2;
-        <FD>; # the [hostname] line is definitely uninteresting
-        $trunc = substr($ARGV[3], 0, 12);
-        $ver = "";
-        while(<FD>) {
-                if(/cnx kernel release ([^ ,]+)[, ]/) {
-                        $ver = $1;
-                        next;
-                }
-                # Check for known versions
-                if ($ver eq '1.7.2' || $ver eq '3.0.4') {
-                        if (/^\Q$ARGV[2]\E\s+\S+\s+\S+\s+\S+\s+\Q$trunc\E(\s+|\.\.)/) {
-                                close FD;
-                                return 1;
-                        }
-                        next;
-                }
-                # All others.
-                if (/^\s*\Q$ARGV[2]\E\s+.*\s+\Q$trunc\E\s+/) {
-                        close FD;
-                        return 1;
-                }
-        }
+	open(FD, "$finger \@$ARGV[1]|") or return 2;
+	<FD>; # the [hostname] line is definitely uninteresting
+	$trunc = substr($ARGV[3], 0, 12);
+	$ver = "";
+	while(<FD>) {
+		if(/cnx kernel release ([^ ,]+)[, ]/) {
+			$ver = $1;
+			next;
+		}
+		# Check for known versions
+		if ($ver eq '1.7.2' || $ver eq '3.0.4') {
+			if (/^\Q$ARGV[2]\E\s+\S+\s+\S+\s+\S+\s+\Q$trunc\E(\s+|\.\.)/) {
+				close FD;
+				return 1;
+			}
+			next;
+		}
+		# All others.
+		if (/^\s*\Q$ARGV[2]\E\s+.*\s+\Q$trunc\E\s+/) {
+			close FD;
+			return 1;
+		}
+	}
 
-        close FD;
-        return 0;
+	close FD;
+	return 0;
 }
 
 #
-#       Check an Ascend Max4000 or similar model via finger
+#	Check an Ascend Max4000 or similar model via finger
 #
-#       Note: Not all software revisions support finger
-#             You may also need to enable the finger option.
+#	Note: Not all software revisions support finger
+#	      You may also need to enable the finger option.
 #
-#       Author: Shiloh Costa of MDI Internet Inc. <costa@mdi.ca>
+#	Author: Shiloh Costa of MDI Internet Inc. <costa@mdi.ca>
 #
 sub max40xx_finger {
-        open(FD, "$finger $ARGV[3]\@$ARGV[1]|");
-        while(<FD>) {
-           $line = $_;
-           if( $line =~ /Session/ ){
-                next;
-           }
+	open(FD, "$finger $ARGV[3]\@$ARGV[1]|");
+	while(<FD>) {
+	   $line = $_;
+	   if( $line =~ /Session/ ){
+		next;
+	   }
 
-           if( $line =~ /$ARGV[4]/ ){
-              return 1; # user is online
-           }
-        }
-        close FD;
-        return 0; # user is offline
+	   if( $line =~ /$ARGV[4]/ ){
+	      return 1; # user is online
+	   }
+	}
+	close FD;
+	return 0; # user is offline
 }
 
 
 #
-#       Check an Ascend Max4000 or similar model via SNMP
+#	Check an Ascend Max4000 or similar model via SNMP
 #
-#       Author: Blaz Zupan of Medinet <blaz@amis.net>
+#	Author: Blaz Zupan of Medinet <blaz@amis.net>
 #
 $asm   = '.iso.org.dod.internet.private.enterprises.529';
 sub ascend_snmp {
-        my $sess_id;
-        my $l1, $l2;
+	my $sess_id;
+	my $l1, $l2;
 
-        $l1 = '';
-        $l2 = '';
+	$l1 = '';
+	$l2 = '';
 
-        #
-        #       If it looks like hex, only try it as hex,
-        #       otherwise try it as both decimal and hex.
-        #
-        $sess_id = $ARGV[4];
-        if ($sess_id !~ /^0/ && $sess_id !~ /[a-f]/i) {
-                $l1 = snmpget($ARGV[1], "$cmmty_string", "$asm.12.3.1.4.$sess_id");
-        }
-        if (!$l1){
-                $sess_id = hex $ARGV[4];
-                $l2 = snmpget($ARGV[1], "$cmmty_string", "$asm.12.3.1.4.$sess_id");
-        }
+	#
+	#	If it looks like hex, only try it as hex,
+	#	otherwise try it as both decimal and hex.
+	#
+	$sess_id = $ARGV[4];
+	if ($sess_id !~ /^0/ && $sess_id !~ /[a-f]/i) {
+		$l1 = snmpget($ARGV[1], "$cmmty_string", "$asm.12.3.1.4.$sess_id");
+	}
+	if (!$l1){
+		$sess_id = hex $ARGV[4];
+		$l2 = snmpget($ARGV[1], "$cmmty_string", "$asm.12.3.1.4.$sess_id");
+	}
 
-        print LOG "  user at port S$ARGV[2]: $l1 (dec)\n" if ($debug && $l1);
-        print LOG "  user at port S$ARGV[2]: $l2 (hex)\n" if ($debug && $l2);
+	print LOG "  user at port S$ARGV[2]: $l1 (dec)\n" if ($debug && $l1);
+	print LOG "  user at port S$ARGV[2]: $l2 (hex)\n" if ($debug && $l2);
 
-        (($l1 && $l1 eq $ARGV[3]) || ($l2 && $l2 eq $ARGV[3])) ? 1 : 0;
+	(($l1 && $l1 eq $ARGV[3]) || ($l2 && $l2 eq $ARGV[3])) ? 1 : 0;
 }
 
 
 #
-#       See if the user is logged in using the portslave finger.
+#	See if the user is logged in using the portslave finger.
 #
 sub portslave_finger {
-        my ($Port_seen);
+	my ($Port_seen);
 
-        $Port_seen = 0;
+	$Port_seen = 0;
 
-        open(FD, "$finger \@$ARGV[1]|");
-        while(<FD>) {
-                #
-                #       Check for ^Port. If we don't see it we
-                #       wont get confused by non-portslave-finger
-                #       output too.
-                #
-                if (/^Port/) {
-                        $Port_seen++;
-                        next;
-                }
-                next if (!$Port_seen);
-                next if (/^---/);
+	open(FD, "$finger \@$ARGV[1]|");
+	while(<FD>) {
+		#
+		#	Check for ^Port. If we don't see it we
+		#	wont get confused by non-portslave-finger
+		#	output too.
+		#
+		if (/^Port/) {
+			$Port_seen++;
+			next;
+		}
+		next if (!$Port_seen);
+		next if (/^---/);
 
-                ($port, $user) = /^.(...) (...............)/;
+		($port, $user) = /^.(...) (...............)/;
 
-                $port =~ s/ .*//;
-                $user =~ s/ .*//;
-                $ulen = length($user);
-                #
-                #       HACK: strip [PSC] from the front of the username,
-                #       and things like .ppp from the end.
-                #
-                $user =~ s/^[PSC]//;
-                $user =~ s/\.(ppp|slip|cslip)$//;
+		$port =~ s/ .*//;
+		$user =~ s/ .*//;
+		$ulen = length($user);
+		#
+		#	HACK: strip [PSC] from the front of the username,
+		#	and things like .ppp from the end.
+		#
+		$user =~ s/^[PSC]//;
+		$user =~ s/\.(ppp|slip|cslip)$//;
 
-                #
-                #       HACK: because ut_user usually has max. 8 characters
-                #       we only compare up the the length of $user if the
-                #       unstripped name had 8 chars.
-                #
-                $argv_user = $ARGV[3];
-                if ($ulen == 8) {
-                        $ulen = length($user);
-                        $argv_user = substr($ARGV[3], 0, $ulen);
-                }
+		#
+		#	HACK: because ut_user usually has max. 8 characters
+		#	we only compare up the the length of $user if the
+		#	unstripped name had 8 chars.
+		#
+		$argv_user = $ARGV[3];
+		if ($ulen == 8) {
+			$ulen = length($user);
+			$argv_user = substr($ARGV[3], 0, $ulen);
+		}
 
-                if ($port == $ARGV[2]) {
-                        if ($user eq $argv_user) {
-                                print LOG "  $user matches $argv_user " .
-                                        "on port $port" if ($debug);
-                                close FD;
-                                return 1;
-                        } else {
-                                print LOG "  $user doesn't match $argv_user " .
-                                        "on port $port" if ($debug);
-                                close FD;
-                                return 0;
-                        }
-                }
-        }
-        close FD;
-        0;
+		if ($port == $ARGV[2]) {
+			if ($user eq $argv_user) {
+				print LOG "  $user matches $argv_user " .
+					"on port $port" if ($debug);
+				close FD;
+				return 1;
+			} else {
+				print LOG "  $user doesn't match $argv_user " .
+					"on port $port" if ($debug);
+				close FD;
+				return 0;
+			}
+		}
+	}
+	close FD;
+	0;
 }
 
 #
-#       See if the user is already logged-in at the 3Com/USR Total Control.
-#       (this routine by Alexis C. Villalon <alexisv@compass.com.ph>).
-#       You must have the Net::Telnet module from CPAN for this to work.
-#       You must also have your /etc/raddb/naspasswd made up.
+#	See if the user is already logged-in at the 3Com/USR Total Control.
+#	(this routine by Alexis C. Villalon <alexisv@compass.com.ph>).
+#	You must have the Net::Telnet module from CPAN for this to work.
+#	You must also have your /etc/raddb/naspasswd made up.
 #
 sub tc_tccheck {
-        #
-        #       Localize all variables first.
-        #
-        my ($Port_seen, $ts, $terminalserver, $log, $login, $pass, $password);
-        my ($telnet, $curprompt, $curline, $ok, $totlines, $ccntr);
-        my (@curlines, @cltok, $user, $port, $ulen);
+	#
+	#	Localize all variables first.
+	#
+	my ($Port_seen, $ts, $terminalserver, $log, $login, $pass, $password);
+	my ($telnet, $curprompt, $curline, $ok, $totlines, $ccntr);
+	my (@curlines, @cltok, $user, $port, $ulen);
 
-        return 2 unless (check_net_telnet());
+	return 2 unless (check_net_telnet());
 
-        $terminalserver = $ARGV[1];
-        $Port_seen = 0;
-        #
-        #       Get login name and password for a certain NAS from $naspass.
-        #
-        ($login, $password) = naspasswd($terminalserver, 1);
-        return 2 if ($password eq "");
+	$terminalserver = $ARGV[1];
+	$Port_seen = 0;
+	#
+	#	Get login name and password for a certain NAS from $naspass.
+	#
+	($login, $password) = naspasswd($terminalserver, 1);
+	return 2 if ($password eq "");
 
-        #
-        #       Communicate with NAS using Net::Telnet, then issue
-        #       the command "show sessions" to see who are logged in.
-        #       Thanks to Chris Jackson <chrisj@tidewater.net> for the
-        #       for the "-- Press Return for More --" workaround.
-        #
-        $telnet = new Net::Telnet (Timeout => 5,
-                                   Prompt => '/\>/');
-        $telnet->open($terminalserver);
-        $telnet->login($login, $password);
-        $telnet->print("show sessions");
-        while ($curprompt ne "\>") {
-                ($curline, $curprompt) = $telnet->waitfor
-                        (String => "-- Press Return for More --",
-                         String => "\>",
-                         Timeout => 5);
-                $ok = $telnet->print("");
-                push @curlines, split(/^/m, $curline);
-        }
-        $telnet->close;
-        #
-        #       Telnet closed.  We got the info.  Let's examine it.
-        #
-        $totlines = @curlines;
-        $ccntr = 0;
-        while($ccntr < $totlines) {
-                #
-                #       Check for ^Port.
-                #
-                if ($curlines[$ccntr] =~ /^Port/) {
-                        $Port_seen++;
-                        $ccntr++;
-                        next;
-                }
-                #
-                #       Ignore all unnecessary lines.
-                #
-                if (!$Port_seen || $curlines[$ccntr] =~ /^---/ ||
-                        $curlines[$ccntr] =~ /^ .*$/) {
-                        $ccntr++;
-                        next;
-                }
-                #
-                #       Parse the current line for the port# and username.
-                #
-                @cltok = split(/\s+/, $curlines[$ccntr]);
-                $ccntr++;
-                $port = $cltok[0];
-                $user = $cltok[1];
-                $ulen = length($user);
-                #
-                #       HACK: strip [PSC] from the front of the username,
-                #       and things like .ppp from the end.  Strip S from
-                #       the front of the port number.
-                #
-                $user =~ s/^[PSC]//;
-                $user =~ s/\.(ppp|slip|cslip)$//;
-                $port =~ s/^S//;
-                #
-                #       HACK: because "show sessions" shows max. 15 characters
-                #       we only compare up to the length of $user if the
-                #       unstripped name had 15 chars.
-                #
-                $argv_user = $ARGV[3];
-                if ($ulen == 15) {
-                        $ulen = length($user);
-                        $argv_user = substr($ARGV[3], 0, $ulen);
-                }
-                if ($port == $ARGV[2]) {
-                        if ($user eq $argv_user) {
-                                print LOG "  $user matches $argv_user " .
-                                        "on port $port" if ($debug);
-                                return 1;
-                        } else {
-                                print LOG "  $user doesn't match $argv_user " .
-                                        "on port $port" if ($debug);
-                                return 0;
-                        }
-                }
-        }
-        0;
+	#
+	#	Communicate with NAS using Net::Telnet, then issue
+	#	the command "show sessions" to see who are logged in.
+	#	Thanks to Chris Jackson <chrisj@tidewater.net> for the
+	#	for the "-- Press Return for More --" workaround.
+	#
+	$telnet = new Net::Telnet (Timeout => 5,
+				   Prompt => '/\>/');
+	$telnet->open($terminalserver);
+	$telnet->login($login, $password);
+	$telnet->print("show sessions");
+	while ($curprompt ne "\>") {
+		($curline, $curprompt) = $telnet->waitfor
+			(String => "-- Press Return for More --",
+			 String => "\>",
+			 Timeout => 5);
+		$ok = $telnet->print("");
+		push @curlines, split(/^/m, $curline);
+	}
+	$telnet->close;
+	#
+	#	Telnet closed.  We got the info.  Let's examine it.
+	#
+	$totlines = @curlines;
+	$ccntr = 0;
+	while($ccntr < $totlines) {
+		#
+		#	Check for ^Port.
+		#
+		if ($curlines[$ccntr] =~ /^Port/) {
+			$Port_seen++;
+			$ccntr++;
+			next;
+		}
+		#
+		#	Ignore all unnecessary lines.
+		#
+		if (!$Port_seen || $curlines[$ccntr] =~ /^---/ ||
+			$curlines[$ccntr] =~ /^ .*$/) {
+			$ccntr++;
+			next;
+		}
+		#
+		#	Parse the current line for the port# and username.
+		#
+		@cltok = split(/\s+/, $curlines[$ccntr]);
+		$ccntr++;
+		$port = $cltok[0];
+		$user = $cltok[1];
+		$ulen = length($user);
+		#
+		#	HACK: strip [PSC] from the front of the username,
+		#	and things like .ppp from the end.  Strip S from
+		#	the front of the port number.
+		#
+		$user =~ s/^[PSC]//;
+		$user =~ s/\.(ppp|slip|cslip)$//;
+		$port =~ s/^S//;
+		#
+		#	HACK: because "show sessions" shows max. 15 characters
+		#	we only compare up to the length of $user if the
+		#	unstripped name had 15 chars.
+		#
+		$argv_user = $ARGV[3];
+		if ($ulen == 15) {
+			$ulen = length($user);
+			$argv_user = substr($ARGV[3], 0, $ulen);
+		}
+		if ($port == $ARGV[2]) {
+			if ($user eq $argv_user) {
+				print LOG "  $user matches $argv_user " .
+					"on port $port" if ($debug);
+				return 1;
+			} else {
+				print LOG "  $user doesn't match $argv_user " .
+					"on port $port" if ($debug);
+				return 0;
+			}
+		}
+	}
+	0;
 }
 
 #
-#       Check a Cyclades PathRAS via telnet
+#	Check a Cyclades PathRAS via telnet
 #
-#       Version: 1.2
+#	Version: 1.2
 #
-#       Author: Antonio Dias of SST Internet <accdias@sst.com.br>
+#	Author: Antonio Dias of SST Internet <accdias@sst.com.br>
 #
 sub cyclades_telnet {
-        #
-        #       Localize all variables first.
-        #
-        my ($pr, $pr_login, $pr_passwd, $pr_prompt, $endlist, @list, $port, $user);
-        #
-        #       This variable must match PathRAS' command prompt
-        #       string as entered in menu option 6.2.
-        #       The value below matches the default command prompt.
-        #
-        $pr_prompt = '/Select option ==\>$/i';
+	#
+	#	Localize all variables first.
+	#
+	my ($pr, $pr_login, $pr_passwd, $pr_prompt, $endlist, @list, $port, $user);
+	#
+	#	This variable must match PathRAS' command prompt
+	#	string as entered in menu option 6.2.
+	#	The value below matches the default command prompt.
+	#
+	$pr_prompt = '/Select option ==\>$/i';
 
-        #
-        #       This variable match the end of userslist.
-        #
-        $endlist = '/Type \<enter\>/i';
+	#
+	#	This variable match the end of userslist.
+	#
+	$endlist = '/Type \<enter\>/i';
 
-        #
-        #       Do we have Net::Telnet installed?
-        #
-        return 2 unless (check_net_telnet());
+	#
+	#	Do we have Net::Telnet installed?
+	#
+	return 2 unless (check_net_telnet());
 
-        #
-        #       Get login name and password for NAS
-        #       from $naspass file.
-        #
-        ($pr_login, $pr_passwd) = naspasswd($ARGV[1], 1);
+	#
+	#	Get login name and password for NAS
+	#	from $naspass file.
+	#
+	($pr_login, $pr_passwd) = naspasswd($ARGV[1], 1);
 
-        #
-        #       Communicate with PathRAS using Net::Telnet, then access
-        #       menu option 6.8 to see who are logged in.
-        #       Based on PathRAS firmware version 1.2.3
-        #
-        $pr = new Net::Telnet (
-                Timeout         => 5,
-                Host            => $ARGV[1],
-                ErrMode         => 'return'
-        ) || return 2;
+	#
+	#	Communicate with PathRAS using Net::Telnet, then access
+	#	menu option 6.8 to see who are logged in.
+	#	Based on PathRAS firmware version 1.2.3
+	#
+	$pr = new Net::Telnet (
+		Timeout		=> 5,
+		Host		=> $ARGV[1],
+		ErrMode		=> 'return'
+	) || return 2;
 
-        #
-        #       Force PathRAS shows its banner.
-        #
-        $pr->break();
+	#
+	#	Force PathRAS shows its banner.
+	#
+	$pr->break();
 
-        #
-        #       Log on PathRAS
-        #
-        if ($pr->waitfor(Match => '/login : $/i') == 1) {
-                $pr->print($pr_login);
-        } else {
-                print LOG " Error: sending login name to PathRAS\n" if ($debug);
-                $pr->close;
-                return 2;
-        }
+	#
+	#	Log on PathRAS
+	#
+	if ($pr->waitfor(Match => '/login : $/i') == 1) {
+		$pr->print($pr_login);
+	} else {
+		print LOG " Error: sending login name to PathRAS\n" if ($debug);
+		$pr->close;
+		return 2;
+	}
 
-        if ($pr->waitfor(Match => '/password : $/i') == 1) {
-                $pr->print($pr_passwd);
-        } else {
-                print LOG " Error: sending password to PathRAS.\n" if ($debug);
-                $pr->close;
-                return 2;
-        }
+	if ($pr->waitfor(Match => '/password : $/i') == 1) {
+		$pr->print($pr_passwd);
+	} else {
+		print LOG " Error: sending password to PathRAS.\n" if ($debug);
+		$pr->close;
+		return 2;
+	}
 
-        $pr->print();
+	$pr->print();
 
-        #
-        #       Access menu option 6 "PathRAS Management"
-        #
-        if ($pr->waitfor(Match => $pr_prompt) == 1) {
-                $pr->print('6');
-        } else {
-                print LOG "  Error: accessing menu option '6'.\n" if ($debug);
-                $pr->close;
-                return 2;
-        }
-        #
-        #       Access menu option 8 "Show Active Ports"
-        #
-        if ($pr->waitfor(Match => $pr_prompt) == 1) {
-                @list = $pr->cmd(String => '8', Prompt => $endlist);
-        } else {
-                print LOG "  Error: accessing menu option '8'.\n" if ($debug);
-                $pr->close;
-                return 2;
-        }
-        #
-        #       Since we got the info we want, let's close
-        #       the telnet session
-        #
-        $pr->close;
+	#
+	#	Access menu option 6 "PathRAS Management"
+	#
+	if ($pr->waitfor(Match => $pr_prompt) == 1) {
+		$pr->print('6');
+	} else {
+		print LOG "  Error: accessing menu option '6'.\n" if ($debug);
+		$pr->close;
+		return 2;
+	}
+	#
+	#	Access menu option 8 "Show Active Ports"
+	#
+	if ($pr->waitfor(Match => $pr_prompt) == 1) {
+		@list = $pr->cmd(String => '8', Prompt => $endlist);
+	} else {
+		print LOG "  Error: accessing menu option '8'.\n" if ($debug);
+		$pr->close;
+		return 2;
+	}
+	#
+	#	Since we got the info we want, let's close
+	#	the telnet session
+	#
+	$pr->close;
 
-        #
-        #       Lets examine the userlist stored in @list
-        #
-        foreach(@list) {
-                #
-                #       We are interested in active sessions only
-                #
-                if (/Active/i) {
-                        ($port, $user) = split;
-                        #
-                        #       Strip out any prefix, suffix and
-                        #       realm from $user check to see if
-                        #       $ARGV[3] matches.
-                        #
-                        if(strip_username($ARGV[3]) eq strip_username($user)) {
-                                print LOG "  User '$ARGV[3]' found on '$ARGV[1]:$port'.\n" if ($debug);
-                                return 1;
-                        }
-                }
-        }
-        print LOG "  User '$ARGV[3]' not found on '$ARGV[1]'.\n" if ($debug);
-        0;
+	#
+	#	Lets examine the userlist stored in @list
+	#
+	foreach(@list) {
+		#
+		#	We are interested in active sessions only
+		#
+		if (/Active/i) {
+			($port, $user) = split;
+			#
+			#	Strip out any prefix, suffix and
+			#	realm from $user check to see if
+			#	$ARGV[3] matches.
+			#
+			if(strip_username($ARGV[3]) eq strip_username($user)) {
+				print LOG "  User '$ARGV[3]' found on '$ARGV[1]:$port'.\n" if ($debug);
+				return 1;
+			}
+		}
+	}
+	print LOG "  User '$ARGV[3]' not found on '$ARGV[1]'.\n" if ($debug);
+	0;
 }
 
 #
-#       Check a Patton 2800 via SNMP
+#	Check a Patton 2800 via SNMP
 #
-#       Version: 1.0
+#	Version: 1.0
 #
-#       Author: Antonio Dias of SST Internet <accdias@sst.com.br>
+#	Author: Antonio Dias of SST Internet <accdias@sst.com.br>
 #
 sub patton_snmp {
    my($oid);
@@ -921,7 +921,7 @@ sub patton_snmp {
    #
    if (snmpget($ARGV[1], "monitor", "$oid") == 0) {
       print LOG "  Session $ARGV[4] still active on NAS " .
-        "$ARGV[1], port $ARGV[2], for user $ARGV[3].\n" if ($debug);
+	"$ARGV[1], port $ARGV[2], for user $ARGV[3].\n" if ($debug);
       return 1;
    }
    0;
@@ -952,11 +952,11 @@ sub digitro_rusers {
 }
 
 #
-#       Check Cyclades PR3000 and PR4000 via SNMP
+#	Check Cyclades PR3000 and PR4000 via SNMP
 #
-#       Version: 1.0
+#	Version: 1.0
 #
-#       Author: Antonio Dias of SST Internet <accdias@sst.com.br>
+#	Author: Antonio Dias of SST Internet <accdias@sst.com.br>
 #
 sub cyclades_snmp {
    my ($oid, $ret);
@@ -970,46 +970,46 @@ sub cyclades_snmp {
 }
 
 #
-#       3Com/USR HiPer Arc Total Control.
-#       This works with HiPer Arc 4.0.30
-#       (this routine by Igor Brezac <igor@ipass.net>)
+#	3Com/USR HiPer Arc Total Control.
+#	This works with HiPer Arc 4.0.30
+#	(this routine by Igor Brezac <igor@ipass.net>)
 #
 
 #       This routine modified by Dan Halverson <danh@tbc.net>
 #       to support additional versions of Hiper Arc
 #
 
-$usrm    = '.iso.org.dod.internet.private.enterprises.429';
+$usrm	 = '.iso.org.dod.internet.private.enterprises.429';
 sub usrhiper_snmp {
-        my ($login,$password,$oidext);
+	my ($login,$password,$oidext);
 
-        # Look up community string in naspasswd file.
-        ($login, $password) = naspasswd($ARGV[1], 1);
-        if ($login && $login ne 'SNMP') {
-                if($debug) {
-                        print LOG
-                        "   Error: Need SNMP community string for $ARGV[1]\n";
-                }
-                return 2;
-        } else {
+	# Look up community string in naspasswd file.
+	($login, $password) = naspasswd($ARGV[1], 1);
+	if ($login && $login ne 'SNMP') {
+		if($debug) {
+			print LOG
+			"   Error: Need SNMP community string for $ARGV[1]\n";
+		}
+		return 2;
+	} else {
 # If password is defined in naspasswd file, use it as community, otherwise use $cmmty_string
-                if ($password eq '') {
-                    $password = "$cmmty_string";
-                }
-        }
-        my ($ver) = get_hiper_ver(usrm=>$usrm, target=>$ARGV[1], community=>$password);
-        $oidext = get_oidext(ver=>$ver, tty=>$ARGV[2]);
-        my ($login);
+		if ($password eq '') {
+		    $password = "$cmmty_string";
+		}
+	}
+	my ($ver) = get_hiper_ver(usrm=>$usrm, target=>$ARGV[1], community=>$password);
+	$oidext = get_oidext(ver=>$ver, tty=>$ARGV[2]);
+	my ($login);
 
-        $login = snmpget($ARGV[1], $password, "$usrm.4.10.1.1.18.$oidext");
-        if ($login =~ /\"/) {
-                $login =~ /^.*\"([^"]+)\"/;
-                $login = $1;
-        }
+	$login = snmpget($ARGV[1], $password, "$usrm.4.10.1.1.18.$oidext");
+	if ($login =~ /\"/) {
+		$login =~ /^.*\"([^"]+)\"/;
+		$login = $1;
+	}
 
-        print LOG "  user at port S$ARGV[2]: $login\n" if ($debug);
+	print LOG "  user at port S$ARGV[2]: $login\n" if ($debug);
 
-        ($login eq $ARGV[3]) ? 1 : 0;
+	($login eq $ARGV[3]) ? 1 : 0;
 }
 
 #
@@ -1018,7 +1018,7 @@ sub usrhiper_snmp {
 sub get_hiper_ver {
     my (%args) = @_;
     my ($ver
-        );
+	);
     $ver = snmpget ($args{'target'}, $args{'community'}, $args{'usrm'}.".4.1.14.0");
     return($ver);
 }
@@ -1030,119 +1030,119 @@ sub get_hiper_ver {
 sub get_oidext {
     my (%args) = @_;
     my ($oid
-        );
+	);
     if ($args{'ver'} =~ /V5.1.99/) {
-        $oid = $args{'tty'}+1257-1;
+	$oid = $args{'tty'}+1257-1;
     }
     else {
-        $oid = 1257 + 256*int(($args{'tty'}-1) / $hiper_density) +
-                             (($args{'tty'}-1) % $hiper_density);
+	$oid = 1257 + 256*int(($args{'tty'}-1) / $hiper_density) +
+			     (($args{'tty'}-1) % $hiper_density);
     }
     return($oid);
 }
 
 #
-#       Check USR Netserver with Telnet - based on tc_tccheck.
-#       By "Marti" <mts@interplanet.es>
+#	Check USR Netserver with Telnet - based on tc_tccheck.
+#	By "Marti" <mts@interplanet.es>
 #
 sub usrnet_telnet {
-        #
-        #       Localize all variables first.
-        #
-        my ($ts, $terminalserver, $login, $password);
-        my ($telnet, $curprompt, $curline, $ok);
-        my (@curlines, $user, $port);
+	#
+	#	Localize all variables first.
+	#
+	my ($ts, $terminalserver, $login, $password);
+	my ($telnet, $curprompt, $curline, $ok);
+	my (@curlines, $user, $port);
 
-        return 2 unless (check_net_telnet());
+	return 2 unless (check_net_telnet());
 
-        $terminalserver = $ARGV[1];
-        $Port_seen = 0;
-        #
-        #       Get login name and password for a certain NAS from $naspass.
-        #
-        ($login, $password) = naspasswd($terminalserver, 1);
-        return 2 if ($password eq "");
+	$terminalserver = $ARGV[1];
+	$Port_seen = 0;
+	#
+	#	Get login name and password for a certain NAS from $naspass.
+	#
+	($login, $password) = naspasswd($terminalserver, 1);
+	return 2 if ($password eq "");
 
-        #
-        #       Communicate with Netserver using Net::Telnet, then access
-        #       list connectionsto see who are logged in.
-        #
-        $telnet = new Net::Telnet (Timeout => 5,
-                                   Prompt => '/\>/');
-        $telnet->open($terminalserver);
+	#
+	#	Communicate with Netserver using Net::Telnet, then access
+	#	list connectionsto see who are logged in.
+	#
+	$telnet = new Net::Telnet (Timeout => 5,
+				   Prompt => '/\>/');
+	$telnet->open($terminalserver);
 
-        #
-        #       Log on Netserver
-        #
-        $telnet->login($login, $password);
+	#
+	#	Log on Netserver
+	#
+	$telnet->login($login, $password);
 
-        #
-        #     Launch list connections command
+	#
+	#     Launch list connections command
 
-        $telnet->print("list connections");
+	$telnet->print("list connections");
 
-        while ($curprompt ne "\>") {
-                ($curline, $curprompt) = $telnet->waitfor
-                        ( String => "\>",
-                         Timeout => 5);
-                $ok = $telnet->print("");
-                push @curlines, split(/^/m, $curline);
-        }
+	while ($curprompt ne "\>") {
+		($curline, $curprompt) = $telnet->waitfor
+			( String => "\>",
+			 Timeout => 5);
+		$ok = $telnet->print("");
+		push @curlines, split(/^/m, $curline);
+	}
 
-        $telnet->close;
-        #
-        #       Telnet closed.  We got the info.  Let's examine it.
-        #
-        foreach(@curlines) {
-                if ( /mod\:/ ) {
-                        ($port, $user, $dummy) = split;
-                        #
-                        # Strip out any prefixes and suffixes
-                        # from the username
-                        #
-                        # uncomment this if you use the standard
-                        # prefixes
-                        #$user =~ s/^[PSC]//;
-                        #$user =~ s/\.(ppp|slip|cslip)$//;
-                        #
-                        # Check to see if $user is already connected
-                        #
-                        if ($user eq $ARGV[3]) {
-                                print LOG "  $user matches $ARGV[3] " .
-                                        "on port $port" if ($debug);
-                                return 1;
-                        };
-                };
-        };
-        print LOG
-        "  $ARGV[3] not found on Netserver logged users list " if ($debug);
-        0;
+	$telnet->close;
+	#
+	#	Telnet closed.  We got the info.  Let's examine it.
+	#
+	foreach(@curlines) {
+		if ( /mod\:/ ) {
+			($port, $user, $dummy) = split;
+			#
+			# Strip out any prefixes and suffixes
+			# from the username
+			#
+			# uncomment this if you use the standard
+			# prefixes
+			#$user =~ s/^[PSC]//;
+			#$user =~ s/\.(ppp|slip|cslip)$//;
+			#
+			# Check to see if $user is already connected
+			#
+			if ($user eq $ARGV[3]) {
+				print LOG "  $user matches $ARGV[3] " .
+					"on port $port" if ($debug);
+				return 1;
+			};
+		};
+	};
+	print LOG
+	"  $ARGV[3] not found on Netserver logged users list " if ($debug);
+	0;
 }
 
 #
-#       Versanet's Perl Script Support:
+#	Versanet's Perl Script Support:
 #
-#       ___ versanet_snmp 1.0 by support@versanetcomm.com ___ July 1999
-#       Versanet Enterprise MIB Base: 1.3.6.1.4.1.2180
+#	___ versanet_snmp 1.0 by support@versanetcomm.com ___ July 1999
+#	Versanet Enterprise MIB Base: 1.3.6.1.4.1.2180
 #
-#       VN2001/2002 use slot/port number to locate modems. To use snmp get we
-#       have to translate the original port number into a slot/port pair.
+#	VN2001/2002 use slot/port number to locate modems. To use snmp get we
+#	have to translate the original port number into a slot/port pair.
 #
 $vsm     = '.iso.org.dod.internet.private.enterprises.2180';
 sub versanet_snmp {
 
-        print LOG "argv[2] = $ARGV[2] " if ($debug);
-        $port = $ARGV[2]%8;
-        $port = 8 if ($port eq 0);
-        print LOG "port = $port " if ($debug);
-        $slot = (($ARGV[2]-$port)/8)+1;
-        print LOG "slot = $slot" if ($debug);
-        $loginname = snmpget($ARGV[1], "$cmmty_string", "$vsm.27.1.1.3.$slot.$port");
+	print LOG "argv[2] = $ARGV[2] " if ($debug);
+	$port = $ARGV[2]%8;
+	$port = 8 if ($port eq 0);
+	print LOG "port = $port " if ($debug);
+	$slot = (($ARGV[2]-$port)/8)+1;
+	print LOG "slot = $slot" if ($debug);
+	$loginname = snmpget($ARGV[1], "$cmmty_string", "$vsm.27.1.1.3.$slot.$port");
 #
-#       Note: the "$cmmty_string" string above could be replaced by the public
-#             community string defined in Versanet VN2001/VN2002.
+#	Note: the "$cmmty_string" string above could be replaced by the public
+#	      community string defined in Versanet VN2001/VN2002.
 #
-          print LOG "  user at slot $slot port $port: $loginname\n" if ($debug);          ($loginname eq $ARGV[3]) ? 1 : 0;
+	  print LOG "  user at slot $slot port $port: $loginname\n" if ($debug);	  ($loginname eq $ARGV[3]) ? 1 : 0;
 }
 
 
@@ -1159,16 +1159,16 @@ sub versanet_snmp {
 #   asy22 PPP  gwbush       ---              Mon  9:19am    :07  192.0.2.80
 # So check exact match of username!
 
-sub bay_finger {                # ARGV: 1=nas_ip, 2=nas_port, 3=login, 4=sessid
+sub bay_finger {		# ARGV: 1=nas_ip, 2=nas_port, 3=login, 4=sessid
     open(FINGER, "$finger $ARGV[3]\@$ARGV[1]|") || return 2; # error
     while(<FINGER>) {
-        my ($Asy, $PPP, $User) = split;
-        if( $User =~ /^$ARGV[3]$/ ){
-            close FINGER;
-            print LOG "checkrad:bay_finger: ONLINE $ARGV[3]\@$ARGV[1]"
-                if ($debug);
-            return 1; # online
-        }
+	my ($Asy, $PPP, $User) = split;
+	if( $User =~ /^$ARGV[3]$/ ){
+	    close FINGER;
+	    print LOG "checkrad:bay_finger: ONLINE $ARGV[3]\@$ARGV[1]"
+		if ($debug);
+	    return 1; # online
+	}
     }
     close FINGER;
     print LOG "checkrad:bay_finger: offline $ARGV[3]\@$ARGV[1]" if ($debug);
@@ -1176,11 +1176,11 @@ sub bay_finger {                # ARGV: 1=nas_ip, 2=nas_port, 3=login, 4=sessid
 }
 
 #
-#       Cisco L2TP support
-#       This is for PPP sessions coming from an L2TP tunnel from a Dial
-#       or DSL wholesale provider
-#       Paul Khavkine <paul@distributel.net>
-#       July 19 2001
+#	Cisco L2TP support
+#	This is for PPP sessions coming from an L2TP tunnel from a Dial
+#	or DSL wholesale provider
+#	Paul Khavkine <paul@distributel.net>
+#	July 19 2001
 #
 # find_l2tp_login() walks a part of cisco vpdn tree to find out what session
 # and tunnel ID's are for a given Virtual-Access interface to construct
@@ -1204,8 +1204,8 @@ sub find_l2tp_login
   {
     $sess->getnext($snmp_var);
   } until ($snmp_var->[$SNMP::Varbind::val_f] =~ /$port/) ||
-        (!($snmp_var->[$SNMP::Varbind::ref_f] =~ /^$port_oid\.(\d+)\.(\d+)$/)) ||
-        ($sess->{ErrorNum});
+	(!($snmp_var->[$SNMP::Varbind::ref_f] =~ /^$port_oid\.(\d+)\.(\d+)$/)) ||
+	($sess->{ErrorNum});
 
   my $val1 = $snmp_var->[$SNMP::Varbind::ref_f];
 
@@ -1295,7 +1295,7 @@ sub mikrotik_telnet {
   # practically this would limit us to a simple only-one user limit for
   # this script to work properly.
   $t = new Net::Telnet (Timeout => 5,
-                        Prompt => '//\[.*@.*\] > /');
+			Prompt => '//\[.*@.*\] > /');
 
   # Dont just exit when there is error
   $t->errmode('return');
@@ -1305,11 +1305,11 @@ sub mikrotik_telnet {
 
   #Send login and password etc.
   $t->login(Name => $login,
-            Password => $password,
+	    Password => $password,
   # We must detect if we are logged in from the login banner.
   # Because if routeros is with a free license the command
   # prompt dont come. Instead it waits us to press "Enter".
-            Prompt => '/MikroTik/');
+	    Prompt => '/MikroTik/');
 
   # Just be sure that routeros isn't waiting for us to press "Enter"
   $t->print("");
@@ -1379,12 +1379,12 @@ sub redback_telnet {
     $terminalserver = $ARGV[1];
     ($user, $context) = split /@/, $ARGV[3];
     if (not $user) {
-        print LOG " Error: No user defined\n" if ($debug);
-        return 2;
+	print LOG " Error: No user defined\n" if ($debug);
+	return 2;
     }
     if (not $context) {
-        print LOG " Error: No context defined\n" if ($debug);
-        return 2;
+	print LOG " Error: No context defined\n" if ($debug);
+	return 2;
     }
 
     # Get loggin information
@@ -1413,7 +1413,7 @@ sub redback_telnet {
     #Ask the question
     @lines = $t->cmd(String => "show subscribers active $user\@$context");
     if ($lines[0] =~ /subscriber $user\@$context/ ) {
-        return 1;
+	return 1;
     }
     return 0;
 }
@@ -1422,94 +1422,94 @@ sub redback_telnet {
 
 # Poor man's getopt (for -d)
 if ($ARGV[0] eq '-d') {
-        shift @ARGV;
-        $debug = "stdout";
+	shift @ARGV;
+	$debug = "stdout";
 }
 
 if ($debug) {
-        if ($debug eq 'stdout') {
-                open(LOG, ">&STDOUT");
-        } elsif ($debug eq 'stderr') {
-                open(LOG, ">&STDERR");
-        } else {
-                open(LOG, ">>$debug");
-                $now = localtime;
-                print LOG "$now checkrad @ARGV\n";
-        }
+	if ($debug eq 'stdout') {
+		open(LOG, ">&STDOUT");
+	} elsif ($debug eq 'stderr') {
+		open(LOG, ">&STDERR");
+	} else {
+		open(LOG, ">>$debug");
+		$now = localtime;
+		print LOG "$now checkrad @ARGV\n";
+	}
 }
 
 if ($#ARGV != 4) {
-        print LOG "Usage: checkrad nas_type nas_ip " .
-                        "nas_port login session_id\n" if ($debug);
-        print STDERR "Usage: checkrad nas_type nas_ip " .
-                        "nas_port login session_id\n"
-                        unless ($debug =~ m/^(stdout|stderr)$/);
-        close LOG if ($debug);
-        exit(2);
+	print LOG "Usage: checkrad nas_type nas_ip " .
+			"nas_port login session_id\n" if ($debug);
+	print STDERR "Usage: checkrad nas_type nas_ip " .
+			"nas_port login session_id\n"
+			unless ($debug =~ m/^(stdout|stderr)$/);
+	close LOG if ($debug);
+	exit(2);
 }
 
 if ($ARGV[0] eq 'livingston') {
-        $ret = &livingston_snmp;
+	$ret = &livingston_snmp;
 } elsif ($ARGV[0] eq 'cisco') {
-        $ret = &cisco_snmp;
+	$ret = &cisco_snmp;
 } elsif ($ARGV[0] eq 'cvx') {
-        $ret = &cvx_snmp;
+	$ret = &cvx_snmp;
 } elsif ($ARGV[0] eq 'juniper') {
-        $ret = &juniper_e_snmp;
+	$ret = &juniper_e_snmp;
 } elsif ($ARGV[0] eq 'multitech') {
-        $ret = &multitech_snmp;
+	$ret = &multitech_snmp;
 } elsif ($ARGV[0] eq 'computone') {
-        $ret = &computone_finger;
+	$ret = &computone_finger;
 } elsif ($ARGV[0] eq 'max40xx') {
-        $ret = &max40xx_finger;
+	$ret = &max40xx_finger;
 } elsif ($ARGV[0] eq 'ascend' || $ARGV[0] eq 'max40xx_snmp') {
-        $ret = &ascend_snmp;
+	$ret = &ascend_snmp;
 } elsif ($ARGV[0] eq 'portslave') {
-        $ret = &portslave_finger;
+	$ret = &portslave_finger;
 } elsif ($ARGV[0] eq 'tc') {
-        $ret = &tc_tccheck;
+	$ret = &tc_tccheck;
 } elsif ($ARGV[0] eq 'pathras') {
-        $ret = &cyclades_telnet;
+	$ret = &cyclades_telnet;
 } elsif ($ARGV[0] eq 'pr3000') {
-        $ret = &cyclades_snmp;
+	$ret = &cyclades_snmp;
 } elsif ($ARGV[0] eq 'pr4000') {
-        $ret = &cyclades_snmp;
+	$ret = &cyclades_snmp;
 } elsif ($ARGV[0] eq 'patton') {
-        $ret = &patton_snmp;
+	$ret = &patton_snmp;
 } elsif ($ARGV[0] eq 'digitro') {
-        $ret = &digitro_rusers;
+	$ret = &digitro_rusers;
 } elsif ($ARGV[0] eq 'usrhiper') {
-        $ret = &usrhiper_snmp;
+	$ret = &usrhiper_snmp;
 } elsif ($ARGV[0] eq 'netserver') {
-        $ret = &usrnet_telnet;
+	$ret = &usrnet_telnet;
 } elsif ($ARGV[0] eq 'versanet') {
-        $ret = &versanet_snmp;
+	$ret = &versanet_snmp;
 } elsif ($ARGV[0] eq 'bay') {
-        $ret = &bay_finger;
+	$ret = &bay_finger;
 } elsif ($ARGV[0] eq 'cisco_l2tp'){
-        $ret = &cisco_l2tp_snmp;
+	$ret = &cisco_l2tp_snmp;
 } elsif ($ARGV[0] eq 'mikrotik'){
-        $ret = &mikrotik_telnet;
+	$ret = &mikrotik_telnet;
 } elsif ($ARGV[0] eq 'mikrotik_snmp'){
-        $ret = &mikrotik_snmp;
+	$ret = &mikrotik_snmp;
 } elsif ($ARGV[0] eq 'redback'){
-        $ret = &redback_telnet;
+	$ret = &redback_telnet;
 } elsif ($ARGV[0] eq 'dot1x'){
-        $ret = &dot1x_snmp;
+	$ret = &dot1x_snmp;
 } elsif ($ARGV[0] eq 'other') {
-        $ret = 1;
+	$ret = 1;
 } else {
-        print LOG "  checkrad: unknown NAS type $ARGV[0]\n" if ($debug);
-        print STDERR "checkrad: unknown NAS type $ARGV[0]\n";
-        $ret = 2;
+	print LOG "  checkrad: unknown NAS type $ARGV[0]\n" if ($debug);
+	print STDERR "checkrad: unknown NAS type $ARGV[0]\n";
+	$ret = 2;
 }
 
 if ($debug) {
-        $mn = "login ok";
-        $mn = "double detected" if ($ret == 1);
-        $mn = "error detected" if ($ret == 2);
-        print LOG "  Returning $ret ($mn)\n";
-        close LOG;
+	$mn = "login ok";
+	$mn = "double detected" if ($ret == 1);
+	$mn = "error detected" if ($ret == 2);
+	print LOG "  Returning $ret ($mn)\n";
+	close LOG;
 }
 
 exit($ret);

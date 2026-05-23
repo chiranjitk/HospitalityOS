@@ -548,13 +548,20 @@ export class MikrotikAdapter extends GatewayAdapter {
         const portalUrl = wifiConfig.portalCallbackUrl
           || `http://${staySuiteIp}:3000/connect?mac=$mac&identity=$identity&ip=$ip`;
 
-        // Convert authMethods (pap,chap,mschapv2,eap,mac-auth) to MikroTik login-by
-        // pap → http-pap, chap → http-chap, mac-auth → mac, eap/mschapv2 → RADIUS-level only
+        // Convert authMethods (pap,chap,mschapv2,eap-tls,eap-ttls,eap-peap,eap-md5,mac-auth) to MikroTik login-by
+        // pap → http-pap, chap → http-chap, mac-auth → mac, eap-*/mschapv2 → RADIUS-level only
+        // EAP methods also need http-chap/http-pap for the initial captive portal redirect
         const rawAuthMethods = wifiConfig.authMethods || 'pap,chap,mschapv2';
         const authMethodList = rawAuthMethods.split(',').map(s => s.trim());
         const loginByMethods: string[] = [];
         if (authMethodList.includes('chap')) loginByMethods.push('http-chap');
         if (authMethodList.includes('pap')) loginByMethods.push('http-pap');
+        // EAP methods (eap-tls, eap-ttls, eap-peap, eap-md5) are handled at RADIUS level
+        // but also need http-chap/http-pap for the initial captive portal redirect
+        if (authMethodList.some(m => m.startsWith('eap'))) {
+          if (!loginByMethods.includes('http-chap')) loginByMethods.push('http-chap');
+          if (!loginByMethods.includes('http-pap')) loginByMethods.push('http-pap');
+        }
         if (authMethodList.includes('mac-auth')) loginByMethods.push('mac');
         if (loginByMethods.length === 0) loginByMethods.push('http-chap', 'http-pap');
         const loginBy = loginByMethods.join(',');

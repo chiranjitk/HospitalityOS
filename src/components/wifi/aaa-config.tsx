@@ -127,7 +127,7 @@ interface NASClient {
   apiUsername: string | null;
   apiPassword: string | null;
   apiPort: number;
-  authMethods: string; // Comma-separated: pap,chap,mschapv2,eap,mac-auth
+  authMethods: string; // Comma-separated: pap,chap,mschapv2,eap-tls,eap-ttls,eap-peap,eap-md5,mac-auth
   requireMessageAuth: boolean;
   status: string;
   lastSeenAt?: string;
@@ -142,7 +142,7 @@ interface AAAConfig {
   autoProvisionOnCheckin: boolean;
   autoDeprovisionOnCheckout: boolean;
   autoDeprovisionDelay: number;
-  authMethod: string;
+  authMethods: string; // Comma-separated: pap,chap,mschapv2,eap-tls,eap-ttls,eap-peap,eap-md5,mac-auth
   allowMacAuth: boolean;
   accountingSyncInterval: number;
   maxConcurrentSessions: number;
@@ -491,21 +491,30 @@ const NAS_VENDOR_GROUPS: NasVendorGroup[] = [
 // Flat lookup for form value display
 const ALL_NAS_VENDORS = NAS_VENDOR_GROUPS.flatMap(g => g.vendors);
 
-// Auth Methods — for AAA config (single default) and NAS client (multi-select)
+// Auth Methods — for AAA config (multi-select) and NAS client (multi-select)
 const AUTH_METHODS = [
   { value: 'pap', label: 'PAP (Password Authentication Protocol)', description: 'Most compatible with captive portals. Password sent in clear text over RADIUS (encrypted by RADIUS secret).', nasLabel: 'PAP' },
   { value: 'chap', label: 'CHAP (Challenge Handshake)', description: 'Better security than PAP — password never sent in clear. Requires clear-text password stored on server.', nasLabel: 'CHAP' },
   { value: 'mschapv2', label: 'MS-CHAPv2 (Microsoft)', description: 'Most secure for Windows clients. Requires NT-password hash stored on server.', nasLabel: 'MS-CHAPv2' },
-  { value: 'eap', label: 'EAP (Extensible Authentication)', description: 'Enterprise-grade: supports EAP-PEAP, EAP-TTLS, EAP-TLS. Requires EAP module in RADIUS server (currently disabled).', nasLabel: 'EAP', disabled: true },
+  { value: 'eap-tls', label: 'EAP-TLS (Certificate)', description: 'Enterprise-grade: mutual certificate authentication. Requires client and server certificates. Most secure EAP method.', nasLabel: 'EAP-TLS' },
+  { value: 'eap-ttls', label: 'EAP-TTLS (Tunneled TLS)', description: 'Enterprise-grade: server certificate + inner PAP/CHAP/MS-CHAPv2. Most common in hospitality WiFi.', nasLabel: 'EAP-TTLS' },
+  { value: 'eap-peap', label: 'EAP-PEAP (Protected EAP)', description: 'Enterprise-grade: server certificate + inner MS-CHAPv2. Widely supported by Windows/Apple devices.', nasLabel: 'EAP-PEAP' },
+  { value: 'eap-md5', label: 'EAP-MD5 (Message Digest)', description: 'Basic EAP method: password-based, similar to CHAP but over EAP. Least secure EAP method — no key derivation.', nasLabel: 'EAP-MD5' },
   { value: 'mac-auth', label: 'MAC Authentication', description: 'Devices authenticate using their MAC address as username. Useful for IoT/printers. No password required.', nasLabel: 'MAC Auth' },
 ];
 
-// NAS Auth method options — used for multi-select in NAS form
-const NAS_AUTH_METHOD_OPTIONS = AUTH_METHODS.map(m => ({
+// NAS Auth method options — used for multi-select in NAS form (excludes mac-auth which is a separate toggle)
+const NAS_AUTH_METHOD_OPTIONS = AUTH_METHODS.filter(m => m.value !== 'mac-auth').map(m => ({
   value: m.value,
   label: m.nasLabel,
   description: m.description,
-  disabled: m.disabled || false,
+}));
+
+// AAA Config Auth method options — used for multi-select in Auth Settings tab (includes mac-auth)
+const AAA_AUTH_METHOD_OPTIONS = AUTH_METHODS.map(m => ({
+  value: m.value,
+  label: m.nasLabel,
+  description: m.description,
 }));
 
 // Log Levels
@@ -579,7 +588,7 @@ export default function AAAConfig() {
     autoProvisionOnCheckin: true,
     autoDeprovisionOnCheckout: true,
     autoDeprovisionDelay: 0,
-    authMethod: 'pap',
+    authMethods: 'pap,chap,mschapv2',
     allowMacAuth: false,
     accountingSyncInterval: 5,
     maxConcurrentSessions: 3,
@@ -1574,7 +1583,6 @@ export default function AAAConfig() {
                             <button
                               key={method.value}
                               type="button"
-                              disabled={method.disabled}
                               onClick={() => {
                                 const current = nasForm.authMethods.split(',').map(s => s.trim()).filter(Boolean);
                                 const updated = selected
@@ -1588,34 +1596,20 @@ export default function AAAConfig() {
                                 selected
                                   ? 'bg-primary/15 border-primary text-primary shadow-sm'
                                   : 'bg-muted/50 border-muted text-muted-foreground hover:border-muted-foreground/50',
-                                method.disabled && 'opacity-40 cursor-not-allowed'
                               )}
                             >
                               {selected ? <Check className="h-3 w-3" /> : <span className="h-3 w-3 rounded-full border border-current" />}
                               {method.label}
-                              {method.value === 'eap' && (
-                                <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 px-1 rounded">Disabled</span>
-                              )}
                             </button>
                           );
                         })}
                       </div>
-                      {nasForm.authMethods.split(',').map(s => s.trim()).includes('eap') && (
+                      {nasForm.authMethods.split(',').map(s => s.trim()).some(m => m.startsWith('eap')) && (
                         <div className="flex items-start gap-2 p-2 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-xs">
                           <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                           <span className="text-amber-700 dark:text-amber-300">
-                            EAP is selected but the RADIUS EAP module is currently disabled (OpenSSL incompatibility). 
-                            EAP authentication will not work until the module is re-enabled. Use PAP/CHAP/MS-CHAPv2 for captive portal auth.
-                          </span>
-                        </div>
-                      )}
-                      {nasForm.authMethods.split(',').map(s => s.trim()).includes('mac-auth') && (
-                        <div className="flex items-start gap-2 p-2 rounded-md bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 text-xs">
-                          <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-                          <span className="text-blue-700 dark:text-blue-300">
-                            MAC Auth enabled: devices with MAC addresses as usernames (format: XX:XX:XX:XX:XX:XX) will be auto-authenticated 
-                            without a password. Useful for printers, IoT devices, and headless clients. Make sure "Allow MAC Authentication" is 
-                            enabled in the Auth Settings tab.
+                            EAP requires a WiFi access point/gateway with wireless hardware. MikroTik CHR (QEMU) does not have wireless interfaces.
+                            EAP methods work with physical APs that support 802.1X (e.g., Aruba, Cisco, UniFi, Ruckus).
                           </span>
                         </div>
                       )}
@@ -1777,8 +1771,8 @@ export default function AAAConfig() {
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {(nas.authMethods || 'pap,chap,mschapv2').split(',').map((method: string) => {
-                              const opt = NAS_AUTH_METHOD_OPTIONS.find(o => o.value === method.trim());
-                              const isEap = method.trim() === 'eap';
+                              const opt = AUTH_METHODS.find(o => o.value === method.trim());
+                              const isEap = method.trim().startsWith('eap');
                               const isMac = method.trim() === 'mac-auth';
                               return (
                                 <Badge
@@ -1790,8 +1784,7 @@ export default function AAAConfig() {
                                     isMac && 'border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400',
                                   )}
                                 >
-                                  {opt?.label || method.trim()}
-                                  {isEap && ' ⚠'}
+                                  {opt?.nasLabel || method.trim()}
                                 </Badge>
                               );
                             })}
@@ -1927,38 +1920,69 @@ export default function AAAConfig() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label>Default Authentication Method</Label>
-                <Select
-                  value={aaaConfig.authMethod}
-                  onValueChange={(value) => setAaaConfig(prev => ({ ...prev, authMethod: value }))}
-                >
-                  <SelectTrigger className="w-full max-w-md">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {AUTH_METHODS.filter(m => m.value !== 'mac-auth').map((method) => (
-                      <SelectItem key={method.value} value={method.value} disabled={method.disabled}>
-                        <span className="flex items-center gap-2">
-                          {method.label}
-                          {method.disabled && <span className="text-xs text-amber-500">(Module Disabled)</span>}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {aaaConfig.authMethod === 'eap' && (
-                  <div className="flex items-start gap-2 p-2 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-sm">
+              {/* ── Authentication Methods (Multi-select) ── */}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">Authentication Methods</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Select which authentication methods are allowed. These apply as defaults for new NAS clients.
+                    Individual NAS clients can override this with their own method selection.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {AAA_AUTH_METHOD_OPTIONS.map((method) => {
+                    const selected = aaaConfig.authMethods.split(',').map(s => s.trim()).includes(method.value);
+                    return (
+                      <button
+                        key={method.value}
+                        type="button"
+                        onClick={() => {
+                          const current = aaaConfig.authMethods.split(',').map(s => s.trim()).filter(Boolean);
+                          let updated: string[];
+                          if (method.value === 'mac-auth') {
+                            // MAC Auth toggle: also sync allowMacAuth boolean
+                            updated = selected
+                              ? current.filter(m => m !== method.value)
+                              : [...current, method.value];
+                            const newMacAuth = !selected;
+                            if (updated.length === 0) return;
+                            setAaaConfig(prev => ({ ...prev, authMethods: updated.join(','), allowMacAuth: newMacAuth }));
+                            return;
+                          }
+                          updated = selected
+                            ? current.filter(m => m !== method.value)
+                            : [...current, method.value];
+                          if (updated.length === 0) return; // Must have at least one method
+                          setAaaConfig(prev => ({ ...prev, authMethods: updated.join(',') }));
+                        }}
+                        className={cn(
+                          'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                          selected
+                            ? 'bg-primary/15 border-primary text-primary shadow-sm'
+                            : 'bg-muted/50 border-muted text-muted-foreground hover:border-muted-foreground/50',
+                          method.value === 'mac-auth' && selected && 'bg-blue-50 border-blue-400 text-blue-700 dark:bg-blue-950/30 dark:border-blue-700 dark:text-blue-400',
+                        )}
+                      >
+                        {selected ? <Check className="h-3 w-3" /> : <span className="h-3 w-3 rounded-full border border-current" />}
+                        {method.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {aaaConfig.authMethods.split(',').map(s => s.trim()).some(m => m.startsWith('eap')) && (
+                  <div className="flex items-start gap-2 p-2 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-xs">
                     <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                     <span className="text-amber-700 dark:text-amber-300">
-                      EAP is selected but the RADIUS EAP module is currently disabled due to OpenSSL incompatibility. 
-                      Authentication will fail. Use PAP/CHAP/MS-CHAPv2 for captive portals.
+                      EAP requires a WiFi access point/gateway with wireless hardware. MikroTik CHR (QEMU) does not have wireless interfaces.
+                      EAP methods work with physical APs that support 802.1X (e.g., Aruba, Cisco, UniFi, Ruckus).
                     </span>
                   </div>
                 )}
-                <p className="text-sm text-muted-foreground">
-                  This sets the default auth method for new NAS clients. Individual NAS clients can override this with their own method selection. 
-                  RADIUS server auto-detects PAP, CHAP, and MS-CHAPv2 from the RADIUS packet — no additional configuration needed.
+                <p className="text-xs text-muted-foreground">
+                  Selected: <span className="font-mono font-medium">{aaaConfig.authMethods.split(',').map(s => {
+                    const opt = AAA_AUTH_METHOD_OPTIONS.find(o => o.value === s.trim());
+                    return opt?.label || s;
+                  }).join(', ')}</span>
                 </p>
               </div>
 
@@ -1967,12 +1991,25 @@ export default function AAAConfig() {
                   <Label>Allow MAC Authentication</Label>
                   <p className="text-sm text-muted-foreground">
                     Allow devices to authenticate using their MAC address (format: XX:XX:XX:XX:XX:XX). 
-                    NAS clients with "MAC Auth" in their auth methods will auto-accept MAC-based logins.
+                    This toggle is linked to the MAC Auth checkbox above.
                   </p>
                 </div>
                 <Switch
-                  checked={aaaConfig.allowMacAuth}
-                  onCheckedChange={(checked) => setAaaConfig(prev => ({ ...prev, allowMacAuth: checked }))}
+                  checked={aaaConfig.authMethods.split(',').map(s => s.trim()).includes('mac-auth')}
+                  onCheckedChange={(checked) => {
+                    const current = aaaConfig.authMethods.split(',').map(s => s.trim()).filter(Boolean);
+                    if (checked) {
+                      if (!current.includes('mac-auth')) {
+                        setAaaConfig(prev => ({ ...prev, authMethods: [...current, 'mac-auth'].join(','), allowMacAuth: true }));
+                      }
+                    } else {
+                      setAaaConfig(prev => ({
+                        ...prev,
+                        authMethods: current.filter(m => m !== 'mac-auth').join(',') || 'pap',
+                        allowMacAuth: false,
+                      }));
+                    }
+                  }}
                 />
               </div>
 

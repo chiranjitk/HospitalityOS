@@ -433,11 +433,10 @@ authorize {
         #  previous versions of this configuration, but you may wish to
         #  uncomment it as well; this will further reduce the number of
         #  LDAP and/or SQL queries for TTLS or PEAP.
-        #  DISABLED: EAP module not available (OpenSSL 3.5.5 incompatible with EAP-TLS in this build)
-        # eap {
-        #       ok = return
-        #       updated = return
-        # }
+        eap {
+                ok = return
+                updated = return
+        }
 
         #
         #  Pull crypt'd passwords from /etc/passwd or /etc/shadow,
@@ -517,6 +516,54 @@ authorize {
                         # Found in WiFiUser table — auto-accept
                         update control {
                                 &Auth-Type := Accept
+                        }
+                }
+        }
+
+        # ── StaySuite: Per-NAS auth method enforcement ──
+        # Query the RadiusNAS table for allowed auth methods for this NAS
+        # If the incoming auth type is not in the NAS's authMethods list, reject the request
+        if (&NAS-IP-Address) {
+                update control {
+                        &Tmp-String-1 := "%{sql:SELECT \"authMethods\" FROM \"RadiusNAS\" WHERE \"ipAddress\"='%{NAS-IP-Address}' AND \"status\"='active' LIMIT 1}"
+                }
+                if ("%{control:Tmp-String-1}" != "") {
+                        # Check auth type against allowed methods
+                        # EAP requests
+                        if (&EAP-Message) {
+                                if (&Tmp-String-1 !~ /eap/) {
+                                        update reply {
+                                                Reply-Message := "EAP not allowed for this NAS"
+                                        }
+                                        reject
+                                }
+                        }
+                        # CHAP requests
+                        elsif (&CHAP-Password) {
+                                if (&Tmp-String-1 !~ /chap/ && &Tmp-String-1 !~ /mschapv2/) {
+                                        update reply {
+                                                Reply-Message := "CHAP not allowed for this NAS"
+                                        }
+                                        reject
+                                }
+                        }
+                        # MS-CHAP requests
+                        elsif (&MS-CHAP-Challenge || &MS-CHAP-Response) {
+                                if (&Tmp-String-1 !~ /mschapv2/) {
+                                        update reply {
+                                                Reply-Message := "MS-CHAPv2 not allowed for this NAS"
+                                        }
+                                        reject
+                                }
+                        }
+                        # PAP requests (default — if none of the above)
+                        else {
+                                if (&Tmp-String-1 !~ /pap/) {
+                                        update reply {
+                                                Reply-Message := "PAP not allowed for this NAS"
+                                        }
+                                        reject
+                                }
                         }
                 }
         }
@@ -637,9 +684,7 @@ authenticate {
 
         #
         #  Allow EAP authentication.
-        #  DISABLED: EAP-TLS incompatible with OpenSSL 3.5.5 in this build.
-        #  Uncomment when EAP is needed with compatible OpenSSL.
-#       eap
+        eap
 
         #
         #  The older configurations sent a number of attributes in
@@ -647,15 +692,15 @@ authenticate {
         #  If you want to filter out these attributes, uncomment
         #  the following lines.
         #
-#       Auth-Type eap {
-#               eap {
-#                       handled = 1
-#               }
-#               if (handled && (Response-Packet-Type == Access-Challenge)) {
-#                       attr_filter.access_challenge.post-auth
-#                       handled  # override the "updated" code from attr_filter
-#               }
-#       }
+        Auth-Type eap {
+                eap {
+                        handled = 1
+                }
+                if (handled && (Response-Packet-Type == Access-Challenge)) {
+                        attr_filter.access_challenge.post-auth
+                        handled  # override the "updated" code from attr_filter
+                }
+        }
 }
 
 
@@ -1058,8 +1103,7 @@ post-auth {
                 # Insert EAP-Failure message if the request was
                 # rejected by policy instead of because of an
                 # authentication failure
-                # DISABLED: eap
-#               eap
+                eap
 
                 #  Remove reply message if the response contains an EAP-Message
                 remove_reply_message_if_eap

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# radiusd       Start the radius daemon.
+# radiusd	Start the radius daemon.
 #
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 #
 #    Copyright (C) 2001-2008 The FreeRADIUS Project http://www.freeradius.org
 
-prefix=/home/z/my-project/StaySuite-HospitalityOS/freeradius-install
+prefix=/home/z/my-project/freeradius-install
 exec_prefix=${prefix}
 sbindir=${exec_prefix}/sbin
 localstatedir=${prefix}/var
@@ -71,27 +71,27 @@ test -f $RADDBDIR/radiusd.conf || exit 0
 
 case "$1" in
   start)
-        echo -n "Starting $DESC:"
-        $RADIUSD $ARGS
-        echo "radiusd"
-        ;;
+	echo -n "Starting $DESC:"
+	$RADIUSD $ARGS
+	echo "radiusd"
+	;;
   stop)
-        [ -z "$2" ] && echo -n "Stopping $DESC: "
+	[ -z "$2" ] && echo -n "Stopping $DESC: "
         [ -f $rundir/radiusd.pid ] && kill -TERM `cat $rundir/radiusd.pid`
-        [ -z "$2" ] && echo "radiusd."
-        ;;
+	[ -z "$2" ] && echo "radiusd."
+	;;
   reload|force-reload)
-        echo "Reloading $DESC configuration files."
-        [ -f $rundir/radiusd.pid ] && kill -HUP `cat $rundir/radiusd.pid`
-        ;;
+	echo "Reloading $DESC configuration files."
+	[ -f $rundir/radiusd.pid ] && kill -HUP `cat $rundir/radiusd.pid`
+	;;
   restart)
-        sh $0 stop quiet
-        sleep 3
-        sh $0 start
-        ;;
+	sh $0 stop quiet
+	sleep 3
+	sh $0 start
+	;;
   check)
-        $RADIUSD -C $ARGS
-        ;;
+  	$RADIUSD -C $ARGS
+	;;
   *)
         echo "Usage: /etc/init.d/$RADIUS {start|stop|reload|restart|check}"
         exit 1

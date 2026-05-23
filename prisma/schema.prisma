@@ -7783,7 +7783,7 @@ model WiFiAAAConfig {
   autoProvisionOnCheckin    Boolean   @default(true)
   autoDeprovisionOnCheckout Boolean   @default(true)
   autoDeprovisionDelay      Int       @default(0)
-  authMethod                String    @default("pap")
+  authMethods               String    @default("pap,chap,mschapv2") // Comma-separated: pap,chap,mschapv2,eap-tls,eap-ttls,eap-peap,eap-md5,mac-auth
   allowMacAuth              Boolean   @default(false)
   accountingSyncInterval    Int       @default(5)
   lastSyncAt                DateTime? @db.Timestamptz

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { execSync } from 'child_process';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
 import { syncClientsConf } from '@/lib/wifi/nas-sync';
@@ -8,7 +9,7 @@ const SYSTEM_NAS_IP = '127.0.0.1';
 const SYSTEM_NAS_TYPE = 'cryptsk';
 
 // Valid auth method values for NAS clients
-const VALID_AUTH_METHODS = ['pap', 'chap', 'mschapv2', 'eap', 'mac-auth'] as const;
+const VALID_AUTH_METHODS = ['pap', 'chap', 'mschapv2', 'eap', 'eap-tls', 'eap-ttls', 'eap-peap', 'eap-md5', 'mac-auth'] as const;
 type AuthMethod = (typeof VALID_AUTH_METHODS)[number];
 
 /** Normalize and validate authMethods — returns comma-separated string */
@@ -25,9 +26,14 @@ export function authMethodsToMikrotikLoginBy(authMethods: string): string {
   const loginBy: string[] = [];
   if (methods.includes('pap')) loginBy.push('http-pap');
   if (methods.includes('chap')) loginBy.push('http-chap');
+  // EAP methods (eap-tls, eap-ttls, eap-peap, eap-md5) are handled at RADIUS level, not in MikroTik login-by
+  // But they also need http-chap/http-pap for the initial captive portal redirect
+  if (methods.some(m => m.startsWith('eap'))) {
+    if (!loginBy.includes('http-chap')) loginBy.push('http-chap');
+    if (!loginBy.includes('http-pap')) loginBy.push('http-pap');
+  }
   // mac-auth maps to MAC-based auth in MikroTik
   if (methods.includes('mac-auth')) loginBy.push('mac');
-  // EAP/MS-CHAPv2 are handled at RADIUS level, not in MikroTik login-by
   // Default fallback
   if (loginBy.length === 0) loginBy.push('http-chap', 'http-pap');
   return loginBy.join(',');
@@ -150,6 +156,13 @@ export async function POST(request: NextRequest) {
     // Sync clients.conf
     await syncClientsConf();
 
+    // Restart FreeRADIUS to apply changes
+    try {
+      execSync('pm2 restart staysuite-freeradius', { timeout: 15000 });
+    } catch (restartErr) {
+      console.error('[NAS Create] FreeRADIUS restart failed:', restartErr);
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -252,6 +265,13 @@ export async function PUT(request: NextRequest) {
     `, finalIp, finalShortname, finalType, finalSecret, finalCoaPort, finalDescription, oldIpAddress);
 
     await syncClientsConf();
+
+    // Restart FreeRADIUS to apply changes
+    try {
+      execSync('pm2 restart staysuite-freeradius', { timeout: 15000 });
+    } catch (restartErr) {
+      console.error('[NAS Update] FreeRADIUS restart failed:', restartErr);
+    }
 
     return NextResponse.json({ success: true, message: 'NAS updated' });
   } catch (error) {
