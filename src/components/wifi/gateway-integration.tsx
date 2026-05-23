@@ -1392,7 +1392,7 @@ export default function GatewayIntegration() {
                   placeholder="mikrotik-main (used in RADIUS and auth logs)"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Identifier for this NAS in FreeRADIUS and RADIUS accounting logs. Defaults to a generated value if empty.
+                  Identifier for this NAS in RADIUS accounting logs. Defaults to a generated value if empty.
                 </p>
               </div>
             </TabsContent>

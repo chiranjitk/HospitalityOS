@@ -443,7 +443,7 @@ export default function WifiSessions() {
                     </p>
                     <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
                       Sessions appear here when your NAS device (MikroTik, router, AP) sends RADIUS accounting
-                      packets to FreeRADIUS. Currently no accounting data has been received.
+                      packets to RADIUS server. Currently no accounting data has been received.
                     </p>
                     <div className="mt-2 text-xs text-amber-700 dark:text-amber-300 space-y-1">
                       <p className="font-medium">Required on NAS device:</p>

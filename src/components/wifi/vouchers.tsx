@@ -1099,7 +1099,7 @@ export default function WifiVouchers() {
                 <li>QR codes encode: portal-url + ?code=VOUCHER_CODE</li>
                 <li>Guest scans QR → browser opens portal with code pre-filled</li>
                 <li>Portal sends code to RADIUS for authentication</li>
-                <li>FreeRADIUS validates against radcheck → guest is online</li>
+                <li>RADIUS server validates against radcheck → guest is online</li>
               </ol>
             </div>
           </div>

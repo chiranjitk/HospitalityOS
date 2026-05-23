@@ -383,7 +383,7 @@ const NAS_VENDOR_GROUPS: NasVendorGroup[] = [
   {
     heading: 'RADIUS Server / Proxy',
     vendors: [
-      { value: 'freeradius', label: 'FreeRADIUS (Proxy/Realm)' },
+      { value: 'freeradius', label: 'RADIUS (Proxy/Realm)' },
       { value: 'microsoft_nps', label: 'Microsoft NPS / IAS' },
       { value: 'cisco_acs', label: 'Cisco ACS / ISE' },
       { value: 'aruba_clearpass', label: 'Aruba ClearPass' },
@@ -496,7 +496,7 @@ const AUTH_METHODS = [
   { value: 'pap', label: 'PAP (Password Authentication Protocol)', description: 'Most compatible with captive portals. Password sent in clear text over RADIUS (encrypted by RADIUS secret).', nasLabel: 'PAP' },
   { value: 'chap', label: 'CHAP (Challenge Handshake)', description: 'Better security than PAP — password never sent in clear. Requires clear-text password stored on server.', nasLabel: 'CHAP' },
   { value: 'mschapv2', label: 'MS-CHAPv2 (Microsoft)', description: 'Most secure for Windows clients. Requires NT-password hash stored on server.', nasLabel: 'MS-CHAPv2' },
-  { value: 'eap', label: 'EAP (Extensible Authentication)', description: 'Enterprise-grade: supports EAP-PEAP, EAP-TTLS, EAP-TLS. Requires EAP module in FreeRADIUS (currently disabled).', nasLabel: 'EAP', disabled: true },
+  { value: 'eap', label: 'EAP (Extensible Authentication)', description: 'Enterprise-grade: supports EAP-PEAP, EAP-TTLS, EAP-TLS. Requires EAP module in RADIUS server (currently disabled).', nasLabel: 'EAP', disabled: true },
   { value: 'mac-auth', label: 'MAC Authentication', description: 'Devices authenticate using their MAC address as username. Useful for IoT/printers. No password required.', nasLabel: 'MAC Auth' },
 ];
 
@@ -1604,7 +1604,7 @@ export default function AAAConfig() {
                         <div className="flex items-start gap-2 p-2 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-xs">
                           <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                           <span className="text-amber-700 dark:text-amber-300">
-                            EAP is selected but the FreeRADIUS EAP module is currently disabled (OpenSSL 3.5.5 incompatibility). 
+                            EAP is selected but the RADIUS EAP module is currently disabled (OpenSSL incompatibility). 
                             EAP authentication will not work until the module is re-enabled. Use PAP/CHAP/MS-CHAPv2 for captive portal auth.
                           </span>
                         </div>
@@ -1951,14 +1951,14 @@ export default function AAAConfig() {
                   <div className="flex items-start gap-2 p-2 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-sm">
                     <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                     <span className="text-amber-700 dark:text-amber-300">
-                      EAP is selected but the FreeRADIUS EAP module is currently disabled due to OpenSSL 3.5.5 incompatibility. 
+                      EAP is selected but the RADIUS EAP module is currently disabled due to OpenSSL incompatibility. 
                       Authentication will fail. Use PAP/CHAP/MS-CHAPv2 for captive portals.
                     </span>
                   </div>
                 )}
                 <p className="text-sm text-muted-foreground">
                   This sets the default auth method for new NAS clients. Individual NAS clients can override this with their own method selection. 
-                  FreeRADIUS auto-detects PAP, CHAP, and MS-CHAPv2 from the RADIUS packet — no additional configuration needed.
+                  RADIUS server auto-detects PAP, CHAP, and MS-CHAPv2 from the RADIUS packet — no additional configuration needed.
                 </p>
               </div>
 
