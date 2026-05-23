@@ -337,6 +337,46 @@ export async function POST(request: NextRequest) {
 
     console.log(`[REGISTRATION] New tenant registered: ${result.tenant.name} (${result.tenant.plan}) by ${result.user.email}`);
 
+    // Send platform admin email notification (non-blocking)
+    try {
+      const { sendSystemEmail, generateRegistrationAlertHtml } = await import('@/lib/services/system-email');
+      const { getServerFingerprint } = await import('@/lib/license/server-fingerprint');
+
+      const fingerprint = getServerFingerprint();
+      const alertHtml = generateRegistrationAlertHtml({
+        tenantName: result.tenant.name,
+        tenantEmail: result.user.email,
+        planName: licenseKey.plan.name,
+        planDisplayName: licenseKey.plan.displayName || licenseKey.plan.name,
+        maxProperties: licenseKey.plan.maxProperties,
+        maxRooms: licenseKey.plan.maxRoomsPerProperty,
+        maxUsers: licenseKey.plan.maxUsers,
+        licenseKey: licenseKey.key,
+        adminName: `${result.user.firstName} ${result.user.lastName}`,
+        adminEmail: result.user.email,
+        phone: result.user.phone,
+        serverFingerprint: fingerprint,
+        generatedFor: licenseKey.generatedFor,
+        ipAddress: clientIp,
+        registeredAt: new Date().toLocaleString(),
+      });
+
+      // Fire and forget — don't block the registration response
+      sendSystemEmail({
+        subject: `🔔 New Tenant: ${result.tenant.name} registered (${licenseKey.plan.displayName || licenseKey.plan.name})`,
+        html: alertHtml,
+        text: `New tenant registration: ${result.tenant.name} (${result.tenant.plan}) by ${result.user.email}. Plan: ${licenseKey.plan.displayName} (${licenseKey.plan.maxProperties}P/${licenseKey.plan.maxRoomsPerProperty}R/${licenseKey.plan.maxUsers}U. Fingerprint: ${fingerprint.slice(0, 8)}...${fingerprint.slice(-4)}. IP: ${clientIp}`,
+      }).then((res) => {
+        if (res.success) {
+          console.log(`[REGISTRATION] 📧 Platform admin notified successfully`);
+        } else {
+          console.warn(`[REGISTRATION] ⚠️ Failed to notify platform admin: ${res.error}`);
+        }
+      });
+    } catch (err) {
+      console.warn('[REGISTRATION] ⚠️ Email notification error (non-blocking):', err);
+    }
+
     return response;
   } catch (error) {
     console.error('[Registration] Error:', error);
