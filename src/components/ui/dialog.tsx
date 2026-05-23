@@ -46,15 +46,39 @@ function DialogOverlay({
   )
 }
 
-/* ─── Helpers to identify header / footer children ─── */
+/* ─── Slot Detection Helpers ─── */
 const HEADER_MARKER = Symbol.for("dialog-header")
 const FOOTER_MARKER = Symbol.for("dialog-footer")
 
-function isHeader(el: React.ReactNode): boolean {
-  return React.isValidElement(el) && (el.type as any)[HEADER_MARKER]
+function getComponentName(type: unknown): string | undefined {
+  if (typeof type === "function") {
+    return (type as any).displayName || (type as any).name
+  }
+  return undefined
 }
+
+function isHeader(el: React.ReactNode): boolean {
+  if (!React.isValidElement(el)) return false
+  const type = el.type as any
+  // Method 1: Symbol marker (primary)
+  if (type[HEADER_MARKER]) return true
+  // Method 2: displayName
+  if (type.displayName === "DialogHeader") return true
+  // Method 3: function name
+  if (typeof type === "function" && type.name === "DialogHeader") return true
+  return false
+}
+
 function isFooter(el: React.ReactNode): boolean {
-  return React.isValidElement(el) && (el.type as any)[FOOTER_MARKER]
+  if (!React.isValidElement(el)) return false
+  const type = el.type as any
+  // Method 1: Symbol marker (primary)
+  if (type[FOOTER_MARKER]) return true
+  // Method 2: displayName
+  if (type.displayName === "DialogFooter") return true
+  // Method 3: function name
+  if (typeof type === "function" && type.name === "DialogFooter") return true
+  return false
 }
 
 function DialogContent({
@@ -69,6 +93,8 @@ function DialogContent({
   const headerChild = childArray.find(isHeader)
   const footerChild = childArray.find(isFooter)
   const bodyChildren = childArray.filter((c) => !isHeader(c) && !isFooter(c))
+
+  const hasSlots = headerChild != null || footerChild != null
 
   return (
     <DialogPortal data-slot="dialog-portal">
@@ -92,20 +118,25 @@ function DialogContent({
           </DialogPrimitive.Close>
         )}
 
-        {/* Header row — fixed, never scrolls */}
-        {headerChild && (
-          <div className="flex-shrink-0 px-6 pt-6 pb-2">{headerChild}</div>
-        )}
-
-        {/* Body row — scrollable */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4">
-          {bodyChildren.length > 0 ? bodyChildren : children}
-        </div>
-
-        {/* Footer row — fixed at bottom, never scrolls */}
-        {footerChild && (
-          <div className="flex-shrink-0 px-6 pt-4 pb-6 border-t bg-background">
-            {footerChild}
+        {hasSlots ? (
+          <>
+            {/* Slot-detected layout: header fixed, body scrollable, footer fixed */}
+            {headerChild && (
+              <div className="flex-shrink-0 px-6 pt-6 pb-2">{headerChild}</div>
+            )}
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-2">
+              {bodyChildren}
+            </div>
+            {footerChild && (
+              <div className="flex-shrink-0 px-6 pt-4 pb-6 border-t bg-background">
+                {footerChild}
+              </div>
+            )}
+          </>
+        ) : (
+          /* Fallback: no slots detected — single scrollable area with sticky header/footer */
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6">
+            {children}
           </div>
         )}
       </DialogPrimitive.Content>
@@ -117,12 +148,16 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2 text-center sm:text-left", className)}
+      className={cn(
+        "flex flex-col gap-2 text-center sm:text-left",
+        className
+      )}
       {...props}
     />
   )
 }
-(DialogHeader as any)[HEADER_MARKER] = true
+DialogHeader.displayName = "DialogHeader"
+;(DialogHeader as any)[HEADER_MARKER] = true
 
 function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -136,7 +171,8 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
     />
   )
 }
-(DialogFooter as any)[FOOTER_MARKER] = true
+DialogFooter.displayName = "DialogFooter"
+;(DialogFooter as any)[FOOTER_MARKER] = true
 
 function DialogTitle({
   className,
