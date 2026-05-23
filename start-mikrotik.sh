@@ -8,10 +8,12 @@
 #   8729  → API-SSL                 |  8081  → REST API (port 81)
 #
 # Login: admin / staysuite2025
-# Serial: socat - UNIX-CONNECT:/home/z/my-project/mikrotik-serial.sock
+# Serial: socat - UNIX-CONNECT:/tmp/mikrotik-serial.sock
 
 export LD_LIBRARY_PATH="/home/z/my-project:${LD_LIBRARY_PATH:-}"
 
+# Socket files are placed in /tmp to avoid Turbopack scanning them
+# (Turbopack tries to read .sock files as JS/CSS, causing server crash)
 exec /home/z/my-project/qemu-system-x86_64 \
   -L /home/z/my-project/qemu-share \
   -m 256 \
@@ -25,8 +27,8 @@ hostfwd=tcp::8080-:80,\
 hostfwd=tcp::8081-:81,\
 hostfwd=tcp::8729-:8729 \
   -device virtio-net-pci,netdev=net0 \
-  -monitor unix:/home/z/my-project/mikrotik-monitor.sock,server,nowait \
-  -serial unix:/home/z/my-project/mikrotik-serial.sock,server,nowait \
-  -nographic \
-  -no-reboot \
+  -monitor unix:/tmp/mikrotik-monitor.sock,server,nowait \
+  -serial unix:/tmp/mikrotik-serial.sock,server,nowait \
+  -display none \
+  -daemonize \
   -accel tcg,thread=multi

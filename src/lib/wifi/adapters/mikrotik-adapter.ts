@@ -493,7 +493,6 @@ export class MikrotikAdapter extends GatewayAdapter {
           '.id': profileId,
           'html-directory': 'none',
           'use-radius': 'yes',
-          'accounting': 'yes',
         };
 
         if (wifiConfig.portalCallbackUrl) {

@@ -166,7 +166,7 @@ const gatewayTypes = [
 // Default ports per gateway type (mirrors VENDOR_METADATA / DEFAULT_PORTS from lib/wifi/adapters)
 const VENDOR_DEFAULT_PORTS: Record<string, { api: number; coa: number; radiusAuth: number; radiusAcct: number }> = {
   cryptsk: { api: 3000, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
-  mikrotik: { api: 8728, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  mikrotik: { api: 8081, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
   tplink: { api: 8043, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
   ubiquiti: { api: 8443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
   cambium: { api: 443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
