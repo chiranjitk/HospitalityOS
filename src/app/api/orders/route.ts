@@ -695,10 +695,10 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Can only cancel orders that are not already served or cancelled
-    if (['served', 'cancelled'].includes(existingOrder.status)) {
+    // Can only cancel orders that are not already served, cancelled, or paid
+    if (['served', 'cancelled', 'paid'].includes(existingOrder.status)) {
       return NextResponse.json(
-        { success: false, error: { code: 'CANNOT_CANCEL', message: 'Cannot cancel an order that is already served or cancelled' } },
+        { success: false, error: { code: 'CANNOT_CANCEL', message: 'Cannot cancel an order that is served, cancelled, or paid. Use the refund endpoint for paid orders.' } },
         { status: 400 }
       );
     }

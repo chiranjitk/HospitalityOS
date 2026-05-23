@@ -401,53 +401,79 @@ export default function BillPage() {
         </CardContent>
       </Card>
 
-      {/* Bill Summary */}
+      {/* Bill Summary — calculated from real folio line items */}
       <Card>
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base">Summary</CardTitle>
         </CardHeader>
         <CardContent className="p-4 pt-0">
-          <div className="space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Room Charges</span>
-              <span>{bill.currency} {(bill.totalCharges * 0.7).toFixed(2)}</span>
+          {folio && folio.lineItems.length > 0 ? (
+            <div className="space-y-3">
+              {(() => {
+                const categoryTotals: Record<string, number> = {};
+                const categoryLabels: Record<string, string> = {
+                  room_charge: 'Room Charges', room: 'Room Charges',
+                  restaurant: 'Food & Beverage', food_beverage: 'Food & Beverage',
+                  wifi: 'WiFi', laundry: 'Laundry', minibar: 'Minibar',
+                  service: 'Services', amenity: 'Amenities', parking: 'Parking',
+                  spa: 'Spa', tax: 'Taxes & Fees', tip: 'Tips',
+                  refund: 'Refunds', discount: 'Discounts',
+                  miscellaneous: 'Other', other: 'Other',
+                };
+                const categoryIconsMap: Record<string, string> = {
+                  room_charge: '🛏️', room: '🛏️', restaurant: '🍽️', food_beverage: '🍽️',
+                  wifi: '📶', laundry: '👕', minibar: '🍷', service: '🔧',
+                  amenity: '✨', parking: '🅿️', spa: '💆', tax: '📊',
+                  tip: '💝', refund: '↩️', discount: '💰', miscellaneous: '📦', other: '📦',
+                };
+                for (const item of folio.lineItems) {
+                  const cat = item.category || 'other';
+                  categoryTotals[cat] = (categoryTotals[cat] || 0) + item.totalAmount;
+                }
+                const sortedCategories = Object.entries(categoryTotals)
+                  .filter(([, amount]) => Math.abs(amount) > 0.005)
+                  .sort(([, a], [, b]) => b - a);
+                return sortedCategories.map(([category, amount]) => {
+                  const isNegative = amount < 0;
+                  return (
+                    <div key={category} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        <span>{categoryIconsMap[category] || '📦'}</span>
+                        {categoryLabels[category] || category}
+                      </span>
+                      <span className={isNegative ? 'text-red-600 dark:text-red-400' : ''}>
+                        {isNegative ? '-' : ''}{bill.currency} {Math.abs(amount).toFixed(2)}
+                      </span>
+                    </div>
+                  );
+                });
+              })()}
+              <Separator />
+              <div className="flex justify-between font-semibold">
+                <span>Total</span>
+                <span>{bill.currency} {folio.totalAmount.toFixed(2)}</span>
+              </div>
+              {folio.paidAmount > 0 && (
+                <>
+                  <div className="flex justify-between text-sm text-emerald-600 dark:text-emerald-400">
+                    <span>Paid</span>
+                    <span>-{bill.currency} {folio.paidAmount.toFixed(2)}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between font-bold text-lg">
+                    <span>Balance Due</span>
+                    <span className={folio.balance > 0 ? 'text-amber-600' : 'text-emerald-600 dark:text-emerald-400'}>
+                      {bill.currency} {Math.max(0, folio.balance).toFixed(2)}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">F&B</span>
-              <span>{bill.currency} {(bill.totalCharges * 0.15).toFixed(2)}</span>
+          ) : (
+            <div className="text-center py-4 text-muted-foreground">
+              <p className="text-sm">No charge details available yet</p>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Services</span>
-              <span>{bill.currency} {(bill.totalCharges * 0.08).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Taxes & Fees</span>
-              <span>{bill.currency} {(bill.totalCharges * 0.07).toFixed(2)}</span>
-            </div>
-
-            <Separator />
-
-            <div className="flex justify-between font-semibold">
-              <span>Total</span>
-              <span>{bill.currency} {bill.totalCharges.toFixed(2)}</span>
-            </div>
-
-            {bill.totalPaid > 0 && (
-              <>
-                <div className="flex justify-between text-sm text-emerald-600 dark:text-emerald-400">
-                  <span>Paid</span>
-                  <span>-{bill.currency} {bill.totalPaid.toFixed(2)}</span>
-                </div>
-                <Separator />
-                <div className="flex justify-between font-bold text-lg">
-                  <span>Balance Due</span>
-                  <span className={bill.balanceDue > 0 ? 'text-amber-600' : 'text-emerald-600 dark:text-emerald-400'}>
-                    {bill.currency} {bill.balanceDue.toFixed(2)}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
+          )}
         </CardContent>
       </Card>
 

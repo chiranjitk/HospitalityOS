@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import crypto from 'crypto';
 import { notifyPaymentReceived } from '@/lib/notify';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // POST /api/orders/[id]/pay - Process payment for a restaurant order
 export async function POST(
@@ -62,31 +63,55 @@ export async function POST(
     }
 
     const currency = order.property?.currency || 'USD';
+    if (order.currency && order.currency !== currency) {
+      console.warn(`[Orders Pay] Currency mismatch: order is ${order.currency}, property is ${currency}. Using property currency.`);
+    }
     const paymentAmount = order.totalAmount + (tipAmount || 0);
 
     // For room charges, find or create the booking's folio
     let folioId = order.folioId;
 
     if (paymentMethod === 'room_charge' && !folioId) {
+      // C-3: Room charge requires a booking association
+      const effectiveBookingId = bookingId || order.bookingId;
+      if (!effectiveBookingId) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Room charge requires a booking association' } },
+          { status: 400 }
+        );
+      }
+
+      // Validate booking exists and is in checked_in status
+      const booking = await db.booking.findUnique({ where: { id: effectiveBookingId } });
+      if (!booking) {
+        return NextResponse.json(
+          { success: false, error: { code: 'NOT_FOUND', message: 'Booking not found' } },
+          { status: 400 }
+        );
+      }
+      if (booking.status !== 'checked_in') {
+        return NextResponse.json(
+          { success: false, error: { code: 'INVALID_BOOKING_STATUS', message: 'Room charge requires the guest to be checked in' } },
+          { status: 400 }
+        );
+      }
+
       // Try to find an existing open folio for the booking
       let targetFolioId: string | null = null;
 
-      if (bookingId) {
-        const bookingFolio = await db.folio.findFirst({
-          where: { bookingId, status: { in: ['open', 'partially_paid'] } },
-          orderBy: { createdAt: 'desc' },
-        });
-        if (bookingFolio) {
-          targetFolioId = bookingFolio.id;
+      const bookingFolio = await db.folio.findFirst({
+        where: { bookingId: effectiveBookingId, status: { in: ['open', 'partially_paid'] } },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (bookingFolio) {
+        // C-3: Validate folio is not closed
+        if (bookingFolio.status === 'closed') {
+          return NextResponse.json(
+            { success: false, error: { code: 'FOLIO_CLOSED', message: 'Cannot charge to a closed folio' } },
+            { status: 400 }
+          );
         }
-      } else if (order.bookingId) {
-        const bookingFolio = await db.folio.findFirst({
-          where: { bookingId: order.bookingId, status: { in: ['open', 'partially_paid'] } },
-          orderBy: { createdAt: 'desc' },
-        });
-        if (bookingFolio) {
-          targetFolioId = bookingFolio.id;
-        }
+        targetFolioId = bookingFolio.id;
       }
 
       if (!targetFolioId) {
@@ -95,7 +120,7 @@ export async function POST(
           data: {
             tenantId: user.tenantId,
             propertyId: order.propertyId,
-            bookingId: bookingId || order.bookingId || undefined,
+            bookingId: effectiveBookingId || undefined,
             guestId: order.guestId || undefined,
             folioNumber: `FOL-ROOM-${Date.now().toString(36).toUpperCase()}`,
             currency,
@@ -165,6 +190,8 @@ export async function POST(
             totalAmount: item.totalAmount,
             taxAmount: Math.round(item.totalAmount * (order.subtotal > 0 ? (order.taxes / order.subtotal) : 0) * 100) / 100,
             reference: `order-${orderId}`,
+            referenceType: 'order',
+            referenceId: item.id,
             serviceDate: new Date(),
           },
         });
@@ -204,6 +231,14 @@ export async function POST(
           serviceDate: new Date(),
         },
       });
+    }
+
+    // M-6: Duplicate payment prevention
+    const existingPayment = await db.payment.findFirst({
+      where: { folioId, reference: splitCount ? `split-1-of-${splitCount}-order-${orderId}` : `order-${orderId}`, status: 'completed' },
+    });
+    if (existingPayment) {
+      return NextResponse.json({ success: false, error: { code: 'DUPLICATE_PAYMENT', message: 'Payment already processed' } }, { status: 409 });
     }
 
     // Create payment records
@@ -257,13 +292,14 @@ export async function POST(
     });
     const totalPaid = allPayments._sum.amount || 0;
 
+    // M-7: Only auto-close standalone folios (not booking-linked ones)
+    const folioShouldClose = totalPaid >= paymentAmount && !folioRecord?.bookingId;
     await db.folio.update({
       where: { id: folioId },
       data: {
         paidAmount: totalPaid,
         balance: paymentAmount - totalPaid,
-        status: totalPaid >= paymentAmount ? 'closed' : 'open',
-        closedAt: totalPaid >= paymentAmount ? new Date() : undefined,
+        ...(folioShouldClose ? { status: 'closed', closedAt: new Date() } : { status: totalPaid > 0 ? 'partially_paid' : 'open' }),
       },
     });
 
@@ -302,6 +338,16 @@ export async function POST(
       method: paymentMethod || 'unknown',
       orderNumber: order.orderNumber,
     });
+
+    // H-1: Audit log for order payment
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId, userId: user.id, module: 'billing', action: 'payment',
+        entityType: 'order', entityId: orderId,
+        newValue: { orderNumber: order.orderNumber, paymentMethod, paymentAmount, folioId, splitCount: splitCount || 1 },
+        description: `Payment processed for order ${order.orderNumber}: ${paymentAmount} via ${paymentMethod}`,
+      }, request);
+    } catch (auditError) { console.error('[Orders Pay] Audit log failed:', auditError); }
 
     return NextResponse.json({
       success: true,

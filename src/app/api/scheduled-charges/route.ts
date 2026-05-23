@@ -9,7 +9,7 @@ const createScheduledChargeSchema = z.object({
   folioId: z.string().uuid('Invalid folio ID'),
   bookingId: z.string().uuid('Invalid booking ID'),
   propertyId: z.string().uuid('Invalid property ID'),
-  chargeType: z.enum(['room_charge', 'incidentals', 'minibar', 'resort_fee', 'parking', 'spa', 'laundry', 'other']),
+  chargeType: z.enum(['room_charge', 'incidentals', 'minibar', 'resort_fee', 'parking', 'spa', 'laundry', 'restaurant', 'food_beverage', 'other']),
   description: z.string().min(1, 'Description is required'),
   category: z.string().optional(),
   amount: z.number().positive('Amount must be positive'),

@@ -135,6 +135,25 @@ export async function PATCH(
 
         if (folio) {
           const lineItemDescription = `Laundry Service - Order #${existing.id.slice(0, 8)}`;
+          const amount = existing.totalPrice;
+
+          // M-4 FIX: Calculate tax from property tax settings
+          let taxRate = 0;
+          const prop = await db.property.findFirst({
+            where: { id: existing.propertyId },
+            select: { defaultTaxRate: true, taxComponents: true },
+          });
+          if (prop) {
+            try {
+              const tc = JSON.parse(prop.taxComponents || '[]');
+              if (Array.isArray(tc) && tc.length > 0) {
+                taxRate = tc.reduce((sum: number, c: { rate: number }) => sum + (c.rate || 0), 0) / 100;
+              } else {
+                taxRate = (prop.defaultTaxRate || 0) / 100;
+              }
+            } catch { taxRate = (prop.defaultTaxRate || 0) / 100; }
+          }
+          const taxAmount = Math.round(amount * taxRate * 100) / 100;
 
           await db.folioLineItem.create({
             data: {
@@ -142,8 +161,9 @@ export async function PATCH(
               description: lineItemDescription,
               category: 'laundry',
               quantity: existing.totalItems,
-              unitPrice: existing.totalPrice / existing.totalItems || existing.totalPrice,
-              totalAmount: existing.totalPrice,
+              unitPrice: amount / existing.totalItems || amount,
+              totalAmount: amount,
+              taxAmount,
               serviceDate: new Date(),
               referenceType: 'laundry_order',
               referenceId: existing.id,
@@ -151,13 +171,22 @@ export async function PATCH(
             },
           });
 
-          const newBalance = folio.balance + existing.totalPrice;
+          // Recalculate folio taxes: sum all line item tax amounts
+          const allLineItems = await db.folioLineItem.findMany({
+            where: { folioId: folio.id },
+            select: { totalAmount: true, taxAmount: true },
+          });
+          const newSubtotal = allLineItems.reduce((s, i) => s + i.totalAmount, 0);
+          const newTaxes = allLineItems.reduce((s, i) => s + (i.taxAmount || 0), 0);
+          const newTotal = newSubtotal + newTaxes - (folio.discount || 0);
+
           await db.folio.update({
             where: { id: folio.id },
             data: {
-              subtotal: { increment: existing.totalPrice },
-              totalAmount: { increment: existing.totalPrice },
-              balance: newBalance,
+              subtotal: newSubtotal,
+              taxes: newTaxes,
+              totalAmount: newTotal,
+              balance: folio.balance + amount + taxAmount,
             },
           });
 

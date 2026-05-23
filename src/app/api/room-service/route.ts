@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { auditLogService } from '@/lib/services/audit-service';
 import crypto from 'crypto';
 
 function generateOrderNumber(): string {
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
       try { const tc = JSON.parse(property.taxComponents); for (const c of tc) taxes += subtotal * (c.rate / 100); } catch { taxes = subtotal * ((property.defaultTaxRate || 0) / 100); }
     } else { taxes = subtotal * ((property.defaultTaxRate || 0) / 100); }
 
-    const serviceCharge = property.serviceChargePercent ? subtotal * (property.serviceChargePercent / 100) : subtotal * 0.05;
+    const serviceCharge = property.serviceChargePercent ? subtotal * (property.serviceChargePercent / 100) : 0;
     const resolvedPriority = priority || 'normal';
     const estimatedDelivery = resolvedPriority === 'rush' ? 15 : 25;
 
@@ -121,6 +122,15 @@ export async function POST(request: NextRequest) {
       await tx.orderItem.createMany({ data: orderItemsData.map((i: Record<string, unknown>) => ({ ...i, orderId: newOrder.id })) });
       return newOrder;
     });
+
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId, userId: user.id, module: 'billing', action: 'create',
+        entityType: 'order', entityId: order.id,
+        newValue: { orderNumber: order.orderNumber, orderType: 'room_service', roomNumber, bookingId, guestName, subtotal, totalAmount: subtotal + taxes + serviceCharge, itemCount: orderItemsData.length },
+        description: `Created room service order ${order.orderNumber} (${orderItemsData.length} items, total: ${subtotal + taxes + serviceCharge})`,
+      }, request);
+    } catch (auditError) { console.error('[RoomService POST] Audit log failed:', auditError); }
 
     return NextResponse.json({ success: true, data: order }, { status: 201 });
   } catch (error) {
@@ -256,10 +266,7 @@ export async function PUT(request: NextRequest) {
                 .join(', ');
               const description = `Room Service - ${itemNames || existing.orderNumber}`;
 
-              // 4. Calculate amounts: total + 5% surcharge
-              const surchargeRate = 0.05;
-              const surcharge = Math.round(existing.totalAmount * surchargeRate * 100) / 100;
-              const lineItemTotal = Math.round((existing.totalAmount + surcharge) * 100) / 100;
+              // 4. Calculate amounts
 
               // Determine tax rate from property
               let taxRate = 0;
@@ -286,8 +293,8 @@ export async function PUT(request: NextRequest) {
                     description,
                     category: 'restaurant',
                     quantity: 1,
-                    unitPrice: lineItemTotal,
-                    totalAmount: lineItemTotal,
+                    unitPrice: existing.totalAmount,
+                    totalAmount: existing.totalAmount,
                     serviceDate: new Date(),
                     referenceType: 'order',
                     referenceId: existing.id,
@@ -338,8 +345,7 @@ export async function PUT(request: NextRequest) {
                         orderId: existing.id,
                         orderNumber: existing.orderNumber,
                         folioId,
-                        amount: lineItemTotal,
-                        surcharge,
+                        amount: existing.totalAmount,
                         description,
                       }),
                       performedBy: 'system:room_service',
@@ -351,7 +357,7 @@ export async function PUT(request: NextRequest) {
                 }
               });
 
-              console.log(`[RoomService] Auto-posted order ${existing.orderNumber} ($${lineItemTotal}) to folio ${folioId}`);
+              console.log(`[RoomService] Auto-posted order ${existing.orderNumber} ($${existing.totalAmount}) to folio ${folioId}`);
             }
           } else {
             console.log(`[RoomService] No active booking found for room ${existing.roomNumber}, cannot auto-post to folio.`);

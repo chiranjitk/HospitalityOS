@@ -8,7 +8,7 @@ import crypto from 'crypto';
 // ─── Night Audit Steps Template ───
 const NIGHT_AUDIT_STEPS = [
   { stepName: 'Post room charges', stepOrder: 1 },
-  { stepName: 'Verify folios', stepOrder: 2 },
+  { stepName: 'Post scheduled charges', stepOrder: 2 },
   { stepName: 'Process no-shows', stepOrder: 3 },
   { stepName: 'Reconcile rooms', stepOrder: 4 },
   { stepName: 'Run reports', stepOrder: 5 },
@@ -357,7 +357,7 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
     }
 
     await tx.nightAuditStep.updateMany({
-      where: { nightAuditId: audit.id, stepName: 'Verify folios' },
+      where: { nightAuditId: audit.id, stepName: 'Post scheduled charges' },
       data: { status: 'completed', completedAt: new Date(), performedBy: userId, result: JSON.stringify({ scheduledChargesPosted: summary.scheduledChargesPosted, scheduledChargeTotal: summary.scheduledChargeTotal }) },
     });
 
@@ -733,9 +733,8 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
       });
     }
 
-    // BUG-017 FIX: Use folio totalAmount as the source of truth for totalRevenue
-    // instead of summing line items (which exclude taxes/discounts and may not
-    // match actual folio totals). Query folios that had activity during the audit day.
+    // H-7 FIX: Revenue totals come from summing daily line items, NOT cumulative folio totals.
+    // This ensures revenue reflects only activity within the audit day.
     const lineItems = await tx.folioLineItem.findMany({
       where: { folio: { propertyId: audit.propertyId, tenantId: audit.tenantId }, serviceDate: { gte: startOfDay, lte: endOfDay } },
       select: { category: true, totalAmount: true, folioId: true },
@@ -746,21 +745,13 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
     summary.fbRevenue = lineItems.filter((i) => ['food_beverage', 'restaurant', 'room_service', 'minibar'].includes(i.category)).reduce((s, i) => s + i.totalAmount, 0);
     summary.otherRevenue = lineItems.filter((i) => i.category !== 'room' && !['food_beverage', 'restaurant', 'room_service', 'minibar'].includes(i.category)).reduce((s, i) => s + i.totalAmount, 0);
 
-    // totalRevenue from folio totalAmount (source of truth) for folios with activity on the audit day
-    const activeFolioIds = [...new Set(lineItems.map((i) => i.folioId))];
-    let folioTotalRevenue = 0;
-    if (activeFolioIds.length > 0) {
-      const activeFolios = await tx.folio.findMany({
-        where: { id: { in: activeFolioIds } },
-        select: { totalAmount: true },
-      });
-      folioTotalRevenue = activeFolios.reduce((s, f) => s + f.totalAmount, 0);
-    }
+    // Total revenue from summing daily line items (not cumulative folio totals)
+    const lineItemTotalRevenue = lineItems.reduce((s, i) => s + i.totalAmount, 0);
     summary.occupancyRate = totalRooms > 0 ? `${((occupiedRooms / totalRooms) * 100).toFixed(1)}%` : '0%';
 
     await tx.nightAuditStep.updateMany({
       where: { nightAuditId: audit.id, stepName: 'Run reports' },
-      data: { status: 'completed', completedAt: new Date(), performedBy: userId, result: JSON.stringify({ occupancy: { total: totalRooms, occupied: occupiedRooms, rate: summary.occupancyRate }, revenue: { room: summary.roomRevenue, fb: summary.fbRevenue, other: summary.otherRevenue, total: folioTotalRevenue }, invoicesGenerated: summary.invoicesGenerated }) },
+      data: { status: 'completed', completedAt: new Date(), performedBy: userId, result: JSON.stringify({ occupancy: { total: totalRooms, occupied: occupiedRooms, rate: summary.occupancyRate }, revenue: { room: summary.roomRevenue, fb: summary.fbRevenue, other: summary.otherRevenue, total: lineItemTotalRevenue }, invoicesGenerated: summary.invoicesGenerated }) },
     });
 
     // ── Step 6: Close business day ──
@@ -774,7 +765,7 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
         roomRevenue: summary.roomRevenue,
         fbRevenue: summary.fbRevenue,
         otherRevenue: summary.otherRevenue,
-        totalRevenue: folioTotalRevenue,
+        totalRevenue: lineItemTotalRevenue,
         autoPostedAt: new Date(),
         completedBy: userId,
         status: 'completed',
@@ -794,7 +785,7 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
         action: 'audit_completed',
         entityType: 'NightAudit',
         entityId: audit.id,
-        newValue: `Night audit completed automatically. Room charges: ${summary.roomChargesPosted} ($${summary.roomChargeTotal.toFixed(2)}), No-shows: ${summary.noShowsProcessed} ($${summary.noShowRevenue.toFixed(2)}), Rooms reconciled: ${summary.roomsReconciled}, Occupancy: ${summary.occupancyRate}, Total revenue: $${folioTotalRevenue.toFixed(2)}, Invoices generated: ${summary.invoicesGenerated}`,
+        newValue: `Night audit completed automatically. Room charges: ${summary.roomChargesPosted} ($${summary.roomChargeTotal.toFixed(2)}), No-shows: ${summary.noShowsProcessed} ($${summary.noShowRevenue.toFixed(2)}), Rooms reconciled: ${summary.roomsReconciled}, Occupancy: ${summary.occupancyRate}, Total revenue: $${lineItemTotalRevenue.toFixed(2)}, Invoices generated: ${summary.invoicesGenerated}`,
         performedBy: userId,
       },
     });

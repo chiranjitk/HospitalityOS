@@ -40,13 +40,7 @@ export async function POST(
         property: {
           select: {
             id: true,
-            name: true,
             currency: true,
-            taxType: true,
-            defaultTaxRate: true,
-            taxComponents: true,
-            serviceChargePercent: true,
-            includeTaxInPrice: true,
           },
         },
       },
@@ -157,22 +151,8 @@ export async function POST(
       );
     }
 
-    // Determine tax rate from property settings
-    const property = order.property;
-    let taxRate = 0;
-    if (property) {
-      // Check taxComponents first (JSON array of {name, rate, type})
-      try {
-        const taxComponents = JSON.parse(property.taxComponents || '[]');
-        if (Array.isArray(taxComponents) && taxComponents.length > 0) {
-          taxRate = taxComponents.reduce((sum: number, tc: { rate: number }) => sum + (tc.rate || 0), 0) / 100;
-        } else {
-          taxRate = (property.defaultTaxRate || 0) / 100;
-        }
-      } catch {
-        taxRate = (property.defaultTaxRate || 0) / 100;
-      }
-    }
+    // H-2: Use proportional tax rate from order (matches pay route approach)
+    const taxRate = order.subtotal > 0 ? order.taxes / order.subtotal : 0;
 
     // Create folio line items for each order item
     const result = await db.$transaction(async (tx) => {
