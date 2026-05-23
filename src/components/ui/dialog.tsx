@@ -46,6 +46,17 @@ function DialogOverlay({
   )
 }
 
+/* ─── Helpers to identify header / footer children ─── */
+const HEADER_MARKER = Symbol.for("dialog-header")
+const FOOTER_MARKER = Symbol.for("dialog-footer")
+
+function isHeader(el: React.ReactNode): boolean {
+  return React.isValidElement(el) && (el.type as any)[HEADER_MARKER]
+}
+function isFooter(el: React.ReactNode): boolean {
+  return React.isValidElement(el) && (el.type as any)[FOOTER_MARKER]
+}
+
 function DialogContent({
   className,
   children,
@@ -54,6 +65,11 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  const childArray = React.Children.toArray(children)
+  const headerChild = childArray.find(isHeader)
+  const footerChild = childArray.find(isFooter)
+  const bodyChildren = childArray.filter((c) => !isHeader(c) && !isFooter(c))
+
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -65,20 +81,33 @@ function DialogContent({
         )}
         {...props}
       >
-        <div className="flex-shrink-0 px-6 pt-6 pb-0">
-          {showCloseButton && (
-            <DialogPrimitive.Close
-              data-slot="dialog-close"
-              className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
-            >
-              <XIcon />
-              <span className="sr-only">Close</span>
-            </DialogPrimitive.Close>
-          )}
+        {/* Close button — absolute top-right */}
+        {showCloseButton && (
+          <DialogPrimitive.Close
+            data-slot="dialog-close"
+            className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 z-50 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+          >
+            <XIcon />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+        )}
+
+        {/* Header row — fixed, never scrolls */}
+        {headerChild && (
+          <div className="flex-shrink-0 px-6 pt-6 pb-2">{headerChild}</div>
+        )}
+
+        {/* Body row — scrollable */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-4">
+          {bodyChildren.length > 0 ? bodyChildren : children}
         </div>
-        <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
-          {children}
-        </div>
+
+        {/* Footer row — fixed at bottom, never scrolls */}
+        {footerChild && (
+          <div className="flex-shrink-0 px-6 pt-4 pb-6 border-t bg-background">
+            {footerChild}
+          </div>
+        )}
       </DialogPrimitive.Content>
     </DialogPortal>
   )
@@ -93,19 +122,21 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
     />
   )
 }
+(DialogHeader as any)[HEADER_MARKER] = true
 
 function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-footer"
       className={cn(
-        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sticky bottom-0 bg-background pt-4 pb-1 mt-2 border-t z-10",
+        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
         className
       )}
       {...props}
     />
   )
 }
+(DialogFooter as any)[FOOTER_MARKER] = true
 
 function DialogTitle({
   className,

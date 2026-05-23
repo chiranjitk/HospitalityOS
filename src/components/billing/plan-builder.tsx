@@ -1510,8 +1510,8 @@ export default function PlanBuilder() {
                 </CardContent>
               </Card>
 
-              {/* Save / Cancel Buttons */}
-              <div className="flex items-center justify-between gap-4 pt-2">
+              {/* Save / Cancel Buttons — sticky at bottom */}
+              <div className="sticky bottom-0 z-20 -mx-4 px-4 py-3 bg-background/95 backdrop-blur-sm border-t rounded-b-2xl flex items-center justify-between gap-4 mt-2">
                 <Button
                   variant="outline"
                   onClick={() => {
