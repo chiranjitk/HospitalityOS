@@ -6759,6 +6759,7 @@ model Tenant {
   createdAt                 DateTime                   @default(now()) @db.Timestamptz
   updatedAt                 DateTime                   @updatedAt @db.Timestamptz
   deletedAt                 DateTime?                  @db.Timestamptz
+  lastKnownTimestamp        DateTime?                  @db.Timestamptz
   aiSuggestions             AISuggestion[]
   auditLogs                 AuditLog[]
   automationRules           AutomationRule[]

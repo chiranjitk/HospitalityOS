@@ -7,7 +7,9 @@
  * child_process, fs, net etc. — causing Edge Runtime analysis to
  * consume 4-5GB RAM and trigger OOM kills.
  *
- * Scheduler: cd /home/z/my-project && DATABASE_URL="..." npx tsx scripts/scheduler-runner.ts
+ * License verification is also deferred to the scheduler process.
+ * This file intentionally avoids any Node.js-only imports to prevent
+ * Turbopack Edge Runtime analysis crashes.
  */
 export const runtime = 'nodejs';
 
@@ -18,17 +20,22 @@ export async function register() {
     return;
   }
 
-  // Pool initialization is deferred to the scheduler process.
-  // This file intentionally does NOT import script-runner or paths.ts
-  // to prevent Turbopack from tracing the heavy dependency tree during
-  // Edge Runtime analysis (which causes OOM on 8GB memory limits).
-  console.log('[Instrumentation] Next.js server started — pool init deferred to scheduler');
+  console.log('[Instrumentation] Next.js server started — license check deferred to scheduler');
 
-  // Start periodic license verification (runs every 5 minutes)
+  // License periodic check is handled by the scheduler process.
+  // Kick off a one-time HTTP call to our own /api/license/check endpoint
+  // which runs in Node.js runtime (not Edge) and can safely use fs/crypto/etc.
   try {
-    const { startPeriodicLicenseCheck } = await import('@/lib/license/startup-check');
-    startPeriodicLicenseCheck();
-  } catch (err) {
-    console.error('[Instrumentation] Failed to start periodic license check:', err);
+    const port = process.env.PORT || 3000;
+    // Fire-and-forget: don't await, let it run in background
+    fetch(`http://127.0.0.1:${port}/api/license/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'start-periodic' }),
+    }).catch(() => {
+      // Silently ignore — scheduler handles periodic checks anyway
+    });
+  } catch {
+    // Ignore — scheduler handles periodic checks
   }
 }
