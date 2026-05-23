@@ -79,9 +79,20 @@ import {
   LineChart,
   Gift,
   Wrench,
+  Hammer,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import dynamic from 'next/dynamic';
+
+const PlanBuilder = dynamic(() => import('@/components/billing/plan-builder'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+  ),
+});
 
 /* ──────────────────────── TYPES ──────────────────────── */
 
@@ -508,6 +519,9 @@ export default function SaaSPlans() {
           </TabsTrigger>
           <TabsTrigger value="calculator" className="gap-2 data-[state=active]:bg-amber-500 data-[state=active]:text-white">
             <IndianRupee className="h-4 w-4" /> Calculator
+          </TabsTrigger>
+          <TabsTrigger value="builder" className="gap-2 data-[state=active]:bg-emerald-500 data-[state=active]:text-white">
+            <Hammer className="h-4 w-4" /> Plan Builder
           </TabsTrigger>
         </TabsList>
 
@@ -1195,6 +1209,11 @@ export default function SaaSPlans() {
               </div>
             </div>
           </div>
+        </TabsContent>
+
+        {/* ═══════════════════ PLAN BUILDER TAB ═══════════════════ */}
+        <TabsContent value="builder">
+          <PlanBuilder />
         </TabsContent>
       </Tabs>
 
