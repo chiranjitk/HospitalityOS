@@ -105,11 +105,11 @@ export async function POST(request: NextRequest) {
        now, now);
 
     // Also insert into native FreeRADIUS nas table (ports = coaPort for RADIUS disconnect)
-    const shortname = shortname || name.replace(/\s+/g, '_').toLowerCase().slice(0, 32);
+    const frShortname = shortname || name.replace(/\s+/g, '_').toLowerCase().slice(0, 32);
     await db.$executeRawUnsafe(`
       INSERT INTO nas (nasname, shortname, type, ports, secret, server, community, description)
       VALUES ($1, $2, $3, $4, $5, NULL, NULL, $6)
-    `, ipAddress, shortname, type || 'other', coaPort || 3799, nasSecret, description || name);
+    `, ipAddress, frShortname, type || 'other', coaPort || 3799, nasSecret, description || name);
 
     // Sync clients.conf — FreeRADIUS needs this to accept packets from the new NAS
     await syncClientsConf();
