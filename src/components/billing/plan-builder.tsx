@@ -927,8 +927,9 @@ export default function PlanBuilder() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-6 max-w-4xl mx-auto">
-              {/* Editor Header */}
+            <div className="flex flex-col max-w-4xl mx-auto h-[calc(100vh-13rem)] min-h-[400px]">
+              {/* Editor Header — fixed, never scrolls */}
+              <div className="flex-shrink-0">
               <Card className="rounded-2xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
@@ -940,7 +941,10 @@ export default function PlanBuilder() {
                   </CardDescription>
                 </CardHeader>
               </Card>
+              </div>
 
+              {/* Scrollable Body — all editor sections */}
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-6 py-4">
               {/* Section A: Basic Info */}
               <Card className="rounded-2xl">
                 <CardHeader>
@@ -1510,8 +1514,11 @@ export default function PlanBuilder() {
                 </CardContent>
               </Card>
 
-              {/* Save / Cancel Buttons — sticky at bottom */}
-              <div className="sticky bottom-0 z-20 -mx-4 px-4 py-3 bg-background/95 backdrop-blur-sm border-t rounded-b-2xl flex items-center justify-between gap-4 mt-2">
+              </div>
+              {/* End scrollable body */}
+
+              {/* Save / Cancel Buttons — fixed at bottom, never scrolls */}
+              <div className="flex-shrink-0 px-1 py-3 bg-background border-t flex items-center justify-between gap-4 -mx-1">
                 <Button
                   variant="outline"
                   onClick={() => {
