@@ -11,14 +11,6 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from '@/components/ui/dialog';
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -559,7 +551,161 @@ export default function SaaSPlans() {
 
         {/* ═══════════════════ PLANS TAB ═══════════════════ */}
         <TabsContent value="plans">
-          {isLoading ? (
+          {/* Inline Edit Plan View — replaces modal */}
+          {isEditOpen && selectedPlan ? (
+            <div className="space-y-6 max-w-4xl mx-auto">
+              {/* Editor Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
+                    <Edit className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">Edit Plan: {selectedPlan.displayName}</h3>
+                    <p className="text-xs text-muted-foreground">Update plan details, pricing, and resource limits</p>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setIsEditOpen(false)}>
+                  <X className="h-4 w-4 mr-1" />
+                  Close
+                </Button>
+              </div>
+
+              {/* Basic Info Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Plan Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-displayName">Display Name</Label>
+                      <Input id="edit-displayName" value={formData.displayName} onChange={(e) => setFormData(prev => ({ ...prev, displayName: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-price">Price (₹/month)</Label>
+                      <Input id="edit-price" type="number" min="0" value={formData.price} onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-description">Description</Label>
+                    <Textarea id="edit-description" value={formData.description} onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))} rows={3} />
+                  </div>
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <p className="text-sm text-muted-foreground">
+                      Deployment: <span className="font-medium text-foreground">{selectedPlan.deploymentType === 'cloud' ? '☁️ Cloud' : '🖥️ On-Premise'}</span>
+                      {' · '}Subscribers: <span className="font-medium text-foreground">{selectedPlan.subscriberCount}</span>
+                      {selectedPlan.setupFee > 0 && ` · Setup: ${formatINR(selectedPlan.setupFee)}`}
+                      {' · '}Billing: <span className="font-medium text-foreground">{selectedPlan.billingPeriod === 'yearly' ? 'Yearly' : 'Monthly'}</span>
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Resource Limits Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Resource Limits</CardTitle>
+                  <CardDescription>Define the maximum resources available for this plan</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-maxProperties">
+                        <span className="flex items-center gap-1.5"><Building2 className="h-3.5 w-3.5 text-muted-foreground" /> Max Properties</span>
+                      </Label>
+                      <Input id="edit-maxProperties" type="number" min="1" value={formData.maxProperties} onChange={(e) => setFormData(prev => ({ ...prev, maxProperties: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-maxUsers">
+                        <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5 text-muted-foreground" /> Max Users</span>
+                      </Label>
+                      <Input id="edit-maxUsers" type="number" min="1" value={formData.maxUsers} onChange={(e) => setFormData(prev => ({ ...prev, maxUsers: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-maxRooms">
+                        <span className="flex items-center gap-1.5"><DoorOpen className="h-3.5 w-3.5 text-muted-foreground" /> Max Rooms</span>
+                      </Label>
+                      <Input id="edit-maxRooms" type="number" min="1" value={formData.maxRooms} onChange={(e) => setFormData(prev => ({ ...prev, maxRooms: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-storageLimitMb">
+                        <span className="flex items-center gap-1.5"><Database className="h-3.5 w-3.5 text-muted-foreground" /> Storage (MB)</span>
+                      </Label>
+                      <Input id="edit-storageLimitMb" type="number" min="100" value={formData.storageLimitMb} onChange={(e) => setFormData(prev => ({ ...prev, storageLimitMb: e.target.value }))} />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Features Card (read-only) */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Plan Features</CardTitle>
+                  <CardDescription>Features included in this plan (edit in Plan Builder for full module control)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {selectedPlan.features.map((feature, i) => (
+                      <div key={i} className="flex items-center gap-2 p-2.5 rounded-lg border bg-muted/30">
+                        {feature.included ? (
+                          <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                        ) : (
+                          <X className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
+                        <span className={cn("text-sm", feature.included ? "" : "text-muted-foreground")}>{feature.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Addon Modules Card (read-only) */}
+              {selectedPlan.addonModules && selectedPlan.addonModules.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Add-on Modules</CardTitle>
+                    <CardDescription>Add-on modules configured for this plan</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {selectedPlan.addonModules.map((addon, i) => (
+                        <div key={i} className="flex items-center justify-between p-3 rounded-lg border">
+                          <div>
+                            <p className="text-sm font-medium">{addon.name}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              {addon.cloud && <Badge variant="outline" className="text-[10px]">Cloud</Badge>}
+                              {addon.onPrem && <Badge variant="outline" className="text-[10px]">On-Prem</Badge>}
+                              <Badge variant="secondary" className="text-[10px]">{addon.category}</Badge>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold">{formatINR(addon.price)}</p>
+                            <p className="text-[10px] text-muted-foreground">/month</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between gap-4 pt-2">
+                <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdate} disabled={isSaving} className="min-w-[140px]">
+                  {isSaving ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</>
+                  ) : (
+                    <><Check className="h-4 w-4 mr-2" /> Save Changes</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          ) : isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
@@ -1287,72 +1433,7 @@ export default function SaaSPlans() {
         </TabsContent>
       </Tabs>
 
-      {/* Edit Plan Dialog */}
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Edit className="h-5 w-5" />
-              Edit Plan: {selectedPlan?.displayName}
-            </DialogTitle>
-            <DialogDescription>Update plan details and limits</DialogDescription>
-          </DialogHeader>
-          {selectedPlan && (
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="displayName">Display Name</Label>
-                  <Input id="displayName" value={formData.displayName} onChange={(e) => setFormData(prev => ({ ...prev, displayName: e.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="price">Price (₹/month)</Label>
-                  <Input id="price" type="number" min="0" value={formData.price} onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea id="description" value={formData.description} onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))} rows={2} />
-              </div>
-              <Separator />
-              <h4 className="font-medium">Resource Limits</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="maxProperties">Max Properties</Label>
-                  <Input id="maxProperties" type="number" min="1" value={formData.maxProperties} onChange={(e) => setFormData(prev => ({ ...prev, maxProperties: e.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="maxUsers">Max Users</Label>
-                  <Input id="maxUsers" type="number" min="1" value={formData.maxUsers} onChange={(e) => setFormData(prev => ({ ...prev, maxUsers: e.target.value }))} />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="maxRooms">Max Rooms</Label>
-                  <Input id="maxRooms" type="number" min="1" value={formData.maxRooms} onChange={(e) => setFormData(prev => ({ ...prev, maxRooms: e.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="storageLimitMb">Storage (MB)</Label>
-                  <Input id="storageLimitMb" type="number" min="100" value={formData.storageLimitMb} onChange={(e) => setFormData(prev => ({ ...prev, storageLimitMb: e.target.value }))} />
-                </div>
-              </div>
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <p className="text-sm text-muted-foreground">
-                  Deployment: <span className="font-medium text-foreground">{selectedPlan.deploymentType === 'cloud' ? '☁️ Cloud' : '🖥️ On-Premise'}</span>
-                  {' · '}Subscribers: <span className="font-medium text-foreground">{selectedPlan.subscriberCount}</span>
-                  {selectedPlan.setupFee > 0 && ` · Setup: ${formatINR(selectedPlan.setupFee)}`}
-                </p>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
-            <Button onClick={handleUpdate} disabled={isSaving}>
-              {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
     </div>
   );
 }
