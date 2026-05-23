@@ -543,6 +543,7 @@ async function createSessionAndRespond(
   });
 
   // Store tenant IP whitelist in a non-HTTP-only cookie for middleware access
+  // Only set cookie when IP whitelist enforcement is explicitly enabled
   try {
     const tenant = await db.tenant.findUnique({
       where: { id: user.tenantId },
@@ -550,16 +551,20 @@ async function createSessionAndRespond(
     });
     if (tenant?.settings) {
       const parsed = JSON.parse(tenant.settings);
-      const ipWhitelist: string[] = parsed.ipWhitelist || parsed.accessControl?.ipWhitelist || [];
-      if (ipWhitelist.length > 0) {
-        response.cookies.set('tenant_ip_whitelist', ipWhitelist.join(','), {
-          httpOnly: true,
-          secure: isSecure,
-          sameSite: 'lax',
-          expires: expiresAt,
-          maxAge,
-          path: '/',
-        });
+      const enabled = parsed.ipWhitelistEnabled === true ||
+                      parsed.accessControl?.ipWhitelistEnabled === true;
+      if (enabled) {
+        const ipWhitelist: string[] = parsed.ipWhitelist || parsed.accessControl?.ipWhitelist || [];
+        if (ipWhitelist.length > 0) {
+          response.cookies.set('tenant_ip_whitelist', ipWhitelist.join(','), {
+            httpOnly: true,
+            secure: isSecure,
+            sameSite: 'lax',
+            expires: expiresAt,
+            maxAge,
+            path: '/',
+          });
+        }
       }
     }
   } catch {

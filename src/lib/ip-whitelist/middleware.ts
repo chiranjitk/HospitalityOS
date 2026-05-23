@@ -9,6 +9,27 @@ import { db } from '@/lib/db';
 import { NextRequest } from 'next/server';
 import { getClientIp, isIpMatch } from './utils';
 
+/**
+ * Check whether IP whitelist enforcement is enabled for a tenant.
+ * Reads the ipWhitelistEnabled flag from the tenant's JSON settings blob.
+ * When disabled (the default), all IP checks are skipped.
+ */
+async function isIpEnforcementEnabled(tenantId: string): Promise<boolean> {
+  try {
+    const tenant = await db.tenant.findUnique({
+      where: { id: tenantId },
+      select: { settings: true },
+    });
+    if (!tenant?.settings) return false;
+    const parsed = JSON.parse(tenant.settings);
+    // Default to false (disabled) — enforcement must be explicitly enabled
+    return parsed.ipWhitelistEnabled === true ||
+           parsed.accessControl?.ipWhitelistEnabled === true;
+  } catch {
+    return false; // fail-open: if settings can't be read, don't enforce
+  }
+}
+
 export interface IpCheckResult {
   allowed: boolean;
   reason: string;
@@ -95,6 +116,12 @@ export async function withIpWhitelist(
 ): Promise<{ allowed: boolean; reason: string } | null> {
   // Platform admins always bypass IP checks
   if (context.isPlatformAdmin) {
+    return null;
+  }
+
+  // Respect the ipWhitelistEnabled tenant setting (default: disabled)
+  const enforcementEnabled = await isIpEnforcementEnabled(context.tenantId);
+  if (!enforcementEnabled) {
     return null;
   }
 
