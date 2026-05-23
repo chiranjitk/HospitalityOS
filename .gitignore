@@ -154,3 +154,4 @@ mikrotik-qemu.pid
 qemu-input
 libslirp-dev_*.deb
 *.img
+*.img.bak
