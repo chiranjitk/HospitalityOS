@@ -418,7 +418,7 @@ export async function GET(request: NextRequest) {
 
         // Derive stats from adapter responses
         const totalAPs = status?.totalClients ?? 0; // totalClients is best available proxy for AP count via generic status
-        const activeSessions = sessions.length;
+        const activeSessions = status?.customData?.activeHotspotUsers ?? sessions.length;
         const bandwidth = {
           upload: sessions.reduce((sum, s) => sum + (s.bytesIn || 0), 0),
           download: sessions.reduce((sum, s) => sum + (s.bytesOut || 0), 0),
@@ -436,6 +436,8 @@ export async function GET(request: NextRequest) {
           bandwidthMbps,
           firmwareVersion: status?.firmwareVersion || existingConfig.firmwareVersion,
           lastSyncLatency: latency,
+          // Store customData for frontend display
+          ...(status?.customData ? { systemHealth: status.customData } : {}),
         };
 
         const updated = await db.integration.update({
@@ -941,6 +943,7 @@ export async function GET(request: NextRequest) {
         coaEnabled: config.coaEnabled ?? true,
         coaPort: config.coaPort || DEFAULT_PORTS[vendor]?.coa || 3799,
         coaSecret: maskIfSet(config.coaSecret),
+        nasShortname: config.nasShortname || '',
         // Return config so edit dialog can populate
         config: config.config_wifi || {
           ssid: config.ssid || '',
@@ -950,6 +953,7 @@ export async function GET(request: NextRequest) {
           sessionTimeout: config.sessionTimeout || 3600,
           idleTimeout: config.idleTimeout || 300,
         },
+        systemHealth: config.systemHealth || null,
       };
     });
 
@@ -1016,6 +1020,7 @@ export async function POST(request: NextRequest) {
       radiusAcctPort,
       managementUrl,
       propertyId,
+      nasShortname,
     } = body;
 
     // Validate required fields
@@ -1071,6 +1076,7 @@ export async function POST(request: NextRequest) {
       radiusAuthPort: radiusAuthPort || defaults.radiusAuth,
       radiusAcctPort: radiusAcctPort || defaults.radiusAcct,
       managementUrl: managementUrl || `https://${ipAddress}:${port || defaults.api}`,
+      nasShortname: nasShortname || '',
       // WiFi config fields
       config_wifi: body.config || null, // stores ssid, vlanId, captivePortal, etc.
     });
@@ -1115,7 +1121,7 @@ export async function POST(request: NextRequest) {
                 tenantId,
                 propertyId: nasPropertyId,
                 name: name || `${type} Gateway`,
-                shortname: `${type}-${ipAddress.replace(/\./g, '-')}`, // unique: vendor + IP
+                shortname: nasShortname || `${type}-${ipAddress.replace(/\./g, '-')}`, // unique: use custom shortname or generate
                 type: type === 'mikrotik' ? 'mikrotik' : 'cryptsk',
                 ipAddress,
                 secret: plainSecret,
@@ -1318,6 +1324,8 @@ export async function PUT(request: NextRequest) {
         coaEnabled: config.coaEnabled ?? true,
         coaPort: config.coaPort || DEFAULT_PORTS[vendor]?.coa || 3799,
         coaSecret: maskIfSet(config.coaSecret),
+        nasShortname: config.nasShortname || '',
+        systemHealth: config.systemHealth || null,
       },
       message: 'WiFi gateway updated successfully',
     });

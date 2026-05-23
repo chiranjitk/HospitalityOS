@@ -230,17 +230,64 @@ export class MikrotikAdapter extends GatewayAdapter {
    */
   async getStatus(): Promise<GatewayStatus> {
     try {
-      const data = await this.getSystemInfo() as Record<string, unknown>;
+      // Fetch system info and hotspot active users in parallel
+      const [sysData, activeUsers, interfaces] = await Promise.allSettled([
+        this.restApi('/system/resource') as Promise<Record<string, unknown>>,
+        this.restApi('/ip/hotspot/active') as Promise<unknown[]>,
+        this.restApi('/interface') as Promise<unknown[]>,
+      ]);
+
+      const data = sysData.status === 'fulfilled' ? sysData.value : {};
+      const hotspotUsers = activeUsers.status === 'fulfilled' && Array.isArray(activeUsers.value) ? activeUsers.value : [];
+      const ifaceList = interfaces.status === 'fulfilled' && Array.isArray(interfaces.value) ? interfaces.value : [];
+
+      // Calculate total traffic from interfaces
+      let totalRxBytes = 0;
+      let totalTxBytes = 0;
+      for (const iface of ifaceList) {
+        const i = iface as Record<string, unknown>;
+        totalRxBytes += Number(i['rx-byte'] || 0);
+        totalTxBytes += Number(i['tx-byte'] || 0);
+      }
+
       return {
         online: true,
-        firmwareVersion: (data['version'] as string) || (data['board-name'] as string) || undefined,
+        firmwareVersion: (data['version'] as string) || undefined,
         cpuUsage: data['cpu-load'] != null ? Number(data['cpu-load']) : undefined,
         memoryUsage: data['total-memory'] && data['free-memory']
           ? Math.round(((Number(data['total-memory']) - Number(data['free-memory'])) / Number(data['total-memory'])) * 100)
           : undefined,
         uptime: data['uptime'] ? this.parseMikrotikUptime(String(data['uptime'])) : undefined,
-        totalClients: undefined, // Will be filled from accounting
+        totalClients: hotspotUsers.length,
         lastSeen: new Date(),
+        // Add custom data for extended status
+        customData: {
+          activeHotspotUsers: hotspotUsers.length,
+          totalRxBytes,
+          totalTxBytes,
+          cpuLoad: Number(data['cpu-load'] || 0),
+          totalMemory: Number(data['total-memory'] || 0),
+          freeMemory: Number(data['free-memory'] || 0),
+          uptimeStr: String(data['uptime'] || ''),
+          boardName: String(data['board-name'] || ''),
+          architecture: String(data['architecture-name'] || ''),
+          cpuCount: Number(data['cpu-count'] || 0),
+          cpuFrequency: Number(data['cpu-frequency'] || 0),
+          version: String(data['version'] || ''),
+          interfaces: ifaceList.map((iface) => {
+            const i = iface as Record<string, unknown>;
+            return {
+              name: String(i['name'] || ''),
+              type: String(i['type'] || ''),
+              running: i['running'] === 'true',
+              rxByte: Number(i['rx-byte'] || 0),
+              txByte: Number(i['tx-byte'] || 0),
+              rxPacket: Number(i['rx-packet'] || 0),
+              txPacket: Number(i['tx-packet'] || 0),
+              macAddress: String(i['mac-address'] || ''),
+            };
+          }),
+        },
       };
     } catch {
       // Fallback: try to get active sessions count from accounting
@@ -673,16 +720,19 @@ export class MikrotikAdapter extends GatewayAdapter {
    * Parse MikroTik uptime string (e.g., "10w2d3h4m5s") to seconds
    */
   private parseMikrotikUptime(uptime: string): number {
-    const regex = /(\d+)w(\d+)d(\d+)h(\d+)m(\d+)s/;
-    const match = uptime.match(regex);
-    if (!match) return 0;
+    let total = 0;
+    const weekMatch = uptime.match(/(\d+)w/);
+    const dayMatch = uptime.match(/(\d+)d/);
+    const hourMatch = uptime.match(/(\d+)h/);
+    const minMatch = uptime.match(/(\d+)m(?!s)/);  // m not followed by s
+    const secMatch = uptime.match(/(\d+)s/);
 
-    const weeks = parseInt(match[1], 10);
-    const days = parseInt(match[2], 10);
-    const hours = parseInt(match[3], 10);
-    const minutes = parseInt(match[4], 10);
-    const seconds = parseInt(match[5], 10);
+    if (weekMatch) total += parseInt(weekMatch[1], 10) * 604800;
+    if (dayMatch) total += parseInt(dayMatch[1], 10) * 86400;
+    if (hourMatch) total += parseInt(hourMatch[1], 10) * 3600;
+    if (minMatch) total += parseInt(minMatch[1], 10) * 60;
+    if (secMatch) total += parseInt(secMatch[1], 10);
 
-    return weeks * 604800 + days * 86400 + hours * 3600 + minutes * 60 + seconds;
+    return total;
   }
 }

@@ -114,6 +114,8 @@ interface WiFiGateway {
   coaEnabled?: boolean;
   coaPort?: number;
   coaSecret?: string;
+  nasShortname?: string;
+  systemHealth?: Record<string, unknown>;
   config?: {
     ssid: string;
     vlanId?: number;
@@ -247,6 +249,7 @@ export default function GatewayIntegration() {
     coaEnabled: true,
     coaPort: 3799,
     coaSecret: '',
+    nasShortname: '',
     config: {
       ssid: '',
       captivePortal: false,
@@ -454,6 +457,7 @@ export default function GatewayIntegration() {
         coaEnabled: formData.coaEnabled,
         coaPort: formData.coaPort,
         coaSecret: formData.coaSecret,
+        nasShortname: formData.nasShortname,
         propertyId,
         config: configWifi,
       };
@@ -619,6 +623,7 @@ export default function GatewayIntegration() {
       coaEnabled: true,
       coaPort: 3799,
       coaSecret: '',
+      nasShortname: '',
       config: {
         ssid: '',
         captivePortal: false,
@@ -669,6 +674,7 @@ export default function GatewayIntegration() {
       coaEnabled: gateway.coaEnabled ?? true,
       coaPort: gateway.coaPort || vendorDefaults.coa,
       coaSecret: gateway.coaSecret || '',
+      nasShortname: gateway.nasShortname || '',
     });
     // Load MikroTik external portal state
     setExternalPortalMode(wifiConfig.externalPortalMode === true);
@@ -948,13 +954,9 @@ export default function GatewayIntegration() {
                             </div>
 
                             {/* Metrics */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 text-sm">
                               <div>
-                                <p className="text-muted-foreground">APs</p>
-                                <p className="font-semibold">{gateway.totalAPs}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground">Sessions</p>
+                                <p className="text-muted-foreground">Hotspot Users</p>
                                 <p className="font-semibold">{gateway.activeSessions}</p>
                               </div>
                               <div>
@@ -965,8 +967,65 @@ export default function GatewayIntegration() {
                                 <p className="text-muted-foreground">Upload</p>
                                 <p className="font-semibold">{gateway.bandwidth.upload} Mbps</p>
                               </div>
+                              {gateway.systemHealth && typeof gateway.systemHealth === 'object' && (
+                                <>
+                                  {(gateway.systemHealth as Record<string, unknown>).cpuLoad != null && (
+                                    <div>
+                                      <p className="text-muted-foreground">CPU</p>
+                                      <div className="flex items-center gap-1.5">
+                                        <p className="font-semibold">{String((gateway.systemHealth as Record<string, unknown>).cpuLoad)}%</p>
+                                        <Progress value={Number((gateway.systemHealth as Record<string, unknown>).cpuLoad)} className="w-12 h-1.5" />
+                                      </div>
+                                    </div>
+                                  )}
+                                  {(gateway.systemHealth as Record<string, unknown>).totalMemory != null && (gateway.systemHealth as Record<string, unknown>).freeMemory != null && (
+                                    <div>
+                                      <p className="text-muted-foreground">Memory</p>
+                                      <div className="flex items-center gap-1.5">
+                                        <p className="font-semibold">
+                                          {Math.round(((Number((gateway.systemHealth as Record<string, unknown>).totalMemory) - Number((gateway.systemHealth as Record<string, unknown>).freeMemory)) / Number((gateway.systemHealth as Record<string, unknown>).totalMemory)) * 100)}%
+                                        </p>
+                                        <Progress
+                                          value={Math.round(((Number((gateway.systemHealth as Record<string, unknown>).totalMemory) - Number((gateway.systemHealth as Record<string, unknown>).freeMemory)) / Number((gateway.systemHealth as Record<string, unknown>).totalMemory)) * 100)}
+                                          className="w-12 h-1.5"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+                                  {(gateway.systemHealth as Record<string, unknown>).uptimeStr && (
+                                    <div>
+                                      <p className="text-muted-foreground">Uptime</p>
+                                      <p className="font-semibold text-xs">{String((gateway.systemHealth as Record<string, unknown>).uptimeStr)}</p>
+                                    </div>
+                                  )}
+                                  {(gateway.systemHealth as Record<string, unknown>).version && (
+                                    <div>
+                                      <p className="text-muted-foreground">RouterOS</p>
+                                      <p className="font-semibold text-xs">v{String((gateway.systemHealth as Record<string, unknown>).version)}</p>
+                                    </div>
+                                  )}
+                                </>
+                              )}
                             </div>
                           </div>
+
+                          {/* System Health Details - MikroTik specific */}
+                          {gateway.systemHealth && Array.isArray((gateway.systemHealth as Record<string, unknown>).interfaces) && (gateway.systemHealth as Record<string, unknown>).interfaces.length > 0 && (
+                            <div className="mt-3 pt-3 border-t">
+                              <p className="text-xs font-medium text-muted-foreground mb-2">Network Interfaces</p>
+                              <div className="flex flex-wrap gap-2">
+                                {((gateway.systemHealth as Record<string, unknown>).interfaces as Array<Record<string, unknown>>).map((iface) => (
+                                  <Badge key={String(iface.name)} variant="outline" className="text-xs gap-1">
+                                    <span className={iface.running ? 'text-emerald-500' : 'text-red-500'}>●</span>
+                                    {String(iface.name)}
+                                    <span className="text-muted-foreground">
+                                      ↓{(Number(iface.rxByte) / 1024).toFixed(0)}KB ↑{(Number(iface.txByte) / 1024).toFixed(0)}KB
+                                    </span>
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
                           {/* Last Sync, Latency & Auto Sync */}
                           <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t">
@@ -1324,6 +1383,18 @@ export default function GatewayIntegration() {
                   )}
                 </div>
               )}
+              <div className="space-y-2">
+                <Label htmlFor="nasShortname">NAS Identifier / Shortname</Label>
+                <Input
+                  id="nasShortname"
+                  value={formData.nasShortname || ''}
+                  onChange={(e) => setFormData({ ...formData, nasShortname: e.target.value })}
+                  placeholder="mikrotik-main (used in RADIUS and auth logs)"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Identifier for this NAS in FreeRADIUS and RADIUS accounting logs. Defaults to a generated value if empty.
+                </p>
+              </div>
             </TabsContent>
 
             {/* ── WiFi Config Tab ── */}

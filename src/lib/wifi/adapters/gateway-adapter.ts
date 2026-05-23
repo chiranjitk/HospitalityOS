@@ -85,6 +85,7 @@ export interface GatewayStatus {
   uptime?: number;
   totalClients?: number;
   lastSeen: Date;
+  customData?: Record<string, unknown>;
 }
 
 export interface BandwidthPolicy {
