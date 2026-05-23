@@ -725,7 +725,7 @@ export default function PlanBuilder() {
         </TabsList>
 
         {/* ═══════════════════ TAB 1: ALL PLANS ═══════════════════ */}
-        <TabsContent value="all-plans">
+        <TabsContent value="all-plans" className="!flex-none">
           {plans.length === 0 ? (
             <Card className="rounded-2xl border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
@@ -909,7 +909,7 @@ export default function PlanBuilder() {
         </TabsContent>
 
         {/* ═══════════════════ TAB 2: PLAN EDITOR ═══════════════════ */}
-        <TabsContent value="editor">
+        <TabsContent value="editor" className="!flex-none">
           {!isEditorOpen ? (
             <Card className="rounded-2xl border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
@@ -1513,8 +1513,8 @@ export default function PlanBuilder() {
 
               {/* End editor sections */}
 
-              {/* Save / Cancel Buttons */}
-              <div className="flex items-center justify-between gap-4 pt-4 pb-8">
+              {/* Save / Cancel Buttons — always at bottom of page */}
+              <div className="flex items-center justify-between gap-4 pt-6 pb-8 border-t mt-4">
                 <Button
                   variant="outline"
                   onClick={() => {

@@ -1428,7 +1428,7 @@ export default function SaaSPlans() {
         </TabsContent>
 
         {/* ═══════════════════ PLAN BUILDER TAB ═══════════════════ */}
-        <TabsContent value="builder">
+        <TabsContent value="builder" className="!flex-none">
           <PlanBuilder />
         </TabsContent>
       </Tabs>
