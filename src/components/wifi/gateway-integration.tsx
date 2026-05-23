@@ -64,6 +64,7 @@ import {
   Copy,
   FileText,
 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { usePropertyId } from '@/hooks/use-property';
@@ -108,6 +109,8 @@ interface WiFiGateway {
   autoSync: boolean;
   syncInterval: number;
   radiusSecret?: string;
+  radiusAuthPort?: number;
+  radiusAcctPort?: number;
   coaEnabled?: boolean;
   coaPort?: number;
   coaSecret?: string;
@@ -122,6 +125,7 @@ interface WiFiGateway {
     portalCallbackUrl?: string;
     staySuiteServerIp?: string;
     subnet?: string;
+    walledGardenIps?: string[];
   };
 }
 
@@ -158,6 +162,26 @@ const gatewayTypes = [
   { value: 'grandstream', label: 'Grandstream GWN' },
   { value: 'other', label: 'Other (Generic RADIUS)' },
 ];
+
+// Default ports per gateway type (mirrors VENDOR_METADATA / DEFAULT_PORTS from lib/wifi/adapters)
+const VENDOR_DEFAULT_PORTS: Record<string, { api: number; coa: number; radiusAuth: number; radiusAcct: number }> = {
+  cryptsk: { api: 3000, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  mikrotik: { api: 8728, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  tplink: { api: 8043, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  ubiquiti: { api: 8443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  cambium: { api: 443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  aruba: { api: 443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  netgear: { api: 443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  dlink: { api: 8443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  cisco: { api: 443, coa: 1700, radiusAuth: 1812, radiusAcct: 1813 },
+  ruijie: { api: 443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  grandstream: { api: 443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  ruckus: { api: 8443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  juniper: { api: 443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  fortinet: { api: 443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  huawei: { api: 443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  other: { api: 443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+};
 
 const statusConfig = {
   connected: { color: 'text-emerald-500 dark:text-emerald-400', bgColor: 'bg-emerald-100', icon: CheckCircle, label: 'Connected' },
@@ -218,6 +242,8 @@ export default function GatewayIntegration() {
     autoSync: true,
     syncInterval: 5,
     radiusSecret: '',
+    radiusAuthPort: 1812,
+    radiusAcctPort: 1813,
     coaEnabled: true,
     coaPort: 3799,
     coaSecret: '',
@@ -228,6 +254,7 @@ export default function GatewayIntegration() {
       idleTimeout: 300,
     },
   });
+  const [activeTab, setActiveTab] = useState('basic');
 
   // ── Callbacks ──────────────────────────────────────────────
   // Declared BEFORE useEffect to satisfy react-hooks/exhaustive-deps
@@ -401,18 +428,41 @@ export default function GatewayIntegration() {
     setIsSaving(true);
     try {
       const isEdit = formData.id && formData.id !== '';
-      // Merge walledGardenIps into config_wifi for save
-      const savePayload = {
-        ...formData,
-        propertyId,
-        config: {
-          ...(formData.config || {}),
-          ...(externalPortalMode ? {
-            externalPortalMode: true,
-            walledGardenIps,
-          } : { externalPortalMode: false }),
-        },
+      // Build config_wifi sub-object with all WiFi config fields + walled garden IPs
+      const configWifi = {
+        ...(formData.config || {}),
+        ...(externalPortalMode ? {
+          externalPortalMode: true,
+          walledGardenIps,
+        } : { externalPortalMode: false, walledGardenIps }),
       };
+
+      // Build the save payload with all fields the API expects
+      const savePayload: Record<string, unknown> = {
+        name: formData.name,
+        type: formData.type,
+        ipAddress: formData.ipAddress,
+        port: formData.port,
+        username: formData.username,
+        apiKey: formData.apiKey,
+        location: formData.location,
+        autoSync: formData.autoSync,
+        syncInterval: formData.syncInterval,
+        radiusSecret: formData.radiusSecret,
+        radiusAuthPort: formData.radiusAuthPort,
+        radiusAcctPort: formData.radiusAcctPort,
+        coaEnabled: formData.coaEnabled,
+        coaPort: formData.coaPort,
+        coaSecret: formData.coaSecret,
+        propertyId,
+        config: configWifi,
+      };
+
+      // For edit, include the id so the API knows which record to update
+      if (isEdit) {
+        savePayload.id = formData.id;
+      }
+
       const response = await fetch('/api/integrations/wifi-gateways', {
         method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -564,6 +614,8 @@ export default function GatewayIntegration() {
       autoSync: true,
       syncInterval: 5,
       radiusSecret: '',
+      radiusAuthPort: 1812,
+      radiusAcctPort: 1813,
       coaEnabled: true,
       coaPort: 3799,
       coaSecret: '',
@@ -580,6 +632,7 @@ export default function GatewayIntegration() {
     setExternalPortalMode(false);
     setShowMikrotikScript(false);
     setMikrotikScript('');
+    setActiveTab('basic');
   };
 
   const openEditDialog = (gateway: WiFiGateway) => {
@@ -597,15 +650,24 @@ export default function GatewayIntegration() {
       portalCallbackUrl: (wifiConfig.portalCallbackUrl as string) || '',
       staySuiteServerIp: (wifiConfig.staySuiteServerIp as string) || '',
       subnet: (wifiConfig.subnet as string) || '',
+      walledGardenIps: Array.isArray(wifiConfig.walledGardenIps)
+        ? (wifiConfig.walledGardenIps as string[])
+        : [],
     };
+    // Use vendor defaults for RADIUS ports if not already set on the gateway
+    const vendorDefaults = VENDOR_DEFAULT_PORTS[gateway.type] || VENDOR_DEFAULT_PORTS.other;
     setFormData({
       ...gateway,
       config: mergedConfig,
-      // These fields are now returned by the GET endpoint with masked values (••••••••)
+      // These fields are returned by the GET endpoint with masked values (••••••••)
       // The PUT handler preserves existing secrets when it receives the sentinel value
+      apiKey: gateway.apiKey || '',
+      username: gateway.username || '',
       radiusSecret: gateway.radiusSecret || '',
+      radiusAuthPort: gateway.radiusAuthPort || vendorDefaults.radiusAuth,
+      radiusAcctPort: gateway.radiusAcctPort || vendorDefaults.radiusAcct,
       coaEnabled: gateway.coaEnabled ?? true,
-      coaPort: gateway.coaPort || 3799,
+      coaPort: gateway.coaPort || vendorDefaults.coa,
       coaSecret: gateway.coaSecret || '',
     });
     // Load MikroTik external portal state
@@ -620,6 +682,7 @@ export default function GatewayIntegration() {
     setShowCoaSecret(false);
     setShowMikrotikScript(false);
     setMikrotikScript('');
+    setActiveTab('basic');
     setIsConfigOpen(true);
   };
 
@@ -1014,7 +1077,7 @@ export default function GatewayIntegration() {
 
       {/* Add/Edit Gateway Dialog */}
       <Dialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{formData.id ? 'Edit Gateway' : 'Add WiFi Gateway'}</DialogTitle>
             <DialogDescription>
@@ -1022,10 +1085,30 @@ export default function GatewayIntegration() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
-            {/* Basic Settings */}
-            <div className="space-y-4">
-              <h4 className="font-medium text-sm">Basic Settings</h4>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="w-full">
+              <TabsTrigger value="basic" className="flex-1">
+                <Settings className="w-3.5 h-3.5 mr-1" />
+                Basic
+              </TabsTrigger>
+              <TabsTrigger value="radius" className="flex-1">
+                <Shield className="w-3.5 h-3.5 mr-1" />
+                RADIUS
+              </TabsTrigger>
+              <TabsTrigger value="wifi" className="flex-1">
+                <Wifi className="w-3.5 h-3.5 mr-1" />
+                WiFi Config
+              </TabsTrigger>
+              {formData.type === 'mikrotik' && formData.config?.captivePortal && (
+                <TabsTrigger value="mikrotik" className="flex-1">
+                  <Server className="w-3.5 h-3.5 mr-1" />
+                  MikroTik Portal
+                </TabsTrigger>
+              )}
+            </TabsList>
+
+            {/* ── Basic Settings Tab ── */}
+            <TabsContent value="basic" className="space-y-4 pt-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Gateway Name *</Label>
@@ -1040,7 +1123,21 @@ export default function GatewayIntegration() {
                   <Label htmlFor="type">Controller Type</Label>
                   <Select
                     value={formData.type || 'other'}
-                    onValueChange={(value) => setFormData({ ...formData, type: value as WiFiGateway['type'] })}
+                    onValueChange={(value) => {
+                      const vendorDefaults = VENDOR_DEFAULT_PORTS[value] || VENDOR_DEFAULT_PORTS.other;
+                      setFormData({
+                        ...formData,
+                        type: value as WiFiGateway['type'],
+                        // Auto-update port to vendor default only when adding a new gateway
+                        // (for edit, preserve the existing port)
+                        ...(formData.id ? {} : {
+                          port: vendorDefaults.api,
+                          coaPort: vendorDefaults.coa,
+                          radiusAuthPort: vendorDefaults.radiusAuth,
+                          radiusAcctPort: vendorDefaults.radiusAcct,
+                        }),
+                      });
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -1069,6 +1166,43 @@ export default function GatewayIntegration() {
                     value={formData.port || 443}
                     onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) || 443 })}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Default for {(gatewayTypes.find(t => t.value === formData.type)?.label || 'this type')}: {(VENDOR_DEFAULT_PORTS[formData.type || 'other'] || VENDOR_DEFAULT_PORTS.other).api}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    value={formData.username || ''}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    placeholder="admin"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="apiKey">API Key / Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="apiKey"
+                      type={showApiKey ? 'text' : 'password'}
+                      value={formData.apiKey || ''}
+                      onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
+                      onFocus={() => clearIfMasked('apiKey')}
+                      placeholder={selectedGateway ? 'Leave unchanged or enter new key' : 'Enter API key / password'}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                    >
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  {selectedGateway && formData.apiKey === SECRET_MASK && (
+                    <p className="text-xs text-muted-foreground">Key is set — click the field to change it</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="location">Location</Label>
@@ -1097,56 +1231,13 @@ export default function GatewayIntegration() {
                 />
                 <Label htmlFor="autoSync">Enable auto-sync</Label>
               </div>
-            </div>
+            </TabsContent>
 
-            <Separator />
-
-            {/* Authentication */}
-            <div className="space-y-4">
-              <h4 className="font-medium text-sm">Authentication</h4>
+            {/* ── RADIUS Settings Tab ── */}
+            <TabsContent value="radius" className="space-y-4 pt-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <Input
-                    id="username"
-                    value={formData.username || ''}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    placeholder="admin"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="apiKey">API Key</Label>
-                  <div className="relative">
-                    <Input
-                      id="apiKey"
-                      type={showApiKey ? 'text' : 'password'}
-                      value={formData.apiKey || ''}
-                      onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
-                      onFocus={() => clearIfMasked('apiKey')}
-                      placeholder={selectedGateway ? 'Leave unchanged or enter new key' : 'Enter API key'}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                    >
-                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* RADIUS & CoA Settings */}
-            <div className="space-y-4">
-              <h4 className="font-medium text-sm">RADIUS & CoA Settings</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="radiusSecret">RADIUS Secret</Label>
+                  <Label htmlFor="radiusSecret">RADIUS Shared Secret</Label>
                   <div className="relative">
                     <Input
                       id="radiusSecret"
@@ -1166,6 +1257,27 @@ export default function GatewayIntegration() {
                       {showRadiusSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
+                  {selectedGateway && formData.radiusSecret === SECRET_MASK && (
+                    <p className="text-xs text-muted-foreground">Secret is set — click the field to change it</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="radiusAuthPort">RADIUS Auth Port</Label>
+                  <Input
+                    id="radiusAuthPort"
+                    type="number"
+                    value={formData.radiusAuthPort || 1812}
+                    onChange={(e) => setFormData({ ...formData, radiusAuthPort: parseInt(e.target.value) || 1812 })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="radiusAcctPort">RADIUS Acct Port</Label>
+                  <Input
+                    id="radiusAcctPort"
+                    type="number"
+                    value={formData.radiusAcctPort || 1813}
+                    onChange={(e) => setFormData({ ...formData, radiusAcctPort: parseInt(e.target.value) || 1813 })}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="coaPort">CoA Port</Label>
@@ -1177,15 +1289,13 @@ export default function GatewayIntegration() {
                   />
                 </div>
               </div>
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="coaEnabled"
-                    checked={formData.coaEnabled ?? true}
-                    onCheckedChange={(checked) => setFormData({ ...formData, coaEnabled: checked })}
-                  />
-                  <Label htmlFor="coaEnabled">Enable CoA (Change of Authorization)</Label>
-                </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="coaEnabled"
+                  checked={formData.coaEnabled ?? true}
+                  onCheckedChange={(checked) => setFormData({ ...formData, coaEnabled: checked })}
+                />
+                <Label htmlFor="coaEnabled">Enable CoA (Change of Authorization)</Label>
               </div>
               {formData.coaEnabled !== false && (
                 <div className="space-y-2">
@@ -1209,15 +1319,15 @@ export default function GatewayIntegration() {
                       {showCoaSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
+                  {selectedGateway && formData.coaSecret === SECRET_MASK && (
+                    <p className="text-xs text-muted-foreground">Secret is set — click the field to change it</p>
+                  )}
                 </div>
               )}
-            </div>
+            </TabsContent>
 
-            <Separator />
-
-            {/* WiFi Configuration */}
-            <div className="space-y-4">
-              <h4 className="font-medium text-sm">WiFi Configuration</h4>
+            {/* ── WiFi Config Tab ── */}
+            <TabsContent value="wifi" className="space-y-4 pt-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="ssid">SSID</Label>
@@ -1269,208 +1379,220 @@ export default function GatewayIntegration() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="splashPage">Splash Page URL</Label>
-                  <Input
-                    id="splashPage"
-                    value={formData.config?.splashPage || ''}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      config: { ...formData.config!, splashPage: e.target.value }
-                    })}
-                    placeholder="https://portal.hotel.com/welcome"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="splashPage">Splash Page URL</Label>
+                <Input
+                  id="splashPage"
+                  value={formData.config?.splashPage || ''}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    config: { ...formData.config!, splashPage: e.target.value }
+                  })}
+                  placeholder="https://portal.hotel.com/welcome"
+                />
               </div>
               <div className="flex items-center gap-2">
                 <Switch
                   id="captivePortal"
                   checked={formData.config?.captivePortal ?? false}
-                  onCheckedChange={(checked) => setFormData({
-                    ...formData,
-                    config: { ...formData.config!, captivePortal: checked }
-                  })}
+                  onCheckedChange={(checked) => {
+                    setFormData({
+                      ...formData,
+                      config: { ...formData.config!, captivePortal: checked }
+                    });
+                    // If enabling captive portal on MikroTik, switch to that tab
+                    if (checked && formData.type === 'mikrotik') {
+                      // small delay to let the tab appear
+                      setTimeout(() => setActiveTab('mikrotik'), 100);
+                    }
+                  }}
                 />
                 <Label htmlFor="captivePortal">Enable Captive Portal</Label>
               </div>
+              {formData.config?.captivePortal && formData.type === 'mikrotik' && (
+                <div className="rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-900 dark:bg-orange-950/30 p-3">
+                  <p className="text-sm text-orange-700 dark:text-orange-300">
+                    MikroTik captive portal detected. Configure the external portal settings in the
+                    <Button variant="link" className="px-1 text-orange-700 dark:text-orange-300 h-auto p-0 text-sm" onClick={() => setActiveTab('mikrotik')}>
+                      MikroTik Portal tab →
+                    </Button>
+                  </p>
+                </div>
+              )}
+            </TabsContent>
 
-              {/* MikroTik External Portal — only shown when MikroTik + Captive Portal enabled */}
-              {formData.type === 'mikrotik' && formData.config?.captivePortal && (
-                <>
-                  <Separator className="my-4" />
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <Server className="w-4 h-4 text-orange-500" />
-                      <h4 className="font-medium text-sm">MikroTik External Portal</h4>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Use StaySuite as the captive portal instead of MikroTik&apos;s built-in portal.
-                      Guests will see the StaySuite login page, then get redirected to MikroTik for authentication.
-                    </p>
+            {/* ── MikroTik External Portal Tab ── */}
+            {formData.type === 'mikrotik' && formData.config?.captivePortal && (
+              <TabsContent value="mikrotik" className="space-y-4 pt-4">
+                <div className="flex items-center gap-2">
+                  <Server className="w-4 h-4 text-orange-500" />
+                  <h4 className="font-medium text-sm">MikroTik External Portal</h4>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Use StaySuite as the captive portal instead of MikroTik&apos;s built-in portal.
+                  Guests will see the StaySuite login page, then get redirected to MikroTik for authentication.
+                </p>
 
-                    {/* Portal Mode Selection */}
-                    <div className="space-y-2">
-                      <Label className="text-xs font-medium">Portal Mode</Label>
-                      <div className="flex gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="portalMode"
-                            checked={externalPortalMode}
-                            onChange={() => setExternalPortalMode(true)}
-                            className="accent-primary"
-                          />
-                          <span className="text-sm">StaySuite Captive Portal</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="portalMode"
-                            checked={!externalPortalMode}
-                            onChange={() => setExternalPortalMode(false)}
-                            className="accent-primary"
-                          />
-                          <span className="text-sm">MikroTik Built-in Portal</span>
-                        </label>
+                {/* Portal Mode Selection */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Portal Mode</Label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="portalMode"
+                        checked={externalPortalMode}
+                        onChange={() => setExternalPortalMode(true)}
+                        className="accent-primary"
+                      />
+                      <span className="text-sm">StaySuite Captive Portal</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="portalMode"
+                        checked={!externalPortalMode}
+                        onChange={() => setExternalPortalMode(false)}
+                        className="accent-primary"
+                      />
+                      <span className="text-sm">MikroTik Built-in Portal</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* External Portal Fields */}
+                {externalPortalMode && (
+                  <>
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="portalCallbackUrl" className="text-xs">MikroTik Hotspot Login URL *</Label>
+                        <Input
+                          id="portalCallbackUrl"
+                          type="text"
+                          value={(formData.config?.portalCallbackUrl as string) || ''}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            config: { ...formData.config!, portalCallbackUrl: e.target.value, externalPortalMode: true }
+                          })}
+                          placeholder="http://192.168.1.1/login"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          The MikroTik hotspot login endpoint. After StaySuite auth, guests redirect here with RADIUS credentials.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="staySuiteServerIp" className="text-xs">StaySuite Server IP</Label>
+                        <Input
+                          id="staySuiteServerIp"
+                          type="text"
+                          value={(formData.config?.staySuiteServerIp as string) || ''}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            config: { ...formData.config!, staySuiteServerIp: e.target.value }
+                          })}
+                          placeholder="192.168.1.100"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Auto-added to MikroTik walled garden so guests can reach the StaySuite portal.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="managedSubnet" className="text-xs">
+                          Managed Subnet (CIDR)
+                          <span className="text-muted-foreground ml-1 font-normal">— for multi-gateway routing</span>
+                        </Label>
+                        <Input
+                          id="managedSubnet"
+                          type="text"
+                          value={(formData.config?.subnet as string) || ''}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            config: { ...formData.config!, subnet: e.target.value }
+                          })}
+                          placeholder="10.10.10.0/24"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          The subnet this MikroTik manages. Guest IPs in this range will be routed to this gateway for external captive portal auth. Leave empty for single-gateway deployments.
+                        </p>
                       </div>
                     </div>
 
-                    {/* External Portal Fields */}
-                    {externalPortalMode && (
-                      <>
-                        <div className="grid grid-cols-1 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="portalCallbackUrl" className="text-xs">MikroTik Hotspot Login URL *</Label>
-                            <Input
-                              id="portalCallbackUrl"
-                              type="text"
-                              value={(formData.config?.portalCallbackUrl as string) || ''}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                config: { ...formData.config!, portalCallbackUrl: e.target.value, externalPortalMode: true }
-                              })}
-                              placeholder="http://192.168.1.1/login"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              The MikroTik hotspot login endpoint. After StaySuite auth, guests redirect here with RADIUS credentials.
-                            </p>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="staySuiteServerIp" className="text-xs">StaySuite Server IP</Label>
-                            <Input
-                              id="staySuiteServerIp"
-                              type="text"
-                              value={(formData.config?.staySuiteServerIp as string) || ''}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                config: { ...formData.config!, staySuiteServerIp: e.target.value }
-                              })}
-                              placeholder="192.168.1.100"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Auto-added to MikroTik walled garden so guests can reach the StaySuite portal.
-                            </p>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="managedSubnet" className="text-xs">
-                              Managed Subnet (CIDR)
-                              <span className="text-muted-foreground ml-1 font-normal">— for multi-gateway routing</span>
-                            </Label>
-                            <Input
-                              id="managedSubnet"
-                              type="text"
-                              value={(formData.config?.subnet as string) || ''}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                config: { ...formData.config!, subnet: e.target.value }
-                              })}
-                              placeholder="10.10.10.0/24"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              The subnet this MikroTik manages. Guest IPs in this range will be routed to this gateway for external captive portal auth. Leave empty for single-gateway deployments.
-                            </p>
-                          </div>
+                    {/* Walled Garden IPs */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Additional Walled Garden IPs</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="text"
+                          value={newWalledIp}
+                          onChange={(e) => setNewWalledIp(e.target.value)}
+                          placeholder="8.8.8.8"
+                          className="flex-1"
+                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddWalledIp())}
+                        />
+                        <Button type="button" variant="outline" size="sm" onClick={handleAddWalledIp}>
+                          <Plus className="w-3 h-3 mr-1" /> Add
+                        </Button>
+                      </div>
+                      {walledGardenIps.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {walledGardenIps.map((ip) => (
+                            <Badge key={ip} variant="secondary" className="gap-1">
+                              {ip}
+                              <X
+                                className="w-3 h-3 cursor-pointer hover:text-destructive"
+                                onClick={() => handleRemoveWalledIp(ip)}
+                              />
+                            </Badge>
+                          ))}
                         </div>
+                      )}
+                    </div>
 
-                        {/* Walled Garden IPs */}
-                        <div className="space-y-2">
-                          <Label className="text-xs font-medium">Additional Walled Garden IPs</Label>
-                          <div className="flex gap-2">
-                            <Input
-                              type="text"
-                              value={newWalledIp}
-                              onChange={(e) => setNewWalledIp(e.target.value)}
-                              placeholder="8.8.8.8"
-                              className="flex-1"
-                              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddWalledIp())}
-                            />
-                            <Button type="button" variant="outline" size="sm" onClick={handleAddWalledIp}>
-                              <Plus className="w-3 h-3 mr-1" /> Add
-                            </Button>
-                          </div>
-                          {walledGardenIps.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {walledGardenIps.map((ip) => (
-                                <Badge key={ip} variant="secondary" className="gap-1">
-                                  {ip}
-                                  <X
-                                    className="w-3 h-3 cursor-pointer hover:text-destructive"
-                                    onClick={() => handleRemoveWalledIp(ip)}
-                                  />
-                                </Badge>
-                              ))}
+                    {/* Generate Script Button */}
+                    {formData.id && (
+                      <div className="space-y-3 pt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleGenerateMikrotikScript}
+                        >
+                          <FileText className="w-4 h-4 mr-2" />
+                          Generate MikroTik Setup Script
+                        </Button>
+
+                        {/* Script Preview */}
+                        {showMikrotikScript && mikrotikScript && (
+                          <div className="space-y-2">
+                            <div className="relative">
+                              <pre className="bg-muted rounded-lg p-4 text-xs overflow-x-auto max-h-64 overflow-y-auto font-mono">
+                                {mikrotikScript}
+                              </pre>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="absolute top-2 right-2"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(mikrotikScript);
+                                  toast({ title: 'Copied', description: 'Script copied to clipboard' });
+                                }}
+                              >
+                                <Copy className="w-3 h-3 mr-1" /> Copy
+                              </Button>
                             </div>
-                          )}
-                        </div>
-
-                        {/* Generate Script Button */}
-                        {formData.id && (
-                          <div className="space-y-3 pt-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={handleGenerateMikrotikScript}
-                            >
-                              <FileText className="w-4 h-4 mr-2" />
-                              Generate MikroTik Setup Script
-                            </Button>
-
-                            {/* Script Preview */}
-                            {showMikrotikScript && mikrotikScript && (
-                              <div className="space-y-2">
-                                <div className="relative">
-                                  <pre className="bg-muted rounded-lg p-4 text-xs overflow-x-auto max-h-64 overflow-y-auto font-mono">
-                                    {mikrotikScript}
-                                  </pre>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="absolute top-2 right-2"
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(mikrotikScript);
-                                      toast({ title: 'Copied', description: 'Script copied to clipboard' });
-                                    }}
-                                  >
-                                    <Copy className="w-3 h-3 mr-1" /> Copy
-                                  </Button>
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                  Paste this script into MikroTik Terminal (SSH or WinBox). This configures hotspot, walled garden, and RADIUS client settings.
-                                </p>
-                              </div>
-                            )}
+                            <p className="text-xs text-muted-foreground">
+                              Paste this script into MikroTik Terminal (SSH or WinBox). This configures hotspot, walled garden, and RADIUS client settings.
+                            </p>
                           </div>
                         )}
-                      </>
+                      </div>
                     )}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
+                  </>
+                )}
+              </TabsContent>
+            )}
+          </Tabs>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsConfigOpen(false)}>
@@ -1478,7 +1600,7 @@ export default function GatewayIntegration() {
             </Button>
             <Button onClick={handleSaveGateway} disabled={isSaving}>
               {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Save Gateway
+              {formData.id ? 'Update Gateway' : 'Add Gateway'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -85,7 +85,7 @@ export const VENDOR_METADATA: Record<GatewayVendor, {
     description: 'RouterOS - Popular in hospitality and ISP deployments',
     popularIn: ['India', 'Eastern Europe', 'Southeast Asia'],
     features: ['RouterOS API', 'Hotspot Portal', 'CAPsMAN', 'RADIUS CoA', 'Rate Limiting', 'VLAN Assignment'],
-    apiPort: 8728,
+    apiPort: 8081,
     coaPort: 3799,
     radiusPort: 1812,
   },
@@ -225,7 +225,7 @@ export const DEFAULT_PORTS: Record<GatewayVendor, {
   radiusAcct: number;
 }> = {
   cryptsk: { api: 3000, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
-  mikrotik: { api: 8728, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
+  mikrotik: { api: 8081, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
   tplink: { api: 8043, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
   unifi: { api: 8443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },
   cambium: { api: 443, coa: 3799, radiusAuth: 1812, radiusAcct: 1813 },

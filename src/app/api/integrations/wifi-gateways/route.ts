@@ -683,13 +683,46 @@ export async function GET(request: NextRequest) {
           );
           pushResult = { success: true, message: `SSID "${wifiConfig.ssid}" updated on Cisco Meraki` };
         } else if (gwConfig.vendor === 'mikrotik') {
-          // MikroTik: generate a complete RouterOS script for the admin to paste
-          const script = await buildMikrotikScript(config, wifiConfig);
-          pushResult = {
-            success: true,
-            message: 'MikroTik RouterOS script generated. Copy and paste it into the MikroTik terminal (SSH or WinBox).',
-            script,
-          };
+          // MikroTik: try to push config directly via REST API, fallback to script generation
+          try {
+            const pushResultRest = await (adapter as any).pushConfig({
+              ssid: wifiConfig.ssid,
+              vlanId: wifiConfig.vlanId,
+              captivePortal: wifiConfig.captivePortal,
+              sessionTimeout: wifiConfig.sessionTimeout,
+              idleTimeout: wifiConfig.idleTimeout,
+              staySuiteServerIp: wifiConfig.staySuiteServerIp || '10.0.2.2',
+              portalCallbackUrl: wifiConfig.portalCallbackUrl,
+              walledGardenIps: wifiConfig.walledGardenIps,
+              radiusSecret: gwConfig.radiusSecret,
+            });
+
+            if (pushResultRest.success) {
+              // Also generate script for reference
+              const script = await buildMikrotikScript(config, wifiConfig);
+              pushResult = {
+                ...pushResultRest,
+                message: 'Configuration pushed to MikroTik successfully via REST API',
+                script,
+              };
+            } else {
+              // REST API push had partial failures — still generate script
+              const script = await buildMikrotikScript(config, wifiConfig);
+              pushResult = {
+                ...pushResultRest,
+                message: pushResultRest.message + ' Generated script for manual fallback.',
+                script,
+              };
+            }
+          } catch (pushErr) {
+            // Fallback to script generation
+            const script = await buildMikrotikScript(config, wifiConfig);
+            pushResult = {
+              success: true,
+              message: 'Could not push via REST API. Generated RouterOS script instead — paste into terminal.',
+              script,
+            };
+          }
         } else {
           // Generic: store config and inform user to configure manually
           pushResult = {
@@ -716,6 +749,90 @@ export async function GET(request: NextRequest) {
         const errMsg = pushErr instanceof Error ? pushErr.message : 'Unknown push error';
         return NextResponse.json(
           { success: false, error: { code: 'PUSH_ERROR', message: `Config push failed: ${errMsg}` } },
+          { status: 500 },
+        );
+      }
+    }
+
+    // ==================================================================
+    // ACTION: hotspot-status — Real-time MikroTik hotspot data via REST API
+    // ==================================================================
+    if (action === 'hotspot-status') {
+      if (!gatewayId) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Gateway ID is required for hotspot-status' } },
+          { status: 400 },
+        );
+      }
+
+      const { gateway, error } = await loadGatewayOrFail(gatewayId, tenantId);
+      if (error) return error;
+
+      const gwConfig = integrationToGatewayConfig(gateway);
+
+      if (gwConfig.vendor !== 'mikrotik') {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'hotspot-status is only supported for MikroTik gateways' } },
+          { status: 400 },
+        );
+      }
+
+      try {
+        const adapter = await createGatewayAdapter(gwConfig);
+
+        // Fetch all data in parallel
+        const [activeUsersResult, hotspotConfigResult, systemInfoResult] = await Promise.allSettled([
+          (adapter as any).getActiveHotspotUsers(),
+          (adapter as any).getHotspotConfig(),
+          (adapter as any).getSystemInfo(),
+        ]);
+
+        const activeUsers = activeUsersResult.status === 'fulfilled' ? activeUsersResult.value : [];
+        const hotspotConfig = hotspotConfigResult.status === 'fulfilled' ? hotspotConfigResult.value : { hotspots: [], profiles: [] };
+        const systemInfo = systemInfoResult.status === 'fulfilled' ? systemInfoResult.value : null;
+
+        // Parse system info into a clean format
+        const systemHealth = systemInfo ? {
+          version: (systemInfo as Record<string, unknown>)['version'] || undefined,
+          boardName: (systemInfo as Record<string, unknown>)['board-name'] || undefined,
+          cpuLoad: (systemInfo as Record<string, unknown>)['cpu-load'] ?? undefined,
+          totalMemory: (systemInfo as Record<string, unknown>)['total-memory'] ?? undefined,
+          freeMemory: (systemInfo as Record<string, unknown>)['free-memory'] ?? undefined,
+          uptime: (systemInfo as Record<string, unknown>)['uptime'] || undefined,
+          architecture: (systemInfo as Record<string, unknown>)['architecture-name'] || undefined,
+          cpuCount: (systemInfo as Record<string, unknown>)['cpu-count'] ?? undefined,
+          cpuFrequency: (systemInfo as Record<string, unknown>)['cpu-frequency'] ?? undefined,
+        } : null;
+
+        // Format active users for the frontend
+        const formattedUsers = (activeUsers || []).map((user: Record<string, unknown>) => ({
+          id: user['.id'],
+          username: user['user'] || '',
+          ipAddress: user['address'] || '',
+          macAddress: user['mac-address'] || '',
+          hostname: user['host-name'] || '',
+          uptime: user['uptime'] || '',
+          bytesIn: Number(user['bytes-in'] || 0),
+          bytesOut: Number(user['bytes-out'] || 0),
+          packetsIn: Number(user['packets-in'] || 0),
+          packetsOut: Number(user['packets-out'] || 0),
+          server: user['server'] || '',
+          loginBy: user['login-by'] || '',
+        }));
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            activeUsers: formattedUsers,
+            activeUserCount: formattedUsers.length,
+            hotspotConfig,
+            systemHealth,
+          },
+        });
+      } catch (statusErr: unknown) {
+        const errMsg = statusErr instanceof Error ? statusErr.message : 'Unknown error';
+        return NextResponse.json(
+          { success: false, error: { code: 'HOTSPOT_STATUS_ERROR', message: `Failed to get hotspot status: ${errMsg}` } },
           { status: 500 },
         );
       }
@@ -819,6 +936,8 @@ export async function GET(request: NextRequest) {
         firmwareVersion: config.firmwareVersion,
         lastSyncLatency: config.lastSyncLatency,
         radiusSecret: maskIfSet(config.radiusSecret),
+        radiusAuthPort: config.radiusAuthPort || defaults.radiusAuth,
+        radiusAcctPort: config.radiusAcctPort || defaults.radiusAcct,
         coaEnabled: config.coaEnabled ?? true,
         coaPort: config.coaPort || DEFAULT_PORTS[vendor]?.coa || 3799,
         coaSecret: maskIfSet(config.coaSecret),

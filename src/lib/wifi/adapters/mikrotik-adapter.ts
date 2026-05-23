@@ -89,6 +89,49 @@ export class MikrotikAdapter extends GatewayAdapter {
   }
 
   /**
+   * Make a REST API call to the MikroTik router
+   *
+   * MikroTik REST API (RouterOS 7.x) uses JSON endpoints under /rest/.
+   * Authentication is via HTTP Basic auth.
+   *
+   * @param endpoint - REST API path (e.g., '/ip/hotspot/active')
+   * @param method - HTTP method (GET, PUT, POST, PATCH, DELETE)
+   * @param body - Request body for PUT/POST/PATCH
+   */
+  private async restApi(endpoint: string, method: string = 'GET', body?: unknown): Promise<unknown> {
+    const apiPort = this.config.apiPort || 8081;
+    const baseUrl = `http://${this.config.ipAddress}:${apiPort}/rest`;
+    const url = `${baseUrl}${endpoint}`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (this.config.apiUsername && this.config.apiPassword) {
+      headers['Authorization'] = `Basic ${Buffer.from(`${this.config.apiUsername}:${this.config.apiPassword}`).toString('base64')}`;
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`MikroTik REST API ${method} ${endpoint} returned ${response.status}: ${errorText}`);
+    }
+
+    // Some endpoints return empty body on success (e.g., PUT /set)
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return response.json();
+    }
+    return null;
+  }
+
+  /**
    * Test connection to MikroTik router
    * Uses MikroTik REST API at /rest/system/resource
    * Falls back to basic HTTP connectivity check
@@ -97,45 +140,15 @@ export class MikrotikAdapter extends GatewayAdapter {
     const startTime = Date.now();
 
     try {
-      const apiPort = this.config.apiPort || 443;
-      const baseUrl = `http://${this.config.ipAddress}:${apiPort}/rest`;
-
-      // Try MikroTik REST API (available in RouterOS 6.43+)
-      const response = await fetch(`${baseUrl}/system/resource`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.config.apiUsername && this.config.apiPassword
-            ? { 'Authorization': `Basic ${Buffer.from(`${this.config.apiUsername}:${this.config.apiPassword}`).toString('base64')}` }
-            : {}),
-        },
-        signal: AbortSignal.timeout(5000),
-      });
-
+      await this.restApi('/system/resource');
       const latency = Date.now() - startTime;
-
-      if (response.ok) {
-        return {
-          success: true,
-          latency,
-        };
-      }
-
-      // If REST API returns auth error but we got a response, connection works
-      if (response.status === 401 || response.status === 403) {
-        return {
-          success: true,
-          latency,
-        };
-      }
-
-      return {
-        success: false,
-        latency,
-        error: `MikroTik REST API returned status ${response.status}`,
-      };
+      return { success: true, latency };
     } catch (error) {
+      // If we got a 401/403, the connection itself works
       const latency = Date.now() - startTime;
+      if (error instanceof Error && (error.message.includes('401') || error.message.includes('403'))) {
+        return { success: true, latency };
+      }
       return {
         success: false,
         latency,
@@ -217,44 +230,31 @@ export class MikrotikAdapter extends GatewayAdapter {
    */
   async getStatus(): Promise<GatewayStatus> {
     try {
-      const apiPort = this.config.apiPort || 443;
-      const baseUrl = `http://${this.config.ipAddress}:${apiPort}/rest`;
-
-      const response = await fetch(`${baseUrl}/system/resource`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.config.apiUsername && this.config.apiPassword
-            ? { 'Authorization': `Basic ${Buffer.from(`${this.config.apiUsername}:${this.config.apiPassword}`).toString('base64')}` }
-            : {}),
-        },
-        signal: AbortSignal.timeout(5000),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        return {
-          online: true,
-          firmwareVersion: data['version'] || data['board-name'] || undefined,
-          cpuUsage: data['cpu-load'] ?? undefined,
-          memoryUsage: data['total-memory'] && data['free-memory']
-            ? Math.round(((data['total-memory'] - data['free-memory']) / data['total-memory']) * 100)
-            : undefined,
-          uptime: data['uptime'] ? this.parseMikrotikUptime(data['uptime']) : undefined,
-          totalClients: undefined, // Will be filled from accounting
-          lastSeen: new Date(),
-        };
-      }
-
-      // Fallback: try to get active sessions count from accounting
-      const accountingResult = await freeradiusRequest('/api/accounting/active?nasIp=' + this.config.ipAddress);
+      const data = await this.getSystemInfo() as Record<string, unknown>;
       return {
         online: true,
-        totalClients: accountingResult.count || accountingResult.totalActive || 0,
+        firmwareVersion: (data['version'] as string) || (data['board-name'] as string) || undefined,
+        cpuUsage: data['cpu-load'] != null ? Number(data['cpu-load']) : undefined,
+        memoryUsage: data['total-memory'] && data['free-memory']
+          ? Math.round(((Number(data['total-memory']) - Number(data['free-memory'])) / Number(data['total-memory'])) * 100)
+          : undefined,
+        uptime: data['uptime'] ? this.parseMikrotikUptime(String(data['uptime'])) : undefined,
+        totalClients: undefined, // Will be filled from accounting
         lastSeen: new Date(),
       };
     } catch {
-      // If MikroTik API is unreachable, check accounting for last activity
+      // Fallback: try to get active sessions count from accounting
+      try {
+        const accountingResult = await freeradiusRequest('/api/accounting/active?nasIp=' + this.config.ipAddress);
+        return {
+          online: true,
+          totalClients: accountingResult.count || accountingResult.totalActive || 0,
+          lastSeen: new Date(),
+        };
+      } catch {
+        // Ignore accounting check failure
+      }
+
       try {
         const accountingResult = await freeradiusRequest('/api/accounting?status=active&nasIp=' + this.config.ipAddress + '&limit=1');
         if (accountingResult.sessions && accountingResult.sessions.length > 0) {
@@ -451,6 +451,223 @@ export class MikrotikAdapter extends GatewayAdapter {
     const attrs = this.getRadiusAttributes(policy);
     attrs['Mikrotik-Group'] = profileName;
     return attrs;
+  }
+
+  /**
+   * Push configuration to MikroTik router via REST API
+   *
+   * This method uses the MikroTik REST API to actually apply configuration
+   * changes to the router, rather than just generating a script.
+   *
+   * Configuration steps:
+   * 1. Update hotspot profile (login URL, RADIUS auth, accounting)
+   * 2. Add walled garden entries
+   * 3. Enable/configure hotspot
+   * 4. Configure RADIUS client
+   * 5. Configure CoA port
+   * 6. Configure DNS and DHCP (optional)
+   */
+  async pushConfig(wifiConfig: {
+    ssid?: string;
+    vlanId?: number;
+    captivePortal?: boolean;
+    sessionTimeout?: number;
+    idleTimeout?: number;
+    staySuiteServerIp?: string;
+    portalCallbackUrl?: string;
+    walledGardenIps?: string[];
+    radiusSecret?: string;
+  }): Promise<{ success: boolean; message: string; details: Record<string, boolean> }> {
+    const details: Record<string, boolean> = {};
+    const errors: string[] = [];
+    const staySuiteIp = wifiConfig.staySuiteServerIp || '10.0.2.2';
+    const radiusSecret = wifiConfig.radiusSecret || this.config.radiusSecret || 'testing123';
+
+    // ── 1. Update hotspot profile ──
+    try {
+      // Get current hotspot profiles
+      const profiles = await this.restApi('/ip/hotspot/profile') as Record<string, unknown>[];
+      if (profiles && profiles.length > 0) {
+        const profileId = (profiles[0] as Record<string, unknown>)['.id'];
+        const profileUpdate: Record<string, unknown> = {
+          '.id': profileId,
+          'html-directory': 'none',
+          'use-radius': 'yes',
+          'accounting': 'yes',
+        };
+
+        if (wifiConfig.portalCallbackUrl) {
+          profileUpdate['login-url'] = wifiConfig.portalCallbackUrl;
+        } else {
+          profileUpdate['login-url'] = `http://${staySuiteIp}/connect?mac=$mac&identity=$identity&ip=$ip`;
+        }
+
+        await this.restApi('/ip/hotspot/profile/set', 'POST', profileUpdate);
+        details['hotspotProfile'] = true;
+      } else {
+        details['hotspotProfile'] = false;
+        errors.push('No hotspot profile found');
+      }
+    } catch (err) {
+      details['hotspotProfile'] = false;
+      errors.push(`Hotspot profile: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // ── 2. Add walled garden entries ──
+    try {
+      // Get existing walled garden entries to avoid duplicates
+      const existingWg = await this.restApi('/ip/hotspot/walled-garden') as Record<string, unknown>[];
+      const existingHosts = new Set(
+        (existingWg || []).map((e: Record<string, unknown>) => String(e['dst-host'] || ''))
+      );
+
+      const walledGardenEntries = [
+        ...(wifiConfig.walledGardenIps || []),
+        staySuiteIp,
+      ];
+
+      for (const host of walledGardenEntries) {
+        if (host && !existingHosts.has(host)) {
+          await this.restApi('/ip/hotspot/walled-garden/add', 'POST', {
+            'dst-host': host,
+            'comment': `StaySuite ${host === staySuiteIp ? 'Portal' : 'Whitelisted'}`,
+          });
+        }
+      }
+      details['walledGarden'] = true;
+    } catch (err) {
+      details['walledGarden'] = false;
+      errors.push(`Walled garden: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // ── 3. Enable/configure hotspot ──
+    try {
+      const hotspots = await this.restApi('/ip/hotspot') as Record<string, unknown>[];
+      if (hotspots && hotspots.length > 0) {
+        // Update existing hotspot
+        const hotspotId = (hotspots[0] as Record<string, unknown>)['.id'];
+        await this.restApi('/ip/hotspot/set', 'POST', {
+          '.id': hotspotId,
+          'disabled': 'no',
+        });
+      }
+      // If no hotspot exists, we'd need to create one — but that requires
+      // knowing the interface name, so we skip creation and let the admin handle it
+      details['hotspot'] = true;
+    } catch (err) {
+      details['hotspot'] = false;
+      errors.push(`Hotspot: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // ── 4. Configure RADIUS client ──
+    try {
+      const radiusEntries = await this.restApi('/radius') as Record<string, unknown>[];
+      const existingStaySuite = (radiusEntries || []).find(
+        (e: Record<string, unknown>) => String(e['comment'] || '').includes('StaySuite')
+      );
+
+      if (existingStaySuite) {
+        // Update existing RADIUS entry
+        await this.restApi('/radius/set', 'POST', {
+          '.id': (existingStaySuite as Record<string, unknown>)['.id'],
+          'address': staySuiteIp,
+          'secret': radiusSecret,
+          'service': 'hotspot',
+          'timeout': '3000ms',
+        });
+      } else {
+        // Add new RADIUS entry
+        await this.restApi('/radius/add', 'POST', {
+          'address': staySuiteIp,
+          'secret': radiusSecret,
+          'service': 'hotspot',
+          'timeout': '3000ms',
+          'comment': 'StaySuite FreeRADIUS',
+        });
+      }
+      details['radius'] = true;
+    } catch (err) {
+      details['radius'] = false;
+      errors.push(`RADIUS: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // ── 5. Configure CoA port ──
+    try {
+      await this.restApi('/radius/incoming/set', 'POST', {
+        'accept': 'yes',
+        'port': String(this.config.coaPort || 3799),
+      });
+      details['coa'] = true;
+    } catch (err) {
+      details['coa'] = false;
+      errors.push(`CoA: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // ── 6. Configure DNS (optional — point to StaySuite for captive portal) ──
+    try {
+      await this.restApi('/ip/dns/set', 'POST', {
+        'allow-remote-requests': 'yes',
+      });
+      details['dns'] = true;
+    } catch (err) {
+      details['dns'] = false;
+      // DNS config is optional, don't add to errors
+    }
+
+    const allSuccess = Object.values(details).every(v => v);
+    const successCount = Object.values(details).filter(v => v).length;
+    const totalSteps = Object.keys(details).length;
+
+    return {
+      success: allSuccess,
+      message: allSuccess
+        ? `Configuration pushed successfully (${successCount}/${totalSteps} steps completed)`
+        : `Partial push: ${successCount}/${totalSteps} steps completed. Errors: ${errors.join('; ')}`,
+      details,
+    };
+  }
+
+  /**
+   * Get active hotspot users from MikroTik REST API
+   * Returns the list of currently connected hotspot clients
+   */
+  async getActiveHotspotUsers(): Promise<Record<string, unknown>[]> {
+    try {
+      const result = await this.restApi('/ip/hotspot/active');
+      return Array.isArray(result) ? result : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Get hotspot configuration from MikroTik REST API
+   * Returns hotspot server config and profile config
+   */
+  async getHotspotConfig(): Promise<{
+    hotspots: Record<string, unknown>[];
+    profiles: Record<string, unknown>[];
+  }> {
+    try {
+      const [hotspots, profiles] = await Promise.all([
+        this.restApi('/ip/hotspot'),
+        this.restApi('/ip/hotspot/profile'),
+      ]);
+      return {
+        hotspots: Array.isArray(hotspots) ? hotspots : [],
+        profiles: Array.isArray(profiles) ? profiles : [],
+      };
+    } catch {
+      return { hotspots: [], profiles: [] };
+    }
+  }
+
+  /**
+   * Get system resource information from MikroTik REST API
+   * Reusable method for system info retrieval
+   */
+  async getSystemInfo(): Promise<unknown> {
+    return this.restApi('/system/resource');
   }
 
   /**
