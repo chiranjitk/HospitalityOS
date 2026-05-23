@@ -164,7 +164,7 @@ const wifiCompetitors = [
   { name: 'MikroTik Router', pricing: '₹6,000 one-time', type: 'Hardware only' },
 ];
 
-const addonModules = [
+const DEFAULT_ADDON_MODULES: AddonModuleDef[] = [
   { name: 'WiFi RADIUS (Cloud)', price: 1499, cloud: true, onPrem: true, category: 'network', icon: Radio },
   { name: 'WiFi Gateway (On-Prem only)', price: 3999, cloud: false, onPrem: true, category: 'network', icon: Wifi },
   { name: 'Room VLAN Isolation', price: 999, cloud: false, onPrem: true, category: 'network', icon: Lock },
@@ -245,6 +245,10 @@ export default function SaaSPlans() {
   const [showWifiCompetitors, setShowWifiCompetitors] = useState(false);
   const [selectedAddons, setSelectedAddons] = useState<Set<string>>(new Set());
   const [selectedHardware, setSelectedHardware] = useState<string>('intel-nuc-standard');
+  const [addonModules, setAddonModules] = useState<AddonModuleDef[]>(DEFAULT_ADDON_MODULES);
+  const [editingAddonName, setEditingAddonName] = useState<string | null>(null);
+  const [editingAddonPrice, setEditingAddonPrice] = useState<string>('');
+  const [isSavingAddons, setIsSavingAddons] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -302,6 +306,34 @@ export default function SaaSPlans() {
     });
   };
 
+  // Addon price editing
+  const startEditAddon = (mod: AddonModuleDef) => {
+    setEditingAddonName(mod.name);
+    setEditingAddonPrice(mod.price.toString());
+  };
+
+  const saveAddonPrice = (name: string) => {
+    const newPrice = parseFloat(editingAddonPrice);
+    if (isNaN(newPrice) || newPrice < 0) {
+      toast({ title: 'Invalid Price', description: 'Enter a valid price', variant: 'destructive' });
+      return;
+    }
+    setAddonModules(prev => prev.map(m => m.name === name ? { ...m, price: newPrice } : m));
+    setEditingAddonName(null);
+    setEditingAddonPrice('');
+    toast({ title: 'Price Updated', description: `${name} → ${formatINR(newPrice)}/mo` });
+  };
+
+  const cancelEditAddon = () => {
+    setEditingAddonName(null);
+    setEditingAddonPrice('');
+  };
+
+  const resetAddonPrices = () => {
+    setAddonModules(DEFAULT_ADDON_MODULES);
+    toast({ title: 'Reset', description: 'All addon prices reset to defaults' });
+  };
+
   // Calculator total
   const calculatorTotal = useMemo(() => {
     const addonsCost = addonModules
@@ -309,7 +341,7 @@ export default function SaaSPlans() {
       .reduce((sum, m) => sum + m.price, 0);
     const hw = gatewayHardware.find(h => h.id === selectedHardware);
     return { addonsMonthly: addonsCost, hardwareOneTime: hw?.price || 0 };
-  }, [selectedAddons, selectedHardware]);
+  }, [selectedAddons, selectedHardware, addonModules]);
 
   // Update plan
   const handleUpdate = async () => {
@@ -947,14 +979,20 @@ export default function SaaSPlans() {
         {/* ═══════════════════ ADD-ON MODULES TAB ═══════════════════ */}
         <TabsContent value="addons">
           <div className="space-y-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
-                <Layers className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
+                  <Layers className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Add-On Modules</h3>
+                  <p className="text-xs text-muted-foreground">{addonModules.length} add-on modules · Click price to edit</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-semibold">Add-On Modules</h3>
-                <p className="text-xs text-muted-foreground">17 add-on modules · Mix and match based on deployment type</p>
-              </div>
+              <Button variant="outline" size="sm" onClick={resetAddonPrices}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                Reset Prices
+              </Button>
             </div>
             {(['network', 'operations', 'revenue', 'experience', 'intelligence'] as const).map(cat => {
               const catInfo = categoryLabels[cat];
@@ -969,8 +1007,9 @@ export default function SaaSPlans() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {modules.map(mod => {
                       const ModIcon = mod.icon;
+                      const isEditing = editingAddonName === mod.name;
                       return (
-                        <Card key={mod.name} className="transition-all duration-200 hover:shadow-md hover:border-amber-500/30">
+                        <Card key={mod.name} className={cn("transition-all duration-200 hover:shadow-md hover:border-amber-500/30", isEditing && "border-amber-500 shadow-md shadow-amber-500/10")}>
                           <CardContent className="pt-4 pb-4 px-4">
                             <div className="flex items-start gap-3">
                               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 shrink-0">
@@ -978,7 +1017,38 @@ export default function SaaSPlans() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium leading-tight">{mod.name}</p>
-                                <p className="text-lg font-bold mt-1">{formatINR(mod.price)}<span className="text-xs font-normal text-muted-foreground">/mo</span></p>
+                                {isEditing ? (
+                                  <div className="flex items-center gap-1.5 mt-1.5">
+                                    <span className="text-sm text-muted-foreground">₹</span>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      className="h-7 text-sm w-24 px-1.5"
+                                      value={editingAddonPrice}
+                                      onChange={(e) => setEditingAddonPrice(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') saveAddonPrice(mod.name);
+                                        if (e.key === 'Escape') cancelEditAddon();
+                                      }}
+                                      autoFocus
+                                    />
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-emerald-600 hover:bg-emerald-500/10" onClick={() => saveAddonPrice(mod.name)}>
+                                      <Check className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:bg-red-500/10" onClick={cancelEditAddon}>
+                                      <X className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    className="text-lg font-bold mt-1 hover:text-amber-600 transition-colors cursor-pointer group text-left"
+                                    onClick={() => startEditAddon(mod)}
+                                    title="Click to edit price"
+                                  >
+                                    {formatINR(mod.price)}<span className="text-xs font-normal text-muted-foreground">/mo</span>
+                                    <Edit className="h-3 w-3 ml-1.5 inline opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground" />
+                                  </button>
+                                )}
                                 <div className="flex gap-1.5 mt-1.5">
                                   {mod.cloud && <Badge variant="secondary" className="text-[10px]"><Cloud className="h-2.5 w-2.5 mr-0.5" />Cloud</Badge>}
                                   {mod.onPrem && <Badge variant="outline" className="text-[10px]"><HardDrive className="h-2.5 w-2.5 mr-0.5" />On-Prem</Badge>}
