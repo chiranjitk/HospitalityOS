@@ -524,6 +524,7 @@ export class MikrotikAdapter extends GatewayAdapter {
     portalCallbackUrl?: string;
     walledGardenIps?: string[];
     radiusSecret?: string;
+    authMethods?: string; // Comma-separated: pap,chap,mschapv2,eap,mac-auth
   }): Promise<{ success: boolean; message: string; details: Record<string, boolean> }> {
     const details: Record<string, boolean> = {};
     const errors: string[] = [];
@@ -531,22 +532,41 @@ export class MikrotikAdapter extends GatewayAdapter {
     const radiusSecret = wifiConfig.radiusSecret || this.config.radiusSecret || 'testing123';
 
     // ── 1. Update hotspot profile ──
+    // MikroTik RouterOS v7 uses 'html-directory-override' for external portal URL
+    // (NOT 'login-url' which is not a valid REST API parameter).
+    // Set html-directory=none + html-directory-override=<portal URL> for external captive portal.
     try {
       // Get current hotspot profiles
       const profiles = await this.restApi('/ip/hotspot/profile') as Record<string, unknown>[];
       if (profiles && profiles.length > 0) {
-        const profileId = (profiles[0] as Record<string, unknown>)['.id'];
+        // Prefer updating the "staysuite-hsprof" profile if it exists, else the first profile
+        const targetProfile = (profiles as Record<string, unknown>[]).find(
+          p => String(p['name'] || '').includes('staysuite')
+        ) || profiles[0];
+        const profileId = (targetProfile as Record<string, unknown>)['.id'];
+
+        const portalUrl = wifiConfig.portalCallbackUrl
+          || `http://${staySuiteIp}:3000/connect?mac=$mac&identity=$identity&ip=$ip`;
+
+        // Convert authMethods (pap,chap,mschapv2,eap,mac-auth) to MikroTik login-by
+        // pap → http-pap, chap → http-chap, mac-auth → mac, eap/mschapv2 → RADIUS-level only
+        const rawAuthMethods = wifiConfig.authMethods || 'pap,chap,mschapv2';
+        const authMethodList = rawAuthMethods.split(',').map(s => s.trim());
+        const loginByMethods: string[] = [];
+        if (authMethodList.includes('chap')) loginByMethods.push('http-chap');
+        if (authMethodList.includes('pap')) loginByMethods.push('http-pap');
+        if (authMethodList.includes('mac-auth')) loginByMethods.push('mac');
+        if (loginByMethods.length === 0) loginByMethods.push('http-chap', 'http-pap');
+        const loginBy = loginByMethods.join(',');
+
         const profileUpdate: Record<string, unknown> = {
           '.id': profileId,
           'html-directory': 'none',
+          'html-directory-override': portalUrl,
+          'login-by': loginBy,
           'use-radius': 'yes',
+          'radius-accounting': 'yes',
         };
-
-        if (wifiConfig.portalCallbackUrl) {
-          profileUpdate['login-url'] = wifiConfig.portalCallbackUrl;
-        } else {
-          profileUpdate['login-url'] = `http://${staySuiteIp}/connect?mac=$mac&identity=$identity&ip=$ip`;
-        }
 
         await this.restApi('/ip/hotspot/profile/set', 'POST', profileUpdate);
         details['hotspotProfile'] = true;

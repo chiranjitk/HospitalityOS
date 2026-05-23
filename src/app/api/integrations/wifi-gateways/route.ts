@@ -4,7 +4,7 @@ import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { encrypt, decrypt } from '@/lib/encryption';
 import { createGatewayAdapter, DEFAULT_PORTS } from '@/lib/wifi/adapters';
 import type { GatewayConfig, GatewayVendor, BandwidthPolicy } from '@/lib/wifi/adapters';
-import { insertFreeRadiusNas, syncClientsConf } from '@/lib/wifi/nas-sync';
+import { insertFreeRadiusNas, updateFreeRadiusNas, syncClientsConf } from '@/lib/wifi/nas-sync';
 
 export const runtime = 'nodejs';
 
@@ -171,6 +171,7 @@ async function buildMikrotikScript(
   lines.push(`# Generated: ${new Date().toISOString()}`);
   lines.push(`# MikroTik IP: ${mikrotikIp}`);
   lines.push(`# StaySuite Server IP: ${staySuiteIp || '(replace with your StaySuite server IP)'}`);
+  lines.push('# Portal: StaySuite Captive Portal');
   lines.push('# ═══════════════════════════════════════════════════════════════');
   lines.push('');
 
@@ -190,6 +191,7 @@ async function buildMikrotikScript(
     lines.push(`  login-url=${portalCallbackUrl} \\`);
   } else {
     // Default: redirect to StaySuite captive portal with RADIUS vars
+    // The /connect route serves the StaySuite Captive Portal page
     lines.push(`  login-url=http://${ip}/connect?mac=$mac&identity=$identity&ip=$ip \\`);
   }
   lines.push('  use-radius=yes \\');
@@ -243,7 +245,7 @@ async function buildMikrotikScript(
   }
 
   lines.push('# ═══════════════════════════════════════════════════════════════');
-  lines.push('# Done! Guest devices will be redirected to the StaySuite login page.');
+  lines.push('# Done! Guest devices will be redirected to the StaySuite Captive Portal.');
   lines.push('# Test by connecting a device to the WiFi network.');
   lines.push('# ═══════════════════════════════════════════════════════════════');
 
@@ -659,7 +661,7 @@ export async function GET(request: NextRequest) {
 
       try {
         const adapter = await createGatewayAdapter(gwConfig);
-        let pushResult: { success: boolean; error?: string; message?: string; script?: string } = { success: false, error: 'This vendor does not support configuration push' };
+        let pushResult: { success: boolean; error?: string; message?: string; script?: string; details?: Record<string, boolean> } = { success: false, error: 'This vendor does not support configuration push' };
 
         // Vendor-specific push logic
         if (gwConfig.vendor === 'grandstream' && 'configureSSID' in adapter) {
@@ -686,6 +688,16 @@ export async function GET(request: NextRequest) {
           pushResult = { success: true, message: `SSID "${wifiConfig.ssid}" updated on Cisco Meraki` };
         } else if (gwConfig.vendor === 'mikrotik') {
           // MikroTik: try to push config directly via REST API, fallback to script generation
+          console.log(`[Push-Config] Pushing config to MikroTik at ${gwConfig.ipAddress}:${gwConfig.apiPort}`);
+          // Fetch authMethods from the NAS client for this gateway
+          let nasAuthMethods = 'pap,chap,mschapv2';
+          try {
+            const nasEntry = await db.radiusNAS.findFirst({
+              where: { ipAddress: gwConfig.ipAddress, tenantId },
+              select: { authMethods: true },
+            });
+            if (nasEntry?.authMethods) nasAuthMethods = nasEntry.authMethods;
+          } catch { /* non-critical */ }
           try {
             const pushResultRest = await (adapter as any).pushConfig({
               ssid: wifiConfig.ssid,
@@ -697,33 +709,100 @@ export async function GET(request: NextRequest) {
               portalCallbackUrl: wifiConfig.portalCallbackUrl,
               walledGardenIps: wifiConfig.walledGardenIps,
               radiusSecret: gwConfig.radiusSecret,
+              authMethods: nasAuthMethods,
             });
 
+            console.log(`[Push-Config] REST API result: success=${pushResultRest.success}, message=${pushResultRest.message}`);
+
+            // Also generate script for reference regardless of REST API success
+            const script = await buildMikrotikScript(config, wifiConfig);
+
             if (pushResultRest.success) {
-              // Also generate script for reference
-              const script = await buildMikrotikScript(config, wifiConfig);
               pushResult = {
                 ...pushResultRest,
                 message: 'Configuration pushed to MikroTik successfully via REST API',
                 script,
               };
             } else {
-              // REST API push had partial failures — still generate script
-              const script = await buildMikrotikScript(config, wifiConfig);
+              // REST API push had partial failures — still provide script
               pushResult = {
                 ...pushResultRest,
-                message: pushResultRest.message + ' Generated script for manual fallback.',
+                message: pushResultRest.message + ' Configuration script generated for reference.',
                 script,
               };
             }
           } catch (pushErr) {
+            console.error('[Push-Config] REST API push failed, generating script:', pushErr);
             // Fallback to script generation
             const script = await buildMikrotikScript(config, wifiConfig);
             pushResult = {
               success: true,
-              message: 'Could not push via REST API. Generated RouterOS script instead — paste into terminal.',
+              message: 'Could not push via REST API — generated RouterOS script. Paste into MikroTik terminal.',
               script,
             };
+          }
+
+          // Also ensure NAS entry exists in FreeRADIUS for this gateway
+          try {
+            const existingNas = await db.radiusNAS.findFirst({
+              where: { ipAddress: gwConfig.ipAddress, tenantId },
+            });
+            if (!existingNas) {
+              // Find a property for the NAS entry
+              const firstProperty = await db.property.findFirst({
+                where: { tenantId },
+                select: { id: true },
+              });
+              if (firstProperty) {
+                const nasShort = config.nasShortname || `mikrotik-${gwConfig.ipAddress.replace(/\./g, '-')}`;
+                await db.radiusNAS.create({
+                  data: {
+                    tenantId,
+                    propertyId: firstProperty.id,
+                    name: gateway.name || 'MikroTik Gateway',
+                    shortname: nasShort,
+                    type: 'mikrotik',
+                    ipAddress: gwConfig.ipAddress,
+                    secret: gwConfig.radiusSecret || 'staysecret',
+                    ports: `${gwConfig.radiusAuthPort || 1812},${gwConfig.radiusAcctPort || 1813}`,
+                    coaPort: gwConfig.coaPort || 3799,
+                    coaEnabled: gwConfig.coaEnabled ?? true,
+                    status: 'active',
+                  },
+                });
+                await insertFreeRadiusNas({
+                  ipAddress: gwConfig.ipAddress,
+                  shortname: nasShort,
+                  type: 'mikrotik',
+                  secret: gwConfig.radiusSecret || 'staysecret',
+                  coaPort: gwConfig.coaPort || 3799,
+                  description: gateway.name || 'MikroTik Gateway',
+                });
+                await syncClientsConf();
+                console.log(`[Push-Config] Created NAS entry for ${gwConfig.ipAddress} with shortname=${nasShort}`);
+              }
+            } else {
+              // Update the existing NAS entry with the correct shortname and secret
+              const nasShort = config.nasShortname || existingNas.shortname;
+              await db.radiusNAS.update({
+                where: { id: existingNas.id },
+                data: {
+                  shortname: nasShort,
+                  secret: gwConfig.radiusSecret || existingNas.secret,
+                  coaPort: gwConfig.coaPort || 3799,
+                  coaEnabled: gwConfig.coaEnabled ?? true,
+                  status: 'active',
+                },
+              });
+              await updateFreeRadiusNas(gwConfig.ipAddress, {
+                shortname: nasShort,
+                secret: gwConfig.radiusSecret || existingNas.secret,
+                coaPort: gwConfig.coaPort || 3799,
+              });
+              await syncClientsConf();
+            }
+          } catch (nasErr) {
+            console.warn('[Push-Config] Failed to sync NAS entry:', nasErr);
           }
         } else {
           // Generic: store config and inform user to configure manually
@@ -738,6 +817,7 @@ export async function GET(request: NextRequest) {
           where: { id: gatewayId },
           data: {
             lastSyncAt: new Date(),
+            status: 'active',
             config: JSON.stringify({ ...config, lastConfigPush: new Date().toISOString() }),
           },
         });
@@ -749,6 +829,7 @@ export async function GET(request: NextRequest) {
         });
       } catch (pushErr: unknown) {
         const errMsg = pushErr instanceof Error ? pushErr.message : 'Unknown push error';
+        console.error('[Push-Config] Error:', errMsg);
         return NextResponse.json(
           { success: false, error: { code: 'PUSH_ERROR', message: `Config push failed: ${errMsg}` } },
           { status: 500 },
@@ -1001,6 +1082,20 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantId = user.tenantId;
+
+    // Defensive: If push-config action was accidentally sent as POST,
+    // redirect to the GET handler logic
+    const urlAction = request.nextUrl.searchParams.get('action');
+    if (urlAction === 'push-config') {
+      const gatewayId = request.nextUrl.searchParams.get('id');
+      if (gatewayId) {
+        // Reconstruct as GET request and call the GET handler
+        const getUrl = new URL(request.url);
+        const getReq = new NextRequest(getUrl, { method: 'GET' });
+        return GET(getReq);
+      }
+    }
+
     const body = await request.json();
     const {
       name,
@@ -1134,10 +1229,10 @@ export async function POST(request: NextRequest) {
 
             // Also insert into the FreeRADIUS native `nas` table so that
             // FreeRADIUS actually accepts RADIUS packets from this device.
-            const nasShortname = `${type}-${ipAddress.replace(/\./g, '-')}`;
+            const freeRadiusShortname = nasShortname || `${type}-${ipAddress.replace(/\./g, '-')}`;
             await insertFreeRadiusNas({
               ipAddress,
-              shortname: nasShortname,
+              shortname: freeRadiusShortname,
               type: type === 'mikrotik' ? 'mikrotik' : 'other',
               secret: plainSecret,
               coaPort: coaPort || defaults.coa || 3799,
@@ -1292,8 +1387,43 @@ export async function PUT(request: NextRequest) {
     });
 
     const config = JSON.parse(integration.config || '{}');
-    const vendor = PROVIDER_TO_VENDOR[integration.provider] || 'generic';
 
+    // Sync NAS entry if RADIUS-relevant fields changed (shortname, secret, IP, coaPort)
+    const vendor = PROVIDER_TO_VENDOR[integration.provider] || 'generic';
+    if (['mikrotik', 'cisco', 'ubiquiti', 'aruba', 'ruckus', 'fortinet', 'juniper', 'tplink', 'grandstream', 'other'].includes(integration.provider)) {
+      try {
+        const nasIp = config.ipAddress || '';
+        const nasShort = config.nasShortname || '';
+        const newSecret = updates.radiusSecret ? decrypt(updates.radiusSecret) : undefined;
+
+        if (nasIp) {
+          const existingNas = await db.radiusNAS.findFirst({
+            where: { ipAddress: nasIp, tenantId },
+          });
+          if (existingNas) {
+            await db.radiusNAS.update({
+              where: { id: existingNas.id },
+              data: {
+                ...(nasShort ? { shortname: nasShort } : {}),
+                ...(newSecret ? { secret: newSecret } : {}),
+                ...(updates.coaPort ? { coaPort: updates.coaPort } : {}),
+                ...(updates.coaEnabled !== undefined ? { coaEnabled: updates.coaEnabled } : {}),
+                ...(updates.name ? { name: updates.name } : {}),
+              },
+            });
+            await updateFreeRadiusNas(nasIp, {
+              shortname: nasShort || undefined,
+              secret: newSecret || undefined,
+              coaPort: updates.coaPort || undefined,
+              description: updates.name || undefined,
+            });
+            await syncClientsConf();
+          }
+        }
+      } catch (nasErr) {
+        console.warn('[Gateway-PUT] Failed to sync NAS entry:', nasErr);
+      }
+    }
     // Mask secrets for response
     const MASK = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
     const maskIfSet = (encryptedVal: string | undefined): string => {

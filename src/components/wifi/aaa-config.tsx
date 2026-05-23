@@ -127,6 +127,8 @@ interface NASClient {
   apiUsername: string | null;
   apiPassword: string | null;
   apiPort: number;
+  authMethods: string; // Comma-separated: pap,chap,mschapv2,eap,mac-auth
+  requireMessageAuth: boolean;
   status: string;
   lastSeenAt?: string;
 }
@@ -489,13 +491,22 @@ const NAS_VENDOR_GROUPS: NasVendorGroup[] = [
 // Flat lookup for form value display
 const ALL_NAS_VENDORS = NAS_VENDOR_GROUPS.flatMap(g => g.vendors);
 
-// Auth Methods
+// Auth Methods — for AAA config (single default) and NAS client (multi-select)
 const AUTH_METHODS = [
-  { value: 'pap', label: 'PAP (Password Authentication Protocol)' },
-  { value: 'chap', label: 'CHAP (Challenge Handshake)' },
-  { value: 'mschapv2', label: 'MS-CHAPv2 (Microsoft)' },
-  { value: 'eap', label: 'EAP (Extensible Authentication)' },
+  { value: 'pap', label: 'PAP (Password Authentication Protocol)', description: 'Most compatible with captive portals. Password sent in clear text over RADIUS (encrypted by RADIUS secret).', nasLabel: 'PAP' },
+  { value: 'chap', label: 'CHAP (Challenge Handshake)', description: 'Better security than PAP — password never sent in clear. Requires clear-text password stored on server.', nasLabel: 'CHAP' },
+  { value: 'mschapv2', label: 'MS-CHAPv2 (Microsoft)', description: 'Most secure for Windows clients. Requires NT-password hash stored on server.', nasLabel: 'MS-CHAPv2' },
+  { value: 'eap', label: 'EAP (Extensible Authentication)', description: 'Enterprise-grade: supports EAP-PEAP, EAP-TTLS, EAP-TLS. Requires EAP module in FreeRADIUS (currently disabled).', nasLabel: 'EAP', disabled: true },
+  { value: 'mac-auth', label: 'MAC Authentication', description: 'Devices authenticate using their MAC address as username. Useful for IoT/printers. No password required.', nasLabel: 'MAC Auth' },
 ];
+
+// NAS Auth method options — used for multi-select in NAS form
+const NAS_AUTH_METHOD_OPTIONS = AUTH_METHODS.map(m => ({
+  value: m.value,
+  label: m.nasLabel,
+  description: m.description,
+  disabled: m.disabled || false,
+}));
 
 // Log Levels
 const LOG_LEVELS = [
@@ -553,6 +564,8 @@ export default function AAAConfig() {
     apiUsername: '',
     apiPassword: '',
     apiPort: 443,
+    authMethods: 'pap,chap,mschapv2' as string,
+    requireMessageAuth: false,
   });
   const [showSecret, setShowSecret] = useState(false);
   const [showApiPassword, setShowApiPassword] = useState(false);
@@ -1035,6 +1048,8 @@ export default function AAAConfig() {
       apiUsername: '',
       apiPassword: '',
       apiPort: 443,
+      authMethods: 'pap,chap,mschapv2',
+      requireMessageAuth: false,
     });
     setShowSecret(false);
     setShowApiPassword(false);
@@ -1058,6 +1073,8 @@ export default function AAAConfig() {
       apiUsername: nas.apiUsername || '',
       apiPassword: nas.apiPassword || '',
       apiPort: nas.apiPort || 443,
+      authMethods: nas.authMethods || 'pap,chap,mschapv2',
+      requireMessageAuth: nas.requireMessageAuth ?? false,
     });
     setNasDialogOpen(true);
   };
@@ -1541,6 +1558,88 @@ export default function AAAConfig() {
                       <Label>Enable CoA (Change of Authorization)</Label>
                     </div>
 
+                    {/* ── Auth Methods (Multi-select) ── */}
+                    <div className="sm:col-span-2 pt-2 border-t mt-1">
+                      <p className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        Authentication Methods
+                        <span className="text-xs font-normal">(select all that apply for this NAS)</span>
+                      </p>
+                    </div>
+                    <div className="sm:col-span-2 space-y-3">
+                      <div className="flex flex-wrap gap-2">
+                        {NAS_AUTH_METHOD_OPTIONS.map((method) => {
+                          const selected = nasForm.authMethods.split(',').map(s => s.trim()).includes(method.value);
+                          return (
+                            <button
+                              key={method.value}
+                              type="button"
+                              disabled={method.disabled}
+                              onClick={() => {
+                                const current = nasForm.authMethods.split(',').map(s => s.trim()).filter(Boolean);
+                                const updated = selected
+                                  ? current.filter(m => m !== method.value)
+                                  : [...current, method.value];
+                                if (updated.length === 0) return; // Must have at least one method
+                                setNasForm(prev => ({ ...prev, authMethods: updated.join(',') }));
+                              }}
+                              className={cn(
+                                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                                selected
+                                  ? 'bg-primary/15 border-primary text-primary shadow-sm'
+                                  : 'bg-muted/50 border-muted text-muted-foreground hover:border-muted-foreground/50',
+                                method.disabled && 'opacity-40 cursor-not-allowed'
+                              )}
+                            >
+                              {selected ? <Check className="h-3 w-3" /> : <span className="h-3 w-3 rounded-full border border-current" />}
+                              {method.label}
+                              {method.value === 'eap' && (
+                                <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 px-1 rounded">Disabled</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {nasForm.authMethods.split(',').map(s => s.trim()).includes('eap') && (
+                        <div className="flex items-start gap-2 p-2 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-xs">
+                          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                          <span className="text-amber-700 dark:text-amber-300">
+                            EAP is selected but the FreeRADIUS EAP module is currently disabled (OpenSSL 3.5.5 incompatibility). 
+                            EAP authentication will not work until the module is re-enabled. Use PAP/CHAP/MS-CHAPv2 for captive portal auth.
+                          </span>
+                        </div>
+                      )}
+                      {nasForm.authMethods.split(',').map(s => s.trim()).includes('mac-auth') && (
+                        <div className="flex items-start gap-2 p-2 rounded-md bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 text-xs">
+                          <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                          <span className="text-blue-700 dark:text-blue-300">
+                            MAC Auth enabled: devices with MAC addresses as usernames (format: XX:XX:XX:XX:XX:XX) will be auto-authenticated 
+                            without a password. Useful for printers, IoT devices, and headless clients. Make sure "Allow MAC Authentication" is 
+                            enabled in the Auth Settings tab.
+                          </span>
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Selected: <span className="font-mono font-medium">{nasForm.authMethods.split(',').map(s => {
+                          const opt = NAS_AUTH_METHOD_OPTIONS.find(o => o.value === s.trim());
+                          return opt?.label || s;
+                        }).join(', ')}</span>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center space-x-2 sm:col-span-2">
+                      <Switch
+                        checked={nasForm.requireMessageAuth}
+                        onCheckedChange={(checked) => setNasForm(prev => ({ ...prev, requireMessageAuth: checked }))}
+                      />
+                      <div className="space-y-0.5">
+                        <Label>Require Message-Authenticator</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Reject requests without Message-Authenticator attribute (recommended for production)
+                        </p>
+                      </div>
+                    </div>
+
                     {/* MikroTik REST API Credentials — only shown for MikroTik type */}
                     {nasForm.type === 'mikrotik' && (
                       <>
@@ -1640,6 +1739,7 @@ export default function AAAConfig() {
                       <TableHead>Name</TableHead>
                       <TableHead>IP Address</TableHead>
                       <TableHead>Type</TableHead>
+                      <TableHead>Auth Methods</TableHead>
                       <TableHead>Auth Port</TableHead>
                       <TableHead>Acct Port</TableHead>
                       <TableHead>CoA</TableHead>
@@ -1673,6 +1773,29 @@ export default function AAAConfig() {
                           ) : (
                             <Badge variant="outline">{nas.type}</Badge>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {(nas.authMethods || 'pap,chap,mschapv2').split(',').map((method: string) => {
+                              const opt = NAS_AUTH_METHOD_OPTIONS.find(o => o.value === method.trim());
+                              const isEap = method.trim() === 'eap';
+                              const isMac = method.trim() === 'mac-auth';
+                              return (
+                                <Badge
+                                  key={method.trim()}
+                                  variant={isEap ? 'outline' : isMac ? 'secondary' : 'default'}
+                                  className={cn(
+                                    'text-[10px] px-1.5 py-0',
+                                    isEap && 'border-amber-300 text-amber-600 dark:border-amber-700 dark:text-amber-400',
+                                    isMac && 'border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400',
+                                  )}
+                                >
+                                  {opt?.label || method.trim()}
+                                  {isEap && ' ⚠'}
+                                </Badge>
+                              );
+                            })}
+                          </div>
                         </TableCell>
                         <TableCell>{nas.authPort}</TableCell>
                         <TableCell>{nas.acctPort}</TableCell>
@@ -1805,7 +1928,7 @@ export default function AAAConfig() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label>Authentication Method</Label>
+                <Label>Default Authentication Method</Label>
                 <Select
                   value={aaaConfig.authMethod}
                   onValueChange={(value) => setAaaConfig(prev => ({ ...prev, authMethod: value }))}
@@ -1814,15 +1937,28 @@ export default function AAAConfig() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {AUTH_METHODS.map((method) => (
-                      <SelectItem key={method.value} value={method.value}>
-                        {method.label}
+                    {AUTH_METHODS.filter(m => m.value !== 'mac-auth').map((method) => (
+                      <SelectItem key={method.value} value={method.value} disabled={method.disabled}>
+                        <span className="flex items-center gap-2">
+                          {method.label}
+                          {method.disabled && <span className="text-xs text-amber-500">(Module Disabled)</span>}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {aaaConfig.authMethod === 'eap' && (
+                  <div className="flex items-start gap-2 p-2 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-sm">
+                    <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <span className="text-amber-700 dark:text-amber-300">
+                      EAP is selected but the FreeRADIUS EAP module is currently disabled due to OpenSSL 3.5.5 incompatibility. 
+                      Authentication will fail. Use PAP/CHAP/MS-CHAPv2 for captive portals.
+                    </span>
+                  </div>
+                )}
                 <p className="text-sm text-muted-foreground">
-                  PAP is most compatible with captive portals. MS-CHAPv2 provides better security.
+                  This sets the default auth method for new NAS clients. Individual NAS clients can override this with their own method selection. 
+                  FreeRADIUS auto-detects PAP, CHAP, and MS-CHAPv2 from the RADIUS packet — no additional configuration needed.
                 </p>
               </div>
 
@@ -1830,7 +1966,8 @@ export default function AAAConfig() {
                 <div className="space-y-0.5">
                   <Label>Allow MAC Authentication</Label>
                   <p className="text-sm text-muted-foreground">
-                    Allow devices to authenticate using their MAC address
+                    Allow devices to authenticate using their MAC address (format: XX:XX:XX:XX:XX:XX). 
+                    NAS clients with "MAC Auth" in their auth methods will auto-accept MAC-based logins.
                   </p>
                 </div>
                 <Switch
