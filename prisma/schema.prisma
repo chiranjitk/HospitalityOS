@@ -195,6 +195,11 @@ enum AuditAction {
   booking_create
   payment_received
   guest_checkin
+  voucher_create
+  voucher_use
+  voucher_revoke
+  session_start
+  session_end
 }
 
 enum SubscriptionStatus {

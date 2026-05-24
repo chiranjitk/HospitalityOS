@@ -301,7 +301,7 @@ export async function POST(request: NextRequest) {    const user = await require
         // Session timeout: explicit plan limit or computed from validity days
         const sessionTimeoutSec = plan.sessionLimit
           ? plan.sessionLimit
-          : voucherValidityDays * 24 * 60 * 60;
+          : (plan.validityMinutes || (plan.validityDays || 1) * 1440) * 60;
         await db.radReply.create({
           data: {
             username: currentCode,
