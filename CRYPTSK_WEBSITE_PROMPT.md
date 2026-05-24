@@ -514,11 +514,30 @@ Homepage (/)
 ## 10. Design & Brand Guidelines
 
 ### Visual Identity
-- **Primary Color:** Deep Emerald Green (`#047857`) — conveys trust, growth, hospitality
-- **Secondary Color:** Warm Gold (`#D97706`) — conveys premium quality, luxury
-- **Dark Neutral:** Charcoal (`#1F2937`) — text, headers
-- **Light Neutral:** Off-White (`#F9FAFB`) — backgrounds
-- **CTA/Accent:** Coral Red (`#DC2626`) — calls-to-action, urgency elements
+
+**Cryptsk Pvt Ltd (Corporate Brand):**
+- **Primary Color:** Cryptsk Red (`#DC2626`) — bold, confident, commands attention
+- **Secondary Color:** White (`#FFFFFF`) — clean, professional backdrop
+- **Dark Neutral:** Charcoal Black (`#111827`) — headings, body text
+- **Light Neutral:** Soft White (`#F9FAFB`) — page backgrounds
+- **Accent:** Deep Red (`#991B1B`) — hover states, active elements
+
+**StaySuite HospitalityOS (Product Brand):**
+- **Primary Color:** StaySuite Orange (`#EA580C`) — warm, energetic, hospitality
+- **Secondary Color:** White (`#FFFFFF`) — clean, modern backdrop
+- **Dark Neutral:** Slate Dark (`#0F172A`) — headings, body text
+- **Light Neutral:** Warm Off-White (`#FFFBF5`) — page backgrounds (warm tint)
+- **Accent:** Deep Orange (`#C2410C`) — hover states, active elements
+- **Supporting Orange:** Amber (`#F59E0B`) — highlights, badges, feature callouts
+
+**How the Two Brands Work Together:**
+- The **corporate website (cryptsk.com)** uses the Red/White palette
+- **StaySuite product pages and sub-brand** use the Orange/White palette
+- Transition between the two should feel natural — both share white as the common base
+- On the corporate homepage, StaySuite is presented as a product card/section with its orange identity
+- On StaySuite-specific pages, a subtle Cryptsk branding appears in the footer/header
+- Orange CTAs on white backgrounds create high conversion contrast
+- Red is reserved for Cryptsk corporate elements only (company info, careers, legal)
 
 ### Typography
 - **Headlines:** Inter / Plus Jakarta Sans — modern, clean, highly legible
