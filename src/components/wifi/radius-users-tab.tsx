@@ -547,6 +547,19 @@ export default function RadiusUsersTab() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkDeleteResult, setBulkDeleteResult] = useState<{ deleted: number; skipped: number; errors: number } | null>(null);
 
+  // ─── Filtering (must be before selection logic) ────────────────────────────
+
+  const filteredUsers = users.filter(u => {
+    if (groupFilter !== 'all' && stripPlanPrefix(u.group || '') !== groupFilter && u.group !== groupFilter) return false;
+    if (userTypeFilter !== 'all' && (u.userType || 'guest') !== userTypeFilter) return false;
+    if (statusFilter !== 'all' && (u.status || 'active') !== statusFilter) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return u.username.toLowerCase().includes(q) || (u.group || '').toLowerCase().includes(q);
+    }
+    return true;
+  });
+
   const allFilteredSelected = filteredUsers.length > 0 && filteredUsers.every(u => selectedUserIds.has(u.id));
   const someFilteredSelected = filteredUsers.some(u => selectedUserIds.has(u.id)) && !allFilteredSelected;
 
@@ -723,19 +736,6 @@ export default function RadiusUsersTab() {
 
   /** Strip the 'plan_' prefix that the backend prepends to RADIUS group names */
   const stripPlanPrefix = (group: string) => group.replace(/^plan_/, '');
-
-  // ─── Filtering ────────────────────────────────────────────────────────────
-
-  const filteredUsers = users.filter(u => {
-    if (groupFilter !== 'all' && stripPlanPrefix(u.group || '') !== groupFilter && u.group !== groupFilter) return false;
-    if (userTypeFilter !== 'all' && (u.userType || 'guest') !== userTypeFilter) return false;
-    if (statusFilter !== 'all' && (u.status || 'active') !== statusFilter) return false;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      return u.username.toLowerCase().includes(q) || (u.group || '').toLowerCase().includes(q);
-    }
-    return true;
-  });
 
   // ─── Display Helpers ──────────────────────────────────────────────────────
 
