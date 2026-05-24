@@ -1,956 +1,1030 @@
-# Cryptsk Pvt Ltd — Official Website Development Prompt
+# Cryptsk Pvt Ltd — Website Development Brief
 
-> **Document Purpose**: This is a comprehensive AI prompt document to build the official website for **Cryptsk Pvt Ltd** and its flagship product **StaySuite HospitalityOS**. Use this prompt to develop a high-conversion, sales-focused marketing website. The website is purely focused on sales & marketing — NOT technical documentation.
-
----
-
-## COMPANY OVERVIEW
-
-**Company Name:** Cryptsk Pvt Ltd
-
-**Tagline:** (Suggest — something like "Engineering the Future of Hospitality" or "Where Technology Meets Hospitality")
-
-**Founded:** [Add year if applicable]
-
-**Headquarters:** India
-
-**Industry:** Hospitality Technology / SaaS / Enterprise Software
-
-**Company Description:**
-Cryptsk Pvt Ltd is a technology company that builds enterprise-grade software products for the hospitality industry and beyond. Our mission is to empower hotels, resorts, and property management companies with intelligent, all-in-one platforms that automate operations, maximize revenue, and deliver exceptional guest experiences.
-
-**Products:**
-1. **StaySuite HospitalityOS** — Flagship product (detailed below)
-2. *(More products to be added later — website architecture should support a product portfolio section that can grow)*
-
-**Brand Personality:** Premium, trustworthy, modern, innovative, enterprise-grade yet accessible. Think "the Salesforce of hospitality" — professional, polished, authoritative.
-
-**Target Audience:**
-- Independent hotels & boutique properties
-- Hotel chains & multi-property groups
-- Resorts & convention centers
-- Serviced apartments & vacation rentals
-- Property management companies
-- Hospitality consultants & system integrators
-- C-level hotel executives (GMs, CEOs, COOs)
-- Revenue managers & IT directors
+**Document Type:** Business Requirements Document (BRD) + Website Development Specification
+**Prepared For:** Website Development Team / AI Agent
+**Prepared By:** Cryptsk Pvt Ltd — Product & Engineering Team
+**Classification:** Confidential — Internal Use Only
+**Last Updated:** July 2025
 
 ---
 
-## STAYSUITE HOSPITALITYOS — PRODUCT OVERVIEW
+## Table of Contents
 
-### One-Liner
-> **StaySuite HospitalityOS** — The world's most comprehensive all-in-one hotel management platform. A complete operating system that runs every aspect of your hotel — from reservations and revenue management to guest WiFi, housekeeping, billing, and beyond.
-
-### Hero Tagline Options
-- "One Platform. Every Operation. Zero Complexity."
-- "The Complete Hotel Operating System"
-- "Run Your Entire Hotel From One Screen"
-- "From Check-In to Check-Out — And Everything In Between"
-- "Hospitality Intelligence, Engineered at Scale"
-
-### Product Description (For Website — Marketing Copy Style)
-
-StaySuite HospitalityOS is a next-generation, cloud-native hotel management platform that replaces 15+ fragmented software tools with one unified system. Built for single properties and global chains alike, StaySuite gives hotel teams everything they need to drive revenue, delight guests, and simplify operations — all from a single, beautiful interface.
-
-Whether you manage 10 rooms or 10,000 rooms across 50 properties, StaySuite scales effortlessly with your business. Our AI-powered intelligence engine anticipates demand, optimizes pricing, and automates routine tasks — so your team can focus on what matters most: creating unforgettable guest experiences.
-
-**Key Differentiators to Highlight:**
-1. **Truly All-in-One** — Not just a PMS. StaySuite includes WiFi management, channel management, revenue management, restaurant POS, CRM, IoT, and more — all built natively, not bolted on
-2. **AI-Powered Intelligence** — Smart pricing, demand forecasting, cancellation prediction, automated task assignment, and AI copilot for natural language queries
-3. **Built for Scale** — Multi-tenant, multi-property, multi-currency, multi-language (15 languages) — designed for global hotel chains
-4. **Zero Fragmentation** — One login, one database, one truth. No more syncing between 10 different systems
-5. **India-First, Global-Ready** — Native GST compliance, UPI payments, plus full support for international tax, currency, and OTA channels
-6. **Enterprise Security** — Bank-grade encryption, SSO (SAML/OIDC/LDAP), 2FA, GDPR compliance, role-based access control
+1. [Executive Summary](#1-executive-summary)
+2. [Company Profile](#2-company-profile)
+3. [Product Overview — StaySuite HospitalityOS](#3-product-overview--staysuite-hospitalityos)
+4. [Competitive Landscape](#4-competitive-landscape)
+5. [Target Customer Personas](#5-target-customer-personas)
+6. [Website Objectives & KPIs](#6-website-objectives--kpis)
+7. [Website Architecture](#7-website-architecture)
+8. [Content Strategy](#8-content-strategy)
+9. [Page-by-Page Specification](#9-page-by-page-specification)
+10. [Design & Brand Guidelines](#10-design--brand-guidelines)
+11. [SEO & Digital Marketing Requirements](#11-seo--digital-marketing-requirements)
+12. [Technical Requirements](#12-technical-requirements)
+13. [Integration & Lead Capture Requirements](#13-integration--lead-capture-requirements)
+14. [Implementation Roadmap](#14-implementation-roadmap)
+15. [Appendix: Complete Product Feature Catalog](#15-appendix-complete-product-feature-catalog)
 
 ---
 
-## COMPLETE FEATURE SET — MARKETING-FRIENDLY DESCRIPTIONS
+## 1. Executive Summary
 
-> **IMPORTANT**: Below every feature is described in customer-friendly, benefit-driven language. Avoid technical jargon. Focus on WHAT the user gets, not HOW it works.
+### Background
+Cryptsk Pvt Ltd is a technology company headquartered in India, specializing in enterprise-grade software products for the hospitality and travel industry. Our flagship product, **StaySuite HospitalityOS**, is a fully integrated hotel management platform that currently powers [X] properties across [X] countries.
 
----
+### Purpose of This Document
+This document serves as the single source of truth for developing the official Cryptsk Pvt Ltd corporate website. It contains:
+- Complete company and product information extracted from a deep technical scan of the StaySuite codebase
+- Business requirements for a high-conversion marketing website
+- Page specifications, content direction, and design guidelines
+- Technical and SEO requirements
 
-### 1. PROPERTY MANAGEMENT SYSTEM (PMS)
+### Business Objective
+Build a premium, conversion-optimized corporate website that:
+1. **Generates qualified demo requests and free trial signups** (primary conversion goal)
+2. **Establishes Cryptsk as a credible, enterprise-grade technology company**
+3. **Clearly communicates the value of StaySuite as an all-in-one hospitality platform**
+4. **Supports future product additions** (multi-product company architecture)
+5. **Ranks on page 1 of Google for key hospitality SaaS keywords**
 
-**Section Headline:** "Manage Every Property Like It's Your Only One"
-
-**Marketing Copy:**
-StaySuite's core PMS gives you complete control over your entire property portfolio from a single dashboard. Whether you run a single boutique hotel or a chain of 50 resorts, manage rooms, rates, and inventory with unprecedented ease.
-
-**Features to Showcase:**
-
-| Feature | Marketing Description |
-|---------|----------------------|
-| **Multi-Property Dashboard** | See every property at a glance — occupancy, revenue, arrivals, departures — all in one unified command center. Switch between properties instantly. |
-| **Room Management** | Visual room grid with real-time status. Know which rooms are clean, occupied, under maintenance, or ready for check-in — at any moment. |
-| **Room Types & Categories** | Define unlimited room types with custom pricing, occupancy limits, amenities, and photo galleries. |
-| **Visual Floor Plans** | Interactive floor plan editor — drag-and-drop room layout, see room positions visually, and manage assignments from a bird's-eye view. |
-| **Inventory Calendar** | Color-coded availability calendar that shows open/closed dates at a glance. Control availability across all channels from one screen. |
-| **Rate Plans & Packages** | Create flexible rate plans — seasonal, corporate, promotional, or bundled packages (room + breakfast + spa). Set minimum stays, meal plans, and cancellation rules. |
-| **Dynamic Pricing** | AI-powered pricing that automatically adjusts room rates based on demand, season, events, competitor rates, and booking patterns. |
-| **Overbooking Intelligence** | Smart overbooking that uses no-show prediction to safely sell beyond capacity — increasing revenue without ever walking a guest. |
-| **Booking Engine (Direct)** | Branded direct booking widget for your website — zero commissions, instant confirmations, and seamless payment processing. |
-
-**Visual Assets Needed:**
-- Screenshot of multi-property dashboard
-- Room grid visual showing room statuses (color-coded)
-- Floor plan editor screenshot
-- Rate calendar view
+### Key Differentiator
+StaySuite is not just another PMS. It is the **only platform** that natively combines hotel management (PMS), channel management (200+ OTAs), revenue management (AI-powered), restaurant POS, WiFi/network management (enterprise-grade), CRM, billing, IoT, and guest experience — all built from the ground up as one unified system, not assembled through acquisitions.
 
 ---
 
-### 2. RESERVATIONS & BOOKING MANAGEMENT
+## 2. Company Profile
 
-**Section Headline:** "Never Lose a Reservation Again"
+| Field | Detail |
+|-------|--------|
+| **Legal Name** | Cryptsk Pvt Ltd |
+| **Type** | Private Limited Company |
+| **Headquarters** | India |
+| **Industry** | Hospitality Technology, SaaS, Enterprise Software |
+| **Products** | StaySuite HospitalityOS (current) + future products |
+| **Business Model** | B2B SaaS — Monthly/Annual subscription per property |
 
-**Marketing Copy:**
-From the moment a guest books to the moment they check out, StaySuite handles every detail. Accept reservations from any channel, manage group bookings, track waitlists, and handle modifications effortlessly.
+### Company Mission
+*(To be finalized by leadership)*
+> "To empower hospitality businesses worldwide with intelligent, unified technology that maximizes revenue, streamlines operations, and elevates guest experiences."
 
-**Features to Showcase:**
+### Company Vision
+*(To be finalized by leadership)*
+> "To become the definitive operating system for the global hospitality industry — the platform every hotel runs on."
 
-| Feature | Marketing Description |
-|---------|----------------------|
-| **Unified Reservation Inbox** | All reservations — online, phone, walk-in, group, OTA — flow into one dashboard. No more switching between systems. |
-| **Group & Block Bookings** | Manage convention groups, wedding blocks, and corporate bookings with room block management, cut-off dates, and rooming lists. |
-| **Smart Waitlist** | Automatically queue waitlisted guests and notify them the moment a room becomes available. Never let demand go to waste. |
-| **Booking Conflict Detection** | Real-time conflict resolution catches double-bookings, overlapping dates, and availability gaps before they become problems. |
-| **Automated Confirmations** | Instant booking confirmations via email and SMS. Include property details, directions, WiFi credentials, and pre-arrival upsell offers. |
-| **Early Check-In / Late Check-Out** | Offer paid early check-in and late check-out with one-click approval. Revenue from every idle minute. |
-| **No-Show Automation** | Automatically detect no-shows based on configurable rules, release rooms for resale, and process penalties. |
-| **Booking Audit Trail** | Complete history of every booking change — who changed what, when, and why. Full accountability, zero disputes. |
+### Brand Positioning
+- **Premium but accessible** — Enterprise capability without enterprise complexity
+- **Innovation-led** — AI-first, modern architecture, continuous evolution
+- **Trustworthy** — Bank-grade security, full compliance, transparent pricing
+- **India-rooted, global-ready** — Deep understanding of Indian market, designed for worldwide deployment
 
-**Visual Assets Needed:**
-- Booking calendar view
-- Group booking management screen
-- Booking timeline/audit trail
-
----
-
-### 3. CHANNEL MANAGER & OTA DISTRIBUTION
-
-**Section Headline:** "Be Everywhere Your Guests Are Searching"
-
-**Marketing Copy:**
-Connect to 200+ booking channels from one platform. StaySuite's channel manager syncs your inventory, rates, and content in real-time across every major OTA — Booking.com, Expedia, Airbnb, Agoda, Google Hotels, MakeMyTrip, and dozens more. No overbookings, no rate parity issues, no manual updates.
-
-**Features to Showcase:**
-
-| Feature | Marketing Description |
-|---------|----------------------|
-| **200+ Channel Connections** | One-click integration with every major online travel agency, GDS (Amadeus, Sabre, Travelport), and metasearch engine. |
-| **Real-Time Inventory Sync** | When a room books on any channel, availability updates instantly across ALL channels. Zero overbookings, guaranteed. |
-| **Rate Parity Monitoring** | Automated rate parity checks ensure your prices are consistent across all channels — protecting your brand and your margins. |
-| **Channel Performance Analytics** | See which channels drive the most revenue, bookings, and profit. Make data-driven distribution decisions. |
-| **Two-Way Booking Sync** | OTA bookings automatically create reservations in your PMS. PMS changes automatically push to OTAs. True two-way sync. |
-| **GDS Connectivity** | Connect to global distribution systems (Amadeus, Sabre, Travelport) to reach travel agents and corporate bookers worldwide. |
-| **Google Hotel Ads** | Advertise directly on Google Search and Maps with real-time pricing and availability. |
-| **Rate Derivation & Overrides** | Set channel-specific pricing rules — offer different rates for wholesale, corporate, or promotional channels. |
-| **Content Sync** | Keep your room photos, descriptions, and amenities consistent and up-to-date across every channel automatically. |
-| **Booking Pace Analysis** | Track booking velocity — how fast are rooms selling compared to last year, last month, or last week. Anticipate demand before it arrives. |
-| **Commission Management** | Track, calculate, and reconcile OTA commissions automatically. Know exactly what you owe and what you're owed. |
-
-**OTA Logos to Display:**
-Booking.com, Expedia, Airbnb, Agoda, Hotels.com, TripAdvisor, Google Hotels, MakeMyTrip, Trip.com, Traveloka, VRBO, Amadeus, Sabre, Travelport
-
-**Visual Assets Needed:**
-- Channel connections dashboard
-- Rate parity monitoring view
-- Channel performance analytics chart
+### Core Values
+1. **Customer Obsession** — Every feature exists because a hotelier needs it
+2. **All-in-One Simplicity** — Replace fragmentation with unity
+3. **Intelligence by Default** — AI shouldn't be an add-on; it should be embedded
+4. **Reliability** — Hotels never sleep; neither does our platform
+5. **Transparency** — No hidden fees, no vendor lock-in, honest pricing
 
 ---
 
-### 4. REVENUE MANAGEMENT & INTELLIGENT PRICING
+## 3. Product Overview — StaySuite HospitalityOS
 
-**Section Headline:** "Let AI Maximize Your Revenue Per Room"
+### Product Definition
+StaySuite HospitalityOS is a **cloud-native, multi-tenant, all-in-one hotel management platform** that replaces multiple fragmented software tools with a single, unified system. It covers every operational aspect of a hotel — from guest acquisition (OTA channels, direct booking engine) to guest departure (checkout, folio settlement, feedback collection).
 
-**Marketing Copy:**
-Stop leaving money on the table. StaySuite's revenue management engine uses artificial intelligence, market data, and historical patterns to optimize your pricing 24/7. It's like having a team of revenue analysts working around the clock — at a fraction of the cost.
+### Scale & Capability (Verified from Codebase)
+| Metric | Count |
+|--------|-------|
+| Integrated Modules | 18+ |
+| API Endpoints | 960+ |
+| Database Entities | 300+ |
+| UI Components | 600+ |
+| OTA Channel Integrations | 13+ native clients (200+ channels via APIs) |
+| WiFi Hardware Vendors Supported | 16+ |
+| Smart Lock Vendors Supported | 8+ |
+| Payment Gateway Integrations | 5+ |
+| Languages Supported | 15 (8 Indian + 7 global) |
+| SSO Protocols | 4 (SAML 2.0, OIDC, LDAP, Google OAuth) |
+| Pre-built Automation Tasks | 15+ |
 
-**Features to Showcase:**
+### Product Tagline
+> **"The Complete Hotel Operating System"**
 
-| Feature | Marketing Description |
-|---------|----------------------|
-| **AI Demand Forecasting** | Predict future occupancy with up to 95% accuracy. Know how many rooms you'll sell, at what rate, and when — weeks or months in advance. |
-| **Dynamic Pricing Rules** | Set intelligent pricing rules that automatically adjust rates based on demand, seasonality, day of week, local events, and booking velocity. |
-| **Competitor Rate Shopping** | Monitor competitor pricing in real-time. Know exactly what nearby hotels are charging and position your rates to win. |
-| **RevPAR Optimization** | Maximize Revenue Per Available Room with AI-driven recommendations. Find the perfect balance between occupancy and rate. |
-| **Price Elasticity Analysis** | Understand how price changes affect demand. Charge exactly what the market will bear — not a dollar less, not a dollar more. |
-| **Length-of-Stay Pricing** | Offer targeted discounts for longer stays to reduce turnover costs and fill shoulder nights. |
-| **Hourly Pricing** | Monetize every hour — offer flexible check-in/check-out times or day-use rates for maximum revenue extraction. |
-| **Last-Minute Pricing** | Automated pricing triggers that fill unsold rooms at the optimal price point as check-in approaches. |
-| **Cancellation Prediction** | AI predicts which bookings are likely to cancel, allowing smarter overbooking and revenue protection. |
-| **AI Pricing Copilot** | Ask "What should I charge for next weekend?" in plain English and get data-driven pricing recommendations instantly. |
+### One-Paragraph Product Description
+StaySuite is the world's most comprehensive hotel management platform — a single system that manages reservations, rooms, rates, channels, revenue, guests, billing, restaurants, housekeeping, staff, WiFi, security, and analytics. Built with native AI intelligence, it automatically optimizes pricing, predicts demand, assigns tasks, and delights guests — replacing 15+ separate software tools and saving hotels significant operational cost.
 
-**Visual Assets Needed:**
-- Demand forecasting chart with confidence intervals
-- Competitor rate comparison view
-- AI pricing recommendation interface
+### Core Modules (18)
 
----
+| # | Module | What It Does (Business Terms) |
+|---|--------|------------------------------|
+| 1 | **Property Management (PMS)** | Manage rooms, room types, rates, floor plans, inventory, and property portfolios |
+| 2 | **Reservations & Bookings** | Handle all bookings — direct, OTA, walk-in, group — with conflict detection and automation |
+| 3 | **Channel Manager** | Connect to Booking.com, Expedia, Airbnb, Agoda, Google, MakeMyTrip + 200 more; sync inventory and rates in real-time |
+| 4 | **Revenue Management** | AI-powered demand forecasting, dynamic pricing, competitor monitoring, RevPAR optimization |
+| 5 | **Guest Experience** | Pre-arrival portal, digital room key (QR), mobile app, service requests, loyalty program |
+| 6 | **Front Desk** | Express check-in/out (60 seconds), smart room assignment, self-service kiosk, night audit |
+| 7 | **Billing & Finance** | Guest folios, multi-currency payments, GST e-invoicing, P&L, cash flow, budget management |
+| 8 | **Restaurant & POS** | Full restaurant point-of-sale, kitchen display, room service, table management, recipes |
+| 9 | **CRM & Marketing** | Guest segmentation, campaigns, upsell engine, abandoned booking recovery, reputation management |
+| 10 | **Housekeeping** | AI-optimized task assignment, kanban board, room status, preventive maintenance, inspections |
+| 11 | **WiFi & Network** | Enterprise WiFi management, captive portal, bandwidth monetization, 16+ AP vendor support |
+| 12 | **Staff & HR** | Shift scheduling, attendance, leave, payroll, performance reviews, internal communication |
+| 13 | **Reports & BI** | Revenue, occupancy, ADR/RevPAR, guest analytics, scheduled reports, AI-powered natural language queries |
+| 14 | **Integrations** | Payment gateways, smart locks, terminals, advertising platforms, 200+ OTA channels |
+| 15 | **Security & Compliance** | AES-256 encryption, SSO, 2FA, RBAC, GDPR, audit logging, IP whitelisting |
+| 16 | **Automation & AI** | Visual workflow builder, event-driven rules engine, AI copilot, AI insights |
+| 17 | **Platform Admin** | Multi-tenant management, chain dashboard, subscription billing, feature flags, license keys |
+| 18 | **IoT & Smart Devices** | Smart locks, room controls (lights, AC, curtains), energy monitoring, occupancy sensors |
 
-### 5. GUEST EXPERIENCE & ENGAGEMENT
+### Key Differentiators vs. Market
 
-**Section Headline:** "Create Guests Who Never Want to Leave — And Always Come Back"
-
-**Marketing Copy:**
-Turn first-time visitors into lifelong advocates. StaySuite's guest experience platform delivers personalized, memorable touches at every stage of the guest journey — from pre-arrival excitement to post-stay loyalty.
-
-**Features to Showcase:**
-
-| Feature | Marketing Description |
-|---------|----------------------|
-| **Pre-Arrival Portal** | Guests complete check-in formalities online before they arrive — upload ID, share preferences, sign registration cards. They arrive ready to relax, not fill out forms. |
-| **Digital Room Key** | Guests receive a digital QR key on their phone. No front desk queue, no plastic key cards — just scan and enter. |
-| **Guest Mobile App** | A branded mobile app where guests order room service, request housekeeping, chat with staff, view their bill, and book spa treatments. |
-| **In-Room Smart Controls** | IoT integration lets guests control lights, temperature, and curtains from their phone or in-room tablet. |
-| **Service Request Management** | Guests submit requests (extra towels, late checkout, airport transfer) from their phone. Staff receive instant notifications and can track resolution in real-time. |
-| **Guest Chat** | Real-time messaging between guests and hotel staff. Respond faster, resolve issues instantly, and build personal connections. |
-| **Experience Booking** | Let guests book spa treatments, golf tee times, restaurant reservations, tours, and activities — all from their phone or in-room portal. |
-| **Guest Feedback & Reviews** | Capture feedback during the stay (not just after). Resolve issues before they become negative online reviews. |
-| **WiFi That Wows** | Premium guest WiFi with seamless captive portal login, bandwidth upgrades, and satisfaction surveys. Fast internet is the #1 guest amenity — make it effortless. |
-| **Loyalty Program** | Built-in loyalty engine with tiered rewards, points earning/redemption, and VIP recognition. Keep guests coming back. |
-| **VIP Recognition** | Automatically identify VIP guests and high-value repeat visitors. Alert staff before arrival, upgrade rooms, and deliver white-glove service. |
-| **NPS Surveys** | Measure guest satisfaction with automated Net Promoter Score surveys at checkout. Track sentiment trends over time. |
-
-**Visual Assets Needed:**
-- Guest mobile app screens
-- Digital key QR code
-- Service request flow
-- Loyalty tier visualization
-
----
-
-### 6. FRONT DESK OPERATIONS
-
-**Section Headline:** "Check-In Guests in 60 Seconds"
-
-**Marketing Copy:**
-Empower your front desk team with tools that make every guest interaction fast, smooth, and delightful. From express check-in to self-service kiosks, StaySuite eliminates queues and transforms the arrival experience.
-
-**Features to Showcase:**
-
-| Feature | Marketing Description |
-|---------|----------------------|
-| **Express Check-In** | Pre-arrival data means check-in takes under a minute. Verify ID, assign room, issue key — done. |
-| **Smart Room Assignment** | AI suggests the optimal room for each guest based on preferences, loyalty tier, accessibility needs, and housekeeping status. |
-| **Walk-In Management** | Instantly check availability, create bookings, and process payments for walk-in guests. Never turn away a potential sale. |
-| **Visual Room Grid** | Color-coded room map shows every room's status at a glance — available, occupied, cleaning, maintenance. |
-| **Registration Card (Digital)** | Generate CII-compliant registration cards digitally. e-signature support, auto-populated guest data, and instant archiving. |
-| **Self-Service Kiosk** | Touchscreen kiosk for hotel lobbies. Guests check in, check out, and print key cards without staff assistance. Bilingual support included. |
-| **Room Move** | Transfer guests between rooms seamlessly — all charges, preferences, and history follow the guest automatically. |
-| **Night Audit Automation** | Automated end-of-day processing — room charges, no-shows, status updates, financial reconciliation. What used to take 3 hours now takes 15 minutes. |
-
-**Visual Assets Needed:**
-- Check-in workflow screens
-- Self-service kiosk interface
-- Room grid visualization
-- Night audit dashboard
+| Differentiator | Explanation |
+|---------------|-------------|
+| **True All-in-One** | 18 modules natively built, not acquired. One database, one login, zero data sync issues. |
+| **WiFi Management Included** | No other hotel PMS includes enterprise-grade WiFi/network management. This is a $10K+/year standalone product — included free. |
+| **Native AI** | AI is embedded in pricing, room assignment, task optimization, analytics — not a bolted-on add-on. |
+| **India-First** | Native GST e-invoicing, GSTR-1/GSTR-3B filing, TCS/TDS tracking, UPI payments, MakeMyTrip integration. |
+| **Restaurant POS Built-In** | Full POS with kitchen display, room service integration, offline mode — no separate restaurant software needed. |
+| **Direct Booking Engine** | Commission-free booking widget with Stripe/Razorpay/UPI payment processing. |
+| **Smart Lock & IoT** | 8 smart lock vendors, room automation, energy monitoring — all native, no middleware. |
+| **Multi-Property / Chain** | Single platform manages unlimited properties with isolated data, chain analytics, and centralized control. |
 
 ---
 
-### 7. BILLING, PAYMENTS & FINANCIAL MANAGEMENT
+## 4. Competitive Landscape
 
-**Section Headline:** "Complete Financial Clarity — Every Rupee Accounted For"
+### Primary Competitors
 
-**Marketing Copy:**
-StaySuite's financial suite gives you complete control over every dollar that flows through your hotel. From guest folios and multi-currency payments to GST compliance and profit & loss reporting — it's a full finance department in your hotel management system.
+| Competitor | Strengths | StaySuite Advantages |
+|-----------|-----------|---------------------|
+| **Oracle Opera (PMS)** | Market leader, enterprise-grade, global presence | 10x cheaper, modern UI, all-in-one (no separate modules), AI-native, India GST compliance |
+| **Cloudbeds** | Strong channel manager, good UX | StaySuite includes WiFi management, restaurant POS, IoT, AI revenue management — Cloudbeds does not |
+| **Hotelogix** | India market presence, affordable | StaySuite has WiFi management, AI revenue management, restaurant POS, IoT — Hotelogix does not |
+| **SiteMinder (Channel Mgr)** | Best-in-class channel manager | StaySuite includes channel manager PLUS full PMS, POS, billing — SiteMinder is channel-only |
+| **Duetto (Revenue Mgmt)** | Revenue management specialist | StaySuite includes AI revenue management as one of 18 modules — not a separate $50K/year product |
+| **Protel (PMS)** | European market leader | StaySuite has modern cloud architecture, India market focus, WiFi management, lower cost |
 
-**Features to Showcase:**
-
-| Feature | Marketing Description |
-|---------|----------------------|
-| **Guest Folio Management** | Complete guest billing with itemized charges — room, dining, spa, minibar, laundry — all in one statement. Split, transfer, and route charges between guests, companies, and city ledger accounts. |
-| **Multi-Payment Support** | Accept every payment method — credit/debit cards, UPI, bank transfer, cash, digital wallets, split payments, and corporate billing. |
-| **Payment Gateway Integration** | Seamless integration with Stripe, PayPal, Razorpay, and more. Tokenize cards for secure repeat billing. |
-| **Fraud Detection** | Real-time fraud scoring on every transaction. Block suspicious payments before they're processed. |
-| **Multi-Currency** | Serve international guests in their home currency with automatic exchange rate conversion. |
-| **Invoice Generation** | Professional PDF invoices generated automatically. Branded templates, recurring invoices, and one-click email delivery. |
-| **GST e-Invoicing & Returns** | Native Indian GST compliance — generate GST e-invoices, file GSTR-1 and GSTR-3B returns, track TCS/TDS deductions. All built-in, no separate software needed. |
-| **Night Audit & Auto-Posting** | Automated daily financial reconciliation — room charges post automatically, taxes calculate correctly, and the P&L updates in real-time. |
-| **City Ledger & Corporate Billing** | Manage house accounts, corporate billing, travel agent commissions, and city ledger accounts with full AR tracking. |
-| **Cash Flow Forecasting** | Predict cash flow weeks ahead. Know when money comes in, when it goes out, and where you stand — always. |
-| **Budget Management** | Set departmental budgets, track variance in real-time, and get alerts when spending exceeds targets. |
-| **Profit & Loss Statements** | Generate P&L reports by property, department, or period — on demand or on a schedule. |
-| **Commission Management** | Automatically calculate and track OTA commissions, travel agent fees, and referral payments. Reconcile settlements effortlessly. |
-| **BNPL / Guest Financing** | Offer guests "Buy Now Pay Later" installment plans for expensive stays. Increase conversion, improve guest satisfaction. |
-
-**Visual Assets Needed:**
-- Folio/billing dashboard
-- Payment processing interface
-- GST compliance screens
-- Financial reporting charts
+### Competitive Messaging Framework
+> "Stop paying for 5 different tools that don't talk to each other. StaySuite gives you everything — PMS, Channel Manager, Revenue Management, POS, WiFi, CRM, Billing — in one platform, for one monthly price."
 
 ---
 
-### 8. RESTAURANT & POINT OF SALE (POS)
+## 5. Target Customer Personas
 
-**Section Headline:** "From Kitchen to Table — and Room Service — One System"
+### Persona 1: "Rajesh" — Hotel Owner / GM (Decision Maker)
+- **Profile:** 35-55 years old, owns or manages 1-5 hotels in India
+- **Pain:** Pays for 6-8 different software tools, staff complains about switching between systems, OTA commissions eating margins
+- **Goal:** Reduce operational cost, increase direct bookings, simplify management
+- **What resonates:** "Replace all your software with one platform", "Save ₹X lakhs/year", "AI optimizes your pricing automatically"
 
-**Marketing Copy:**
-Run your restaurant, room service, and bar from the same system that manages your hotel. StaySuite's integrated POS eliminates the need for separate restaurant software — orders, billing, kitchen display, and menu management all in one place.
+### Persona 2: "Priya" — Revenue Manager
+- **Profile:** 28-40 years old, works at a 4-5 star hotel or chain
+- **Pain:** Spends hours in Excel adjusting rates, struggles with competitor monitoring, no demand forecasting tools
+- **Goal:** Maximize RevPAR, reduce reliance on OTAs, increase ADR
+- **What resonates:** "AI predicts demand and sets optimal rates", "Monitor competitor prices in real-time", "Stop leaving money on the table"
 
-**Features to Showcase:**
+### Persona 3: "Arjun" — IT Director (Enterprise)
+- **Profile:** 30-50 years old, manages IT for a hotel chain (10+ properties)
+- **Pain:** Multiple SaaS vendors with different contracts, security compliance headaches, no single source of truth
+- **Goal:** Consolidate vendors, improve security, get multi-property visibility
+- **What resonates:** "One platform for all properties", "Enterprise security with SSO", "Full audit trail and compliance"
 
-| Feature | Marketing Description |
-|---------|----------------------|
-| **Complete POS System** | Full point-of-sale for restaurants, bars, cafes, and poolside service. Order entry, payment processing, receipt printing — everything you need. |
-| **Kitchen Display System (KDS)** | Orders appear instantly in the kitchen on a real-time display. No more lost tickets, no more confusion. |
-| **Room Service Integration** | Room service orders post directly to the guest's folio. Seamless billing, zero manual entry. |
-| **Menu Management** | Create and manage menus with categories, modifiers (size, extras, cooking preferences), variants, and high-quality photos. |
-| **Visual Table Management** | Drag-and-drop table layout editor. See table status at a glance — available, occupied, reserved. Merge tables for large parties. |
-| **Restaurant Reservations** | Accept and manage dining reservations with time slots, party size tracking, and special occasion notes. |
-| **Offline Mode** | POS keeps working even when the internet goes down. Orders queue locally and sync automatically when connectivity returns. |
-| **Digital Menu Boards** | Display beautiful digital menus on screens throughout your restaurant. Update pricing and items instantly. |
-| **Recipe Management & Food Costing** | Track recipes, ingredients, and per-dish costs. Know your food costs down to the last rupee. |
-| **Restaurant Analytics** | Track revenue by outlet, peak hours, popular items, average check size, and server performance. |
-
-**Visual Assets Needed:**
-- POS order screen
-- Kitchen display system
-- Table layout view
-- Restaurant analytics dashboard
+### Persona 4: "Sneha" — Front Desk Manager
+- **Profile:** 25-35 years old, manages daily front desk operations
+- **Pain:** Check-in queues, double-bookings, manual room assignment, night audit takes 3 hours
+- **Goal:** Faster check-in, fewer errors, automated processes
+- **What resonates:** "Check-in guests in 60 seconds", "AI assigns the perfect room", "Night audit in 15 minutes"
 
 ---
 
-### 9. CHANNEL DISTRIBUTION & OTA MANAGEMENT
+## 6. Website Objectives & KPIs
 
-*(Already covered in section 3 — this is a reference)*
+### Primary Objectives
+| Priority | Objective | Target KPI |
+|----------|-----------|-----------|
+| 1 | **Demo Requests** | 50+ demo requests per month (within 6 months of launch) |
+| 2 | **Free Trial Signups** | 100+ trial signups per month |
+| 3 | **Organic Search Traffic** | 10,000+ monthly organic visitors (within 12 months) |
+| 4 | **Brand Credibility** | Professional, premium appearance that matches enterprise positioning |
+| 5 | **Product Education** | Visitors understand the full value proposition within 10 seconds of landing |
 
----
+### Conversion Funnel
+```
+Homepage → Product Page → Feature Page → Pricing → Demo Request / Free Trial
+```
 
-### 10. CRM, MARKETING & LOYALTY
-
-**Section Headline:** "Turn Guests Into Brand Advocates"
-
-**Marketing Copy:**
-StaySuite's built-in CRM and marketing engine helps you understand your guests, personalize their experience, and keep them coming back. From automated email campaigns to AI-powered upsell recommendations — grow direct revenue and guest loyalty effortlessly.
-
-**Features to Showcase:**
-
-| Feature | Marketing Description |
-|---------|----------------------|
-| **Guest Profiles & Preferences** | Comprehensive guest profiles with stay history, preferences, dietary requirements, room preferences, and special dates (birthdays, anniversaries). |
-| **Guest Segmentation** | Automatically segment guests by behavior — business travelers, families, couples, VIPs, price-sensitive, loyalty members. Target the right message to the right guest. |
-| **Marketing Campaigns** | Create email, SMS, and WhatsApp campaigns with drag-and-drop ease. A/B test subject lines, track open rates, and measure conversions. |
-| **Journey Automation** | Build automated guest journeys — pre-arrival welcome, in-stay engagement, post-stay thank you, and rebooking nudges. All triggered automatically. |
-| **Upsell Engine** | AI-powered upsell offers at every touchpoint — during booking, pre-arrival, check-in, and in-stay. Room upgrades, breakfast packages, spa add-ons. |
-| **Abandoned Booking Recovery** | Automatically follow up with guests who started but didn't complete their booking. Recover up to 15% of lost revenue. |
-| **Loyalty Program** | Tiered loyalty system (Bronze → Silver → Gold → Platinum) with points earning, redemption catalog, and exclusive member benefits. |
-| **Lead Pipeline** | Manage sales leads from inquiry to conversion. Track group business, corporate accounts, and event bookings through your sales funnel. |
-| **Online Reputation Management** | Aggregate reviews from Google, TripAdvisor, Booking.com, and more. Respond to reviews, track sentiment, and protect your online reputation. |
-| **Referral Program** | Turn satisfied guests into your best sales channel. Track referrals, reward advocates, and grow organically. |
-| **Website Builder** | Build a stunning, SEO-optimized hotel website with integrated booking engine. No coding required. |
-
-**Visual Assets Needed:**
-- Guest segmentation dashboard
-- Campaign builder interface
-- Loyalty tier visualization
-- Journey automation flow
+### Key Messaging Hierarchy
+1. **Hero (3 seconds):** "The Complete Hotel Operating System — Replace 15+ tools with one platform"
+2. **Social proof (5 seconds):** Trusted by X hotels, Y countries, Z rooms managed
+3. **Value prop (10 seconds):** All-in-one PMS + Channel Manager + Revenue Management + POS + WiFi + CRM
+4. **Differentiator (30 seconds):** AI-powered, India-first, enterprise-grade, scales from 1 to 10,000 rooms
+5. **Call to action:** "Book a Free Demo" or "Start 14-Day Free Trial"
 
 ---
 
-### 11. HOUSEKEEPING & MAINTENANCE
+## 7. Website Architecture
 
-**Section Headline:** "Every Room Perfect, Every Time"
+### Domain & URL Structure
+- **Primary Domain:** cryptsk.com (or as decided by the company)
+- **Product Subdomain:** staysuite.cryptsk.com (or staysuite.com)
+- **URL Convention:** `/product/[module-name]`, `/pricing`, `/about`, `/contact`, `/blog/[slug]`
 
-**Marketing Copy:**
-StaySuite's housekeeping module transforms room maintenance from a chaotic scramble into a well-oiled machine. AI-optimized task assignment, real-time status tracking, and preventive maintenance ensure every guest walks into a flawless room.
+### Sitemap
 
-**Features to Showcase:**
+```
+Homepage (/)
+├── Product (/product)
+│   ├── Overview (/product/overview)
+│   ├── PMS (/product/pms)
+│   ├── Channel Manager (/product/channel-manager)
+│   ├── Revenue Management (/product/revenue-management)
+│   ├── Guest Experience (/product/guest-experience)
+│   ├── Front Desk (/product/front-desk)
+│   ├── Billing & Finance (/product/billing-finance)
+│   ├── Restaurant POS (/product/restaurant-pos)
+│   ├── CRM & Marketing (/product/crm-marketing)
+│   ├── Housekeeping (/product/housekeeping)
+│   ├── WiFi Management (/product/wifi-management)
+│   ├── Staff & HR (/product/staff-hr)
+│   ├── Reporting & BI (/product/reporting)
+│   ├── Security (/product/security)
+│   ├── AI & Automation (/product/ai-automation)
+│   └── Integrations (/product/integrations)
+├── Pricing (/pricing)
+├── Customers (/customers)
+│   ├── Case Studies (/customers/case-studies)
+│   └── Testimonials (/customers/testimonials)
+├── Company (/about)
+│   ├── About Us (/about)
+│   ├── Team (/about/team)
+│   └── Careers (/about/careers)
+├── Resources (/resources)
+│   ├── Blog (/blog)
+│   ├── Help Center (/help)
+│   └── API Docs (/docs)
+├── Contact (/contact)
+│   ├── Demo Request (/contact/demo)
+│   └── General Inquiry (/contact/inquiry)
+└── Legal (/legal)
+    ├── Privacy Policy (/legal/privacy)
+    ├── Terms of Service (/legal/terms)
+    └── GDPR (/legal/gdpr)
+```
 
-| Feature | Marketing Description |
-|---------|----------------------|
-| **Visual Kanban Board** | Drag-and-drop task management — see every task's status (new → in progress → inspection → done) on a visual board. |
-| **AI Task Optimization** | Smart assignment engine considers room location, staff skills, task priority, and estimated time to create the most efficient cleaning routes. |
-| **Room Status Tracking** | Real-time room status — clean, dirty, inspected, out of service. Housekeeping staff update status from their mobile device. |
-| **Preventive Maintenance** | Schedule recurring maintenance tasks (AC servicing, elevator inspection, fire alarm testing). Never miss a maintenance window. |
-| **Work Order Management** | Track maintenance requests from reporting to resolution. Assign vendors, track costs, and ensure timely completion. |
-| **Inspection Checklists** | Digital inspection forms with customizable checklists. Inspect rooms before guest arrival and maintain quality standards. |
-| **Lost & Found Registry** | Track lost items with photo documentation. Automatically notify guests when items are found. |
-| **Minibar & Laundry** | Track minibar consumption (auto-post to folio) and manage laundry service orders end-to-end. |
-| **Asset Management** | Track every asset — from furniture to TVs to linens — with purchase dates, warranty info, and depreciation schedules. |
-
-**Visual Assets Needed:**
-- Kanban task board
-- Room status map
-- Maintenance work order view
-
----
-
-### 12. WiFi & NETWORK MANAGEMENT (STAYCONNECT)
-
-**Section Headline:** "Guest WiFi That Builds Revenue, Not Just Connections"
-
-**Marketing Copy:**
-WiFi is the #1 amenity guests expect — and the #1 complaint when it fails. StaySuite's enterprise-grade WiFi management platform turns your internet from a cost center into a revenue generator, a marketing channel, and a guest satisfaction tool.
-
-**Features to Showcase:**
-
-| Feature | Marketing Description |
-|---------|----------------------|
-| **Captive Portal Branding** | Beautiful, branded login pages that showcase your hotel's identity. Display promotions, collect email addresses, and drive direct bookings. |
-| **Bandwidth Plans & Tiers** | Offer free basic WiFi and sell premium high-speed plans. Monetize your internet investment. |
-| **Bandwidth Upselling** | Guests can upgrade their WiFi speed mid-session with one click. Revenue from every megabyte. |
-| **Pre-Arrival WiFi Credentials** | Send WiFi login details to guests before they arrive. They're connected the moment they step into the lobby. |
-| **Multi-Device Registration** | Let guests register multiple devices (phone, laptop, tablet) under one account. |
-| **Content Filtering & Security** | Enterprise-grade web filtering, firewall protection, and VLAN isolation keep your network and guests safe. |
-| **SLA Monitoring** | Monitor WiFi uptime and speed 24/7. Get instant alerts when performance drops below your standards. |
-| **WiFi Heatmap** | Visualize WiFi signal coverage across your property. Identify dead zones and optimize access point placement. |
-| **Guest Satisfaction Surveys** | Trigger WiFi satisfaction surveys after each session. Know exactly how your internet experience rates. |
-| **Advertising Platform** | Display targeted ads on the captive portal. Partner with local businesses and create a new revenue stream. |
-| **Network Diagnostics** | Real-time network health monitoring, session tracking, and troubleshooting tools — all from your dashboard. |
-
-**Visual Assets Needed:**
-- Captive portal screenshot
-- WiFi analytics dashboard
-- Heatmap visualization
-- Bandwidth monetization view
+### Navigation Structure
+- **Top Navigation:** Products (dropdown) | Pricing | Customers | Resources (dropdown) | Company (dropdown) | Contact
+- **Sticky Header:** Logo + Nav + "Book a Demo" CTA button (always visible)
+- **Mobile:** Hamburger menu with full navigation
+- **Footer:** Sitemap links, social media, contact info, newsletter signup
 
 ---
 
-### 13. STAFF MANAGEMENT & HR
+## 8. Content Strategy
 
-**Section Headline:** "Your Best Team, Performing at Their Best"
+### Tone of Voice
+- **Professional but approachable** — Not academic, not casual. Like a trusted advisor.
+- **Benefit-driven** — Every sentence answers "What's in it for the hotelier?"
+- **Confident, not arrogant** — State facts and differentiators clearly without bashing competitors
+- **Action-oriented** — Use active voice, clear CTAs, urgency without pressure
 
-**Marketing Copy:**
-Manage your entire workforce — schedules, attendance, performance, and payroll — from within StaySuite. No more spreadsheets, no more manual timesheets, no more guesswork.
+### Content Principles
+1. **No technical jargon** — Say "Smart pricing" not "Algorithmic dynamic pricing engine"
+2. **Lead with outcomes** — "Increase ADR by 22%" not "We have a pricing module"
+3. **Use real numbers** — Specific metrics beat vague claims
+4. **Keep it scannable** — Short paragraphs, bullet points, clear headings, plenty of whitespace
+5. **Show, don't tell** — Product screenshots, demo videos, and case studies over feature lists
 
-**Features to Showcase:**
+### Content Types Needed
+| Type | Purpose | Frequency |
+|------|---------|-----------|
+| **Landing Page Copy** | Convert visitors to leads | Static |
+| **Feature Deep-Dives** | Educate and build trust | Static |
+| **Blog Posts** | SEO traffic, thought leadership | 2-4 per month |
+| **Case Studies** | Social proof, conversion | 1-2 per month |
+| **Product Videos** | Demo, explainer, testimonial | As needed |
+| **Comparison Pages** | Capture "vs" search traffic | 5-10 static pages |
 
-| Feature | Marketing Description |
-|---------|----------------------|
-| **Shift Scheduling** | Visual shift calendar with drag-and-drop scheduling. Ensure adequate coverage for every shift, every day. |
-| **Attendance Tracking** | Digital check-in/check-out with biometric or mobile verification. Automated timesheets. |
-| **Leave Management** | Request, approve, and track employee leave. Automatic balance calculations and holiday calendars. |
-| **Performance Reviews** | Structured performance evaluation with goal tracking, rating scales, and development plans. |
-| **Internal Communication** | Staff messaging platform — coordinate between departments, share updates, and broadcast announcements. |
-| **Task Assignment** | Assign tasks to staff with priority levels, due dates, and completion tracking. |
-| **Skills & Certifications** | Track staff skills, certifications, and training. Ensure compliance and match the right person to the right task. |
-| **Payroll Management** | Process payroll with salary components, deductions, overtime calculations, and compliance reporting. |
-
----
-
-### 14. REPORTING & BUSINESS INTELLIGENCE
-
-**Section Headline:** "Decisions Backed by Data, Not Guesswork"
-
-**Marketing Copy:**
-StaySuite's reporting suite gives you instant access to every metric that matters. From daily occupancy and revenue to guest satisfaction and staff performance — make confident, data-driven decisions with beautiful, actionable reports.
-
-**Features to Showcase:**
-
-| Feature | Marketing Description |
-|---------|----------------------|
-| **Revenue Reports** | Total revenue, revenue by channel, revenue by room type, revenue trends — every financial metric at your fingertips. |
-| **Occupancy Reports** | Historical and forecasted occupancy. Compare periods, properties, and channels. |
-| **ADR & RevPAR Analytics** | Track Average Daily Rate and Revenue Per Available Room — the two metrics that matter most in hospitality. |
-| **Guest Analytics** | Guest demographics, origin analysis, stay patterns, lifetime value, and satisfaction scores. |
-| **Channel Performance** | Which OTAs perform best? Compare booking volume, revenue, commission costs, and cancellation rates by channel. |
-| **Staff Performance** | Measure productivity, task completion rates, guest satisfaction scores, and response times by employee. |
-| **Scheduled Reports** | Set up automatic report delivery — daily flash reports, weekly summaries, monthly financials. Delivered to your inbox, every time. |
-| **Export Any Report** | Download any report as PDF, Excel, or CSV. Share with owners, investors, and management teams. |
-| **AI-Powered Insights** | Ask questions in plain English: "How did last weekend compare to last year?" Get instant answers with AI analytics. |
+### Key Blog Content Pillars
+1. **Revenue Optimization** — Pricing strategies, demand forecasting, RevPAR improvement
+2. **Guest Experience** — Personalization, loyalty, digital key, mobile engagement
+3. **Operational Efficiency** — Automation, housekeeping, staff management
+4. **India Market** — GST compliance, UPI payments, MakeMyTrip, Indian hospitality trends
+5. **Technology** — AI in hospitality, cloud PMS, IoT, smart hotels
 
 ---
 
-### 15. INTEGRATIONS & MARKETPLACE
+## 9. Page-by-Page Specification
 
-**Section Headline:** "Connects to Everything You Already Use"
+### 9.1 Homepage
 
-**Marketing Copy:**
-StaySuite integrates seamlessly with the tools and services your hotel already depends on. Payment gateways, smart locks, POS systems, OTAs, advertising platforms, and more — all connected, all synchronized.
+**URL:** `/`
+**Purpose:** Primary landing page — capture attention, communicate value, drive demo requests
 
-**Integration Categories to Showcase:**
+**Sections (top to bottom):**
 
-| Category | Integrations |
-|----------|-------------|
-| **Payment Gateways** | Stripe, PayPal, Razorpay, UPI |
-| **Smart Locks** | Assa Abloy, Salto, Dormakaba, Nuki |
-| **Payment Terminals** | Verifone, Ingenico, Square, Stripe Terminal |
-| **OTA Channels** | Booking.com, Expedia, Airbnb, Agoda, Google Hotels, MakeMyTrip, Trip.com, Traveloka, VRBO, Hotels.com, TripAdvisor |
-| **GDS** | Amadeus, Sabre, Travelport |
-| **Advertising** | Google Ads, Google Hotel Ads, Meta (Facebook/Instagram) Ads |
-| **Communication** | Twilio (SMS), WhatsApp Business, Email (SMTP) |
-| **WiFi Hardware** | Cisco, Aruba, Ruckus, Fortinet, UniFi, MikroTik, TP-Link, Juniper, Huawei, Netgear |
-| **Identity / SSO** | SAML 2.0, OpenID Connect, LDAP/Active Directory, Google Workspace |
-| **Accounting** | GSTN (India), Multi-currency exchange rates |
-| **Webhooks & API** | Full REST API, webhooks for custom integrations |
-
----
-
-### 16. SECURITY, COMPLIANCE & GOVERNANCE
-
-**Section Headline:** "Enterprise Security. Zero Compromise."
-
-**Marketing Copy:**
-StaySuite is built to the highest security standards in the industry. From encrypted data storage and SSO integration to GDPR compliance and audit logging — your data is safer with us than in your own filing cabinet.
-
-**Features to Showcase:**
-
-| Feature | Marketing Description |
-|---------|----------------------|
-| **Bank-Grade Encryption** | All data encrypted at rest (AES-256) and in transit (TLS 1.3). Sensitive fields encrypted with per-tenant keys. |
-| **Role-Based Access Control** | Granular permissions for every role — front desk, housekeeping, manager, accountant. Each user sees only what they need. |
-| **Single Sign-On (SSO)** | Integrate with your corporate identity provider — SAML 2.0, OpenID Connect, or LDAP/Active Directory. |
-| **Two-Factor Authentication** | TOTP-based 2FA with backup codes. Mandatory for admin accounts, optional for all staff. |
-| **GDPR Compliance** | Full GDPR compliance — consent management, data export, right to erasure, data anonymization, and audit trails. |
-| **Audit Logging** | Every action logged with user, timestamp, IP address, and before/after values. Complete accountability for compliance and security. |
-| **IP Whitelisting** | Restrict system access to approved IP addresses. Prevent unauthorized access from unknown locations. |
-| **Session Management** | Control concurrent sessions, enforce idle timeouts, and remotely terminate active sessions. |
+| # | Section | Content | CTA |
+|---|---------|---------|-----|
+| 1 | **Hero** | Tagline: "The Complete Hotel Operating System". Subtitle: "Replace 15+ tools with one platform — PMS, Channel Manager, Revenue Management, POS, WiFi, and more." Product screenshot/video background. | "Book a Free Demo" (primary) + "Start Free Trial" (secondary) |
+| 2 | **Social Proof Bar** | "Trusted by [X]+ hotels across [Y]+ countries" with customer logo carousel | — |
+| 3 | **Problem → Solution** | "Hotels use 15+ tools that don't talk to each other. StaySuite replaces them all." Before/After visual. | "See How It Works" |
+| 4 | **Module Overview** | 6-8 icon cards: PMS, Channel Manager, Revenue, POS, Guest Experience, WiFi, CRM, Billing. Each links to feature page. | "Explore All Features" |
+| 5 | **Hero Feature** | Deep-dive on strongest differentiator (suggest: AI Revenue Management or Channel Manager). Product screenshot + key benefits. | "Learn More" |
+| 6 | **Key Numbers** | Animated counters: 200+ OTA channels, 18+ modules, 15 languages, 99.9% uptime, AI-powered, 60-second check-in | — |
+| 7 | **Testimonials** | 3 customer testimonials with photo, name, hotel, quote | — |
+| 8 | **Integration Logos** | Grid of integration partner logos (Booking.com, Expedia, Stripe, etc.) | — |
+| 9 | **Final CTA** | "Ready to transform your hotel?" headline + demo form or button | "Book Your Free Demo" |
+| 10 | **Footer** | Full navigation, social links, contact info, newsletter signup, legal links | "Subscribe to Newsletter" |
 
 ---
 
-### 17. AUTOMATION & AI
+### 9.2 Product Overview Page
 
-**Section Headline:** "Work Smarter, Not Harder"
+**URL:** `/product/overview`
+**Purpose:** Comprehensive product tour — "What StaySuite can do"
 
-**Marketing Copy:**
-StaySuite's automation engine handles the repetitive tasks so your team can focus on hospitality. Set up rules, triggers, and workflows — and let the system do the rest.
-
-**Features to Showcase:**
-
-| Feature | Marketing Description |
-|---------|----------------------|
-| **Workflow Builder** | Visual drag-and-drop workflow builder. Automate guest communications, task assignments, status updates, and more. |
-| **Automation Rules Engine** | "When a booking is created → send confirmation email → assign room → notify housekeeping." Build powerful automation without code. |
-| **AI Copilot** | Ask questions in natural language: "How many VIP arrivals today?" "What's our RevPAR trending?" Get instant, accurate answers. |
-| **AI Insights** | AI analyzes your data and generates actionable recommendations — pricing adjustments, staffing optimization, revenue opportunities. |
-| **Smart Task Assignment** | AI assigns housekeeping and maintenance tasks to the most appropriate staff member based on skills, location, and workload. |
-| **Scheduled Automations** | 15+ pre-built scheduled tasks — night audit, no-show detection, channel sync, email delivery, report generation, and more. |
-| **Event-Driven Triggers** | Automations fire based on real-time events — booking created, guest checked in, payment received, task completed. |
+**Sections:**
+| # | Section | Content |
+|---|---------|---------|
+| 1 | **Hero** | "Everything Your Hotel Needs. One Platform." Brief product description. |
+| 2 | **Module Grid** | Visual grid of all 18 modules — icon + name + one-line description. Each card links to its deep-dive page. |
+| 3 | **Interactive Tabs** | Tabbed interface grouping modules: Operations (PMS, Front Desk, Housekeeping), Revenue (Revenue Mgmt, Channel Mgr, Billing), Guest (Guest Experience, CRM, Loyalty), Infrastructure (WiFi, IoT, Security), Enterprise (Platform Admin, Staff, Reports) |
+| 4 | **Product Screenshot Gallery** | Scrollable product screenshots with feature callouts |
+| 5 | **Comparison Table** | StaySuite vs. buying separate tools (show cost savings) |
+| 6 | **CTA** | "See it in action — Book a Demo" |
 
 ---
 
-### 18. PLATFORM ADMINISTRATION (FOR ENTERPRISE/CHAIN)
+### 9.3 Feature Deep-Dive Pages (Template)
 
-**Section Headline:** "One Platform. Unlimited Properties. Total Control."
+**URL:** `/product/[module-slug]`
+**Purpose:** Detailed feature page for each module — for visitors who want specifics
 
-**Marketing Copy:**
-For hotel chains and management companies, StaySuite's platform administration provides centralized control over every property, tenant, and subscription — from a single command center.
+**Template Structure (applied to all 16+ feature pages):**
 
-**Features to Showcase:**
-
-| Feature | Marketing Description |
-|---------|----------------------|
-| **Multi-Tenant Management** | Manage unlimited hotels/properties as separate tenants with isolated data, branding, and settings. |
-| **Chain Dashboard** | Compare performance across all properties — occupancy, revenue, guest satisfaction — in one consolidated view. |
-| **Brand Management** | Manage multiple hotel brands under one platform with independent branding, standards, and configurations. |
-| **Subscription Billing** | Flexible SaaS billing — monthly/annual plans, usage-based metering, trial management. |
-| **Feature Flags** | Enable or disable features per tenant/plan. Offer tiered functionality with Starter, Professional, and Enterprise plans. |
-| **License Management** | Generate and manage license keys for on-premise or enterprise deployments. |
-| **Usage Tracking** | Monitor platform usage, API calls, storage, and active users per tenant. |
+| # | Section | Content |
+|---|---------|---------|
+| 1 | **Hero** | Module headline + 2-3 sentence value proposition + product screenshot |
+| 2 | **Key Capabilities** | 4-6 capability cards with icon + headline + description |
+| 3 | **Feature Details** | Detailed feature table: Feature Name → Customer Benefit |
+| 4 | **Product Screenshots** | 2-3 annotated screenshots of the module in action |
+| 5 | **Benefits Summary** | 4-6 bullet points: "What you get" outcomes |
+| 6 | **Related Modules** | "Works seamlessly with..." cross-links to 3-4 related modules |
+| 7 | **CTA** | Module-specific CTA + general "Book a Demo" |
 
 ---
 
-## KEY SELLING POINTS / VALUE PROPOSITIONS
+### 9.4 Pricing Page
 
-These are the main messaging pillars for the website:
+**URL:** `/pricing`
+**Purpose:** Convert interested visitors to trial/demo
 
-### 1. "Replace 15+ Tools With One Platform"
-> Hotels typically use a PMS, channel manager, revenue management system, POS, CRM, WiFi management, accounting software, and more — each costing separately and none talking to each other. StaySuite replaces ALL of them with one unified platform.
+**Sections:**
+| # | Section | Content |
+|---|---------|---------|
+| 1 | **Hero** | "Simple, Transparent Pricing" + "No hidden fees. No long-term contracts." |
+| 2 | **Plan Cards** | 3-4 plan cards (Starter, Professional, Enterprise, Custom) with features list, price, and CTA |
+| 3 | **Feature Comparison Matrix** | Detailed table: Feature → Starter ✓/✗ → Professional ✓/✗ → Enterprise ✓/✗ |
+| 4 | **FAQ** | 8-10 common pricing questions (accordion) |
+| 5 | **Enterprise CTA** | "Need a custom solution? Let's talk." Contact form |
+| 6 | **Trust Signals** | "14-day free trial", "No credit card required", "Cancel anytime" |
 
-### 2. "AI-Powered Revenue Growth"
-> Our AI engine optimizes pricing, predicts demand, prevents cancellations, and identifies upsell opportunities — driving 15-30% revenue improvement for typical hotels.
+**Pricing Tiers (Business team to confirm actual prices):**
 
-### 3. "Enterprise Features, Startup Simplicity"
-> Features that used to require million-dollar Oracle/Opera deployments are now available to every hotel — with a beautiful, intuitive interface that anyone can learn in minutes.
-
-### 4. "Built for India, Ready for the World"
-> Native GST compliance, UPI payments, MakeMyTrip integration — plus full support for international currencies, languages, and tax systems. The only platform that truly serves both Indian and global markets.
-
-### 5. "Zero Integration Headaches"
-> Everything works together out of the box. No middleware, no APIs to configure, no data syncing. When a guest books on Booking.com, the room status updates, housekeeping is notified, and the folio is created — automatically.
-
-### 6. "Unlimited Scalability"
-> From a 10-room guesthouse to a 10,000-room international chain — StaySuite scales without limits. Multi-tenant architecture ensures each property gets dedicated, isolated performance.
-
----
-
-## PRICING MODEL (SUGGESTED FOR WEBSITE)
-
-> **Note:** Actual pricing should be filled in by the business team. Below is a suggested structure to display on the website.
-
-| Plan | Best For | Key Features |
-|------|----------|-------------|
-| **Starter** | Small hotels, B&Bs, guesthouses (1-25 rooms) | Core PMS, Booking Engine, Basic Channel Manager, Guest App, Email Support |
-| **Professional** | Mid-size hotels, boutiques (25-150 rooms) | Everything in Starter + Revenue Management, CRM & Marketing, POS, WiFi Management, Priority Support |
-| **Enterprise** | Hotel chains, resorts (150+ rooms) | Everything in Professional + AI Copilot, Advanced Analytics, Multi-Property, Custom Integrations, Dedicated Account Manager |
-| **Custom** | Global chains, management companies | Full platform customization, white-label options, on-premise deployment, SLA guarantees |
-
-**Pricing Approach:** Monthly subscription per property/room. Annual billing discount. Free trial available. Custom quotes for Enterprise.
+| | Starter | Professional | Enterprise | Custom |
+|---|---------|-------------|-----------|--------|
+| **Target** | 1-25 rooms | 25-150 rooms | 150+ rooms | Chains/Groups |
+| **PMS** | ✓ | ✓ | ✓ | ✓ |
+| **Booking Engine** | ✓ | ✓ | ✓ | ✓ |
+| **Channel Manager** | Basic (5 channels) | Full (200+) | Full + GDS | Full + Custom |
+| **Revenue Management** | ✗ | AI-powered | AI + Forecasting | Full suite |
+| **Restaurant POS** | ✗ | ✓ | ✓ | ✓ |
+| **WiFi Management** | ✗ | ✓ | ✓ | ✓ |
+| **CRM & Marketing** | ✗ | ✓ | ✓ | ✓ |
+| **AI Copilot** | ✗ | ✗ | ✓ | ✓ |
+| **Multi-Property** | ✗ | ✗ | ✓ | ✓ |
+| **Staff & HR** | ✗ | ✓ | ✓ | ✓ |
+| **IoT & Smart Locks** | ✗ | ✗ | ✓ | ✓ |
+| **Dedicated Support** | Email | Priority | Account Manager | 24/7 Team |
+| **Price** | ₹[X]/mo | ₹[X]/mo | ₹[X]/mo | Custom |
 
 ---
 
-## TESTIMONIALS & SOCIAL PROOF (PLACEHOLDERS)
+### 9.5 Customers / Social Proof Page
 
-> **Note:** Collect real testimonials. Below are placeholder structures for the website.
+**URL:** `/customers`
+**Purpose:** Build trust through social proof
 
-1. *"StaySuite replaced 8 different systems we were using. Our team's productivity increased by 40% and guest complaints dropped by 60%."* — [Hotel GM, 5-star property]
+**Sections:**
+| # | Section | Content |
+|---|---------|---------|
+| 1 | **Hero** | "Trusted by Hotels That Demand the Best" |
+| 2 | **Customer Stats** | Total hotels, total rooms, total countries, total bookings processed |
+| 3 | **Case Studies** | 3-4 in-depth case studies with before/after metrics |
+| 4 | **Testimonial Grid** | 6-12 testimonials with photos, names, properties |
+| 5 | **Logo Wall** | Customer/partner logos |
 
-2. *"The AI revenue management alone paid for the entire platform in the first month. We saw a 22% increase in ADR."* — [Revenue Manager, chain hotel]
-
-3. *"The channel manager syncs flawlessly with Booking.com, Expedia, and MakeMyTrip. We haven't had a single overbooking since switching."* — [Front Office Manager, boutique hotel]
-
-4. *"Guest WiFi used to be our #1 complaint. Now it's our #1 revenue stream — we make ₹50,000/month from bandwidth upsells."* — [IT Director, resort]
-
-5. *"GST compliance used to take our accountant 3 days every month. Now it's automatic."* — [Owner, 3-property group]
-
----
-
-## WEBSITE ARCHITECTURE & PAGE STRUCTURE
-
-### Recommended Pages & Sections
-
-#### 1. HOME PAGE (Primary Landing Page)
-- **Hero Section:** Product tagline + product screenshot/video + CTA buttons ("Book a Demo" / "Start Free Trial")
-- **Social Proof Bar:** "Trusted by X+ hotels across Y countries" with logo carousel
-- **Problem Statement:** "Hotels use 15+ tools. None of them talk to each other. StaySuite replaces them all."
-- **Feature Highlights:** 6-8 feature cards with icons (PMS, Channel Manager, Revenue, POS, CRM, WiFi, etc.)
-- **How It Works:** 3-step process (Sign Up → Configure → Go Live)
-- **Product Screenshot/Video:** Full-width product showcase
-- **Key Metrics:** Numbers that impress (e.g., "200+ channel connections", "15+ modules", "15 languages", "99.9% uptime")
-- **Pricing Teaser:** Plans starting from ₹X/month
-- **Testimonials:** 3 rotating testimonials
-- **CTA Section:** Final call to action
-- **Footer:** Links, social media, contact info
-
-#### 2. PRODUCT OVERVIEW PAGE
-- Comprehensive feature tour with screenshots
-- Module-by-module breakdown (all 18 modules listed above)
-- Interactive feature explorer / tabs
-- Comparison table: StaySuite vs. Competitors
-
-#### 3. INDIVIDUAL FEATURE PAGES (Deep-Dive)
-- PMS: `/product/pms`
-- Channel Manager: `/product/channel-manager`
-- Revenue Management: `/product/revenue-management`
-- Guest Experience: `/product/guest-experience`
-- Front Desk: `/product/front-desk`
-- Billing & Finance: `/product/billing-finance`
-- Restaurant & POS: `/product/restaurant-pos`
-- CRM & Marketing: `/product/crm-marketing`
-- Housekeeping: `/product/housekeeping`
-- WiFi Management: `/product/wifi-management`
-- Staff Management: `/product/staff-management`
-- Reporting & BI: `/product/reporting`
-- Security: `/product/security`
-- AI & Automation: `/product/ai-automation`
-- Integrations: `/product/integrations`
-- Platform Admin: `/product/enterprise`
-
-Each feature page should include:
-- Feature headline + marketing copy
-- Key capabilities list with icons
-- Product screenshots
-- Benefits bullets
-- Related features cross-linking
-- CTA to book a demo
-
-#### 4. PRICING PAGE
-- Plan comparison table
-- Feature matrix (what's included in each plan)
-- FAQ section
-- "Contact Sales" CTA for Enterprise
-
-#### 5. ABOUT US PAGE
-- Company story / mission
-- Team section
-- Values
-- Company timeline / milestones
-- Office photos
-
-#### 6. CASE STUDIES / SUCCESS STORIES
-- Individual hotel success stories
-- Before/after metrics
-- Industry-specific case studies (resort, boutique, chain, etc.)
-
-#### 7. BLOG / RESOURCES
-- Hospitality industry insights
-- Product updates
-- Revenue management tips
-- Technology trends
-- Guest experience best practices
-
-#### 8. CONTACT / DEMO REQUEST
-- Contact form
-- Demo request form with date/time picker
-- Office locations
-- Phone numbers
-- Email addresses
-
-#### 9. INTEGRATIONS PAGE
-- Integration marketplace grid
-- Categories (Payments, OTAs, Smart Locks, etc.)
-- Each integration with logo + description + "Learn More"
-
-#### 10. HELP CENTER / SUPPORT
-- Knowledge base articles
-- Video tutorials
-- API documentation
-- Community forum link
+**Case Study Template:**
+- Hotel name, location, star rating, room count
+- Challenges before StaySuite
+- Solution implemented
+- Results (quantified: % revenue increase, % time saved, % cost reduction)
+- Quote from GM/Owner
 
 ---
 
-## DESIGN GUIDELINES FOR THE WEBSITE
+### 9.6 About Us Page
 
-### Brand Colors (Suggested)
-- **Primary:** Deep emerald green (#047857 or similar — aligns with StaySuite's existing theme)
-- **Secondary:** Warm gold/amber (#D97706 or similar — conveys premium hospitality)
-- **Neutral:** Dark charcoal (#1F2937) for text, Light gray (#F9FAFB) for backgrounds
-- **Accent:** Coral/warm tone for CTAs (#DC2626 or #EA580C)
+**URL:** `/about`
+**Purpose:** Establish company credibility and culture
 
-### Design Style
-- **Modern, clean, spacious** — generous whitespace, large typography
-- **Premium feel** — subtle gradients, glass morphism accents, professional photography
-- **Dark mode support** — essential for tech product credibility
-- **Mobile-first** — 60%+ of traffic will be mobile
-- **Animations** — Subtle scroll animations, parallax hero, animated counters for stats
+**Sections:**
+| # | Section | Content |
+|---|---------|---------|
+| 1 | **Hero** | "About Cryptsk" + mission statement |
+| 2 | **Our Story** | Founding story, why we started, what drives us |
+| 3 | **Our Mission & Vision** | Formal mission and vision statements |
+| 4 | **Our Values** | 5 core values with icons and descriptions |
+| 5 | **Team** | Leadership team photos, names, roles, LinkedIn links |
+| 6 | **Milestones** | Company timeline — founded, first customer, product launches, funding |
+| 7 | **Culture** | Office photos, team photos, work environment |
+
+---
+
+### 9.7 Contact / Demo Request Page
+
+**URL:** `/contact/demo`
+**Purpose:** Primary lead capture page
+
+**Form Fields:**
+- Full Name *
+- Business Email *
+- Phone Number
+- Hotel/Company Name *
+- Property Type (Hotel, Resort, Boutique, Serviced Apartments, Chain, Other)
+- Number of Rooms *
+- Number of Properties
+- Current PMS (if any)
+- Message / Specific Requirements
+- Preferred Demo Date & Time (optional — integrate with Calendly)
+- How did you hear about us? (dropdown)
+
+**Sections:**
+| # | Section | Content |
+|---|---------|---------|
+| 1 | **Hero** | "See StaySuite in Action" + "Book a personalized demo with our product specialist" |
+| 2 | **Demo Form** | Form (left) + Benefits of demo (right): "See the full platform", "Get custom pricing", "Ask questions live", "No commitment" |
+| 3 | **Trust Signals** | "Free demo, no credit card", "30-minute session", "Customized to your property type" |
+| 4 | **Alternative Contact** | Email, phone, office address for direct contact |
+
+---
+
+### 9.8 Blog / Resources
+
+**URL:** `/blog`
+**Purpose:** SEO traffic, thought leadership, nurture leads
+
+**Layout:**
+- Blog listing page with category filters (Revenue, Guest Experience, Technology, India Market, Operations)
+- Featured/latest posts at top
+- Search functionality
+- Newsletter signup in sidebar
+- Social sharing on each post
+
+**Initial Blog Posts to Create:**
+1. "What Is an All-in-One Hotel Management System? (And Why You Need One)"
+2. "How AI Revenue Management Can Increase Your Hotel's ADR by 20%+"
+3. "GST Compliance for Hotels: Complete Guide to e-Invoicing and Returns"
+4. "Channel Manager Comparison: Which OTAs Drive the Most Revenue for Indian Hotels?"
+5. "5 Ways to Reduce OTA Dependency and Increase Direct Bookings"
+
+---
+
+### 9.9 Integrations Page
+
+**URL:** `/product/integrations`
+**Purpose:** Show ecosystem breadth, address "does it work with X?" objections
+
+**Layout:**
+- Searchable, filterable grid of all integrations
+- Categories: Payments, OTAs, Smart Locks, Terminals, Advertising, Communication, WiFi Hardware, Identity/SSO
+- Each integration card: Logo + Name + Category + Brief description
+
+---
+
+## 10. Design & Brand Guidelines
+
+### Visual Identity
+- **Primary Color:** Deep Emerald Green (`#047857`) — conveys trust, growth, hospitality
+- **Secondary Color:** Warm Gold (`#D97706`) — conveys premium quality, luxury
+- **Dark Neutral:** Charcoal (`#1F2937`) — text, headers
+- **Light Neutral:** Off-White (`#F9FAFB`) — backgrounds
+- **CTA/Accent:** Coral Red (`#DC2626`) — calls-to-action, urgency elements
 
 ### Typography
-- **Headings:** Inter, Plus Jakarta Sans, or Outfit (modern, clean sans-serif)
-- **Body:** Inter or DM Sans
-- **Accent/Numbers:** Space Grotesk or JetBrains Mono (for stats and technical data)
+- **Headlines:** Inter / Plus Jakarta Sans — modern, clean, highly legible
+- **Body:** Inter / DM Sans — optimized for screen reading
+- **Data/Numbers:** Space Grotesk — tech-forward, great for statistics
 
-### Imagery
-- High-quality hotel photography (lobby, rooms, restaurant, exterior)
-- Product UI screenshots (annotated with feature callouts)
-- Team photos (approachable, professional)
-- Abstract/geometric backgrounds for feature sections
-- Icons: Lucide icon set (consistent with product)
+### Design Principles
+1. **Spacious** — Generous whitespace. Every element has room to breathe.
+2. **Premium** — Subtle gradients, soft shadows, professional photography. Never cheap-looking.
+3. **Modern** — Rounded corners, glassmorphism accents, smooth animations. Not dated.
+4. **Accessible** — High contrast ratios, clear hierarchy, keyboard navigable.
+5. **Fast** — Optimized images, lazy loading, minimal JavaScript bloat.
 
-### Components/Sections to Include
-- **Sticky navigation** with transparent-to-solid scroll effect
-- **Animated statistics counter** (hotels served, rooms managed, countries, etc.)
-- **Interactive product demo** or video background hero
-- **Comparison table** (StaySuite vs. Opera vs. Cloudbeds vs. others)
-- **FAQ accordion** sections
-- **Chat widget** for instant support
-- **Cookie consent banner** (GDPR compliant)
-- **Back to top button**
-- **Newsletter signup** footer section
-- **Social media links** (LinkedIn, Twitter/X, Instagram, YouTube)
+### Responsive Breakpoints
+- Mobile: < 640px (60%+ of traffic)
+- Tablet: 640px — 1024px
+- Desktop: 1024px — 1440px
+- Wide: > 1440px (max-width container)
 
----
+### Required Visual Assets (To Be Created)
+| Asset | Description | Priority |
+|-------|-------------|----------|
+| Company logo | SVG, PNG (light + dark variants) | Critical |
+| Product screenshots | Annotated screenshots of 5-6 key modules | Critical |
+| Hero video | 60-90 second product walkthrough | High |
+| Icon set | Custom icons for 18 modules + features | High |
+| Team photos | Professional headshots | Medium |
+| Customer logos | Partner/customer logo collection | Medium |
+| Office photos | Office/workspace for About page | Low |
+| Stock photography | High-quality hotel imagery (lobby, rooms, restaurant) | High |
 
-## SEO & CONTENT STRATEGY
-
-### Target Keywords (Primary)
-- Hotel management software
-- Hotel PMS software
-- Hospitality management system
-- Channel manager for hotels
-- Hotel revenue management software
-- Hotel POS system
-- All-in-one hotel software
-- Hotel management system India
-- Best hotel management software
-- Cloud hotel management system
-- Hotel booking engine
-- Guest experience platform
-
-### Target Keywords (Long-tail)
-- Best hotel management software for small hotels in India
-- All-in-one hotel management platform
-- AI-powered hotel revenue management
-- Hotel channel manager with 200+ OTA connections
-- Hotel software with GST compliance
-- Hotel WiFi management system
-- Free hotel management software trial
-
-### Content Pillars
-1. **Revenue Optimization** — Pricing strategies, demand forecasting, RevPAR improvement
-2. **Guest Experience** — Personalization, digital key, mobile app, loyalty programs
-3. **Operational Efficiency** — Automation, housekeeping optimization, staff management
-4. **Technology Trends** — AI in hospitality, IoT, smart hotels, cloud computing
-5. **India Market Focus** — GST compliance, UPI payments, MakeMyTrip integration, Indian hospitality trends
+### Animation & Interaction
+- Scroll-triggered fade-in/slide-up animations (subtle, not distracting)
+- Animated number counters on stats section
+- Smooth hover effects on cards and buttons
+- Hero section: gradient animation or subtle video background
+- Page transitions: smooth fade between routes
+- No auto-playing videos with sound
 
 ---
 
-## COMPETITOR COMPARISON POINTS
+## 11. SEO & Digital Marketing Requirements
 
-When positioning StaySuite against competitors, highlight these differentiators:
+### Target Keywords (Prioritized)
 
-| Feature | StaySuite | Opera (Oracle) | Cloudbeds | Hotelogix |
-|---------|-----------|----------------|-----------|-----------|
-| **All-in-One** | 18+ modules included | Modular (extra cost) | Partial | Partial |
-| **WiFi Management** | Built-in (enterprise-grade) | Not included | Not included | Not included |
-| **AI Revenue Management** | Built-in AI | Separate product | Limited | Not included |
-| **Channel Manager** | 200+ channels (built-in) | Separate product | Built-in | Limited |
-| **Restaurant POS** | Built-in | Separate product | Not included | Not included |
-| **GST Compliance** | Native (e-invoicing, returns) | Not native | Not native | Basic |
-| **India Market Focus** | First-class support | Limited | Limited | Yes |
-| **Pricing** | Affordable SaaS | Enterprise ($$$) | Mid-range | Mid-range |
-| **Smart Lock Integration** | 8+ vendors | Limited | Limited | Not included |
-| **Self-Service Kiosk** | Built-in | Separate product | Not included | Not included |
-| **IoT/Room Controls** | Built-in | Not included | Not included | Not included |
-| **Multi-Language** | 15 languages | 30+ languages | 10+ | 5+ |
-| **Digital Key** | Built-in (QR) | Via partner | Not included | Not included |
+**High Priority (Volume + Intent):**
+1. hotel management software
+2. hotel PMS software
+3. hospitality management system
+4. hotel channel manager
+5. hotel revenue management software
+6. all-in-one hotel software
+7. cloud hotel management system
+8. hotel management system India
+
+**Medium Priority (Niche + High Intent):**
+1. best hotel management software India
+2. hotel software with GST compliance
+3. hotel POS system
+4. hotel WiFi management software
+5. AI hotel revenue management
+6. hotel booking engine
+7. guest experience platform hotel
+8. hotel self-service kiosk
+
+**Long-Tail (Low Volume, Very High Intent):**
+1. hotel management software with channel manager and revenue management
+2. all-in-one hotel management platform India pricing
+3. cloud-based hotel PMS with GST e-invoicing
+4. hotel software that includes WiFi management
+5. best alternative to Oracle Opera hotel software
+6. affordable hotel management software for small hotels India
+
+### Competitor Comparison Pages (High Conversion)
+Create dedicated pages targeting "vs" searches:
+- `/compare/staysuite-vs-opera`
+- `/compare/staysuite-vs-cloudbeds`
+- `/compare/staysuite-vs-hotelogix`
+- `/compare/staysuite-vs-siteminder`
+
+### Technical SEO Requirements
+- Next.js Metadata API for all pages (title, description, OG tags)
+- JSON-LD structured data: Organization, Product, FAQPage, BreadcrumbList
+- Auto-generated `sitemap.xml` and `robots.txt`
+- Canonical URLs on every page
+- Image alt text on all images
+- Semantic HTML5 (main, header, nav, section, article, footer)
+- Page speed target: Lighthouse 95+ on all metrics
+- Core Web Vitals: LCP < 2.5s, FID < 100ms, CLS < 0.1
+
+### Analytics & Tracking
+- Google Analytics 4 (all pages)
+- Google Tag Manager (event tracking: demo clicks, trial signups, CTA clicks, scroll depth)
+- Hotjar or Microsoft Clarity (heatmaps, session recordings)
+- Facebook Pixel (for retargeting ads)
+- LinkedIn Insight Tag (for B2B retargeting)
 
 ---
 
-## CALL-TO-ACTION STRATEGY
+## 12. Technical Requirements
 
-Every page should have clear CTAs. Suggested CTA hierarchy:
+### Recommended Stack
+| Component | Recommendation |
+|-----------|---------------|
+| **Framework** | Next.js 16 (App Router) with SSR/SSG |
+| **Styling** | Tailwind CSS 4 + shadcn/ui components |
+| **Animations** | Framer Motion |
+| **Icons** | Lucide React |
+| **Hosting** | Vercel (recommended) or AWS |
+| **CMS (Blog)** | MDX (static) or Contentful (headless CMS) |
+| **Forms** | React Hook Form + Zod validation |
+| **Analytics** | GA4 + GTM + Hotjar |
+| **Chat Widget** | Crisp, Intercom, or Tawk.to |
+| **Demo Scheduling** | Calendly integration |
+| **Email (Transactional)** | Resend or SendGrid |
+| **Email (Marketing)** | Mailchimp or Brevo |
 
-1. **Primary CTA:** "Book a Free Demo" or "Schedule a Demo"
-2. **Secondary CTA:** "Start Free Trial" or "See Plans & Pricing"
-3. **Tertiary CTA:** "Download Brochure" or "Watch Product Tour"
+### Performance Budget
+| Metric | Target |
+|--------|--------|
+| First Contentful Paint (FCP) | < 1.5s |
+| Largest Contentful Paint (LCP) | < 2.5s |
+| Time to Interactive (TTI) | < 3.0s |
+| Cumulative Layout Shift (CLS) | < 0.1 |
+| Total Page Weight (Homepage) | < 2MB |
+| JavaScript Bundle Size | < 200KB (gzipped) |
 
-Placement:
-- **Sticky header:** "Book a Demo" button always visible
-- **Hero section:** Two CTA buttons
-- **After each feature section:** Contextual CTA
-- **Footer:** Full contact form
-- **Exit intent popup:** "Wait — get a free personalized demo before you go!"
+### Accessibility (WCAG 2.1 AA)
+- Color contrast ratio: 4.5:1 minimum (text), 3:1 (large text/UI)
+- All interactive elements keyboard accessible
+- Screen reader compatible (ARIA labels, semantic HTML)
+- Focus indicators visible on all interactive elements
+- Skip-to-content link
+- No content that flashes more than 3 times per second
 
----
-
-## TECHNICAL REQUIREMENTS FOR THE WEBSITE
-
-> This section is for the developer AI agent building the website.
-
-### Recommended Tech Stack
-- **Framework:** Next.js 16 (App Router) or React + Vite
-- **Styling:** Tailwind CSS 4 + shadcn/ui
-- **Animations:** Framer Motion
-- **Icons:** Lucide React
-- **Deployment:** Vercel (recommended) or Netlify
-- **Analytics:** Google Analytics 4 + Hotjar (for heatmaps)
-- **CRM/Lead Capture:** HubSpot, Calendly (for demo scheduling), or custom
-- **Blog:** MDX or Contentful CMS
-- **Chat:** Intercom, Tawk.to, or Crisp
-
-### Performance Requirements
-- Lighthouse score: 95+ on all metrics
-- First Contentful Paint: < 1.5s
-- Largest Contentful Paint: < 2.5s
-- Time to Interactive: < 3s
-- Cumulative Layout Shift: < 0.1
-
-### SEO Requirements
-- Next.js Metadata API for all pages
-- Structured data (JSON-LD) for Organization, Product, FAQ, BreadcrumbList
-- Auto-generated sitemap.xml and robots.txt
-- Open Graph and Twitter Card meta tags
-- Canonical URLs
-- Alt text on all images
-- Semantic HTML throughout
-
-### Accessibility
-- WCAG 2.1 AA compliance
-- Keyboard navigation
-- Screen reader friendly
-- Proper heading hierarchy
-- Focus indicators
-- Color contrast ratios (4.5:1 minimum)
-
-### Internationalization
-- Support English and Hindi at minimum
-- URL-based or cookie-based locale switching
+### Internationalization (i18n)
+- Launch in English first
+- Hindi version planned (India market priority)
+- Architecture must support URL-based locale switching (`/en/`, `/hi/`)
 - RTL-ready for future Arabic support
 
 ---
 
-## FUTURE PRODUCTS SECTION (PLACEHOLDER)
+## 13. Integration & Lead Capture Requirements
 
-> The website should have a "Products" dropdown or section that currently shows StaySuite prominently, with a placeholder for future products:
+### Lead Capture Touchpoints
+| Location | Type | Fields |
+|----------|------|--------|
+| Sticky header | "Book a Demo" button | Redirect to demo form |
+| Hero section | CTA buttons | "Book Demo" + "Start Free Trial" |
+| Pricing page | Plan CTA buttons | "Start Free Trial" / "Contact Sales" |
+| Feature pages | Inline CTA | "See This Feature Live — Book Demo" |
+| Blog posts | Sidebar + inline | Newsletter signup + demo CTA |
+| Exit intent | Popup | "Get a free personalized demo" + email capture |
+| Footer | Demo button | Redirect to demo form |
 
-**Current Products:**
-- StaySuite HospitalityOS — [description]
+### Lead Nurturing (Post-Capture)
+1. **Immediate:** Confirmation email + calendar invite for demo
+2. **Day 1:** Welcome email with product overview PDF
+3. **Day 3:** "3 ways StaySuite saves you money" email
+4. **Day 7:** Case study email
+5. **Day 14:** Follow-up email if no demo booked
+6. **Day 30:** Re-engagement with new feature/offer
 
-**Coming Soon:**
-- [Product 2] — Under Development
-- [Product 3] — Under Development
-
-The navigation and architecture should make it easy to add new product pages later without restructuring.
-
----
-
-## IMPLEMENTATION INSTRUCTIONS FOR THE AI AGENT
-
-When building this website, follow these steps:
-
-### Phase 1: Foundation
-1. Set up Next.js project with Tailwind CSS, shadcn/ui, Framer Motion
-2. Create design system (colors, typography, spacing, components)
-3. Build reusable layout components (Header, Footer, Navigation, CTAs, Sections)
-4. Set up responsive design breakpoints (mobile-first)
-5. Implement dark mode toggle
-
-### Phase 2: Core Pages
-1. Build Home page with all sections (Hero, Features, Testimonials, CTA, Footer)
-2. Build Product Overview page
-3. Build Pricing page
-4. Build Contact/Demo Request page
-5. Build About Us page
-
-### Phase 3: Feature Deep-Dive Pages
-1. Build template for feature pages
-2. Create all 16+ feature detail pages
-3. Add product screenshots (use placeholder images initially)
-4. Cross-link between related features
-
-### Phase 4: Marketing & Growth
-1. Set up SEO (meta tags, sitemap, structured data)
-2. Add analytics tracking
-3. Implement chat widget
-4. Add blog section with MDX support
-5. Create lead capture forms with validation
-
-### Phase 5: Polish
-1. Add scroll animations
-2. Optimize images (WebP, lazy loading)
-3. Test responsive design on all breakpoints
-4. Run Lighthouse audit and optimize
-5. Add A/B testing infrastructure
-
-### Phase 6: Launch
-1. Set up domain and DNS
-2. Configure SSL
-3. Submit sitemap to Google Search Console
-4. Set up Google Analytics and Search Console
-5. Configure email notifications for leads
+### CRM Integration
+- Connect form submissions to CRM (HubSpot, Zoho, or Pipedrive)
+- Track lead source (organic, paid, referral, social)
+- Lead scoring based on page visits and engagement
 
 ---
 
-## IMPORTANT NOTES FOR THE AI AGENT
+## 14. Implementation Roadmap
 
-1. **This is a MARKETING website, not a product demo.** The goal is to SELL StaySuite, not document it technically.
-2. **Focus on BENEFITS, not features.** Don't say "We use Prisma ORM." Say "Your data is always accurate and in real-time."
-3. **Use real-world hospitality language.** Talk about guests, rooms, check-in, revenue, occupancy — not users, records, CRUD operations.
-4. **Make it BEAUTIFUL.** This website needs to look like it belongs to a premium hospitality tech company. Clean, spacious, premium, modern.
-5. **Mobile-first is non-negotiable.** 60%+ of visitors will be on phones.
-6. **Every section must have a CTA.** Don't let visitors scroll without a clear next step.
-7. **Speed matters.** Fast loading = higher conversions.
-8. **Social proof everywhere.** Customer logos, testimonials, case studies, metrics.
-9. **The website should grow with the company.** Architecture must support adding new products, features, and content over time.
-10. **SEO is critical.** Every page must be optimized for search engines from day one.
+### Phase 1: Foundation (Week 1-2)
+- [ ] Set up Next.js project with design system
+- [ ] Build layout components (Header, Footer, Navigation)
+- [ ] Implement responsive framework and dark mode
+- [ ] Set up analytics (GA4, GTM, Hotjar)
+
+### Phase 2: Core Pages (Week 3-4)
+- [ ] Homepage (all sections)
+- [ ] Product Overview page
+- [ ] Pricing page
+- [ ] Contact / Demo Request page
+- [ ] About Us page
+
+### Phase 3: Feature Pages (Week 5-7)
+- [ ] Build feature page template
+- [ ] Create all 16+ feature deep-dive pages
+- [ ] Integrations page
+- [ ] Comparison pages (vs. competitors)
+
+### Phase 4: Content & Social Proof (Week 8-9)
+- [ ] Blog section with MDX support
+- [ ] Write 5 initial blog posts
+- [ ] Customer testimonials page
+- [ ] Case study template + 1 case study
+- [ ] Help Center / FAQ
+
+### Phase 5: Optimization (Week 10)
+- [ ] SEO audit and optimization
+- [ ] Performance optimization (Lighthouse 95+)
+- [ ] Accessibility audit (WCAG 2.1 AA)
+- [ ] Cross-browser and device testing
+- [ ] Analytics and conversion tracking verification
+
+### Phase 6: Launch (Week 11-12)
+- [ ] DNS configuration and SSL
+- [ ] Google Search Console submission
+- [ ] Sitemap and robots.txt deployment
+- [ ] Chat widget configuration
+- [ ] Email automation setup
+- [ ] Final UAT and sign-off
+- [ ] Go live
 
 ---
 
-## RAW PRODUCT STATISTICS (For Impressive Numbers)
+## 15. Appendix: Complete Product Feature Catalog
 
-Use these statistics on the website to build credibility:
+*This section provides the exhaustive feature list derived from the complete StaySuite codebase deep scan. Use this as reference material when writing detailed page content.*
 
-| Statistic | Number |
-|-----------|--------|
-| **Product Modules** | 18+ fully integrated modules |
-| **OTA Channel Connections** | 200+ channels supported |
-| **Smart Lock Vendors** | 8+ hardware integrations |
-| **WiFi AP Vendors** | 16+ access point brands |
-| **Languages Supported** | 15 languages (8 Indian + 7 global) |
-| **Payment Methods** | 9+ methods (Card, UPI, Wallet, Cash, etc.) |
-| **API Endpoints** | 960+ REST API routes |
-| **Database Models** | 300+ data models |
-| **UI Components** | 600+ React components |
-| **Automation Triggers** | 15+ pre-built scheduled tasks |
-| **Security Protocols** | SAML 2.0, OIDC, LDAP, 2FA, RBAC, GDPR |
-| **Theme Options** | 7 professional theme presets |
-| **OTA Client Libraries** | 13+ full OTA integrations |
+### A. Property Management (PMS)
+- Multi-property dashboard with cross-property analytics
+- Room type management (unlimited types, pricing, occupancy, amenities, photos)
+- Individual room management (number, floor, features, status, housekeeping status)
+- Visual floor plan editor with drag-and-drop room placement
+- Inventory calendar with color-coded availability
+- Availability control (open/close by date range, channel)
+- Inventory locking for maintenance, groups, channels
+- Rate plan management (base price, meal plan, min/max stay, cancellation policy)
+- Dynamic pricing rules (occupancy-based, season-based, day-of-week, event-based)
+- Package plans (room + breakfast + spa, etc.)
+- Overbooking management with AI no-show prediction
+- Room type change workflow
+- Room image gallery with OTA sync
+- Bulk price update tool
+
+### B. Reservations & Bookings
+- Unified reservation inbox (all channels in one dashboard)
+- Booking creation with serializable transaction safety
+- Group booking management (blocks, cut-off dates, rooming lists)
+- Smart waitlist with auto-convert and priority
+- Booking conflict detection and resolution
+- Automated confirmation (email + SMS)
+- Early check-in requests (fee-based, approval workflow)
+- Late checkout requests (fee-based, loyalty waiver support)
+- Room move tracking (from/to, reason, rate difference)
+- No-show automation (detection, room release, penalty processing)
+- Booking audit trail (full change history)
+- Abandoned booking recovery
+- Cancellation policies (configurable rules per rate plan)
+- Booking pace analysis (YoY, MoM, rolling comparisons)
+- Idempotent booking creation (prevent duplicates)
+
+### C. Channel Manager
+- 200+ channel connections (Booking.com, Expedia, Airbnb, Agoda, Google Hotels, MakeMyTrip, Trip.com, Traveloka, VRBO, Hotels.com, TripAdvisor, Oyo, etc.)
+- Real-time two-way inventory sync
+- Real-time two-way rate sync
+- Two-way booking sync (OTA ↔ PMS)
+- Booking modification handling
+- Rate parity monitoring and alerts
+- Channel performance analytics (bookings, revenue, commission, cancellation rate)
+- Channel restrictions (closed to arrival/departure, min/max stay)
+- Bulk stop-sell control
+- Room allotment management with release rules
+- Channel ↔ room type/rate plan mapping
+- Rate derivation rules (channel-specific from master rates)
+- Channel-specific rate overrides
+- Content sync (photos, descriptions, amenities)
+- OTA message inbox
+- Tax mapping per channel
+- Meal plan mapping per channel
+- Multi-currency support per channel
+- Settlement and commission reconciliation
+- Allotment release scheduling (graduated, fixed, percentage)
+- Promotional code management per channel
+- Booking pace tracking and comparison
+- Channel priority ordering
+- Inventory pooling across channels
+- GDS connectivity (Amadeus, Sabre, Travelport)
+- Google Hotel Ads integration
+- Central Reservation System (CRS)
+- Sync logs, retry queue, dead letter queue
+- Channel health monitoring
+
+### D. Revenue Management
+- AI demand forecasting (day-of-week patterns, seasonal factors, booking velocity, event impacts, confidence intervals)
+- Dynamic pricing rules engine (occupancy, season, day-of-week, events, booking patterns)
+- Competitor rate shopping (automated monitoring, rate comparison, positioning)
+- RevPAR optimization (occupancy vs. rate balance)
+- Price elasticity analysis (demand sensitivity to price changes)
+- Length-of-stay pricing tiers
+- Hourly rate pricing (day-use, flexible check-in/out)
+- Last-minute pricing triggers (automated as check-in approaches)
+- Cancellation prediction (AI identifies likely cancellations for smart overbooking)
+- Auto-overbooking engine (based on no-show probability confidence)
+- AI pricing suggestions (heuristic-based recommendations)
+- AI copilot (natural language pricing queries)
+- Revenue automation rules (auto-apply suggestions)
+
+### E. Guest Experience
+- Pre-arrival portal (online check-in, document upload, preference selection, e-signature)
+- Digital room key (QR code, mobile delivery)
+- Guest mobile app controls
+- In-room portal (tablet/TV)
+- Service request management (request, assign, track, resolve, rate)
+- Unified communication inbox (multi-channel)
+- Real-time guest chat with staff
+- Experience catalog (spa, golf, tours, activities)
+- Experience booking and pricing
+- Experience vendor management
+- Guest feedback during stay
+- WiFi credential delivery (pre-arrival email)
+- Loyalty program (tiers, points, rewards, redemption)
+- VIP recognition (auto-identify, staff alerts, upgrade recommendations)
+- NPS surveys (automated at checkout)
+- Referral program tracking
+- Guest journey mapping (pre-arrival → in-stay → post-stay events)
+
+### F. Front Desk
+- Express check-in (< 60 seconds with pre-arrival data)
+- Smart room assignment (AI multi-factor scoring: preferences, loyalty, accessibility, housekeeping, VIP)
+- Walk-in booking creation
+- Visual room grid (color-coded status map)
+- Registration card generation (CII-compliant, e-signature, auto-populated)
+- Self-service kiosk (touchscreen, bilingual EN/HI, idle timeout, payment processing)
+- Room move workflow (charges follow guest)
+- Night audit automation (room charges, no-shows, reconciliation — 15 minutes vs. 3 hours)
+- Kiosk settings management
+- KYC document upload and verification
+
+### G. Billing & Finance
+- Guest folio management (itemized charges, split, transfer, routing)
+- Multi-payment method support (card, UPI, cash, wallet, bank transfer, corporate billing, split)
+- Payment gateway integration (Stripe, PayPal, Razorpay) with tokenization
+- Fraud detection (real-time risk scoring per transaction)
+- Multi-currency with automatic exchange rate conversion
+- Invoice generation (PDF, branded templates, recurring, email delivery)
+- GST e-invoicing (native Indian compliance)
+- GST returns filing (GSTR-1, GSTR-3B)
+- TCS/TDS tracking
+- Night audit auto-posting
+- City ledger (house accounts, AR management)
+- Corporate billing accounts
+- Travel agent commission management
+- Cash flow forecasting
+- Budget management with variance tracking
+- Profit & Loss statements
+- Cash book management
+- Scheduled/recurring charges
+- Deposit schedule management
+- BNPL / guest financing (installment plans)
+- Payment schedule (installment tracking)
+- Credit notes
+- Discount management
+- Cancellation penalty processing
+- Exchange rate management
+
+### H. Restaurant & POS
+- Full POS system (restaurants, bars, cafes, poolside, room service)
+- Kitchen Display System (KDS — real-time order display)
+- Room service integration (auto-post to guest folio)
+- Menu management (categories, items, photos, modifiers, variants)
+- Visual table management (drag-and-drop layout, status, merge/split)
+- Restaurant reservations
+- Offline mode (orders queue locally, sync on reconnect)
+- Digital menu boards
+- Recipe management with food costing
+- Restaurant analytics (revenue, peak hours, popular items, server performance)
+- Order splitting, discounts, special instructions
+- Receipt templates (customizable)
+- POS inventory management
+
+### I. CRM & Marketing
+- Guest profiles (demographics, preferences, stay history, lifetime value)
+- Guest segmentation (behavior-based, dynamic rules engine)
+- Marketing campaigns (email, SMS, WhatsApp) with A/B testing
+- Journey automation (pre-arrival, in-stay, post-stay automated sequences)
+- Upsell engine (AI-powered offers at booking, pre-arrival, check-in, in-stay)
+- Abandoned booking recovery (automated follow-up)
+- Loyalty program (Bronze → Silver → Gold → Platinum, points, rewards)
+- Lead pipeline (inquiry → qualification → proposal → closing)
+- Online reputation management (Google, TripAdvisor, Booking.com review aggregation)
+- Review response management
+- Referral program
+- Website builder with SEO tools
+- Digital advertising (Google Ads, Google Hotel Ads, Meta Ads)
+- Ad performance tracking and ROI analytics
+- SEO analytics
+
+### J. Housekeeping & Maintenance
+- Visual kanban board (task workflow: new → in progress → inspection → done)
+- AI task optimization (room location, staff skills, priority, time estimation)
+- Room status tracking (clean, dirty, inspected, out of service)
+- Preventive maintenance scheduling
+- Work order management (report, assign, track, complete)
+- Inspection checklists (customizable templates, room inspection)
+- Lost and found registry (photos, guest notification)
+- Minibar management (consumption tracking, auto-post to folio)
+- Laundry service management
+- Asset management (FF&E tracking, warranty, depreciation)
+- Automation rules (auto-trigger tasks on events)
+
+### K. WiFi & Network Management
+- WiFi session management with concurrent device limits
+- Captive portal (branded login pages, marketing)
+- WiFi plan management (free, paid, premium tiers)
+- Bandwidth plans and usage monitoring
+- Bandwidth upselling (mid-session upgrade via COA)
+- Pre-arrival WiFi credential delivery
+- Multi-device registration
+- Content filtering (enterprise-grade)
+- Firewall management (nftables)
+- VLAN configuration (per-room isolation)
+- SLA monitoring and compliance
+- WiFi heatmap (signal coverage visualization)
+- WiFi satisfaction surveys
+- Captive portal advertising platform
+- Network diagnostics and health monitoring
+- DHCP server management
+- DNS server management
+- 16+ access point vendor support (Cisco, Aruba, Ruckus, Fortinet, UniFi, MikroTik, TP-Link, Juniper, Huawei, Netgear, Cambium, Ruijie, D-Link, Grandstream)
+- RADIUS authentication server
+- IP pool management
+- Bandwidth pooling and shaping
+- Fair Usage Policy (FUP) management
+- Partner WiFi and roaming support
+
+### L. Staff & HR
+- Shift scheduling (visual calendar, drag-and-drop)
+- Attendance tracking (digital check-in/check-out)
+- Leave management (request, approve, balance tracking)
+- Performance reviews (ratings, goals, development plans)
+- Internal communication (staff messaging, announcements)
+- Task assignment (priority, due date, tracking)
+- Skills and certifications database
+- Payroll management (salary components, deductions, overtime, compliance)
+- Staff workload tracking
+
+### M. Reports & Business Intelligence
+- Revenue reports (total, by channel, by room type, trends)
+- Occupancy reports (historical, forecasted, comparative)
+- ADR and RevPAR analytics
+- Guest analytics (demographics, origin, patterns, lifetime value, satisfaction)
+- Channel performance reports
+- Staff performance reports
+- Scheduled automated reports (daily, weekly, monthly — email delivery)
+- Report export (PDF, Excel, CSV)
+- AI-powered natural language queries ("How did last weekend compare?")
+- Dashboard KPIs (40+ widgets: occupancy, revenue, arrivals, tasks, staff, etc.)
+- Multi-property comparison reports
+- Financial statements (P&L, balance sheet, cash flow)
+
+### N. Security & Compliance
+- AES-256 encryption (at rest), TLS 1.3 (in transit)
+- Field-level encryption with per-tenant keys
+- Role-based access control (RBAC) — 170+ permissions
+- Single Sign-On: SAML 2.0, OpenID Connect (with PKCE), LDAP/Active Directory, Google OAuth
+- Two-factor authentication (TOTP with backup codes)
+- GDPR compliance (consent management, data export, right to erasure, anonymization)
+- Comprehensive audit logging (every action: user, timestamp, IP, before/after values)
+- IP whitelisting
+- Session management (concurrent limits, idle timeout, remote termination)
+- Account lockout (5 failed attempts → 30-minute lock)
+- Password policy enforcement (8+ chars, complexity, expiry)
+
+### O. Automation & AI
+- Visual workflow builder (drag-and-drop)
+- Event-driven rules engine (trigger conditions → action execution)
+- 15+ pre-built scheduled tasks (night audit, no-show detection, channel sync, report generation, WiFi health, etc.)
+- AI copilot (natural language queries about hotel data)
+- AI insights (auto-generated actionable recommendations)
+- AI smart room assignment (multi-factor scoring)
+- AI review sentiment analysis
+- Event bus (real-time event dispatching)
+- Execution logging with success/partial/failed states
+- Automation templates library
+
+### P. Platform Administration (Enterprise/Chain)
+- Multi-tenant management (unlimited properties with data isolation)
+- Chain dashboard (cross-property comparison)
+- Brand management (multiple brands, standards, configurations)
+- SaaS subscription billing (plans, trials, invoices)
+- Feature flags (enable/disable features per plan)
+- License key management
+- Usage tracking and metering (API calls, storage, users)
+- System health monitoring
+- Database backup management
+
+### Q. IoT & Smart Devices
+- Smart lock integration (Assa Abloy, Salto KS, Dormakaba, Nuki, Seam, etc.)
+- Digital key (QR code generation, revocation)
+- IoT device registry and management
+- Room controls (lights, HVAC, curtains — via phone or in-room tablet)
+- Energy consumption monitoring
+- Occupancy sensors
+- Payment terminal integration (Verifone, Ingenico, Square, Stripe Terminal)
+- Hardware adapter framework (extensible for any device)
+- Surveillance camera management (live view, playback, recordings)
 
 ---
 
-*Document prepared for Cryptsk Pvt Ltd — StaySuite HospitalityOS*
-*Deep scan completed on the full StaySuite codebase*
-*This prompt is ready to be used by an AI agent to develop the complete marketing website*
+*End of Document*
+
+**Document Version:** 2.0
+**Total Pages Specified:** 20+ pages
+**Feature Catalog Entries:** 200+ individual features across 17 modules
+**Prepared for AI Agent / Web Development Team**
+**Next Steps:** Business team to provide company details, pricing, testimonials, team photos, and brand assets
