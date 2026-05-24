@@ -13,7 +13,7 @@
 1. [Executive Summary](#1-executive-summary)
 2. [Company Profile](#2-company-profile)
 3. [Product Overview — StaySuite HospitalityOS](#3-product-overview--staysuite-hospitalityos)
-4. [Competitive Landscape](#4-competitive-landscape)
+4. [Market Positioning](#4-market-positioning)
 5. [Target Customer Personas](#5-target-customer-personas)
 6. [Website Objectives & KPIs](#6-website-objectives--kpis)
 7. [Website Architecture](#7-website-architecture)
@@ -136,12 +136,27 @@ StaySuite is the world's most comprehensive hotel management platform — a sing
 | 17 | **Platform Admin** | Multi-tenant management, chain dashboard, subscription billing, feature flags, license keys |
 | 18 | **IoT & Smart Devices** | Smart locks, room controls (lights, AC, curtains), energy monitoring, occupancy sensors |
 
-### Key Differentiators vs. Market
+### Primary USP — Full WiFi & Network Gateway
+
+**This is StaySuite's biggest differentiator. No other hotel PMS on the market includes this.**
+
+StaySuite is the **only hotel management platform in the world** that ships with a complete, enterprise-grade WiFi and network gateway infrastructure — the same technology that ISPs and telecom companies use. This is not a "WiFi settings page" — it's a full network operations center built into your hotel software.
+
+**What this means for hoteliers:**
+- Most hotels buy a PMS ($500-2000/mo) AND a separate WiFi management system ($500-3000/mo) AND a gateway appliance ($2000-10000 one-time). StaySuite replaces all three.
+- **Savings: $1,000-5,000/month per property** on WiFi/network costs alone.
+- Full RADIUS server, captive portal, DHCP server, DNS server, firewall (nftables), VLAN isolation, bandwidth shaping, content filtering — all managed from the same dashboard as check-ins and billing.
+- Supports 16+ access point vendors (Cisco, Aruba, Ruckus, Fortinet, UniFi, MikroTik, TP-Link, Juniper, Huawei, Netgear, and more).
+- Turn WiFi from a cost center into a **revenue stream** — sell premium bandwidth plans, display captive portal ads, upsell mid-session upgrades.
+- **Enterprise-grade security** — per-room VLAN isolation, content filtering, GDPR consent logging, firewall rules.
+
+### Other Key Differentiators
 
 | Differentiator | Explanation |
 |---------------|-------------|
 | **True All-in-One** | 18 modules natively built, not acquired. One database, one login, zero data sync issues. |
-| **WiFi Management Included** | No other hotel PMS includes enterprise-grade WiFi/network management. This is a $10K+/year standalone product — included free. |
+| **Full Network Gateway** | Complete WiFi infrastructure (RADIUS, captive portal, DHCP, DNS, firewall, VLAN, bandwidth shaping) — normally a $10K+/year standalone product — included at no extra cost. This is NOT available in any competing PMS. |
+| **16+ WiFi AP Vendors** | Works with Cisco, Aruba, Ruckus, Fortinet, UniFi, MikroTik, TP-Link, Juniper, Huawei, Netgear, Cambium, Ruijie, D-Link, Grandstream, and more. Not locked to one hardware vendor. |
 | **Native AI** | AI is embedded in pricing, room assignment, task optimization, analytics — not a bolted-on add-on. |
 | **India-First** | Native GST e-invoicing, GSTR-1/GSTR-3B filing, TCS/TDS tracking, UPI payments, MakeMyTrip integration. |
 | **Restaurant POS Built-In** | Full POS with kitchen display, room service integration, offline mode — no separate restaurant software needed. |
@@ -151,21 +166,33 @@ StaySuite is the world's most comprehensive hotel management platform — a sing
 
 ---
 
-## 4. Competitive Landscape
+## 4. Market Positioning
 
-### Primary Competitors
+### How StaySuite is Different (Without Naming Competitors)
 
-| Competitor | Strengths | StaySuite Advantages |
-|-----------|-----------|---------------------|
-| **Oracle Opera (PMS)** | Market leader, enterprise-grade, global presence | 10x cheaper, modern UI, all-in-one (no separate modules), AI-native, India GST compliance |
-| **Cloudbeds** | Strong channel manager, good UX | StaySuite includes WiFi management, restaurant POS, IoT, AI revenue management — Cloudbeds does not |
-| **Hotelogix** | India market presence, affordable | StaySuite has WiFi management, AI revenue management, restaurant POS, IoT — Hotelogix does not |
-| **SiteMinder (Channel Mgr)** | Best-in-class channel manager | StaySuite includes channel manager PLUS full PMS, POS, billing — SiteMinder is channel-only |
-| **Duetto (Revenue Mgmt)** | Revenue management specialist | StaySuite includes AI revenue management as one of 18 modules — not a separate $50K/year product |
-| **Protel (PMS)** | European market leader | StaySuite has modern cloud architecture, India market focus, WiFi management, lower cost |
+Hotels today are forced to buy and manage **5-10 separate software tools** that don't talk to each other:
 
-### Competitive Messaging Framework
-> "Stop paying for 5 different tools that don't talk to each other. StaySuite gives you everything — PMS, Channel Manager, Revenue Management, POS, WiFi, CRM, Billing — in one platform, for one monthly price."
+| What Hotels Normally Buy | What They Pay (Approx.) | What StaySuite Replaces |
+|--------------------------|--------------------------|------------------------|
+| Hotel PMS | $300–2,000/mo | ✅ Included |
+| Channel Manager | $200–800/mo | ✅ Included |
+| Revenue Management System | $500–4,000/mo | ✅ Included |
+| Restaurant POS | $200–1,000/mo | ✅ Included |
+| WiFi Management System | $500–3,000/mo | ✅ **Included — unique to StaySuite** |
+| Network Gateway/Firewall | $2,000–10,000 (one-time) | ✅ **Included — unique to StaySuite** |
+| CRM & Email Marketing | $100–500/mo | ✅ Included |
+| Guest Engagement App | $200–800/mo | ✅ Included |
+| Billing & Accounting | $100–500/mo | ✅ Included |
+| Staff Management / HR | $50–300/mo | ✅ Included |
+| | **Total: $4,000–23,000/mo** | **StaySuite: One platform, one price** |
+
+**StaySuite's unique advantage no one else offers:**
+> **Full WiFi management and network gateway infrastructure** — RADIUS server, captive portal, DHCP, DNS, firewall (nftables), per-room VLAN isolation, bandwidth shaping, content filtering, 16+ AP vendor support. This is enterprise ISP-grade technology that no other hotel PMS includes. Hotels save $1,000–5,000/month on network costs alone.
+
+### Core Messaging Framework
+> "Stop paying for 10 different tools that don't talk to each other. StaySuite gives you everything — PMS, Channel Manager, Revenue Management, POS, **Full WiFi & Network Gateway**, CRM, Billing — in one platform, for one monthly price."
+
+> "The only hotel platform that includes enterprise-grade WiFi and network management — the same technology ISPs use — built right into your PMS at no extra cost."
 
 ---
 
@@ -349,7 +376,7 @@ Homepage (/)
 | 2 | **Module Grid** | Visual grid of all 18 modules — icon + name + one-line description. Each card links to its deep-dive page. |
 | 3 | **Interactive Tabs** | Tabbed interface grouping modules: Operations (PMS, Front Desk, Housekeeping), Revenue (Revenue Mgmt, Channel Mgr, Billing), Guest (Guest Experience, CRM, Loyalty), Infrastructure (WiFi, IoT, Security), Enterprise (Platform Admin, Staff, Reports) |
 | 4 | **Product Screenshot Gallery** | Scrollable product screenshots with feature callouts |
-| 5 | **Comparison Table** | StaySuite vs. buying separate tools (show cost savings) |
+| 5 | **Cost Savings Table** | "What hotels normally pay for 10 tools" vs. "What StaySuite costs" — show massive savings |
 | 6 | **CTA** | "See it in action — Book a Demo" |
 
 ---
@@ -494,7 +521,7 @@ Homepage (/)
 1. "What Is an All-in-One Hotel Management System? (And Why You Need One)"
 2. "How AI Revenue Management Can Increase Your Hotel's ADR by 20%+"
 3. "GST Compliance for Hotels: Complete Guide to e-Invoicing and Returns"
-4. "Channel Manager Comparison: Which OTAs Drive the Most Revenue for Indian Hotels?"
+4. "Why Your Hotel PMS Should Include WiFi Management (And Why Most Don't)"
 5. "5 Ways to Reduce OTA Dependency and Increase Direct Bookings"
 
 ---
@@ -608,15 +635,15 @@ Homepage (/)
 2. all-in-one hotel management platform India pricing
 3. cloud-based hotel PMS with GST e-invoicing
 4. hotel software that includes WiFi management
-5. best alternative to Oracle Opera hotel software
-6. affordable hotel management software for small hotels India
+5. hotel management software with built-in RADIUS and captive portal
+6. cloud-based hotel PMS with network gateway and firewall
 
-### Competitor Comparison Pages (High Conversion)
-Create dedicated pages targeting "vs" searches:
-- `/compare/staysuite-vs-opera`
-- `/compare/staysuite-vs-cloudbeds`
-- `/compare/staysuite-vs-hotelogix`
-- `/compare/staysuite-vs-siteminder`
+### "Why StaySuite" Pages (High Conversion)
+Create dedicated pages targeting evaluation-stage searches:
+- `/why-staysuite` — "Why Hotels Switch to StaySuite"
+- `/why-staysuite/wifi-gateway` — "The Only PMS with Full WiFi & Network Management"
+- `/why-staysuite/all-in-one` — "Replace 10 Tools With One Platform"
+- `/why-staysuite/roi-calculator` — "Calculate Your Savings With StaySuite" (interactive tool)
 
 ### Technical SEO Requirements
 - Next.js Metadata API for all pages (title, description, OG tags)
@@ -728,7 +755,7 @@ Create dedicated pages targeting "vs" searches:
 - [ ] Build feature page template
 - [ ] Create all 16+ feature deep-dive pages
 - [ ] Integrations page
-- [ ] Comparison pages (vs. competitors)
+- [ ] "Why StaySuite" value proposition pages
 
 ### Phase 4: Content & Social Proof (Week 8-9)
 - [ ] Blog section with MDX support
