@@ -292,13 +292,23 @@ export async function POST(
     });
     const totalPaid = allPayments._sum.amount || 0;
 
+    // Recalculate balance from ALL folio line items, not just this order
+    const allFolioItems = await db.folioLineItem.findMany({ where: { folioId } });
+    const recalculatedSubtotal = allFolioItems.reduce((sum, li) => sum + li.totalAmount, 0);
+    const recalculatedTaxes = allFolioItems.reduce((sum, li) => sum + (li.taxAmount || 0), 0);
+    const recalculatedTotal = recalculatedSubtotal + recalculatedTaxes - (folioRecord?.discount || 0);
+    const recalculatedBalance = recalculatedTotal - totalPaid;
+
     // M-7: Only auto-close standalone folios (not booking-linked ones)
-    const folioShouldClose = totalPaid >= paymentAmount && !folioRecord?.bookingId;
+    const folioShouldClose = totalPaid >= recalculatedTotal && !folioRecord?.bookingId;
     await db.folio.update({
       where: { id: folioId },
       data: {
+        subtotal: recalculatedSubtotal,
+        taxes: recalculatedTaxes,
+        totalAmount: recalculatedTotal,
         paidAmount: totalPaid,
-        balance: paymentAmount - totalPaid,
+        balance: recalculatedBalance,
         ...(folioShouldClose ? { status: 'closed', closedAt: new Date() } : { status: totalPaid > 0 ? 'partially_paid' : 'open' }),
       },
     });

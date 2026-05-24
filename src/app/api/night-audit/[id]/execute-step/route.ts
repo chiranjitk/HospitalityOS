@@ -206,12 +206,28 @@ async function postRoomCharges(audit: { id: string; propertyId: string; tenantId
     },
   });
 
+  // Calculate tax rate from property settings
+  const property = await db.property.findUnique({
+    where: { id: audit.propertyId },
+    select: { taxComponents: true, defaultTaxRate: true },
+  });
+  let taxRate = 0;
+  if (property?.taxComponents) {
+    try {
+      const tc = JSON.parse(property.taxComponents || '[]');
+      if (Array.isArray(tc) && tc.length > 0) {
+        taxRate = tc.reduce((s: number, c: { rate: number }) => s + (c.rate || 0), 0) / 100;
+      } else { taxRate = (property.defaultTaxRate || 0) / 100; }
+    } catch { taxRate = (property.defaultTaxRate || 0) / 100; }
+  }
+
   let chargesPosted = 0;
   let totalAmount = 0;
   const chargeDetails: Array<{ bookingId: string; room: string; amount: number; folioId: string }> = [];
 
   for (const booking of activeBookings) {
     const roomRate = booking.roomRate > 0 ? booking.roomRate : booking.roomType.basePrice;
+    const taxAmount = Math.round(roomRate * taxRate * 100) / 100;
     const folio = booking.folios[0];
 
     if (!folio) continue;
@@ -221,10 +237,11 @@ async function postRoomCharges(audit: { id: string; propertyId: string; tenantId
       data: {
         folioId: folio.id,
         description: `Room charge - Room ${booking.room?.number || 'N/A'} (${booking.roomType.name}) - Night Audit`,
-        category: 'room',
+        category: 'room_charge',
         quantity: 1,
         unitPrice: roomRate,
         totalAmount: roomRate,
+        taxAmount,
         serviceDate: audit.businessDayDate,
         referenceType: 'NightAudit',
         referenceId: audit.id,
@@ -237,13 +254,14 @@ async function postRoomCharges(audit: { id: string; propertyId: string; tenantId
       where: { id: folio.id },
       data: {
         subtotal: { increment: roomRate },
-        totalAmount: { increment: roomRate },
-        balance: { increment: roomRate },
+        taxes: { increment: taxAmount },
+        totalAmount: { increment: roomRate + taxAmount },
+        balance: { increment: roomRate + taxAmount },
       },
     });
 
     chargesPosted++;
-    totalAmount += roomRate;
+    totalAmount += roomRate + taxAmount;
     chargeDetails.push({
       bookingId: booking.id,
       room: booking.room?.number || 'N/A',
@@ -343,7 +361,7 @@ async function processNoShows(audit: { id: string; propertyId: string; tenantId:
         data: {
           folioId: booking.folios[0].id,
           description: `No-show penalty (${penaltyPercent}%)`,
-          category: 'penalty',
+          category: 'adjustment',
           quantity: 1,
           unitPrice: penaltyAmount,
           totalAmount: penaltyAmount,
@@ -557,7 +575,7 @@ async function runReports(audit: { id: string; propertyId: string; tenantId: str
   const totalCharges = lineItems.reduce((sum, item) => sum + item.totalAmount, 0);
   const totalPayments = payments.reduce((sum, p) => sum + p.amount, 0);
   const occupancyRate = totalRooms > 0 ? ((occupiedRooms / totalRooms) * 100).toFixed(1) : '0';
-  const roomRevenue = lineItems.filter((i) => i.category === 'room').reduce((sum, i) => sum + i.totalAmount, 0);
+  const roomRevenue = lineItems.filter((i) => i.category === 'room_charge').reduce((sum, i) => sum + i.totalAmount, 0);
   const fbRevenue = lineItems.filter((i) => ['food_beverage', 'restaurant', 'room_service', 'minibar'].includes(i.category)).reduce((sum, i) => sum + i.totalAmount, 0);
   const otherRevenue = totalCharges - roomRevenue - fbRevenue;
 
@@ -591,7 +609,7 @@ async function closeBusinessDay(audit: { id: string; propertyId: string; tenantI
     },
   });
 
-  const roomRevenue = lineItems.filter((i) => i.category === 'room').reduce((sum, i) => sum + i.totalAmount, 0);
+  const roomRevenue = lineItems.filter((i) => i.category === 'room_charge').reduce((sum, i) => sum + i.totalAmount, 0);
   const fbRevenue = lineItems.filter((i) => ['food_beverage', 'restaurant', 'room_service', 'minibar'].includes(i.category)).reduce((sum, i) => sum + i.totalAmount, 0);
   const otherRevenue = lineItems.reduce((sum, i) => sum + i.totalAmount, 0) - roomRevenue - fbRevenue;
 

@@ -247,7 +247,7 @@ export async function POST(
           data: {
             folioId: newFolio.id,
             description: 'Split from folio ' + sourceFolio.folioNumber,
-            category: 'other',
+            category: 'miscellaneous',
             quantity: 1,
             unitPrice: newSubtotal,
             totalAmount: newSubtotal,

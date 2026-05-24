@@ -458,7 +458,7 @@ export async function PUT(
               data: {
                 folioId: folio.id,
                 description: `Room upgrade charge (${oldRoomType?.name || 'Old'} → ${newRoom?.roomType?.name || 'New'})`,
-                category: 'room',
+                category: 'room_charge',
                 quantity: 1,
                 unitPrice: Math.abs(rateDiff),
                 totalAmount: Math.abs(rateDiff),
@@ -1224,7 +1224,7 @@ export async function PUT(
             data: {
               folioId: folio.id,
               description: `Cancellation penalty - ${cancellationResult.policy.name}`,
-              category: 'penalty',
+              category: 'adjustment',
               quantity: 1,
               unitPrice: cancellationResult.penaltyAmount,
               totalAmount: cancellationResult.penaltyAmount,
@@ -2138,7 +2138,7 @@ export async function PATCH(
             data: {
               folioId: penaltyFolio.id,
               description: `Cancellation penalty - ${patchCancellationResult.policy.name}`,
-              category: 'penalty',
+              category: 'adjustment',
               quantity: 1,
               unitPrice: patchCancellationResult.penaltyAmount,
               totalAmount: patchCancellationResult.penaltyAmount,

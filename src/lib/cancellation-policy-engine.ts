@@ -337,7 +337,7 @@ export async function applyCancellationPenalty(params: {
         data: {
           folioId: folio!.id,
           description: `Cancellation penalty - ${evaluation.policy.name}`,
-          category: 'penalty',
+          category: 'adjustment',
           quantity: 1,
           unitPrice: evaluation.penaltyAmount,
           totalAmount: evaluation.penaltyAmount,

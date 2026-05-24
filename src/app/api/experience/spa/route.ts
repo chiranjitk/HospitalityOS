@@ -172,6 +172,66 @@ export async function GET(request: NextRequest) {
       ? appointments.filter(a => a.status === status)
       : appointments.filter(a => a.date === date);
 
+    // Calculate treatment popularity from actual completed appointments this month
+    const treatmentPopularityByTreatmentId = await db.spaAppointment.groupBy({
+      by: ['treatmentId'],
+      where: {
+        tenantId: user.tenantId,
+        status: 'completed',
+        startTime: { gte: monthStart },
+      },
+      _count: { id: true },
+    });
+    const maxPopularityCount = Math.max(
+      1,
+      ...treatmentPopularityByTreatmentId.map(tp => tp._count.id)
+    );
+    const popularityMap = new Map(
+      treatmentPopularityByTreatmentId.map(tp => [
+        tp.treatmentId,
+        Math.round((tp._count.id / maxPopularityCount) * 100),
+      ])
+    );
+
+    // Calculate therapist session counts from actual completed appointments this month
+    const therapistSessionCounts = await db.spaAppointment.groupBy({
+      by: ['therapistId'],
+      where: {
+        tenantId: user.tenantId,
+        therapistId: { not: null },
+        status: 'completed',
+        startTime: { gte: monthStart },
+      },
+      _count: { id: true },
+    });
+    const sessionCountMap = new Map(
+      therapistSessionCounts.map(sc => [sc.therapistId!, sc._count.id])
+    );
+
+    // --- Revenue stats (monthRevenue needed early for revenue-vs-last-month calc) ---
+    const monthRevenue = Number(monthStats._sum.price || 0);
+
+    // Calculate revenue vs last month for thisMonth.revenueVsLastMonth
+    const lastMonthStart = new Date(monthStart);
+    lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
+    const lastMonthEnd = new Date(monthStart); // first moment of this month
+    const lastMonthStats = await db.spaAppointment.aggregate({
+      where: {
+        tenantId: user.tenantId,
+        startTime: { gte: lastMonthStart, lt: lastMonthEnd },
+      },
+      _sum: { price: true },
+    });
+    const lastMonthRevenue = Number(lastMonthStats._sum.price || 0);
+    let revenueVsLastMonth: number | null = null;
+    if (lastMonthRevenue > 0 && monthRevenue > 0) {
+      revenueVsLastMonth = parseFloat(
+        (((monthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100).toFixed(1)
+      );
+    } else if (lastMonthRevenue === 0 && monthRevenue > 0) {
+      revenueVsLastMonth = 100; // 100% growth from zero
+    }
+
     // --- Map treatments ---
     const treatments = spaTreatments.map(t => ({
       id: t.id,
@@ -181,7 +241,7 @@ export async function GET(request: NextRequest) {
       price: t.price,
       currency: t.currency,
       description: t.description || '',
-      popularity: 50,
+      popularity: popularityMap.get(t.id) ?? 0,
       availability: 'high',
       imageUrl: null,
       status: t.isActive ? 'active' : 'inactive',
@@ -199,19 +259,18 @@ export async function GET(request: NextRequest) {
         name: t.name,
         specialization: Array.isArray(specs) ? specs : [t.specializations],
         certifications: Array.isArray(certs) ? certs : [t.certifications],
-        experience: 5,
-        rating: t.rating || 4.5,
-        totalSessions: 0,
+        experience: null, // No experience field in SpaTherapist schema
+        rating: t.rating || 0,
+        totalSessions: sessionCountMap.get(t.id) || 0,
         status: t.status,
-        shiftStart: '09:00',
-        shiftEnd: '18:00',
+        shiftStart: null, // No shift fields in SpaTherapist schema
+        shiftEnd: null,
         avatar: null,
         languages: ['English'],
       };
     });
 
     // --- Revenue stats ---
-    const monthRevenue = Number(monthStats._sum.price || 0);
     const todayBookings = Number(todayStats._count);
     const todayRevenue = Number(todayStats._sum.price || 0);
     const weekBookings = Number(weekStats._count);
@@ -220,13 +279,19 @@ export async function GET(request: NextRequest) {
 
     const totalCategoryRevenue = monthByCategory.reduce((sum, c) => sum + Number(c.revenue), 0) || 1;
 
-    // Today no-shows/cancellations
-    const [todayNoShows, todayCancellations] = await Promise.all([
+    // Today and weekly no-shows/cancellations
+    const [todayNoShows, todayCancellations, weekNoShows, weekCancellations] = await Promise.all([
       db.spaAppointment.count({
         where: { tenantId: user.tenantId, status: 'no_show', startTime: { gte: dayStart, lte: dayEnd } },
       }),
       db.spaAppointment.count({
         where: { tenantId: user.tenantId, status: 'cancelled', startTime: { gte: dayStart, lte: dayEnd } },
+      }),
+      db.spaAppointment.count({
+        where: { tenantId: user.tenantId, status: 'no_show', startTime: { gte: weekStart } },
+      }),
+      db.spaAppointment.count({
+        where: { tenantId: user.tenantId, status: 'cancelled', startTime: { gte: weekStart } },
       }),
     ]);
 
@@ -246,8 +311,8 @@ export async function GET(request: NextRequest) {
         avgSpendPerGuest: weekBookings > 0 ? Math.round(weekRevenue / weekBookings) : 0,
         occupancy: Math.min(100, Math.round((weekBookings / Math.max(1, therapists.length * 7)) * 100)),
         topTreatment: topTreatmentRow[0]?.name || 'N/A',
-        noShows: Math.round(monthNoShows / 4),
-        cancellations: Math.round(monthCancellations / 4),
+        noShows: weekNoShows,
+        cancellations: weekCancellations,
       },
       thisMonth: {
         bookings: monthBookings,
@@ -257,7 +322,7 @@ export async function GET(request: NextRequest) {
         topTreatment: topTreatmentRow[0]?.name || 'N/A',
         noShows: monthNoShows,
         cancellations: monthCancellations,
-        revenueVsLastMonth: 12.5, // Would need historical data for accurate comparison
+        revenueVsLastMonth,
       },
       byCategory: monthByCategory.map(c => ({
         category: c.category.charAt(0).toUpperCase() + c.category.slice(1),
@@ -269,7 +334,8 @@ export async function GET(request: NextRequest) {
         date: t.date,
         revenue: Number(t.revenue),
         bookings: Number(t.bookings),
-        avgRating: 4.7,
+        // Ratings not yet implemented — no guest-facing rating table exists
+        avgRating: null,
       })),
     };
 

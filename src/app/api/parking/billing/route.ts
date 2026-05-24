@@ -561,7 +561,7 @@ export async function PUT(request: NextRequest) {
               data: {
                 folioId,
                 description: `Parking fee - ${vehicle.licensePlate}${vehicle.slotId ? ` (Slot ${vehicle.slotId})` : ''}`,
-                category: 'parking',
+                category: 'miscellaneous',
                 quantity: 1,
                 unitPrice: calculatedFee,
                 totalAmount: calculatedFee,

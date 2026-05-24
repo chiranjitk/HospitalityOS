@@ -42,7 +42,7 @@ export async function POST(
           data: {
             folioId: creditNote.folioId,
             description: `Reversal: Cancelled credit note ${creditNote.creditNoteNumber}`,
-            category: 'other',
+            category: 'miscellaneous',
             quantity: 1,
             unitPrice: creditNote.appliedAmount,
             totalAmount: creditNote.appliedAmount,

@@ -352,7 +352,7 @@ export async function processSingleNoShow(
           data: {
             folioId: folio.id,
             description: 'No-show penalty',
-            category: 'penalty',
+            category: 'adjustment',
             quantity: 1,
             unitPrice: penaltyAmount,
             totalAmount: penaltyAmount,

@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
       description,
       items: rawItems,
       currency,
+      taxAmount: bodyTaxAmount,
     } = body;
 
     if (!folioId || !guestId || !reason || !rawItems || !Array.isArray(rawItems) || rawItems.length === 0) {
@@ -114,7 +115,35 @@ export async function POST(request: NextRequest) {
     }
 
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-    const totalAmount = subtotal;
+
+    // Resolve tax: look up referenced folio line items, or accept explicit taxAmount
+    let resolvedTaxAmount = 0;
+    const referencedLineItemIds = items
+      .map(i => i.folioLineItemId)
+      .filter((id): id is string => id !== null);
+
+    if (referencedLineItemIds.length > 0) {
+      // Look up the original folio line items to reverse their tax
+      const referencedItems = await db.folioLineItem.findMany({
+        where: { id: { in: referencedLineItemIds }, folioId },
+        select: { id: true, taxAmount: true, taxRate: true },
+      });
+      // Sum up tax from referenced items; each credit item may reference a line item
+      const taxById = new Map(referencedItems.map(ri => [ri.id, ri]));
+      for (const creditItem of items) {
+        if (creditItem.folioLineItemId) {
+          const original = taxById.get(creditItem.folioLineItemId);
+          if (original) {
+            resolvedTaxAmount += original.taxAmount;
+          }
+        }
+      }
+    } else {
+      // No specific line items referenced; accept optional taxAmount from caller
+      resolvedTaxAmount = typeof bodyTaxAmount === 'number' ? bodyTaxAmount : 0;
+    }
+
+    const totalAmount = subtotal + resolvedTaxAmount;
 
     // Generate credit note number
     const today = new Date();
@@ -149,7 +178,7 @@ export async function POST(request: NextRequest) {
           description: description || null,
           items: JSON.stringify(items),
           subtotal,
-          taxAmount: 0,
+          taxAmount: resolvedTaxAmount,
           totalAmount,
           currency: currency || folio.currency,
           status: 'applied',
@@ -159,18 +188,21 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Determine the effective tax rate for the credit folio line item
+      const effectiveTaxRate = subtotal > 0 ? (resolvedTaxAmount / subtotal) * 100 : 0;
+
       // Create a negative folio line item to represent the credit on the folio
       await tx.folioLineItem.create({
         data: {
           folioId,
           description: `Credit Note ${creditNoteNumber}: ${reason}`,
-          category: 'credit_note',
+          category: 'adjustment',
           quantity: 1,
-          unitPrice: -totalAmount,
-          totalAmount: -totalAmount,
+          unitPrice: -subtotal,
+          totalAmount: -subtotal,
           serviceDate: new Date(),
-          taxRate: 0,
-          taxAmount: 0,
+          taxRate: effectiveTaxRate,
+          taxAmount: -resolvedTaxAmount,
           itemCurrency: currency || folio.currency,
           referenceType: 'CreditNote',
           referenceId: note.id,

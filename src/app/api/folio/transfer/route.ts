@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
             data: {
               folioId: fromFolioId,
               description: `Transfer credit: ${item.description}`,
-              category: 'other',
+              category: 'miscellaneous',
               quantity: 1,
               unitPrice: -transferAmount,
               totalAmount: -transferAmount,
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
           data: {
             folioId: fromFolioId,
             description: `Transfer credit to folio ${toFolio.folioNumber}`,
-            category: 'other',
+            category: 'miscellaneous',
             quantity: 1,
             unitPrice: -transferAmount,
             totalAmount: -transferAmount,
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
           data: {
             folioId: toFolioId,
             description: `Transfer from folio ${fromFolio.folioNumber}`,
-            category: 'other',
+            category: 'miscellaneous',
             quantity: 1,
             unitPrice: transferAmount,
             totalAmount: transferAmount,
