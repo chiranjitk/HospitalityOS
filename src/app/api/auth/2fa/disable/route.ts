@@ -180,6 +180,7 @@ export async function POST(request: NextRequest) {
       data: {
         twoFactorEnabled: false,
         twoFactorSecret: null,
+        backupCodes: null,
       },
     });
 

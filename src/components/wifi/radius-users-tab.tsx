@@ -539,13 +539,14 @@ export default function RadiusUsersTab() {
 
   // Bulk selection & delete state
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
-  const [bulkDeleteStep, setBulkDeleteStep] = useState<'warning' | 'mfa' | 'deleting' | null>(null);
+  const [bulkDeleteStep, setBulkDeleteStep] = useState<'warning' | 'mfa' | 'mfa-setup' | 'deleting' | null>(null);
   const [bulkForceDelete, setBulkForceDelete] = useState(false);
   const [mfaCode, setMfaCode] = useState('');
   const [mfaError, setMfaError] = useState('');
   const [mfaVerifying, setMfaVerifying] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkDeleteResult, setBulkDeleteResult] = useState<{ deleted: number; skipped: number; errors: number } | null>(null);
+  const [admin2FAEnabled, setAdmin2FAEnabled] = useState<boolean | null>(null);
 
   // ─── Filtering (must be before selection logic) ────────────────────────────
 
@@ -583,6 +584,19 @@ export default function RadiusUsersTab() {
     setSelectedUserIds(new Set());
   };
 
+  const check2FAStatus = async (): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/auth/2fa/status');
+      const data = await res.json();
+      const enabled = data.success && data.enabled;
+      setAdmin2FAEnabled(enabled);
+      return enabled;
+    } catch {
+      setAdmin2FAEnabled(false);
+      return false;
+    }
+  };
+
   const openBulkDelete = () => {
     setBulkForceDelete(false);
     setMfaCode('');
@@ -616,6 +630,9 @@ export default function RadiusUsersTab() {
       if (data.success && data.verified) {
         setBulkDeleteStep('deleting');
         await executeBulkDelete(true);
+      } else if (data.error && data.error.toLowerCase().includes('not set up')) {
+        // Redirect to the 2FA setup prompt
+        setBulkDeleteStep('mfa-setup');
       } else {
         setMfaError(data.error || 'Invalid verification code');
       }
@@ -671,7 +688,55 @@ export default function RadiusUsersTab() {
   const deleteUser = deleteUserId ? users.find(u => u.id === deleteUserId) : null;
   const isDeleteUserActive = deleteUser?.status === 'active';
 
-  const handleDelete = async () => {
+  // Single-user delete MFA state
+  const [singleDeleteMfaStep, setSingleDeleteMfaStep] = useState<'confirm' | 'mfa' | 'mfa-setup' | 'deleting' | null>(null);
+  const [singleDeleteMfaCode, setSingleDeleteMfaCode] = useState('');
+  const [singleDeleteMfaError, setSingleDeleteMfaError] = useState('');
+  const [singleDeleteMfaVerifying, setSingleDeleteMfaVerifying] = useState(false);
+
+  const handleDeleteRequest = () => {
+    // When user clicks Delete on the warning dialog, proceed to MFA flow
+    // Keep deleteUserId set so deleteUser is available for the MFA dialogs
+    setSingleDeleteMfaCode('');
+    setSingleDeleteMfaError('');
+    setSingleDeleteMfaStep('confirm');
+  };
+
+  const handleSingleDeleteProceedMfa = async () => {
+    const has2FA = await check2FAStatus();
+    setSingleDeleteMfaStep(has2FA ? 'mfa' : 'mfa-setup');
+  };
+
+  const handleSingleDeleteMfaVerify = async () => {
+    if (!singleDeleteMfaCode.trim() || singleDeleteMfaCode.replace(/\s/g, '').length !== 6) {
+      setSingleDeleteMfaError('Please enter a valid 6-digit code');
+      return;
+    }
+    setSingleDeleteMfaVerifying(true);
+    setSingleDeleteMfaError('');
+    try {
+      const verifyRes = await fetch('/api/auth/2fa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: singleDeleteMfaCode.replace(/\s/g, '') }),
+      });
+      const verifyData = await verifyRes.json();
+      if (verifyData.success && verifyData.verified) {
+        setSingleDeleteMfaStep('deleting');
+        await executeSingleDelete();
+      } else if (verifyData.error && verifyData.error.toLowerCase().includes('not set up')) {
+        setSingleDeleteMfaStep('mfa-setup');
+      } else {
+        setSingleDeleteMfaError(verifyData.error || 'Invalid verification code');
+      }
+    } catch {
+      setSingleDeleteMfaError('Verification failed. Please try again.');
+    } finally {
+      setSingleDeleteMfaVerifying(false);
+    }
+  };
+
+  const executeSingleDelete = async () => {
     if (!deleteUserId) return;
     try {
       const body: Record<string, unknown> = { action: 'delete-user', id: deleteUserId, mfaVerified: true };
@@ -684,24 +749,14 @@ export default function RadiusUsersTab() {
       });
       const data = await res.json();
 
-      // Handle MFA required
-      if (data.code === 'MFA_REQUIRED') {
-        toast({
-          title: 'MFA Required',
-          description: 'Multi-factor authentication is required for delete operations. Please set up 2FA in your profile settings.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
       // Handle active user blocked (409)
       if (!res.ok && data.code === 'ACTIVE_USER_BLOCKED') {
         toast({
           title: 'Active User Blocked',
-          description: `${data.details.username} is currently active. Deactivate the user first, or enable "Force Delete" to proceed.`,
+          description: `${data.details?.username || 'User'} is currently active. Deactivate the user first, or enable "Force Delete" to proceed.`,
           variant: 'destructive',
         });
-        return; // keep dialog open so user can enable force
+        return;
       }
 
       if (!res.ok) {
@@ -720,7 +775,14 @@ export default function RadiusUsersTab() {
     } finally {
       setDeleteUserId(null);
       setForceDelete(false);
+      setSingleDeleteMfaStep(null);
     }
+  };
+
+  const closeSingleDeleteMfa = () => {
+    setSingleDeleteMfaStep(null);
+    setSingleDeleteMfaCode('');
+    setSingleDeleteMfaError('');
   };
 
   const togglePasswordVisibility = (id: string) => {
@@ -1565,7 +1627,7 @@ export default function RadiusUsersTab() {
       </AlertDialog>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteUserId} onOpenChange={(open) => { if (!open) { setDeleteUserId(null); setForceDelete(false); } }}>
+      <AlertDialog open={!!deleteUserId && !singleDeleteMfaStep} onOpenChange={(open) => { if (!open) { setDeleteUserId(null); setForceDelete(false); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-destructive">
@@ -1614,14 +1676,169 @@ export default function RadiusUsersTab() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDelete}
+              onClick={handleDeleteRequest}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {forceDelete ? 'Force Delete' : 'Delete'}
+              <ShieldCheck className="h-4 w-4 mr-1" />
+              {forceDelete ? 'Force Delete with MFA' : 'Delete with MFA'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Single User Delete — MFA Confirmation & Verify */}
+      <Dialog open={singleDeleteMfaStep === 'confirm'} onOpenChange={(open) => { if (!open) closeSingleDeleteMfa(); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Confirm Deletion of {deleteUser?.username}
+            </DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. MFA verification will be required.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+            <p className="text-xs font-semibold text-destructive">All associated data will be deleted:</p>
+            <ul className="text-xs text-muted-foreground space-y-1 list-none">
+              <li>✕ RADIUS credentials</li>
+              <li>✕ Active session — disconnected immediately</li>
+              <li>✕ Session history & Auth logs</li>
+              <li>✕ Device profiles & WiFi user account</li>
+            </ul>
+          </div>
+          {isDeleteUserActive && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={forceDelete}
+                onChange={(e) => setForceDelete(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-destructive focus:ring-destructive/50"
+              />
+              <span className="text-sm font-medium text-muted-foreground">Force Delete (disconnect & delete active user)</span>
+            </label>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={closeSingleDeleteMfa}>Cancel</Button>
+            <Button variant="destructive" onClick={handleSingleDeleteProceedMfa}>
+              <ShieldCheck className="h-4 w-4 mr-2" />
+              Proceed with MFA
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Single User Delete — MFA Not Set Up */}
+      <Dialog open={singleDeleteMfaStep === 'mfa-setup'} onOpenChange={(open) => { if (!open) closeSingleDeleteMfa(); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+              <Shield className="h-5 w-5" />
+              MFA Setup Required
+            </DialogTitle>
+            <DialogDescription>
+              Multi-factor authentication must be enabled on your admin account before you can delete users.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-600 dark:bg-amber-950">
+              <div className="flex items-start gap-3">
+                <Shield className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                    Your account does not have 2FA enabled
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    To protect against unauthorized deletions, all admin delete operations require MFA verification. Please set up 2FA on your account first.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
+              <p className="text-sm font-medium">How to enable 2FA:</p>
+              <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
+                <li>Go to <strong>Security → Two-Factor Authentication</strong></li>
+                <li>Click <strong>&quot;Enable 2FA&quot;</strong> and scan the QR code</li>
+                <li>Verify with your authenticator app</li>
+                <li>Return here and proceed with the deletion</li>
+              </ol>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={closeSingleDeleteMfa}>Cancel</Button>
+            <Button onClick={async () => {
+              const has2FA = await check2FAStatus();
+              if (has2FA) {
+                setSingleDeleteMfaStep('mfa');
+                toast({ title: '2FA Detected', description: 'You can now proceed with MFA verification' });
+              } else {
+                toast({ title: '2FA Not Found', description: 'Please enable 2FA in Security settings first', variant: 'destructive' });
+              }
+            }}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              I&apos;ve Enabled 2FA — Check Again
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Single User Delete — MFA Verification */}
+      <Dialog open={singleDeleteMfaStep === 'mfa'} onOpenChange={(open) => { if (!open) closeSingleDeleteMfa(); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              MFA Verification Required
+            </DialogTitle>
+            <DialogDescription>
+              Enter the 6-digit code from your authenticator app to confirm deletion of {deleteUser?.username}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="single-mfa-code">Authentication Code</Label>
+              <Input
+                id="single-mfa-code"
+                placeholder="000000"
+                value={singleDeleteMfaCode}
+                onChange={(e) => { setSingleDeleteMfaCode(e.target.value); setSingleDeleteMfaError(''); }}
+                maxLength={7}
+                className="text-center text-2xl font-mono tracking-[0.5em] h-14"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSingleDeleteMfaVerify(); }}
+              />
+            </div>
+            {singleDeleteMfaError && (
+              <p className="text-sm text-destructive flex items-center gap-1">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {singleDeleteMfaError}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              This verifies your identity as an administrator before deleting the user.
+            </p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setSingleDeleteMfaStep('confirm')} disabled={singleDeleteMfaVerifying}>Back</Button>
+            <Button variant="destructive" onClick={handleSingleDeleteMfaVerify} disabled={singleDeleteMfaVerifying || singleDeleteMfaCode.replace(/\s/g, '').length !== 6}>
+              {singleDeleteMfaVerifying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Verify & Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Single User Delete — Deleting */}
+      <Dialog open={singleDeleteMfaStep === 'deleting'} onOpenChange={(open) => { if (!open) closeSingleDeleteMfa(); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Deleting User...
+            </DialogTitle>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
 
       {/* Import Preview Dialog */}
       <Dialog open={importDialogOpen} onOpenChange={(open) => { if (!open) { setImportPreview([]); setImportErrors([]); } setImportDialogOpen(open); }}>
@@ -1759,7 +1976,10 @@ export default function RadiusUsersTab() {
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={closeBulkDelete}>Cancel</Button>
-            <Button variant="destructive" onClick={() => setBulkDeleteStep('mfa')}>
+            <Button variant="destructive" onClick={async () => {
+              const has2FA = await check2FAStatus();
+              setBulkDeleteStep(has2FA ? 'mfa' : 'mfa-setup');
+            }}>
               <ShieldCheck className="h-4 w-4 mr-2" />
               Proceed with MFA Verification
             </Button>
@@ -1767,7 +1987,61 @@ export default function RadiusUsersTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Bulk Delete — Step 2: MFA Verification */}
+      {/* Bulk Delete — Step 2a: MFA Not Set Up */}
+      <Dialog open={bulkDeleteStep === 'mfa-setup'} onOpenChange={(open) => { if (!open) closeBulkDelete(); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+              <Shield className="h-5 w-5" />
+              MFA Setup Required
+            </DialogTitle>
+            <DialogDescription>
+              Multi-factor authentication must be enabled on your admin account before you can delete users.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-600 dark:bg-amber-950">
+              <div className="flex items-start gap-3">
+                <Shield className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                    Your account does not have 2FA enabled
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    To protect against unauthorized deletions, all admin delete operations require MFA verification. Please set up 2FA on your account first.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
+              <p className="text-sm font-medium">How to enable 2FA:</p>
+              <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
+                <li>Go to <strong>Security → Two-Factor Authentication</strong></li>
+                <li>Click <strong>&quot;Enable 2FA&quot;</strong> and scan the QR code</li>
+                <li>Verify with your authenticator app</li>
+                <li>Return here and proceed with the deletion</li>
+              </ol>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={closeBulkDelete}>Cancel</Button>
+            <Button onClick={async () => {
+              const has2FA = await check2FAStatus();
+              if (has2FA) {
+                setBulkDeleteStep('mfa');
+                toast({ title: '2FA Detected', description: 'You can now proceed with MFA verification' });
+              } else {
+                toast({ title: '2FA Not Found', description: 'Please enable 2FA in Security settings first', variant: 'destructive' });
+              }
+            }}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              I&apos;ve Enabled 2FA — Check Again
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete — Step 2b: MFA Verification */}
       <Dialog open={bulkDeleteStep === 'mfa'} onOpenChange={(open) => { if (!open) closeBulkDelete(); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

@@ -49,18 +49,19 @@ export default function TwoFactorSetup() {
   const [isDisabling, setIsDisabling] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [step, setStep] = useState<'initial' | 'setup' | 'verify' | 'enabled'>('initial');
+  const [showRecoveryCodesMessage, setShowRecoveryCodesMessage] = useState(false);
 
   useEffect(() => {
-    fetchSetupData();
+    fetchStatus();
   }, []);
 
-  const fetchSetupData = async () => {
+  const fetchStatus = async () => {
     try {
-      const response = await fetch('/api/auth/2fa/setup');
+      const response = await fetch('/api/auth/2fa/status');
       const data = await response.json();
 
       if (data.success) {
-        setSetupData(data);
+        setSetupData({ enabled: data.enabled });
         setStep(data.enabled ? 'enabled' : 'initial');
       } else {
         toast.error(data.error || 'Failed to fetch 2FA status');
@@ -84,6 +85,8 @@ export default function TwoFactorSetup() {
         setStep('setup');
       } else if (data.enabled) {
         setStep('enabled');
+      } else {
+        toast.error(data.error || 'Failed to start 2FA setup');
       }
     } catch (error) {
 
@@ -312,7 +315,7 @@ export default function TwoFactorSetup() {
               </Alert>
 
               <div className="flex gap-2">
-                <Button variant="outline" onClick={fetchSetupData}>
+                <Button variant="outline" onClick={() => setShowRecoveryCodesMessage(true)}>
                   <Smartphone className="mr-2 h-4 w-4" />
                   View Recovery Codes
                 </Button>
@@ -324,6 +327,15 @@ export default function TwoFactorSetup() {
                   Disable 2FA
                 </Button>
               </div>
+
+              {showRecoveryCodesMessage && (
+                <Alert className="mt-4">
+                  <Key className="h-4 w-4" />
+                  <AlertDescription>
+                    Recovery codes were shown during initial setup and cannot be retrieved again. If you&apos;ve lost your recovery codes, disable 2FA and re-enable it to generate new ones.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           )}
         </CardContent>

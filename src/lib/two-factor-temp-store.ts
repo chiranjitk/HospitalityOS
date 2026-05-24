@@ -39,6 +39,22 @@ export function setTempSecret(userId: string, secret: string, hashedBackupCodes:
 }
 
 /**
+ * Retrieve the temporary 2FA secret for a user without consuming it.
+ * Returns null if not found or expired.
+ */
+export function getTempSecret(userId: string): { secret: string; hashedBackupCodes: string } | null {
+  const entry = tempSecretMap.get(userId);
+  if (!entry) return null;
+
+  if (Date.now() - entry.createdAt > TEMP_SECRET_TTL_MS) {
+    tempSecretMap.delete(userId);
+    return null;
+  }
+
+  return { secret: entry.secret, hashedBackupCodes: entry.hashedBackupCodes };
+}
+
+/**
  * Retrieve and consume the temporary 2FA secret for a user.
  * Returns null if not found or expired.
  */

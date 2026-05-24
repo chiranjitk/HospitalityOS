@@ -155,7 +155,7 @@ export default function SecuritySettings() {
             <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
               <div>
                 <p className="font-medium">Multi-Factor Authentication</p>
-                <p className="text-sm text-muted-foreground">Require MFA for all users</p>
+                <p className="text-sm text-muted-foreground">Require MFA for all users. Admin must set up 2FA in Security → 2FA first.</p>
               </div>
               <Switch checked={settings.authentication.mfaEnabled} onCheckedChange={(v) => setSettings({ ...settings, authentication: { ...settings.authentication, mfaEnabled: v } })} />
             </div>
@@ -174,11 +174,10 @@ export default function SecuritySettings() {
               <Select value={settings.authentication.mfaMethod} onValueChange={(v) => setSettings({ ...settings, authentication: { ...settings.authentication, mfaMethod: v } })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="totp">Authenticator App</SelectItem>
-                  <SelectItem value="sms">SMS</SelectItem>
-                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="totp">Authenticator App (TOTP)</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-[11px] text-muted-foreground">TOTP via authenticator app is the only supported method. Set up 2FA in Security → Two-Factor Authentication.</p>
             </div>
             <div className="space-y-2">
               <Label>Session Timeout (minutes)</Label>

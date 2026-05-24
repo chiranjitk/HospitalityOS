@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import { consumeTempSecret } from '@/lib/two-factor-temp-store';
+import { getTempSecret, consumeTempSecret } from '@/lib/two-factor-temp-store';
 
 // In-memory rate limiting for 2FA verify
 const twoFAVerifyRateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
     // Determine the secret to validate against:
     // 1) Check the temp in-memory store first (setup flow — secret not yet in DB)
     // 2) Fall back to the persisted secret (already-enabled 2FA verification)
-    const tempData = consumeTempSecret(user.id);
+    const tempData = getTempSecret(user.id);
     const secretToVerify = tempData?.secret || user.twoFactorSecret;
 
     if (!secretToVerify) {
@@ -188,7 +188,8 @@ export async function POST(request: NextRequest) {
 
     // If this is part of setup flow, enable 2FA
     if (enableSetup && !user.twoFactorEnabled) {
-      // Persist the secret and backup codes to DB ONLY after successful verification
+      consumeTempSecret(user.id);
+
       await db.user.update({
         where: { id: user.id },
         data: {

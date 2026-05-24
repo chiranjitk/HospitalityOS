@@ -110,10 +110,14 @@ export default function SecurityOverview({ onNavigate }: SecurityOverviewProps) 
       failures.push('security events');
     }
 
-    // NOTE: We intentionally do NOT call /api/auth/2fa/setup here.
-    // That endpoint generates a new TOTP secret each time, which would
-    // destroy any in-progress 2FA setup. 2FA status is shown as "not
-    // configured" until the user visits the 2FA settings page.
+    // Fetch 2FA status (read-only, no side effects)
+    let twoFAData: { success?: boolean; enabled?: boolean } = {};
+    try {
+      const twoFAResponse = await fetch('/api/auth/2fa/status');
+      if (twoFAResponse.ok) twoFAData = await twoFAResponse.json();
+    } catch {
+      failures.push('2FA status');
+    }
 
     // Fetch active sessions
     try {
@@ -121,7 +125,6 @@ export default function SecurityOverview({ onNavigate }: SecurityOverviewProps) 
       if (!sessionsResponse.ok) throw new Error('Request failed');
       sessionsData = await sessionsResponse.json();
     } catch (error) {
-      // Error handled silently
       failures.push('active sessions');
     }
 
@@ -134,7 +137,7 @@ export default function SecurityOverview({ onNavigate }: SecurityOverviewProps) 
     setRecentEvents(Array.isArray(rawEvents) ? rawEvents : []);
 
     setSecurityStatus({
-      twoFactorEnabled: false, // Not pre-fetched to avoid regenerating TOTP secret
+      twoFactorEnabled: twoFAData.enabled ?? false,
       activeSessions: sessionsData.total ?? 1,
       lastLogin: currentSession?.createdAt ?? null,
       lastLoginIp: currentSession?.ipAddress ?? null,
