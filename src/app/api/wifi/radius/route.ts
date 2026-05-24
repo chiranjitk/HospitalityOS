@@ -146,12 +146,12 @@ export async function GET(request: NextRequest) {
             running = !!result && result.trim().length > 0;
           } catch { running = false; }
 
-          // Count users from radcheck
+          // Count users — WiFiUser is the source of truth
+          // (radcheck has multiple rows per user for different attributes, so COUNT(*) is inaccurate)
           let userCount = 0;
           let nasCount = 0;
           try {
-            const uc = await db.$queryRawUnsafe<[{ c: number | bigint }]>('SELECT COUNT(*) as c FROM radcheck');
-            userCount = Number(uc[0]?.c ?? 0);
+            userCount = await db.wiFiUser.count();
             const nc = await db.$queryRawUnsafe<[{ c: number | bigint }]>('SELECT COUNT(*) as c FROM nas');
             nasCount = Number(nc[0]?.c ?? 0);
           } catch { /* tables might not exist */ }
