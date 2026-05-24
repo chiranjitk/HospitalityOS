@@ -1073,7 +1073,7 @@ export async function seedWiFiData() {
       autoProvisionOnCheckin: true,
       autoDeprovisionOnCheckout: true,
       autoDeprovisionDelay: 30,
-      authMethod: 'pap',
+      authMethods: 'pap,chap,ms-chapv2',
       allowMacAuth: true,
       accountingSyncInterval: 5,
       lastSyncAt: min(-5),
