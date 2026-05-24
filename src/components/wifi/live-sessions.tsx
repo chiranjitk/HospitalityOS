@@ -111,7 +111,8 @@ interface LiveSession {
   liveSpeedDown?: number;
   liveSpeedUp?: number;
   // Auth method tracking — shows the RADIUS protocol used for authentication
-  loginType?: string;   // 'pap' | 'chap' | 'mschapv2' | 'eap-peap' | 'eap-ttls' | 'eap-tls' | 'eap-md5' | 'eap' | 'mac-auth' | 'voucher' | 'portal' | 'auto_reauth' | 'unknown'
+  loginType?: string;   // 'portal' | 'auto_reauth' | 'voucher' | 'mac-auth' — HOW the user connected
+  authProtocol?: string; // 'pap' | 'chap' | 'mschapv2' | 'eap-peap' | 'eap-ttls' | 'eap-tls' | 'eap-md5' | 'eap' — RADIUS auth protocol used
   authCount?: number;    // Total times this device has authenticated
 }
 
@@ -692,6 +693,77 @@ export default function LiveSessions() {
     }
   };
 
+  /** Auth protocol badge — shows the RADIUS auth protocol (PAP, CHAP, MS-CHAPv2, etc.) */
+  const getAuthProtocolBadge = (authProtocol?: string) => {
+    switch (authProtocol) {
+      case 'pap':
+        return (
+          <Badge className="bg-sky-500/15 hover:bg-sky-500/25 text-sky-700 dark:text-sky-400 border border-sky-500/20 text-[9px] px-1 py-0 leading-tight">
+            PAP
+          </Badge>
+        );
+      case 'chap':
+        return (
+          <Badge className="bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-[9px] px-1 py-0 leading-tight">
+            CHAP
+          </Badge>
+        );
+      case 'ms-chap-v2':
+      case 'mschapv2':
+      case 'ms-chapv2':
+        return (
+          <Badge className="bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 border border-amber-500/20 text-[9px] px-1 py-0 leading-tight">
+            MS-CHAPv2
+          </Badge>
+        );
+      case 'eap-peap':
+        return (
+          <Badge className="bg-purple-500/15 hover:bg-purple-500/25 text-purple-700 dark:text-purple-400 border border-purple-500/20 text-[9px] px-1 py-0 leading-tight">
+            EAP-PEAP
+          </Badge>
+        );
+      case 'eap-ttls':
+        return (
+          <Badge className="bg-pink-500/15 hover:bg-pink-500/25 text-pink-700 dark:text-pink-400 border border-pink-500/20 text-[9px] px-1 py-0 leading-tight">
+            EAP-TTLS
+          </Badge>
+        );
+      case 'eap-tls':
+        return (
+          <Badge className="bg-rose-500/15 hover:bg-rose-500/25 text-rose-700 dark:text-rose-400 border border-rose-500/20 text-[9px] px-1 py-0 leading-tight">
+            EAP-TLS
+          </Badge>
+        );
+      case 'eap-md5':
+        return (
+          <Badge className="bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-700 dark:text-indigo-400 border border-indigo-500/20 text-[9px] px-1 py-0 leading-tight">
+            EAP-MD5
+          </Badge>
+        );
+      case 'eap':
+        return (
+          <Badge className="bg-fuchsia-500/15 hover:bg-fuchsia-500/25 text-fuchsia-700 dark:text-fuchsia-400 border border-fuchsia-500/20 text-[9px] px-1 py-0 leading-tight">
+            EAP
+          </Badge>
+        );
+      default:
+        return null;
+    }
+  };
+
+  /** Combined login + auth protocol display — shows login type badge with auth protocol below */
+  const getLoginWithAuthBadge = (loginType?: string, authProtocol?: string) => {
+    const loginBadge = getLoginTypeBadge(loginType);
+    const protocolBadge = getAuthProtocolBadge(authProtocol);
+    if (!protocolBadge) return loginBadge;
+    return (
+      <div className="flex flex-col items-start gap-0.5">
+        {loginBadge}
+        {protocolBadge}
+      </div>
+    );
+  };
+
   // Unique NAS list for filter
   const nasList = Array.from(new Set(uniqueSessions.map(s => s.nasIp).filter(Boolean)));
 
@@ -709,7 +781,7 @@ export default function LiveSessions() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             {getStatusBadge(session.status)}
-            {getLoginTypeBadge(session.loginType)}
+            {getLoginWithAuthBadge(session.loginType, session.authProtocol)}
           </div>
           <Checkbox
             checked={selectedIds.has(session.id)}
@@ -1100,7 +1172,7 @@ export default function LiveSessions() {
                             />
                           </TableCell>
                           <TableCell>{getStatusBadge(session.status)}</TableCell>
-                          <TableCell>{getLoginTypeBadge(session.loginType)}</TableCell>
+                          <TableCell>{getLoginWithAuthBadge(session.loginType, session.authProtocol)}</TableCell>
                           <TableCell>
                             <div className="space-y-0.5">
                               <div className="flex items-center gap-1.5">

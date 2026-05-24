@@ -788,6 +788,23 @@ export async function GET(request: NextRequest) {
             } catch { /* non-fatal */ }
           }
 
+          // Batch-fetch acctauthentic from radacct for auth protocol display
+          const radacctAuthMap: Record<string, string> = {};
+          if (usernames.length > 0) {
+            try {
+              const radacctAuthRows = await db.$queryRawUnsafe<{ username: string; acctauthentic: string }[]>(`
+                SELECT username, acctauthentic
+                FROM radacct
+                WHERE username = ANY($1::text[])
+                  AND acctstoptime IS NULL
+                  AND (acctstatus IS NULL OR acctstatus = '' OR acctstatus = 'start')
+              `, usernames);
+              for (const row of radacctAuthRows) {
+                if (row.acctauthentic) radacctAuthMap[row.username] = row.acctauthentic.toLowerCase();
+              }
+            } catch { /* non-fatal */ }
+          }
+
           // Parse device info from User-Agent string (supplement DeviceProfile data)
           const parseDeviceFromUA = (ua: string | null): { os: string; browser: string } => {
             if (!ua) return { os: '', browser: '' };
@@ -821,6 +838,7 @@ export async function GET(request: NextRequest) {
             browser: string;
             userAgent: string;
             loginType: string;
+            authProtocol: string;
             authCount: number;
             bandwidthDown: string | null;
             bandwidthUp: string | null;
@@ -891,6 +909,7 @@ export async function GET(request: NextRequest) {
               userAgent: s.userAgent || '',
               // Login tracking
               loginType: s.loginType || 'portal',
+              authProtocol: radacctAuthMap[s.username] || 'pap',
               authCount: Number(s.dp_authCount || 0),
               bandwidthDown: s.downloadspeed != null ? `${Number(s.downloadspeed)} Mbps` : null,
               bandwidthUp: s.uploadspeed != null ? `${Number(s.uploadspeed)} Mbps` : null,
