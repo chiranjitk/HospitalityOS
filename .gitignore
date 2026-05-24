@@ -155,3 +155,7 @@ qemu-input
 libslirp-dev_*.deb
 *.img
 *.img.bak
+
+# Large binary files
+mikrotik-chr-configured.img.bak
+*.img.bak
