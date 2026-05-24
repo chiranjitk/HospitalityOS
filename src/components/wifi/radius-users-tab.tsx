@@ -80,6 +80,7 @@ import {
   X,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { TwoFactorSetupModal } from '@/components/auth/two-factor-setup-modal';
 import { formatDistanceToNow } from 'date-fns';
 import {
   readBandwidthMbps,
@@ -547,6 +548,7 @@ export default function RadiusUsersTab() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkDeleteResult, setBulkDeleteResult] = useState<{ deleted: number; skipped: number; errors: number } | null>(null);
   const [admin2FAEnabled, setAdmin2FAEnabled] = useState<boolean | null>(null);
+  const [showInline2FASetup, setShowInline2FASetup] = useState(false);
 
   // ─── Filtering (must be before selection logic) ────────────────────────────
 
@@ -1754,25 +1756,20 @@ export default function RadiusUsersTab() {
                 </div>
               </div>
             </div>
-            <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
-              <p className="text-sm font-medium">How to enable 2FA:</p>
-              <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
-                <li>Go to <strong>Security → Two-Factor Authentication</strong></li>
-                <li>Click <strong>&quot;Enable 2FA&quot;</strong> and scan the QR code</li>
-                <li>Verify with your authenticator app</li>
-                <li>Return here and proceed with the deletion</li>
-              </ol>
-            </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2 sm:gap-0 flex-col sm:flex-row">
             <Button variant="outline" onClick={closeSingleDeleteMfa}>Cancel</Button>
-            <Button onClick={async () => {
+            <Button onClick={() => setShowInline2FASetup(true)}>
+              <ShieldCheck className="h-4 w-4 mr-2" />
+              Set Up 2FA Now
+            </Button>
+            <Button variant="secondary" onClick={async () => {
               const has2FA = await check2FAStatus();
               if (has2FA) {
                 setSingleDeleteMfaStep('mfa');
                 toast({ title: '2FA Detected', description: 'You can now proceed with MFA verification' });
               } else {
-                toast({ title: '2FA Not Found', description: 'Please enable 2FA in Security settings first', variant: 'destructive' });
+                toast({ title: '2FA Not Found', description: 'Please set up 2FA first using the button above', variant: 'destructive' });
               }
             }}>
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -2013,25 +2010,20 @@ export default function RadiusUsersTab() {
                 </div>
               </div>
             </div>
-            <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
-              <p className="text-sm font-medium">How to enable 2FA:</p>
-              <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
-                <li>Go to <strong>Security → Two-Factor Authentication</strong></li>
-                <li>Click <strong>&quot;Enable 2FA&quot;</strong> and scan the QR code</li>
-                <li>Verify with your authenticator app</li>
-                <li>Return here and proceed with the deletion</li>
-              </ol>
-            </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2 sm:gap-0 flex-col sm:flex-row">
             <Button variant="outline" onClick={closeBulkDelete}>Cancel</Button>
-            <Button onClick={async () => {
+            <Button onClick={() => setShowInline2FASetup(true)}>
+              <ShieldCheck className="h-4 w-4 mr-2" />
+              Set Up 2FA Now
+            </Button>
+            <Button variant="secondary" onClick={async () => {
               const has2FA = await check2FAStatus();
               if (has2FA) {
                 setBulkDeleteStep('mfa');
                 toast({ title: '2FA Detected', description: 'You can now proceed with MFA verification' });
               } else {
-                toast({ title: '2FA Not Found', description: 'Please enable 2FA in Security settings first', variant: 'destructive' });
+                toast({ title: '2FA Not Found', description: 'Please set up 2FA first using the button above', variant: 'destructive' });
               }
             }}>
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -2144,6 +2136,24 @@ export default function RadiusUsersTab() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Inline 2FA Setup Modal — accessible from MFA setup dialogs */}
+      <TwoFactorSetupModal
+        open={showInline2FASetup}
+        onOpenChange={setShowInline2FASetup}
+        onSuccess={async () => {
+          setShowInline2FASetup(false);
+          setAdmin2FAEnabled(true);
+          // Auto-transition to MFA verification step after setup
+          if (singleDeleteMfaStep === 'mfa-setup') {
+            setSingleDeleteMfaStep('mfa');
+          }
+          if (bulkDeleteStep === 'mfa-setup') {
+            setBulkDeleteStep('mfa');
+          }
+          toast({ title: '2FA Enabled', description: 'You can now proceed with MFA verification' });
+        }}
+      />
     </div>
   );
 }

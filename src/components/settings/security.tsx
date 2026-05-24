@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Shield, Key, Lock, Save, Activity } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, Shield, Key, Lock, Save, Activity, ShieldCheck, AlertTriangle, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { SectionGuard } from '@/components/common/section-guard';
 import { useTranslations } from 'next-intl';
+import { TwoFactorSetupModal } from '@/components/auth/two-factor-setup-modal';
 import IpAccessControlCard from './ip-access-control';
 
 interface SecuritySettings {
@@ -66,10 +67,20 @@ export default function SecuritySettings() {
   const [settings, setSettings] = useState<SecuritySettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [admin2FAEnabled, setAdmin2FAEnabled] = useState<boolean | null>(null);
+  const [show2FAModal, setShow2FAModal] = useState(false);
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
+  const fetch2FAStatus = async () => {
+    try {
+      const response = await fetch('/api/auth/2fa/status');
+      const data = await response.json();
+      if (data.success) {
+        setAdmin2FAEnabled(data.enabled);
+      }
+    } catch {
+      // silently ignore
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -83,6 +94,16 @@ export default function SecuritySettings() {
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchSettings();
+    fetch2FAStatus();
+  }, []);
+
+  const handle2FASuccess = () => {
+    setAdmin2FAEnabled(true);
+    fetch2FAStatus();
   };
 
   const handleSave = async () => {
@@ -155,7 +176,7 @@ export default function SecuritySettings() {
             <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
               <div>
                 <p className="font-medium">Multi-Factor Authentication</p>
-                <p className="text-sm text-muted-foreground">Require MFA for all users. Admin must set up 2FA in Security → 2FA first.</p>
+                <p className="text-sm text-muted-foreground">Require MFA for all admin operations</p>
               </div>
               <Switch checked={settings.authentication.mfaEnabled} onCheckedChange={(v) => setSettings({ ...settings, authentication: { ...settings.authentication, mfaEnabled: v } })} />
             </div>
@@ -168,17 +189,64 @@ export default function SecuritySettings() {
             </div>
           </div>
           
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label>MFA Method</Label>
-              <Select value={settings.authentication.mfaMethod} onValueChange={(v) => setSettings({ ...settings, authentication: { ...settings.authentication, mfaMethod: v } })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="totp">Authenticator App (TOTP)</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground">TOTP via authenticator app is the only supported method. Set up 2FA in Security → Two-Factor Authentication.</p>
+          {/* MFA Method + 2FA Status Card */}
+          <div className="rounded-lg border p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`rounded-full p-2 ${admin2FAEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
+                  {admin2FAEnabled ? (
+                    <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  ) : (
+                    <Smartphone className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  )}
+                </div>
+                <div>
+                  <p className="font-medium">Authenticator App (TOTP)</p>
+                  <p className="text-sm text-muted-foreground">
+                    {admin2FAEnabled
+                      ? 'Your account is protected with 2FA'
+                      : 'Set up an authenticator app for 2FA verification'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant={admin2FAEnabled ? 'default' : 'secondary'} className={admin2FAEnabled ? 'bg-green-600' : ''}>
+                  {admin2FAEnabled ? 'Enabled' : 'Not Set Up'}
+                </Badge>
+                <Button
+                  variant={admin2FAEnabled ? 'outline' : 'default'}
+                  size="sm"
+                  onClick={() => setShow2FAModal(true)}
+                >
+                  {admin2FAEnabled ? 'Manage' : 'Set Up Now'}
+                </Button>
+              </div>
             </div>
+
+            {/* Warning when MFA is enabled but 2FA not set up */}
+            {settings.authentication.mfaEnabled && !admin2FAEnabled && (
+              <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <AlertDescription className="text-amber-800 dark:text-amber-200">
+                  <strong>MFA is enabled</strong> but your account doesn&apos;t have 2FA configured yet. 
+                  You won&apos;t be able to perform sensitive operations (like deleting RADIUS users) until you set up an authenticator app. 
+                  Click <strong>&quot;Set Up Now&quot;</strong> above to configure it.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Info when 2FA is active */}
+            {admin2FAEnabled && (
+              <Alert className="border-green-200 bg-green-50 dark:bg-green-950/30 dark:border-green-800">
+                <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <AlertDescription className="text-green-800 dark:text-green-200">
+                  Two-factor authentication is active. You&apos;ll need to enter a code from your authenticator app when performing sensitive operations like deleting users.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Session Timeout (minutes)</Label>
               <Input type="number" value={settings.authentication.sessionTimeout} onChange={(e) => setSettings({ ...settings, authentication: { ...settings.authentication, sessionTimeout: parseInt(e.target.value) } })} />
@@ -385,6 +453,13 @@ export default function SecuritySettings() {
         </CardContent>
       </Card>
     </div>
+
+    {/* 2FA Setup Modal */}
+    <TwoFactorSetupModal
+      open={show2FAModal}
+      onOpenChange={setShow2FAModal}
+      onSuccess={handle2FASuccess}
+    />
     </SectionGuard>
   );
 }
