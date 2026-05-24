@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { gdprService } from '@/lib/gdpr/gdpr-service';
 import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
+import { db } from '@/lib/db';
 
 // GET /api/gdpr/status - Check GDPR request status
 export async function GET(request: NextRequest) {
@@ -55,6 +56,17 @@ export async function GET(request: NextRequest) {
     }
 
     if (guestId) {
+      // Verify guestId belongs to current tenant
+      const guest = await db.guest.findFirst({
+        where: { id: guestId, tenantId: ctx.tenantId },
+        select: { id: true },
+      });
+      if (!guest) {
+        return NextResponse.json(
+          { success: false, error: { code: 'GUEST_NOT_FOUND', message: 'Guest not found or access denied' } },
+          { status: 404 }
+        );
+      }
       filters.guestId = guestId;
     }
 

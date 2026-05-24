@@ -121,6 +121,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate permissions against known permissions list
+    if (Array.isArray(permissions) && permissions.length > 0) {
+      const { uniqueMenuPermissions } = getPermissionAudit();
+      const validPerms = new Set([...uniqueMenuPermissions, '*']);
+      const invalidPerms = permissions.filter((p: string) => typeof p !== 'string' || (!validPerms.has(p) && !p.endsWith('.*') && !p.endsWith('.view') && !p.endsWith('.manage') && !p.endsWith('.create') && !p.endsWith('.delete')));
+      if (invalidPerms.length > 0) {
+        return NextResponse.json(
+          { error: `Invalid permissions: ${invalidPerms.join(', ')}. Only known permission strings are allowed.` },
+          { status: 400 }
+        );
+      }
+    }
+
     const existingRole = await db.role.findFirst({
       where: { tenantId, name: name.toLowerCase() },
     });

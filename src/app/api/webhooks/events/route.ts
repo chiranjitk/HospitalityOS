@@ -92,6 +92,18 @@ export async function POST(request: NextRequest) {
     const tenantId = user.tenantId;
     const { name, url, secret, events, status } = body;
 
+    // Validate webhook URL: must be HTTPS, no localhost/private IPs
+    if (!url || typeof url !== 'string') {
+      return NextResponse.json({ success: false, error: 'URL is required' }, { status: 400 });
+    }
+    const urlLower = url.toLowerCase();
+    if (!urlLower.startsWith('https://')) {
+      return NextResponse.json({ success: false, error: 'Webhook URL must use HTTPS' }, { status: 400 });
+    }
+    if (/^https?:\/\/(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|0\.0\.0\.0|\[::1\]|localhost)/i.test(urlLower)) {
+      return NextResponse.json({ success: false, error: 'Webhook URL cannot point to localhost or private IP addresses' }, { status: 400 });
+    }
+
     const endpoint = await db.webhookEndpoint.create({
       data: {
         tenantId,
@@ -169,7 +181,17 @@ export async function PUT(request: NextRequest) {
     };
 
     if (updates.name) updateData.name = updates.name;
-    if (updates.url) updateData.url = updates.url;
+    if (updates.url) {
+      // Validate webhook URL: must be HTTPS, no localhost/private IPs
+      const urlLower = updates.url.toLowerCase();
+      if (!urlLower.startsWith('https://')) {
+        return NextResponse.json({ success: false, error: 'Webhook URL must use HTTPS' }, { status: 400 });
+      }
+      if (/^https?:\/\/(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|0\.0\.0\.0|\[::1\]|localhost)/i.test(urlLower)) {
+        return NextResponse.json({ success: false, error: 'Webhook URL cannot point to localhost or private IP addresses' }, { status: 400 });
+      }
+      updateData.url = updates.url;
+    }
     if (updates.secret) updateData.secret = updates.secret;
     if (updates.events) updateData.events = JSON.stringify(updates.events);
     if (updates.status !== undefined) updateData.isActive = updates.status === 'active';

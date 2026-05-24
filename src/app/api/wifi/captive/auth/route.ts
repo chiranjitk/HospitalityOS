@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
 
 /**
  * POST /api/wifi/captive/auth
  * Captive Portal WiFi Authentication
  *
  * Accepts two auth methods:
- *  - voucher: { method: "voucher", code: "XXXX" }
- *  - room:    { method: "room", roomNumber: "101", lastName: "Smith" }
+ *  - voucher: { method: "voucher", code: "XXXX", tenantId?: string }
+ *  - room:    { method: "room", roomNumber: "101", lastName: "Smith", tenantId?: string }
  *
  * In production, this would validate against the RADIUS backend,
  * check voucher validity, or verify guest reservation details.
@@ -14,7 +15,18 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { method } = body
+    const { method, tenantId } = body
+
+    // Minimum tenant validation: if tenantId is provided, verify it exists
+    if (tenantId) {
+      const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { id: true } });
+      if (!tenant) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid tenant' },
+          { status: 400 }
+        )
+      }
+    }
 
     if (method === 'voucher') {
       const { code } = body

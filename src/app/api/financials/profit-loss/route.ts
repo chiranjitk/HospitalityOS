@@ -24,6 +24,17 @@ export async function GET(request: NextRequest) {
     const dateFrom = sp.get('dateFrom') ? new Date(sp.get('dateFrom')!) : undefined;
     const dateTo = sp.get('dateTo') ? new Date(sp.get('dateTo')!) : undefined;
 
+    // Validate dateFrom <= dateTo and limit range to 24 months
+    if (dateFrom && dateTo) {
+      if (dateFrom > dateTo) {
+        return NextResponse.json({ success: false, error: 'dateFrom must be before or equal to dateTo' }, { status: 400 });
+      }
+      const maxRangeMs = 24 * 30 * 24 * 60 * 60 * 1000; // ~24 months
+      if (dateTo.getTime() - dateFrom.getTime() > maxRangeMs) {
+        return NextResponse.json({ success: false, error: 'Date range cannot exceed 24 months' }, { status: 400 });
+      }
+    }
+
     const where: Record<string, unknown> = { tenantId: user.tenantId };
     if (propertyId) where.propertyId = propertyId;
 

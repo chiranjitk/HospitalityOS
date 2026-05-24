@@ -152,8 +152,8 @@ export async function POST(request: NextRequest) {
     const category = await db.orderCategory.create({
       data: {
         propertyId,
-        name,
-        description,
+        name: String(name).replace(/<[^>]*>/g, '').trim(),
+        description: description ? String(description).replace(/<[^>]*>/g, '').trim() : description,
         imageUrl,
         sortOrder,
         status,
@@ -241,8 +241,8 @@ export async function PUT(request: NextRequest) {
     const category = await db.orderCategory.update({
       where: { id },
       data: {
-        ...(updateData.name && { name: updateData.name }),
-        ...(updateData.description !== undefined && { description: updateData.description }),
+        ...(updateData.name && { name: String(updateData.name).replace(/<[^>]*>/g, '').trim() }),
+        ...(updateData.description !== undefined && { description: updateData.description === null ? null : String(updateData.description).replace(/<[^>]*>/g, '').trim() }),
         ...(updateData.imageUrl !== undefined && { imageUrl: updateData.imageUrl }),
         ...(updateData.sortOrder !== undefined && { sortOrder: updateData.sortOrder }),
         ...(updateData.status && { status: updateData.status }),

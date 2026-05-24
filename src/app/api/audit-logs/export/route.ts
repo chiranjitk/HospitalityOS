@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     const entityType = searchParams.get('entityType');
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '10000'), 50000);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '10000'), 10000);
 
     // Build where clause
     const where = {

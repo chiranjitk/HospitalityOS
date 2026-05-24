@@ -17,6 +17,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (!hasPermission(user, 'reputation.view') && !hasPermission(user, 'reputation.manage')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const tenantId = user.tenantId;
     const searchParams = request.nextUrl.searchParams;
     const propertyId = searchParams.get('propertyId');
@@ -215,6 +222,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!hasPermission(user, 'reputation.manage')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const tenantId = user.tenantId;
     const body = await request.json();
     const {
@@ -242,6 +256,30 @@ export async function POST(request: NextRequest) {
     if (overallRating < 1 || overallRating > 5) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Overall rating must be between 1 and 5' } },
+        { status: 400 }
+      );
+    }
+    if (cleanlinessRating !== undefined && (cleanlinessRating < 1 || cleanlinessRating > 5)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Cleanliness rating must be between 1 and 5' } },
+        { status: 400 }
+      );
+    }
+    if (serviceRating !== undefined && (serviceRating < 1 || serviceRating > 5)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Service rating must be between 1 and 5' } },
+        { status: 400 }
+      );
+    }
+    if (locationRating !== undefined && (locationRating < 1 || locationRating > 5)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Location rating must be between 1 and 5' } },
+        { status: 400 }
+      );
+    }
+    if (valueRating !== undefined && (valueRating < 1 || valueRating > 5)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Value rating must be between 1 and 5' } },
         { status: 400 }
       );
     }

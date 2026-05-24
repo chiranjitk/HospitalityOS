@@ -62,6 +62,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing required fields: name, category, durationMinutes, price' }, { status: 400 });
     }
 
+    // Validate price >= 0
+    if (parseFloat(price) < 0) {
+      return NextResponse.json({ success: false, error: 'Price must be >= 0' }, { status: 400 });
+    }
+
+    // Validate maxGuests 1-50
+    if (maxGuests !== undefined && (maxGuests < 1 || maxGuests > 50)) {
+      return NextResponse.json({ success: false, error: 'maxGuests must be between 1 and 50' }, { status: 400 });
+    }
+
     const treatment = await db.spaTreatment.create({
       data: {
         tenantId: user.tenantId,

@@ -71,6 +71,14 @@ export async function PUT(
       );
     }
 
+    // Guard for cancelled parent order
+    if (existingOrder.status === 'cancelled') {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_STATUS', message: 'Cannot update item status on a cancelled order' } },
+        { status: 400 }
+      );
+    }
+
     // Verify the item belongs to this order
     const targetItem = existingOrder.items.find((item) => item.id === itemId);
     if (!targetItem) {
@@ -98,41 +106,45 @@ export async function PUT(
       );
     }
 
-    // Update the item status
-    const updatedItem = await db.orderItem.update({
-      where: { id: itemId },
-      data: {
-        status: newStatus,
-      },
-      include: {
-        menuItem: {
-          select: { id: true, name: true, price: true, preparationTime: true, kitchenStation: true },
-        },
-        order: {
-          select: { id: true, propertyId: true, orderNumber: true, status: true, kitchenStatus: true },
-        },
-      },
-    });
-
-    // Create audit log
-    try {
-      await db.auditLog.create({
+    // Update the item status within transaction
+    const updatedItem = await db.$transaction(async (tx) => {
+      const updated = await tx.orderItem.update({
+        where: { id: itemId },
         data: {
-          tenantId: user.tenantId,
-          userId: user.id,
-          module: 'restaurant',
-          action: 'item_status_changed',
-          entityType: 'OrderItem',
-          entityId: itemId,
-          oldValue: JSON.stringify({ orderId, previousStatus }),
-          newValue: JSON.stringify({ orderId, newStatus, itemName: targetItem.menuItem.name }),
-          ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
-          userAgent: request.headers.get('user-agent') || undefined,
+          status: newStatus,
+        },
+        include: {
+          menuItem: {
+            select: { id: true, name: true, price: true, preparationTime: true, kitchenStation: true },
+          },
+          order: {
+            select: { id: true, propertyId: true, orderNumber: true, status: true, kitchenStatus: true },
+          },
         },
       });
-    } catch (auditError) {
-      console.error('Failed to create audit log:', auditError);
-    }
+
+      // Create audit log within same transaction
+      try {
+        await tx.auditLog.create({
+          data: {
+            tenantId: user.tenantId,
+            userId: user.id,
+            module: 'restaurant',
+            action: 'item_status_changed',
+            entityType: 'OrderItem',
+            entityId: itemId,
+            oldValue: JSON.stringify({ orderId, previousStatus }),
+            newValue: JSON.stringify({ orderId, newStatus, itemName: targetItem.menuItem.name }),
+            ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
+            userAgent: request.headers.get('user-agent') || undefined,
+          },
+        });
+      } catch (auditError) {
+        console.error('Failed to create audit log:', auditError);
+      }
+
+      return updated;
+    });
 
     // Emit WebSocket event for real-time KDS update
     const eventData = {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import crypto from 'crypto';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   issued: ['active', 'deactivated', 'lost'],
@@ -189,6 +190,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verify room has an active booking (checked-in) before issuing card
+    const activeBooking = await db.booking.findFirst({
+      where: {
+        roomId,
+        status: { in: ['confirmed', 'checked_in'] },
+        tenantId: user.tenantId,
+      },
+    });
+    if (!activeBooking) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NO_ACTIVE_BOOKING', message: 'Cannot issue key card: no active booking found for this room' } },
+        { status: 400 }
+      );
+    }
+
     // Validate guest if provided
     if (guestId) {
       const guest = await db.guest.findUnique({
@@ -309,6 +325,14 @@ export async function PUT(request: NextRequest) {
       : action === 'deactivate' ? 'deactivated'
       : action === 'return' ? 'returned'
       : 'lost';
+
+    // Check for expired cards before activating
+    if (newStatus === 'active' && existingCard.validTo && new Date(existingCard.validTo) < new Date()) {
+      return NextResponse.json(
+        { success: false, error: { code: 'CARD_EXPIRED', message: 'Cannot activate an expired key card' } },
+        { status: 400 }
+      );
+    }
 
     const allowedTransitions = VALID_TRANSITIONS[existingCard.status] || [];
     if (!allowedTransitions.includes(newStatus)) {

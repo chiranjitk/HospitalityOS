@@ -186,8 +186,10 @@ export async function POST(
     const body = await request.json();
     const { content, messageType = 'text', attachments = [], replyToId } = body;
 
-    // Validate required fields
-    if (!content || content.trim().length === 0) {
+    // Sanitize message content — strip HTML tags
+    const sanitizedContent = content.trim().replace(/<[^>]*>/g, '');
+
+    if (!sanitizedContent || sanitizedContent.length === 0) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Message content is required' } },
         { status: 400 }
@@ -241,7 +243,7 @@ export async function POST(
       data: {
         channelId,
         senderId: user.id,
-        content: content.trim(),
+        content: sanitizedContent,
         messageType,
         attachments: JSON.stringify(attachments),
         replyToId,
@@ -262,7 +264,7 @@ export async function POST(
     await db.staffChannel.update({
       where: { id: channelId },
       data: {
-        lastMessage: content.trim().substring(0, 100),
+        lastMessage: sanitizedContent.substring(0, 100),
         lastMessageAt: new Date(),
       }
     });

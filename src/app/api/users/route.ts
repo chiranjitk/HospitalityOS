@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!hasAnyPermission(currentUser, ['users.view', 'admin.users', 'admin.*'])) {
+    if (!hasAnyPermission(currentUser, ['users.create', 'users.manage', 'admin.users', 'admin.*'])) {
       return NextResponse.json(
         { error: 'Permission denied' },
         { status: 403 }

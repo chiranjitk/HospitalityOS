@@ -15,6 +15,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (!hasAnyPermission(user, ['crm.view', 'crm.manage'])) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const propertyId = searchParams.get('propertyId');
     const status = searchParams.get('status');
@@ -133,7 +140,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!hasAnyPermission(user, ['crm.view', 'crm.manage'])) {
+    if (!hasAnyPermission(user, ['crm.manage'])) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
         { status: 403 }

@@ -10,6 +10,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
+    if (!hasPermission(user, 'reports.view') && !hasPermission(user, 'reports.*') && user.roleName !== 'admin') {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
+
     const { searchParams } = request.nextUrl;
     const type = searchParams.get('type') || 'overview';
     const propertyId = searchParams.get('propertyId');
@@ -61,7 +65,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: {
         totalRevenue: totalRevenue._sum.totalAmount || 0,
         totalOrders,
-        avgOrderValue: totalOrders > 0 ? (totalRevenue._sum.totalAmount || 0) / totalOrders : 0,
+        avgOrderValue: totalOrders > 0 ? Math.round((totalRevenue._sum.totalAmount || 0) / totalOrders * 100) / 100 : 0,
         tableOccupancyRate: totalTables > 0 ? Math.round((uniqueTables.length / totalTables) * 100) : 0,
         dailyRevenue,
         topItems: topItemsWithNames,

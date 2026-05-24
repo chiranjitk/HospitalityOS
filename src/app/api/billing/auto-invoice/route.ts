@@ -179,26 +179,60 @@ export async function POST(request: NextRequest) {
       const billingTerms = corporateAccount?.billingTerms || defaultBillingTerms;
       const dueDate = calculateDueDate(periodEnd, billingTerms);
 
-      // Generate invoice number
-      const invoiceNumber = generateInvoiceNumber(accountType);
+      // Fetch actual tax rate from property config instead of hardcoded 10%
+      let taxRate = 0.10;
+      if (invoices[0].propertyId) {
+        const propConfig = await db.property.findUnique({
+          where: { id: invoices[0].propertyId },
+          select: { taxRate: true },
+        });
+        if (propConfig && typeof propConfig.taxRate === 'number' && propConfig.taxRate >= 0) {
+          taxRate = propConfig.taxRate;
+        }
+      }
 
-      // Create a new city ledger invoice (consolidated)
-      const invoice = await db.cityLedgerInvoice.create({
-        data: {
-          tenantId: user.tenantId,
-          propertyId: invoices[0].propertyId,
-          accountName,
-          accountType: accountType || 'corporate',
-          invoiceNumber,
-          invoiceDate: periodEnd,
-          dueDate,
-          subtotal: Math.round(totalAmount * 0.9 * 100) / 100,
-          tax: Math.round(totalAmount * 0.1 * 100) / 100,
-          total: totalAmount,
-          currency: 'USD',
-          status: 'sent',
-          notes: `Auto-generated invoice consolidating ${invoices.length} charge(s) from billing period ${periodStart.toISOString().slice(0, 10)} to ${periodEnd.toISOString().slice(0, 10)}`,
-        },
+      // Generate invoice number with uniqueness guard (retry on conflict)
+      let invoiceNumber = generateInvoiceNumber(accountType);
+      let invoice: any = null;
+      let createAttempts = 0;
+      const MAX_CREATE_ATTEMPTS = 5;
+      while (createAttempts < MAX_CREATE_ATTEMPTS) {
+        try {
+          invoice = await db.cityLedgerInvoice.create({
+            data: {
+              tenantId: user.tenantId,
+              propertyId: invoices[0].propertyId,
+              accountName,
+              accountType: accountType || 'corporate',
+              invoiceNumber,
+              invoiceDate: periodEnd,
+              dueDate,
+              subtotal: Math.round(totalAmount * (1 - taxRate) * 100) / 100,
+              tax: Math.round(totalAmount * taxRate * 100) / 100,
+              total: totalAmount,
+              currency: 'USD',
+              status: 'sent',
+              notes: `Auto-generated invoice consolidating ${invoices.length} charge(s) from billing period ${periodStart.toISOString().slice(0, 10)} to ${periodEnd.toISOString().slice(0, 10)}`,
+            },
+          });
+          break;
+        } catch (createErr: any) {
+          if (createErr?.code === 'P2002') {
+            createAttempts++;
+            invoiceNumber = generateInvoiceNumber(accountType);
+          } else {
+            throw createErr;
+          }
+        }
+      }
+      if (!invoice) {
+        throw new Error(`Failed to create unique invoice number after ${MAX_CREATE_ATTEMPTS} attempts`);
+      }
+
+      // Mark source invoices as 'consolidated' after creating new invoice
+      await db.cityLedgerInvoice.updateMany({
+        where: { id: { in: invoices.map(inv => inv.id) } },
+        data: { status: 'consolidated' },
       });
 
       createdInvoices.push({
@@ -272,7 +306,8 @@ function generateInvoiceNumber(accountType: string): string {
   const prefix = accountType === 'travel_agent' ? 'TA' : accountType === 'government' ? 'GOV' : 'CL';
   const timestamp = Date.now().toString(36).toUpperCase();
   const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `${prefix}-${timestamp}-${random}`;
+  const extra = Math.random().toString(36).substring(2, 4).toUpperCase();
+  return `${prefix}-${timestamp}-${random}-${extra}`;
 }
 
 /**

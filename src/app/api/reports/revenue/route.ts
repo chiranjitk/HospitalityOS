@@ -2,12 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { subDays, startOfDay, endOfDay, format, eachDayOfInterval, eachMonthOfInterval, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 export async function GET(request: NextRequest) {
-    const tenantId = await getTenantIdFromSession(request);
-    if (!tenantId) {
+    const user = await getUserFromRequest(request);
+    if (!user) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
     }
+
+    if (!hasPermission(user, 'reports.view') && !hasPermission(user, 'reports.*') && user.roleName !== 'admin') {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
+
+    const tenantId = user.tenantId;
 
 
   try {
@@ -21,6 +28,11 @@ export async function GET(request: NextRequest) {
     // Default to last 30 days if no dates provided
     const end = endDate ? new Date(endDate) : new Date();
     const start = startDate ? new Date(startDate) : subDays(end, 30);
+
+    // Validate dates
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return NextResponse.json({ success: false, error: 'Invalid date format. Please provide valid dates.' }, { status: 400 });
+    }
 
     // Build where clause for bookings
     const bookingWhere: Record<string, unknown> = {

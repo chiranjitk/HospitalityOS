@@ -132,8 +132,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Prepare update data
-    const updateData: Record<string, unknown> = { ...updates };
+    // Prepare update data — whitelist only allowed fields
+    const ALLOWED_UPDATE_FIELDS = [
+      'title', 'description', 'type', 'priority', 'requestedBy',
+      'scheduledDate', 'estimatedCost', 'estimatedHours', 'actualCost',
+      'notes', 'attachments', 'resolution',
+    ];
+    const updateData: Record<string, unknown> = {};
+    for (const field of ALLOWED_UPDATE_FIELDS) {
+      if ((updates as Record<string, unknown>)[field] !== undefined) {
+        updateData[field] = (updates as Record<string, unknown>)[field];
+      }
+    }
 
     // Handle vendor assignment
     if (vendorId !== undefined) {

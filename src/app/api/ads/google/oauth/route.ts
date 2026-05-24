@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth-helpers';
 import { encrypt } from '@/lib/encryption';
+import crypto from 'crypto';
 
 /**
  * Google OAuth flow for Google Ads API integration.
@@ -29,7 +30,8 @@ export async function GET(request: NextRequest) {
     const clientId = searchParams.get('client_id');
     const redirectUri = searchParams.get('redirect_uri') || `${process.env.NEXTAUTH_URL || ''}/api/ads/google/oauth`;
     const scope = searchParams.get('scope') || 'https://www.googleapis.com/auth/adwords';
-    const state = searchParams.get('state') || `${user.tenantId}:${Date.now()}`;
+    // Always use server-generated state to prevent CSRF
+    const state = `${user.tenantId}:${user.id}:${Date.now()}:${crypto.randomBytes(16).toString('hex')}`;
     const accessType = 'offline';
     const prompt = 'consent';
 

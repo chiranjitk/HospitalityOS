@@ -227,36 +227,62 @@ export async function PUT(request: NextRequest) {
         const exemptTaxTypes = JSON.parse(exemption.exemptTaxTypes);
         const zeroTaxDescription = `Tax Exemption (${exemption.exemptionType}) - Certificate: ${exemption.certificateNumber || 'N/A'}`;
 
-        // Create a negative adjustment line item for the exempt tax amount
-        await db.folioLineItem.create({
-          data: {
-            folioId: exemption.folioId,
-            description: zeroTaxDescription,
-            category: 'tax_adjustment',
-            quantity: 1,
-            unitPrice: -exemption.exemptAmount,
-            totalAmount: -exemption.exemptAmount,
-            taxRate: 0,
-            taxAmount: 0,
-            itemCurrency: 'USD',
-            exchangeRate: 1,
-            baseAmount: -exemption.exemptAmount,
-            postedBy: user.id,
-          },
-        });
-
-        // Update folio balance
+        // Fetch folio first to validate exempt amount against taxes
         const folio = await db.folio.findUnique({
           where: { id: exemption.folioId },
         });
 
         if (folio) {
-          await db.folio.update({
-            where: { id: exemption.folioId },
+          // Validate exemption amount does not exceed actual taxes
+          if (exemption.exemptAmount > folio.taxes) {
+            console.warn(`[tax-exemptions PUT] Exempt amount ${exemption.exemptAmount} exceeds folio taxes ${folio.taxes}, capping to folio taxes`);
+          }
+          const effectiveExemptAmount = Math.min(exemption.exemptAmount, folio.taxes);
+
+          // Wrap line item creation + folio update in a transaction
+          await db.$transaction(async (tx) => {
+            await tx.folioLineItem.create({
+              data: {
+                folioId: exemption.folioId,
+                description: zeroTaxDescription,
+                category: 'tax_adjustment',
+                quantity: 1,
+                unitPrice: -effectiveExemptAmount,
+                totalAmount: -effectiveExemptAmount,
+                taxRate: 0,
+                taxAmount: 0,
+                itemCurrency: 'USD',
+                exchangeRate: 1,
+                baseAmount: -effectiveExemptAmount,
+                postedBy: user.id,
+              },
+            });
+
+            await tx.folio.update({
+              where: { id: exemption.folioId },
+              data: {
+                taxes: Math.max(0, folio.taxes - effectiveExemptAmount),
+                totalAmount: Math.max(0, folio.totalAmount - effectiveExemptAmount),
+                balance: Math.max(0, folio.balance - effectiveExemptAmount),
+              },
+            });
+          });
+        } else {
+          // No folio found, just create the line item (best effort)
+          await db.folioLineItem.create({
             data: {
-              taxes: Math.max(0, folio.taxes - exemption.exemptAmount),
-              totalAmount: Math.max(0, folio.totalAmount - exemption.exemptAmount),
-              balance: Math.max(0, folio.balance - exemption.exemptAmount),
+              folioId: exemption.folioId,
+              description: zeroTaxDescription,
+              category: 'tax_adjustment',
+              quantity: 1,
+              unitPrice: -exemption.exemptAmount,
+              totalAmount: -exemption.exemptAmount,
+              taxRate: 0,
+              taxAmount: 0,
+              itemCurrency: 'USD',
+              exchangeRate: 1,
+              baseAmount: -exemption.exemptAmount,
+              postedBy: user.id,
             },
           });
         }

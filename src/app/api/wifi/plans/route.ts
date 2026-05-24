@@ -77,10 +77,10 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Count total users assigned to plans
+    // Count total users assigned to plans with tenantId filter
     const totalUsersResult = await db.wiFiUser.groupBy({
       by: ['planId'],
-      where: { planId: { not: null } },
+      where: { planId: { not: null }, tenantId: user.tenantId },
       _count: true,
     });
     const totalUsers = totalUsersResult.reduce((sum: number, g: any) => sum + g._count, 0);
@@ -153,6 +153,14 @@ export async function POST(request: NextRequest) {
     // Sanitize validity values
     const sanitizedValidityDays = Math.max(1, parseInt(validityDays, 10) || 1);
     const sanitizedValidityMinutes = Math.max(1, parseInt(String(validityMinutes), 10) || 1440);
+
+    // Validate price >= 0 on create
+    if (price < 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'price must be non-negative' } },
+        { status: 400 }
+      );
+    }
 
     // Check for duplicate name
     const existingPlan = await db.wiFiPlan.findFirst({
@@ -279,6 +287,14 @@ export async function PUT(request: NextRequest) {
           { status: 400 }
         );
       }
+    }
+
+    // Validate price >= 0 on update
+    if (updateData.price !== undefined && parseFloat(updateData.price) < 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'price must be non-negative' } },
+        { status: 400 }
+      );
     }
 
     const plan = await db.wiFiPlan.update({

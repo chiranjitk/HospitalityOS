@@ -204,41 +204,71 @@ export async function PUT(
       );
     }
     
-    const updateData: Record<string, unknown> = {};
-    
-    if (points !== undefined) {
-      const currentPoints = guest.loyaltyPoints;
-      let newPoints: number;
-      
-      if (operation === 'add') {
-        newPoints = currentPoints + points;
-      } else if (operation === 'subtract') {
-        newPoints = Math.max(0, currentPoints - points);
-      } else {
-        newPoints = points; // set
+    // Use atomic increment inside a transaction to avoid read-modify-write race conditions
+    const updatedGuest = await db.$transaction(async (tx) => {
+      // Re-fetch guest within transaction for consistency
+      const freshGuest = await tx.guest.findFirst({
+        where: { id, tenantId, deletedAt: null },
+      });
+      if (!freshGuest) throw new Error('Guest not found');
+
+      const updateData: Record<string, unknown> = {};
+
+      if (points !== undefined) {
+        const currentPoints = freshGuest.loyaltyPoints;
+        let newPoints: number;
+
+        if (operation === 'add') {
+          updateData.loyaltyPoints = { increment: points };
+          newPoints = currentPoints + points;
+        } else if (operation === 'subtract') {
+          const subtractAmount = Math.min(points, currentPoints);
+          updateData.loyaltyPoints = { decrement: subtractAmount };
+          newPoints = Math.max(0, currentPoints - subtractAmount);
+        } else {
+          // 'set' operation — use absolute value
+          updateData.loyaltyPoints = points;
+          newPoints = points;
+        }
+
+        // Auto-update tier based on new points
+        if (newPoints >= 15000) {
+          updateData.loyaltyTier = 'platinum';
+        } else if (newPoints >= 5000) {
+          updateData.loyaltyTier = 'gold';
+        } else if (newPoints >= 1000) {
+          updateData.loyaltyTier = 'silver';
+        } else {
+          updateData.loyaltyTier = 'bronze';
+        }
       }
-      
-      updateData.loyaltyPoints = newPoints;
-      
-      // Auto-update tier based on points
-      if (newPoints >= 15000) {
-        updateData.loyaltyTier = 'platinum';
-      } else if (newPoints >= 5000) {
-        updateData.loyaltyTier = 'gold';
-      } else if (newPoints >= 1000) {
-        updateData.loyaltyTier = 'silver';
-      } else {
-        updateData.loyaltyTier = 'bronze';
+
+      if (tier) {
+        updateData.loyaltyTier = tier;
       }
-    }
-    
-    if (tier) {
-      updateData.loyaltyTier = tier;
-    }
-    
-    const updatedGuest = await db.guest.update({
-      where: { id },
-      data: updateData,
+
+      const updated = await tx.guest.update({
+        where: { id },
+        data: updateData,
+      });
+
+      // Create loyalty point transaction record
+      if (points !== undefined) {
+        await tx.loyaltyPointTransaction.create({
+          data: {
+            tenantId,
+            guestId: id,
+            points: operation === 'subtract' ? -Math.min(points, freshGuest.loyaltyPoints) : points,
+            balance: updated.loyaltyPoints,
+            type: operation === 'subtract' ? 'redeem' : 'earn',
+            source: 'manual_adjustment',
+            description: `Manual ${operation}: ${points} points by ${user.email || user.id}`,
+            performedBy: user.id,
+          },
+        });
+      }
+
+      return updated;
     });
 
     // Audit log

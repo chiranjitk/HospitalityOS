@@ -94,8 +94,23 @@ export async function PATCH(
     if (data.notes !== undefined) updateData.notes = data.notes;
     if (data.photos !== undefined) updateData.photos = JSON.stringify(data.photos);
 
-    // Handle status transitions with timestamps
+    // Handle status transitions with timestamps — validate transitions
     if (data.status !== undefined && data.status !== existing.status) {
+      const VALID_TRANSITIONS: Record<string, string[]> = {
+        reported: ['matched', 'disposed'],
+        matched: ['returned', 'claimed', 'disposed'],
+        returned: [],
+        disposed: [],
+        claimed: [],
+      };
+      const allowed = VALID_TRANSITIONS[existing.status] || [];
+      if (!allowed.includes(data.status)) {
+        return NextResponse.json({
+          success: false,
+          error: { code: 'INVALID_STATUS_TRANSITION', message: `Cannot transition from '${existing.status}' to '${data.status}'. Allowed: ${allowed.join(', ') || 'none'}` },
+        }, { status: 400 });
+      }
+
       updateData.status = data.status;
 
       switch (data.status) {

@@ -146,6 +146,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Sanitize reviewText and staffResponse (strip HTML tags)
+    const sanitizedReviewText = reviewText ? String(reviewText).replace(/<[^>]*>/g, '').trim() : reviewText;
+    const sanitizedStaffResponse = staffResponse ? String(staffResponse).replace(/<[^>]*>/g, '').trim() : staffResponse;
+
     const feedback = await db.experienceFeedback.create({
       data: {
         tenantId: user.tenantId,
@@ -154,25 +158,27 @@ export async function POST(request: NextRequest) {
         guestId,
         guestName,
         rating,
-        reviewText,
+        reviewText: sanitizedReviewText,
         category,
-        staffResponse,
+        staffResponse: sanitizedStaffResponse,
         status: 'published',
       },
     });
 
-    // Update experience average rating
-    const allFeedback = await db.experienceFeedback.findMany({
-      where: { experienceId, tenantId: user.tenantId },
-      select: { rating: true },
-    });
-    const avgRating = allFeedback.reduce((sum, f) => sum + f.rating, 0) / allFeedback.length;
-    await db.experience.update({
-      where: { id: experienceId },
-      data: {
-        rating: Math.round(avgRating * 10) / 10,
-        totalReviews: allFeedback.length,
-      },
+    // Update experience average rating in transaction
+    await db.$transaction(async (tx) => {
+      const allFeedback = await tx.experienceFeedback.findMany({
+        where: { experienceId, tenantId: user.tenantId },
+        select: { rating: true },
+      });
+      const avgRating = allFeedback.reduce((sum, f) => sum + f.rating, 0) / allFeedback.length;
+      await tx.experience.update({
+        where: { id: experienceId },
+        data: {
+          rating: Math.round(avgRating * 10) / 10,
+          totalReviews: allFeedback.length,
+        },
+      });
     });
 
     notifyGuestReview({
@@ -232,8 +238,13 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Sanitize staffResponse (strip HTML tags)
+    const sanitizedStaffResponse = staffResponse !== undefined
+      ? (staffResponse === null ? null : String(staffResponse).replace(/<[^>]*>/g, '').trim())
+      : undefined;
+
     const updateData: Record<string, unknown> = {};
-    if (staffResponse !== undefined) updateData.staffResponse = staffResponse;
+    if (sanitizedStaffResponse !== undefined) updateData.staffResponse = sanitizedStaffResponse;
     if (status !== undefined) updateData.status = status;
 
     const updated = await db.experienceFeedback.update({
@@ -290,7 +301,11 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await db.experienceFeedback.delete({ where: { id } });
+    // Soft delete instead of hard delete
+    await db.experienceFeedback.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

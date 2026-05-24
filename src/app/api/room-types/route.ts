@@ -167,6 +167,14 @@ export async function POST(request: NextRequest) {    const user = await getUser
         { status: 400 }
       );
     }
+
+    const parsedBasePrice = parseFloat(basePrice);
+    if (isNaN(parsedBasePrice) || parsedBasePrice < 0 || !Number.isFinite(parsedBasePrice)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'basePrice must be a non-negative number' } },
+        { status: 400 }
+      );
+    }
     
     // Verify the property belongs to the user's tenant
     const property = await db.property.findUnique({
@@ -209,7 +217,7 @@ export async function POST(request: NextRequest) {    const user = await getUser
         sizeSqMeters: sizeSqMeters ? parseFloat(sizeSqMeters) : null,
         sizeSqFeet: sizeSqFeet ? parseFloat(sizeSqFeet) : null,
         amenities: JSON.stringify(amenities),
-        basePrice: parseFloat(basePrice),
+        basePrice: parsedBasePrice,
         currency,
         images: JSON.stringify(images),
         sortOrder,
@@ -246,7 +254,7 @@ export async function POST(request: NextRequest) {    const user = await getUser
         propertyId,
         name,
         code,
-        basePrice: parseFloat(basePrice),
+        basePrice: parsedBasePrice,
         currency,
         status,
       }, { tenantId: user.tenantId, userId: user.id });

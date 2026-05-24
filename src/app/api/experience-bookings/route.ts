@@ -187,29 +187,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const totalPrice = (experience.basePrice || 0) * guestCount;
+    const totalPrice = Math.round((experience.basePrice || 0) * guestCount * 100) / 100;
 
-    const booking = await db.experienceBooking.create({
-      data: {
-        tenantId: user.tenantId,
-        experienceId,
-        guestName,
-        guestEmail,
-        guestPhone,
-        bookingDate: new Date(bookingDate),
-        bookingTime,
-        numberOfGuests: guestCount,
-        totalPrice,
-        specialRequests,
-        status: 'pending',
-      },
-      include: { experience: { select: { id: true, name: true, basePrice: true, duration: true } } },
-    });
+    // Wrap booking creation + count increment in db.$transaction
+    const booking = await db.$transaction(async (tx) => {
+      const newBooking = await tx.experienceBooking.create({
+        data: {
+          tenantId: user.tenantId,
+          experienceId,
+          guestName,
+          guestEmail,
+          guestPhone,
+          bookingDate: new Date(bookingDate),
+          bookingTime,
+          numberOfGuests: guestCount,
+          totalPrice,
+          specialRequests,
+          status: 'pending',
+        },
+        include: { experience: { select: { id: true, name: true, basePrice: true, duration: true } } },
+      });
 
-    // Update experience booking count
-    await db.experience.update({
-      where: { id: experienceId },
-      data: { totalBookings: { increment: 1 } },
+      // Update experience booking count
+      await tx.experience.update({
+        where: { id: experienceId },
+        data: { totalBookings: { increment: 1 } },
+      });
+
+      return newBooking;
     });
 
     return NextResponse.json({ success: true, data: booking }, { status: 201 });
@@ -324,10 +329,26 @@ export async function PUT(request: NextRequest) {
       updateData.totalPrice = (existing.experience?.basePrice || 0) * numberOfGuests;
     }
 
-    const updated = await db.experienceBooking.update({
-      where: { id },
-      data: updateData,
-      include: { experience: { select: { id: true, name: true, basePrice: true, duration: true } } },
+    const updated = await db.$transaction(async (tx) => {
+      const result = await tx.experienceBooking.update({
+        where: { id },
+        data: updateData,
+        include: { experience: { select: { id: true, name: true, basePrice: true, duration: true } } },
+      });
+
+      // If status changed to completed, decrement experience booking count
+      if (status === 'completed' && existing.status !== 'completed') {
+        // No counter increment needed - just status change
+      }
+      // If status changed to cancelled from non-cancelled, decrement totalBookings
+      if (status === 'cancelled' && existing.status !== 'cancelled') {
+        await tx.experience.update({
+          where: { id: existing.experienceId },
+          data: { totalBookings: { decrement: 1 } },
+        });
+      }
+
+      return result;
     });
 
     return NextResponse.json({ success: true, data: updated });

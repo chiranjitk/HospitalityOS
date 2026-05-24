@@ -128,35 +128,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for overlapping active blocks (with proper null handling for endDate)
-    const existingBlocks = await db.maintenanceBlock.findMany({
-      where: {
-        roomId,
-        tenantId,
-        status: { in: ['scheduled', 'active'] },
-      },
-    });
-
-    const startDateObj = new Date(startDate);
-    const endDateObj = endDate ? new Date(endDate) : null;
-    const hasOverlap = existingBlocks.some((block) => {
-      const blockStart = new Date(block.startDate);
-      const blockEnd = block.endDate ? new Date(block.endDate) : null;
-      // Two date ranges overlap if: newStart < blockEnd AND blockStart < newEnd
-      // Null end means open-ended (treated as far future)
-      const blockEndVal = blockEnd || new Date('2100-01-01');
-      const newEndVal = endDateObj || new Date('2100-01-01');
-      return startDateObj < blockEndVal && blockStart < newEndVal;
-    });
-
-    if (hasOverlap) {
-      return NextResponse.json(
-        { success: false, error: { code: 'OVERLAP', message: 'Room already has an active or scheduled block for this period' } },
-        { status: 400 }
-      );
-    }
-
+    // Create block + check overlap atomically in transaction (prevents TOCTOU race)
     const block = await db.$transaction(async (tx) => {
+      // Check for overlapping active blocks inside the transaction
+      const existingBlocks = await tx.maintenanceBlock.findMany({
+        where: {
+          roomId,
+          tenantId,
+          status: { in: ['scheduled', 'active'] },
+        },
+      });
+
+      const startDateObj = new Date(startDate);
+      const endDateObj = endDate ? new Date(endDate) : null;
+      const hasOverlap = existingBlocks.some((blk) => {
+        const blockStart = new Date(blk.startDate);
+        const blockEnd = blk.endDate ? new Date(blk.endDate) : null;
+        const blockEndVal = blockEnd || new Date('2100-01-01');
+        const newEndVal = endDateObj || new Date('2100-01-01');
+        return startDateObj < blockEndVal && blockStart < newEndVal;
+      });
+
+      if (hasOverlap) {
+        throw new Error('OVERLAP:Room already has an active or scheduled block for this period');
+      }
+
       const maintenanceBlock = await tx.maintenanceBlock.create({
         data: {
           tenantId,
@@ -189,6 +185,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: block }, { status: 201 });
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith('OVERLAP:')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'OVERLAP', message: error.message.replace('OVERLAP:', '') } },
+        { status: 400 }
+      );
+    }
     console.error('Error creating maintenance block:', error);
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create maintenance block' } },

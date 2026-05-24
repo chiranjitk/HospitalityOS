@@ -4,6 +4,10 @@ import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { decryptGoogleAdsCredentials, GoogleAdsClient } from '@/lib/ads/google-ads-client';
 import { decryptMetaAdsCredentials, MetaAdsClient } from '@/lib/ads/meta-ads-client';
 
+// In-memory idempotency tracking for sync operations
+const syncInProgress = new Map<string, number>(); // tenantId:platform -> timestamp
+const SYNC_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
 /**
  * POST /api/ads/sync — Trigger sync of campaigns and performance data
  * from Google Ads and Meta Ads into local AdCampaign / AdPerformance tables.
@@ -37,6 +41,17 @@ export async function POST(request: NextRequest) {
 
     const results: Array<{ platform: string; synced: number; errors: string[] }> = [];
 
+    // Idempotency: prevent concurrent syncs for same tenant
+    const idempKey = `${tenantId}:${platform || 'all'}`;
+    const lastSync = syncInProgress.get(idempKey);
+    if (lastSync && Date.now() - lastSync < SYNC_TIMEOUT) {
+      return NextResponse.json(
+        { success: false, error: { code: 'CONFLICT', message: 'A sync is already in progress for this tenant' } },
+        { status: 409 }
+      );
+    }
+    syncInProgress.set(idempKey, Date.now());
+    try {
     // ─── Sync Google Ads ──────────────────────────────────────────────────
     if (!platform || platform === 'google') {
       const googleResult = await syncGoogleAds(tenantId, startStr, endStr);
@@ -53,6 +68,9 @@ export async function POST(request: NextRequest) {
       success: true,
       data: { results, syncedAt: new Date().toISOString() },
     });
+  } finally {
+    syncInProgress.delete(idempKey);
+  }
   } catch (error) {
     console.error('[AdsSync] POST error:', error);
     return NextResponse.json(
@@ -103,7 +121,7 @@ async function syncGoogleAds(
               name: gc.name,
               status: mapGoogleStatus(gc.status),
               platform: 'google',
-              budget: gc.budgetMicros / 1000000,
+              budget: Math.round(gc.budgetMicros / 1000000),
               startDate: gc.startDate ? new Date(gc.startDate) : undefined,
               endDate: gc.endDate ? new Date(gc.endDate) : undefined,
               lastSyncAt: new Date(),
@@ -116,7 +134,7 @@ async function syncGoogleAds(
               type: 'search',
               platform: 'google',
               status: mapGoogleStatus(gc.status),
-              budget: gc.budgetMicros / 1000000,
+              budget: Math.round(gc.budgetMicros / 1000000),
               startDate: gc.startDate ? new Date(gc.startDate) : undefined,
               endDate: gc.endDate ? new Date(gc.endDate) : undefined,
               externalId: gc.id,
@@ -142,8 +160,8 @@ async function syncGoogleAds(
                   impressions: gm.impressions,
                   clicks: gm.clicks,
                   conversions: gm.conversions,
-                  cost: gm.costMicros / 1000000,
-                  revenue: gm.conversionValueMicros / 1000000,
+                  cost: Math.round(gm.costMicros / 1000000),
+                  revenue: Math.round(gm.conversionValueMicros / 1000000),
                   ctr: gm.ctr * 100,
                   cpc: gm.cpcMicros / 1000000,
                   roas: gm.conversionsValuePerCost,
@@ -155,8 +173,8 @@ async function syncGoogleAds(
                   impressions: gm.impressions,
                   clicks: gm.clicks,
                   conversions: gm.conversions,
-                  cost: gm.costMicros / 1000000,
-                  revenue: gm.conversionValueMicros / 1000000,
+                  cost: Math.round(gm.costMicros / 1000000),
+                  revenue: Math.round(gm.conversionValueMicros / 1000000),
                   ctr: gm.ctr * 100,
                   cpc: gm.cpcMicros / 1000000,
                   roas: gm.conversionsValuePerCost,

@@ -57,6 +57,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check for duplicate authorization (same folio + method + status=authorized)
+    if (folioId && method) {
+      const existingAuth = await db.payment.findFirst({
+        where: {
+          folioId,
+          method,
+          status: 'authorized',
+          createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // Within 24 hours
+        },
+      });
+      if (existingAuth) {
+        return NextResponse.json(
+          { success: false, error: { code: 'DUPLICATE_AUTHORIZATION', message: `An active authorization already exists for this folio (payment ${existingAuth.id}). Capture or void it before creating a new one.` } },
+          { status: 409 },
+        );
+      }
+    }
+
     // ── Verify folio exists and is open ──
     const folio = await db.folio.findUnique({
       where: { id: folioId },
@@ -193,61 +211,65 @@ export async function POST(request: NextRequest) {
     // ── Generate transaction ID ──
     const transactionId = gatewayRef || generateTransactionId();
 
-    // ── Create the authorized Payment record ──
-    const payment = await db.payment.create({
-      data: {
-        tenantId,
-        folioId,
-        guestId: resolvedGuestId,
-        amount,
-        currency,
-        method,
-        gateway,
-        gatewayRef,
-        gatewayFee,
-        gatewayStatus,
-        cardType,
-        cardLast4,
-        cardExpiry,
-        transactionId,
-        status: 'authorized',
-      },
-      include: {
-        folio: {
-          select: { id: true, folioNumber: true },
+    // ── Create the authorized Payment + token in a transaction ──
+    const payment = await db.$transaction(async (tx) => {
+      const newPayment = await tx.payment.create({
+        data: {
+          tenantId,
+          folioId,
+          guestId: resolvedGuestId,
+          amount,
+          currency,
+          method,
+          gateway,
+          gatewayRef,
+          gatewayFee,
+          gatewayStatus,
+          cardType,
+          cardLast4,
+          cardExpiry,
+          transactionId,
+          status: 'authorized',
         },
-        guest: {
-          select: { id: true, firstName: true, lastName: true },
-        },
-      },
-    });
-
-    // ── Store card token in PaymentToken model if a Stripe token was used ──
-    if (stripeGatewayToken && resolvedGuestId) {
-      try {
-        const [expMonth, expYear] = cardExpiry ? cardExpiry.split('/').map(Number) : [null, null];
-
-        await db.paymentToken.create({
-          data: {
-            tenantId,
-            guestId: resolvedGuestId,
-            folioId,
-            tokenType: 'stripe_token',
-            gatewayTokenId: stripeGatewayToken,
-            cardType: cardType || 'credit',
-            cardLast4: cardLast4 || '',
-            cardExpiryMonth: expMonth || null,
-            cardExpiryYear: expYear ? (expYear < 100 ? 2000 + expYear : expYear) : null,
-            cardBrand: cardType,
-            isDefault: false,
-            status: 'active',
+        include: {
+          folio: {
+            select: { id: true, folioNumber: true },
           },
-        });
-      } catch (tokenError) {
-        // Non-blocking — the authorization succeeded, token storage is best-effort
-        console.error('[Authorize] Failed to store payment token (non-blocking):', tokenError);
+          guest: {
+            select: { id: true, firstName: true, lastName: true },
+          },
+        },
+      });
+
+      // ── Store card token in PaymentToken model if a Stripe token was used ──
+      if (stripeGatewayToken && resolvedGuestId) {
+        try {
+          const [expMonth, expYear] = cardExpiry ? cardExpiry.split('/').map(Number) : [null, null];
+
+          await tx.paymentToken.create({
+            data: {
+              tenantId,
+              guestId: resolvedGuestId,
+              folioId,
+              tokenType: 'stripe_token',
+              gatewayTokenId: stripeGatewayToken,
+              cardType: cardType || 'credit',
+              cardLast4: cardLast4 || '',
+              cardExpiryMonth: expMonth || null,
+              cardExpiryYear: expYear ? (expYear < 100 ? 2000 + expYear : expYear) : null,
+              cardBrand: cardType,
+              isDefault: false,
+              status: 'active',
+            },
+          });
+        } catch (tokenError) {
+          // Non-blocking — the authorization succeeded, token storage is best-effort
+          console.error('[Authorize] Failed to store payment token (non-blocking):', tokenError);
+        }
       }
-    }
+
+      return newPayment;
+    });
 
     // ── Update gateway statistics if used ──
     if (gateway && gateway !== 'manual') {

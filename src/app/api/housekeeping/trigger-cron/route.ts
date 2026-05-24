@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getUserFromRequest } from '@/lib/auth';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 if (!CRON_SECRET) {
@@ -10,6 +11,15 @@ type CronAction = 'recurring-tasks' | 'pm-autotrigger' | 'no-show-detection';
 
 export async function POST(request: NextRequest) {
   try {
+    // Authentication check — only authenticated users may trigger cron jobs
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { action, dryRun = false } = body as { action: CronAction; dryRun?: boolean };
 

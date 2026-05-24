@@ -132,6 +132,36 @@ export async function GET(
     const totalDeductions = pf + esi + tds + profTax + loanEmi + advanceRecovery + lateDeduction + leaveAdjustment;
     const netPay = totalEarnings - totalDeductions;
 
+    // Calculate actual YTD values by querying payroll entries from Jan 1 to current month
+    const year = parseInt(month.split('-')[0], 10);
+    const ytdStart = new Date(`${year}-01-01T00:00:00.000Z`);
+    let ytdValues = { gross: totalEarnings, deductions: totalDeductions, net: netPay };
+
+    try {
+      const ytdEntries = await db.payrollEntry.aggregate({
+        where: {
+          tenantId: user.tenantId,
+          userId,
+          createdAt: { gte: ytdStart, lte: new Date(monthEnd) },
+        },
+        _sum: {
+          totalGross: true,
+          totalDeductions: true,
+          totalNet: true,
+        },
+      });
+
+      if (ytdEntries._sum.totalGross != null) {
+        ytdValues = {
+          gross: ytdEntries._sum.totalGross,
+          deductions: ytdEntries._sum.totalDeductions || 0,
+          net: ytdEntries._sum.totalNet || 0,
+        };
+      }
+    } catch {
+      // Fall back to current month values if query fails
+    }
+
     // Build payslip
     const payslip = {
       id: `${month}-${userId}`,
@@ -184,11 +214,7 @@ export async function GET(
         totalDeductions,
       },
       netPay,
-      yearToDate: {
-        gross: totalEarnings * 1, // Would aggregate from all months
-        deductions: totalDeductions * 1,
-        net: netPay * 1,
-      },
+      yearToDate: ytdValues,
     };
 
     return NextResponse.json({ success: true, data: payslip });

@@ -149,10 +149,10 @@ export async function POST(request: NextRequest) {
 
     for (const item of items) {
       const laundryItem = priceMap.get(item.itemId)!;
-      const qty = item.quantity || 1;
-      // Allow custom price override, fallback to laundry item price
-      const unitPrice = item.unitPrice ?? laundryItem.unitPrice;
-      const itemTotal = qty * unitPrice;
+      const qty = Math.min(99, Math.max(1, parseInt(item.quantity, 10) || 1));
+      // Always use DB price — never trust client-supplied unitPrice
+      const unitPrice = laundryItem.unitPrice;
+      const itemTotal = Math.round(qty * unitPrice * 100) / 100;
       totalItems += qty;
       totalPrice += itemTotal;
 
@@ -167,6 +167,8 @@ export async function POST(request: NextRequest) {
         notes: item.notes || null,
       });
     }
+
+    totalPrice = Math.round(totalPrice * 100) / 100;
 
     // Use transaction to create order + items atomically
     const order = await db.$transaction(async (tx) => {

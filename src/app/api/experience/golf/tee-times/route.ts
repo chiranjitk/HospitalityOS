@@ -63,6 +63,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing required fields: courseId, date, startTime, endTime' }, { status: 400 });
     }
 
+    // Validate endTime > startTime
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    if (end <= start) {
+      return NextResponse.json({ success: false, error: 'endTime must be after startTime' }, { status: 400 });
+    }
+
+    // Double-booking check: same course + date + overlapping time
+    const overlappingTeeTimes = await db.golfTeeTime.findMany({
+      where: {
+        courseId,
+        date: new Date(date),
+        status: { notIn: ['cancelled'] },
+        startTime: { lt: end },
+        endTime: { gt: start },
+        tenantId: user.tenantId,
+      },
+    });
+    if (overlappingTeeTimes.length > 0) {
+      return NextResponse.json({
+        success: false,
+        error: `Course already has a booking overlapping this time slot. Conflicting tee time(s): ${overlappingTeeTimes.length}`,
+      }, { status: 409 });
+    }
+
     const teeTime = await db.golfTeeTime.create({
       data: {
         tenantId: user.tenantId,

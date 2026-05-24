@@ -77,6 +77,12 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Missing required fields: name, category, price' }, { status: 400 });
     }
 
+    // Validate price >= 0
+    const parsedPrice = parseFloat(price);
+    if (parsedPrice < 0) {
+      return NextResponse.json({ success: false, error: 'Price must be >= 0' }, { status: 400 });
+    }
+
     const item = await db.menuBoardItem.create({
       data: {
         boardId: id,

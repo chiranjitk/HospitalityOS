@@ -107,6 +107,20 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Laundry item not found' }, { status: 404 });
     }
 
+    // Check for active laundry orders referencing this item before deleting
+    const activeOrdersCount = await db.laundryOrderItem.count({
+      where: {
+        itemId: id,
+        order: { status: { in: ['received', 'in_progress', 'ready'] } },
+      },
+    });
+    if (activeOrdersCount > 0) {
+      return NextResponse.json({
+        success: false,
+        error: `Cannot delete laundry item: ${activeOrdersCount} active order(s) reference this item. Cancel or complete them first.`,
+      }, { status: 409 });
+    }
+
     await db.laundryItem.delete({ where: { id } });
 
     return NextResponse.json({ success: true, data: { id } });

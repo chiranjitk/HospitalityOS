@@ -57,6 +57,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing required field: name' }, { status: 400 });
     }
 
+    // Validate commissionRate 0-100
+    if (commissionRate !== undefined && commissionRate !== null) {
+      const parsedCommission = parseFloat(commissionRate);
+      if (parsedCommission < 0 || parsedCommission > 100) {
+        return NextResponse.json({ success: false, error: 'commissionRate must be between 0 and 100' }, { status: 400 });
+      }
+    }
+
+    // Validate rating 0-5
+    if (rating !== undefined && rating !== null) {
+      const parsedRating = parseFloat(rating);
+      if (parsedRating < 0 || parsedRating > 5) {
+        return NextResponse.json({ success: false, error: 'rating must be between 0 and 5' }, { status: 400 });
+      }
+    }
+
     const therapist = await db.spaTherapist.create({
       data: {
         tenantId: user.tenantId,

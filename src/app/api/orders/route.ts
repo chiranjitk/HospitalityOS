@@ -299,8 +299,14 @@ export async function POST(request: NextRequest) {
     const orderItemsData = items.map((item: { menuItemId: string; quantity?: number; notes?: string; options?: string }) => {
       const menuItem = menuItems.find(m => m.id === item.menuItemId)!;
       const quantity = item.quantity || 1;
+
+      // Validate quantity bounds
+      if (quantity < 1 || quantity > 100) {
+        throw new Error(`Invalid quantity ${quantity} for item ${menuItem.name}. Quantity must be between 1 and 100.`);
+      }
+
       const unitPrice = menuItem.price;
-      const totalAmount = unitPrice * quantity;
+      const totalAmount = Math.round(unitPrice * quantity * 100) / 100;
       subtotal += totalAmount;
 
       return {
@@ -325,17 +331,17 @@ export async function POST(request: NextRequest) {
       try {
         const taxComponents = JSON.parse(property.taxComponents);
         for (const component of taxComponents) {
-          taxes += subtotal * (component.rate / 100);
+          taxes += Math.round(subtotal * (component.rate / 100) * 100) / 100;
         }
       } catch {
         // Fallback to default tax rate
         const taxRate = property.defaultTaxRate || 0;
-        taxes = subtotal * (taxRate / 100);
+        taxes = Math.round(subtotal * (taxRate / 100) * 100) / 100;
       }
     } else {
       // Use default tax rate
       const taxRate = property.defaultTaxRate || 0;
-      taxes = subtotal * (taxRate / 100);
+      taxes = Math.round(subtotal * (taxRate / 100) * 100) / 100;
     }
 
     // Round taxes to 2 decimal places
@@ -573,32 +579,36 @@ export async function PUT(request: NextRequest) {
       updateData.notes = notes;
     }
 
-    const order = await db.order.update({
-      where: { id },
-      data: updateData,
-      include: {
-        table: true,
-        items: {
-          include: {
-            menuItem: {
-              select: {
-                id: true,
-                name: true,
-                price: true,
+    const order = await db.$transaction(async (tx) => {
+      const updated = await tx.order.update({
+        where: { id },
+        data: updateData,
+        include: {
+          table: true,
+          items: {
+            include: {
+              menuItem: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                },
               },
             },
           },
         },
-      },
-    });
-
-    // If order is served or cancelled, update table status
-    if ((status === 'served' || status === 'cancelled') && order.tableId) {
-      await db.restaurantTable.update({
-        where: { id: order.tableId },
-        data: { status: status === 'served' ? 'cleaning' : 'available' },
       });
-    }
+
+      // If order is served or cancelled, update table status within same transaction
+      if ((status === 'served' || status === 'cancelled') && updated.tableId) {
+        await tx.restaurantTable.update({
+          where: { id: updated.tableId },
+          data: { status: status === 'served' ? 'cleaning' : 'available' },
+        });
+      }
+
+      return updated;
+    });
 
     // Notify realtime service via WebSocket
     fetch(`/?XTransformPort=3003`, {

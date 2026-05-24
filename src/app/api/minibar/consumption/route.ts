@@ -107,15 +107,24 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { propertyId, bookingId, folioId, roomId, itemId, itemName, quantity, unitPrice, consumedAt, notes } = body;
+    const { propertyId, bookingId, folioId, roomId, itemId, quantity, unitPrice, consumedAt, notes } = body;
 
-    if (!propertyId || !bookingId || !roomId || !itemId || !itemName) {
-      return NextResponse.json({ success: false, error: 'propertyId, bookingId, roomId, itemId, and itemName are required' }, { status: 400 });
+    if (!propertyId || !bookingId || !roomId || !itemId) {
+      return NextResponse.json({ success: false, error: 'propertyId, bookingId, roomId, and itemId are required' }, { status: 400 });
     }
 
-    const qty = quantity || 1;
-    const price = unitPrice || 0;
-    const totalPrice = qty * price;
+    // Look up MinibarItem from DB — never trust client-supplied name/price
+    const minibarItem = await db.minibarItem.findFirst({
+      where: { id: itemId, tenantId: user.tenantId, propertyId },
+    });
+    if (!minibarItem) {
+      return NextResponse.json({ success: false, error: 'Minibar item not found' }, { status: 404 });
+    }
+
+    const itemName = minibarItem.name;
+    const qty = Math.min(100, Math.max(1, parseInt(quantity, 10) || 1));
+    const price = minibarItem.sellPrice;
+    const totalPrice = Math.round(qty * price * 100) / 100;
     const consumptionDate = consumedAt ? new Date(consumedAt) : new Date();
 
     // Resolve folio: use provided folioId or find active folio for the booking

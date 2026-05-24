@@ -101,7 +101,7 @@ export async function POST(
     if (!result.success) {
       return NextResponse.json({
         success: false,
-        error: { code: 'EMAIL_FAILED', message: `Failed to send email: ${result.error}` },
+        error: { code: 'EMAIL_FAILED', message: 'Failed to send invoice email. Please try again or contact support.' },
       }, { status: 500 });
     }
 
@@ -113,6 +113,16 @@ export async function POST(
         issuedAt: invoice.issuedAt || new Date(),
       },
     });
+
+    // Update folio with invoiceNumber after send
+    if (invoice.folioId) {
+      try {
+        await db.folio.update({
+          where: { id: invoice.folioId },
+          data: { invoiceNumber: invoice.invoiceNumber, invoiceIssuedAt: new Date() },
+        });
+      } catch { /* non-blocking */ }
+    }
 
     return NextResponse.json({
       success: true,

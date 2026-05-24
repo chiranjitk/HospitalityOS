@@ -165,10 +165,10 @@ export async function PUT(
       kycStatus,
     } = data;
     
-    // If email is being changed, check for conflicts
+    // If email is being changed, check for conflicts within the same tenant
     if (email && email !== existingGuest.email) {
       const emailConflict = await db.guest.findFirst({
-        where: { email: email as string, deletedAt: null },
+        where: { email: email as string, tenantId: user.tenantId, deletedAt: null },
       });
       
       if (emailConflict) {
@@ -206,9 +206,9 @@ export async function PUT(
         ...(notes !== undefined && { notes }),
         ...(tags !== undefined && { tags: JSON.stringify(tags) }),
         ...(loyaltyTier !== undefined && { loyaltyTier }),
-        ...(loyaltyPoints !== undefined && { loyaltyPoints }),
-        ...(totalStays !== undefined && { totalStays }),
-        ...(totalSpent !== undefined && { totalSpent }),
+        // loyaltyPoints, totalStays, totalSpent are intentionally excluded from direct PUT.
+        // They must only be updated via atomic increment operations (e.g., loyalty endpoint)
+        // to prevent race conditions and ensure audit trail integrity.
         ...(isVip !== undefined && { isVip }),
         ...(vipLevel !== undefined && { vipLevel }),
         ...(source !== undefined && { source }),

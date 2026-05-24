@@ -51,6 +51,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Name is required' }, { status: 400 });
     }
 
+    // Validate conditions against defined schema
+    if (conditions && typeof conditions === 'object') {
+      const allowedConditionFields = ['minStay', 'maxStay', 'minGuests', 'maxGuests', 'roomType', 'bookingSource', 'leadScore', 'arrivalWindow', 'departureWindow', 'propertyId', 'eventType'];
+      for (const key of Object.keys(conditions)) {
+        if (!allowedConditionFields.includes(key)) {
+          return NextResponse.json({ success: false, error: `Invalid condition field: ${key}. Allowed: ${allowedConditionFields.join(', ')}` }, { status: 400 });
+        }
+      }
+    }
+
     const rule = await db.upsellRule.create({
       data: {
         tenantId: user.tenantId,

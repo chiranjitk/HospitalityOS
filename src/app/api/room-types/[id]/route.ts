@@ -165,6 +165,17 @@ export async function PUT(
       wifiPlanId,
     } = body;
     
+    // Validate basePrice if provided
+    if (basePrice !== undefined) {
+      const parsed = parseFloat(basePrice);
+      if (isNaN(parsed) || parsed < 0 || !Number.isFinite(parsed)) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'basePrice must be a non-negative number' } },
+          { status: 400 }
+        );
+      }
+    }
+
     // Validate overbooking settings
     if (overbookingEnabled && !overbookingPercentage && !overbookingLimit) {
       return NextResponse.json({

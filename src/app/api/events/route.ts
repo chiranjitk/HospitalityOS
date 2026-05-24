@@ -93,6 +93,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'payload must be a valid object' }, { status: 400 });
     }
 
+    // Validate payload structure against schema if available
+    if (EVENT_SCHEMAS[event] && EVENT_SCHEMAS[event].properties) {
+      const schema = EVENT_SCHEMAS[event].properties as Record<string, unknown>;
+      for (const [key, def] of Object.entries(schema)) {
+        const fieldDef = def as { required?: boolean; type?: string };
+        if (fieldDef.required && !(key in (payload as Record<string, unknown>))) {
+          return NextResponse.json({ error: `payload missing required field: ${key}` }, { status: 400 });
+        }
+      }
+    }
+
     // Emit the event
     await eventBus.emit(event, payload, user.tenantId);
 

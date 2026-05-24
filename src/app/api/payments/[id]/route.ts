@@ -308,6 +308,35 @@ export async function PUT(
       transactionId: existingPayment.transactionId,
     };
 
+    // Regular update — validate status transitions
+    if (status && status !== existingPayment.status) {
+      // Disallow direct transition to 'refunded' — must go through the refund flow
+      // which validates gateway confirmation and creates audit trail
+      if (status === 'refunded') {
+        return NextResponse.json(
+          { success: false, error: { code: 'INVALID_TRANSITION', message: 'Cannot set status to refunded directly. Use the refund endpoint instead.' } },
+          { status: 400 }
+        );
+      }
+
+      const validTransitions: Record<string, string[]> = {
+        pending: ['completed', 'authorized', 'failed', 'voided'],
+        authorized: ['completed', 'failed', 'voided'],
+        completed: [],
+        failed: [],
+        voided: [],
+        refunded: [],
+      };
+
+      const allowedNewStatuses = validTransitions[existingPayment.status] || [];
+      if (!allowedNewStatuses.includes(status)) {
+        return NextResponse.json(
+          { success: false, error: { code: 'INVALID_TRANSITION', message: `Cannot transition payment from ${existingPayment.status} to ${status}` } },
+          { status: 400 }
+        );
+      }
+    }
+
     const payment = await db.payment.update({
       where: { id },
       data: {

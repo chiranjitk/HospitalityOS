@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
@@ -15,6 +15,10 @@ export async function GET(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!hasAnyPermission(user, ['payroll.view', 'payroll.manage', 'payroll.*', '*'])) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -58,11 +62,46 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    if (!hasAnyPermission(user, ['payroll.manage', 'payroll.*', '*'])) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { name, startDate, endDate, payDate, propertyId } = body;
 
     if (!name || !startDate || !endDate || !payDate) {
       return NextResponse.json({ error: 'name, startDate, endDate, and payDate are required' }, { status: 400 });
+    }
+
+    // Validate date ordering
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const pay = new Date(payDate);
+
+    if (start >= end) {
+      return NextResponse.json({ error: 'startDate must be before endDate' }, { status: 400 });
+    }
+
+    if (pay < end) {
+      return NextResponse.json({ error: 'payDate must be on or after endDate' }, { status: 400 });
+    }
+
+    // Check for overlap with existing periods
+    const overlappingPeriod = await db.payrollPeriod.findFirst({
+      where: {
+        tenantId: user.tenantId,
+        status: { not: 'archived' },
+        OR: [
+          { startDate: { lte: end }, endDate: { gte: start } },
+        ],
+      },
+    });
+
+    if (overlappingPeriod) {
+      return NextResponse.json(
+        { error: `Payroll period overlaps with existing period "${overlappingPeriod.name}" (${overlappingPeriod.startDate} to ${overlappingPeriod.endDate})` },
+        { status: 409 }
+      );
     }
 
     const period = await db.payrollPeriod.create({

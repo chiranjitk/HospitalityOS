@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { subDays, startOfDay, endOfDay, format, eachDayOfInterval, eachMonthOfInterval, startOfMonth, endOfMonth } from 'date-fns';
-import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 export async function GET(request: NextRequest) {
-    const tenantId = await getTenantIdFromSession(request);
-    if (!tenantId) {
+    const user = await getUserFromRequest(request);
+    if (!user) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
     }
+
+    if (!hasPermission(user, 'reports.view') && !hasPermission(user, 'reports.*') && user.roleName !== 'admin') {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
+
+    const tenantId = user.tenantId;
 
 
   try {

@@ -99,6 +99,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'propertyId and name are required' }, { status: 400 });
     }
 
+    if (sellPrice !== undefined && (typeof sellPrice !== 'number' || sellPrice < 0 || !Number.isFinite(sellPrice))) {
+      return NextResponse.json({ success: false, error: 'sellPrice must be a non-negative number' }, { status: 400 });
+    }
+
     const item = await db.minibarItem.create({
       data: {
         tenantId: user.tenantId,

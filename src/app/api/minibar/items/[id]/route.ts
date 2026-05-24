@@ -108,6 +108,17 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Minibar item not found' }, { status: 404 });
     }
 
+    // Check for consumption records referencing this item before deleting
+    const consumptionCount = await db.minibarConsumption.count({
+      where: { itemId: id, tenantId: user.tenantId },
+    });
+    if (consumptionCount > 0) {
+      return NextResponse.json({
+        success: false,
+        error: `Cannot delete minibar item: ${consumptionCount} consumption record(s) reference this item.`,
+      }, { status: 409 });
+    }
+
     await db.minibarItem.delete({ where: { id } });
 
     return NextResponse.json({ success: true, data: { id } });

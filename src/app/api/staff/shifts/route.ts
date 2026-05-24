@@ -183,21 +183,23 @@ export async function POST(request: NextRequest) {
     const shiftDate = new Date(date);
     shiftDate.setHours(0, 0, 0, 0);
 
-    // Check for existing shift on the same date
-    const existingShift = await db.staffSchedule.findUnique({
+    // Check for overlapping time range on the same date
+    const overlappingShifts = await db.staffSchedule.findMany({
       where: {
-        userId_date: {
-          userId: staffId,
-          date: shiftDate,
-        },
+        userId: staffId,
+        date: shiftDate,
+        status: { not: 'cancelled' },
+        tenantId: user.tenantId,
       },
     });
 
-    if (existingShift) {
-      return NextResponse.json(
-        { success: false, error: { code: 'SHIFT_EXISTS', message: 'A shift already exists for this staff member on this date' } },
-        { status: 400 }
-      );
+    for (const existing of overlappingShifts) {
+      if (startTime < existing.endTime && endTime > existing.startTime) {
+        return NextResponse.json(
+          { success: false, error: { code: 'OVERLAPPING_SHIFT', message: `Staff member already has a shift (${existing.startTime}–${existing.endTime}) that overlaps with the requested time range on this date` } },
+          { status: 400 }
+        );
+      }
     }
 
     // Create the shift

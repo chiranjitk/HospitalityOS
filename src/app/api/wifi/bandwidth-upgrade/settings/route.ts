@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWifiSettings, setWifiSettings, type BandwidthUpsellSettings } from '@/lib/wifi-settings';
 import { requireAuth } from '@/lib/auth/tenant-context';
+import { z } from 'zod';
 
 const SETTINGS_KEY = 'bandwidth_upsell';
 
@@ -34,38 +35,58 @@ export async function PUT(request: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   try {
-    const body = await request.json() as BandwidthUpsellSettings;
+    const body = await request.json();
 
-    // Basic validation
-    if (typeof body.upsellEnabled !== 'boolean') {
-      return NextResponse.json(
-        { success: false, error: 'upsellEnabled must be a boolean.' },
-        { status: 400 },
-      );
-    }
-    if (typeof body.chargeToRoom !== 'boolean') {
-      return NextResponse.json(
-        { success: false, error: 'chargeToRoom must be a boolean.' },
-        { status: 400 },
-      );
-    }
-    if (typeof body.defaultCurrency !== 'string' || !body.defaultCurrency) {
-      return NextResponse.json(
-        { success: false, error: 'defaultCurrency is required.' },
-        { status: 400 },
-      );
-    }
-    if (!Array.isArray(body.tiers)) {
-      return NextResponse.json(
-        { success: false, error: 'tiers must be an array.' },
-        { status: 400 },
-      );
-    }
+    // Zod schema validation for settings body
+    const settingsSchema = z.object({
+      upsellEnabled: z.boolean(),
+      chargeToRoom: z.boolean(),
+      defaultCurrency: z.string().min(1),
+      tiers: z.array(z.object({
+        planId: z.string(),
+        price: z.number().min(0),
+        bandwidthMbps: z.number().min(0),
+        durationHours: z.number().min(0).optional(),
+        description: z.string().optional(),
+        isActive: z.boolean().optional(),
+      })).min(0),
+      maxRefundHours: z.number().min(0).optional(),
+      minUpgradeHoursBeforeExpiry: z.number().min(0).optional(),
+    }).catch(() => null);
 
-    await setWifiSettings(auth.tenantId, SETTINGS_KEY, body);
+    // Try to validate with strict schema; fall back to basic checks
+    const parsed = settingsSchema.safeParse(body);
+    if (!parsed.success) {
+      // Fall back to basic validation for backwards compatibility
+      const data = body as BandwidthUpsellSettings;
+      if (typeof data.upsellEnabled !== 'boolean') {
+        return NextResponse.json(
+          { success: false, error: 'upsellEnabled must be a boolean.' },
+          { status: 400 },
+        );
+      }
+      if (typeof data.chargeToRoom !== 'boolean') {
+        return NextResponse.json(
+          { success: false, error: 'chargeToRoom must be a boolean.' },
+          { status: 400 },
+        );
+      }
+      if (typeof data.defaultCurrency !== 'string' || !data.defaultCurrency) {
+        return NextResponse.json(
+          { success: false, error: 'defaultCurrency is required.' },
+          { status: 400 },
+        );
+      }
+      if (!Array.isArray(data.tiers)) {
+        return NextResponse.json(
+          { success: false, error: 'tiers must be an array.' },
+          { status: 400 },
+        );
+      }
 
-    return NextResponse.json({ success: true, data: body });
-  } catch (error) {
+      await setWifiSettings(auth.tenantId, SETTINGS_KEY, data);
+      return NextResponse.json({ success: true, data });
+    } catch (error) {
     console.error('Error saving bandwidth upsell settings:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to save bandwidth upsell settings.' },

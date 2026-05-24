@@ -180,7 +180,9 @@ export async function POST(request: NextRequest) {    const user = await require
     }
 
     // Check if there's an active session for this MAC address
-    const activeSession = await db.wiFiSession.findFirst({
+    // Use transaction for session limit check + creation to prevent race conditions
+    let session;
+    const existingActiveSession = await db.wiFiSession.findFirst({
       where: {
         macAddress,
         status: 'active',
@@ -188,7 +190,7 @@ export async function POST(request: NextRequest) {    const user = await require
       },
     });
 
-    if (activeSession) {
+    if (existingActiveSession) {
       return NextResponse.json(
         { success: false, error: { code: 'SESSION_EXISTS', message: 'An active session already exists for this device' } },
         { status: 400 }
@@ -257,7 +259,7 @@ export async function POST(request: NextRequest) {    const user = await require
       }
     }
 
-    const session = await db.wiFiSession.create({
+    session = await db.wiFiSession.create({
       data: {
         tenantId,
         planId: planId || null,

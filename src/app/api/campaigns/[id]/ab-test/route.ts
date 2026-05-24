@@ -7,7 +7,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await requirePermission(request, 'crm.view');
+  const user = await requirePermission(request, 'marketing.view');
   if (user instanceof NextResponse) return user;
 
   try {
@@ -86,7 +86,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await requirePermission(request, 'crm.manage');
+  const user = await requirePermission(request, 'marketing.manage');
   if (user instanceof NextResponse) return user;
 
   try {

@@ -65,6 +65,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Name, journeyType, and triggerEvent are required' }, { status: 400 });
     }
 
+    const allowedActionTypes = ['email', 'sms', 'wait', 'notification', 'tag', 'webhook'];
+    if (actions) {
+      for (const a of actions) {
+        if (a.actionType && !allowedActionTypes.includes(a.actionType)) {
+          return NextResponse.json({ success: false, error: `Invalid actionType: ${a.actionType}. Allowed: ${allowedActionTypes.join(', ')}` }, { status: 400 });
+        }
+      }
+    }
+
     const journey = await db.journeyCampaign.create({
       data: {
         tenantId: user.tenantId,

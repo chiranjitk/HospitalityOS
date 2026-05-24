@@ -41,19 +41,21 @@ function calculatePayroll(
   const bonus = 0;
   const conveyance = 1600;
   const medical = 1250;
-  const totalEarnings = base + hra + da + specialAllowance + overtime + bonus + conveyance + medical;
+  const totalEarnings = Math.round((base + hra + da + specialAllowance + overtime + bonus + conveyance + medical) * 100) / 100;
 
   // Deductions
   const pf = Math.round((base + da) * 0.12);
-  const esi = base <= 21000 ? Math.round(base * 0.0075) : 0;
+  const esi = totalEarnings <= 21000 ? Math.round(base * 0.0075) : 0;
   const tds = Math.round(totalEarnings * 0.05);
   const profTax = 200;
   const loanEmi = 0;
   const advanceRecovery = 0;
   const lateDeduction = attendance.lateMinutes > 30 ? 200 : 0;
-  const leaveAdjustment = attendance.daysWorked < attendance.totalDays ? Math.round(base / 30) : 0;
+  // Multiply leave deduction by actual absent days
+  const absentDays = attendance.totalDays - attendance.daysWorked;
+  const leaveAdjustment = absentDays > 0 ? Math.round(base / 30) * absentDays : 0;
   const totalDeductions = pf + esi + tds + profTax + loanEmi + advanceRecovery + lateDeduction + leaveAdjustment;
-  const netPay = totalEarnings - totalDeductions;
+  const netPay = Math.round((totalEarnings - totalDeductions) * 100) / 100;
 
   // Parse preferences for pan/bank info
   let prefs: Record<string, string> = {};
@@ -113,6 +115,12 @@ export async function GET(request: NextRequest) {
     const status = sp.get('status');
     const search = sp.get('search');
     const month = sp.get('month') || new Date().toISOString().substring(0, 7); // YYYY-MM
+
+    // Validate month is not in the future
+    const currentMonth = new Date().toISOString().substring(0, 7);
+    if (month > currentMonth) {
+      return NextResponse.json({ success: false, error: 'Cannot fetch payroll for a future month' }, { status: 400 });
+    }
     const limit = Math.min(parseInt(sp.get('limit') || '50', 10), 200);
     const offset = parseInt(sp.get('offset') || '0', 10);
 

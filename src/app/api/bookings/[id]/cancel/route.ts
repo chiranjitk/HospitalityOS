@@ -79,7 +79,10 @@ export async function POST(
       );
     }
 
-    const validCancelFrom = ['draft', 'confirmed', 'no_show'];
+    // checked_in is intentionally excluded: cancellation of an in-progress stay
+    // should go through checkout (with penalty) rather than cancellation.
+    // If checked_in cancellation is needed, use the early-checkout-request flow.
+    const validCancelFrom = ['draft', 'confirmed', 'tentative', 'no_show'];
     if (!validCancelFrom.includes(booking.status)) {
       return NextResponse.json(
         {

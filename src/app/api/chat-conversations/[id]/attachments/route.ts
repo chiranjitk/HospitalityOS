@@ -196,8 +196,8 @@ export async function DELETE(
       );
     }
 
-    // Delete file from disk (only for locally stored files)
-    if (attachment.storageProvider === 'local' || attachment.fileUrl.startsWith('/uploads/')) {
+    // Delete file from disk (only for locally stored files with valid path)
+    if ((attachment.storageProvider === 'local' || attachment.fileUrl.startsWith('/uploads/')) && attachment.fileUrl.startsWith('/uploads/chat/')) {
       try {
         const filePath = join(process.cwd(), 'public', attachment.fileUrl);
         await unlink(filePath);

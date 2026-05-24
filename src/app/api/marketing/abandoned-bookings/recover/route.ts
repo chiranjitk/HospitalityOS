@@ -42,6 +42,9 @@ export async function POST(request: NextRequest) {
       updateData.recoverySmsSentAt = new Date();
     }
     if (offerPercent !== undefined) {
+      if (typeof offerPercent !== 'number' || offerPercent < 0 || offerPercent > 100) {
+        return NextResponse.json({ success: false, error: 'offerPercent must be between 0 and 100' }, { status: 400 });
+      }
       const discount = existing.selectedRate ? (existing.selectedRate * offerPercent) / 100 : 0;
       updateData.recoveryOffer = discount;
     }

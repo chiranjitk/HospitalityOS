@@ -56,8 +56,8 @@ export async function GET(
 
     return NextResponse.json({
       ...space,
-      amenities: JSON.parse(space.amenities),
-      images: JSON.parse(space.images),
+      amenities: (() => { try { return JSON.parse(space.amenities); } catch { return []; }})(),
+      images: (() => { try { return JSON.parse(space.images); } catch { return []; }})(),
     });
   } catch (error) {
     console.error('Error fetching event space:', error);
@@ -124,8 +124,8 @@ export async function PUT(
 
     return NextResponse.json({
       ...space,
-      amenities: JSON.parse(space.amenities),
-      images: JSON.parse(space.images),
+      amenities: (() => { try { return JSON.parse(space.amenities); } catch { return []; }})(),
+      images: (() => { try { return JSON.parse(space.images); } catch { return []; }})(),
     });
   } catch (error) {
     console.error('Error updating event space:', error);

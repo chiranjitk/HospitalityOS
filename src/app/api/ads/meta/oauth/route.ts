@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth-helpers';
 import { encrypt } from '@/lib/encryption';
+import crypto from 'crypto';
 
 /**
  * Meta OAuth flow for Meta (Facebook) Marketing API integration.
@@ -12,6 +13,7 @@ import { encrypt } from '@/lib/encryption';
 
 const META_AUTH_URL = 'https://www.facebook.com/v19.0/dialog/oauth';
 const META_TOKEN_URL = 'https://graph.facebook.com/v19.0/oauth/access_token';
+const META_SCOPES = 'ads_management,ads_read,business_management';
 
 // ─── GET: Initiate OAuth flow ─────────────────────────────────────────────
 
@@ -28,7 +30,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const appId = searchParams.get('app_id');
     const redirectUri = searchParams.get('redirect_uri') || `${process.env.NEXTAUTH_URL || ''}/api/ads/meta/oauth`;
-    const scope = searchParams.get('scope') || 'ads_management,ads_read,business_management';
+    const scope = META_SCOPES;
 
     if (!appId) {
       return NextResponse.json(
@@ -37,7 +39,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const state = `${user.tenantId}:${Date.now()}`;
+    // Generate server-side state and store in response for session validation
+    const state = `${user.tenantId}:${user.id}:${Date.now()}:${crypto.randomBytes(16).toString('hex')}`;
 
     const authUrl = new URL(META_AUTH_URL);
     authUrl.set('client_id', appId);

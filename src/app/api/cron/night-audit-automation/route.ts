@@ -133,6 +133,37 @@ export async function GET(request: NextRequest) {
 
         // Mark all steps as completed (simplified automation)
         // The full audit logic runs asynchronously via the existing night audit execution
+        // Execute actual night audit steps via transaction
+        try {
+          await db.$transaction(async (tx) => {
+            // Step 1: Post room charges
+            const activeBookings = await tx.booking.findMany({
+              where: {
+                tenantId: property.tenantId,
+                propertyId: property.id,
+                status: { in: ['confirmed', 'checked_in'] },
+                actualCheckIn: { lte: new Date() },
+                OR: [{ actualCheckOut: null }, { actualCheckOut: { gte: new Date() } }],
+              },
+              include: { room: { select: { id: true, number: true } }, roomType: { select: { basePrice: true } }, folios: { where: { status: 'open' }, select: { id: true } } },
+            });
+            for (const booking of activeBookings) {
+              const folio = booking.folios[0];
+              if (!folio) continue;
+              const rate = Math.round(booking.roomRate > 0 ? booking.roomRate : (booking.roomType?.basePrice || 0));
+              await tx.folioLineItem.create({ data: { folioId: folio.id, description: `Room charge - Room ${booking.room?.number || 'N/A'} - Night Audit`, category: 'room', quantity: 1, unitPrice: rate, totalAmount: rate, serviceDate: businessDayDate, referenceType: 'NightAudit', referenceId: audit.id, postedBy: 'system' } });
+              await tx.folio.update({ where: { id: folio.id }, data: { subtotal: { increment: rate }, totalAmount: { increment: rate }, balance: { increment: rate } } });
+            }
+          });
+        } catch (txError) {
+          console.error(`[Cron] Transaction failed for property ${property.name}:`, txError);
+          errors.push(`Property ${property.name}: Transaction failed`);
+          // Reset audit to in_progress so it can be retried
+          await db.nightAudit.update({ where: { id: audit.id }, data: { status: 'in_progress' } });
+          await db.nightAuditStep.updateMany({ where: { nightAuditId: audit.id }, data: { status: 'pending' } });
+          continue;
+        }
+
         await db.nightAudit.update({
           where: { id: audit.id },
           data: {
@@ -155,21 +186,26 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Log overall cron execution
-    await db.auditLog.create({
-      data: {
-        tenantId: properties[0]?.tenantId || '',
-        module: 'night_audit',
-        action: 'create',
-        entityType: 'CronJob',
-        newValue: JSON.stringify({
-          job: 'night-audit-automation',
-          propertiesProcessed: properties.length,
-          audited,
-          errors: errors.length,
-        }),
-      },
-    });
+    // Log overall cron execution (one per tenant)
+    const tenantsProcessed = new Set(properties.map(p => p.tenantId));
+    for (const tenantId of tenantsProcessed) {
+      try {
+        await db.auditLog.create({
+          data: {
+            tenantId,
+            module: 'night_audit',
+            action: 'create',
+            entityType: 'CronJob',
+            newValue: JSON.stringify({
+              job: 'night-audit-automation',
+              propertiesProcessed: properties.filter(p => p.tenantId === tenantId).length,
+              audited: properties.filter(p => p.tenantId === tenantId).length > 0 ? audited : 0,
+              errors: errors.length,
+            }),
+          },
+        });
+      } catch { /* non-blocking */ }
+    }
 
     return NextResponse.json({
       success: true,

@@ -121,6 +121,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate fromPlanId !== toPlanId
+    if (fromPlanId === toPlanId) {
+      return NextResponse.json(
+        { success: false, error: 'fromPlanId and toPlanId must be different' },
+        { status: 400 },
+      );
+    }
+
     // Step 1: Validate plans exist and belong to tenant
     const [fromPlan, toPlan] = await Promise.all([
       db.wiFiPlan.findUnique({

@@ -55,8 +55,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       spaces: spaces.map(space => ({
         ...space,
-        amenities: JSON.parse(space.amenities),
-        images: JSON.parse(space.images),
+        amenities: (() => { try { return JSON.parse(space.amenities); } catch { return []; }})(),
+        images: (() => { try { return JSON.parse(space.images); } catch { return []; }})(),
       })),
       stats
     });

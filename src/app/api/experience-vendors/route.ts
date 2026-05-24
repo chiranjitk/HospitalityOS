@@ -95,7 +95,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, ...data } = body;
+    const { id, ...rest } = body;
     if (!id) {
       return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Vendor ID is required' } }, { status: 400 });
     }
@@ -104,6 +104,36 @@ export async function PUT(request: NextRequest) {
     if (!existing) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Vendor not found' } }, { status: 404 });
     }
+
+    // Destructure allowed fields to prevent tenantId override via spread
+    const {
+      companyName,
+      contactPerson,
+      email,
+      phone,
+      address,
+      category,
+      commissionRate,
+      bankAccountName,
+      bankAccountNumber,
+      bankIfsc,
+      status,
+      notes,
+    } = rest;
+
+    const data: Record<string, unknown> = {};
+    if (companyName !== undefined) data.companyName = companyName;
+    if (contactPerson !== undefined) data.contactPerson = contactPerson;
+    if (email !== undefined) data.email = email;
+    if (phone !== undefined) data.phone = phone;
+    if (address !== undefined) data.address = address;
+    if (category !== undefined) data.category = category;
+    if (commissionRate !== undefined) data.commissionRate = commissionRate;
+    if (bankAccountName !== undefined) data.bankAccountName = bankAccountName;
+    if (bankAccountNumber !== undefined) data.bankAccountNumber = bankAccountNumber;
+    if (bankIfsc !== undefined) data.bankIfsc = bankIfsc;
+    if (status !== undefined) data.status = status;
+    if (notes !== undefined) data.notes = notes;
 
     const updated = await db.experienceVendor.update({ where: { id }, data });
     return NextResponse.json({ success: true, data: updated });
@@ -129,7 +159,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Vendor ID is required' } }, { status: 400 });
     }
 
-    await db.experienceVendor.update({ where: { id }, data: { deletedAt: new Date() } });
+    await db.experienceVendor.update({ where: { id, tenantId: user.tenantId }, data: { deletedAt: new Date() } });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting vendor:', error);

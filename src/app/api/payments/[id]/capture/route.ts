@@ -164,7 +164,7 @@ export async function POST(
         data: {
           status: 'completed',
           processedAt: new Date(),
-          amount: finalAmount, // In case of partial capture, update to actual captured amount
+          amount: Math.round(finalAmount * 100) / 100, // Round for partial capture precision
           gatewayStatus: 'succeeded',
         },
         include: {
@@ -183,12 +183,16 @@ export async function POST(
         },
       });
 
-      // 2. Update folio balance
+      // 2. Update folio balance (rounded to prevent floating point drift)
+      const roundedCaptureAmount = Math.round(finalAmount * 100) / 100;
+      // Fetch current folio balance before update for safe calculation
+      const folioBeforeCapture = await tx.folio.findUnique({ where: { id: payment.folioId } });
+      const prevBalance = folioBeforeCapture?.balance ?? 0;
       const updatedFolio = await tx.folio.update({
         where: { id: payment.folioId },
         data: {
-          paidAmount: { increment: finalAmount },
-          balance: { decrement: finalAmount },
+          paidAmount: { increment: roundedCaptureAmount },
+          balance: Math.max(0, Math.round((prevBalance - roundedCaptureAmount) * 100) / 100),
         },
       });
 

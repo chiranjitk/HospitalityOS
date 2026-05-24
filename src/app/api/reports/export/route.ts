@@ -213,11 +213,18 @@ function generateHTML(
     ? columns
     : Object.keys(data[0]).map(key => ({ key, label: key }));
 
+  const escapedTitle = title
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>${title}</title>
+  <title>${escapedTitle}</title>
   <style>
     @media print {
       body { margin: 0; padding: 20px; }
@@ -321,7 +328,7 @@ function generateHTML(
 
   <div class="header">
     <div>
-      <h1>${title}</h1>
+      <h1>${escapedTitle}</h1>
       <div class="meta">
         ${tenant} &middot; Generated on ${generatedAt}
       </div>

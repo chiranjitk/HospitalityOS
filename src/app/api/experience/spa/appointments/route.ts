@@ -69,6 +69,49 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing required fields: treatmentId, startTime, endTime, price' }, { status: 400 });
     }
 
+    // Validate endTime > startTime
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    if (end <= start) {
+      return NextResponse.json({ success: false, error: 'endTime must be after startTime' }, { status: 400 });
+    }
+
+    // Validate appointment duration matches treatment duration
+    const treatment = await db.spaTreatment.findFirst({
+      where: { id: treatmentId, tenantId: user.tenantId },
+      select: { durationMinutes: true },
+    });
+    if (treatment) {
+      const expectedDurationMs = treatment.durationMinutes * 60 * 1000;
+      const actualDurationMs = end.getTime() - start.getTime();
+      // Allow 5-minute tolerance
+      if (Math.abs(actualDurationMs - expectedDurationMs) > 5 * 60 * 1000) {
+        return NextResponse.json({
+          success: false,
+          error: `Appointment duration (${Math.round(actualDurationMs / 60000)} min) does not match treatment duration (${treatment.durationMinutes} min)`,
+        }, { status: 400 });
+      }
+    }
+
+    // Therapist double-booking check
+    if (therapistId) {
+      const overlappingAppointments = await db.spaAppointment.findMany({
+        where: {
+          therapistId,
+          status: { in: ['scheduled', 'in_progress'] },
+          startTime: { lt: end },
+          endTime: { gt: start },
+          tenantId: user.tenantId,
+        },
+      });
+      if (overlappingAppointments.length > 0) {
+        return NextResponse.json({
+          success: false,
+          error: `Therapist is already booked during the requested time slot. Overlapping appointments: ${overlappingAppointments.length}`,
+        }, { status: 409 });
+      }
+    }
+
     const appointment = await db.spaAppointment.create({
       data: {
         tenantId: user.tenantId,
@@ -77,8 +120,8 @@ export async function POST(request: NextRequest) {
         therapistId: therapistId || null,
         guestId: guestId || null,
         bookingId: bookingId || null,
-        startTime: new Date(startTime),
-        endTime: new Date(endTime),
+        startTime: start,
+        endTime: end,
         status: status || 'scheduled',
         price: parseFloat(price),
         currency: currency || 'USD',
@@ -90,6 +133,24 @@ export async function POST(request: NextRequest) {
         therapist: { select: { id: true, name: true } },
       },
     });
+
+    // Audit log on creation
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'experience',
+          action: 'create',
+          entityType: 'SpaAppointment',
+          entityId: appointment.id,
+          newValue: JSON.stringify({ treatmentId, therapistId, startTime, endTime, price: appointment.price, guestId, bookingId }),
+          description: `Created spa appointment for treatment ${treatmentId}${therapistId ? ` with therapist ${therapistId}` : ''} from ${startTime} to ${endTime}`,
+        },
+      });
+    } catch (auditError) {
+      console.error('[SPA Appointments] Audit log failed:', auditError);
+    }
 
     return NextResponse.json({ success: true, data: appointment }, { status: 201 });
   } catch (error) {

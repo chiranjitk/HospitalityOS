@@ -164,8 +164,8 @@ export async function POST(request: NextRequest) {
       }
 
       // Update folio balance
-      const newPaidAmount = (folio.paidAmount || 0) + totalSplitAmount;
-      const newBalance = (folio.totalAmount || 0) - newPaidAmount;
+      const newPaidAmount = Math.round(((folio.paidAmount || 0) + totalSplitAmount) * 100) / 100;
+      const newBalance = Math.round(((folio.totalAmount || 0) - newPaidAmount) * 100) / 100;
 
       await tx.folio.update({
         where: { id: folioId },

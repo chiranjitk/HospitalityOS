@@ -67,12 +67,41 @@ export async function GET(request: NextRequest) {
       overlappingBookings.map(b => b.roomId).filter(Boolean) as string[]
     );
 
+    // Get room IDs that have active maintenance blocks overlapping the date range
+    const activeMaintenanceBlocks = await db.maintenanceBlock.findMany({
+      where: {
+        propertyId,
+        status: { in: ['scheduled', 'active'] },
+        OR: [
+          {
+            AND: [
+              { startDate: { lt: checkOutDate } },
+              { endDate: null },
+            ],
+          },
+          {
+            AND: [
+              { startDate: { lt: checkOutDate } },
+              { endDate: { gt: checkInDate } },
+            ],
+          },
+        ],
+      },
+      select: { roomId: true },
+    });
+
+    const maintenanceBlockedRoomIds = new Set(
+      activeMaintenanceBlocks.map(b => b.roomId)
+    );
+
     // Filter to get available rooms
     // A room is available if:
     // 1. It's not in bookedRoomIds
-    // 2. Its status is not 'out_of_order' or 'maintenance'
+    // 2. It's not in maintenanceBlockedRoomIds
+    // 3. Its status is not 'out_of_order' or 'maintenance'
     const availableRooms = allRooms.filter(room => 
       !bookedRoomIds.has(room.id) &&
+      !maintenanceBlockedRoomIds.has(room.id) &&
       room.status !== 'out_of_order' &&
       room.status !== 'maintenance'
     );

@@ -90,6 +90,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'propertyId and name are required' }, { status: 400 });
     }
 
+    if (unitPrice !== undefined && (typeof unitPrice !== 'number' || unitPrice < 0 || !Number.isFinite(unitPrice))) {
+      return NextResponse.json({ success: false, error: 'unitPrice must be a non-negative number' }, { status: 400 });
+    }
+
     const item = await db.laundryItem.create({
       data: {
         tenantId: user.tenantId,

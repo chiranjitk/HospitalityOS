@@ -55,6 +55,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'vendorName, invoiceNumber, invoiceDate, and dueDate are required' }, { status: 400 });
     }
 
+    // Validate subtotal + taxAmount ≈ totalAmount
+    const resolvedSubtotal = subtotal ?? 0;
+    const resolvedTaxAmount = taxAmount ?? 0;
+    const calculatedTotal = Math.round(resolvedSubtotal * 100 + resolvedTaxAmount * 100) / 100;
+    if (totalAmount !== undefined && Math.abs(totalAmount - calculatedTotal) > 0.02) {
+      return NextResponse.json({ success: false, error: `totalAmount (${totalAmount}) does not match subtotal + taxAmount (${calculatedTotal})` }, { status: 400 });
+    }
+    const resolvedTotalAmount = totalAmount !== undefined ? totalAmount : calculatedTotal;
+
     const invoice = await db.apInvoice.create({
       data: {
         tenantId: user.tenantId,
@@ -63,9 +72,9 @@ export async function POST(request: NextRequest) {
         invoiceNumber,
         invoiceDate: new Date(invoiceDate),
         dueDate: new Date(dueDate),
-        subtotal: subtotal ?? 0,
-        taxAmount: taxAmount ?? 0,
-        totalAmount: totalAmount ?? 0,
+        subtotal: resolvedSubtotal,
+        taxAmount: resolvedTaxAmount,
+        totalAmount: resolvedTotalAmount,
         currency: currency ?? 'USD',
         department: department ?? null,
         glAccount: glAccount ?? null,
@@ -79,7 +88,7 @@ export async function POST(request: NextRequest) {
             quantity: line.quantity ?? 1,
             unitPrice: line.unitPrice ?? 0,
             taxRate: line.taxRate ?? 0,
-            totalAmount: line.totalAmount ?? (line.quantity * line.unitPrice),
+            totalAmount: line.totalAmount ?? Math.round((line.quantity * line.unitPrice) * 100) / 100,
             glAccount: line.glAccount ?? null,
             sortOrder: line.sortOrder ?? 0,
           })),

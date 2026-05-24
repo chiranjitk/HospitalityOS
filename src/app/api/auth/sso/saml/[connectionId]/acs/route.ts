@@ -105,7 +105,7 @@ export async function POST(
     const response = NextResponse.redirect(new URL(redirectUrl, request.url));
     
     // Set session cookie
-    response.cookies.set('session-token', sessionToken, {
+    response.cookies.set('session_token', sessionToken, {
       httpOnly: true,
       secure: request.headers.get('x-forwarded-proto') === 'https' || request.url.startsWith('https://'),
       sameSite: 'lax',

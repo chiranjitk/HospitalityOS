@@ -153,6 +153,14 @@ export async function PUT(request: NextRequest) {
 
     const currentBalance = await calculateGuestBalance(guestId, user.tenantId);
     const limit = limitAmount !== undefined ? parseFloat(String(limitAmount)) : 0;
+
+    // Validate limitAmount is non-negative
+    if (limitAmount !== undefined && (isNaN(limit) || limit < 0)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'limitAmount must be a non-negative number' } },
+        { status: 400 }
+      );
+    }
     const available = Math.max(0, limit - currentBalance);
     const newStatus = status || 'active';
 

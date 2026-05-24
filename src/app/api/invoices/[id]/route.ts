@@ -76,16 +76,40 @@ export async function PUT(
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
         if (field === 'lineItems') {
-          updateData[field] = typeof body[field] === 'string' ? body[field] : JSON.stringify(body[field]);
+          // Validate lineItems array structure
+          const items = Array.isArray(body[field]) ? body[field] : [];
+          for (const item of items) {
+            if (!item || typeof item !== 'object' || typeof item.totalAmount !== 'number') {
+              return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Each line item must have a valid totalAmount (number)' } }, { status: 400 });
+            }
+          }
+          updateData[field] = JSON.stringify(items);
         } else {
           updateData[field] = body[field];
         }
       }
     }
 
+    // Recalculate totalAmount server-side from subtotal + taxes - discount
+    if (updateData.subtotal !== undefined || updateData.taxes !== undefined || updateData.discount !== undefined) {
+      const sub = Number(updateData.subtotal ?? existing.subtotal) || 0;
+      const tax = Number(updateData.taxes ?? existing.taxes) || 0;
+      const disc = Number(updateData.discount ?? existing.discount) || 0;
+      updateData.totalAmount = Math.round(sub + tax - disc);
+    }
+
     // Handle status transitions
     if (body.status === 'paid' && existing.status !== 'paid') {
       updateData.paidAt = new Date();
+      // Optionally update folio when marking invoice as paid
+      if (existing.folioId) {
+        try {
+          await db.folio.update({
+            where: { id: existing.folioId },
+            data: { invoicePaidAt: new Date() },
+          });
+        } catch { /* non-blocking */ }
+      }
     }
     if (body.status === 'sent' && existing.status === 'draft') {
       updateData.issuedAt = new Date();

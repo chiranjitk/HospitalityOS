@@ -28,6 +28,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ success: false, error: 'Cannot execute a completed journey' }, { status: 400 });
     }
 
+    // Block re-execution if already active
+    if (journey.status === 'active') {
+      return NextResponse.json({ success: false, error: 'Journey is already active' }, { status: 400 });
+    }
+
     // Update journey status and timestamps
     const updatedJourney = await db.journeyCampaign.update({
       where: { id },

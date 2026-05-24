@@ -74,8 +74,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
 
+    if (startTime && endTime && new Date(startTime) >= new Date(endTime)) {
+      return NextResponse.json({ success: false, error: 'startTime must be before endTime' }, { status: 400 });
+    }
+
     const orderNumber = generateBeoNumber();
-    const totalAmount = items.reduce((s: number, i: { unitPrice: number; quantity: number }) => s + (i.unitPrice * i.quantity), 0);
+    const totalAmount = Math.round(items.reduce((s: number, i: { unitPrice: number; quantity: number }) => s + (i.unitPrice * i.quantity), 0));
 
     const beo = await db.banquetEventOrder.create({
       data: {
@@ -92,7 +96,7 @@ export async function POST(request: NextRequest) {
           create: items.map((i: { category: string; description: string; quantity: number; unitPrice: number; notes?: string; sortOrder?: number }, idx: number) => ({
             category: i.category || 'food', description: i.description,
             quantity: i.quantity || 1, unitPrice: i.unitPrice || 0,
-            totalPrice: (i.unitPrice || 0) * (i.quantity || 1),
+            totalPrice: Math.round((i.unitPrice || 0) * (i.quantity || 1)),
             notes: i.notes, sortOrder: i.sortOrder ?? idx,
           })),
         },

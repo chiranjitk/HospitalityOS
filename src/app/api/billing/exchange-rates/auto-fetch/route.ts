@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
           tenantId,
           fromCurrency: base,
           toCurrency: target,
-          rate,
+          rate: Math.round(rate * 1000000) / 1000000,
           source: 'auto',
           validFrom: lastUpdate,
           validUntil: null,

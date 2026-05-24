@@ -220,6 +220,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Prevent past-date leave creation (start date must be today or later)
+    const todayStart = startOfDay(new Date());
+    if (startOfDay(start) < todayStart) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Cannot create leave requests for past dates' } },
+        { status: 400 }
+      );
+    }
+
     // Calculate total days
     const totalDays = differenceInCalendarDays(end, start) + 1;
 
@@ -387,27 +396,67 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const updated = await db.staffLeave.update({
-      where: { id: leaveId },
-      data: {
-        status: action === 'approve' ? 'approved' : 'rejected',
-        approvedBy: user.id,
-        approvedAt: new Date(),
-        rejectionReason: action === 'reject' ? (rejectionReason || null) : null,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            department: true,
-            jobTitle: true,
-            avatar: true,
+    // Departmental authority check: approver must manage the same department as the requester
+    const leaveUser = await db.user.findUnique({
+      where: { id: leave.userId },
+      select: { department: true },
+    });
+    if (leaveUser && leaveUser.department && user.department && leaveUser.department !== user.department) {
+      const isGlobalApprover = hasPermission(user, 'staff.manage');
+      if (!isGlobalApprover) {
+        return NextResponse.json(
+          { success: false, error: { code: 'FORBIDDEN', message: 'You can only approve leave requests for staff in your department' } },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Use transaction to re-check balance before approval
+    const updated = await db.$transaction(async (tx) => {
+      // Re-check leave balance within transaction
+      const now = new Date();
+      const yearStart = new Date(now.getFullYear(), 0, 1);
+      const yearEnd = new Date(now.getFullYear(), 11, 31);
+      const usedDays = await tx.staffLeave.aggregate({
+        where: {
+          tenantId: user.tenantId,
+          userId: leave.userId,
+          leaveType: leave.leaveType,
+          status: { in: ['approved'] },
+          startDate: { gte: yearStart, lte: yearEnd },
+          id: { not: leave.id },
+        },
+        _sum: { totalDays: true },
+      });
+      const balanceLimits: Record<string, number> = { vacation: 20, sick: 12, personal: 5, maternity: 180, other: 3 };
+      const balanceLimit = balanceLimits[leave.leaveType] || 0;
+      const currentUsed = usedDays._sum.totalDays || 0;
+      if (action === 'approve' && currentUsed + leave.totalDays > balanceLimit) {
+        throw new Error(`Insufficient leave balance. Only ${Math.max(0, balanceLimit - currentUsed)} days remaining.`);
+      }
+
+      return tx.staffLeave.update({
+        where: { id: leaveId },
+        data: {
+          status: action === 'approve' ? 'approved' : 'rejected',
+          approvedBy: user.id,
+          approvedAt: new Date(),
+          rejectionReason: action === 'reject' ? (rejectionReason || null) : null,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              department: true,
+              jobTitle: true,
+              avatar: true,
+            },
           },
         },
-      },
+      });
     });
 
     // Fetch approver user details

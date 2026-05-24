@@ -128,7 +128,7 @@ export async function POST(
         description,
         quantity: validQuantity,
         unitPrice: validUnitPrice,
-        totalAmount: validQuantity * validUnitPrice,
+        totalAmount: Math.round(validQuantity * validUnitPrice),
         vendorId: vendorId || null,
         vendorName,
         staffId: staffId || null,
@@ -259,7 +259,7 @@ export async function PUT(
       if (existingResource) {
         const quantity = (data.quantity as number) ?? existingResource.quantity;
         const unitPrice = (data.unitPrice as number) ?? existingResource.unitPrice;
-        data.totalAmount = quantity * unitPrice;
+        data.totalAmount = Math.round(quantity * unitPrice);
       }
     }
 

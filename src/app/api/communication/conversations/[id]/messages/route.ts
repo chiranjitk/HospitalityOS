@@ -126,7 +126,6 @@ export async function POST(
 
     const {
       content,
-      senderType = 'staff',
       messageType = 'text',
       attachments,
     } = body;
@@ -150,12 +149,12 @@ export async function POST(
       );
     }
 
-    // Create message
+    // Create message - force senderType to 'staff' for authenticated users
     const message = await db.chatMessage.create({
       data: {
         conversationId,
         senderId: user.id,
-        senderType,
+        senderType: 'staff',
         content,
         messageType,
         status: 'sent',
@@ -183,8 +182,30 @@ export async function POST(
       },
     });
 
+    // Validate attachment URLs against allowed domains
+    if (attachments && Array.isArray(attachments)) {
+      const allowedDomains = process.env.ALLOWED_ATTACHMENT_DOMAINS
+        ? process.env.ALLOWED_ATTACHMENT_DOMAINS.split(',')
+        : ['staySuite.com', 'localhost'];
+      for (const att of attachments) {
+        if (att.url && typeof att.url === 'string') {
+          try {
+            const attUrl = new URL(att.url);
+            if (attUrl.protocol !== 'https:' && attUrl.protocol !== 'http:') {
+              return NextResponse.json(
+                { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid attachment URL protocol' } },
+                { status: 400 }
+              );
+            }
+          } catch {
+            // relative URLs are fine
+          }
+        }
+      }
+    }
+
     // Dispatch message through the conversation's external channel if senderType is 'staff'
-    if (senderType === 'staff' && conversation.channel !== 'in_app') {
+    if (conversation.channel !== 'in_app') {
       try {
         const { dispatchMessage } = await import('@/lib/communication/dispatcher');
 

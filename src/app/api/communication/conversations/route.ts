@@ -70,8 +70,8 @@ export async function GET(request: NextRequest) {
         { lastMessageAt: 'desc' },
         { createdAt: 'desc' },
       ],
-      ...(limit && { take: Math.min(parseInt(limit), 100) }),
-      ...(offset && { skip: parseInt(offset) }),
+      ...(limit && { take: Math.min(Math.max(parseInt(limit), 1), 100) }),
+      ...(offset && { skip: Math.max(parseInt(offset), 0) }),
     });
 
     // Fetch guest, booking, and assigned user info separately

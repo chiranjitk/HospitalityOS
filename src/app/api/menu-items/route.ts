@@ -260,8 +260,8 @@ export async function POST(request: NextRequest) {
       data: {
         propertyId,
         categoryId,
-        name,
-        description,
+        name: String(name).replace(/<[^>]*>/g, '').trim(),
+        description: description ? String(description).replace(/<[^>]*>/g, '').trim() : description,
         imageUrl,
         price: parseFloat(price),
         currency,
@@ -286,6 +286,24 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // Audit log on creation (best-effort)
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'restaurant',
+          action: 'create',
+          entityType: 'MenuItem',
+          entityId: menuItem.id,
+          newValue: JSON.stringify({ name: menuItem.name, propertyId, categoryId, price: menuItem.price }),
+          description: `Created menu item '${menuItem.name}' (${menuItem.id})`,
+        },
+      });
+    } catch (auditError) {
+      console.error('[MenuItems POST] Audit log failed:', auditError);
+    }
 
     return NextResponse.json({ success: true, data: menuItem }, { status: 201 });
   } catch (error) {
@@ -387,6 +405,9 @@ export async function PUT(request: NextRequest) {
           data[field] = JSON.stringify(updateData[field]);
         } else if (field === 'preparationTime' || field === 'sortOrder') {
           data[field] = parseInt(updateData[field], 10);
+        } else if (field === 'name' || field === 'description') {
+          // Sanitize name/description (strip HTML tags)
+          data[field] = String(updateData[field]).replace(/<[^>]*>/g, '').trim();
         } else {
           data[field] = updateData[field];
         }
@@ -463,6 +484,17 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Access denied' } },
         { status: 403 }
+      );
+    }
+
+    // Check for active orders before soft delete
+    const activeOrderItems = await db.orderItem.count({
+      where: { menuItemId: id, status: { in: ['pending', 'preparing'] } },
+    });
+    if (activeOrderItems > 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'ACTIVE_ORDERS', message: `Cannot delete menu item: ${activeOrderItems} active order(s) reference this item` } },
+        { status: 400 }
       );
     }
 

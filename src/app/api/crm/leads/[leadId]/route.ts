@@ -17,6 +17,13 @@ export async function GET(
       );
     }
 
+    if (!hasAnyPermission(user, ['crm.view', 'crm.manage'])) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const { leadId } = await params;
 
     const lead = await db.lead.findUnique({

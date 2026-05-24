@@ -282,12 +282,6 @@ export async function PUT(request: NextRequest) {
       segmentIds,
       scheduledAt,
       status,
-      // Stats updates
-      sentCount,
-      openedCount,
-      clickedCount,
-      bouncedCount,
-      unsubscribedCount,
     } = body;
 
     if (!id) {
@@ -358,8 +352,16 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Handle sending campaign
+    // Handle sending campaign with race condition protection
     if (status === 'sending' && existing.status !== 'sending') {
+      // Re-verify status hasn't changed (race condition protection)
+      const freshCampaign = await db.campaign.findUnique({ where: { id } });
+      if (!freshCampaign || freshCampaign.status !== existing.status) {
+        return NextResponse.json(
+          { success: false, error: { code: 'CONFLICT', message: 'Campaign status has changed. Please refresh and try again.' } },
+          { status: 409 }
+        );
+      }
       return await sendCampaign(existing, subject, content, templateId);
     }
 
@@ -413,11 +415,6 @@ export async function PUT(request: NextRequest) {
           status,
           ...(status === 'sent' && { sentAt: new Date() }),
         }),
-        ...(sentCount !== undefined && { sentCount }),
-        ...(openedCount !== undefined && { openedCount }),
-        ...(clickedCount !== undefined && { clickedCount }),
-        ...(bouncedCount !== undefined && { bouncedCount }),
-        ...(unsubscribedCount !== undefined && { unsubscribedCount }),
       },
       include: {
         segments: {

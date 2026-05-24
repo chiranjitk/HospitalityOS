@@ -100,10 +100,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Folio not found' } }, { status: 404 });
     }
 
+    // Reject if folio is closed
+    if (folio.status === 'closed') {
+      return NextResponse.json(
+        { success: false, error: { code: 'FOLIO_CLOSED', message: 'Cannot create credit notes for a closed folio' } },
+        { status: 400 }
+      );
+    }
+
     // Validate items and calculate totals
     const items = rawItems.map((item: { description: string; amount: number; folioLineItemId?: string }) => ({
       description: item.description,
-      amount: parseFloat(String(item.amount)),
+      amount: Math.round(parseFloat(String(item.amount)) * 100) / 100,
       folioLineItemId: item.folioLineItemId || null,
     }));
 

@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, password, firstName, lastName, tenantId } = await request.json();
+    const { email, password, firstName, lastName } = await request.json();
 
     if (!email || !password || !firstName || !lastName) {
       return NextResponse.json(
@@ -86,19 +86,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if tenant exists
-    let targetTenantId = tenantId;
-    if (!targetTenantId) {
-      // Default: use the first tenant (single-tenant mode)
-      const firstTenant = await db.tenant.findFirst({ where: { deletedAt: null } });
-      if (!firstTenant) {
-        return NextResponse.json(
-          { success: false, error: 'No tenant configured. Please contact administrator.' },
-          { status: 500 }
-        );
-      }
-      targetTenantId = firstTenant.id;
+    // Always use system default tenant — tenantId is not accepted from request body
+    const firstTenant = await db.tenant.findFirst({ where: { deletedAt: null } });
+    if (!firstTenant) {
+      return NextResponse.json(
+        { success: false, error: 'No tenant configured. Please contact administrator.' },
+        { status: 500 }
+      );
     }
+    const targetTenantId = firstTenant.id;
 
     // Check if user already exists
     const existingUser = await db.user.findFirst({

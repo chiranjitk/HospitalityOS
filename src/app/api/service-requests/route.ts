@@ -434,6 +434,13 @@ export async function PUT(request: NextRequest) {
     }
 
     if (rating !== undefined) {
+      // Rating only allowed for completed requests
+      if (existingRequest.status !== 'completed') {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Rating can only be set for completed service requests' } },
+          { status: 400 }
+        );
+      }
       // Validate rating (1-5)
       if (rating < 1 || rating > 5) {
         return NextResponse.json(
@@ -463,6 +470,28 @@ export async function PUT(request: NextRequest) {
         },
       },
     });
+
+    // Audit log for status transitions
+    if (status && status !== existingRequest.status) {
+      try {
+        await auditLogService.logWithContext(
+          {
+            tenantId: user.tenantId,
+            userId: user.id,
+            module: 'admin',
+            action: 'update',
+            entityType: 'service_request',
+            entityId: id,
+            oldValue: { status: existingRequest.status },
+            newValue: { status },
+            description: `Service request #${id.slice(0, 8)} status changed: ${existingRequest.status} → ${status}`,
+          },
+          request
+        );
+      } catch (auditError) {
+        console.error('Audit log failed for service request status transition:', auditError);
+      }
+    }
 
     return NextResponse.json({ success: true, data: updatedRequest });
   } catch (error) {

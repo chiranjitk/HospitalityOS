@@ -205,7 +205,7 @@ export async function POST(
     });
 
     // Set session cookies
-    response.cookies.set('session-token', sessionToken, {
+    response.cookies.set('session_token', sessionToken, {
       httpOnly: true,
       secure: request.headers.get('x-forwarded-proto') === 'https' || request.url.startsWith('https://'),
       sameSite: 'lax',

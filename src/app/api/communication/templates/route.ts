@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
+function sanitizeForXss(input: string): string {
+  // Strip HTML tags and dangerous patterns
+  return input
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<\s*img[^>]*onerror\b[^>]*>/gi, '')
+    .replace(/<\s*[a-z]+[^>]*on\w+\s*=\s*['"][^'"]*['"][^>]*>/gi, '')
+    .replace(/javascript\s*:/gi, '')
+    .replace(/on\w+\s*=\s*['"][^'"]*['"]/gi, '');
+}
+
 // GET /api/communication/templates - List all message templates
 export async function GET(request: NextRequest) {
   try {
@@ -165,8 +175,8 @@ export async function POST(request: NextRequest) {
         name,
         category,
         channel,
-        subject,
-        body: templateBody,
+        subject: subject ? sanitizeForXss(subject) : undefined,
+        body: sanitizeForXss(templateBody),
         variables: JSON.stringify(variables),
         isQuickReply,
         shortcut,
@@ -250,8 +260,8 @@ export async function PUT(request: NextRequest) {
     if (name) updateData.name = name;
     if (category) updateData.category = category;
     if (channel) updateData.channel = channel;
-    if (subject !== undefined) updateData.subject = subject;
-    if (templateBody) updateData.body = templateBody;
+    if (subject !== undefined) updateData.subject = subject ? sanitizeForXss(subject) : subject;
+    if (templateBody) updateData.body = sanitizeForXss(templateBody);
     if (variables) updateData.variables = Array.isArray(variables) ? JSON.stringify(variables) : variables;
     if (isQuickReply !== undefined) updateData.isQuickReply = isQuickReply;
     if (shortcut !== undefined) updateData.shortcut = shortcut;

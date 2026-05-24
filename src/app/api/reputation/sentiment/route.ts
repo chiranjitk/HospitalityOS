@@ -15,6 +15,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (!hasPermission(user, 'reputation.view') && !hasPermission(user, 'reputation.manage')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } },
+        { status: 403 }
+      );
+    }
+
     const tenantId = user.tenantId;
     const searchParams = request.nextUrl.searchParams;
     const propertyId = searchParams.get('propertyId');

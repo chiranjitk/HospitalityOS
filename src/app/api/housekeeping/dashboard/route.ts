@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
         propertyId: { in: propertyIds },
         category: 'maintenance',
         status: { in: ['pending', 'in_progress'] },
-
+        deletedAt: null,
       },
     });
 
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
           propertyId: { in: propertyIds },
           category: 'checkout',
           status: { in: ['pending', 'in_progress'] },
-  
+          deletedAt: null,
         },
       }),
       db.task.count({
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
           propertyId: { in: propertyIds },
           category: 'stayover',
           status: { in: ['pending', 'in_progress'] },
-  
+          deletedAt: null,
         },
       }),
       db.task.count({
@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
           propertyId: { in: propertyIds },
           category: 'touchup',
           status: { in: ['pending', 'in_progress'] },
-  
+          deletedAt: null,
         },
       }),
     ]);
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
       where: {
         propertyId: { in: propertyIds },
         category: { in: ['cleaning', 'housekeeping'] },
-
+        deletedAt: null,
       },
       include: {
         room: { select: { number: true } },

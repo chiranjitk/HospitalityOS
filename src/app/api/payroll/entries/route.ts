@@ -1,13 +1,6 @@
-/**
- * Payroll Entries API — CRUD for PayrollEntry
- *
- * GET:    List payroll entries for a period (paginated)
- * POST:   Create a new payroll entry
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
@@ -15,6 +8,10 @@ export async function GET(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!hasAnyPermission(user, ['payroll.view', 'payroll.manage', 'payroll.*', '*'])) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -55,6 +52,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    if (!hasAnyPermission(user, ['payroll.manage', 'payroll.*', '*'])) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { payrollPeriodId, userId, basicSalary, overtimeAmount, bonus, allowances,
       taxDeduction, pfDeduction, esiDeduction, otherDeductions } = body;
@@ -63,9 +64,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'payrollPeriodId and userId are required' }, { status: 400 });
     }
 
-    const totalGross = (basicSalary ?? 0) + (overtimeAmount ?? 0) + (bonus ?? 0) + (allowances ?? 0);
-    const totalDeductions = (taxDeduction ?? 0) + (pfDeduction ?? 0) + (esiDeduction ?? 0) + (otherDeductions ?? 0);
-    const totalNet = totalGross - totalDeductions;
+    const totalGross = Math.round(((basicSalary ?? 0) + (overtimeAmount ?? 0) + (bonus ?? 0) + (allowances ?? 0)) * 100) / 100;
+    const totalDeductions = Math.round(((taxDeduction ?? 0) + (pfDeduction ?? 0) + (esiDeduction ?? 0) + (otherDeductions ?? 0)) * 100) / 100;
+    const totalNet = Math.round((totalGross - totalDeductions) * 100) / 100;
 
     const entry = await db.payrollEntry.create({
       data: {
@@ -86,9 +87,26 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Audit log for payroll entry creation
+    await logPayrollAudit(user.tenantId, user.id, 'create', 'payroll_entry', entry.id, {
+      payrollPeriodId,
+      userId,
+      totalGross,
+      totalNet,
+    });
+
     return NextResponse.json({ success: true, data: entry }, { status: 201 });
   } catch (error) {
     logger.error('Failed to create payroll entry', error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// Helper for audit logging
+async function logPayrollAudit(tenantId: string, userId: string, action: string, entityType: string, entityId: string, details: Record<string, unknown>) {
+  try {
+    logger.info(`[PAYROLL_AUDIT] tenant=${tenantId} user=${userId} action=${action} entity=${entityType} id=${entityId}`, details);
+  } catch {
+    // Non-blocking audit
   }
 }

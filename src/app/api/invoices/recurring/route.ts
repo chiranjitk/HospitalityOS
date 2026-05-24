@@ -190,6 +190,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const roundedTotalAmount = Math.round(totalAmount);
+
     // Verify folio if provided
     if (folioId) {
       const folio = await db.folio.findUnique({ where: { id: folioId } });
@@ -243,14 +245,7 @@ export async function POST(request: NextRequest) {
         subtotal: subtotal || 0,
         taxes: taxes || 0,
         discount: discount || 0,
-        totalAmount,
-        currency,
-        dueAt: dueAt ? new Date(dueAt) : null,
-        notes: notes || null,
-        lineItems: JSON.stringify(lineItems || []),
-        templateId: templateId || null,
-        status: 'draft',
-        isRecurring: true,
+        totalAmount: roundedTotalAmount,
         recurringFrequency: frequency,
         recurringNextDate: parsedNextDate,
         recurringEndDate: parsedEndDate,
@@ -393,6 +388,24 @@ export async function PUT(request: NextRequest) {
       where: { id },
       data: updateData,
     });
+
+    // Audit log (non-blocking)
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'invoices',
+          action: 'update',
+          entityType: 'Invoice',
+          entityId: id,
+          oldValue: JSON.stringify({ action, frequency, nextDate, endDate }),
+          newValue: JSON.stringify({ action, frequency, nextDate: updateData.recurringNextDate, endDate: updateData.recurringEndDate }),
+        },
+      });
+    } catch (auditErr) {
+      console.error('[AUDIT] Failed to log recurring invoice update:', auditErr);
+    }
 
     let parsedLineItems: unknown[] = [];
     try { parsedLineItems = JSON.parse(updated.lineItems || '[]'); } catch { /* empty */ }

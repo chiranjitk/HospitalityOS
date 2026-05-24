@@ -61,6 +61,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing required fields: name, startDate, endDate, propertyId' }, { status: 400 });
     }
 
+    // Validate all fee values >= 0
+    if (monthlyFee !== undefined && parseFloat(monthlyFee) < 0) {
+      return NextResponse.json({ success: false, error: 'monthlyFee must be >= 0' }, { status: 400 });
+    }
+    if (joiningFee !== undefined && parseFloat(joiningFee) < 0) {
+      return NextResponse.json({ success: false, error: 'joiningFee must be >= 0' }, { status: 400 });
+    }
+    if (totalPaid !== undefined && parseFloat(totalPaid) < 0) {
+      return NextResponse.json({ success: false, error: 'totalPaid must be >= 0' }, { status: 400 });
+    }
+
     const membership = await db.golfMembership.create({
       data: {
         tenantId: user.tenantId,

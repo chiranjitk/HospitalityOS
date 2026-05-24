@@ -66,9 +66,9 @@ export async function POST(request: NextRequest) {
     }
 
     const parsedRate = parseFloat(String(rate));
-    if (parsedRate <= 0) {
+    if (parsedRate <= 0 || parsedRate < 0.0001 || parsedRate > 100000) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Rate must be a positive number' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Rate must be between 0.0001 and 100000' } },
         { status: 400 }
       );
     }

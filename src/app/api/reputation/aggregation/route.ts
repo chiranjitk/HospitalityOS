@@ -17,7 +17,7 @@ const ALL_REVIEW_TYPES = Object.values(SOURCE_TO_INTEGRATION_TYPE);
 // GET /api/reputation/aggregation - Get aggregation status and config
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requirePermission(request, 'bookings.view');
+    const auth = await requirePermission(request, 'reputation.view');
     if (auth instanceof NextResponse) return auth;
 
     const tenantId = auth.tenantId;
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
 // POST /api/reputation/aggregation - Trigger review aggregation
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requirePermission(request, 'bookings.view');
+    const auth = await requirePermission(request, 'reputation.manage');
     if (auth instanceof NextResponse) return auth;
 
     const tenantId = auth.tenantId;
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
 // PUT /api/reputation/aggregation - Configure review source
 export async function PUT(request: NextRequest) {
   try {
-    const auth = await requirePermission(request, 'bookings.view');
+    const auth = await requirePermission(request, 'reputation.manage');
     if (auth instanceof NextResponse) return auth;
 
     const tenantId = auth.tenantId;
@@ -222,7 +222,7 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/reputation/aggregation - Disconnect a review source
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = await requirePermission(request, 'bookings.view');
+    const auth = await requirePermission(request, 'reputation.manage');
     if (auth instanceof NextResponse) return auth;
 
     const tenantId = auth.tenantId;

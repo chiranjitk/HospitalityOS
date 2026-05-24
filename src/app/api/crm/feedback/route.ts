@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {    const user = await requireP
     const category = searchParams.get('category');
     const status = searchParams.get('status');
     const priority = searchParams.get('priority');
-    const limit = parseInt(searchParams.get('limit') || '100');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500);
     const offset = parseInt(searchParams.get('offset') || '0');
 
     // Build where clause
@@ -217,6 +217,19 @@ export async function PUT(request: NextRequest) {    const user = await requireP
     // When resolving, set resolvedBy to the current user's ID if not explicitly provided
     if ((status === 'resolved' || status === 'closed') && !resolvedBy) {
       updateData.resolvedBy = user.id;
+    }
+
+    // Verify assignee exists and belongs to tenant
+    if (assignedTo) {
+      const assigneeExists = await db.user.findFirst({
+        where: { id: assignedTo, tenantId: user.tenantId },
+      });
+      if (!assigneeExists) {
+        return NextResponse.json(
+          { success: false, error: { message: 'Assignee not found or does not belong to your tenant' } },
+          { status: 400 }
+        );
+      }
     }
 
     const feedback = await db.guestFeedback.update({

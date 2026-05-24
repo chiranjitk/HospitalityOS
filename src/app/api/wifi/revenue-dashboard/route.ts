@@ -158,7 +158,7 @@ export async function GET(request: NextRequest) {
       ...usedVouchers.filter(v => v.guestId).map(v => v.guestId!),
       ...partnerAuths.filter(p => p.guestId).map(p => p.guestId!),
     ]);
-    const arpu = uniquePaidUsers.size > 0 ? totalRevenue / uniquePaidUsers.size : 0;
+    const arpu = uniquePaidUsers.size > 0 ? Math.round(totalRevenue / uniquePaidUsers.size * 100) / 100 : 0;
 
     // Conversion rate — completed / total
     const conversionRate = allUpgrades.length > 0

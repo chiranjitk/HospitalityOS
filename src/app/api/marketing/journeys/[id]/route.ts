@@ -71,7 +71,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (body.journeyType !== undefined) data.journeyType = body.journeyType;
     if (body.triggerEvent !== undefined) data.triggerEvent = body.triggerEvent;
     if (body.targetSegments !== undefined) data.targetSegments = JSON.stringify(body.targetSegments);
-    if (body.status !== undefined) data.status = body.status;
+    if (body.status !== undefined) {
+      const allowedStatuses = ['draft', 'active', 'paused', 'completed', 'archived'];
+      if (!allowedStatuses.includes(body.status)) {
+        return NextResponse.json({ success: false, error: `Invalid status. Must be one of: ${allowedStatuses.join(', ')}` }, { status: 400 });
+      }
+      data.status = body.status;
+    }
 
     const journey = await db.journeyCampaign.update({
       where: { id },
@@ -101,6 +107,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const existing = await db.journeyCampaign.findFirst({ where: { id, tenantId: user.tenantId } });
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Journey not found' }, { status: 404 });
+    }
+
+    // Only allow deleting 'draft' journeys
+    if (existing.status !== 'draft') {
+      return NextResponse.json({ success: false, error: `Cannot delete journey with status '${existing.status}'. Only draft journeys can be deleted.` }, { status: 400 });
     }
 
     await db.journeyCampaign.delete({ where: { id } });

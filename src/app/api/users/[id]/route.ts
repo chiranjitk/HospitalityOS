@@ -177,8 +177,8 @@ export async function PUT(
     const updateData: Record<string, unknown> = {};
 
     if (body.email && isAdmin) updateData.email = body.email.toLowerCase();
-    if (body.firstName) updateData.firstName = body.firstName;
-    if (body.lastName) updateData.lastName = body.lastName;
+    if (body.firstName) updateData.firstName = String(body.firstName).replace(/[<>"'&]/g, '').trim().substring(0, 100);
+    if (body.lastName) updateData.lastName = String(body.lastName).replace(/[<>"'&]/g, '').trim().substring(0, 100);
     if (body.phone !== undefined) updateData.phone = body.phone || null;
     if (body.avatar !== undefined) updateData.avatar = body.avatar || null;
 

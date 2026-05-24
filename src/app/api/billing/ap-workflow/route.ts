@@ -122,8 +122,6 @@ export async function GET(request: NextRequest) {
         if (i.status === 'paid' || i.status === 'rejected' || i.status === 'void') return false;
         return new Date(i.dueDate) < new Date();
       }).reduce((sum, i) => sum + i.totalAmount, 0),
-      avgApprovalTimeHours: 28,
-      approvalRate: 85.7,
       documentsAttached: documents.length,
       scheduledPayments: paymentSchedule.length,
       nextPaymentDue: paymentSchedule.length > 0 ? paymentSchedule[0].vendorName : null,

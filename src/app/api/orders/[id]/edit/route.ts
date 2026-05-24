@@ -221,15 +221,15 @@ export async function PUT(
         try {
           const taxComponents = JSON.parse(property.taxComponents);
           for (const component of taxComponents) {
-            newTaxes += newSubtotal * (component.rate / 100);
+            newTaxes += Math.round(newSubtotal * (component.rate / 100) * 100) / 100;
           }
         } catch {
           const taxRate = property.defaultTaxRate || 0;
-          newTaxes = newSubtotal * (taxRate / 100);
+          newTaxes = Math.round(newSubtotal * (taxRate / 100) * 100) / 100;
         }
       } else {
         const taxRate = property.defaultTaxRate || 0;
-        newTaxes = newSubtotal * (taxRate / 100);
+        newTaxes = Math.round(newSubtotal * (taxRate / 100) * 100) / 100;
       }
 
       // Round taxes
@@ -358,6 +358,26 @@ export async function PUT(
 
       return order;
     });
+
+    // Update linked folio when order total changes
+    if (existingOrder.folioId) {
+      try {
+        const folioRecord = await db.folio.findUnique({ where: { id: existingOrder.folioId } });
+        if (folioRecord) {
+          await db.folio.update({
+            where: { id: existingOrder.folioId },
+            data: {
+              subtotal: updatedOrder.subtotal,
+              taxes: updatedOrder.taxes,
+              totalAmount: updatedOrder.totalAmount,
+              balance: updatedOrder.totalAmount - (folioRecord.paidAmount || 0),
+            },
+          });
+        }
+      } catch (folioError) {
+        console.error('[Orders Edit] Failed to update linked folio:', folioError);
+      }
+    }
 
     // Create audit log entry
     try {

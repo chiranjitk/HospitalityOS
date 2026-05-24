@@ -50,9 +50,15 @@ export async function POST(
       });
 
       if (otherActiveBlocks === 0) {
+        // Only restore to 'available' if the room was not occupied before the block
+        const roomInfo = await tx.room.findUnique({
+          where: { id: block.roomId },
+          select: { status: true },
+        });
+        const newStatus = (roomInfo && ['occupied', 'checked_in'].includes(roomInfo.status)) ? roomInfo.status : 'available';
         await tx.room.update({
           where: { id: block.roomId },
-          data: { status: 'available' },
+          data: { status: newStatus },
         });
       }
 
