@@ -695,10 +695,10 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Can only cancel orders that are not already served, cancelled, or paid
-    if (['served', 'cancelled', 'paid'].includes(existingOrder.status)) {
+    // Can only cancel orders that are not already served, cancelled, paid, or refunded
+    if (['served', 'cancelled', 'paid', 'refunded'].includes(existingOrder.status)) {
       return NextResponse.json(
-        { success: false, error: { code: 'CANNOT_CANCEL', message: 'Cannot cancel an order that is served, cancelled, or paid. Use the refund endpoint for paid orders.' } },
+        { success: false, error: { code: 'CANNOT_CANCEL', message: `Cannot cancel an order with status: ${existingOrder.status}. Use the refund endpoint for paid orders.` } },
         { status: 400 }
       );
     }
@@ -710,6 +710,54 @@ export async function DELETE(request: NextRequest) {
         cancelledAt: new Date(),
       },
     });
+
+    // C-2: If the order was posted to a folio, reverse the charges
+    if (existingOrder.folioId) {
+      try {
+        // Remove folio line items for this order
+        const deletedItems = await db.folioLineItem.deleteMany({
+          where: {
+            OR: [
+              { reference: `order-${id}` },
+              { referenceType: 'order', referenceId: id },
+              { referenceType: 'order_item', referenceId: { in: (await db.orderItem.findMany({ where: { orderId: id }, select: { id: true } })).map(i => i.id) } },
+            ],
+            folioId: existingOrder.folioId,
+          },
+        });
+
+        // Recalculate folio totals
+        const remainingItems = await db.folioLineItem.findMany({ where: { folioId: existingOrder.folioId } });
+        const newSubtotal = remainingItems.reduce((sum, li) => sum + li.totalAmount, 0);
+        const newTaxes = remainingItems.reduce((sum, li) => sum + li.taxAmount, 0);
+        const folioRecord = await db.folio.findUnique({ where: { id: existingOrder.folioId } });
+        if (folioRecord) {
+          const newTotal = newSubtotal + newTaxes - (folioRecord.discount || 0);
+          await db.folio.update({
+            where: { id: existingOrder.folioId },
+            data: {
+              subtotal: newSubtotal,
+              taxes: newTaxes,
+              totalAmount: newTotal,
+              balance: newTotal - (folioRecord.paidAmount || 0),
+            },
+          });
+        }
+
+        // Unlink order from folio
+        await db.order.update({
+          where: { id },
+          data: { folioId: null },
+        });
+
+        if (deletedItems.count > 0) {
+          console.log(`[Orders DELETE] Reversed ${deletedItems.count} folio line items for cancelled order ${existingOrder.orderNumber}`);
+        }
+      } catch (folioError) {
+        console.error('[Orders DELETE] Error reversing folio charges:', folioError);
+        // Don't fail the cancellation — log the error
+      }
+    }
 
     // Update table status if applicable
     if (order.tableId) {

@@ -7,7 +7,7 @@ import { z } from 'zod';
 const executeStepSchema = z.object({
   stepName: z.enum([
     'Post room charges',
-    'Verify folios',
+    'Post scheduled charges',
     'Process no-shows',
     'Reconcile rooms',
     'Run reports',
