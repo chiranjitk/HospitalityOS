@@ -2709,7 +2709,7 @@ export async function POST(request: NextRequest) {
             });
 
             return user;
-          });
+          }, { timeout: 15000 });
 
           return NextResponse.json({
             success: true,
