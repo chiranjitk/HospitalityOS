@@ -3004,6 +3004,13 @@ export async function POST(request: NextRequest) {
         if (!userId) {
           return NextResponse.json({ success: false, error: 'User id is required' }, { status: 400 });
         }
+        // MFA verification required for destructive actions
+        if (data.mfaVerified !== true) {
+          return NextResponse.json(
+            { success: false, error: 'MFA verification required', code: 'MFA_REQUIRED' },
+            { status: 403 }
+          );
+        }
         try {
           // Resolve full user info including status and active sessions
           const delUser = await db.wiFiUser.findUnique({
@@ -3033,11 +3040,21 @@ export async function POST(request: NextRequest) {
             }, { status: 409 });
           }
 
-          // Delete RADIUS records + WiFiUser in transaction
+          // Delete RADIUS records + related data + WiFiUser in transaction
           await db.$transaction(async (tx) => {
+            // Delete RADIUS check/reply/usergroup entries
             await tx.radCheck.deleteMany({ where: { username: delUser.username } });
             await tx.radReply.deleteMany({ where: { username: delUser.username } });
             await tx.radUserGroup.deleteMany({ where: { username: delUser.username } });
+            // Delete accounting records (auth logs / session accounting)
+            await tx.radAcct.deleteMany({ where: { username: delUser.username } });
+            // Delete auth attempt logs
+            await tx.radPostAuth.deleteMany({ where: { username: delUser.username } });
+            // Delete WiFi sessions
+            await tx.wiFiSession.deleteMany({ where: { username: delUser.username } });
+            // Delete device profiles
+            await tx.deviceProfile.deleteMany({ where: { wifiUserId: userId } });
+            // Delete the WiFi user itself
             await tx.wiFiUser.delete({ where: { id: userId } });
           });
 
@@ -3069,6 +3086,117 @@ export async function POST(request: NextRequest) {
             { status: 500 }
           );
         }
+      }
+
+      case 'bulk-delete-users': {
+        const { userIds, force, mfaVerified } = data as {
+          userIds: string[];
+          force?: boolean;
+          mfaVerified?: boolean;
+        };
+
+        // MFA verification required for bulk destructive actions
+        if (mfaVerified !== true) {
+          return NextResponse.json(
+            { success: false, error: 'MFA verification required', code: 'MFA_REQUIRED' },
+            { status: 403 }
+          );
+        }
+
+        if (!Array.isArray(userIds) || userIds.length === 0) {
+          return NextResponse.json(
+            { success: false, error: 'userIds must be a non-empty array' },
+            { status: 400 }
+          );
+        }
+
+        const deleted: string[] = [];
+        const skipped: Array<{ id: string; username: string; reason: string }> = [];
+        const errors: Array<{ id: string; error: string }> = [];
+
+        for (const uid of userIds) {
+          try {
+            // Resolve full user info
+            const user = await db.wiFiUser.findUnique({
+              where: { id: uid },
+              select: { username: true, propertyId: true, status: true },
+            }).catch(() => null);
+
+            if (!user) {
+              errors.push({ id: uid, error: 'User not found' });
+              continue;
+            }
+
+            // Safety guard: skip active users unless force=true
+            if (!force && user.status === 'active') {
+              const activeSessionCount = await db.wiFiSession.count({
+                where: { username: user.username, status: 'active' },
+              });
+              skipped.push({
+                id: uid,
+                username: user.username,
+                reason: `User is active with ${activeSessionCount} active session(s). Use force=true to delete anyway.`,
+              });
+              continue;
+            }
+
+            // Delete all RADIUS records + related data + WiFiUser in transaction
+            await db.$transaction(async (tx) => {
+              // Delete RADIUS check/reply/usergroup entries
+              await tx.radCheck.deleteMany({ where: { username: user.username } });
+              await tx.radReply.deleteMany({ where: { username: user.username } });
+              await tx.radUserGroup.deleteMany({ where: { username: user.username } });
+              // Delete accounting records (auth logs / session accounting)
+              await tx.radAcct.deleteMany({ where: { username: user.username } });
+              // Delete auth attempt logs
+              await tx.radPostAuth.deleteMany({ where: { username: user.username } });
+              // Delete WiFi sessions
+              await tx.wiFiSession.deleteMany({ where: { username: user.username } });
+              // Delete device profiles
+              await tx.deviceProfile.deleteMany({ where: { wifiUserId: uid } });
+              // Delete the WiFi user itself
+              await tx.wiFiUser.delete({ where: { id: uid } });
+            });
+
+            deleted.push(uid);
+
+            // Log successful deletion
+            wifiUserService.logProvisioning({
+              action: 'deprovision',
+              username: user.username,
+              propertyId: user.propertyId,
+              result: 'success',
+              details: force
+                ? `Force-deleted WiFi user ${user.username} (was active) [bulk]`
+                : `Deleted WiFi user ${user.username} [bulk]`,
+            }).catch(() => {});
+          } catch (err) {
+            console.error(`[bulk-delete-users] Error deleting user ${uid}:`, err);
+            errors.push({ id: uid, error: err instanceof Error ? err.message : 'Failed to delete user' });
+
+            // Log failed deletion attempt
+            const failedUser = await db.wiFiUser.findUnique({
+              where: { id: uid },
+              select: { username: true, propertyId: true },
+            }).catch(() => null);
+            if (failedUser) {
+              wifiUserService.logProvisioning({
+                action: 'deprovision',
+                username: failedUser.username,
+                propertyId: failedUser.propertyId,
+                result: 'failed',
+                details: err instanceof Error ? err.message : 'Failed to delete user [bulk]',
+              }).catch(() => {});
+            }
+          }
+        }
+
+        return NextResponse.json({
+          success: true,
+          deleted: deleted.length,
+          skipped,
+          errors,
+        });
       }
 
       case 'provision': {

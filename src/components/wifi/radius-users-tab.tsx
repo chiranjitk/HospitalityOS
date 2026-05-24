@@ -39,6 +39,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -73,6 +74,10 @@ import {
   UserCheck,
   AlertTriangle,
   RotateCcw,
+  ShieldCheck,
+  CheckSquare,
+  Square,
+  X,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -532,6 +537,123 @@ export default function RadiusUsersTab() {
 
   const [forceDelete, setForceDelete] = useState(false);
 
+  // Bulk selection & delete state
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteStep, setBulkDeleteStep] = useState<'warning' | 'mfa' | 'deleting' | null>(null);
+  const [bulkForceDelete, setBulkForceDelete] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaError, setMfaError] = useState('');
+  const [mfaVerifying, setMfaVerifying] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteResult, setBulkDeleteResult] = useState<{ deleted: number; skipped: number; errors: number } | null>(null);
+
+  const allFilteredSelected = filteredUsers.length > 0 && filteredUsers.every(u => selectedUserIds.has(u.id));
+  const someFilteredSelected = filteredUsers.some(u => selectedUserIds.has(u.id)) && !allFilteredSelected;
+
+  const toggleUserSelect = (id: string) => {
+    setSelectedUserIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedUserIds(new Set());
+    } else {
+      setSelectedUserIds(new Set(filteredUsers.map(u => u.id)));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedUserIds(new Set());
+  };
+
+  const openBulkDelete = () => {
+    setBulkForceDelete(false);
+    setMfaCode('');
+    setMfaError('');
+    setBulkDeleteResult(null);
+    setBulkDeleteStep('warning');
+  };
+
+  const closeBulkDelete = () => {
+    setBulkDeleteStep(null);
+    setMfaCode('');
+    setMfaError('');
+    setBulkForceDelete(false);
+    setBulkDeleteResult(null);
+  };
+
+  const handleMfaVerify = async () => {
+    if (!mfaCode.trim() || mfaCode.replace(/\s/g, '').length !== 6) {
+      setMfaError('Please enter a valid 6-digit code');
+      return;
+    }
+    setMfaVerifying(true);
+    setMfaError('');
+    try {
+      const res = await fetch('/api/auth/2fa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: mfaCode.replace(/\s/g, '') }),
+      });
+      const data = await res.json();
+      if (data.success && data.verified) {
+        setBulkDeleteStep('deleting');
+        await executeBulkDelete(true);
+      } else {
+        setMfaError(data.error || 'Invalid verification code');
+      }
+    } catch {
+      setMfaError('Verification failed. Please try again.');
+    } finally {
+      setMfaVerifying(false);
+    }
+  };
+
+  const executeBulkDelete = async (mfaVerified: boolean) => {
+    setBulkDeleting(true);
+    try {
+      const idsToDelete = Array.from(selectedUserIds);
+      const res = await fetch('/api/wifi/radius', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'bulk-delete-users',
+          userIds: idsToDelete,
+          force: bulkForceDelete,
+          mfaVerified,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.code === 'MFA_REQUIRED') {
+        setBulkDeleteStep('mfa');
+        return;
+      }
+
+      if (data.success) {
+        setBulkDeleteResult({
+          deleted: data.deleted || 0,
+          skipped: (data.skipped || []).length,
+          errors: (data.errors || []).length,
+        });
+        setSelectedUserIds(new Set());
+        fetchUsers();
+      } else {
+        toast({ title: 'Error', description: data.error || 'Bulk delete failed', variant: 'destructive' });
+        closeBulkDelete();
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Bulk delete request failed', variant: 'destructive' });
+      closeBulkDelete();
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   // Resolve the user object for the delete dialog
   const deleteUser = deleteUserId ? users.find(u => u.id === deleteUserId) : null;
   const isDeleteUserActive = deleteUser?.status === 'active';
@@ -539,7 +661,7 @@ export default function RadiusUsersTab() {
   const handleDelete = async () => {
     if (!deleteUserId) return;
     try {
-      const body: Record<string, unknown> = { action: 'delete-user', id: deleteUserId };
+      const body: Record<string, unknown> = { action: 'delete-user', id: deleteUserId, mfaVerified: true };
       if (forceDelete) body.force = true;
 
       const res = await fetch('/api/wifi/radius', {
@@ -548,6 +670,16 @@ export default function RadiusUsersTab() {
         body: JSON.stringify(body),
       });
       const data = await res.json();
+
+      // Handle MFA required
+      if (data.code === 'MFA_REQUIRED') {
+        toast({
+          title: 'MFA Required',
+          description: 'Multi-factor authentication is required for delete operations. Please set up 2FA in your profile settings.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
       // Handle active user blocked (409)
       if (!res.ok && data.code === 'ACTIVE_USER_BLOCKED') {
@@ -966,6 +1098,41 @@ export default function RadiusUsersTab() {
       {/* Users Table */}
       <Card>
         <CardContent className="p-0">
+          {/* Bulk Action Bar */}
+          {selectedUserIds.size > 0 && (
+            <div className="flex items-center justify-between px-4 py-2 border-b bg-destructive/5 dark:bg-destructive/10">
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  checked={allFilteredSelected}
+                  ref={(el) => {
+                    if (el) {
+                      (el as unknown as HTMLInputElement).dataset.state = someFilteredSelected ? 'indeterminate' : allFilteredSelected ? 'checked' : 'unchecked';
+                    }
+                  }}
+                  onCheckedChange={toggleSelectAll}
+                  aria-label="Select all users"
+                />
+                <span className="text-sm font-medium">
+                  {selectedUserIds.size} user{selectedUserIds.size !== 1 ? 's' : ''} selected
+                  {selectedUserIds.size !== filteredUsers.length && filteredUsers.length > 0 && (
+                    <button onClick={toggleSelectAll} className="ml-2 text-xs text-primary hover:underline">
+                      Select all {filteredUsers.length}
+                    </button>
+                  )}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={clearSelection}>
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  Clear
+                </Button>
+                <Button variant="destructive" size="sm" onClick={openBulkDelete}>
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  Delete Selected
+                </Button>
+              </div>
+            </div>
+          )}
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -988,6 +1155,13 @@ export default function RadiusUsersTab() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[40px] pr-0">
+                      <Checkbox
+                        checked={allFilteredSelected}
+                        onCheckedChange={toggleSelectAll}
+                        aria-label="Select all users"
+                      />
+                    </TableHead>
                     <TableHead>User</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Plan</TableHead>
@@ -1006,7 +1180,14 @@ export default function RadiusUsersTab() {
                     const validity = getUserValidityDisplay(user);
                     const typeLabel = getUserTypeLabel(user);
                     return (
-                      <TableRow key={user.id}>
+                      <TableRow key={user.id} className={selectedUserIds.has(user.id) ? 'bg-destructive/5 dark:bg-destructive/10' : ''}>
+                        <TableCell className="pr-0">
+                          <Checkbox
+                            checked={selectedUserIds.has(user.id)}
+                            onCheckedChange={() => toggleUserSelect(user.id)}
+                            aria-label={`Select ${user.username}`}
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <UserCircle className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -1387,16 +1568,30 @@ export default function RadiusUsersTab() {
       <AlertDialog open={!!deleteUserId} onOpenChange={(open) => { if (!open) { setDeleteUserId(null); setForceDelete(false); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete RADIUS User</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete RADIUS User
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
               <span>
-                This will permanently delete <span className="font-semibold">{deleteUser?.username}</span> from the RADIUS server. They will no longer be able to authenticate to WiFi.
+                This will permanently delete <span className="font-semibold">{deleteUser?.username}</span>. This action cannot be undone.
               </span>
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                <p className="text-xs font-semibold text-destructive">All associated data will be deleted:</p>
+                <ul className="text-xs text-muted-foreground space-y-1 list-none">
+                  <li>✕ RADIUS credentials (radcheck, radreply, radusergroup)</li>
+                  <li>✕ Active session — disconnected immediately</li>
+                  <li>✕ Session history (WiFiSession)</li>
+                  <li>✕ Auth logs (radacct, radpostauth)</li>
+                  <li>✕ Device profiles (DeviceProfile)</li>
+                  <li>✕ WiFi user account</li>
+                </ul>
+              </div>
               {isDeleteUserActive && (
                 <span className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-800 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-200">
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                   <span className="text-sm">
-                    This user is currently <span className="font-semibold">active</span>. Deactivating or suspending is recommended instead of deletion. Enable "Force Delete" below to override this safety check.
+                    This user is currently <span className="font-semibold">active</span> with a live session. Enable "Force Delete" to disconnect and delete.
                   </span>
                 </span>
               )}
@@ -1412,7 +1607,7 @@ export default function RadiusUsersTab() {
                 className="h-4 w-4 rounded border-gray-300 text-destructive focus:ring-destructive/50"
               />
               <label htmlFor="force-delete-checkbox" className="text-sm font-medium text-muted-foreground cursor-pointer">
-                Force Delete (bypass active user protection)
+                Force Delete (disconnect & delete active user)
               </label>
             </div>
           )}
@@ -1420,7 +1615,7 @@ export default function RadiusUsersTab() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              className={forceDelete ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {forceDelete ? 'Force Delete' : 'Delete'}
             </AlertDialogAction>
@@ -1488,6 +1683,191 @@ export default function RadiusUsersTab() {
               Import {importPreview.length} User{importPreview.length !== 1 ? 's' : ''}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Bulk Delete — Step 1: Warning Dialog */}
+      <Dialog open={bulkDeleteStep === 'warning'} onOpenChange={(open) => { if (!open) closeBulkDelete(); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete {selectedUserIds.size} User{selectedUserIds.size !== 1 ? 's' : ''}?
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Confirm bulk deletion of selected RADIUS users
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              You are about to permanently delete <span className="font-semibold text-foreground">{selectedUserIds.size} RADIUS user{selectedUserIds.size !== 1 ? 's' : ''}</span>. This action cannot be undone.
+            </p>
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-3">
+              <p className="text-sm font-semibold text-destructive">The following data will be permanently deleted for each user:</p>
+              <ul className="text-sm text-muted-foreground space-y-1.5 list-none">
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive mt-0.5">✕</span>
+                  <span><strong>RADIUS credentials</strong> — radcheck, radreply, radusergroup entries</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive mt-0.5">✕</span>
+                  <span><strong>All active sessions</strong> — Users will be disconnected immediately</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive mt-0.5">✕</span>
+                  <span><strong>Session history</strong> — All WiFiSession records</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive mt-0.5">✕</span>
+                  <span><strong>Auth logs</strong> — radacct accounting records & radpostauth entries</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive mt-0.5">✕</span>
+                  <span><strong>Device profiles</strong> — DeviceProfile fingerprints & auto-auth data</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive mt-0.5">✕</span>
+                  <span><strong>WiFi user account</strong> — The user record itself</span>
+                </li>
+              </ul>
+            </div>
+            {filteredUsers.filter(u => selectedUserIds.has(u.id) && u.status === 'active').length > 0 && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-600 dark:bg-amber-950">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-600 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                      {filteredUsers.filter(u => selectedUserIds.has(u.id) && u.status === 'active').length} active user{filteredUsers.filter(u => selectedUserIds.has(u.id) && u.status === 'active').length !== 1 ? 's' : ''} selected
+                    </p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      Active users have live WiFi sessions. Without force delete, they will be skipped.
+                    </p>
+                    <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={bulkForceDelete}
+                        onChange={(e) => setBulkForceDelete(e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-destructive focus:ring-destructive/50"
+                      />
+                      <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                        Force Delete (disconnect & delete active users)
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={closeBulkDelete}>Cancel</Button>
+            <Button variant="destructive" onClick={() => setBulkDeleteStep('mfa')}>
+              <ShieldCheck className="h-4 w-4 mr-2" />
+              Proceed with MFA Verification
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete — Step 2: MFA Verification */}
+      <Dialog open={bulkDeleteStep === 'mfa'} onOpenChange={(open) => { if (!open) closeBulkDelete(); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              MFA Verification Required
+            </DialogTitle>
+            <DialogDescription>
+              Enter the 6-digit code from your authenticator app to confirm deletion of {selectedUserIds.size} user{selectedUserIds.size !== 1 ? 's' : ''}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="mfa-code">Authentication Code</Label>
+              <Input
+                id="mfa-code"
+                placeholder="000000"
+                value={mfaCode}
+                onChange={(e) => { setMfaCode(e.target.value); setMfaError(''); }}
+                maxLength={7}
+                className="text-center text-2xl font-mono tracking-[0.5em] h-14"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') handleMfaVerify(); }}
+              />
+            </div>
+            {mfaError && (
+              <p className="text-sm text-destructive flex items-center gap-1">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {mfaError}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              This verifies your identity as an administrator before performing the bulk delete operation.
+            </p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setBulkDeleteStep('warning')} disabled={mfaVerifying}>Back</Button>
+            <Button variant="destructive" onClick={handleMfaVerify} disabled={mfaVerifying || mfaCode.replace(/\s/g, '').length !== 6}>
+              {mfaVerifying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Verify & Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete — Step 3: In-progress / Result */}
+      <Dialog open={bulkDeleteStep === 'deleting' || !!bulkDeleteResult} onOpenChange={(open) => { if (!open) closeBulkDelete(); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {bulkDeleting ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Deleting Users...
+                </>
+              ) : bulkDeleteResult ? (
+                <>
+                  {bulkDeleteResult.errors > 0 ? (
+                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  ) : (
+                    <ShieldCheck className="h-5 w-5 text-emerald-500" />
+                  )}
+                  Bulk Delete Complete
+                </>
+              ) : null}
+            </DialogTitle>
+            <DialogDescription>
+              {bulkDeleting
+                ? `Processing ${selectedUserIds.size} user deletions...`
+                : undefined}
+            </DialogDescription>
+          </DialogHeader>
+          {bulkDeleteResult && (
+            <div className="space-y-3 py-2">
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="rounded-lg border bg-emerald-50 dark:bg-emerald-950 p-3">
+                  <div className="text-2xl font-bold text-emerald-600">{bulkDeleteResult.deleted}</div>
+                  <div className="text-xs text-emerald-600/70">Deleted</div>
+                </div>
+                <div className="rounded-lg border bg-amber-50 dark:bg-amber-950 p-3">
+                  <div className="text-2xl font-bold text-amber-600">{bulkDeleteResult.skipped}</div>
+                  <div className="text-xs text-amber-600/70">Skipped</div>
+                </div>
+                <div className="rounded-lg border bg-red-50 dark:bg-red-950 p-3">
+                  <div className="text-2xl font-bold text-red-600">{bulkDeleteResult.errors}</div>
+                  <div className="text-xs text-red-600/70">Errors</div>
+                </div>
+              </div>
+              {bulkDeleteResult.skipped > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Skipped users were active and force delete was not enabled.
+                </p>
+              )}
+            </div>
+          )}
+          {bulkDeleteResult && (
+            <DialogFooter>
+              <Button onClick={closeBulkDelete}>Done</Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>
