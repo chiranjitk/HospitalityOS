@@ -52,10 +52,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         return sum + (d.type === 'percentage' ? (order.subtotal * d.value) / 100 : d.value);
       }, 0);
 
-      finalTotalAmount = Math.max(order.subtotal + order.taxes - totalDiscount, 0);
+      // Recalculate tax on (subtotal - discount) so discount reduces taxable base
+      const taxableSubtotal = Math.max(order.subtotal - totalDiscount, 0);
+      const taxRate = order.subtotal > 0 ? order.taxes / order.subtotal : 0;
+      const recalculatedTaxes = Math.round(taxableSubtotal * taxRate * 100) / 100;
+
+      finalTotalAmount = Math.max(taxableSubtotal + recalculatedTaxes, 0);
       await tx.order.update({
         where: { id },
-        data: { discount: totalDiscount, totalAmount: finalTotalAmount },
+        data: { discount: totalDiscount, taxes: recalculatedTaxes, totalAmount: finalTotalAmount },
       });
 
       // H-5 FIX: Instead of overwriting the entire folio discount,
@@ -82,10 +87,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           });
 
           // Recalculate folio totals from all line items (standard pattern)
+          // Note: discount is already in the line items as a negative totalAmount,
+          // so do NOT subtract folio.discount again — that would double-count.
           const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: order.folioId } });
           const newSubtotal = allLineItems.reduce((sum: number, li: { totalAmount: number }) => sum + li.totalAmount, 0);
           const newTaxes = allLineItems.reduce((sum: number, li: { taxAmount: number }) => sum + (li.taxAmount || 0), 0);
-          const newTotal = newSubtotal + newTaxes - (folioRecord.discount || 0);
+          const newTotal = newSubtotal + newTaxes;
 
           await tx.folio.update({
             where: { id: order.folioId },

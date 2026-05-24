@@ -110,7 +110,17 @@ export async function PUT(
       if (parsed.data.status === 'paid') updateData.paidAt = new Date();
     }
     if (parsed.data.paymentMethod !== undefined) updateData.paymentMethod = parsed.data.paymentMethod;
-    if (parsed.data.paidAmount !== undefined) updateData.paidAmount = parsed.data.paidAmount;
+    if (parsed.data.paidAmount !== undefined) {
+      // SECURITY: paidAmount cannot exceed dueAmount
+      const effectiveDueAmount = parsed.data.dueAmount ?? existing.dueAmount;
+      if (effectiveDueAmount > 0 && parsed.data.paidAmount > effectiveDueAmount) {
+        return NextResponse.json(
+          { success: false, error: `paidAmount (${parsed.data.paidAmount}) cannot exceed dueAmount (${effectiveDueAmount})` },
+          { status: 400 }
+        );
+      }
+      updateData.paidAmount = parsed.data.paidAmount;
+    }
     if (parsed.data.reference !== undefined) updateData.reference = parsed.data.reference;
     if (parsed.data.notes !== undefined) updateData.notes = parsed.data.notes;
 
@@ -126,6 +136,32 @@ export async function PUT(
         },
       },
     });
+
+    // If paidAmount decreased (e.g., refund), update folio paidAmount and recalculate balance
+    const oldPaidAmount = existing.paidAmount || 0;
+    const paidAmountDecrease = oldPaidAmount - (parsed.data.paidAmount !== undefined ? parsed.data.paidAmount : oldPaidAmount);
+    if (paidAmountDecrease > 0 && existing.bookingId) {
+      try {
+        const folios = await db.folio.findMany({
+          where: { bookingId: existing.bookingId, status: { in: ['open', 'partially_paid'] } },
+        });
+        for (const folio of folios) {
+          const updatedFolioPaidAmount = Math.max(0, (folio.paidAmount || 0) - paidAmountDecrease);
+          const newBalance = Math.max(0, (folio.totalAmount || 0) - updatedFolioPaidAmount);
+          const folioStatus = newBalance <= 0 ? 'paid' : (updatedFolioPaidAmount > 0 ? 'partially_paid' : 'open');
+          await db.folio.update({
+            where: { id: folio.id },
+            data: {
+              paidAmount: updatedFolioPaidAmount,
+              balance: newBalance,
+              status: folioStatus,
+            },
+          });
+        }
+      } catch (folioError) {
+        console.error('[PUT /api/billing/deposits/[id]] Folio sync failed:', folioError);
+      }
+    }
 
     // Audit log (non-blocking)
     try {

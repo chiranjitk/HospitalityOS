@@ -165,6 +165,14 @@ async function handleRazorpayEvent(
         },
       });
 
+      // Tenant isolation: re-fetch with tenantId filter
+      if (payment?.tenantId) {
+        const tenantPayment = await db.payment.findFirst({
+          where: { id: payment.id, tenantId: payment.tenantId },
+        });
+        if (!tenantPayment) { payment = null; }
+      }
+
       if (payment) {
         // Update payment record
         await db.payment.update({
@@ -241,6 +249,14 @@ async function handleRazorpayEvent(
         },
       });
 
+      // Tenant isolation: re-fetch with tenantId filter
+      if (payment?.tenantId) {
+        const tenantPayment = await db.payment.findFirst({
+          where: { id: payment.id, tenantId: payment.tenantId },
+        });
+        if (!tenantPayment) { payment = null; }
+      }
+
       if (payment) {
         await db.payment.update({
           where: { id: payment.id },
@@ -269,7 +285,7 @@ async function handleRazorpayEvent(
       console.log(`[Razorpay Webhook] Refund processed: ${refundId}, amount: ${refundAmount}, status: ${refundStatus}`);
 
       // Find the original payment
-      const payment = await db.payment.findFirst({
+      let payment = await db.payment.findFirst({
         where: {
           OR: [
             { gatewayRef: paymentId },
@@ -277,6 +293,14 @@ async function handleRazorpayEvent(
           ],
         },
       });
+
+      // Tenant isolation: re-fetch with tenantId filter
+      if (payment?.tenantId) {
+        const tenantPayment = await db.payment.findFirst({
+          where: { id: payment.id, tenantId: payment.tenantId },
+        });
+        if (!tenantPayment) { payment = null; }
+      }
 
       if (payment) {
         await db.payment.update({

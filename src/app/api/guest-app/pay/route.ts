@@ -145,7 +145,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (amount > folio.balance) {
+    // Recalculate balance from line items to avoid stale cached balance
+    const folioLineItems = await db.folioLineItem.findMany({ where: { folioId } });
+    const liveSubtotal = Math.round(folioLineItems.reduce((sum, li) => sum + li.totalAmount, 0) * 100) / 100;
+    const liveTaxes = Math.round(folioLineItems.reduce((sum, li) => sum + (li.taxAmount || 0), 0) * 100) / 100;
+    const liveTotal = Math.round((liveSubtotal + liveTaxes - (folio.discount || 0)) * 100) / 100;
+    const liveBalance = Math.round((liveTotal - (folio.paidAmount || 0)) * 100) / 100;
+
+    if (amount > liveBalance) {
       return NextResponse.json(
         { success: false, error: { code: 'INVALID_AMOUNT', message: 'Amount exceeds outstanding balance' } },
         { status: 400 }

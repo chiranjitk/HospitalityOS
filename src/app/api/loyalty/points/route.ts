@@ -215,14 +215,29 @@ async function handleEarnPoints(
     );
   }
 
-  // Tier multipliers: Bronze 1x, Silver 1.5x, Gold 2x, Platinum 3x
+  // Look up tier multiplier from DB instead of hardcoded values
   const tierMultipliers: Record<string, number> = {
     bronze: 1,
     silver: 1.5,
     gold: 2,
     platinum: 3,
   };
-  const multiplier = tierMultipliers[guest.loyaltyTier.toLowerCase()] || 1;
+  let multiplier = 1;
+  try {
+    const tierRecord = await db.loyaltyTier.findFirst({
+      where: { tenantId, name: { equals: guest.loyaltyTier, mode: 'insensitive' } },
+      select: { pointsMultiplier: true },
+    });
+    if (tierRecord?.pointsMultiplier != null && tierRecord.pointsMultiplier > 0) {
+      multiplier = tierRecord.pointsMultiplier;
+    } else {
+      // Fallback to hardcoded values if no DB tier record found
+      multiplier = tierMultipliers[guest.loyaltyTier.toLowerCase()] || 1;
+    }
+  } catch (dbErr) {
+    console.error('[Loyalty] Failed to lookup tier multiplier from DB, using fallback:', dbErr);
+    multiplier = tierMultipliers[guest.loyaltyTier.toLowerCase()] || 1;
+  }
   const finalPoints = Math.round(points * multiplier);
 
   const previousBalance = guest.loyaltyPoints;
@@ -279,6 +294,14 @@ async function handleRedeemPoints(
   const reward = REWARD_OPTIONS[rewardId];
   if (!reward) throw new Error('INVALID_REWARD');
   const pointsToRedeem = customPoints || reward.points;
+
+  // SECURITY: customPoints cannot be less than the reward's points cost
+  if (customPoints !== undefined && customPoints < reward.points) {
+    return NextResponse.json(
+      { success: false, error: { code: 'VALIDATION_ERROR', message: `Custom points (${customPoints}) cannot be less than reward cost (${reward.points})` } },
+      { status: 400 }
+    );
+  }
 
   // Validate pointsToRedeem is positive
   if (pointsToRedeem <= 0) {

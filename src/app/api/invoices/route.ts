@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
           subtotal: subtotal ?? folio.subtotal,
           taxes: taxes ?? folio.taxes,
           discount: discount ?? folio.discount ?? 0,
-          totalAmount: totalAmount ?? folio.totalAmount,
+          totalAmount: folio.totalAmount,
           currency: currency || folio.currency,
           issuedAt: new Date(),
           dueAt: dueAt ? new Date(dueAt) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),

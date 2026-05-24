@@ -367,6 +367,7 @@ export async function POST(request: NextRequest) {
           subtotal,
           taxes,
           totalAmount,
+          serviceCharge,
           notes,
           specialInstructions,
           status: 'pending',

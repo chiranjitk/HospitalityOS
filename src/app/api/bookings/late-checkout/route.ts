@@ -172,12 +172,28 @@ export async function POST(request: NextRequest) {
 
     const requestedUntilDate = new Date(requestedUntil);
     const standardCheckout = new Date(booking.checkOut);
-    standardCheckout.setHours(11, 0, 0, 0); // Standard 11 AM checkout
+
+    // Read check-out time from property settings instead of hardcoding 11
+    let checkOutHour = 11;
+    try {
+      const lateProp = await db.property.findUnique({
+        where: { id: booking.propertyId },
+        select: { settings: true },
+      });
+      if (lateProp?.settings) {
+        const parsed = JSON.parse(lateProp.settings);
+        if (parsed.checkOutTime !== undefined) {
+          checkOutHour = parseInt(parsed.checkOutTime, 10) || 11;
+        }
+      }
+    } catch { /* use default */ }
+
+    standardCheckout.setHours(checkOutHour, 0, 0, 0);
 
     // Ensure requested time is after standard checkout
     if (requestedUntilDate <= standardCheckout) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Requested time must be after standard check-out (11 AM)' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Requested time must be after standard check-out (${checkOutHour}:00)` } },
         { status: 400 }
       );
     }
@@ -364,6 +380,30 @@ async function postLateCheckoutFeeToFolio(params: {
     return;
   }
 
+  // Look up property tax rate
+  let lateTaxRate = 0;
+  try {
+    const folioProp = await db.property.findUnique({
+      where: { id: folio.propertyId },
+      select: { defaultTaxRate: true, taxComponents: true },
+    });
+    if (folioProp) {
+      if (folioProp.taxComponents) {
+        const tc = JSON.parse(folioProp.taxComponents);
+        if (Array.isArray(tc) && tc.length > 0) {
+          lateTaxRate = tc.reduce((s: number, c: { rate: number }) => s + (c.rate || 0), 0) / 100;
+        } else {
+          lateTaxRate = (folioProp.defaultTaxRate || 0) / 100;
+        }
+      } else {
+        lateTaxRate = (folioProp.defaultTaxRate || 0) / 100;
+      }
+    }
+  } catch { /* use default 0 */ }
+
+  const lateTaxAmount = Math.round(feeAmount * lateTaxRate * 100) / 100;
+  const lateTotalWithTax = Math.round((feeAmount + lateTaxAmount) * 100) / 100;
+
   await db.$transaction(async (tx) => {
     await tx.folioLineItem.create({
       data: {
@@ -372,7 +412,9 @@ async function postLateCheckoutFeeToFolio(params: {
         category: 'late_checkout',
         quantity: 1,
         unitPrice: feeAmount,
-        totalAmount: feeAmount,
+        totalAmount: lateTotalWithTax,
+        taxRate: Math.round(lateTaxRate * 100) / 100,
+        taxAmount: lateTaxAmount,
         serviceDate: new Date(),
       },
     });
@@ -380,19 +422,21 @@ async function postLateCheckoutFeeToFolio(params: {
     // Recalculate folio totals
     const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: folio.id } });
     const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+    const newTaxes = allLineItems.reduce((sum, li) => sum + (li.taxAmount || 0), 0);
     // BALANCE FIX: include discount in totalAmount calculation
-    const newTotalAmount = Math.round((newSubtotal + folio.taxes - (folio.discount || 0)) * 100) / 100;
+    const newTotalAmount = Math.round((newSubtotal + newTaxes - (folio.discount || 0)) * 100) / 100;
     // BALANCE FIX: balance = totalAmount - paidAmount (was missing discount before)
     const newBalance = Math.max(0, Math.round((newTotalAmount - (folio.paidAmount || 0)) * 100) / 100);
     await tx.folio.update({
       where: { id: folio.id },
       data: {
         subtotal: Math.round(newSubtotal * 100) / 100,
+        taxes: Math.round(newTaxes * 100) / 100,
         totalAmount: newTotalAmount,
         balance: newBalance,
       },
     });
   });
 
-  console.log(`[LateCheckout] Posted late checkout fee of ${feeAmount} to folio ${folio.id} for booking ${bookingId}`);
+  console.log(`[LateCheckout] Posted late checkout fee of ${feeAmount} (+tax ${lateTaxAmount}) to folio ${folio.id} for booking ${bookingId}`);
 }

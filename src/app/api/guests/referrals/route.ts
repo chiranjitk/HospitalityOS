@@ -98,6 +98,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
     }
 
+    if (!hasAnyPermission(user, ['guests.manage', 'admin.bookings', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } }, { status: 403 });
+    }
+
     const body = await request.json();
     const { referrerId, referralSource, rewardType, rewardAmount, expiresInDays } = body;
 
@@ -165,6 +169,10 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
     }
 
+    if (!hasAnyPermission(user, ['guests.manage', 'admin.bookings', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } }, { status: 403 });
+    }
+
     const body = await request.json();
     const { id, status, refereeId, convertedAt, rewardedAt, rewardAmount } = body;
 
@@ -210,28 +218,39 @@ export async function PUT(request: NextRequest) {
       data: updateData,
     });
 
-    // If rewarded, add loyalty points to referrer
+    // If rewarded, atomically add loyalty points to referrer and update status in a transaction
     if (status === 'rewarded' && referral.rewardType === 'points') {
       try {
-        await db.guest.update({
-          where: { id: referral.referrerId },
-          data: {
-            loyaltyPoints: { increment: Math.round(referral.rewardAmount) },
-          },
-        });
+        await db.$transaction(async (tx) => {
+          // Atomic status update + points increment
+          const [updatedTx] = await Promise.all([
+            tx.referralTracking.update({
+              where: { id },
+              data: updateData,
+            }),
+            tx.guest.update({
+              where: { id: referral.referrerId },
+              data: {
+                loyaltyPoints: { increment: Math.round(referral.rewardAmount) },
+              },
+            }),
+          ]);
 
-        await db.loyaltyPointTransaction.create({
-          data: {
-            tenantId: user.tenantId,
-            guestId: referral.referrerId,
-            points: Math.round(referral.rewardAmount),
-            balance: 0, // Will be recalculated
-            type: 'referral',
-            source: 'referral',
-            referenceId: referral.id,
-            referenceType: 'referral',
-            description: `Referral reward: ${referral.referralCode}`,
-          },
+          await tx.loyaltyPointTransaction.create({
+            data: {
+              tenantId: user.tenantId,
+              guestId: referral.referrerId,
+              points: Math.round(referral.rewardAmount),
+              balance: 0, // Will be recalculated
+              type: 'referral',
+              source: 'referral',
+              referenceId: referral.id,
+              referenceType: 'referral',
+              description: `Referral reward: ${referral.referralCode}`,
+            },
+          });
+
+          return updatedTx;
         });
       } catch (loyaltyError) {
         console.error('Failed to add loyalty points for referral reward:', loyaltyError);

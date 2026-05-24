@@ -79,6 +79,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Property ID and items are required' } }, { status: 400 });
     }
 
+    // Validate that roomNumber exists and has an active booking
+    if (roomNumber) {
+      const room = await db.room.findFirst({
+        where: { number: roomNumber, propertyId, deletedAt: null },
+        select: { id: true, status: true },
+      });
+      if (!room) {
+        return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: `Room ${roomNumber} not found` } }, { status: 400 });
+      }
+      // Check for an active booking on this room (checked_in or confirmed)
+      if (!bookingId) {
+        const activeBooking = await db.booking.findFirst({
+          where: { roomId: room.id, status: { in: ['checked_in', 'confirmed'] }, deletedAt: null },
+          select: { id: true },
+        });
+        if (!activeBooking) {
+          return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: `No active booking found for room ${roomNumber}` } }, { status: 400 });
+        }
+      }
+    }
+
     const property = await db.property.findFirst({ where: { id: propertyId, tenantId: user.tenantId, deletedAt: null }, select: { id: true, defaultTaxRate: true, taxComponents: true, serviceChargePercent: true } });
     if (!property) return NextResponse.json({ success: false, error: { code: 'INVALID_PROPERTY', message: 'Property not found' } }, { status: 400 });
 
@@ -189,17 +210,23 @@ export async function PUT(request: NextRequest) {
       if (status === 'cancelled') updateData.cancelledAt = new Date();
     }
 
-    const order = await db.order.update({ where: { id }, data: updateData });
-
     // ── Auto-Folio Posting: when status changes to "delivered" ──────────
+    // Wrap status update + folio posting in a single transaction for atomicity
     if (status === 'delivered' && existing.roomNumber) {
       try {
         // Skip if already posted to a folio
         if (existing.folioId) {
           console.log(`[RoomService] Order ${existing.orderNumber} already posted to folio ${existing.folioId}, skipping.`);
-        } else {
-          // 1. Find the booking for this room number that is currently checked in
-          const room = await db.room.findFirst({
+          const order = await db.order.update({ where: { id }, data: updateData });
+          return NextResponse.json({ success: true, data: order });
+        }
+
+        const order = await db.$transaction(async (tx) => {
+          // 1. Update order status
+          const updatedOrder = await tx.order.update({ where: { id }, data: updateData });
+
+          // 2. Find the booking for this room number that is currently checked in
+          const room = await tx.room.findFirst({
             where: {
               number: existing.roomNumber,
               propertyId: existing.propertyId,
@@ -209,7 +236,7 @@ export async function PUT(request: NextRequest) {
           let bookingId = existing.bookingId;
 
           if (!bookingId && room) {
-            const activeBooking = await db.booking.findFirst({
+            const activeBooking = await tx.booking.findFirst({
               where: {
                 roomId: room.id,
                 status: 'checked_in',
@@ -222,182 +249,180 @@ export async function PUT(request: NextRequest) {
             }
           }
 
-          if (bookingId) {
-            // 2. Find or create folio
-            let folioId: string | null = null;
-            const existingFolio = await db.folio.findFirst({
-              where: {
-                bookingId,
-                status: { in: ['open', 'partially_paid'] },
-              },
-              orderBy: { createdAt: 'desc' },
+          if (!bookingId) {
+            console.log(`[RoomService] No active booking found for room ${existing.roomNumber}, cannot auto-post to folio.`);
+            return updatedOrder;
+          }
+
+          // 3. Find or create folio
+          let folioId: string | null = null;
+          const existingFolio = await tx.folio.findFirst({
+            where: {
+              bookingId,
+              status: { in: ['open', 'partially_paid'] },
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+
+          if (existingFolio) {
+            folioId = existingFolio.id;
+          } else {
+            const booking = await tx.booking.findUnique({
+              where: { id: bookingId },
+              select: { primaryGuestId: true, propertyId: true },
             });
 
-            if (existingFolio) {
-              folioId = existingFolio.id;
-            } else {
-              // Get guestId for the new folio
-              const booking = await db.booking.findUnique({
-                where: { id: bookingId },
-                select: { primaryGuestId: true, propertyId: true },
+            if (booking) {
+              const newFolio = await tx.folio.create({
+                data: {
+                  tenantId: existing.tenantId,
+                  propertyId: booking.propertyId || existing.propertyId,
+                  bookingId,
+                  guestId: booking.primaryGuestId,
+                  folioNumber: `FOL-RS-${Date.now().toString(36).toUpperCase()}`,
+                  status: 'open',
+                  subtotal: 0,
+                  taxes: 0,
+                  totalAmount: 0,
+                  paidAmount: 0,
+                  balance: 0,
+                  currency: existing.property?.currency || 'USD',
+                },
               });
-
-              if (booking) {
-                const newFolio = await db.folio.create({
-                  data: {
-                    tenantId: existing.tenantId,
-                    propertyId: booking.propertyId || existing.propertyId,
-                    bookingId,
-                    guestId: booking.primaryGuestId,
-                    folioNumber: `FOL-RS-${Date.now().toString(36).toUpperCase()}`,
-                    status: 'open',
-                    subtotal: 0,
-                    taxes: 0,
-                    totalAmount: 0,
-                    paidAmount: 0,
-                    balance: 0,
-                    currency: existing.property?.currency || 'USD',
-                  },
-                });
-                folioId = newFolio.id;
-              }
+              folioId = newFolio.id;
             }
-
-            if (folioId) {
-              // 3. Build item description
-              const itemNames = existing.items
-                .map((item: { menuItem?: { name: string } | null; quantity: number }) => {
-                  const name = item.menuItem?.name || 'Unknown Item';
-                  return item.quantity > 1 ? `${name} x${item.quantity}` : name;
-                })
-                .join(', ');
-              const description = `Room Service - ${itemNames || existing.orderNumber}`;
-
-              // 4. Calculate amounts — use SUBTOTAL (pre-tax) as base, not totalAmount
-              //    totalAmount already includes taxes + serviceCharge, recalc would double-tax
-              const baseAmount = existing.subtotal;
-
-              // Determine tax rate from property
-              let taxRate = 0;
-              if (existing.property) {
-                try {
-                  const taxComponents = JSON.parse(existing.property.taxComponents || '[]');
-                  if (Array.isArray(taxComponents) && taxComponents.length > 0) {
-                    taxRate = taxComponents.reduce((sum: number, tc: { rate: number }) => sum + (tc.rate || 0), 0) / 100;
-                  } else {
-                    taxRate = (existing.property.defaultTaxRate || 0) / 100;
-                  }
-                } catch {
-                  taxRate = (existing.property.defaultTaxRate || 0) / 100;
-                }
-              }
-              const taxAmount = existing.taxes || Math.round(baseAmount * taxRate * 100) / 100;
-              const serviceChargeAmt = existing.totalAmount - existing.subtotal - (existing.taxes || 0);
-
-              // 5. Create folio line items and update folio totals in a transaction
-              await db.$transaction(async (tx) => {
-                // Create food line item (pre-tax subtotal)
-                await tx.folioLineItem.create({
-                  data: {
-                    folioId,
-                    description,
-                    category: 'room_service',
-                    quantity: 1,
-                    unitPrice: baseAmount,
-                    totalAmount: baseAmount,
-                    serviceDate: new Date(),
-                    referenceType: 'order',
-                    referenceId: existing.id,
-                    taxRate: taxRate * 100,
-                    taxAmount,
-                    postedBy: `system:room_service_delivered`,
-                    itemCurrency: existing.property?.currency || 'USD',
-                  },
-                });
-
-                // Create service charge line item if applicable
-                if (serviceChargeAmt > 0) {
-                  await tx.folioLineItem.create({
-                    data: {
-                      folioId,
-                      description: `Room Service Charge (${existing.property?.serviceChargePercent || 0}%)`,
-                      category: 'service',
-                      quantity: 1,
-                      unitPrice: serviceChargeAmt,
-                      totalAmount: serviceChargeAmt,
-                      serviceDate: new Date(),
-                      referenceType: 'order',
-                      referenceId: existing.id,
-                      taxAmount: 0,
-                      postedBy: `system:room_service_delivered`,
-                      itemCurrency: existing.property?.currency || 'USD',
-                    },
-                  });
-                }
-
-                // Recalculate folio totals
-                const folioLineItems = await tx.folioLineItem.findMany({
-                  where: { folioId },
-                });
-                const newSubtotal = folioLineItems.reduce((sum, item) => sum + item.totalAmount, 0);
-                const newTaxes = folioLineItems.reduce((sum, item) => sum + item.taxAmount, 0);
-
-                const currentFolio = await tx.folio.findUnique({ where: { id: folioId } });
-                const newTotal = newSubtotal + newTaxes - (currentFolio?.discount || 0);
-
-                await tx.folio.update({
-                  where: { id: folioId },
-                  data: {
-                    subtotal: newSubtotal,
-                    taxes: newTaxes,
-                    totalAmount: newTotal,
-                    balance: newTotal - (currentFolio?.paidAmount || 0),
-                  },
-                });
-
-                // Link order to folio and booking
-                await tx.order.update({
-                  where: { id: existing.id },
-                  data: {
-                    folioId,
-                    bookingId,
-                  },
-                });
-
-                // Create audit log
-                try {
-                  await tx.bookingAuditLog.create({
-                    data: {
-                      bookingId,
-                      action: 'charge_added',
-                      notes: JSON.stringify({
-                        source: 'room_service_auto_folio',
-                        orderId: existing.id,
-                        orderNumber: existing.orderNumber,
-                        folioId,
-                        amount: existing.totalAmount,
-                        description,
-                      }),
-                      performedBy: 'system:room_service',
-                    },
-                  });
-                } catch {
-                  // Audit log creation is best-effort
-                  console.warn('[RoomService] Could not create booking audit log');
-                }
-              });
-
-              console.log(`[RoomService] Auto-posted order ${existing.orderNumber} ($${existing.totalAmount}) to folio ${folioId}`);
-            }
-          } else {
-            console.log(`[RoomService] No active booking found for room ${existing.roomNumber}, cannot auto-post to folio.`);
           }
-        }
+
+          if (!folioId) return updatedOrder;
+
+          // 4. Build item description
+          const itemNames = existing.items
+            .map((item: { menuItem?: { name: string } | null; quantity: number }) => {
+              const name = item.menuItem?.name || 'Unknown Item';
+              return item.quantity > 1 ? `${name} x${item.quantity}` : name;
+            })
+            .join(', ');
+          const description = `Room Service - ${itemNames || existing.orderNumber}`;
+
+          // 5. Calculate amounts
+          const baseAmount = existing.subtotal;
+
+          let taxRate = 0;
+          if (existing.property) {
+            try {
+              const taxComponents = JSON.parse(existing.property.taxComponents || '[]');
+              if (Array.isArray(taxComponents) && taxComponents.length > 0) {
+                taxRate = taxComponents.reduce((sum: number, tc: { rate: number }) => sum + (tc.rate || 0), 0) / 100;
+              } else {
+                taxRate = (existing.property.defaultTaxRate || 0) / 100;
+              }
+            } catch {
+              taxRate = (existing.property.defaultTaxRate || 0) / 100;
+            }
+          }
+          const taxAmount = existing.taxes || Math.round(baseAmount * taxRate * 100) / 100;
+          const serviceChargeAmt = existing.totalAmount - existing.subtotal - (existing.taxes || 0);
+
+          // 6. Create folio line items
+          await tx.folioLineItem.create({
+            data: {
+              folioId,
+              description,
+              category: 'room_service',
+              quantity: 1,
+              unitPrice: baseAmount,
+              totalAmount: baseAmount,
+              serviceDate: new Date(),
+              referenceType: 'order',
+              referenceId: existing.id,
+              taxRate: taxRate * 100,
+              taxAmount,
+              postedBy: `system:room_service_delivered`,
+              itemCurrency: existing.property?.currency || 'USD',
+            },
+          });
+
+          if (serviceChargeAmt > 0) {
+            await tx.folioLineItem.create({
+              data: {
+                folioId,
+                description: `Room Service Charge (${existing.property?.serviceChargePercent || 0}%)`,
+                category: 'service',
+                quantity: 1,
+                unitPrice: serviceChargeAmt,
+                totalAmount: serviceChargeAmt,
+                serviceDate: new Date(),
+                referenceType: 'order',
+                referenceId: existing.id,
+                taxAmount: 0,
+                postedBy: `system:room_service_delivered`,
+                itemCurrency: existing.property?.currency || 'USD',
+              },
+            });
+          }
+
+          // 7. Recalculate folio totals
+          const folioLineItems = await tx.folioLineItem.findMany({
+            where: { folioId },
+          });
+          const newSubtotal = folioLineItems.reduce((sum, item) => sum + item.totalAmount, 0);
+          const newTaxes = folioLineItems.reduce((sum, item) => sum + item.taxAmount, 0);
+
+          const currentFolio = await tx.folio.findUnique({ where: { id: folioId } });
+          const newTotal = newSubtotal + newTaxes - (currentFolio?.discount || 0);
+
+          await tx.folio.update({
+            where: { id: folioId },
+            data: {
+              subtotal: newSubtotal,
+              taxes: newTaxes,
+              totalAmount: newTotal,
+              balance: newTotal - (currentFolio?.paidAmount || 0),
+            },
+          });
+
+          // Link order to folio and booking
+          await tx.order.update({
+            where: { id: existing.id },
+            data: {
+              folioId,
+              bookingId,
+            },
+          });
+
+          // Audit log (best-effort inside transaction)
+          try {
+            await tx.bookingAuditLog.create({
+              data: {
+                bookingId,
+                action: 'charge_added',
+                notes: JSON.stringify({
+                  source: 'room_service_auto_folio',
+                  orderId: existing.id,
+                  orderNumber: existing.orderNumber,
+                  folioId,
+                  amount: existing.totalAmount,
+                  description,
+                }),
+                performedBy: 'system:room_service',
+              },
+            });
+          } catch {
+            console.warn('[RoomService] Could not create booking audit log');
+          }
+
+          console.log(`[RoomService] Auto-posted order ${existing.orderNumber} ($${existing.totalAmount}) to folio ${folioId}`);
+          return updatedOrder;
+        });
+
+        return NextResponse.json({ success: true, data: order });
       } catch (folioError) {
-        console.error(`[RoomService] Error auto-posting order ${existing.orderNumber} to folio:`, folioError);
-        // Don't fail the main request — the status update already succeeded
+        console.error(`[RoomService] Error in transactional status update + folio posting for order ${existing.orderNumber}:`, folioError);
+        return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update order status' } }, { status: 500 });
       }
     }
+
+    const order = await db.order.update({ where: { id }, data: updateData });
 
     return NextResponse.json({ success: true, data: order });
   } catch (error) {

@@ -68,6 +68,11 @@ export async function GET(
     }
 
     // Generate a key secret if not stored (use crypto.randomBytes for security)
+    // TODO: The key secret should be persisted to the database (e.g., a DigitalKey table)
+    // and reused on subsequent requests. Currently a new secret is generated every time
+    // this endpoint is called, which means each QR scan would produce a different code.
+    // Consider storing { bookingId, keySecret, createdAt, expiresAt } and reusing the
+    // stored secret until expiry.
     const { randomBytes } = await import('crypto');
     const keySecret = booking.confirmationCode + '-' + randomBytes(4).toString('hex').toUpperCase();
     const maskedSecret = keySecret.substring(0, 4) + '****' + keySecret.substring(keySecret.length - 4);

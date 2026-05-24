@@ -69,6 +69,30 @@ export async function POST(
 
     // Execute the charge atomically: folio line item + folio balance + execution record
     const result = await db.$transaction(async (tx) => {
+      // Look up property tax rate
+      let taxRate = 0;
+      try {
+        const scFolio = await tx.folio.findUnique({ where: { id: charge.folioId }, select: { propertyId: true } });
+        if (scFolio) {
+          const scProp = await tx.property.findUnique({ where: { id: scFolio.propertyId }, select: { defaultTaxRate: true, taxComponents: true } });
+          if (scProp) {
+            if (scProp.taxComponents) {
+              const tc = JSON.parse(scProp.taxComponents);
+              if (Array.isArray(tc) && tc.length > 0) {
+                taxRate = tc.reduce((s: number, c: { rate: number }) => s + (c.rate || 0), 0) / 100;
+              } else {
+                taxRate = (scProp.defaultTaxRate || 0) / 100;
+              }
+            } else {
+              taxRate = (scProp.defaultTaxRate || 0) / 100;
+            }
+          }
+        }
+      } catch { /* use default 0 */ }
+
+      const taxAmount = Math.round(charge.amount * taxRate * 100) / 100;
+      const totalWithTax = Math.round((charge.amount + taxAmount) * 100) / 100;
+
       const lineItem = await tx.folioLineItem.create({
         data: {
           folioId: charge.folioId,
@@ -76,7 +100,9 @@ export async function POST(
           category: charge.category || charge.chargeType,
           quantity: 1,
           unitPrice: charge.amount,
-          totalAmount: charge.amount,
+          totalAmount: totalWithTax,
+          taxRate: Math.round(taxRate * 100) / 100,
+          taxAmount,
           serviceDate: new Date(),
           referenceType: 'ScheduledCharge',
           referenceId: charge.id,
@@ -89,8 +115,9 @@ export async function POST(
         where: { id: charge.folioId },
         data: {
           subtotal: { increment: charge.amount },
-          totalAmount: { increment: charge.amount },
-          balance: { increment: charge.amount },
+          taxes: { increment: taxAmount },
+          totalAmount: { increment: totalWithTax },
+          balance: { increment: totalWithTax },
         },
       });
 

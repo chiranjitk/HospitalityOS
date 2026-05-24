@@ -479,47 +479,25 @@ export async function PUT(request: NextRequest) {
         status: 'exited',
       };
 
-      // Free up the parking slot
-      if (vehicle.slotId) {
-        await db.parkingSlot.update({
-          where: { id: vehicle.slotId },
-          data: { status: 'available' },
-        });
-      }
-
-      // If moving to a new slot
-      if (slotId && slotId !== vehicle.slotId) {
-        updateData.slotId = slotId;
-      }
-
-      // Create audit log for checkout
-      try {
-        await db.auditLog.create({
-          data: {
-            tenantId,
-            module: 'parking',
-            action: 'check_out',
-            entityType: 'vehicle',
-            entityId: id,
-            oldValue: JSON.stringify({
-              status: vehicle.status,
-              slotId: vehicle.slotId,
-            }),
-            newValue: JSON.stringify({
-              status: 'exited',
-              parkingFee: calculatedFee,
-              exitTime: exitTime.toISOString(),
-            }),
-          },
-        });
-      } catch {
-        // Ignore audit log errors
-      }
-
       // Post parking fees to booking folio if vehicle is linked to a booking
+      // Wrap vehicle update + slot update + folio posting in a single transaction
       if (vehicle.bookingId && calculatedFee > 0) {
         try {
           await db.$transaction(async (tx) => {
+            // Update vehicle status
+            await tx.vehicle.update({
+              where: { id },
+              data: updateData,
+            });
+
+            // Free up the parking slot
+            if (vehicle.slotId) {
+              await tx.parkingSlot.update({
+                where: { id: vehicle.slotId },
+                data: { status: 'available' },
+              });
+            }
+
             const folio = await tx.folio.findFirst({
               where: {
                 bookingId: vehicle.bookingId,
@@ -592,7 +570,19 @@ export async function PUT(request: NextRequest) {
           });
         } catch (folioError) {
           console.error('Failed to post parking fees to folio:', folioError);
-          // Don't fail the checkout if folio posting fails
+          // Don't fail the checkout if folio posting fails — update vehicle separately
+          await db.vehicle.update({ where: { id }, data: updateData });
+        }
+      } else {
+        // No booking linked — just update vehicle and free slot
+        await db.vehicle.update({ where: { id }, data: updateData });
+
+        // Free up the parking slot
+        if (vehicle.slotId) {
+          await db.parkingSlot.update({
+            where: { id: vehicle.slotId },
+            data: { status: 'available' },
+          });
         }
       }
     } else if (action === 'pay') {

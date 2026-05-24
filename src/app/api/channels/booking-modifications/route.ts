@@ -302,70 +302,60 @@ export async function PUT(request: NextRequest) {
 
     // ── APPROVE ──
     if (action === 'approve') {
-      const updated = await db.bookingModification.update({
-        where: { id },
-        data: {
-          status: 'approved',
-          processedAt: new Date(),
-          processedBy: user.id,
-        },
-      });
+      // FIX: Wrap approve + apply in a single transaction to prevent partial state
+      const final = await db.$transaction(async (tx) => {
+        const updated = await tx.bookingModification.update({
+          where: { id },
+          data: {
+            status: 'approved',
+            processedAt: new Date(),
+            processedBy: user.id,
+          },
+        });
 
-      // Apply the approved change to the underlying booking
-      if (existing.bookingId) {
-        try {
-          const booking = await db.booking.findFirst({ where: { id: existing.bookingId, tenantId: user.tenantId } });
+        // Apply the approved change to the underlying booking
+        if (existing.bookingId) {
+          const booking = await tx.booking.findFirst({ where: { id: existing.bookingId, tenantId: user.tenantId } });
           if (!booking) {
-            return NextResponse.json(
-              { success: false, error: { code: 'NOT_FOUND', message: 'Booking not found' } },
-              { status: 404 }
-            );
+            throw new Error('BOOKING_NOT_FOUND');
           }
-          if (booking) {
-            const updateData: Record<string, unknown> = {};
-            if (existing.newCheckIn) updateData.checkIn = existing.newCheckIn;
-            if (existing.newCheckOut) updateData.checkOut = existing.newCheckOut;
-            if (existing.newAdults !== null && existing.newAdults !== undefined) updateData.adults = existing.newAdults;
-            if (existing.newChildren !== null && existing.newChildren !== undefined) updateData.children = existing.newChildren;
-            if (existing.newRate !== null && existing.newRate !== undefined) updateData.roomRate = existing.newRate;
 
-            if (Object.keys(updateData).length > 0) {
-              await db.booking.update({
-                where: { id: existing.bookingId },
-                data: updateData,
-              });
-            }
+          const updateData: Record<string, unknown> = {};
+          if (existing.newCheckIn) updateData.checkIn = existing.newCheckIn;
+          if (existing.newCheckOut) updateData.checkOut = existing.newCheckOut;
+          if (existing.newAdults !== null && existing.newAdults !== undefined) updateData.adults = existing.newAdults;
+          if (existing.newChildren !== null && existing.newChildren !== undefined) updateData.children = existing.newChildren;
+          if (existing.newRate !== null && existing.newRate !== undefined) updateData.roomRate = existing.newRate;
 
-            // Mark as applied
-            await db.bookingModification.update({
-              where: { id },
-              data: { status: 'applied' },
-            });
-
-            // Create audit log
-            await db.bookingAuditLog.create({
-              data: {
-                bookingId: existing.bookingId,
-                action: 'modification_applied',
-                oldStatus: booking.status,
-                newStatus: booking.status,
-                notes: `Channel modification approved: ${existing.modificationType} from ${existing.channelCode}`,
-                performedBy: user.id,
-              },
+          if (Object.keys(updateData).length > 0) {
+            await tx.booking.update({
+              where: { id: existing.bookingId },
+              data: updateData,
             });
           }
-        } catch (applyErr) {
-          await db.bookingModification.update({
+
+          // Mark as applied
+          await tx.bookingModification.update({
             where: { id },
+            data: { status: 'applied' },
+          });
+
+          // Create audit log
+          await tx.bookingAuditLog.create({
             data: {
-              status: 'failed',
-              errorMessage: applyErr instanceof Error ? applyErr.message : 'Failed to apply to booking',
+              bookingId: existing.bookingId,
+              action: 'modification_applied',
+              oldStatus: booking.status,
+              newStatus: booking.status,
+              notes: `Channel modification approved: ${existing.modificationType} from ${existing.channelCode}`,
+              performedBy: user.id,
             },
           });
         }
-      }
 
-      const final = await db.bookingModification.findUnique({ where: { id } });
+        return tx.bookingModification.findUnique({ where: { id } });
+      });
+
       return NextResponse.json({ success: true, data: final, message: 'Modification approved and applied' });
     }
 

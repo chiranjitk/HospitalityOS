@@ -128,12 +128,28 @@ export async function POST(request: NextRequest) {
 
     const requestedTimeDate = new Date(requestedTime);
     const standardCheckIn = new Date(booking.checkIn);
-    standardCheckIn.setHours(15, 0, 0, 0); // Standard 3 PM check-in
+
+    // Read check-in time from property settings instead of hardcoding 15 (3 PM)
+    let checkInHour = 15;
+    try {
+      const bookingProperty = await db.property.findUnique({
+        where: { id: booking.propertyId },
+        select: { settings: true, defaultTaxRate: true },
+      });
+      if (bookingProperty?.settings) {
+        const parsed = JSON.parse(bookingProperty.settings);
+        if (parsed.checkInTime !== undefined) {
+          checkInHour = parseInt(parsed.checkInTime, 10) || 15;
+        }
+      }
+    } catch { /* use default */ }
+
+    standardCheckIn.setHours(checkInHour, 0, 0, 0);
 
     // Ensure requested time is before standard check-in
     if (requestedTimeDate >= standardCheckIn) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Requested time must be before standard check-in (3 PM)' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Requested time must be before standard check-in (${checkInHour}:00)` } },
         { status: 400 }
       );
     }

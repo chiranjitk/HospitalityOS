@@ -131,6 +131,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // FIX: Verify property is active and published for public bookings
+    if (property.status !== 'active' && property.status !== 'published') {
+      return NextResponse.json(
+        { error: 'Property is not available for bookings' },
+        { status: 400 }
+      );
+    }
+
     // Get room type
     const roomType = await db.roomType.findUnique({
       where: { id: roomTypeId },
@@ -256,39 +264,6 @@ export async function POST(request: NextRequest) {
       totalAmount = Math.round((roomRate + taxes + serviceCharge) * 100) / 100;
     }
 
-    // Create or find guest (outside transaction — guest creation is not part of the race condition)
-    let guest = await db.guest.findFirst({
-      where: {
-        email: email.toLowerCase(),
-        tenantId: property.tenantId,
-      },
-    });
-
-    if (!guest) {
-      guest = await db.guest.create({
-        data: {
-          tenantId: property.tenantId,
-          firstName,
-          lastName,
-          email: email.toLowerCase(),
-          phone,
-          source: 'direct',
-          preferences: JSON.stringify({}),
-          tags: JSON.stringify([]),
-        },
-      });
-    } else {
-      // Update guest info
-      await db.guest.update({
-        where: { id: guest.id },
-        data: {
-          firstName,
-          lastName,
-          phone: phone || guest.phone,
-        },
-      });
-    }
-
     // Generate confirmation code and portal token
     const confirmationCode = generateConfirmationCode();
     const portalToken = generateSecureToken();
@@ -298,10 +273,45 @@ export async function POST(request: NextRequest) {
     // ──────────────────────────────────────────────────────────
     // FIX 1: Use serializable transaction for atomic availability
     // check + booking creation to prevent race conditions
+    // FIX 2: Guest creation moved INSIDE the transaction to ensure
+    // guest + booking are created atomically (prevents orphan guests)
     // ──────────────────────────────────────────────────────────
     let idempotentBooking: Awaited<ReturnType<typeof db.booking.findFirst>> | null = null;
+    let guest: Awaited<ReturnType<typeof db.guest.findFirst>> | null = null;
 
     const booking = await db.$transaction(async (tx) => {
+      // Create or find guest (inside transaction for atomicity)
+      guest = await tx.guest.findFirst({
+        where: {
+          email: email.toLowerCase(),
+          tenantId: property.tenantId,
+        },
+      });
+
+      if (!guest) {
+        guest = await tx.guest.create({
+          data: {
+            tenantId: property.tenantId,
+            firstName,
+            lastName,
+            email: email.toLowerCase(),
+            phone,
+            source: 'direct',
+            preferences: JSON.stringify({}),
+            tags: JSON.stringify([]),
+          },
+        });
+      } else {
+        // Update guest info
+        await tx.guest.update({
+          where: { id: guest.id },
+          data: {
+            firstName,
+            lastName,
+            phone: phone || guest.phone,
+          },
+        });
+      }
       // Idempotency check inside the transaction
       if (idempotencyKey) {
         const existingBooking = await tx.booking.findFirst({
@@ -402,7 +412,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Create a folio for the booking
-      await tx.folio.create({
+      const newFolio = await tx.folio.create({
         data: {
           tenantId: property.tenantId,
           propertyId,
@@ -417,6 +427,21 @@ export async function POST(request: NextRequest) {
           balance: totalAmount,
           currency: property.currency,
           status: 'open',
+        },
+      });
+
+      // Create room charge folio line item
+      await tx.folioLineItem.create({
+        data: {
+          folioId: newFolio.id,
+          description: `Room ${roomType.name} - ${nights} night(s)`,
+          category: 'room',
+          quantity: nights,
+          unitPrice: Math.round((roomRate / nights) * 100) / 100,
+          totalAmount: roomRate,
+          taxAmount: taxes,
+          serviceDate: checkInDate,
+          postedBy: 'booking-engine',
         },
       });
 

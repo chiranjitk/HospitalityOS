@@ -159,8 +159,29 @@ export async function POST(request: NextRequest) {
       subtotal += item.amount * item.quantity;
     }
 
-    const tax = 0; // Default 0% tax — could be configurable per property
-    const total = subtotal + tax;
+    // Look up property tax rate
+    let taxRate = 0;
+    try {
+      const propForTax = await db.property.findUnique({
+        where: { id: data.propertyId },
+        select: { defaultTaxRate: true, taxComponents: true },
+      });
+      if (propForTax) {
+        if (propForTax.taxComponents) {
+          const tc = JSON.parse(propForTax.taxComponents);
+          if (Array.isArray(tc) && tc.length > 0) {
+            taxRate = tc.reduce((s: number, c: { rate: number }) => s + (c.rate || 0), 0) / 100;
+          } else {
+            taxRate = (propForTax.defaultTaxRate || 0) / 100;
+          }
+        } else {
+          taxRate = (propForTax.defaultTaxRate || 0) / 100;
+        }
+      }
+    } catch { /* use default 0 */ }
+
+    const tax = Math.round(subtotal * taxRate * 100) / 100;
+    const total = Math.round((subtotal + tax) * 100) / 100;
 
     const invoice = await db.cityLedgerInvoice.create({
       data: {

@@ -188,7 +188,7 @@ export async function POST(
         tenantId: order.tenantId,
         folioId: targetFolioId,
         description: `${item.menuItem.name}${item.notes ? ` (${item.notes})` : ''}`,
-        category: 'restaurant' as const,
+        category: (order.orderType === 'room_service' ? 'room_service' : 'restaurant') as const,
         subcategory: order.orderType,
         quantity: item.quantity,
         unitPrice: item.unitPrice,

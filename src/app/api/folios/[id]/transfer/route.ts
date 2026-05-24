@@ -146,7 +146,7 @@ export async function POST(
       }
 
       exchangeRateApplied = exchangeRateRecord.rate;
-      transferAmount = amount * exchangeRateRecord.rate;
+      transferAmount = Math.round(amount * exchangeRateRecord.rate * 100) / 100;
     }
 
     // Execute the transfer in a transaction

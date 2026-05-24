@@ -142,7 +142,7 @@ export async function PUT(
     // Handle refund
     if (refundAmount && refundAmount > 0) {
       // Only process refunds for non-voided payments
-      if (existingPayment.status === 'failed') {
+      if (existingPayment.status === 'failed' || existingPayment.status === 'voided') {
         return NextResponse.json(
           { success: false, error: { code: 'PAYMENT_VOIDED', message: 'Cannot refund a voided payment' } },
           { status: 400 }
@@ -179,6 +179,11 @@ export async function PUT(
           });
         } catch (gatewayError) {
           console.error(`[Payment Refund] Gateway refund failed:`, gatewayError);
+          // Abort: if the gateway refund fails, do NOT proceed with the DB refund
+          return NextResponse.json(
+            { success: false, error: { code: 'GATEWAY_REFUND_FAILED', message: 'Payment gateway refund failed — DB refund aborted to stay in sync' } },
+            { status: 502 }
+          );
         }
       }
 

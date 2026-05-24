@@ -84,6 +84,57 @@ export async function PATCH(
       };
     }
 
+    // Step 2b: Create a negative folio line item to reverse the charge (if linked to a booking)
+    if (upgrade.bookingId && upgrade.amount > 0) {
+      try {
+        await db.$transaction(async (tx) => {
+          const folio = await tx.folio.findFirst({
+            where: {
+              bookingId: upgrade.bookingId,
+              status: { in: ['open', 'partially_paid'] },
+            },
+          });
+          if (folio) {
+            await tx.folioLineItem.create({
+              data: {
+                folioId: folio.id,
+                description: `WiFi Bandwidth Upgrade Refund - ${refundReason || 'Customer request'}`,
+                category: 'wifi',
+                quantity: 1,
+                unitPrice: -upgrade.amount,
+                totalAmount: -upgrade.amount,
+                taxRate: 0,
+                taxAmount: 0,
+                serviceDate: new Date(),
+                referenceType: 'wifi_upgrade_refund',
+                referenceId: upgrade.id,
+                postedBy: auth.userId,
+              },
+            });
+
+            // Recalculate folio totals
+            const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: folio.id } });
+            const newSubtotal = allLineItems.reduce((s, i) => s + i.totalAmount, 0);
+            const newTaxes = allLineItems.reduce((s, i) => s + (i.taxAmount || 0), 0);
+            const newTotal = Math.round((newSubtotal + newTaxes - (folio.discount || 0)) * 100) / 100;
+            await tx.folio.update({
+              where: { id: folio.id },
+              data: {
+                subtotal: newSubtotal,
+                taxes: newTaxes,
+                totalAmount: newTotal,
+                balance: Math.max(0, newTotal - (folio.paidAmount || 0)),
+              },
+            });
+            console.log(`[BandwidthUpsell] Created negative folio adjustment of ${upgrade.amount} on folio ${folio.id} for upgrade ${id}`);
+          }
+        });
+      } catch (folioError) {
+        console.error('[BandwidthUpsell] Failed to create folio reversal for upgrade refund:', folioError);
+        // Don't fail the refund — folio adjustment is best-effort
+      }
+    }
+
     // Step 3: Update the record
     const updated = await db.wiFiBandwidthUpgrade.update({
       where: { id },

@@ -240,7 +240,16 @@ export async function POST(request: NextRequest) {
         isVip: true,
       };
       if (tier) updateData.loyaltyTier = tier;
-      if (loyaltyPoints !== undefined) updateData.loyaltyPoints = loyaltyPoints;
+      if (loyaltyPoints !== undefined) {
+        // SECURITY FIX: Prevent negative loyalty points
+        if (typeof loyaltyPoints !== 'number' || loyaltyPoints < 0) {
+          return NextResponse.json(
+            { success: false, error: 'loyaltyPoints must be >= 0' },
+            { status: 400 }
+          );
+        }
+        updateData.loyaltyPoints = loyaltyPoints;
+      }
       if (dietaryRequirements) updateData.dietaryRequirements = dietaryRequirements;
       if (specialRequests) updateData.specialRequests = specialRequests;
       if (preferences) updateData.preferences = JSON.stringify(preferences);
@@ -268,7 +277,7 @@ export async function POST(request: NextRequest) {
         phone: phone || null,
         isVip: true,
         loyaltyTier: tier || 'bronze',
-        loyaltyPoints: loyaltyPoints || 0,
+        loyaltyPoints: (typeof loyaltyPoints === 'number' && loyaltyPoints >= 0) ? loyaltyPoints : 0,
         dietaryRequirements: dietaryRequirements || null,
         specialRequests: specialRequests || null,
         preferences: preferences ? JSON.stringify(preferences) : '{}',

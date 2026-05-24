@@ -232,12 +232,18 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Update guest points
-      const newPoints = guest.loyaltyPoints - reward.pointsCost;
+      // Update guest points using atomic decrement to prevent race conditions
       await tx.guest.update({
         where: { id: guestId },
-        data: { loyaltyPoints: newPoints },
+        data: { loyaltyPoints: { decrement: reward.pointsCost } },
       });
+
+      // Read the updated balance for the transaction record
+      const updatedGuest = await tx.guest.findUnique({
+        where: { id: guestId },
+        select: { loyaltyPoints: true },
+      });
+      const newPoints = updatedGuest?.loyaltyPoints ?? 0;
 
       // Create point transaction record
       await tx.loyaltyPointTransaction.create({

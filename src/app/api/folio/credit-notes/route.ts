@@ -181,9 +181,9 @@ export async function POST(request: NextRequest) {
           taxAmount: resolvedTaxAmount,
           totalAmount,
           currency: currency || folio.currency,
-          status: 'applied',
-          appliedAmount: totalAmount,
-          remainingAmount: 0,
+          status: 'issued',
+          appliedAmount: 0,
+          remainingAmount: totalAmount,
           issuedBy: user.id,
         },
       });

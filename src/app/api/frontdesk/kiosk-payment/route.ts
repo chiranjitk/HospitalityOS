@@ -247,18 +247,20 @@ export async function POST(request: NextRequest) {
       });
 
       // Update folio: recalculate balance from line items using canonical formula
-      // balance = lineItems.reduce((sum, li) => sum + li.totalAmount, 0) - folio.paidAmount
+      // Include taxes and discount in totalAmount recalculation
       const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: folio!.id } });
-      const recalculatedTotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
-      const newBalance = recalculatedTotal + amount; // payment was just created, so line items haven't changed yet; newBalance = subtotal - newPaidAmount
+      const recalculatedSubtotal = Math.round(allLineItems.reduce((sum, li) => sum + li.totalAmount, 0) * 100) / 100;
+      const recalculatedTaxes = Math.round(allLineItems.reduce((sum, li) => sum + (li.taxAmount || 0), 0) * 100) / 100;
+      const recalculatedTotal = Math.round((recalculatedSubtotal + recalculatedTaxes - (folio!.discount || 0)) * 100) / 100;
       const newPaidAmount = folio!.paidAmount + amount;
 
       const updatedFolio = await tx.folio.update({
         where: { id: folio!.id },
         data: {
           paidAmount: newPaidAmount,
-          subtotal: Math.round(recalculatedTotal * 100) / 100,
-          totalAmount: Math.round(recalculatedTotal * 100) / 100,
+          subtotal: recalculatedSubtotal,
+          taxes: recalculatedTaxes,
+          totalAmount: recalculatedTotal,
           balance: Math.round((recalculatedTotal - newPaidAmount) * 100) / 100,
         },
       });

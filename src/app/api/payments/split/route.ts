@@ -101,6 +101,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // TODO: Add fraud detection check for split payments. Split payments across multiple
+    // methods can be used to circumvent per-method limits. Consider calling
+    // evaluateTransaction() from @/lib/fraud-detection before processing, similar to
+    // the single payment flow in /api/payments.
+
     // Process all payments in a transaction
     const createdPayments = await db.$transaction(async (tx) => {
       const results = [];

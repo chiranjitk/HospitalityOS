@@ -34,6 +34,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // FIX: Validate amount is positive (no negative or zero conversions)
+    if (amount <= 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Amount must be greater than 0' } },
+        { status: 400 }
+      );
+    }
+
     const from = fromCurrency.toUpperCase();
     const to = toCurrency.toUpperCase();
 

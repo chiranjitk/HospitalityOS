@@ -87,6 +87,15 @@ export async function GET(
       return new Date() > dueDate;
     });
 
+    // Credit limit check: flag when outstanding balance exceeds credit limit
+    const outstandingBalance = totalBilled - totalPaid;
+    const isCreditLimitExceeded = account.creditLimit != null
+      && account.creditLimit > 0
+      && outstandingBalance > account.creditLimit;
+    const creditLimitRemaining = account.creditLimit != null && account.creditLimit > 0
+      ? Math.max(0, account.creditLimit - outstandingBalance)
+      : null;
+
     return NextResponse.json({
       success: true,
       data: {
@@ -96,6 +105,8 @@ export async function GET(
           accountType: account.accountType,
           billingTerms: account.billingTerms,
           creditLimit: account.creditLimit,
+          creditLimitExceeded: isCreditLimitExceeded,
+          creditLimitRemaining,
         },
         invoices: invoices.map((inv) => ({
           id: inv.id,

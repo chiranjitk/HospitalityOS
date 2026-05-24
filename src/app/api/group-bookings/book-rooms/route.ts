@@ -74,36 +74,34 @@ export async function POST(request: NextRequest) {    const user = await getUser
       );
     }
 
-    // Check for conflicts
-    const existingBookings = await db.booking.findMany({
-      where: {
-        roomId: { in: roomIds },
-        status: { in: ['confirmed', 'checked_in'] },
-        OR: [
-          {
-            AND: [
-              { checkIn: { lt: group.checkOut } },
-              { checkOut: { gt: group.checkIn } },
-            ],
-          },
-        ],
-      },
-    });
-
-    if (existingBookings.length > 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'CONFLICT', message: 'Some rooms have conflicting bookings' } },
-        { status: 409 }
-      );
-    }
-
-    // FIX 2: Wrap all booking creation + group update in a transaction
-    // so that a failure partway through rolls back all created bookings
+    // FIX: Wrap conflict check inside the transaction to prevent TOCTOU race condition.
+    // Previously the conflict check was outside the transaction, allowing two concurrent
+    // requests to both pass the check and create conflicting bookings.
     const nights = Math.ceil(
       (new Date(group.checkOut).getTime() - new Date(group.checkIn).getTime()) / (1000 * 60 * 60 * 24)
     );
 
     const bookings = await db.$transaction(async (tx) => {
+      // Check for conflicts INSIDE the transaction (serializable read)
+      const existingBookings = await tx.booking.findMany({
+        where: {
+          roomId: { in: roomIds },
+          status: { in: ['confirmed', 'checked_in'] },
+          OR: [
+            {
+              AND: [
+                { checkIn: { lt: group.checkOut } },
+                { checkOut: { gt: group.checkIn } },
+              ],
+            },
+          ],
+        },
+      });
+
+      if (existingBookings.length > 0) {
+        throw new Error('CONFLICT');
+      }
+
       const createdBookings: any[] = [];
 
       for (let i = 0; i < rooms.length; i++) {
@@ -159,6 +157,12 @@ export async function POST(request: NextRequest) {    const user = await getUser
       message: `Successfully booked ${bookings.length} room(s)`,
     });
   } catch (error) {
+    if (error instanceof Error && error.message === 'CONFLICT') {
+      return NextResponse.json(
+        { success: false, error: { code: 'CONFLICT', message: 'Some rooms have conflicting bookings' } },
+        { status: 409 }
+      );
+    }
     console.error('Error booking rooms:', error);
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to book rooms' } },

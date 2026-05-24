@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     // Fetch booking with all needed relations — must be checked_in and not soft-deleted
     // Tenant isolation: ensure booking belongs to authenticated user's tenant
     const booking = await db.booking.findFirst({
-      where: { id: bookingId, tenantId: user.tenantId, status: 'checked_in', deletedAt null },
+      where: { id: bookingId, tenantId: user.tenantId, status: 'checked_in', deletedAt: null },
       include: {
         primaryGuest: {
           select: { id: true, firstName: true, lastName: true, email: true, phone: true },
@@ -153,6 +153,30 @@ export async function POST(request: NextRequest) {
           });
 
           if (wifiFolio) {
+            // Look up property tax rate for WiFi charges
+            let wifiTaxRate = 0;
+            try {
+              const wifiProp = await tx.property.findUnique({
+                where: { id: booking.propertyId },
+                select: { defaultTaxRate: true, taxComponents: true },
+              });
+              if (wifiProp) {
+                if (wifiProp.taxComponents) {
+                  const tc = JSON.parse(wifiProp.taxComponents);
+                  if (Array.isArray(tc) && tc.length > 0) {
+                    wifiTaxRate = tc.reduce((s: number, c: { rate: number }) => s + (c.rate || 0), 0) / 100;
+                  } else {
+                    wifiTaxRate = (wifiProp.defaultTaxRate || 0) / 100;
+                  }
+                } else {
+                  wifiTaxRate = (wifiProp.defaultTaxRate || 0) / 100;
+                }
+              }
+            } catch { /* use default 0 */ }
+
+            const wifiTaxAmount = Math.round(totalWifiFee * wifiTaxRate * 100) / 100;
+            const wifiTotalAmount = Math.round((totalWifiFee + wifiTaxAmount) * 100) / 100;
+
             await tx.folioLineItem.create({
               data: {
                 folioId: wifiFolio.id,
@@ -160,7 +184,8 @@ export async function POST(request: NextRequest) {
                 category: 'wifi',
                 quantity: 1,
                 unitPrice: totalWifiFee,
-                totalAmount: totalWifiFee,
+                totalAmount: wifiTotalAmount,
+                taxAmount: wifiTaxAmount,
                 serviceDate: new Date(),
                 postedBy: 'kiosk-self-service',
               },

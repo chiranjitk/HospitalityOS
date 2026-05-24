@@ -89,9 +89,9 @@ export async function POST(
       );
     }
 
-    // Validate target guest exists
-    const targetGuest = await db.guest.findUnique({
-      where: { id: targetGuestId, deletedAt: null },
+    // Validate target guest exists (tenant-scoped)
+    const targetGuest = await db.guest.findFirst({
+      where: { id: targetGuestId, tenantId, deletedAt: null },
     });
 
     if (!targetGuest) {

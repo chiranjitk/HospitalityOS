@@ -200,7 +200,28 @@ export async function POST(request: NextRequest) {
         }
 
         if (effectiveFolioId) {
-          const taxAmount = Math.round(upgradeAmount * 0.12 * 100) / 100; // 12% property tax
+          // Look up property tax rate instead of hardcoding 0.12
+          let propertyTaxRate = 0.12; // fallback default
+          try {
+            const folioRec2 = await db.folio.findUnique({ where: { id: effectiveFolioId }, select: { propertyId: true } });
+            if (folioRec2) {
+              const propSettings = await db.property.findUnique({ where: { id: folioRec2.propertyId }, select: { defaultTaxRate: true, taxComponents: true } });
+              if (propSettings) {
+                if (propSettings.taxComponents) {
+                  const tc = JSON.parse(propSettings.taxComponents);
+                  if (Array.isArray(tc) && tc.length > 0) {
+                    propertyTaxRate = tc.reduce((s: number, c: { rate: number }) => s + (c.rate || 0), 0) / 100;
+                  } else {
+                    propertyTaxRate = (propSettings.defaultTaxRate || 12) / 100;
+                  }
+                } else {
+                  propertyTaxRate = (propSettings.defaultTaxRate || 12) / 100;
+                }
+              }
+            }
+          } catch { /* use fallback */ }
+
+          const taxAmount = Math.round(upgradeAmount * propertyTaxRate * 100) / 100;
           const totalAmount = Math.round((upgradeAmount + taxAmount) * 100) / 100;
 
           await db.folioLineItem.create({

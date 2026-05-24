@@ -748,7 +748,7 @@ export async function POST(request: NextRequest) {
             category: 'deposit',
             quantity: 1,
             unitPrice: calculatedDepositAmount,
-            totalAmount: calculatedDepositAmount,
+            totalAmount: 0,
             serviceDate: checkInDate,
             postedBy: 'system',
           },

@@ -99,9 +99,11 @@ export async function POST(
       );
     }
 
-    if (folio.status === 'closed') {
+    // FIX: Block adding items to closed, paid, or settled folios
+    const blockedStatuses = ['closed', 'paid', 'settled'];
+    if (blockedStatuses.includes(folio.status)) {
       return NextResponse.json(
-        { success: false, error: { code: 'FOLIO_CLOSED', message: 'Cannot add line items to a closed folio' } },
+        { success: false, error: { code: 'FOLIO_CLOSED', message: `Cannot add line items to a ${folio.status} folio` } },
         { status: 400 }
       );
     }
@@ -225,9 +227,11 @@ export async function DELETE(
       );
     }
 
-    if (folio.status === 'closed') {
+    // FIX: Block removing items from closed, paid, or settled folios
+    const blockedStatuses = ['closed', 'paid', 'settled'];
+    if (blockedStatuses.includes(folio.status)) {
       return NextResponse.json(
-        { success: false, error: { code: 'FOLIO_CLOSED', message: 'Cannot remove line items from a closed folio' } },
+        { success: false, error: { code: 'FOLIO_CLOSED', message: `Cannot remove line items from a ${folio.status} folio` } },
         { status: 400 }
       );
     }

@@ -76,6 +76,10 @@ export async function POST(
     await db.$transaction(async (tx) => {
       // If order has a folio, create negative line item and adjust folio
       if (order.folioId) {
+        // Calculate proportional tax amount for the refund
+        const orderTaxRate = order.subtotal > 0 ? order.taxes / order.subtotal : 0;
+        const refundTaxAmount = Math.round(effectiveRefundAmount * orderTaxRate * 100) / 100;
+
         const refundLineItem = await tx.folioLineItem.create({
           data: {
             folioId: order.folioId,
@@ -84,7 +88,7 @@ export async function POST(
             quantity: 1,
             unitPrice: -effectiveRefundAmount,
             totalAmount: -effectiveRefundAmount,
-            taxAmount: 0,
+            taxAmount: -refundTaxAmount,
             referenceType: 'order',
             referenceId: orderId,
             serviceDate: new Date(),

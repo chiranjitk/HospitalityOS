@@ -116,23 +116,27 @@ export async function PATCH(
       updateData.deliveredBy = user.id;
     }
 
-    // Execute update
-    const order = await db.laundryOrder.update({
-      where: { id },
-      data: updateData,
-      include: {
-        items: true,
-        booking: { select: { id: true, confirmationCode: true } },
-        guest: { select: { id: true, firstName: true, lastName: true } },
-        folio: { select: { id: true, folioNumber: true, status: true } },
-      },
-    });
+    // CRITICAL FIX: Execute status update INSIDE the folio transaction
+    // so that status + folio posting are atomic (no orphaned status without folio)
+    let order: any;
+    const isDeliveredToFolio = status === 'delivered' && existing.bookingId && !existing.postedToFolio;
 
-    // Auto-post to folio when order is delivered and linked to a booking
-    if (status === 'delivered' && existing.bookingId && !existing.postedToFolio) {
+    if (isDeliveredToFolio) {
       try {
-        // FIX: Use $transaction for atomic folio operations
         await db.$transaction(async (tx) => {
+          // Update order status inside transaction
+          order = await tx.laundryOrder.update({
+            where: { id },
+            data: updateData,
+            include: {
+              items: true,
+              booking: { select: { id: true, confirmationCode: true } },
+              guest: { select: { id: true, firstName: true, lastName: true } },
+              folio: { select: { id: true, folioNumber: true, status: true } },
+            },
+          });
+
+          // Auto-post to folio
           const folio = await tx.folio.findFirst({
             where: {
               bookingId: existing.bookingId,
@@ -171,6 +175,7 @@ export async function PATCH(
                 quantity: existing.totalItems,
                 unitPrice: amount / existing.totalItems || amount,
                 totalAmount: amount,
+                taxRate: taxRate * 100,
                 taxAmount,
                 serviceDate: new Date(),
                 referenceType: 'laundry_order',
@@ -206,11 +211,23 @@ export async function PATCH(
             order.folioId = folio.id;
             order.postedToFolio = true;
           }
-        });
+        }); // end transaction
       } catch (folioError) {
         console.error('[PATCH /api/laundry/orders/[id]] Auto-post to folio failed:', folioError);
-        // Order status is still updated, just not posted to folio
+        return NextResponse.json({ success: false, error: 'Failed to update order and post to folio' }, { status: 500 });
       }
+    } else {
+      // Non-delivery path: just update the order
+      order = await db.laundryOrder.update({
+        where: { id },
+        data: updateData,
+        include: {
+          items: true,
+          booking: { select: { id: true, confirmationCode: true } },
+          guest: { select: { id: true, firstName: true, lastName: true } },
+          folio: { select: { id: true, folioNumber: true, status: true } },
+        },
+      });
     }
 
     return NextResponse.json({ success: true, data: order });

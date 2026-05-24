@@ -256,7 +256,7 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
       where: {
         tenantId: audit.tenantId,
         propertyId: audit.propertyId,
-        status: { in: ['confirmed', 'checked_in'] },
+        status: { in: ['checked_in'] },
         actualCheckIn: { lte: endOfDay },
         OR: [
           { actualCheckOut: null },

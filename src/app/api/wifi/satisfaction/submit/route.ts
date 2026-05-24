@@ -74,10 +74,24 @@ export async function POST(request: NextRequest) {
 
     // --- Validation ---
 
-    // tenantId required
+    // tenantId required — validated against known tenants since this is a public endpoint
     if (!tenantId || typeof tenantId !== 'string') {
       return NextResponse.json(
         { success: false, error: 'tenantId is required' },
+        { status: 400 }
+      );
+    }
+
+    // FIX: Validate that the tenantId corresponds to an actual tenant.
+    // This is a public endpoint (no auth), so we cannot use an authenticated user's tenantId.
+    // Validate against the database to prevent spoofing arbitrary tenant IDs.
+    const tenantExists = await db.tenant.findUnique({
+      where: { id: tenantId as string },
+      select: { id: true, status: true },
+    });
+    if (!tenantExists || tenantExists.status !== 'active') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid or inactive tenant' },
         { status: 400 }
       );
     }

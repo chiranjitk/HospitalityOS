@@ -205,26 +205,11 @@ export async function POST(
         });
       }
 
-      // 4. Create FolioLineItem for the payment
-      await tx.folioLineItem.create({
-        data: {
-          folioId: payment.folioId,
-          description: payment.guestId
-            ? `Payment received — ${payment.guest.firstName} ${payment.guest.lastName} (${payment.method}${payment.cardLast4 ? ` ****${payment.cardLast4}` : ''})`
-            : `Payment received — ${payment.method}${payment.cardLast4 ? ` ****${payment.cardLast4}` : ''}`,
-          category: 'payment',
-          quantity: 1,
-          unitPrice: -finalAmount, // Negative because payment reduces the balance
-          totalAmount: -finalAmount,
-          serviceDate: new Date(),
-          referenceType: 'payment',
-          referenceId: paymentId,
-          itemCurrency: payment.currency,
-          postedBy: user.id,
-        },
-      });
+      // Note: Payments do NOT create FolioLineItems — payments are tracked
+      // via folio.paidAmount, not as line items. Creating negative line items
+      // would cause totalAmount drift.
 
-      // 5. Update gateway statistics
+      // 4. Update gateway statistics
       if (payment.gateway && payment.gateway !== 'manual') {
         await tx.paymentGateway.updateMany({
           where: { tenantId: payment.tenantId, provider: payment.gateway },

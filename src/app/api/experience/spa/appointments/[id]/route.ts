@@ -143,8 +143,9 @@ export async function PUT(
     if (specialRequests !== undefined) updateData.specialRequests = specialRequests;
     if (therapistId !== undefined) updateData.therapistId = therapistId;
 
-    // Execute status update
-    const appointment = await db.spaAppointment.update({
+    // Execute status update (non-completion path, no folio interaction)
+    if (status !== 'completed' || !existing.bookingId || existing.folioId) {
+      const appointment = await db.spaAppointment.update({
       where: { id },
       data: updateData,
       include: {
@@ -156,7 +157,19 @@ export async function PUT(
     // ── Auto-post charge to folio when appointment is completed ─────────
     if (status === 'completed' && existing.bookingId && !existing.folioId) {
       try {
+        // CRITICAL FIX: Status update must happen INSIDE the folio transaction
+        // so that if folio posting fails, the appointment status rolls back too.
         await db.$transaction(async (tx) => {
+          // Execute status update inside transaction
+          const updatedAppointment = await tx.spaAppointment.update({
+            where: { id },
+            data: updateData,
+            include: {
+              treatment: { select: { id: true, name: true, category: true, durationMinutes: true, price: true } },
+              therapist: { select: { id: true, name: true } },
+            },
+          });
+
           // Find an open folio for the booking
           const folio = await tx.folio.findFirst({
             where: {
@@ -248,6 +261,8 @@ export async function PUT(
 
           // Attach folio info to response object
           (appointment as Record<string, unknown>).folioId = folio.id;
+          // Copy updated appointment fields from transaction
+          Object.assign(appointment, updatedAppointment);
         });
 
         console.log(
@@ -309,20 +324,23 @@ export async function DELETE(
       );
     }
 
-    // Mark as cancelled
-    const appointment = await db.spaAppointment.update({
-      where: { id },
-      data: { status: 'cancelled' },
-      include: {
-        treatment: { select: { id: true, name: true, category: true } },
-        therapist: { select: { id: true, name: true } },
-      },
-    });
+    // CRITICAL FIX: Mark as cancelled INSIDE the folio transaction
+    // so that cancellation + folio reversal are atomic
+    let appointment: any;
+    try {
+      await db.$transaction(async (tx) => {
+        // Mark as cancelled inside transaction
+        appointment = await tx.spaAppointment.update({
+          where: { id },
+          data: { status: 'cancelled' },
+          include: {
+            treatment: { select: { id: true, name: true, category: true } },
+            therapist: { select: { id: true, name: true } },
+          },
+        });
 
-    // ── If already posted to folio, create a negative adjustment ─────────
-    if (existing.folioId) {
-      try {
-        await db.$transaction(async (tx) => {
+        // ── If already posted to folio, create a negative adjustment ─────────
+        if (existing.folioId) {
           const folio = await tx.folio.findUnique({
             where: { id: existing.folioId! },
           });
@@ -382,11 +400,11 @@ export async function DELETE(
           console.log(
             `[SpaAppointment DELETE] Created negative adjustment for appointment ${id} on folio ${folio.id}.`,
           );
-        });
-      } catch (folioError) {
-        console.error('[SpaAppointment DELETE] Folio adjustment failed:', folioError);
-        // Appointment is already cancelled; folio adjustment is best-effort
-      }
+        }
+      }); // end transaction
+    } catch (folioError) {
+      console.error('[SpaAppointment DELETE] Folio adjustment failed:', folioError);
+      return NextResponse.json({ success: false, error: 'Failed to cancel appointment and update folio' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, data: appointment });

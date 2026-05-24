@@ -83,38 +83,42 @@ export async function POST(request: NextRequest) {
       default: endDate.setMonth(endDate.getMonth() + 1); break;
     }
 
-    const pass = await db.parkingPass.create({
-      data: {
-        tenantId: user.tenantId,
-        propertyId,
-        vehicleId: vehicleId || null,
-        slotId: slotId || null,
-        holderName,
-        holderEmail: holderEmail || null,
-        holderPhone: holderPhone || null,
-        licensePlate,
-        startDate: start,
-        endDate,
-        duration: duration || 'monthly',
-        amount: amount || 0,
-        currency: 'USD',
-        status: 'active',
-        autoRenew: autoRenew || false,
-        paymentStatus: amount > 0 ? 'paid' : 'pending',
-      },
-      include: {
-        slot: { select: { id: true, number: true, floor: true } },
-        vehicle: { select: { id: true, licensePlate: true, make: true, model: true } },
-      },
-    });
-
-    // Update slot status if a slot is assigned
-    if (slotId) {
-      await db.parkingSlot.update({
-        where: { id: slotId },
-        data: { status: 'reserved' },
+    const pass = await db.$transaction(async (tx) => {
+      const newPass = await tx.parkingPass.create({
+        data: {
+          tenantId: user.tenantId,
+          propertyId,
+          vehicleId: vehicleId || null,
+          slotId: slotId || null,
+          holderName,
+          holderEmail: holderEmail || null,
+          holderPhone: holderPhone || null,
+          licensePlate,
+          startDate: start,
+          endDate,
+          duration: duration || 'monthly',
+          amount: amount || 0,
+          currency: 'USD',
+          status: 'active',
+          autoRenew: autoRenew || false,
+          paymentStatus: amount > 0 ? 'paid' : 'pending',
+        },
+        include: {
+          slot: { select: { id: true, number: true, floor: true } },
+          vehicle: { select: { id: true, licensePlate: true, make: true, model: true } },
+        },
       });
-    }
+
+      // Update slot status if a slot is assigned
+      if (slotId) {
+        await tx.parkingSlot.update({
+          where: { id: slotId },
+          data: { status: 'reserved' },
+        });
+      }
+
+      return newPass;
+    });
 
     return NextResponse.json({ success: true, data: pass });
   } catch (error) {

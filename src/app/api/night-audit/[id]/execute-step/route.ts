@@ -234,6 +234,23 @@ async function postRoomCharges(audit: { id: string; propertyId: string; tenantId
 
       if (!folio) continue;
 
+      // Idempotency guard: check if room charge already posted for this audit's business day
+      const alreadyPosted = await tx.folioLineItem.findFirst({
+        where: {
+          folioId: folio.id,
+          category: 'room_charge',
+          serviceDate: audit.businessDayDate,
+          referenceType: 'NightAudit',
+          referenceId: audit.id,
+        },
+      });
+      if (alreadyPosted) {
+        // Already posted for this business day — skip to prevent double-posting on retry
+        chargesPosted++;
+        totalAmount += roomRate + taxAmount;
+        continue;
+      }
+
       // Create folio line item for room charge
       await tx.folioLineItem.create({
         data: {
@@ -360,83 +377,98 @@ async function processNoShows(audit: { id: string; propertyId: string; tenantId:
     const penaltyPercent = policy?.noShowPenaltyPercent ?? 100;
     const penaltyAmount = booking.totalAmount * (penaltyPercent / 100);
 
-    // Apply no-show penalty
-    if (penaltyAmount > 0 && booking.folios[0]) {
-      await db.folioLineItem.create({
-        data: {
-          folioId: booking.folios[0].id,
-          description: `No-show penalty (${penaltyPercent}%)`,
-          category: 'adjustment',
-          quantity: 1,
-          unitPrice: penaltyAmount,
-          totalAmount: penaltyAmount,
-          serviceDate: audit.businessDayDate,
-          referenceType: 'NightAudit',
-          referenceId: audit.id,
-          postedBy: 'system',
-        },
-      });
-
-      await db.folio.update({
-        where: { id: booking.folios[0].id },
-        data: {
-          subtotal: { increment: penaltyAmount },
-          totalAmount: { increment: penaltyAmount },
-          balance: { increment: penaltyAmount },
-        },
-      });
-
-      revenueCaptured += penaltyAmount;
-    }
-
-    // Create cancellation penalty record
-    await db.cancellationPenalty.create({
-      data: {
-        tenantId: audit.tenantId,
+    // Idempotency guard: skip if booking already processed as no-show
+    const alreadyProcessed = await db.cancellationPenalty.findFirst({
+      where: {
         bookingId: booking.id,
-        folioId: booking.folios[0]?.id,
-        policyId: policy?.id || null,
-        policyName: policy?.name || 'Default no-show policy',
-        penaltyType: 'percentage',
-        penaltyAmount,
-        originalAmount: booking.totalAmount,
-        penaltyPercent,
-        status: 'applied',
         reason: 'No-show - auto-processed during night audit',
       },
     });
-
-    // Mark booking as no-show
-    await db.booking.update({
-      where: { id: booking.id },
-      data: {
-        status: 'no_show',
-        cancelledAt: new Date(),
-        cancelledBy: 'system',
-        cancellationReason: 'No-show - processed during night audit',
-      },
-    });
-
-    // Release the room — no-show: guest never checked in, room does NOT need cleaning
-    if (booking.roomId) {
-      await db.room.update({
-        where: { id: booking.roomId },
-        data: { status: 'available', housekeepingStatus: 'clean' },
-      });
+    if (alreadyProcessed) {
+      noShowsProcessed++;
+      revenueCaptured += penaltyAmount;
+      continue;
     }
 
-    // Log
-    await db.bookingAuditLog.create({
-      data: {
-        bookingId: booking.id,
-        action: 'no_show_processed',
-        oldStatus: 'confirmed',
-        newStatus: 'no_show',
-        notes: `Auto-processed during night audit. Penalty: $${penaltyAmount.toFixed(2)}`,
-        performedBy: 'system',
-      },
+    // Apply no-show penalty — wrap all operations in a transaction for atomicity
+    await db.$transaction(async (tx) => {
+      // Apply no-show penalty
+      if (penaltyAmount > 0 && booking.folios[0]) {
+        await tx.folioLineItem.create({
+          data: {
+            folioId: booking.folios[0].id,
+            description: `No-show penalty (${penaltyPercent}%)`,
+            category: 'adjustment',
+            quantity: 1,
+            unitPrice: penaltyAmount,
+            totalAmount: penaltyAmount,
+            serviceDate: audit.businessDayDate,
+            referenceType: 'NightAudit',
+            referenceId: audit.id,
+            postedBy: 'system',
+          },
+        });
+
+        await tx.folio.update({
+          where: { id: booking.folios[0].id },
+          data: {
+            subtotal: { increment: penaltyAmount },
+            totalAmount: { increment: penaltyAmount },
+            balance: { increment: penaltyAmount },
+          },
+        });
+      }
+
+      // Create cancellation penalty record
+      await tx.cancellationPenalty.create({
+        data: {
+          tenantId: audit.tenantId,
+          bookingId: booking.id,
+          folioId: booking.folios[0]?.id,
+          policyId: policy?.id || null,
+          policyName: policy?.name || 'Default no-show policy',
+          penaltyType: 'percentage',
+          penaltyAmount,
+          originalAmount: booking.totalAmount,
+          penaltyPercent,
+          status: 'applied',
+          reason: 'No-show - auto-processed during night audit',
+        },
+      });
+
+      // Mark booking as no-show
+      await tx.booking.update({
+        where: { id: booking.id },
+        data: {
+          status: 'no_show',
+          cancelledAt: new Date(),
+          cancelledBy: 'system',
+          cancellationReason: 'No-show - processed during night audit',
+        },
+      });
+
+      // Release the room — no-show: guest never checked in, room does NOT need cleaning
+      if (booking.roomId) {
+        await tx.room.update({
+          where: { id: booking.roomId },
+          data: { status: 'available', housekeepingStatus: 'clean' },
+        });
+      }
+
+      // Log
+      await tx.bookingAuditLog.create({
+        data: {
+          bookingId: booking.id,
+          action: 'no_show_processed',
+          oldStatus: 'confirmed',
+          newStatus: 'no_show',
+          notes: `Auto-processed during night audit. Penalty: $${penaltyAmount.toFixed(2)}`,
+          performedBy: 'system',
+        },
+      });
     });
 
+    revenueCaptured += penaltyAmount;
     noShowsProcessed++;
   }
 

@@ -441,65 +441,72 @@ export async function PUT(
     });
 
     // M-06: Post rate difference charge to folio on room move
+    // CRITICAL FIX: Wrap room move (folio charge + old room status) in db.$transaction()
+    // to prevent partial failures (e.g. folio posted but old room not marked dirty).
     if (roomId && roomId !== existingBooking.roomId) {
       try {
-        const newRoom = await db.room.findUnique({
-          where: { id: roomId },
-          include: { roomType: { select: { basePrice: true, name: true } } },
-        });
-        const oldRoomType = existingBooking.roomType;
-        const rateDiff = (newRoom?.roomType?.basePrice ?? 0) - (oldRoomType?.basePrice ?? 0);
-        if (rateDiff !== 0) {
-          const folio = await db.folio.findFirst({
-            where: { bookingId: booking.id, status: { in: ['open', 'partially_paid'] } },
+        await db.$transaction(async (tx) => {
+          const newRoom = await tx.room.findUnique({
+            where: { id: roomId },
+            include: { roomType: { select: { basePrice: true, name: true } } },
           });
-          if (folio) {
-            await db.folioLineItem.create({
-              data: {
-                folioId: folio.id,
-                description: `Room upgrade charge (${oldRoomType?.name || 'Old'} → ${newRoom?.roomType?.name || 'New'})`,
-                category: 'room_charge',
-                quantity: 1,
-                unitPrice: Math.abs(rateDiff),
-                totalAmount: Math.abs(rateDiff),
-                serviceDate: new Date(),
-                postedBy: user.id,
-              },
+          const oldRoomType = existingBooking.roomType;
+          const rateDiff = (newRoom?.roomType?.basePrice ?? 0) - (oldRoomType?.basePrice ?? 0);
+          if (rateDiff !== 0) {
+            const folio = await tx.folio.findFirst({
+              where: { bookingId: booking.id, status: { in: ['open', 'partially_paid'] } },
             });
-            // Recalculate folio — FIX: recalculate taxes from line items too, fix balance formula
-            const allItems = await db.folioLineItem.findMany({ where: { folioId: folio.id } });
-            const newSubtotal = Math.round(allItems.reduce((s, li) => s + li.totalAmount, 0) * 100) / 100;
-            const newTaxes = Math.round(allItems.reduce((s, li) => s + (li.taxAmount || 0), 0) * 100) / 100;
-            const newTotalAmount = Math.round((newSubtotal + newTaxes - (folio.discount || 0)) * 100) / 100;
-            // BALANCE FIX: balance = totalAmount - paidAmount (not subtotal - paidAmount)
-            await db.folio.update({
-              where: { id: folio.id },
-              data: {
-                subtotal: newSubtotal,
-                taxes: newTaxes,
-                totalAmount: newTotalAmount,
-                balance: Math.max(0, newTotalAmount - (folio.paidAmount || 0)),
-              },
+            if (folio) {
+              await tx.folioLineItem.create({
+                data: {
+                  folioId: folio.id,
+                  description: `Room upgrade charge (${oldRoomType?.name || 'Old'} → ${newRoom?.roomType?.name || 'New'})`,
+                  category: 'room_charge',
+                  quantity: 1,
+                  unitPrice: Math.abs(rateDiff),
+                  totalAmount: Math.abs(rateDiff),
+                  serviceDate: new Date(),
+                  postedBy: user.id,
+                },
+              });
+              // Recalculate folio
+              const allItems = await tx.folioLineItem.findMany({ where: { folioId: folio.id } });
+              const newSubtotal = Math.round(allItems.reduce((s, li) => s + li.totalAmount, 0) * 100) / 100;
+              const newTaxes = Math.round(allItems.reduce((s, li) => s + (li.taxAmount || 0), 0) * 100) / 100;
+              const newTotalAmount = Math.round((newSubtotal + newTaxes - (folio.discount || 0)) * 100) / 100;
+              await tx.folio.update({
+                where: { id: folio.id },
+                data: {
+                  subtotal: newSubtotal,
+                  taxes: newTaxes,
+                  totalAmount: newTotalAmount,
+                  balance: Math.max(0, newTotalAmount - (folio.paidAmount || 0)),
+                },
+              });
+            }
+          }
+
+          // Mark old room dirty inside the same transaction
+          if (existingBooking.roomId) {
+            await tx.room.update({
+              where: { id: existingBooking.roomId },
+              data: { status: 'dirty', housekeepingStatus: 'dirty', currentTaskId: null },
             });
           }
+        });
+
+        // Create cleaning task for vacated room (non-transactional, best-effort)
+        try {
+          if (existingBooking.roomId) {
+            await markRoomDirtyAfterCheckout(existingBooking.roomId, booking.tenantId, booking.id);
+            console.log(`[Room Move] Old room ${existingBooking.roomId} marked dirty, cleaning task created`);
+          }
+        } catch (oldRoomHkError) {
+          console.error('[Room Move] Failed to create cleaning task for vacated room:', oldRoomHkError);
         }
       } catch (moveError) {
-        console.error('[Room Move] Failed to post rate difference:', moveError);
-      }
-
-      // G2: Mark old room dirty and create cleaning task on room move
-      try {
-        if (existingBooking.roomId) {
-          await db.room.update({
-            where: { id: existingBooking.roomId },
-            data: { status: 'dirty', housekeepingStatus: 'dirty', currentTaskId: null },
-          });
-          // Create a cleaning task for the vacated room (non-critical, fail gracefully)
-          await markRoomDirtyAfterCheckout(existingBooking.roomId, booking.tenantId, booking.id);
-          console.log(`[Room Move] Old room ${existingBooking.roomId} marked dirty, cleaning task created`);
-        }
-      } catch (oldRoomHkError) {
-        console.error('[Room Move] Failed to mark old room dirty / create cleaning task:', oldRoomHkError);
+        console.error('[Room Move] Room move transaction failed:', moveError);
+        throw moveError; // Re-throw to indicate partial failure
       }
     }
     

@@ -55,6 +55,9 @@ export async function POST(request: NextRequest) {
     const now = new Date();
 
     // Check cutoff date: auto-release if current date > cutoffDate
+    // NOTE: The GroupBooking schema should accept a cutoffDate field. If cutoffDate
+    // is not set on the group booking, the release logic still works via force=true.
+    // Consider adding cutoffDate as an optional field on group booking creation/edit.
     let autoRelease = false;
     if (groupBooking.cutoffDate && now > groupBooking.cutoffDate) {
       autoRelease = true;
@@ -100,6 +103,38 @@ export async function POST(request: NextRequest) {
         where: { id: groupBookingId },
         data: { releasedRooms: newReleasedRooms },
       });
+
+      // Update released rooms' status back to 'available' if they were blocked for this group
+      if (totalAvailableForRelease > 0) {
+        // Find rooms that were part of this group's block but not booked
+        const blockedRoomBookings = await tx.booking.findMany({
+          where: {
+            groupId: groupBookingId,
+            status: { notIn: ['cancelled', 'no_show'] },
+            roomId: { not: null },
+          },
+          select: { roomId: true },
+        });
+        const bookedRoomIds = blockedRoomBookings.map(b => b.roomId).filter(Boolean);
+
+        // Get rooms for this group's room types that are still 'reserved' or 'blocked'
+        const groupRoomTypes = await tx.groupBookingRoomType.findMany({
+          where: { groupBookingId },
+          select: { roomTypeId: true },
+        });
+        const roomTypeIds = groupRoomTypes.map(rt => rt.roomTypeId);
+
+        if (roomTypeIds.length > 0) {
+          await tx.room.updateMany({
+            where: {
+              roomTypeId: { in: roomTypeIds },
+              id: { notIn: bookedRoomIds },
+              status: 'reserved',
+            },
+            data: { status: 'available' },
+          });
+        }
+      }
 
       // Create audit log entry
       await tx.auditLog.create({

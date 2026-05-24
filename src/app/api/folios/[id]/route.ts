@@ -169,15 +169,23 @@ export async function PUT(
     const recalcPaidAmount = payments.reduce((sum, p) => sum + p.amount, 0);
     const recalcBalance = recalcTotalAmount - recalcPaidAmount;
 
+    // FIX: Round all recalculated money values to 2 decimal places to prevent floating-point drift
+    const roundMoney = (v: number) => Math.round(v * 100) / 100;
+    const finalSubtotal = roundMoney(recalcSubtotal);
+    const finalTaxes = roundMoney(recalcTaxes);
+    const finalTotalAmount = roundMoney(recalcTotalAmount);
+    const finalPaidAmount = roundMoney(recalcPaidAmount);
+    const finalBalance = roundMoney(recalcBalance);
+
     const folio = await db.folio.update({
       where: { id },
       data: {
-        subtotal: recalcSubtotal,
-        taxes: recalcTaxes,
+        subtotal: finalSubtotal,
+        taxes: finalTaxes,
         discount: recalcDiscount,
-        totalAmount: recalcTotalAmount,
-        paidAmount: recalcPaidAmount,
-        balance: recalcBalance,
+        totalAmount: finalTotalAmount,
+        paidAmount: finalPaidAmount,
+        balance: finalBalance,
         ...(status && { status }),
         ...(invoiceNumber !== undefined && { invoiceNumber }),
         ...(invoiceUrl !== undefined && { invoiceUrl }),

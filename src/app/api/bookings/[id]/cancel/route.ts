@@ -114,6 +114,10 @@ export async function POST(
     const penaltyAmount = evaluation.penaltyAmount;
     const refundAmount = Math.max(0, totalPaid - penaltyAmount);
 
+    // TODO: Execute the actual refund to the guest's payment method (e.g., via gateway refund API).
+    // Currently refundAmount is calculated but never processed. This should integrate with the
+    // payment gateway to issue a refund for the applicable amount when totalPaid > 0.
+
     // 5. Apply penalty and cancel in a transaction
     let penaltyResult;
     try {

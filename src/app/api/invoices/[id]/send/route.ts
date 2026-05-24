@@ -30,6 +30,14 @@ export async function POST(
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Invoice not found' } }, { status: 404 });
     }
 
+    // FIX: Prevent duplicate sends — check if already sent
+    if (invoice.status === 'sent' || invoice.issuedAt) {
+      return NextResponse.json(
+        { success: false, error: { code: 'ALREADY_SENT', message: 'Invoice has already been sent' } },
+        { status: 400 }
+      );
+    }
+
     if (!invoice.customerEmail) {
       return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Customer email is not set on this invoice' } }, { status: 400 });
     }

@@ -86,11 +86,15 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // 2. Update room status to occupied
-      await tx.room.update({
-        where: { id: booking.room.id },
+      // 2. Atomic room occupancy guard — use updateMany with status check
+      // to prevent two kiosks/requests checking into the same room concurrently
+      const roomUpdateResult = await tx.room.updateMany({
+        where: { id: booking.room.id, status: { not: 'occupied' } },
         data: { status: 'occupied' },
       });
+      if (roomUpdateResult.count === 0) {
+        throw new Error('ROOM_OCCUPIED');
+      }
 
       // 3. Create booking audit log
       await tx.bookingAuditLog.create({
@@ -210,6 +214,12 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof Error && error.message === 'ROOM_OCCUPIED') {
+      return NextResponse.json(
+        { success: false, error: { code: 'ROOM_ALREADY_OCCUPIED', message: 'Room is already occupied — cannot check in' } },
+        { status: 409 }
+      );
+    }
     console.error('Error processing kiosk check-in:', error);
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to process check-in' } },

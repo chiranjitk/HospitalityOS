@@ -70,6 +70,7 @@ enum FolioLineType {
   adjustment
   miscellaneous
   late_checkout
+  parking
 }
 
 enum GuestType {
@@ -9591,7 +9592,7 @@ model MinibarConsumption {
   tenantId        String   @db.Uuid
   propertyId      String   @db.Uuid
   bookingId       String   @db.Uuid
-  folioId         String   @db.Uuid
+  folioId         String?  @db.Uuid
   roomId          String   @db.Uuid
   itemId          String   @db.Uuid
   itemName        String
@@ -9605,7 +9606,7 @@ model MinibarConsumption {
   notes           String?
   createdAt       DateTime @default(now()) @db.Timestamptz
   booking         Booking       @relation(fields: [bookingId], references: [id])
-  folio           Folio         @relation(fields: [folioId], references: [id])
+  folio           Folio?         @relation(fields: [folioId], references: [id])
   room            Room          @relation(fields: [roomId], references: [id])
   tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   property        Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)

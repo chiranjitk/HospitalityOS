@@ -25,6 +25,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // FIX: Validate stock sufficiency at creation time to fail fast
+    const stockChecks = await Promise.all(
+      items.map(async (item: { stockItemId: string; stockItemName: string; quantity: number }) => {
+        const stockItem = await db.stockItem.findFirst({
+          where: { id: item.stockItemId, propertyId: fromPropertyId },
+        });
+        if (!stockItem) {
+          return { error: `Source stock item ${item.stockItemId} (${item.stockItemName}) not found at source property` };
+        }
+        if (stockItem.quantity < item.quantity) {
+          return { error: `Insufficient stock for ${item.stockItemName}: available ${stockItem.quantity}, requested ${item.quantity}` };
+        }
+        return null;
+      })
+    );
+
+    const stockError = stockChecks.find(c => c !== null);
+    if (stockError) {
+      return NextResponse.json({ error: stockError.error }, { status: 400 });
+    }
+
     const transfer = await db.inventoryTransfer.create({
       data: {
         tenantId: user.tenantId,

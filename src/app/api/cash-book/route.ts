@@ -69,10 +69,32 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { propertyId, date, openingBalance, closingBalance } = body;
+    const { propertyId, date, openingBalance, closingBalance, transactions } = body;
 
     if (!propertyId || !date) {
       return NextResponse.json({ error: 'propertyId and date are required' }, { status: 400 });
+    }
+
+    // INVARIANT CHECK: closingBalance must equal openingBalance + income - expense
+    const incomeAmount = Array.isArray(transactions)
+      ? transactions
+          .filter((t: Record<string, unknown>) => t.type === 'income' || t.type === 'credit')
+          .reduce((sum: number, t: Record<string, unknown>) => sum + (Number(t.amount) || 0), 0)
+      : 0;
+    const expenseAmount = Array.isArray(transactions)
+      ? transactions
+          .filter((t: Record<string, unknown>) => t.type === 'expense' || t.type === 'debit')
+          .reduce((sum: number, t: Record<string, unknown>) => sum + (Number(t.amount) || 0), 0)
+      : 0;
+
+    const expectedClosing = (openingBalance ?? 0) + incomeAmount - expenseAmount;
+    const actualClosing = closingBalance ?? 0;
+
+    if (Math.abs(expectedClosing - actualClosing) > 0.01) {
+      return NextResponse.json(
+        { error: `Balance invariant violated: openingBalance (${openingBalance ?? 0}) + income (${incomeAmount}) - expense (${expenseAmount}) = ${expectedClosing}, but closingBalance is ${actualClosing}. Difference: ${Math.round((actualClosing - expectedClosing) * 100) / 100}` },
+        { status: 400 }
+      );
     }
 
     const entry = await db.cashBookEntry.create({

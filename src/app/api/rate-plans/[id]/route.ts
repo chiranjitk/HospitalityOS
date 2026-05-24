@@ -112,6 +112,28 @@ export async function PUT(
       status,
     } = body;
     
+    // Validate basePrice > 0 if provided
+    if (basePrice !== undefined) {
+      const parsedBasePrice = parseFloat(basePrice);
+      if (isNaN(parsedBasePrice) || parsedBasePrice <= 0) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'basePrice must be a number greater than 0' } },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate discountPercent 0-100 if provided
+    if (discountPercent !== undefined) {
+      const parsedDiscount = parseFloat(discountPercent);
+      if (isNaN(parsedDiscount) || parsedDiscount < 0 || parsedDiscount > 100) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'discountPercent must be between 0 and 100' } },
+          { status: 400 }
+        );
+      }
+    }
+
     // If code is being changed, check for duplicates
     if (code && code !== existing.code) {
       const duplicate = await db.ratePlan.findFirst({

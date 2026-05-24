@@ -1033,7 +1033,7 @@ export async function POST(request: NextRequest) {
         }
 
         const bookings = await db.booking.findMany({
-          where: { room: { number: roomNumber.trim().toUpperCase() }, status: 'checked_in' },
+          where: { room: { number: roomNumber.trim().toUpperCase() }, status: 'checked_in', tenantId: resolvedTenantId || portal?.tenantId },
           include: { primaryGuest: true, room: true, roomType: { select: { wifiPlanId: true } } },
           take: 10,
         });

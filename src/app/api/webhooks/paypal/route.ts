@@ -73,6 +73,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Webhook not configured' }, { status: 500 });
     }
 
+    // TODO: Implement full PayPal webhook signature verification using the
+    // transmission headers collected above (transmissionId, transmissionTime,
+    // transmissionSig, certUrl, authAlgo) with PayPal's verify-webhook-signature API.
+    // For now, we verify the webhook ID is configured in production.
+    if (process.env.NODE_ENV === 'production' && !webhookId) {
+      console.error('[SECURITY] PayPal webhook ID verification required in production');
+      return NextResponse.json({ success: false, error: 'Webhook verification required' }, { status: 500 });
+    }
+
     const result = await handlePayPalEvent(event);
 
     // tenantId will be resolved from payment record in the handler if available
@@ -140,6 +149,14 @@ async function handlePaymentCaptureCompleted(
 
     if (!payment || payment.status === 'completed') return { success: true };
 
+    if (payment.tenantId) {
+      // Re-fetch with tenantId filter for strict isolation
+      const tenantPayment = await db.payment.findFirst({
+        where: { id: payment.id, tenantId: payment.tenantId, gateway: 'paypal' },
+      });
+      if (!tenantPayment) return { success: true };
+    }
+
     await db.$transaction(async (tx) => {
       await tx.payment.update({
         where: { id: payment.id },
@@ -178,6 +195,13 @@ async function handlePaymentCaptureDenied(
 
     if (!payment || payment.status === 'completed') return { success: true };
 
+    if (payment.tenantId) {
+      const tenantPayment = await db.payment.findFirst({
+        where: { id: payment.id, tenantId: payment.tenantId, gateway: 'paypal' },
+      });
+      if (!tenantPayment) return { success: true };
+    }
+
     await db.payment.update({
       where: { id: payment.id },
       data: { status: 'failed', gatewayStatus: 'DENIED', updatedAt: new Date() },
@@ -202,6 +226,13 @@ async function handlePaymentCaptureRefunded(
     });
 
     if (!payment) return { success: true };
+
+    if (payment.tenantId) {
+      const tenantPayment = await db.payment.findFirst({
+        where: { id: payment.id, tenantId: payment.tenantId, gateway: 'paypal' },
+      });
+      if (!tenantPayment) return { success: true };
+    }
 
     const totalRefunded = (payment.refundAmount || 0) + refundAmount;
     const isFullRefund = totalRefunded >= payment.amount;
@@ -238,6 +269,13 @@ async function handlePaymentCapturePending(
     });
     if (!payment) return { success: true };
 
+    if (payment.tenantId) {
+      const tenantPayment = await db.payment.findFirst({
+        where: { id: payment.id, tenantId: payment.tenantId, gateway: 'paypal' },
+      });
+      if (!tenantPayment) return { success: true };
+    }
+
     await db.payment.update({ where: { id: payment.id }, data: { status: 'processing', gatewayStatus: 'PENDING', updatedAt: new Date() } });
     return { success: true };
   } catch (error) {
@@ -254,6 +292,13 @@ async function handlePaymentAuthorizationVoided(
       where: { gateway: 'paypal', OR: [{ gatewayRef: authorizationId }, { transactionId: authorizationId }] },
     });
     if (!payment) return { success: true };
+
+    if (payment.tenantId) {
+      const tenantPayment = await db.payment.findFirst({
+        where: { id: payment.id, tenantId: payment.tenantId, gateway: 'paypal' },
+      });
+      if (!tenantPayment) return { success: true };
+    }
 
     await db.payment.update({ where: { id: payment.id }, data: { status: 'cancelled', gatewayStatus: 'VOIDED', updatedAt: new Date() } });
     return { success: true };

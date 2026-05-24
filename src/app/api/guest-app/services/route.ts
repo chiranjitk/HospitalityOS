@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         propertyId: true,
+        currency: true,
       },
     });
 
@@ -133,9 +134,16 @@ export async function POST(request: NextRequest) {
         portalToken: token,
         status: { in: ['confirmed', 'checked_in'] },
       },
-      include: {
-        room: true,
-        primaryGuest: true,
+      select: {
+        id: true,
+        tenantId: true,
+        propertyId: true,
+        primaryGuestId: true,
+        currency: true,
+        confirmationCode: true,
+        roomId: true,
+        room: { select: { id: true } },
+        primaryGuest: { select: { id: true } },
       },
     });
 
@@ -191,7 +199,7 @@ export async function POST(request: NextRequest) {
             bookingId: booking.id,
             folioNumber: `FOL-${booking.confirmationCode}`,
             guestId: booking.primaryGuestId,
-            currency: 'USD',
+            currency: booking.currency || undefined,
           },
         });
       }

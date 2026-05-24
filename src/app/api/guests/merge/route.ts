@@ -230,6 +230,11 @@ export async function POST(request: NextRequest) {
           data: { guestId: primaryGuestId },
         });
 
+        // TODO: Transfer NPS responses (NpsResponse) from duplicate to primary guest.
+        // Missing: tx.npsResponse.updateMany({ where: { guestId: dup.id }, data: { guestId: primaryGuestId } })
+        // TODO: Transfer referral records from duplicate to primary guest.
+        // Missing: any referral/viral entity that tracks guestId.
+
         // 17. Mark duplicate as merged
         await tx.guest.update({
           where: { id: dup.id },

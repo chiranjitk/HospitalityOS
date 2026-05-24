@@ -92,15 +92,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify signature in production
-    if (process.env.NODE_ENV === 'production') {
-      const config = connection.apiSecret || process.env[`${channel.toUpperCase()}_WEBHOOK_SECRET`];
-      if (!config) {
-        return NextResponse.json({ error: 'No webhook secret configured' }, { status: 500 });
-      }
-      if (!verifySignature(rawPayload, signature, config)) {
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-      }
+    // SECURITY: Always verify webhook signatures (not just in production)
+    const webhookSecret = connection.apiSecret || process.env[`${channel.toUpperCase()}_WEBHOOK_SECRET`];
+    if (!webhookSecret) {
+      return NextResponse.json({ error: 'No webhook secret configured' }, { status: 500 });
+    }
+    if (!verifySignature(rawPayload, signature, webhookSecret)) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     // Check idempotency

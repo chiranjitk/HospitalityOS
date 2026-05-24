@@ -314,16 +314,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for idempotency
-    if (idempotencyKey) {
-      const existingPayment = await db.payment.findUnique({
-        where: { idempotencyKey },
-      });
-
-      if (existingPayment) {
-        return NextResponse.json({ success: true, data: existingPayment });
-      }
-    }
+    // Check for idempotency — moved inside the payment creation transaction
+    // to prevent race conditions where two concurrent requests with the same
+    // idempotencyKey both pass this check before either creates a payment.
+    // The actual check is performed inside the $transaction below using upsert.
 
     // Create per-request payment router for this tenant
     const router = await createPaymentRouter(tenantId);
@@ -473,9 +467,13 @@ export async function POST(request: NextRequest) {
     const transactionId = paymentResult?.transactionId || generateTransactionId();
 
     // Create payment in a transaction to update folio balance
+    // FIX: Use upsert for idempotency to prevent race condition on duplicate keys.
+    // If two concurrent requests use the same idempotencyKey, only one will succeed;
+    // the other gets a unique constraint violation (P2002) which we catch below.
     const payment = await db.$transaction(async (tx) => {
-      const newPayment = await tx.payment.create({
-        data: {
+      const newPayment = await tx.payment.upsert({
+        where: idempotencyKey ? { idempotencyKey } : { id: crypto.randomUUID() },
+        create: {
           tenantId,
           folioId,
           guestId: guestId || null,
@@ -498,6 +496,7 @@ export async function POST(request: NextRequest) {
           processedAt: isCompletedPayment ? new Date() : null,
           idempotencyKey,
         },
+        update: {},
         include: {
           folio: {
             select: {
@@ -616,6 +615,24 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
   } catch (error) {
     console.error('Error creating payment:', error);
+
+    // FIX: Handle idempotency race — if a concurrent request already created the payment
+    // with the same idempotencyKey, return the existing payment instead of erroring.
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code: string }).code === 'P2002' &&
+      idempotencyKey
+    ) {
+      const existingPayment = await db.payment.findUnique({
+        where: { idempotencyKey },
+      });
+      if (existingPayment) {
+        return NextResponse.json({ success: true, data: existingPayment });
+      }
+    }
+
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create payment' } },
       { status: 500 }

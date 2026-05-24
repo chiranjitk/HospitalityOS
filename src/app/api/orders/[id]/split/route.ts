@@ -54,9 +54,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const subtotal = Math.round(splitItems.reduce((s: number, i: any) => s + i.totalAmount, 0) * 100) / 100;
         const taxRate = originalOrder.subtotal > 0 ? (originalOrder.taxes / originalOrder.subtotal) * 100 : 0;
         const taxes = Math.round(subtotal * (taxRate / 100) * 100) / 100;
-        // Include service charge proportionally
+        // Include service charge proportionally (add discount back to isolate service charge from discount reduction)
         const serviceChargeRate = originalOrder.subtotal > 0
-          ? ((originalOrder.totalAmount - originalOrder.subtotal - originalOrder.taxes) / originalOrder.subtotal) * 100
+          ? ((originalOrder.totalAmount - originalOrder.subtotal - originalOrder.taxes + (originalOrder.discount || 0)) / originalOrder.subtotal) * 100
           : 0;
         const serviceCharge = Math.round(subtotal * (serviceChargeRate / 100) * 100) / 100;
         const totalAmount = Math.round((subtotal + taxes + serviceCharge) * 100) / 100;

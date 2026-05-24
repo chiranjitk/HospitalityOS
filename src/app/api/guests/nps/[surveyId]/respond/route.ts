@@ -49,7 +49,8 @@ export async function POST(
     else if (score >= 7) category = 'passive';
     else category = 'detractor';
 
-    // Use transaction to atomically check for duplicate + create response (prevents race condition)
+    // Use transaction to atomically check for duplicate + create response + update aggregate
+    // (prevents race condition and keeps aggregate consistent with response creation)
     const response = await db.$transaction(async (tx) => {
       // Check for duplicate response inside transaction
       const existing = await tx.npsResponse.findFirst({
@@ -61,7 +62,7 @@ export async function POST(
       }
 
       // Create response
-      return tx.npsResponse.create({
+      const created = await tx.npsResponse.create({
         data: {
           surveyId,
           tenantId: user.tenantId,
@@ -72,25 +73,27 @@ export async function POST(
           comment: comment || undefined,
         },
       });
-    });
 
-    // Recalculate survey avgScore and update responseCount
-    const allResponses = await db.npsResponse.findMany({
-      where: { surveyId },
-      select: { score: true },
-    });
+      // Recalculate survey avgScore and update responseCount inside same transaction
+      const allResponses = await tx.npsResponse.findMany({
+        where: { surveyId },
+        select: { score: true },
+      });
 
-    const totalResponses = allResponses.length;
-    const avgScore = totalResponses > 0
-      ? allResponses.reduce((sum, r) => sum + r.score, 0) / totalResponses
-      : 0;
+      const totalResponses = allResponses.length;
+      const avgScore = totalResponses > 0
+        ? allResponses.reduce((sum, r) => sum + r.score, 0) / totalResponses
+        : 0;
 
-    await db.npsSurvey.update({
-      where: { id: surveyId },
-      data: {
-        responseCount: totalResponses,
-        avgScore,
-      },
+      await tx.npsSurvey.update({
+        where: { id: surveyId },
+        data: {
+          responseCount: totalResponses,
+          avgScore,
+        },
+      });
+
+      return created;
     });
 
     return NextResponse.json({ success: true, data: response }, { status: 201 });

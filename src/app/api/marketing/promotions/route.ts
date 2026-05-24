@@ -42,21 +42,9 @@ export async function GET(request: NextRequest) {
       data: { status: 'expired' },
     });
 
-    // Also mark depleted promotions where usedCount >= maxUses and maxUses is set
-    await db.promotion.updateMany({
-      where: {
-        tenantId,
-        status: 'active',
-        maxUses: { not: null },
-        usedCount: { gte: 0 },
-      },
-      data: { status: 'depleted' },
-    }).then(async () => {
-      // The above is a broad update; let's do it correctly with a filter
-      // Re-fetch active promotions and check individually
-    });
-
-    // More precise depletion check
+    // Mark depleted promotions where usedCount >= maxUses and maxUses is set
+    // FIX: Removed the overly broad updateMany that used `usedCount: { gte: 0 }`
+    // which incorrectly matched ALL active promotions. Now using precise check only.
     const activeWithMaxUses = await db.promotion.findMany({
       where: {
         tenantId,
