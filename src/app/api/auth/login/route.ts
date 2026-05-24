@@ -380,7 +380,7 @@ async function verifyTwoFactor(tempToken: string, code: string, request: NextReq
   twoFactorTempTokenCache.delete(tempToken);
 
   // Log successful 2FA verification
-  await logAuth(request, '2fa_verified', user.id, { 
+  await logAuth(request, 'two_fa_verified', user.id, { 
     email: user.email
   }, user.tenantId);
 

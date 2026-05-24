@@ -92,9 +92,9 @@ export type AuditAction =
   | 'login_failed'
   | 'password_reset'
   | 'password_change'
-  | '2fa_enabled'
-  | '2fa_disabled'
-  | '2fa_verified'
+  | 'two_fa_enabled'
+  | 'two_fa_disabled'
+  | 'two_fa_verified'
   | 'session_revoked'
   | 'oauth_login'
   // Booking actions

@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
           tenantId: user.tenantId,
           userId: user.id,
           module: 'auth',
-          action: '2fa_disabled',
+          action: 'two_fa_disabled',
           entityType: 'user',
           entityId: user.id,
           ipAddress: request.headers.get('x-forwarded-for') ||

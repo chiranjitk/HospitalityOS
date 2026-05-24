@@ -145,15 +145,56 @@ enum AuditAction {
   create
   update
   delete
+  view
+  export
+  import
   login
   logout
-  export
+  login_failed
+  password_reset
+  password_change
+  two_fa_enabled
+  two_fa_disabled
+  two_fa_verified
+  session_revoked
+  oauth_login
+  check_in
+  check_out
+  cancel
+  modify
+  confirm
+  no_show
+  overbook
+  payment
+  refund
+  void
+  capture
+  user_create
+  user_update
+  user_delete
+  role_change
+  permission_change
+  tenant_create
+  tenant_suspend
+  tenant_activate
+  settings_update
+  feature_toggle
+  integration_connect
+  integration_disconnect
+  access_denied
+  suspicious_activity
+  data_export
+  api_key_create
+  api_key_revoke
+  backup
+  restore
+  maintenance
+  error
   approve
   reject
   booking_create
   payment_received
   guest_checkin
-  settings_update
 }
 
 enum SubscriptionStatus {

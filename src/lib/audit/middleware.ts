@@ -73,7 +73,7 @@ export function extractRequestContext(request: NextRequest): RequestContext {
  */
 export async function logAuth(
   request: NextRequest,
-  action: 'login' | 'logout' | 'login_failed' | 'password_reset' | 'password_change' | '2fa_enabled' | '2fa_disabled' | '2fa_verified' | 'session_revoked',
+  action: 'login' | 'logout' | 'login_failed' | 'password_reset' | 'password_change' | 'two_fa_enabled' | 'two_fa_disabled' | 'two_fa_verified' | 'session_revoked',
   userId: string | undefined,
   metadata?: Record<string, unknown>,
   tenantId?: string // Optional tenantId override (MUST be valid UUID from session)
