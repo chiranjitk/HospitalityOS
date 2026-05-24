@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 // GET /api/minibar/consumption/[id] - Get a single consumption record
 export async function GET(
@@ -10,7 +10,12 @@ export async function GET(
   try {
     const user = await getUserFromRequest(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
+    // RBAC check
+    if (!hasPermission(user, 'housekeeping.view') && !hasPermission(user, 'tasks.view') && !hasPermission(user, 'housekeeping.*') && !hasPermission(user, 'tasks.*')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const { id } = await params;
@@ -53,7 +58,12 @@ export async function PATCH(
   try {
     const user = await getUserFromRequest(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
+    // RBAC check
+    if (!hasPermission(user, 'housekeeping.manage') && !hasPermission(user, 'tasks.update') && !hasPermission(user, 'housekeeping.*') && !hasPermission(user, 'tasks.*')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const { id } = await params;

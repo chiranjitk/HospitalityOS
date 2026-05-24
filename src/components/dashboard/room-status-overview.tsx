@@ -12,6 +12,8 @@ import {
   Users,
   Wrench,
   Crown,
+  Sparkles,
+  Clock,
   ArrowRight,
   AlertTriangle,
   type LucideIcon,
@@ -20,7 +22,7 @@ import { motion } from 'framer-motion';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
-type RoomStatus = 'available' | 'occupied' | 'maintenance' | 'vip';
+type RoomStatus = 'available' | 'occupied' | 'maintenance' | 'dirty' | 'reserved' | 'vip';
 
 interface RoomData {
   id: string;
@@ -96,6 +98,32 @@ const STATUS_CONFIG: Record<RoomStatus, {
     statText: 'text-red-700 dark:text-red-400',
     statBorder: 'border-red-200/60 dark:border-red-800/40',
   },
+  dirty: {
+    label: 'Dirty',
+    icon: Sparkles,
+    border: 'border-orange-300 dark:border-orange-700',
+    bg: 'bg-orange-50',
+    bgDark: 'dark:bg-orange-950/20',
+    text: 'text-orange-700',
+    textDark: 'dark:text-orange-300',
+    dot: 'bg-orange-500',
+    statBg: 'bg-orange-50 dark:bg-orange-950/40',
+    statText: 'text-orange-700 dark:text-orange-400',
+    statBorder: 'border-orange-200/60 dark:border-orange-800/40',
+  },
+  reserved: {
+    label: 'Reserved',
+    icon: Clock,
+    border: 'border-teal-300 dark:border-teal-700',
+    bg: 'bg-teal-50',
+    bgDark: 'dark:bg-teal-950/20',
+    text: 'text-teal-700',
+    textDark: 'dark:text-teal-300',
+    dot: 'bg-teal-500',
+    statBg: 'bg-teal-50 dark:bg-teal-950/40',
+    statText: 'text-teal-700 dark:text-teal-400',
+    statBorder: 'border-teal-200/60 dark:border-teal-800/40',
+  },
   vip: {
     label: 'VIP',
     icon: Crown,
@@ -118,10 +146,14 @@ function mapApiStatus(apiStatus: string): RoomStatus {
     case 'occupied':
       return 'occupied';
     case 'maintenance':
-    case 'dirty':
     case 'outOfOrder':
     case 'out_of_order':
       return 'maintenance';
+    case 'dirty':
+      return 'dirty';
+    case 'reserved':
+    case 'G25':
+      return 'reserved';
     case 'vip':
       return 'vip';
     default:
@@ -149,6 +181,22 @@ function RoomCell({ room, index }: { room: RoomData; index: number }) {
         <>
           <p className="font-medium">Room {room.number} &mdash; {room.type}</p>
           <p className="text-muted-foreground">Under maintenance</p>
+        </>
+      );
+    }
+    if (room.status === 'dirty') {
+      return (
+        <>
+          <p className="font-medium">Room {room.number} &mdash; {room.type}</p>
+          <p className="text-muted-foreground">Needs cleaning</p>
+        </>
+      );
+    }
+    if (room.status === 'reserved') {
+      return (
+        <>
+          <p className="font-medium">Room {room.number} &mdash; {room.type}</p>
+          <p className="text-muted-foreground">Reserved</p>
         </>
       );
     }
@@ -300,8 +348,8 @@ function RoomStatusOverviewSkeleton() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 rounded-lg" />)}
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-14 rounded-lg" />)}
           </div>
           <Skeleton className="h-px w-full" />
           <div className="grid grid-cols-4 sm:grid-cols-7 xl:grid-cols-10 gap-2">
@@ -354,6 +402,8 @@ export function RoomStatusOverview() {
       available: 0,
       occupied: 0,
       maintenance: 0,
+      dirty: 0,
+      reserved: 0,
       vip: 0,
     };
     rooms.forEach((room) => {
@@ -427,10 +477,12 @@ export function RoomStatusOverview() {
 
         <CardContent className="space-y-4">
           {/* Summary Stats Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
             <SummaryStat status="available" count={statusCounts.available} />
             <SummaryStat status="occupied" count={statusCounts.occupied} />
             <SummaryStat status="maintenance" count={statusCounts.maintenance} />
+            <SummaryStat status="dirty" count={statusCounts.dirty} />
+            <SummaryStat status="reserved" count={statusCounts.reserved} />
             <SummaryStat status="vip" count={statusCounts.vip} />
           </div>
 

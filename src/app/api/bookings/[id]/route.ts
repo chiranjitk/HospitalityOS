@@ -482,6 +482,21 @@ export async function PUT(
       } catch (moveError) {
         console.error('[Room Move] Failed to post rate difference:', moveError);
       }
+
+      // G2: Mark old room dirty and create cleaning task on room move
+      try {
+        if (existingBooking.roomId) {
+          await db.room.update({
+            where: { id: existingBooking.roomId },
+            data: { status: 'dirty', housekeepingStatus: 'dirty', currentTaskId: null },
+          });
+          // Create a cleaning task for the vacated room (non-critical, fail gracefully)
+          await markRoomDirtyAfterCheckout(existingBooking.roomId, booking.tenantId, booking.id);
+          console.log(`[Room Move] Old room ${existingBooking.roomId} marked dirty, cleaning task created`);
+        }
+      } catch (oldRoomHkError) {
+        console.error('[Room Move] Failed to mark old room dirty / create cleaning task:', oldRoomHkError);
+      }
     }
     
     // Create audit log for status changes
@@ -903,10 +918,12 @@ export async function PUT(
             }
           }
 
-          // 2. Update room status to 'dirty'
+          // 2. Update room status to 'dirty' and set housekeeping status (G1)
+          //    Both status and housekeepingStatus must be set atomically inside the
+          //    transaction so that the room is never in an inconsistent state.
           await tx.room.update({
             where: { id: effectiveRoomId },
-            data: { status: 'dirty' },
+            data: { status: 'dirty', housekeepingStatus: 'dirty', currentTaskId: null },
           });
 
           // 3. Auto-close folio and generate invoice (AFTER WiFi fees are posted)
@@ -1089,6 +1106,7 @@ export async function PUT(
       }
 
       // Release the room when cancelling via PUT (matches POST cancel endpoint behavior)
+      // G3b: Also set housekeepingStatus based on whether guest had checked in
       if (existingBooking.roomId) {
         const activeRoomBookings = await db.booking.count({
           where: {
@@ -1099,10 +1117,22 @@ export async function PUT(
           },
         });
         if (activeRoomBookings === 0) {
+          const wasCheckedIn = !!existingBooking.actualCheckIn;
           await db.room.update({
             where: { id: existingBooking.roomId },
-            data: { status: 'available' },
+            data: {
+              status: 'available',
+              housekeepingStatus: wasCheckedIn ? 'dirty' : 'clean',
+            },
           });
+          // Create cleaning task for post-check-in cancellation (non-critical)
+          if (wasCheckedIn) {
+            try {
+              await markRoomDirtyAfterCheckout(existingBooking.roomId, booking.tenantId, booking.id);
+            } catch (hkError) {
+              console.error('[Booking Cancel] Failed to create cleaning task for post-check-in cancellation:', hkError);
+            }
+          }
           console.log(`[Booking Cancel] Room ${existingBooking.roomId} released (no other active bookings)`);
         }
       }

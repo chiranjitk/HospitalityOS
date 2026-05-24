@@ -21,6 +21,7 @@ export interface StaffMember {
   jobTitle: string | null;
   skills: StaffSkill[];
   currentWorkload: number;
+  capacityMinutes: number;
   efficiency: number;
   currentLocation?: { floor: number; zone: string };
 }
@@ -225,12 +226,14 @@ export class TaskOptimizationService {
     }
 
     // Calculate stats
-    const totalCapacity = staff.reduce((sum, s) => sum + 480, 0); // 8 hours per staff
+    const totalCapacity = staff.reduce((sum, s) => sum + s.capacityMinutes, 0);
     const totalAssigned = Object.values(staffUtilization).reduce((sum, w) => sum + w, 0);
     
+    const staffCapacityMap = new Map(staff.map(s => [s.id, s.capacityMinutes]));
     const utilization: Record<string, number> = {};
     Object.entries(staffUtilization).forEach(([id, minutes]) => {
-      utilization[id] = Math.round((minutes / 480) * 100);
+      const cap = staffCapacityMap.get(id) || 480;
+      utilization[id] = Math.round((minutes / cap) * 100);
     });
 
     return {
@@ -310,20 +313,24 @@ export class TaskOptimizationService {
 
     for (const suggestion of suggestions) {
       try {
-        // Update task with suggested assignee
-        await db.task.update({
-          where: { id: suggestion.taskId },
-          data: { assignedTo: suggestion.suggestedUserId },
-        });
-
-        // Mark suggestion as accepted
-        await db.taskAssignmentSuggestion.update({
-          where: { id: suggestion.id },
-          data: {
-            status: 'accepted',
-            acceptedAt: new Date(),
-          },
-        });
+        // Update task with suggested assignee and set status to assigned
+        await db.$transaction([
+          db.task.update({
+            where: { id: suggestion.taskId },
+            data: {
+              assignedTo: suggestion.suggestedUserId,
+              status: 'assigned',
+            },
+          }),
+          // Mark suggestion as accepted
+          db.taskAssignmentSuggestion.update({
+            where: { id: suggestion.id },
+            data: {
+              status: 'accepted',
+              acceptedAt: new Date(),
+            },
+          }),
+        ]);
 
         applied++;
       } catch (error) {
@@ -358,7 +365,7 @@ export class TaskOptimizationService {
           gte: startOfDay,
           lte: endOfDay,
         },
-        status: { in: ['pending', 'in_progress'] },
+        status: { in: ['pending', 'assigned', 'in_progress'] },
       },
       include: {
         room: {
@@ -746,6 +753,7 @@ export class TaskOptimizationService {
           certified: s.certified,
         })),
         currentWorkload: workload?.totalMinutes || 0,
+        capacityMinutes: workload?.capacityMinutes || 480,
         efficiency: workload?.efficiency || 1.0,
       };
     });
@@ -786,7 +794,7 @@ export class TaskOptimizationService {
 
     // Calculate workload balance (prefer less loaded staff)
     if (options.balanceWorkload) {
-      const capacityMinutes = 480;
+      const capacityMinutes = staff.capacityMinutes || 480;
       const utilization = (currentWorkload / capacityMinutes) * 100;
       factors.workloadBalance = Math.max(0, 100 - utilization);
       

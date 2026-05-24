@@ -1,4 +1,5 @@
 import { db } from './db';
+import { markRoomDirtyAfterCheckout } from './housekeeping-automation';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -330,6 +331,7 @@ export async function applyCancellationPenalty(params: {
 
   // Wrap penalty application, folio update, booking status update, and room release in a single transaction
   let lineItemId = '';
+  let _postCheckInRoomId: string | null = null;
   await db.$transaction(async (tx) => {
     // 3. If penalty > 0, add line item to folio
     if (evaluation.penaltyAmount > 0) {
@@ -383,16 +385,38 @@ export async function applyCancellationPenalty(params: {
     // 6. Release room if assigned
     const booking = await tx.booking.findUnique({
       where: { id: bookingId },
-      select: { roomId: true },
+      select: { roomId: true, actualCheckIn: true },
     });
 
     if (booking?.roomId) {
+      // G3: Differentiate pre-arrival vs post-check-in cancellations
+      // Pre-arrival (guest never checked in): room is clean, just release it
+      // Post-check-in (guest was physically in the room): mark dirty, create cleaning task
+      const wasPostCheckIn = !!booking.actualCheckIn;
       await tx.room.update({
         where: { id: booking.roomId },
-        data: { status: 'available' },
+        data: {
+          status: 'available',
+          housekeepingStatus: wasPostCheckIn ? 'dirty' : 'clean',
+        },
       });
+
+      // Store for post-transaction task creation
+      _postCheckInRoomId = wasPostCheckIn ? booking.roomId : null;
     }
   });
+
+  // G3: Post-transaction — create cleaning task for post-check-in cancellations.
+  // This runs outside the transaction so a task-creation failure doesn't roll back the
+  // penalty / room release.  markRoomDirtyAfterCheckout is idempotent (checks for
+  // duplicate active tasks before inserting).
+  if (_postCheckInRoomId) {
+    try {
+      await markRoomDirtyAfterCheckout(_postCheckInRoomId, tenantId, bookingId);
+    } catch (hkError) {
+      console.error('[Cancellation] Failed to create cleaning task after post-check-in cancellation:', hkError);
+    }
+  }
 
   return {
     success: true,

@@ -32,6 +32,8 @@ export interface ProcessInspectionResultParams {
   inspectorId: string;
   items: InspectionItemInput[];
   notes?: string;
+  /** Minimum score to pass inspection. Defaults to 100 (perfect score required). */
+  passThreshold?: number;
 }
 
 /**
@@ -61,6 +63,7 @@ export async function processInspectionResult(
     inspectorId,
     items,
     notes,
+    passThreshold = 100,
   } = params;
 
   // 1. Validate template exists and belongs to tenant
@@ -84,7 +87,7 @@ export async function processInspectionResult(
 
   // 3. Calculate score
   const score = calculateInspectionScore(items);
-  const passed = score === 100;
+  const passed = score >= passThreshold;
 
   // Build items JSON with only the fields we store
   const itemsJson = JSON.stringify(
@@ -139,6 +142,7 @@ export async function processInspectionResult(
         data: {
           status: 'pending',
           priority: 'high',
+          assignedTo: null,
           notes: `Re-inspection failed (score: ${score}). Failed required items:\n${failedRequiredItems.map((i) => `- ${i.name}${i.notes ? ': ' + i.notes : ''}`).join('\n')}`,
         },
       });
@@ -162,6 +166,8 @@ export async function processInspectionResult(
         housekeepingStatus: 'inspected',
         lastInspectedAt: new Date(),
         inspectedBy: inspectorId,
+        currentTaskId: null,
+        lastCleanedAt: new Date(),
       };
 
       if (allowedStatuses.includes(room.status)) {

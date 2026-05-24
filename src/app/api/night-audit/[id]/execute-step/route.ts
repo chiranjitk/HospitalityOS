@@ -412,11 +412,11 @@ async function processNoShows(audit: { id: string; propertyId: string; tenantId:
       },
     });
 
-    // Release the room
+    // Release the room — no-show: guest never checked in, room does NOT need cleaning
     if (booking.roomId) {
       await db.room.update({
         where: { id: booking.roomId },
-        data: { status: 'available' },
+        data: { status: 'available', housekeepingStatus: 'clean' },
       });
     }
 
@@ -509,13 +509,42 @@ async function reconcileRooms(audit: { id: string; propertyId: string; tenantId:
       discrepancyDetails.push(`Room ${room.number}: Marked occupied but no active booking found`);
       discrepancies++;
 
-      // Auto-fix: mark room as available
+      // Auto-fix: mark room as available but dirty (data anomaly — needs cleaning before reuse)
       await db.room.update({
         where: { id: room.id },
         data: {
           status: 'available',
+          housekeepingStatus: 'dirty',
         },
       });
+
+      // Create cleaning task for the released room (data anomaly)
+      const existingReconTask = await db.task.findFirst({
+        where: {
+          roomId: room.id,
+          type: 'cleaning',
+          category: 'reconciliation',
+          status: { in: ['pending', 'in_progress', 'assigned'] },
+        },
+      });
+      if (!existingReconTask) {
+        await db.task.create({
+          data: {
+            tenantId: audit.tenantId,
+            propertyId: audit.propertyId,
+            roomId: room.id,
+            type: 'cleaning',
+            category: 'reconciliation',
+            title: `Auto: Reconciliation Clean - Room ${room.number}`,
+            description: 'Automatic task: room was marked occupied but has no active booking (data anomaly). Full cleaning required before reuse.',
+            priority: 'medium',
+            status: 'pending',
+            scheduledAt: new Date(),
+            estimatedDuration: 45,
+            notes: 'Created during night audit room reconciliation',
+          },
+        });
+      }
     }
   }
 

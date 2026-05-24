@@ -118,26 +118,29 @@ export default function HousekeepingDashboard() {
   const [error, setError] = React.useState<string | null>(null);
   const router = useRouter();
 
-  React.useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const response = await fetch('/api/housekeeping/dashboard');
-        const result = await response.json();
-        if (result.success) {
-          setStats(result.data);
-        } else {
-          setError(result.error?.message || 'Failed to load dashboard');
-          setStats(EMPTY_HOUSEKEEPING_STATS);
-        }
-      } catch (err) {
-        setError('Failed to fetch housekeeping data');
+  const fetchStats = React.useCallback(async () => {
+    try {
+      const response = await fetch('/api/housekeeping/dashboard');
+      const result = await response.json();
+      if (result.success) {
+        setStats(result.data);
+      } else {
+        setError(result.error?.message || 'Failed to load dashboard');
         setStats(EMPTY_HOUSEKEEPING_STATS);
-      } finally {
-        setIsLoading(false);
       }
-    };
-    fetchStats();
+    } catch (err) {
+      setError('Failed to fetch housekeeping data');
+      setStats(EMPTY_HOUSEKEEPING_STATS);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  React.useEffect(() => {
+    fetchStats();
+    const interval = setInterval(fetchStats, 60000);
+    return () => clearInterval(interval);
+  }, [fetchStats]);
 
   if (isLoading) {
     return (

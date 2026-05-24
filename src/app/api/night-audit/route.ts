@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
-import { markRoomDirtyAfterCheckout } from '@/lib/housekeeping-automation';
 import { z } from 'zod';
 import crypto from 'crypto';
 
@@ -238,9 +237,6 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
     otherRevenue: 0,
     invoicesGenerated: 0,
   };
-
-  // Track room IDs released by no-shows for post-transaction housekeeping automation
-  const noshowRoomIds: string[] = [];
 
   await db.$transaction(async (tx) => {
     const businessDay = new Date(audit.businessDayDate);
@@ -574,11 +570,11 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
         });
 
         if (booking.roomId) {
+          // No-show: guest never checked in → room does NOT need cleaning
           await tx.room.update({
             where: { id: booking.roomId },
-            data: { status: 'dirty', housekeepingStatus: 'dirty' },
+            data: { status: 'available', housekeepingStatus: 'clean' },
           });
-          noshowRoomIds.push(booking.roomId);
         }
 
         summary.noShowsProcessed++;
@@ -634,7 +630,34 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
           continue;
         }
         summary.discrepancies++;
-        await tx.room.update({ where: { id: room.id }, data: { status: 'available' } });
+        // Data anomaly: room was occupied but no active booking → mark dirty and create cleaning task
+        await tx.room.update({ where: { id: room.id }, data: { status: 'available', housekeepingStatus: 'dirty' } });
+        const existingReconTask = await tx.task.findFirst({
+          where: {
+            roomId: room.id,
+            type: 'cleaning',
+            category: 'reconciliation',
+            status: { in: ['pending', 'in_progress', 'assigned'] },
+          },
+        });
+        if (!existingReconTask) {
+          await tx.task.create({
+            data: {
+              tenantId: audit.tenantId,
+              propertyId: audit.propertyId,
+              roomId: room.id,
+              type: 'cleaning',
+              category: 'reconciliation',
+              title: `Auto: Reconciliation Clean - Room ${room.number}`,
+              description: 'Automatic task: room was marked occupied but has no active booking (data anomaly). Full cleaning required before reuse.',
+              priority: 'medium',
+              status: 'pending',
+              scheduledAt: new Date(),
+              estimatedDuration: 45,
+              notes: 'Created during night audit room reconciliation',
+            },
+          });
+        }
       }
     }
 
@@ -812,15 +835,6 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
       },
     });
   });
-
-  // After the transaction completes, trigger housekeeping automation for no-show rooms
-  for (const roomId of noshowRoomIds) {
-    try {
-      await markRoomDirtyAfterCheckout(roomId, audit.tenantId);
-    } catch (hkError) {
-      console.error(`[NightAudit] Failed to trigger housekeeping automation for no-show room ${roomId}:`, hkError);
-    }
-  }
 
   // Fetch the completed audit to return
   const completedAudit = await db.nightAudit.findUnique({
