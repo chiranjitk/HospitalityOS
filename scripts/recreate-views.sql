@@ -64,7 +64,7 @@ SELECT COALESCE(s.id::text, r.acctuniqueid) AS session_id,
     wp."dataLimit" AS datalimit,
     wp."dataLimit" AS plan_data_limit,
     COALESCE(b."confirmationCode", ''::text) AS booking_code,
-    COALESCE(b.status, ''::text) AS booking_status,
+    COALESCE(b.status::text, ''::text) AS booking_status,
     COALESCE(s.id::text, r.acctuniqueid) AS acctuniqueid,
     r.framedipv6address,
     COALESCE(r.nasipaddress, '0.0.0.0'::text) AS nasipaddress,
@@ -255,7 +255,7 @@ SELECT u.id AS user_id,
     wp."uploadSpeed" AS plan_upload_speed,
     wp."dataLimit" AS plan_data_limit,
     COALESCE(b."confirmationCode", ''::text) AS booking_code,
-    COALESCE(b.status, ''::text) AS booking_status
+    COALESCE(b.status::text, ''::text) AS booking_status
    FROM "WiFiUser" u
      LEFT JOIN "Guest" g ON u."guestId" = g.id
      LEFT JOIN "Booking" b ON u."bookingId" = b.id
