@@ -222,7 +222,7 @@ interface WiFiPlan {
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export default function RadiusUsersTab() {
+export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: () => void }) {
   const { toast } = useToast();
 
   const formatBytes = (bytes: number): string => {
@@ -446,6 +446,7 @@ export default function RadiusUsersTab() {
         setDialogOpen(false);
         resetForm();
         fetchUsers();
+        onUsersChanged?.();
       } else {
         toast({ title: 'Error', description: data.error || `Failed to ${editingUser ? 'update' : 'create'} user`, variant: 'destructive' });
       }
@@ -491,6 +492,7 @@ export default function RadiusUsersTab() {
         toast({ title: 'Status Changed', description: `${user.username}: ${data.message || `${actionLabel}d successfully`}` });
         setStatusDialogOpen(false);
         fetchUsers();
+        onUsersChanged?.();
       } else {
         toast({ title: 'Error', description: data.error || `Failed to ${actionLabel.toLowerCase()} user`, variant: 'destructive' });
       }
@@ -526,6 +528,7 @@ export default function RadiusUsersTab() {
         toast({ title: 'Quota Reset', description: data.message || `${resetQuotaUser.username}: quota reset & reactivated` });
         setResetQuotaUser(null);
         fetchUsers();
+        onUsersChanged?.();
       } else {
         toast({ title: 'Error', description: data.error || 'Failed to reset quota', variant: 'destructive' });
       }
@@ -674,6 +677,7 @@ export default function RadiusUsersTab() {
         });
         setSelectedUserIds(new Set());
         fetchUsers();
+        onUsersChanged?.();
       } else {
         toast({ title: 'Error', description: data.error || 'Bulk delete failed', variant: 'destructive' });
         closeBulkDelete();
@@ -769,6 +773,7 @@ export default function RadiusUsersTab() {
       if (data.success) {
         toast({ title: 'Success', description: 'User deleted successfully' });
         fetchUsers();
+        onUsersChanged?.();
       } else {
         toast({ title: 'Error', description: data.error || 'Failed to delete user', variant: 'destructive' });
       }
@@ -911,6 +916,7 @@ export default function RadiusUsersTab() {
     setImportDialogOpen(false);
     setImportPreview([]);
     fetchUsers();
+    onUsersChanged?.();
 
     toast({
       title: `Import complete: ${created} created`,

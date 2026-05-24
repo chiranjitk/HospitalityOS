@@ -46,7 +46,7 @@ function TabSkeleton() {
 
 // ─── RADIUS + Quick Actions (inline compact) ────────────────────────────────
 
-function RADIUSQuickActions({ onRefresh, onSwitchToVouchers }: { onRefresh: () => void; onSwitchToVouchers: () => void }) {
+function RADIUSQuickActions({ onRefresh, onSwitchToVouchers, statusRefreshTrigger }: { onRefresh: () => void; onSwitchToVouchers: () => void; statusRefreshTrigger: number }) {
   const { toast } = useToast();
   const [isSyncing, setIsSyncing] = useState(false);
   const [radiusStatus, setRadiusStatus] = useState<{
@@ -79,7 +79,7 @@ function RADIUSQuickActions({ onRefresh, onSwitchToVouchers }: { onRefresh: () =
     checkStatus();
     const interval = setInterval(checkStatus, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [statusRefreshTrigger]);
 
   const isOnline = radiusStatus.connected && !isChecking;
 
@@ -223,10 +223,15 @@ const tabs: TabEntry[] = [
 export function WifiAccessPage() {
   const [activeTab, setActiveTab] = useState<TabId>('live-sessions');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [statusRefreshKey, setStatusRefreshKey] = useState(0);
   const { propertyId, properties, setCurrentProperty } = usePropertyId();
 
   const handleRefresh = useCallback(() => {
     setRefreshKey(prev => prev + 1);
+  }, []);
+
+  const handleUsersChanged = useCallback(() => {
+    setStatusRefreshKey(prev => prev + 1);
   }, []);
 
   const handleSwitchToVouchers = useCallback(() => {
@@ -277,7 +282,7 @@ export function WifiAccessPage() {
 
       {/* RADIUS Status + Quick Actions (inline) */}
       <div className="relative z-10">
-        <RADIUSQuickActions onRefresh={handleRefresh} onSwitchToVouchers={handleSwitchToVouchers} />
+        <RADIUSQuickActions onRefresh={handleRefresh} onSwitchToVouchers={handleSwitchToVouchers} statusRefreshTrigger={statusRefreshKey} />
       </div>
 
       {/* Tab Switcher */}
@@ -337,7 +342,7 @@ export function WifiAccessPage() {
             {activeTab === 'live-sessions' && <LiveSessions />}
           </ErrorBoundary>
           <ErrorBoundary section="RADIUS Users">
-            {activeTab === 'users' && <RadiusUsersTab />}
+            {activeTab === 'users' && <RadiusUsersTab onUsersChanged={handleUsersChanged} />}
           </ErrorBoundary>
           <ErrorBoundary section="Auth Logs">
             {activeTab === 'auth-logs' && <AuthLogsTab />}
