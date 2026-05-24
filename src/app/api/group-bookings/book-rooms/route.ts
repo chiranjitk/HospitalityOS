@@ -38,15 +38,23 @@ export async function POST(request: NextRequest) {    const user = await getUser
       );
     }
 
-    // Verify guest exists
+    // Verify guest exists and belongs to the same tenant
     const guest = await db.guest.findUnique({
       where: { id: guestId },
+      select: { id: true, tenantId: true },
     });
 
     if (!guest) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Guest not found' } },
         { status: 404 }
+      );
+    }
+
+    if (guest.tenantId !== user.tenantId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Guest does not belong to this tenant' } },
+        { status: 403 }
       );
     }
 

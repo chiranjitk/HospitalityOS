@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWifiSettings, setWifiSettings, type ConsentManagementSettings } from '@/lib/wifi-settings';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/consent-logs/settings — Retrieve consent management settings
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
+
+  if (!hasPermission(auth, 'wifi.manage')) {
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied: requires wifi.manage' } },
+      { status: 403 },
+    );
+  }
 
   try {
     const settings = await getWifiSettings(auth.tenantId, 'consent_management');
@@ -23,6 +30,13 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
+
+  if (!hasPermission(auth, 'wifi.manage')) {
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied: requires wifi.manage' } },
+      { status: 403 },
+    );
+  }
 
   try {
     const body = await request.json();

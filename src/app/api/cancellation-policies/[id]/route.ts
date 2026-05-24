@@ -129,11 +129,11 @@ export async function PUT(
         } else if (field === 'isActive') {
           updateData[field] = Boolean(body[field]);
         } else if (field === 'freeCancelHoursBefore' || field === 'penaltyPercent' || field === 'noShowPenaltyPercent') {
-          updateData[field] = Number(body[field]);
+          updateData[field] = Math.max(0, Math.min(100, Number(body[field])));
         } else if (field === 'penaltyFixedAmount') {
-          updateData[field] = body[field] !== null ? Number(body[field]) : null;
+          updateData[field] = body[field] !== null ? Number(Number(body[field]).toFixed(2)) : null;
         } else if (field === 'penaltyNights') {
-          updateData[field] = body[field] !== null ? Number(body[field]) : null;
+          updateData[field] = body[field] !== null ? Math.max(1, Math.floor(Number(body[field]))) : null;
         } else if (field === 'sortOrder') {
           updateData[field] = Number(body[field]);
         } else if (field === 'exceptions') {

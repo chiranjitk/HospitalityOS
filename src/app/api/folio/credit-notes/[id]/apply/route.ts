@@ -43,7 +43,7 @@ export async function POST(
     }
 
     const result = await db.$transaction(async (tx) => {
-      const applyAmount = creditNote.remainingAmount;
+      const applyAmount = Math.round(creditNote.remainingAmount * 100) / 100;
 
       // Create credit line item on folio
       await tx.folioLineItem.create({
@@ -61,12 +61,24 @@ export async function POST(
         },
       });
 
-      // Update folio balance
+      // BALANCE FIX: Recalculate folio from ALL line items instead of using decrement
+      // This prevents drift if folio was modified concurrently
+      const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: creditNote.folioId } });
+      const newSubtotal = Math.round(allLineItems.reduce((sum, li) => sum + li.totalAmount, 0) * 100) / 100;
+      const newTaxes = Math.round(allLineItems.reduce((sum, li) => sum + (li.taxAmount || 0), 0) * 100) / 100;
+      const folioData = await tx.folio.findUnique({ where: { id: creditNote.folioId } });
+      const newTotalAmount = Math.round((newSubtotal + newTaxes - (folioData?.discount || 0)) * 100) / 100;
+      const newPaidAmount = (folioData?.paidAmount || 0);
+      const newBalance = Math.round((newTotalAmount - newPaidAmount) * 100) / 100;
+
       const updatedFolio = await tx.folio.update({
         where: { id: creditNote.folioId },
         data: {
-          totalAmount: { decrement: applyAmount },
-          balance: { decrement: applyAmount },
+          subtotal: newSubtotal,
+          taxes: newTaxes,
+          totalAmount: newTotalAmount,
+          paidAmount: newPaidAmount,
+          balance: newBalance,
         },
       });
 

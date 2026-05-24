@@ -82,6 +82,14 @@ export async function PUT(
 
     const previousStatus = targetItem.status;
 
+    // Order-level status guard: block changes to items in paid, refunded, or cancelled orders
+    if (['paid', 'refunded', 'cancelled'].includes(existingOrder.status)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_STATUS', message: `Cannot modify items in order with status: ${existingOrder.status}` } },
+        { status: 400 }
+      );
+    }
+
     // Prevent status transition to cancelled for served items
     if (previousStatus === 'served' && newStatus !== 'served') {
       return NextResponse.json(

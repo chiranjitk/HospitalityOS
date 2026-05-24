@@ -171,8 +171,8 @@ export async function POST(request: NextRequest) {
         resolvedCategory = category || (template.triggerEvent?.split('.')[1] as NotificationCategory) || 'info';
       }
     } else if (templateId) {
-      const template = await db.notificationTemplate.findUnique({
-        where: { id: templateId },
+      const template = await db.notificationTemplate.findFirst({
+        where: { id: templateId, tenantId: user.tenantId },
       });
       if (template) {
         resolvedTitle = resolvedTitle || template.subject || '';
@@ -622,8 +622,8 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status') || 'pending';
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
-    const offset = parseInt(searchParams.get('offset') || '0');
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100);
+    const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10));
 
     const where: Record<string, unknown> = { tenantId: user.tenantId };
     if (status !== 'all') {

@@ -145,43 +145,55 @@ export async function PUT(request: NextRequest) {
       updateData.completedBy = user.userId;
       updateData.completedAt = new Date();
 
-      // Update stock quantities on completion
-      const transferItems = await db.inventoryTransferItem.findMany({
-        where: { transferId: id },
-      });
-
-      for (const item of transferItems) {
-        // Decrease quantity at source property
-        await db.stockItem.updateMany({
-          where: { id: item.stockItemId, propertyId: existing.fromPropertyId },
-          data: { quantity: { decrement: item.quantity } },
+      // Update stock quantities atomically on completion
+      await db.$transaction(async (tx) => {
+        const transferItems = await tx.inventoryTransferItem.findMany({
+          where: { transferId: id },
         });
 
-        // Increase quantity at destination property
-        const destItem = await db.stockItem.findFirst({
-          where: { name: item.stockItemName, propertyId: existing.toPropertyId, deletedAt: null },
-        });
+        for (const item of transferItems) {
+          // Decrease quantity at source property
+          const sourceItem = await tx.stockItem.findFirst({
+            where: { id: item.stockItemId, propertyId: existing.fromPropertyId },
+          });
+          if (!sourceItem) {
+            throw new Error(`Source stock item ${item.stockItemId} not found`);
+          }
+          if (sourceItem.quantity < item.quantity) {
+            throw new Error(`Insufficient stock for ${item.stockItemName}. Available: ${sourceItem.quantity}, Required: ${item.quantity}`);
+          }
 
-        if (destItem) {
-          await db.stockItem.update({
-            where: { id: destItem.id },
-            data: { quantity: { increment: item.quantity } },
+          await tx.stockItem.update({
+            where: { id: item.stockItemId, propertyId: existing.fromPropertyId },
+            data: { quantity: { decrement: item.quantity } },
           });
-        } else {
-          await db.stockItem.create({
-            data: {
-              tenantId: user.tenantId,
-              propertyId: existing.toPropertyId,
-              name: item.stockItemName,
-              unit: item.unit,
-              unitCost: item.unitCost,
-              quantity: item.quantity,
-              minQuantity: 0,
-              status: 'active',
-            },
+
+          // Increase quantity at destination property
+          const destItem = await tx.stockItem.findFirst({
+            where: { name: item.stockItemName, propertyId: existing.toPropertyId, deletedAt: null },
           });
+
+          if (destItem) {
+            await tx.stockItem.update({
+              where: { id: destItem.id },
+              data: { quantity: { increment: item.quantity } },
+            });
+          } else {
+            await tx.stockItem.create({
+              data: {
+                tenantId: user.tenantId,
+                propertyId: existing.toPropertyId,
+                name: item.stockItemName,
+                unit: item.unit,
+                unitCost: item.unitCost,
+                quantity: item.quantity,
+                minQuantity: 0,
+                status: 'active',
+              },
+            });
+          }
         }
-      }
+      });
     } else if (status === 'rejected') {
       updateData.rejectedAt = new Date();
       updateData.rejectionReason = rejectionReason || null;

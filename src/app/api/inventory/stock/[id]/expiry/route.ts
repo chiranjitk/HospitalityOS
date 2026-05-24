@@ -83,7 +83,7 @@ export async function GET(
     let expiryStatus = 'fresh';
     if (daysUntilExpiry !== null) {
       if (daysUntilExpiry <= 0) expiryStatus = 'expired';
-      else if (daysUntilExpiry <= 7) expiryStatus = 'expired';
+      else if (daysUntilExpiry <= 7) expiryStatus = 'critical';
       else if (daysUntilExpiry <= 30) expiryStatus = 'warning';
     }
 
@@ -113,6 +113,14 @@ export async function PUT(
 
     if (!expiryDate) {
       return NextResponse.json({ error: 'expiryDate is required' }, { status: 400 });
+    }
+
+    // Verify item belongs to user's tenant before update
+    const existingItem = await db.stockItem.findFirst({
+      where: { id, tenantId: user.tenantId, deletedAt: null },
+    });
+    if (!existingItem) {
+      return NextResponse.json({ error: 'Stock item not found' }, { status: 404 });
     }
 
     const item = await db.stockItem.update({

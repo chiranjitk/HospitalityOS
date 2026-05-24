@@ -43,9 +43,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch booking with all needed relations
+    // Fetch booking with all needed relations — tenant isolation via ctx
     const booking = await db.booking.findFirst({
-      where: { id: bookingId, status: 'confirmed', deletedAt: null },
+      where: { id: bookingId, tenantId: ctx.tenantId, status: 'confirmed', deletedAt: null },
       include: {
         primaryGuest: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
         room: { select: { id: true, number: true, floor: true, status: true } },

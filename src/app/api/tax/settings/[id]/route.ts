@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { z } from 'zod';
+import { encrypt, decrypt, isEncrypted } from '@/lib/encryption';
 
 const updateSettingsSchema = z.object({
   propertyId: z.string().optional().nullable(),
@@ -83,13 +84,26 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Tax settings not found' } }, { status: 404 });
     }
 
+    // SECURITY FIX: Encrypt Aadhaar number on update (same as create route)
+    if (parsed.data.aadhaarNumber !== undefined && parsed.data.aadhaarNumber !== null) {
+      parsed.data.aadhaarNumber = encrypt(parsed.data.aadhaarNumber);
+    }
+
     const settings = await db.gstSettings.update({
       where: { id },
       data: parsed.data,
       include: { property: { select: { id: true, name: true } } },
     });
 
-    return NextResponse.json({ success: true, data: settings });
+    // Decrypt Aadhaar before returning
+    const decryptedSettings = {
+      ...settings,
+      aadhaarNumber: settings.aadhaarNumber && isEncrypted(settings.aadhaarNumber)
+        ? decrypt(settings.aadhaarNumber)
+        : settings.aadhaarNumber,
+    };
+
+    return NextResponse.json({ success: true, data: decryptedSettings });
   } catch (error) {
     console.error('[TaxSettings PUT/:id] Error:', error);
     return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update tax settings' } }, { status: 500 });

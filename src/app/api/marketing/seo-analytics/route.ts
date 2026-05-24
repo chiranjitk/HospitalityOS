@@ -6,7 +6,7 @@ import { subDays, format, eachDayOfInterval, startOfMonth, endOfMonth, startOfWe
 // GET /api/marketing/seo-analytics - SEO analytics with real database data
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requirePermission(request, 'bookings.view');
+    const auth = await requirePermission(request, 'marketing.view');
     if (auth instanceof NextResponse) return auth;
 
     const searchParams = request.nextUrl.searchParams;

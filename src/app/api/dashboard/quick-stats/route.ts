@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       },
       _sum: { amount: true },
     });
-    const revenueToday = todayPayments._sum.amount || 0;
+    const revenueToday = todayPayments._sum.amount ? Math.round(todayPayments._sum.amount * 100) / 100 : 0;
 
     // Yesterday revenue for change calculation
     const yesterday = new Date(today);
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
       },
       _sum: { amount: true },
     });
-    const yesterdayRevenue = yesterdayPayments._sum.amount || 0;
+    const yesterdayRevenue = yesterdayPayments._sum.amount ? Math.round(yesterdayPayments._sum.amount * 100) / 100 : 0;
     const revenueChange = yesterdayRevenue > 0
       ? Math.round(((revenueToday - yesterdayRevenue) / yesterdayRevenue) * 100)
       : (revenueToday > 0 ? 100 : 0);

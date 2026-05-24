@@ -211,6 +211,9 @@ export async function PUT(
         newSubtotal += item.totalAmount;
       }
 
+      // Round subtotal
+      newSubtotal = Math.round(newSubtotal * 100) / 100;
+
       // Calculate taxes
       let newTaxes = 0;
       const property = existingOrder.property;
@@ -229,13 +232,16 @@ export async function PUT(
         newTaxes = newSubtotal * (taxRate / 100);
       }
 
-      // Service charge
+      // Round taxes
+      newTaxes = Math.round(newTaxes * 100) / 100;
+
+      // Service charge (on subtotal, pre-tax)
       let serviceCharge = 0;
       if (property.serviceChargePercent) {
-        serviceCharge = newSubtotal * (property.serviceChargePercent / 100);
+        serviceCharge = Math.round(newSubtotal * (property.serviceChargePercent / 100) * 100) / 100;
       }
 
-      const newTotalAmount = newSubtotal + newTaxes + serviceCharge;
+      const newTotalAmount = Math.round((newSubtotal + newTaxes + serviceCharge) * 100) / 100;
 
       // Update the order
       const order = await tx.order.update({

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth';
 import { transformRecord, statusToIsActive } from '@/lib/api-transform';
 
 // GET /api/minibar/items/[id] - Get a single minibar item
@@ -11,12 +11,10 @@ export async function GET(
   try {
     const user = await getUserFromRequest(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
-
-    // RBAC check
-    if (!hasPermission(user, 'housekeeping.view') && !hasPermission(user, 'tasks.view') && !hasPermission(user, 'housekeeping.*') && !hasPermission(user, 'tasks.*')) {
-      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    if (!hasAnyPermission(user, ['minibar.view', 'minibar.manage', 'inventory.*', '*'])) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -44,12 +42,10 @@ export async function PUT(
   try {
     const user = await getUserFromRequest(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
-
-    // RBAC check
-    if (!hasPermission(user, 'housekeeping.manage') && !hasPermission(user, 'tasks.update') && !hasPermission(user, 'housekeeping.*') && !hasPermission(user, 'tasks.*')) {
-      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    if (!hasAnyPermission(user, ['minibar.manage', 'inventory.*', '*'])) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -96,12 +92,10 @@ export async function DELETE(
   try {
     const user = await getUserFromRequest(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
-
-    // RBAC check
-    if (!hasPermission(user, 'housekeeping.manage') && !hasPermission(user, 'tasks.delete') && !hasPermission(user, 'housekeeping.*') && !hasPermission(user, 'tasks.*')) {
-      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    if (!hasAnyPermission(user, ['minibar.manage', 'inventory.*', '*'])) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const { id } = await params;

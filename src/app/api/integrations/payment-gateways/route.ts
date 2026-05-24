@@ -370,8 +370,8 @@ export async function PUT(request: NextRequest) {
     if (encryptedSecretKey !== undefined) updateData.secretKey = encryptedSecretKey;
     if (merchantId !== undefined) updateData.merchantId = merchantId;
     if (encryptedWebhookSecret !== undefined) updateData.webhookSecret = encryptedWebhookSecret;
-    if (feePercentage !== undefined) updateData.feePercentage = parseFloat(feePercentage);
-    if (feeFixed !== undefined) updateData.feeFixed = parseFloat(feeFixed);
+    if (feePercentage !== undefined) updateData.feePercentage = Math.round(parseFloat(feePercentage) * 100) / 100;
+    if (feeFixed !== undefined) updateData.feeFixed = Math.round(parseFloat(feeFixed) * 100) / 100;
     if (supportedCurrencies !== undefined) {
       updateData.supportedCurrencies = Array.isArray(supportedCurrencies)
         ? supportedCurrencies.join(',')

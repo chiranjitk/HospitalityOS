@@ -209,9 +209,10 @@ export async function POST(request: NextRequest) {
       const fromLineItems = await tx.folioLineItem.findMany({
         where: { folioId: fromFolioId },
       });
-      const fromSubtotal = fromLineItems.reduce((sum, item) => sum + item.totalAmount, 0);
-      const fromTaxes = fromLineItems.reduce((sum, item) => sum + item.taxAmount, 0);
-      const fromTotal = fromSubtotal + fromTaxes;
+      const fromSubtotal = Math.round(fromLineItems.reduce((sum, item) => sum + item.totalAmount, 0) * 100) / 100;
+      const fromTaxes = Math.round(fromLineItems.reduce((sum, item) => sum + item.taxAmount, 0) * 100) / 100;
+      // BALANCE FIX: include discount in total
+      const fromTotal = Math.round((fromSubtotal + fromTaxes - (fromFolio.discount || 0)) * 100) / 100;
 
       const fromPayments = await tx.payment.findMany({
         where: { folioId: fromFolioId, status: 'completed' },
@@ -233,9 +234,10 @@ export async function POST(request: NextRequest) {
       const toLineItems = await tx.folioLineItem.findMany({
         where: { folioId: toFolioId },
       });
-      const toSubtotal = toLineItems.reduce((sum, item) => sum + item.totalAmount, 0);
-      const toTaxes = toLineItems.reduce((sum, item) => sum + item.taxAmount, 0);
-      const toTotal = toSubtotal + toTaxes;
+      const toSubtotal = Math.round(toLineItems.reduce((sum, item) => sum + item.totalAmount, 0) * 100) / 100;
+      const toTaxes = Math.round(toLineItems.reduce((sum, item) => sum + item.taxAmount, 0) * 100) / 100;
+      // BALANCE FIX: include discount in total
+      const toTotal = Math.round((toSubtotal + toTaxes - (toFolio.discount || 0)) * 100) / 100;
 
       const toPayments = await tx.payment.findMany({
         where: { folioId: toFolioId, status: 'completed' },

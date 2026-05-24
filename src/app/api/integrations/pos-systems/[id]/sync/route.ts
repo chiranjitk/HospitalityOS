@@ -46,6 +46,24 @@ export async function POST(
     const body = await request.json();
     const { syncType = 'full', direction = 'import' } = body;
 
+    // Validate syncType
+    const validSyncTypes = ['menu', 'orders', 'inventory', 'full'];
+    if (!validSyncTypes.includes(syncType)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid syncType. Must be one of: ${validSyncTypes.join(', ')}` } },
+        { status: 400 }
+      );
+    }
+
+    // Validate direction
+    const validDirections = ['import', 'export'];
+    if (!validDirections.includes(direction)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid direction. Must be one of: ${validDirections.join(', ')}` } },
+        { status: 400 }
+      );
+    }
+
     // Get integration (tenant-scoped)
     const integration = await db.integration.findFirst({
       where: { id: integrationId, tenantId: user.tenantId },
@@ -140,10 +158,16 @@ async function syncMenuItems(
     let skipped = 0;
 
     for (const item of externalItems) {
+      // Skip if no property is associated — prevents cross-tenant data access
+      if (!integration.propertyId) {
+        skipped++;
+        continue;
+      }
+
       // Check if item exists by name (no posId field on MenuItem)
       const existing = await db.menuItem.findFirst({
         where: {
-          propertyId: integration.propertyId || '',
+          propertyId: integration.propertyId,
           name: item.name,
         },
       });
@@ -162,7 +186,7 @@ async function syncMenuItems(
       } else {
         // Create new item - requires categoryId, use a fallback
         const categories = await db.orderCategory.findMany({
-          where: { propertyId: integration.propertyId || '' },
+          where: { propertyId: integration.propertyId },
           take: 1,
         });
 
@@ -173,7 +197,7 @@ async function syncMenuItems(
 
         await db.menuItem.create({
           data: {
-            propertyId: integration.propertyId || '',
+            propertyId: integration.propertyId,
             categoryId: categories[0].id,
             name: item.name,
             description: item.description,
@@ -188,8 +212,13 @@ async function syncMenuItems(
     return { imported, updated, skipped };
   } else {
     // Export menu items to POS
+    // Skip if no property is associated — prevents cross-tenant data access
+    if (!integration.propertyId) {
+      return { imported: 0, updated: 0, skipped: 0 };
+    }
+
     const localItems = await db.menuItem.findMany({
-      where: { propertyId: integration.propertyId || '' },
+      where: { propertyId: integration.propertyId },
     });
 
     let updated = 0;
@@ -230,6 +259,7 @@ async function syncOrders(
         // Check if order exists by orderNumber
         const existing = await db.order.findFirst({
           where: {
+            tenantId: integration.tenantId,
             orderNumber: (orderData.orderNumber as string) || '',
           },
         });

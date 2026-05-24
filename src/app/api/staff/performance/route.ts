@@ -336,6 +336,18 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Verify the target user belongs to the same tenant
+      const targetUser = await db.user.findFirst({
+        where: { id: userId, tenantId: user.tenantId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!targetUser) {
+        return NextResponse.json(
+          { success: false, error: { code: 'INVALID_USER', message: 'Staff member not found or does not belong to your tenant' } },
+          { status: 400 }
+        );
+      }
+
       // Check for existing review (unique constraint)
       const existing = await db.staffPerformance.findUnique({
         where: {
@@ -408,6 +420,18 @@ export async function POST(request: NextRequest) {
       if (!assignedTo || !title) {
         return NextResponse.json(
           { success: false, error: { code: 'VALIDATION_ERROR', message: 'assignedTo and title are required' } },
+          { status: 400 }
+        );
+      }
+
+      // Verify the assigned user belongs to the same tenant
+      const assignedStaff = await db.user.findFirst({
+        where: { id: assignedTo, tenantId: user.tenantId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!assignedStaff) {
+        return NextResponse.json(
+          { success: false, error: { code: 'INVALID_USER', message: 'Assigned staff not found or does not belong to your tenant' } },
           { status: 400 }
         );
       }
@@ -518,6 +542,18 @@ export async function PUT(request: NextRequest) {
         status,
       } = body;
 
+      // Tenant isolation: verify the review record belongs to this tenant
+      const existingReview = await db.staffPerformance.findUnique({
+        where: { id },
+        select: { tenantId: true },
+      });
+      if (!existingReview || existingReview.tenantId !== user.tenantId) {
+        return NextResponse.json(
+          { success: false, error: { code: 'NOT_FOUND', message: 'Performance review not found' } },
+          { status: 404 }
+        );
+      }
+
       // Calculate overall if not provided
       let calculatedOverall = overallRating;
       if (!calculatedOverall) {
@@ -567,6 +603,18 @@ export async function PUT(request: NextRequest) {
 
     if (action === 'goal') {
       const { title, description, priority, status: goalStatus, deadline, category, estimatedDuration, notes, completionNotes } = body;
+
+      // Tenant isolation: verify the task (goal) belongs to this tenant
+      const existingGoal = await db.task.findUnique({
+        where: { id },
+        select: { tenantId: true },
+      });
+      if (!existingGoal || existingGoal.tenantId !== user.tenantId) {
+        return NextResponse.json(
+          { success: false, error: { code: 'NOT_FOUND', message: 'Goal not found' } },
+          { status: 404 }
+        );
+      }
 
       const updateData: Record<string, unknown> = {};
       if (title != null) updateData.title = title;

@@ -128,6 +128,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Sanitize string inputs to prevent stored XSS
+    const sanitizedAccountName = String(accountName).trim().slice(0, 255).replace(/[<>]/g, '');
+    const sanitizedBankName = String(bankName).trim().slice(0, 255).replace(/[<>]/g, '');
+    const sanitizedNotes = notes ? String(notes).trim().slice(0, 2000) : undefined;
+
     // Validate account number format (basic check)
     if (accountNumber.length < 4) {
       return NextResponse.json(
@@ -136,35 +141,42 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // If this is set as default, unset other defaults
-    if (isDefault) {
-      await db.bankAccount.updateMany({
-        where: { tenantId, isDefault: true },
-        data: { isDefault: false }
-      })
-    }
+    // Validate openingBalance is a valid number
+    const validatedOpeningBalance = typeof openingBalance === 'number' && isFinite(openingBalance)
+      ? Number(openingBalance.toFixed(2))
+      : 0;
 
     // Mask account number for security (show last 4 digits)
     const maskedNumber = accountNumber.length > 4
       ? '****' + accountNumber.slice(-4)
       : accountNumber
 
-    const account = await db.bankAccount.create({
-      data: {
-        tenantId,
-        propertyId,
-        accountName,
-        accountNumber: maskedNumber,
-        bankName,
-        bankCode,
-        accountType,
-        currency,
-        openingBalance,
-        currentBalance: openingBalance,
-        isDefault,
-        notes,
-        status: 'active'
+    // Use transaction to prevent race condition on default toggle + create
+    const account = await db.$transaction(async (tx) => {
+      if (isDefault) {
+        await tx.bankAccount.updateMany({
+          where: { tenantId, isDefault: true },
+          data: { isDefault: false }
+        })
       }
+
+      return tx.bankAccount.create({
+        data: {
+          tenantId,
+          propertyId,
+          accountName: sanitizedAccountName,
+          accountNumber: maskedNumber,
+          bankName: sanitizedBankName,
+          bankCode,
+          accountType,
+          currency,
+          openingBalance: validatedOpeningBalance,
+          currentBalance: validatedOpeningBalance,
+          isDefault,
+          notes: sanitizedNotes,
+          status: 'active'
+        }
+      })
     })
 
     // Audit log
@@ -176,8 +188,8 @@ export async function POST(request: NextRequest) {
       entityType: 'bank_account',
       entityId: account.id,
       newValue: {
-        accountName,
-        bankName,
+        accountName: sanitizedAccountName,
+        bankName: sanitizedBankName,
         accountType,
         currency,
         openingBalance,
@@ -226,28 +238,31 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Bank account not found' }, { status: 404 })
     }
 
-    // If setting as default, unset other defaults
-    if (updateData.isDefault) {
-      await db.bankAccount.updateMany({
-        where: { tenantId, isDefault: true, id: { not: id } },
-        data: { isDefault: false }
+    // Use transaction to prevent race condition on default toggle + update
+    const account = await db.$transaction(async (tx) => {
+      // If setting as default, unset other defaults
+      if (updateData.isDefault) {
+        await tx.bankAccount.updateMany({
+          where: { tenantId, isDefault: true, id: { not: id } },
+          data: { isDefault: false }
+        })
+      }
+
+      // Mask account number if being updated
+      if (updateData.accountNumber && updateData.accountNumber.length > 4) {
+        updateData.accountNumber = '****' + updateData.accountNumber.slice(-4)
+      }
+
+      // Remove fields that shouldn't be updated directly
+      delete updateData.tenantId
+      delete updateData.currentBalance
+      delete updateData.lastReconciledAt
+      delete updateData.lastStatementDate
+
+      return tx.bankAccount.update({
+        where: { id },
+        data: updateData
       })
-    }
-
-    // Mask account number if being updated
-    if (updateData.accountNumber && updateData.accountNumber.length > 4) {
-      updateData.accountNumber = '****' + updateData.accountNumber.slice(-4)
-    }
-
-    // Remove fields that shouldn't be updated directly
-    delete updateData.tenantId
-    delete updateData.currentBalance
-    delete updateData.lastReconciledAt
-    delete updateData.lastStatementDate
-
-    const account = await db.bankAccount.update({
-      where: { id },
-      data: updateData
     })
 
     // Audit log

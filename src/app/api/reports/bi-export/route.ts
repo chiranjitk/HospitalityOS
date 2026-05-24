@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { logger } from '@/lib/logger';
 
 const BATCH_SIZE = 500;
@@ -220,6 +220,10 @@ export async function GET(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!hasPermission(user, 'reports.view') && !hasPermission(user, 'reports.export')) {
+      return NextResponse.json({ error: 'Forbidden: insufficient permissions' }, { status: 403 });
     }
 
     const tenantId = user.tenantId;

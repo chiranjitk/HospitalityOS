@@ -7,6 +7,7 @@ import {
   MultiWanConfig,
   GatewayDef,
 } from '@/lib/network/multiwan';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 /**
  * POST   /api/network/os/multiwan — Apply multi-WAN / DGD configuration to OS
@@ -34,8 +35,12 @@ function isValidIPv4(ip: string): boolean {
 // ──────────────────────────────────────────────────────────
 // GET /api/network/os/multiwan — Get current multi-WAN status
 // ──────────────────────────────────────────────────────────
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // ── Auth ──
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const results: Record<string, any> = {};
 
     // OS-level state (shell scripts handle actual routing state)
@@ -84,6 +89,10 @@ export async function GET() {
 // ──────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    // ── Auth ──
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
     const {
       enabled,
@@ -238,7 +247,11 @@ export async function POST(request: NextRequest) {
 // ──────────────────────────────────────────────────────────
 // DELETE /api/network/os/multiwan — Reset multi-WAN config
 // ──────────────────────────────────────────────────────────
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  // ── Auth ──
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   return handleReset();
 }
 

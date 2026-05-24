@@ -8,6 +8,7 @@ import {
   NmConnectionInfo,
 } from '@/lib/network/nmcli';
 import { NET_TYPES, NM_CONNECTIONS_DIR } from '@/lib/network/nettypes';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 function safeExec(cmd: string, timeout = 10000): string {
   try { return execSync(cmd, { encoding: 'utf-8', timeout }); } catch (e: any) { return e.stderr?.trim() || e.stdout?.trim() || ''; }
@@ -30,8 +31,12 @@ function isValidIPv4(ip: string): boolean {
 // ──────────────────────────────────────────────
 // GET — List VLAN interfaces from scanConnections()
 // ──────────────────────────────────────────────
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // ── Auth ──
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     // Scan all connections and filter for VLAN type
     const connections = scanConnections();
     const vlans = connections.filter(c => c.type === 'vlan');
@@ -68,6 +73,10 @@ export async function GET() {
 // ──────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    // ── Auth ──
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
     const { parentInterface, vlanId, mtu, name, ipAddress, netmask, gateway } = body;
 
@@ -163,6 +172,10 @@ export async function POST(request: NextRequest) {
 // ──────────────────────────────────────────────
 export async function DELETE(request: NextRequest) {
   try {
+    // ── Auth ──
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = new URL(request.url);
     let vlanName = searchParams.get('name');
 

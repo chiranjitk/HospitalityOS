@@ -54,6 +54,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'campaignId and name are required' }, { status: 400 });
     }
 
+    // Pricing validation: all money values must be non-negative
+    if (originalPrice !== undefined && originalPrice < 0) {
+      return NextResponse.json({ success: false, error: 'originalPrice must be non-negative' }, { status: 400 });
+    }
+    if (upsellPrice !== undefined && upsellPrice < 0) {
+      return NextResponse.json({ success: false, error: 'upsellPrice must be non-negative' }, { status: 400 });
+    }
+    if (upsellPrice !== undefined && originalPrice !== undefined && upsellPrice > originalPrice && originalPrice > 0) {
+      return NextResponse.json({ success: false, error: 'upsellPrice cannot exceed originalPrice' }, { status: 400 });
+    }
+    if (discount !== undefined && (discount < 0 || discount > 100)) {
+      return NextResponse.json({ success: false, error: 'discount must be between 0 and 100' }, { status: 400 });
+    }
+
     const offer = await db.upsellOffer.create({
       data: {
         tenantId: user.tenantId,

@@ -49,29 +49,29 @@ export async function POST(
     else if (score >= 7) category = 'passive';
     else category = 'detractor';
 
-    // Check for duplicate response
-    const existing = await db.npsResponse.findFirst({
-      where: { surveyId, guestId },
-    });
+    // Use transaction to atomically check for duplicate + create response (prevents race condition)
+    const response = await db.$transaction(async (tx) => {
+      // Check for duplicate response inside transaction
+      const existing = await tx.npsResponse.findFirst({
+        where: { surveyId, guestId },
+      });
 
-    if (existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'DUPLICATE', message: 'Guest has already responded to this survey' } },
-        { status: 400 }
-      );
-    }
+      if (existing) {
+        throw new Error('DUPLICATE_RESPONSE');
+      }
 
-    // Create response
-    const response = await db.npsResponse.create({
-      data: {
-        surveyId,
-        tenantId: user.tenantId,
-        guestId,
-        bookingId: bookingId || undefined,
-        score,
-        category,
-        comment: comment || undefined,
-      },
+      // Create response
+      return tx.npsResponse.create({
+        data: {
+          surveyId,
+          tenantId: user.tenantId,
+          guestId,
+          bookingId: bookingId || undefined,
+          score,
+          category,
+          comment: comment || undefined,
+        },
+      });
     });
 
     // Recalculate survey avgScore and update responseCount
@@ -96,6 +96,12 @@ export async function POST(
     return NextResponse.json({ success: true, data: response }, { status: 201 });
   } catch (error) {
     console.error('Error submitting NPS response:', error);
+    if (error instanceof Error && error.message === 'DUPLICATE_RESPONSE') {
+      return NextResponse.json(
+        { success: false, error: { code: 'DUPLICATE', message: 'Guest has already responded to this survey' } },
+        { status: 400 }
+      );
+    }
     return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to submit NPS response' } }, { status: 500 });
   }
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { z } from 'zod';
 
 // ──────────────────────────────────────────────
@@ -33,13 +33,16 @@ export async function GET(request: NextRequest, { params }: Params) {
     if (!user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
+    if (!hasAnyPermission(user, ['billing.view', 'billing.manage', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
+    }
 
     const { id } = await params;
     const invoice = await db.cityLedgerInvoice.findFirst({
       where: { id, tenantId: user.tenantId },
       include: {
         items: true,
-        payments: { orderBy: { paidAt: 'desc' } },
+        payments: { orderBy: { paidAt: 'desc' }},
         travelAgent: { select: { id: true, agencyName: true, code: true, email: true, phone: true } },
         property: { select: { id: true, name: true } },
       },
@@ -65,6 +68,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!hasAnyPermission(user, ['billing.manage', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -108,6 +114,9 @@ export async function POST(request: NextRequest, { params }: Params) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!hasAnyPermission(user, ['billing.manage', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const { id } = await params;

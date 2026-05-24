@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 export async function GET(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
     if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    if (!hasPermission(user, 'restaurant.read') && !hasPermission(user, 'restaurant.*'))
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
 
     const propertyId = request.nextUrl.searchParams.get('propertyId');
     if (!propertyId) return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Property ID required' } }, { status: 400 });

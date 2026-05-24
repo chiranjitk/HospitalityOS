@@ -27,40 +27,27 @@ const defaultPreferences: UserPreferences = {
 };
 
 // GET /api/user/preferences - Get user preferences
-export async function GET(request: NextRequest) {    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-    }
-
+export async function GET(request: NextRequest) {
+  const user = await getUserFromRequest(request);
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+  }
 
   try {
-    const token = request.cookies.get('session_token')?.value;
-
-    if (!token) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-
-    const session = await db.session.findUnique({
-      where: { token },
-      include: {
-        user: {
-          select: {
-            id: true,
-            preferences: true,
-          },
-        },
-      },
+    const userRecord = await db.user.findUnique({
+      where: { id: user.id },
+      select: { id: true, preferences: true },
     });
 
-    if (!session || session.expiresAt < new Date()) {
-      return NextResponse.json({ error: 'Session expired' }, { status: 401 });
+    if (!userRecord) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     // Parse preferences from user
     let preferences: UserPreferences = defaultPreferences;
     try {
-      if (session.user.preferences) {
-        const parsed = JSON.parse(session.user.preferences);
+      if (userRecord.preferences) {
+        const parsed = JSON.parse(userRecord.preferences);
         preferences = { ...defaultPreferences, ...parsed };
       }
     } catch {
@@ -78,57 +65,74 @@ export async function GET(request: NextRequest) {    const user = await getUserF
 }
 
 // PUT /api/user/preferences - Update user preferences
-export async function PUT(request: NextRequest) {    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
-    }
-
+export async function PUT(request: NextRequest) {
+  const user = await getUserFromRequest(request);
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+  }
 
   try {
-    const token = request.cookies.get('session_token')?.value;
-
-    if (!token) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-
-    const session = await db.session.findUnique({
-      where: { token },
-      include: { user: true },
-    });
-
-    if (!session || session.expiresAt < new Date()) {
-      return NextResponse.json({ error: 'Session expired' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const userId = session.user.id;
+    const userId = user.id;
 
-    // Validate preference keys
+    // Validate preference keys and their types
     const validKeys = [
-      'emailNotifications',
-      'pushNotifications',
-      'smsNotifications',
-      'marketingEmails',
-      'darkMode',
-      'compactMode',
-      'language',
-      'timezone',
-      'dateFormat',
+      { key: 'emailNotifications', type: 'boolean' },
+      { key: 'pushNotifications', type: 'boolean' },
+      { key: 'smsNotifications', type: 'boolean' },
+      { key: 'marketingEmails', type: 'boolean' },
+      { key: 'darkMode', type: 'boolean' },
+      { key: 'compactMode', type: 'boolean' },
+      { key: 'language', type: 'string' },
+      { key: 'timezone', type: 'string' },
+      { key: 'dateFormat', type: 'string' },
     ];
+
+    // Validate types of provided values
+    for (const { key, type } of validKeys) {
+      if (body[key] !== undefined) {
+        if (type === 'boolean' && typeof body[key] !== 'boolean') {
+          return NextResponse.json({ error: `${key} must be a boolean` }, { status: 400 });
+        }
+        if (type === 'string' && typeof body[key] !== 'string') {
+          return NextResponse.json({ error: `${key} must be a string` }, { status: 400 });
+        }
+      }
+    }
+
+    // Validate language if provided (ISO 639-1 code, max 10 chars)
+    if (body.language && (!/^[a-zA-Z]{2}(-[a-zA-Z]{2})?$/.test(body.language) || body.language.length > 10)) {
+      return NextResponse.json({ error: 'Invalid language format. Use ISO 639-1 (e.g. en, pt-BR)' }, { status: 400 });
+    }
+
+    // Validate timezone if provided (max 50 chars)
+    if (body.timezone && body.timezone.length > 50) {
+      return NextResponse.json({ error: 'Timezone value too long' }, { status: 400 });
+    }
+
+    // Validate dateFormat if provided
+    const validDateFormats = ['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD', 'DD.MM.YYYY'];
+    if (body.dateFormat && !validDateFormats.includes(body.dateFormat)) {
+      return NextResponse.json({ error: `Invalid dateFormat. Must be one of: ${validDateFormats.join(', ')}` }, { status: 400 });
+    }
 
     // Get current preferences
     let currentPreferences: UserPreferences = defaultPreferences;
     try {
-      if (session.user.preferences) {
-        currentPreferences = { ...defaultPreferences, ...JSON.parse(session.user.preferences) };
+      const userRecord = await db.user.findUnique({
+        where: { id: userId },
+        select: { preferences: true },
+      });
+      if (userRecord?.preferences) {
+        currentPreferences = { ...defaultPreferences, ...JSON.parse(userRecord.preferences) };
       }
     } catch {
       currentPreferences = defaultPreferences;
     }
 
-    // Merge with new values
+    // Merge with new values (only from validated keys)
     const updatedPreferences: UserPreferences = { ...currentPreferences };
-    for (const key of validKeys) {
+    for (const { key } of validKeys) {
       if (body[key] !== undefined) {
         (updatedPreferences as unknown as Record<string, unknown>)[key] = body[key];
       }
@@ -146,8 +150,8 @@ export async function PUT(request: NextRequest) {    const user = await getUserF
     try {
       await db.auditLog.create({
         data: {
-          tenantId: session.user.tenantId,
-          userId: userId,
+          tenantId: user.tenantId,
+          userId,
           module: 'preferences',
           action: 'update',
           entityType: 'user_preferences',

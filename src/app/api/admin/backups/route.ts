@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
@@ -65,6 +65,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // FIX: Elevated permission check for backup trigger (admin-only operation)
+    if (!hasAnyPermission(user, ['admin.*', 'backup.manage', 'system.admin', '*'])) {
+      return NextResponse.json({ error: 'Forbidden — admin access required' }, { status: 403 });
+    }
+
     const tenantId = user.tenantId;
     if (!tenantId) {
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
@@ -108,6 +113,11 @@ export async function DELETE(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // FIX: Elevated permission check for backup deletion
+    if (!hasAnyPermission(user, ['admin.*', 'backup.manage', 'system.admin', '*'])) {
+      return NextResponse.json({ error: 'Forbidden — admin access required' }, { status: 403 });
     }
 
     const tenantId = user.tenantId;

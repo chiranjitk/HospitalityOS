@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWifiSettings, setWifiSettings, type IdentityVerificationSettings } from '@/lib/wifi-settings';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
+
+  if (!hasPermission(auth, 'wifi.manage')) {
+    return NextResponse.json(
+      { success: false, error: 'Permission denied: requires wifi.manage' },
+      { status: 403 },
+    );
+  }
 
   try {
     const settings = await getWifiSettings(auth.tenantId, 'identity_verification');
@@ -21,6 +28,13 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
+
+  if (!hasPermission(auth, 'wifi.manage')) {
+    return NextResponse.json(
+      { success: false, error: 'Permission denied: requires wifi.manage' },
+      { status: 403 },
+    );
+  }
 
   try {
     const body = (await request.json()) as Partial<IdentityVerificationSettings>;

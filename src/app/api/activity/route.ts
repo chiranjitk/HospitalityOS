@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 
 type ActivityCategory = 'booking' | 'payment' | 'housekeeping' | 'guest' | 'system';
 
@@ -27,6 +27,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
         { status: 401 }
+      );
+    }
+
+    // Permission check for activity feed
+    if (!hasAnyPermission(user, ['activity.view', 'dashboard.view', 'audit.view', 'bookings.view', '*'])) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
       );
     }
 

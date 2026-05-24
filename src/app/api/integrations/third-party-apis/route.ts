@@ -214,6 +214,15 @@ export async function PUT(request: NextRequest) {
       updates.apiKey = encrypt(updates.apiKey);
     }
 
+    // Validate status if provided
+    const validStatuses = ['active', 'pending', 'error', 'disconnected'];
+    if (updates.status && !validStatuses.includes(updates.status)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` } },
+        { status: 400 }
+      );
+    }
+
     const existingConfig = JSON.parse(existing.config || '{}');
     const newConfig = JSON.stringify({
       ...existingConfig,

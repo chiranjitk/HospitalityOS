@@ -31,13 +31,22 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: 'websiteId is required' }, { status: 400 });
   }
 
-  // 1. Fetch the website with property data
+  // 1. Fetch the website with property data (tenant-scoped)
   const website = await db.hotelWebsite.findUnique({
     where: { id: websiteId },
     include: { property: true },
   });
 
   if (!website) {
+    return NextResponse.json({ error: 'Website not found' }, { status: 404 });
+  }
+
+  // CRITICAL: Verify tenant isolation — prevent previewing other tenants' websites
+  const sessionUser = await db.user.findUnique({
+    where: { id: (session.user as { id: string }).id },
+    select: { id: true, tenantId: true },
+  });
+  if (!sessionUser || sessionUser.tenantId !== website.tenantId) {
     return NextResponse.json({ error: 'Website not found' }, { status: 404 });
   }
 

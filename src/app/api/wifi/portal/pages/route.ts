@@ -2,6 +2,36 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 
+/**
+ * Strip dangerous HTML content to prevent XSS in captive portal pages.
+ * Removes <script>, event handlers (onclick, onerror, etc.), and javascript: URLs.
+ */
+function sanitizePortalHtml(html: string | null | undefined): string | null {
+  if (!html) return null;
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<script[^>]*\s*\/?>/gi, '')
+    .replace(/\son\w+\s*=/gi, 'data-blocked=')
+    .replace(/javascript\s*:/gi, 'blocked:')
+    .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<object[^>]*>[\s\S]*?<\/object>/gi, '')
+    .replace(/<embed[^>]*>/gi, '')
+    .replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '')
+    .trim() || null;
+}
+
+/** Strip dangerous CSS to prevent CSS-based attacks. */
+function sanitizePortalCss(css: string | null | undefined): string | null {
+  if (!css) return null;
+  return css
+    .replace(/expression\s*\(/gi, 'blocked(')
+    .replace(/javascript\s*:/gi, 'blocked:')
+    .replace(/url\s*\(\s*['"]?\s*javascript:/gi, 'url(blocked:')
+    .replace(/@import\s+url\s*\(/gi, '/* blocked */')
+    .replace(/behavior\s*:/gi, 'blocked:')
+    .trim() || null;
+}
+
 // GET /api/wifi/portal/pages - List portal pages or get by portalId
 export async function GET(request: NextRequest) {
   const user = await requirePermission(request, 'wifi.manage');
@@ -73,8 +103,8 @@ export async function POST(request: NextRequest) {
       accentColor: pageData.brandColor || pageData.accentColor,
       termsText: pageData.termsText,
       termsUrl: pageData.termsUrl,
-      customCss: pageData.customCss ?? pageData.customCSS,
-      customHtml: pageData.customHtml ?? pageData.customHTML,
+      customCss: sanitizePortalCss(pageData.customCss ?? pageData.customCSS),
+      customHtml: sanitizePortalHtml(pageData.customHtml ?? pageData.customHTML),
       showSocial: pageData.showSocial ?? (pageData.socialLogin?.google || pageData.socialLogin?.facebook || pageData.socialLogin?.apple ? true : false),
       showBranding: pageData.showBranding,
       formFields: typeof pageData.formFields === 'string' ? pageData.formFields : JSON.stringify(pageData.formFields),

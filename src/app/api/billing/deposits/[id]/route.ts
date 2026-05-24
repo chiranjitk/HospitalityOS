@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { auditLogService } from '@/lib/services/audit-service';
 import { z } from 'zod';
 
@@ -35,6 +35,9 @@ export async function GET(
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!hasAnyPermission(user, ['billing.view', 'billing.manage', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -75,6 +78,9 @@ export async function PUT(
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!hasAnyPermission(user, ['billing.manage', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -172,6 +178,9 @@ export async function DELETE(
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!hasAnyPermission(user, ['billing.manage', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const { id } = await params;

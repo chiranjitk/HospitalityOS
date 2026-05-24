@@ -143,11 +143,11 @@ async function handleRazorpayEvent(
     case 'payment.authorized': {
       const paymentId = payload.id as string;
       const orderId = payload.order_id as string;
-      const amount = (payload.amount as number) / 100; // paise → INR
+      const amount = Math.round((payload.amount as number)) / 100; // paise → INR, rounded
       const currency = (payload.currency as string).toUpperCase();
       const method = payload.method as string;
       const vpa = payload.vpa as string;
-      const fee = (payload.fee as number) / 100;
+      const fee = Math.round((payload.fee as number)) / 100;
       const email = payload.email as string;
       const contact = payload.contact as string;
       const captured = payload.captured as boolean;
@@ -191,14 +191,19 @@ async function handleRazorpayEvent(
 
         // Update folio balance
         if (payment.folioId) {
-          await db.folio.update({
-            where: { id: payment.folioId },
-            data: {
-              paidAmount: { increment: amount },
-              balance: { decrement: amount },
-              status: 'paid',
-            },
-          });
+          const folio = await db.folio.findUnique({ where: { id: payment.folioId } });
+          if (folio) {
+            const newPaidAmount = (folio.paidAmount || 0) + amount;
+            const newBalance = Math.max(0, folio.totalAmount - newPaidAmount);
+            let newStatus = folio.status;
+            if (newBalance <= 0) newStatus = 'paid';
+            else if (newPaidAmount > 0) newStatus = 'partially_paid';
+
+            await db.folio.update({
+              where: { id: payment.folioId },
+              data: { paidAmount: newPaidAmount, balance: newBalance, status: newStatus },
+            });
+          }
         }
 
         // Update gateway stats
@@ -258,7 +263,7 @@ async function handleRazorpayEvent(
     case 'refund.processed': {
       const refundId = payload.id as string;
       const paymentId = payload.payment_id as string;
-      const refundAmount = (payload.amount as number) / 100;
+      const refundAmount = Math.round((payload.amount as number)) / 100;
       const refundStatus = payload.status as string;
 
       console.log(`[Razorpay Webhook] Refund processed: ${refundId}, amount: ${refundAmount}, status: ${refundStatus}`);

@@ -519,83 +519,77 @@ export async function PUT(request: NextRequest) {
       // Post parking fees to booking folio if vehicle is linked to a booking
       if (vehicle.bookingId && calculatedFee > 0) {
         try {
-          const booking = await db.booking.findUnique({
-            where: { id: vehicle.bookingId },
-            include: {
-              folios: {
-                where: { status: { in: ['open', 'partially_paid'] } },
-                orderBy: { createdAt: 'desc' },
-                take: 1,
+          await db.$transaction(async (tx) => {
+            const folio = await tx.folio.findFirst({
+              where: {
+                bookingId: vehicle.bookingId,
+                status: { in: ['open', 'partially_paid'] },
+                tenantId,
               },
-            },
-          });
+            });
 
-          if (booking) {
-            let folioId: string;
-
-            if (booking.folios.length > 0) {
-              folioId = booking.folios[0].id;
-            } else {
-              // Create a new folio for the booking
-              const newFolio = await db.folio.create({
-                data: {
-                  tenantId: booking.tenantId,
-                  propertyId: booking.propertyId,
-                  bookingId: booking.id,
-                  folioNumber: `FOL-${Date.now().toString(36).toUpperCase()}`,
-                  guestId: booking.primaryGuestId,
-                  subtotal: 0,
-                  taxes: 0,
-                  discount: 0,
-                  totalAmount: 0,
-                  paidAmount: 0,
-                  balance: 0,
-                  currency: booking.currency,
-                },
-              });
-              folioId = newFolio.id;
+            if (!folio) {
+              console.log(`[Parking] No open folio found for booking ${vehicle.bookingId}, skipping auto-post.`);
+              return;
             }
 
-            // Add parking fee as a folio line item
-            await db.folioLineItem.create({
+            // Calculate tax from property tax settings
+            let taxRate = 0;
+            const prop = await tx.property.findFirst({
+              where: { id: folio.propertyId },
+              select: { defaultTaxRate: true, taxComponents: true },
+            });
+            if (prop) {
+              try {
+                const tc = JSON.parse(prop.taxComponents || '[]');
+                if (Array.isArray(tc) && tc.length > 0) {
+                  taxRate = tc.reduce((sum: number, c: { rate: number }) => sum + (c.rate || 0), 0) / 100;
+                } else {
+                  taxRate = (prop.defaultTaxRate || 0) / 100;
+                }
+              } catch { taxRate = (prop.defaultTaxRate || 0) / 100; }
+            }
+            const taxAmount = Math.round(calculatedFee * taxRate * 100) / 100;
+
+            // Create folio line item with correct category 'parking'
+            await tx.folioLineItem.create({
               data: {
-                folioId,
+                folioId: folio.id,
                 description: `Parking fee - ${vehicle.licensePlate}${vehicle.slotId ? ` (Slot ${vehicle.slotId})` : ''}`,
-                category: 'miscellaneous',
+                category: 'parking',
                 quantity: 1,
                 unitPrice: calculatedFee,
                 totalAmount: calculatedFee,
+                taxRate: taxRate * 100,
+                taxAmount,
                 serviceDate: new Date(),
-                referenceType: 'vehicle',
+                referenceType: 'parking_checkout',
                 referenceId: id,
-                postedBy: 'system',
+                postedBy: currentUser.id,
               },
             });
 
-            // Recalculate folio totals
-            const allLineItems = await db.folioLineItem.findMany({
-              where: { folioId },
+            // Recalculate folio totals from ALL line items (consistent pattern)
+            const allLineItems = await tx.folioLineItem.findMany({
+              where: { folioId: folio.id },
+              select: { totalAmount: true, taxAmount: true },
             });
-            const folio = await db.folio.findUnique({ where: { id: folioId } });
+            const newSubtotal = allLineItems.reduce((s, li) => s + li.totalAmount, 0);
+            const newTaxes = allLineItems.reduce((s, li) => s + (li.taxAmount || 0), 0);
+            const newTotal = newSubtotal + newTaxes - (folio.discount || 0);
 
-            if (folio) {
-              const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
-              const newTaxes = allLineItems.reduce((sum, li) => sum + (li.taxAmount || 0), 0);
-              const newTotal = newSubtotal + newTaxes - (folio.discount || 0);
+            await tx.folio.update({
+              where: { id: folio.id },
+              data: {
+                subtotal: newSubtotal,
+                taxes: newTaxes,
+                totalAmount: newTotal,
+                balance: newTotal - (folio.paidAmount || 0),
+              },
+            });
 
-              await db.folio.update({
-                where: { id: folioId },
-                data: {
-                  subtotal: newSubtotal,
-                  taxes: newTaxes,
-                  totalAmount: newTotal,
-                  balance: newTotal - folio.paidAmount,
-                },
-              });
-
-              console.log(`[Parking] Posted parking fee of ${calculatedFee} to folio ${folioId} for vehicle ${id}`);
-            }
-          }
+            console.log(`[Parking] Posted parking fee of ${calculatedFee} (tax: ${taxAmount}) to folio ${folio.id} for vehicle ${id}`);
+          });
         } catch (folioError) {
           console.error('Failed to post parking fees to folio:', folioError);
           // Don't fail the checkout if folio posting fails
@@ -723,6 +717,84 @@ export async function DELETE(request: NextRequest) {
         { success: false, error: { code: 'NOT_FOUND', message: 'Vehicle not found' } },
         { status: 404 }
       );
+    }
+
+    // Status guard: Cannot delete a vehicle record that has already been paid
+    if (vehicle.isPaid) {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_STATUS', message: 'Cannot delete a vehicle record that has already been paid. Create a credit adjustment instead.' } },
+        { status: 400 }
+      );
+    }
+
+    // If vehicle has a bookingId with a fee, attempt to reverse any posted folio line items
+    if (vehicle.bookingId && vehicle.parkingFee && vehicle.parkingFee > 0) {
+      try {
+        await db.$transaction(async (tx) => {
+          const folio = await tx.folio.findFirst({
+            where: {
+              bookingId: vehicle.bookingId,
+              status: { in: ['open', 'partially_paid'] },
+              tenantId,
+            },
+          });
+
+          if (folio) {
+            // Check if there's a posted line item for this vehicle
+            const existingLineItem = await tx.folioLineItem.findFirst({
+              where: {
+                folioId: folio.id,
+                referenceType: 'parking_checkout',
+                referenceId: vehicle.id,
+              },
+            });
+
+            if (existingLineItem) {
+              // Create a negative adjustment to reverse the charge
+              await tx.folioLineItem.create({
+                data: {
+                  folioId: folio.id,
+                  description: `Cancellation - Parking fee (${vehicle.licensePlate})`,
+                  category: 'parking',
+                  quantity: 1,
+                  unitPrice: -existingLineItem.totalAmount,
+                  totalAmount: -existingLineItem.totalAmount,
+                  taxRate: existingLineItem.taxRate,
+                  taxAmount: -(existingLineItem.taxAmount || 0),
+                  serviceDate: new Date(),
+                  referenceType: 'parking_cancellation',
+                  referenceId: vehicle.id,
+                  postedBy: currentUser.id,
+                },
+              });
+
+              // Recalculate folio totals from ALL line items (consistent pattern)
+              const allLineItems = await tx.folioLineItem.findMany({
+                where: { folioId: folio.id },
+                select: { totalAmount: true, taxAmount: true },
+              });
+              const newSubtotal = allLineItems.reduce((s, li) => s + li.totalAmount, 0);
+              const newTaxes = allLineItems.reduce((s, li) => s + (li.taxAmount || 0), 0);
+              const newTotal = newSubtotal + newTaxes - (folio.discount || 0);
+
+              await tx.folio.update({
+                where: { id: folio.id },
+                data: {
+                  subtotal: newSubtotal,
+                  taxes: newTaxes,
+                  totalAmount: newTotal,
+                  balance: newTotal - (folio.paidAmount || 0),
+                },
+              });
+
+              console.log(`[Parking DELETE] Reversed parking fee on folio ${folio.id} for vehicle ${id}`);
+            }
+          }
+        });
+      } catch (folioError) {
+        console.error('[Parking DELETE] Folio reversal failed:', folioError);
+        // Continue with delete even if folio reversal fails
+      }
     }
 
     // Free up the slot if vehicle is parked

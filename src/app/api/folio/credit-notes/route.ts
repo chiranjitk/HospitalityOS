@@ -215,9 +215,10 @@ export async function POST(request: NextRequest) {
         where: { folioId },
       });
 
-      const newSubtotal = allLineItems.reduce((sum, item) => sum + item.totalAmount, 0);
-      const newTaxes = allLineItems.reduce((sum, item) => sum + item.taxAmount, 0);
-      const newTotalAmount = newSubtotal + newTaxes;
+      const newSubtotal = Math.round(allLineItems.reduce((sum, item) => sum + item.totalAmount, 0) * 100) / 100;
+      const newTaxes = Math.round(allLineItems.reduce((sum, item) => sum + item.taxAmount, 0) * 100) / 100;
+      // BALANCE FIX: include discount in totalAmount
+      const newTotalAmount = Math.round((newSubtotal + newTaxes - (folio.discount || 0)) * 100) / 100;
 
       const completedPayments = await tx.payment.findMany({
         where: { folioId, status: 'completed' },

@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { isValidCidr, parseIpToInt, isValidIp } from '@/lib/ip-whitelist/utils';
 
 // GET /api/wifi/dhcp/subnets - List all DHCP subnets
 export async function GET(request: NextRequest) {
@@ -129,6 +130,56 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 },
       );
+    }
+
+    // Validate subnet is valid CIDR
+    if (!isValidCidr(subnet)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid subnet CIDR format' } },
+        { status: 400 },
+      );
+    }
+
+    // Validate pool IPs
+    if (!isValidIp(poolStart) || !isValidIp(poolEnd)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'poolStart and poolEnd must be valid IPv4 addresses' } },
+        { status: 400 },
+      );
+    }
+
+    if (parseIpToInt(poolStart) > parseIpToInt(poolEnd)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'poolStart must not exceed poolEnd' } },
+        { status: 400 },
+      );
+    }
+
+    // Check for overlapping subnets within the same tenant+property
+    const existingSubnets = await db.dhcpSubnet.findMany({
+      where: { tenantId, propertyId },
+      select: { id: true, subnet: true },
+    });
+    const newSlashIdx = subnet.indexOf('/');
+    const newNetIp = subnet.substring(0, newSlashIdx);
+    const newPrefix = parseInt(subnet.substring(newSlashIdx + 1), 10);
+    const newNetInt = parseIpToInt(newNetIp);
+    const newMask = newPrefix === 0 ? 0 : (~0 << (32 - newPrefix)) >>> 0;
+
+    for (const existing of existingSubnets) {
+      const eSlashIdx = existing.subnet.indexOf('/');
+      const eNetIp = existing.subnet.substring(0, eSlashIdx);
+      const ePrefix = parseInt(existing.subnet.substring(eSlashIdx + 1), 10);
+      const eNetInt = parseIpToInt(eNetIp);
+      const eMask = ePrefix === 0 ? 0 : (~0 << (32 - ePrefix)) >>> 0;
+
+      // Overlap exists if either network address falls within the other's range
+      if ((newNetInt & eMask) === (eNetInt & eMask) || (eNetInt & newMask) === (newNetInt & newMask)) {
+        return NextResponse.json(
+          { success: false, error: { code: 'OVERLAP_ERROR', message: `Subnet overlaps with existing subnet "${existing.subnet}"` } },
+          { status: 409 },
+        );
+      }
     }
 
     const newSubnet = await db.dhcpSubnet.create({

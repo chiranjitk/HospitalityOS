@@ -48,6 +48,28 @@ export async function POST(request: NextRequest) {
     const booking = await db.booking.findFirst({ where: { id: bookingId, tenantId: user.tenantId } });
     if (!booking) return NextResponse.json({ success: false, error: 'Booking not found' }, { status: 404 });
 
+    // Verify room exists and belongs to tenant's property
+    if (roomId) {
+      const room = await db.room.findFirst({
+        where: { id: roomId, propertyId: booking.propertyId },
+        select: { id: true },
+      });
+      if (!room) {
+        return NextResponse.json({ success: false, error: 'Room not found for this booking\'s property' }, { status: 400 });
+      }
+    }
+
+    // Verify new room type exists
+    if (newRoomTypeId) {
+      const newType = await db.roomType.findFirst({
+        where: { id: newRoomTypeId, propertyId: booking.propertyId },
+        select: { id: true },
+      });
+      if (!newType) {
+        return NextResponse.json({ success: false, error: 'New room type not found for this property' }, { status: 400 });
+      }
+    }
+
     const change = await db.roomTypeChange.create({
       data: {
         tenantId: user.tenantId,

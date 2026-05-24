@@ -260,7 +260,8 @@ export async function PUT(request: NextRequest) {    const user = await getUserF
     }
 
     const validIds = tenantItems.map(item => item.id);
-    const results = await Promise.all(
+    // Use transaction for atomic bulk update
+    const results = await db.$transaction(
       validIds.map(id =>
         db.stockItem.update({
           where: { id },

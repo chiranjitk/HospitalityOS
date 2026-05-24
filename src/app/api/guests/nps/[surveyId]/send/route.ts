@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 
 // POST /api/guests/nps/[surveyId]/send - Send NPS survey to guests
 export async function POST(
@@ -11,6 +11,11 @@ export async function POST(
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
+    // Permission check for sending surveys
+    if (!hasAnyPermission(user, ['crm.manage', 'guests.manage', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const { surveyId } = await params;

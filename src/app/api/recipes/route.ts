@@ -37,7 +37,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
-    if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
+    if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    if (!hasPermission(user, 'restaurant.write') && !hasPermission(user, 'restaurant.*')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
 
     const body = await request.json();
     const { menuItemId, instructions, prepTime, cookTime, yield: servings, ingredients } = body;
@@ -70,6 +73,9 @@ export async function PUT(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
     if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
+    if (!hasPermission(user, 'restaurant.write') && !hasPermission(user, 'restaurant.*')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
 
     const body = await request.json();
     const { id, instructions, prepTime, cookTime, yield: servings, ingredients } = body;
@@ -109,6 +115,9 @@ export async function DELETE(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
     if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
+    if (!hasPermission(user, 'restaurant.write') && !hasPermission(user, 'restaurant.*')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
 
     const id = request.nextUrl.searchParams.get('id');
     if (!id) return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR' } }, { status: 400 });

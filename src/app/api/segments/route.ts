@@ -108,10 +108,22 @@ export async function POST(request: NextRequest) {
     
     // Check if this is an evaluate request
     if (body.action === 'evaluate') {
+      if (!hasPermission(user, 'segments.edit') && !hasPermission(user, 'crm.manage')) {
+        return NextResponse.json(
+          { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+          { status: 403 }
+        );
+      }
       return handleEvaluateRequest(body, tenantId);
     }
     
     if (body.action === 'preview') {
+      if (!hasPermission(user, 'segments.create') && !hasPermission(user, 'crm.manage')) {
+        return NextResponse.json(
+          { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+          { status: 403 }
+        );
+      }
       return handlePreviewRequest(body, tenantId);
     }
 

@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     // --- Resolve the HardwareAdapter for this property ---
     const adapterConfig = await db.hardwareAdapter.findFirst({
-      where: { propertyId, category: 'lock', enabled: true },
+      where: { propertyId, category: 'lock', enabled: true, tenantId: user.tenantId },
     });
 
     if (!adapterConfig) {

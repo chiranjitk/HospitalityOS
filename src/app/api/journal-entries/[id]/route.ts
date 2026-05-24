@@ -65,10 +65,31 @@ export async function PUT(
     if (body.description !== undefined) updateData.description = body.description;
     if (body.reference !== undefined) updateData.reference = body.reference;
     if (body.status !== undefined) {
-      updateData.status = body.status;
       if (body.status === 'posted') {
+        // Check if journal entry date falls in a closed period
+        const existingEntry = await db.journalEntry.findUnique({ where: { id } });
+        if (existingEntry) {
+          const entryDate = new Date(existingEntry.date);
+          const entryYear = entryDate.getFullYear();
+          const entryMonth = entryDate.getMonth();
+
+          // Check if there's a closed budget for this period
+          const closedBudget = await db.budget.findFirst({
+            where: {
+              tenantId: user.tenantId,
+              fiscalYear: entryYear,
+              status: 'closed',
+            },
+          });
+          if (closedBudget) {
+            return NextResponse.json({ error: 'Cannot post to a closed fiscal period' }, { status: 400 });
+          }
+        }
+        updateData.status = body.status;
         updateData.postedBy = user.id;
         updateData.postedAt = new Date();
+      } else {
+        updateData.status = body.status;
       }
     }
 

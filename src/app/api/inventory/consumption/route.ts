@@ -214,42 +214,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create consumption log
-    const consumptionLog = await db.stockConsumption.create({
-      data: {
-        stockItemId,
-        quantity,
-        type,
-        reference,
-        cost,
-        notes,
-        recordedBy: user.id,
-      },
-      include: {
-        stockItem: {
-          select: {
-            id: true,
-            name: true,
-            sku: true,
-            unit: true,
-          },
-        },
-      },
-    });
-
-    // Update stock quantity
+    // Calculate quantity change
     const quantityChange = type === 'consumed' || type === 'adjusted' || type === 'wasted'
       ? -Math.abs(quantity) 
       : type === 'added' || type === 'returned'
         ? Math.abs(quantity)
         : quantity;
 
-    await db.stockItem.update({
-      where: { id: stockItemId },
-      data: {
-        quantity: Math.max(0, stockItem.quantity + quantityChange),
-      },
-    });
+    const newQuantity = stockItem.quantity + quantityChange;
+
+    // Prevent negative stock for consumption types
+    if (newQuantity < 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'INSUFFICIENT_STOCK', message: `Insufficient stock. Current: ${stockItem.quantity}, Attempting to remove: ${Math.abs(quantityChange)}` } },
+        { status: 400 }
+      );
+    }
+
+    // Create consumption log and update stock atomically
+    const consumptionLog = await db.$transaction([
+      db.stockConsumption.create({
+        data: {
+          stockItemId,
+          quantity,
+          type,
+          reference,
+          cost,
+          notes,
+          recordedBy: user.id,
+        },
+        include: {
+          stockItem: {
+            select: {
+              id: true,
+              name: true,
+              sku: true,
+              unit: true,
+            },
+          },
+        },
+      }),
+      db.stockItem.update({
+        where: { id: stockItemId },
+        data: {
+          quantity: newQuantity,
+        },
+      }),
+    ]);
 
     return NextResponse.json({ success: true, data: consumptionLog }, { status: 201 });
   } catch (error) {

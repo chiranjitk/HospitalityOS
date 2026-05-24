@@ -242,28 +242,22 @@ export async function POST(request: NextRequest) {
 
     // If this provider is being set as default, unset any existing defaults
     if (isDefault) {
-      await db.integration.updateMany({
+      const allGateways = await db.integration.findMany({
         where: {
           tenantId: user.tenantId,
           type: { startsWith: 'sms_' },
         },
-        data: {
-          config: "temp_placeholder", // will be updated below
-          status: 'active',
-        },
-      });
-      // Re-read all gateways, parse their config, unset isDefault, then write back
-      const allGateways = await db.integration.findMany({
-        where: { tenantId: user.tenantId, type: { startsWith: 'sms_' } },
       });
       for (const gw of allGateways) {
         try {
           const existing = JSON.parse(gw.config) as Record<string, unknown>;
-          existing.isDefault = false;
-          await db.integration.update({
-            where: { id: gw.id },
-            data: { config: JSON.stringify(existing) },
-          });
+          if (existing.isDefault) {
+            existing.isDefault = false;
+            await db.integration.update({
+              where: { id: gw.id },
+              data: { config: JSON.stringify(existing) },
+            });
+          }
         } catch {
           // ignore parse errors
         }

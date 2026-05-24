@@ -201,9 +201,9 @@ export async function POST(request: NextRequest) {    const user = await require
       );
     }
 
-    // Verify room type exists
+    // SECURITY FIX: Verify room type exists and belongs to tenant via property
     const roomType = await db.roomType.findFirst({
-      where: { id: roomTypeId, deletedAt: null },
+      where: { id: roomTypeId, deletedAt: null, property: { tenantId: user.tenantId } },
     });
 
     if (!roomType) {

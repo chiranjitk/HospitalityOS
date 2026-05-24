@@ -164,14 +164,14 @@ export async function DELETE(
       );
     }
 
-    // Delete associated resources first
-    await db.eventResource.deleteMany({
-      where: { eventId: id }
-    });
-
-    // Delete the event
-    await db.event.delete({
-      where: { id, tenantId }
+    // Delete associated resources and event atomically
+    await db.$transaction(async (tx) => {
+      await tx.eventResource.deleteMany({
+        where: { eventId: id }
+      });
+      await tx.event.delete({
+        where: { id, tenantId }
+      });
     });
 
     return NextResponse.json({ message: 'Event deleted successfully' });

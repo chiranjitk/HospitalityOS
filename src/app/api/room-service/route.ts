@@ -91,25 +91,32 @@ export async function POST(request: NextRequest) {
       if (!mi) return null;
       const qty = item.quantity || 1;
       subtotal += mi.price * qty;
-      return { menuItemId: item.menuItemId, quantity: qty, unitPrice: mi.price, totalAmount: mi.price * qty, notes: item.notes, status: 'pending' };
+      return { menuItemId: item.menuItemId, quantity: qty, unitPrice: mi.price, totalAmount: Math.round(mi.price * qty * 100) / 100, notes: item.notes, status: 'pending' };
     }).filter(Boolean);
 
     if (orderItemsData.length === 0) return NextResponse.json({ success: false, error: { code: 'INVALID_ITEMS', message: 'No valid menu items' } }, { status: 400 });
+
+    // Round subtotal to 2 decimal places
+    subtotal = Math.round(subtotal * 100) / 100;
 
     let taxes = 0;
     if (property.taxComponents) {
       try { const tc = JSON.parse(property.taxComponents); for (const c of tc) taxes += subtotal * (c.rate / 100); } catch { taxes = subtotal * ((property.defaultTaxRate || 0) / 100); }
     } else { taxes = subtotal * ((property.defaultTaxRate || 0) / 100); }
 
-    const serviceCharge = property.serviceChargePercent ? subtotal * (property.serviceChargePercent / 100) : 0;
+    // Round taxes
+    taxes = Math.round(taxes * 100) / 100;
+
+    const serviceCharge = property.serviceChargePercent ? Math.round(subtotal * (property.serviceChargePercent / 100) * 100) / 100 : 0;
     const resolvedPriority = priority || 'normal';
     const estimatedDelivery = resolvedPriority === 'rush' ? 15 : 25;
+    const totalAmount = Math.round((subtotal + taxes + serviceCharge) * 100) / 100;
 
     const order = await db.$transaction(async (tx) => {
       const newOrder = await tx.order.create({
         data: {
           tenantId: user.tenantId, propertyId, orderType: 'room_service', orderNumber: generateOrderNumber(),
-          guestName, bookingId, subtotal, taxes, totalAmount: subtotal + taxes + serviceCharge,
+          guestName, bookingId, subtotal, taxes, totalAmount,
           roomNumber: roomNumber || null,
           orderCategory: orderCategory || 'general',
           priority: resolvedPriority,
@@ -127,8 +134,8 @@ export async function POST(request: NextRequest) {
       await auditLogService.logWithContext({
         tenantId: user.tenantId, userId: user.id, module: 'billing', action: 'create',
         entityType: 'order', entityId: order.id,
-        newValue: { orderNumber: order.orderNumber, orderType: 'room_service', roomNumber, bookingId, guestName, subtotal, totalAmount: subtotal + taxes + serviceCharge, itemCount: orderItemsData.length },
-        description: `Created room service order ${order.orderNumber} (${orderItemsData.length} items, total: ${subtotal + taxes + serviceCharge})`,
+        newValue: { orderNumber: order.orderNumber, orderType: 'room_service', roomNumber, bookingId, guestName, subtotal, totalAmount, itemCount: orderItemsData.length },
+        description: `Created room service order ${order.orderNumber} (${orderItemsData.length} items, total: ${totalAmount})`,
       }, request);
     } catch (auditError) { console.error('[RoomService POST] Audit log failed:', auditError); }
 

@@ -80,7 +80,8 @@ export async function GET(request: NextRequest) {
       // ESI: 0.75% employee, 3.25% employer (only if gross <= 21000)
       if (totalEarnings <= 21000) {
         const esiEmployee = Math.round(base * 0.0075);
-        const esiEmployer = Math.round(base * 3.25);
+        // FIX: ESI employer rate is 3.25% (not 3.25x). Previous code used base * 3.25 (325%).
+        const esiEmployer = Math.round(base * 0.0325);
         totalEsiEmployee += esiEmployee;
         totalEsiEmployer += esiEmployer;
         esiEligibleCount++;

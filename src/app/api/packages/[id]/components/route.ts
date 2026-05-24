@@ -97,30 +97,34 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Package plan not found' }, { status: 404 });
     }
 
-    const component = await db.packageComponent.create({
-      data: {
-        packagePlanId: id,
-        componentType,
-        referenceId: referenceId || null,
-        referenceName: referenceName || null,
-        includedQty: includedQty ?? 1,
-        unitCost: unitCost ?? 0,
-        isIncluded: isIncluded ?? true,
-        sortOrder: sortOrder ?? 0,
-      },
-    });
+    const component = await db.$transaction(async (tx) => {
+      const created = await tx.packageComponent.create({
+        data: {
+          packagePlanId: id,
+          componentType,
+          referenceId: referenceId || null,
+          referenceName: referenceName || null,
+          includedQty: includedQty ?? 1,
+          unitCost: unitCost ?? 0,
+          isIncluded: isIncluded ?? true,
+          sortOrder: sortOrder ?? 0,
+        },
+      });
 
-    // Recalculate package base price
-    const allComponents = await db.packageComponent.findMany({
-      where: { packagePlanId: id },
-    });
-    const newBasePrice = allComponents
-      .filter(c => c.isIncluded)
-      .reduce((sum, c) => sum + c.unitCost * c.includedQty, 0);
+      // Recalculate package base price
+      const allComponents = await tx.packageComponent.findMany({
+        where: { packagePlanId: id },
+      });
+      const newBasePrice = allComponents
+        .filter(c => c.isIncluded)
+        .reduce((sum, c) => sum + c.unitCost * c.includedQty, 0);
 
-    await db.packagePlan.update({
-      where: { id },
-      data: { totalBasePrice: newBasePrice },
+      await tx.packagePlan.update({
+        where: { id },
+        data: { totalBasePrice: newBasePrice },
+      });
+
+      return created;
     });
 
     return NextResponse.json({ success: true, data: component }, { status: 201 });
@@ -168,21 +172,23 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Component not found in this package' }, { status: 404 });
     }
 
-    await db.packageComponent.delete({
-      where: { id: componentId },
-    });
+    await db.$transaction(async (tx) => {
+      await tx.packageComponent.delete({
+        where: { id: componentId },
+      });
 
-    // Recalculate package base price
-    const remainingComponents = await db.packageComponent.findMany({
-      where: { packagePlanId: id },
-    });
-    const newBasePrice = remainingComponents
-      .filter(c => c.isIncluded)
-      .reduce((sum, c) => sum + c.unitCost * c.includedQty, 0);
+      // Recalculate package base price
+      const remainingComponents = await tx.packageComponent.findMany({
+        where: { packagePlanId: id },
+      });
+      const newBasePrice = remainingComponents
+        .filter(c => c.isIncluded)
+        .reduce((sum, c) => sum + c.unitCost * c.includedQty, 0);
 
-    await db.packagePlan.update({
-      where: { id },
-      data: { totalBasePrice: newBasePrice },
+      await tx.packagePlan.update({
+        where: { id },
+        data: { totalBasePrice: newBasePrice },
+      });
     });
 
     return NextResponse.json({ success: true, data: { id: componentId } });

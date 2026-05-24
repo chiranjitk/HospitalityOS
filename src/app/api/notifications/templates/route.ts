@@ -41,11 +41,11 @@ export async function GET(request: NextRequest) {
       skip: offset,
     });
 
-    // Count usage per template from NotificationLog
+    // Count usage per template from NotificationLog (scoped to tenant)
     const templateIds = templates.map(t => t.id);
     const usageCounts = await db.notificationLog.groupBy({
       by: ['templateId'],
-      where: { templateId: { in: templateIds } },
+      where: { templateId: { in: templateIds }, tenantId: user.tenantId },
       _count: true,
     });
     const usageCountMap = new Map(

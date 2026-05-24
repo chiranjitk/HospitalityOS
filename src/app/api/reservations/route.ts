@@ -60,7 +60,8 @@ export async function GET(request: NextRequest) {
       }
       // If no specific property, search all tenant properties
       const propertyIds = properties.map(p => p.id);
-      const where: Record<string, unknown> = { propertyId: { in: propertyIds } };
+      // GAP-FIX(17b): Added deletedAt filter for consistency with property-specific branch
+      const where: Record<string, unknown> = { propertyId: { in: propertyIds }, deletedAt: null };
 
       if (status) where.status = status;
       if (guestName) where.guestName = { contains: guestName };
@@ -654,37 +655,41 @@ export async function PUT(request: NextRequest) {
       data.cancelledAt = new Date();
     }
 
-    const reservation = await db.reservation.update({
-      where: { id },
-      data,
-      include: {
-        table: {
-          select: {
-            id: true,
-            number: true,
-            name: true,
-            capacity: true,
-            area: true,
-            status: true,
+    const reservation = await db.$transaction(async (tx) => {
+      const updated = await tx.reservation.update({
+        where: { id },
+        data,
+        include: {
+          table: {
+            select: {
+              id: true,
+              number: true,
+              name: true,
+              capacity: true,
+              area: true,
+              status: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    // Update table status based on reservation status
-    if (updateData.status && existingReservation.tableId) {
-      if (updateData.status === 'seated') {
-        await db.restaurantTable.update({
-          where: { id: existingReservation.tableId },
-          data: { status: 'occupied' },
-        });
-      } else if (updateData.status === 'completed' || updateData.status === 'cancelled' || updateData.status === 'no_show') {
-        await db.restaurantTable.update({
-          where: { id: existingReservation.tableId },
-          data: { status: 'cleaning' },
-        });
+      // Update table status based on reservation status
+      if (updateData.status && existingReservation.tableId) {
+        if (updateData.status === 'seated') {
+          await tx.restaurantTable.update({
+            where: { id: existingReservation.tableId },
+            data: { status: 'occupied' },
+          });
+        } else if (updateData.status === 'completed' || updateData.status === 'cancelled' || updateData.status === 'no_show') {
+          await tx.restaurantTable.update({
+            where: { id: existingReservation.tableId },
+            data: { status: 'cleaning' },
+          });
+        }
       }
-    }
+
+      return updated;
+    });
 
     return NextResponse.json({ success: true, data: reservation });
   } catch (error) {
@@ -757,23 +762,25 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Soft delete: set cancelledAt and status
-    await db.reservation.update({
-      where: { id },
-      data: {
-        status: 'cancelled',
-        cancelledAt: new Date(),
-        deletedAt: new Date(),
-      },
-    });
-
-    // If table was assigned, set table status back to 'available'
-    if (reservation.tableId) {
-      await db.restaurantTable.update({
-        where: { id: reservation.tableId },
-        data: { status: 'available' },
+    // GAP-FIX(17b): Wrap cancel + table release in transaction for atomicity
+    await db.$transaction(async (tx) => {
+      await tx.reservation.update({
+        where: { id },
+        data: {
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          deletedAt: new Date(),
+        },
       });
-    }
+
+      // If table was assigned, set table status back to 'available'
+      if (reservation.tableId) {
+        await tx.restaurantTable.update({
+          where: { id: reservation.tableId },
+          data: { status: 'available' },
+        });
+      }
+    });
 
     return NextResponse.json({ success: true, data: { id, status: 'cancelled' } });
   } catch (error) {

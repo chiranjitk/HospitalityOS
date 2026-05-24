@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 
 const MAX_LIMIT = 100;
 
@@ -12,6 +12,13 @@ export async function GET(request: NextRequest) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
   const { tenantId } = auth;
+
+  if (!hasPermission(auth, 'reservations.view') && !hasPermission(auth, 'waitlist.view')) {
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+      { status: 403 }
+    );
+  }
 
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -125,6 +132,13 @@ export async function POST(request: NextRequest) {
   if (auth instanceof NextResponse) return auth;
   const { tenantId } = auth;
 
+  if (!hasPermission(auth, 'reservations.create') && !hasPermission(auth, 'waitlist.manage')) {
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+      { status: 403 }
+    );
+  }
+
   try {
     const body = await request.json();
 
@@ -158,9 +172,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate guest exists
-    const guest = await db.guest.findUnique({
-      where: { id: guestId },
+    // Validate guest exists and belongs to tenant
+    const guest = await db.guest.findFirst({
+      where: { id: guestId, tenantId },
     });
     if (!guest) {
       return NextResponse.json(
@@ -227,6 +241,13 @@ export async function PUT(request: NextRequest) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
   const { tenantId } = auth;
+
+  if (!hasPermission(auth, 'reservations.update') && !hasPermission(auth, 'waitlist.manage')) {
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+      { status: 403 }
+    );
+  }
 
   try {
     const body = await request.json();
@@ -305,6 +326,13 @@ export async function DELETE(request: NextRequest) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
   const { tenantId } = auth;
+
+  if (!hasPermission(auth, 'reservations.delete') && !hasPermission(auth, 'waitlist.manage')) {
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+      { status: 403 }
+    );
+  }
 
   try {
     const { id } = await request.json();

@@ -44,7 +44,22 @@ export async function GET(request: NextRequest) {
       filters.guestId = guestId;
     }
     
-    if (userId) filters.userId = userId;
+    if (userId) {
+      // Verify user belongs to user's tenant to prevent cross-tenant data leakage
+      if (!ctx.isPlatformAdmin) {
+        const targetUser = await db.user.findUnique({
+          where: { id: userId },
+          select: { tenantId: true },
+        });
+        if (targetUser && targetUser.tenantId !== ctx.tenantId) {
+          return NextResponse.json(
+            { success: false, error: { code: 'FORBIDDEN', message: 'Cannot view consent records for users from another tenant' } },
+            { status: 403 }
+          );
+        }
+      }
+      filters.userId = userId;
+    }
     if (consentType && ['marketing', 'analytics', 'third_party', 'cookies', 'essential', 'profiling'].includes(consentType)) {
       filters.consentType = consentType as 'marketing' | 'analytics' | 'third_party' | 'cookies' | 'essential' | 'profiling';
     }
@@ -119,6 +134,14 @@ export async function POST(request: NextRequest) {
     if (!validConsentTypes.includes(consentType)) {
       return NextResponse.json(
         { success: false, error: { code: 'INVALID_CONSENT_TYPE', message: `consentType must be one of: ${validConsentTypes.join(', ')}` } },
+        { status: 400 }
+      );
+    }
+
+    // Validate granted is a boolean
+    if (granted !== undefined && typeof granted !== 'boolean') {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_GRANTED', message: 'granted must be a boolean' } },
         { status: 400 }
       );
     }

@@ -55,6 +55,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate token format (hex string)
+    if (!/^[a-fA-F0-9]{64}$/.test(token)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_TOKEN', message: 'Invalid verification token format' } },
+        { status: 400 }
+      );
+    }
+
     // Look up token in the shared cache
     const tokenData = emailVerificationTokenCache.get(token);
 

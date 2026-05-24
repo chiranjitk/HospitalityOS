@@ -121,12 +121,12 @@ export async function GET(request: NextRequest) {
       onlineTerminals: terminals.filter(t => t.status === 'online').length,
       offlineTerminals: terminals.filter(t => t.status === 'offline').length,
       totalTransactionsToday: transactions.length,
-      todayVolume: transactions.filter(t => t.status === 'approved' && t.transactionType === 'sale').reduce((sum, t) => sum + t.amount, 0),
+      todayVolume: Math.round(transactions.filter(t => t.status === 'approved' && t.transactionType === 'sale').reduce((sum, t) => sum + t.amount, 0) * 100) / 100,
       avgProcessingTime: 0,
       p2peCompliant: p2peStatus.overallCompliant,
       activeTokens: tokens.filter(t => t.status === 'active').length,
       refundsToday: transactions.filter(t => t.transactionType === 'refund').length,
-      refundAmountToday: transactions.filter(t => t.transactionType === 'refund').reduce((sum, t) => sum + t.amount, 0),
+      refundAmountToday: Math.round(transactions.filter(t => t.transactionType === 'refund').reduce((sum, t) => sum + t.amount, 0) * 100) / 100,
     };
 
     return NextResponse.json({

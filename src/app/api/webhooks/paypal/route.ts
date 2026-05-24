@@ -131,7 +131,7 @@ async function handlePaymentCaptureCompleted(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const captureId = resource.id as string;
-    const amount = parseFloat((resource.amount as Record<string, string>)?.value || '0');
+    const amount = Math.round(parseFloat((resource.amount as Record<string, string>)?.value || '0') * 100) / 100;
     const currency = (resource.amount as Record<string, string>)?.currency_code || 'USD';
 
     const payment = await db.payment.findFirst({
@@ -195,7 +195,7 @@ async function handlePaymentCaptureRefunded(
   try {
     const captureId = resource.id as string;
     const parentPayment = resource.parent_payment as string | undefined;
-    const refundAmount = parseFloat((resource.refund_amount as Record<string, string>)?.value || '0');
+    const refundAmount = Math.round(parseFloat((resource.refund_amount as Record<string, string>)?.value || '0') * 100) / 100;
 
     const payment = await db.payment.findFirst({
       where: { gateway: 'paypal', OR: [{ gatewayRef: captureId }, { gatewayRef: parentPayment || '' }, { transactionId: captureId }] },

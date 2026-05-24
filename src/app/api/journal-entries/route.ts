@@ -71,6 +71,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'At least one journal entry line is required' }, { status: 400 });
     }
 
+    // Validate debits = credits (journal entry must balance)
+    const totalDebits = lines.reduce((sum: number, line: { debitAmount?: number; creditAmount?: number }) => sum + (line.debitAmount ?? 0), 0);
+    const totalCredits = lines.reduce((sum: number, line: { debitAmount?: number; creditAmount?: number }) => sum + (line.creditAmount ?? 0), 0);
+    // Round to 2 decimal places for comparison
+    const roundedDebits = Math.round(totalDebits * 100) / 100;
+    const roundedCredits = Math.round(totalCredits * 100) / 100;
+    if (roundedDebits !== roundedCredits) {
+      return NextResponse.json({ error: `Journal entry must balance. Total debits: ${roundedDebits}, Total credits: ${roundedCredits}` }, { status: 400 });
+    }
+
+    // Validate property belongs to tenant if provided
+    if (propertyId) {
+      const property = await db.property.findFirst({
+        where: { id: propertyId, tenantId: user.tenantId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!property) {
+        return NextResponse.json({ error: 'Property not found' }, { status: 400 });
+      }
+    }
+
     const entry = await db.journalEntry.create({
       data: {
         tenantId: user.tenantId,

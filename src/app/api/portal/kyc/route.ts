@@ -105,6 +105,9 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // FIX: Input sanitization — strip HTML/script tags from user-provided fields to prevent stored XSS
+    const sanitize = (s: string): string => s.replace(/<[^>]*>/g, '').trim().slice(0, 500);
+
     // Prepare guest update data
     const updateData: Record<string, unknown> = {};
 
@@ -119,6 +122,8 @@ export async function PUT(request: NextRequest) {
       if (guestData[field] !== undefined) {
         if (field === 'dateOfBirth' || field === 'idExpiry') {
           updateData[field] = guestData[field] ? new Date(guestData[field]) : null;
+        } else if (typeof guestData[field] === 'string') {
+          updateData[field] = sanitize(guestData[field]);
         } else {
           updateData[field] = guestData[field];
         }

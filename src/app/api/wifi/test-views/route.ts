@@ -1,8 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // ── Auth (admin-only debug endpoint) ──
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
     // Test 1: v_user_usage view
     const usageRows = await db.$queryRawUnsafe<Record<string, unknown>[]>('SELECT username, total_download_bytes, total_upload_bytes, total_sessions, active_sessions, total_session_time, last_session_start FROM v_user_usage ORDER BY total_download_bytes DESC LIMIT 5');
     
@@ -25,7 +29,6 @@ export async function GET() {
   } catch (error) {
     return NextResponse.json({
       error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack?.slice(0, 500) : undefined,
     }, { status: 500 });
   }
 }

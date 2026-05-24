@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/tenant-context';
+import { hasAnyPermission } from '@/lib/auth-helpers';
 
 /**
  * GET /api/captive-redirect/metrics
@@ -10,6 +11,14 @@ import { requireAuth } from '@/lib/auth/tenant-context';
 export async function GET(request: NextRequest) {
   const user = await requireAuth(request);
   if (user instanceof NextResponse) return user;
+
+  // Permission check: only allow network/wifi/admin access to metrics
+  if (!hasAnyPermission(user, ['network.view', 'wifi.view', 'wifi.manage', 'admin.*', '*'])) {
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+      { status: 403 }
+    );
+  }
 
   try {
     const res = await fetch('http://127.0.0.1:8888/api/metrics', {

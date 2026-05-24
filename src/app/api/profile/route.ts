@@ -43,6 +43,14 @@ export async function GET(request: NextRequest) {
 
     const user = session.user;
 
+    // GAP-FIX(17b): Reject access for deleted or inactive users
+    if (user.deletedAt) {
+      return NextResponse.json({ error: 'Account has been deleted' }, { status: 401 });
+    }
+    if (user.status !== 'active') {
+      return NextResponse.json({ error: 'Account is not active' }, { status: 401 });
+    }
+
     return NextResponse.json({
       user: {
         id: user.id,
@@ -83,6 +91,14 @@ export async function PUT(request: NextRequest) {
 
     if (!session || session.expiresAt < new Date()) {
       return NextResponse.json({ error: 'Session expired' }, { status: 401 });
+    }
+
+    // GAP-FIX(17b): Reject access for deleted or inactive users
+    if (session.user.deletedAt) {
+      return NextResponse.json({ error: 'Account has been deleted' }, { status: 401 });
+    }
+    if (session.user.status !== 'active') {
+      return NextResponse.json({ error: 'Account is not active' }, { status: 401 });
     }
 
     const body = await request.json();

@@ -155,24 +155,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create execution log
-    const log = await db.automationExecutionLog.create({
-      data: {
-        ruleId,
-        triggerData: triggerData ? JSON.stringify(triggerData) : null,
-        status,
-        errorMessage,
-        actionsResult: actionsResult ? JSON.stringify(actionsResult) : null,
-      },
-    });
+    // GAP-FIX(17b): Create execution log + update rule count atomically in transaction
+    const log = await db.$transaction(async (tx) => {
+      const createdLog = await tx.automationExecutionLog.create({
+        data: {
+          ruleId,
+          triggerData: triggerData ? JSON.stringify(triggerData) : null,
+          status,
+          errorMessage,
+          actionsResult: actionsResult ? JSON.stringify(actionsResult) : null,
+        },
+      });
 
-    // Update rule execution stats
-    await db.automationRule.update({
-      where: { id: ruleId },
-      data: {
-        executionCount: { increment: 1 },
-        lastExecutedAt: new Date(),
-      },
+      // Update rule execution stats
+      await tx.automationRule.update({
+        where: { id: ruleId },
+        data: {
+          executionCount: { increment: 1 },
+          lastExecutedAt: new Date(),
+        },
+      });
+
+      return createdLog;
     });
 
     return NextResponse.json({

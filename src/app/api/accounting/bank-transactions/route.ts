@@ -216,35 +216,42 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Bank account not found' }, { status: 404 })
       }
 
-      const transaction = await db.bankTransaction.create({
-        data: {
-          tenantId,
-          bankAccountId,
-          transactionDate: new Date(body.transactionDate),
-          valueDate: valueDate ? new Date(valueDate) : null,
-          transactionType,
-          amount: parseFloat(amount),
-          currency,
-          balance: balance ? parseFloat(balance) : null,
-          description,
-          reference,
-          chequeNumber,
-          payeeName,
-          payeeAccount,
-          category,
-          subCategory,
-          notes,
-          importSource
-        }
-      })
+      const validatedAmount = Number(parseFloat(amount).toFixed(2));
 
-      // Update bank account balance
-      const balanceChange = transactionType === 'credit' ? parseFloat(amount) : -parseFloat(amount)
-      await db.bankAccount.update({
-        where: { id: bankAccountId },
-        data: {
-          currentBalance: { increment: balanceChange }
-        }
+      // Use transaction: create transaction + update balance atomically
+      const transaction = await db.$transaction(async (tx) => {
+        const txRecord = await tx.bankTransaction.create({
+          data: {
+            tenantId,
+            bankAccountId,
+            transactionDate: new Date(body.transactionDate),
+            valueDate: valueDate ? new Date(valueDate) : null,
+            transactionType,
+            amount: validatedAmount,
+            currency,
+            balance: balance ? parseFloat(balance) : null,
+            description,
+            reference,
+            chequeNumber,
+            payeeName,
+            payeeAccount,
+            category,
+            subCategory,
+            notes,
+            importSource
+          }
+        })
+
+        // Update bank account balance
+        const balanceChange = transactionType === 'credit' ? validatedAmount : -validatedAmount
+        await tx.bankAccount.update({
+          where: { id: bankAccountId },
+          data: {
+            currentBalance: { increment: balanceChange }
+          }
+        })
+
+        return txRecord
       })
 
       // Audit log
@@ -258,7 +265,7 @@ export async function POST(request: NextRequest) {
         newValue: {
           bankAccountId,
           transactionType,
-          amount: parseFloat(amount),
+          amount: validatedAmount,
           description,
           transactionDate: body.transactionDate
         }
@@ -295,16 +302,16 @@ export async function POST(request: NextRequest) {
     // Generate batch ID for this import
     const importBatchId = `BATCH-${nanoid(10)}-${Date.now()}`
 
-    // Prepare transactions for insertion
+    // Prepare transactions for insertion (round amounts for money)
     const transactionsToCreate = transactions.map((tx: any) => ({
       tenantId,
       bankAccountId,
       transactionDate: new Date(tx.transactionDate || tx.date),
       valueDate: tx.valueDate ? new Date(tx.valueDate) : null,
       transactionType: tx.transactionType || tx.type || 'credit',
-      amount: parseFloat(tx.amount) || 0,
+      amount: Number((parseFloat(tx.amount) || 0).toFixed(2)),
       currency: tx.currency || bankAccount.currency,
-      balance: tx.balance ? parseFloat(tx.balance) : null,
+      balance: tx.balance ? Number(parseFloat(tx.balance).toFixed(2)) : null,
       description: tx.description || tx.narration || tx.particulars,
       reference: tx.reference || tx.refNumber,
       chequeNumber: tx.chequeNumber || tx.chequeNo,
@@ -318,28 +325,40 @@ export async function POST(request: NextRequest) {
       rawLine: tx.rawLine || JSON.stringify(tx)
     }))
 
-    // Create all transactions
-    const createdTransactions = await db.bankTransaction.createMany({
-      data: transactionsToCreate,
+    // Use transaction: createMany + balance update atomically
+    const createdTransactions = await db.$transaction(async (tx) => {
+      const result = await tx.bankTransaction.createMany({
+        data: transactionsToCreate,
+      })
+
+      // Calculate total balance change with proper rounding
+      const totalCredits = transactionsToCreate
+        .filter(tx => tx.transactionType === 'credit')
+        .reduce((sum, tx) => sum + tx.amount, 0)
+      const totalDebits = transactionsToCreate
+        .filter(tx => tx.transactionType === 'debit')
+        .reduce((sum, tx) => sum + tx.amount, 0)
+      const netChange = Number((totalCredits - totalDebits).toFixed(2))
+
+      await tx.bankAccount.update({
+        where: { id: bankAccountId },
+        data: {
+          currentBalance: { increment: netChange },
+          lastStatementDate: new Date()
+        }
+      })
+
+      return result
     })
 
-    // Calculate total balance change
-    const totalCredits = transactionsToCreate
+    // Calculate totals with proper rounding for audit log
+    const totalCreditsAudit = transactionsToCreate
       .filter(tx => tx.transactionType === 'credit')
       .reduce((sum, tx) => sum + tx.amount, 0)
-    const totalDebits = transactionsToCreate
+    const totalDebitsAudit = transactionsToCreate
       .filter(tx => tx.transactionType === 'debit')
       .reduce((sum, tx) => sum + tx.amount, 0)
-    const netChange = totalCredits - totalDebits
-
-    // Update bank account balance
-    await db.bankAccount.update({
-      where: { id: bankAccountId },
-      data: {
-        currentBalance: { increment: netChange },
-        lastStatementDate: new Date()
-      }
-    })
+    const netChangeAudit = Number((totalCreditsAudit - totalDebitsAudit).toFixed(2))
 
     // Audit log for bulk import
     await auditLogService.log({
@@ -352,9 +371,9 @@ export async function POST(request: NextRequest) {
         bankAccountId,
         importBatchId,
         count: createdTransactions.count,
-        totalCredits,
-        totalDebits,
-        netChange
+        totalCredits: totalCreditsAudit,
+        totalDebits: totalDebitsAudit,
+        netChange: netChangeAudit
       }
     })
 
@@ -430,15 +449,15 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Prepare update data
+    // Prepare update data with proper rounding for money
     const dataToUpdate: any = {}
 
     if (updateData.transactionDate) dataToUpdate.transactionDate = new Date(updateData.transactionDate)
     if (updateData.valueDate !== undefined) dataToUpdate.valueDate = updateData.valueDate ? new Date(updateData.valueDate) : null
     if (updateData.transactionType) dataToUpdate.transactionType = updateData.transactionType
-    if (updateData.amount !== undefined) dataToUpdate.amount = parseFloat(updateData.amount)
+    if (updateData.amount !== undefined) dataToUpdate.amount = Number(parseFloat(updateData.amount).toFixed(2))
     if (updateData.currency) dataToUpdate.currency = updateData.currency
-    if (updateData.balance !== undefined) dataToUpdate.balance = updateData.balance ? parseFloat(updateData.balance) : null
+    if (updateData.balance !== undefined) dataToUpdate.balance = updateData.balance ? Number(parseFloat(updateData.balance).toFixed(2)) : null
     if (updateData.description !== undefined) dataToUpdate.description = updateData.description
     if (updateData.reference !== undefined) dataToUpdate.reference = updateData.reference
     if (updateData.chequeNumber !== undefined) dataToUpdate.chequeNumber = updateData.chequeNumber
@@ -448,19 +467,43 @@ export async function PUT(request: NextRequest) {
     if (updateData.subCategory !== undefined) dataToUpdate.subCategory = updateData.subCategory
     if (updateData.notes !== undefined) dataToUpdate.notes = updateData.notes
 
-    // Handle amount changes - update bank balance
-    if (updateData.amount !== undefined && updateData.amount !== existing.amount) {
+    // Handle amount changes - use transaction for balance update
+    if (updateData.amount !== undefined && Number(updateData.amount) !== existing.amount) {
+      const newAmount = Number(parseFloat(updateData.amount).toFixed(2))
       const oldAmountChange = existing.transactionType === 'credit' ? existing.amount : -existing.amount
       const newAmountChange = (updateData.transactionType || existing.transactionType) === 'credit'
-        ? parseFloat(updateData.amount)
-        : -parseFloat(updateData.amount)
+        ? newAmount
+        : -newAmount
 
-      const balanceAdjustment = newAmountChange - oldAmountChange
+      const balanceAdjustment = Number((newAmountChange - oldAmountChange).toFixed(2))
 
-      await db.bankAccount.update({
-        where: { id: existing.bankAccountId },
-        data: { currentBalance: { increment: balanceAdjustment } }
+      const transaction = await db.$transaction(async (tx) => {
+        const updated = await tx.bankTransaction.update({
+          where: { id },
+          data: dataToUpdate
+        })
+
+        await tx.bankAccount.update({
+          where: { id: existing.bankAccountId },
+          data: { currentBalance: { increment: balanceAdjustment } }
+        })
+
+        return updated
       })
+
+      // Audit log
+      await auditLogService.log({
+        tenantId,
+        userId: user.id,
+        module: 'billing',
+        action: 'update',
+        entityType: 'bank_transaction',
+        entityId: id,
+        oldValue: { amount: existing.amount, description: existing.description },
+        newValue: dataToUpdate
+      })
+
+      return NextResponse.json(transaction)
     }
 
     const transaction = await db.bankTransaction.update({

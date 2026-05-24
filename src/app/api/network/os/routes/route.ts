@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { db } from '@/lib/db';
-import { getTenantContext, requireAuth, resolvePropertyId } from '@/lib/auth/tenant-context';
+import { requireAuth, resolvePropertyId } from '@/lib/auth/tenant-context';
 import { addRoute, removeRoute, withStaySuitePreserved } from '@/lib/network/nmcli';
 
 function safeExec(cmd: string, timeout = 10000): string {
@@ -145,15 +145,10 @@ interface RouteEntry {
 // ──────────────────────────────────────────────────
 export async function GET(request: NextRequest) {
   try {
-    // ── Auth (read-only: fallback to first property) ──
-    const context = await getTenantContext(request);
-    let propertyId: string;
-    if (context) {
-      propertyId = await resolvePropertyId(context) || context.tenantId;
-    } else {
-      const firstProperty = await db.property.findFirst({ select: { id: true } });
-      propertyId = firstProperty?.id || '';
-    }
+    // ── Auth ──
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
+    const propertyId = await resolvePropertyId(context) || context.tenantId;
 
     // 1. Get OS routes via nmcli -j route show or ip route
     let osRoutes: RouteEntry[] = [];

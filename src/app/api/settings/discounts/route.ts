@@ -167,9 +167,36 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
-    if (!name || !discountType || !discountValue) {
+    if (!name || !discountType || discountValue === undefined || discountValue === null) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required fields: name, discountType, discountValue' } },
+        { status: 400 }
+      );
+    }
+
+    // Validate discount value bounds
+    const parsedValue = typeof discountValue === 'string' ? parseFloat(discountValue) : Number(discountValue);
+    if (isNaN(parsedValue) || !Number.isFinite(parsedValue)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'discountValue must be a valid number' } },
+        { status: 400 }
+      );
+    }
+    if (parsedValue < 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'discountValue cannot be negative' } },
+        { status: 400 }
+      );
+    }
+    if (discountType === 'percentage' && parsedValue > 100) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Percentage discount cannot exceed 100%' } },
+        { status: 400 }
+      );
+    }
+    if (parsedValue > 99999999) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'discountValue is unreasonably large' } },
         { status: 400 }
       );
     }
@@ -308,11 +335,31 @@ export async function PUT(request: NextRequest) {
     if (updates.startsAt) updateData.promoStart = new Date(updates.startsAt);
     if (updates.endsAt) updateData.promoEnd = new Date(updates.endsAt);
     if (updates.discountType && updates.discountValue) {
+      // Validate discount value bounds
+      const parsedValue = typeof updates.discountValue === 'string' ? parseFloat(updates.discountValue) : Number(updates.discountValue);
+      if (isNaN(parsedValue) || !Number.isFinite(parsedValue) || parsedValue < 0) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'discountValue must be a valid non-negative number' } },
+          { status: 400 }
+        );
+      }
+      if (updates.discountType === 'percentage' && parsedValue > 100) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Percentage discount cannot exceed 100%' } },
+          { status: 400 }
+        );
+      }
+      if (parsedValue > 99999999) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'discountValue is unreasonably large' } },
+          { status: 400 }
+        );
+      }
       if (updates.discountType === 'percentage') {
-        updateData.discountPercent = updates.discountValue;
+        updateData.discountPercent = parsedValue;
         updateData.discountAmount = null;
       } else {
-        updateData.discountAmount = updates.discountValue;
+        updateData.discountAmount = parsedValue;
         updateData.discountPercent = null;
       }
     }

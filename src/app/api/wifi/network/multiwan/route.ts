@@ -79,8 +79,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Verify property belongs to this tenant before querying
+    const propCheck = await db.property.findFirst({
+      where: { id: propertyId, tenantId: user.tenantId },
+      select: { id: true },
+    });
+    if (!propCheck) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Property not found for this tenant' } },
+        { status: 404 },
+      );
+    }
+
     const config = await db.multiWanConfig.findUnique({
-      where: { propertyId, tenantId: isUUID(user.tenantId) ? user.tenantId : undefined },
+      where: { propertyId },
       include: {
         gateways: {
           orderBy: [{ isBackup: 'asc' }, { weight: 'desc' }],
@@ -118,6 +130,26 @@ export async function POST(request: NextRequest) {
     if (!body.propertyId) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required field: propertyId' } },
+        { status: 400 },
+      );
+    }
+
+    // Verify property belongs to this tenant
+    const property = await db.property.findFirst({
+      where: { id: body.propertyId, tenantId },
+    });
+    if (!property) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Property not found for this tenant' } },
+        { status: 404 },
+      );
+    }
+
+    // Validate mode
+    const validModes = ['weighted', 'failover', 'loadbalance'];
+    if (body.mode && !validModes.includes(body.mode)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid mode. Must be one of: ${validModes.join(', ')}` } },
         { status: 400 },
       );
     }
@@ -266,6 +298,17 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required field: propertyId' } },
         { status: 400 },
+      );
+    }
+
+    // Verify property belongs to this tenant
+    const prop = await db.property.findFirst({
+      where: { id: body.propertyId, tenantId },
+    });
+    if (!prop) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Property not found for this tenant' } },
+        { status: 404 },
       );
     }
 

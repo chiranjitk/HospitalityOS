@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 
 // GET /api/guests/nps/[surveyId] - Get survey details with response breakdown
 export async function GET(
@@ -103,6 +103,11 @@ export async function PUT(
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
     }
 
+    // Permission check
+    if (!hasAnyPermission(user, ['crm.manage', 'guests.manage', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
+
     const { surveyId } = await params;
     const body = await request.json();
 
@@ -146,6 +151,11 @@ export async function DELETE(
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
+    // Permission check
+    if (!hasAnyPermission(user, ['crm.manage', 'guests.manage', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const { surveyId } = await params;

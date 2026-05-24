@@ -139,7 +139,31 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Website not found' } }, { status: 404 });
     }
 
-    const website = await updateWebsite(id, { template, theme, pages, customDomain });
+    // FIX: Sanitize user-supplied content to prevent stored XSS
+    // Strip script tags and event handlers from template/theme data
+    const sanitizeContent = (obj: unknown): unknown => {
+      if (typeof obj === 'string') {
+        return obj
+          .replace(/<script[\s\S]*?<\/script>/gi, '')
+          .replace(/\son\w+\s*=\s*["'][^"']*["']/gi, '')
+          .replace(/\son\w+\s*=\s*\S+/gi, '')
+          .slice(0, 500000); // Max 500KB per field
+      }
+      if (Array.isArray(obj)) return obj.map(sanitizeContent);
+      if (obj && typeof obj === 'object') {
+        const result: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+          result[k] = sanitizeContent(v);
+        }
+        return result;
+      }
+      return obj;
+    };
+
+    const sanitizedTheme = theme ? sanitizeContent(theme) : theme;
+    const sanitizedPages = pages ? sanitizeContent(pages) : pages;
+
+    const website = await updateWebsite(id, { template, theme: sanitizedTheme, pages: sanitizedPages, customDomain });
 
     return NextResponse.json({ success: true, data: website });
   } catch (error) {

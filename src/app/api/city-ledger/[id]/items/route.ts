@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasPermission, hasAnyPermission } from '@/lib/auth-helpers';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -10,6 +10,9 @@ export async function GET(request: NextRequest, { params }: Params) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } }, { status: 401 });
+    }
+    if (!hasPermission(user, 'city_ledger.view') && !hasAnyPermission(user, ['billing.view', 'billing.manage', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const { id } = await params;

@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/tenant-context';
+import { hasAnyPermission } from '@/lib/auth-helpers';
 
 // POST /api/group-bookings/release-rooms - Release unsold rooms from group block back to general inventory
 export async function POST(request: NextRequest) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
   const { tenantId } = auth;
+
+  // Permission check
+  if (!hasAnyPermission(auth, ['bookings.manage', 'admin.bookings', 'admin.*'])) {
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } },
+      { status: 403 }
+    );
+  }
 
   try {
     const body = await request.json();
@@ -83,26 +92,30 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Update GroupBooking.releasedRooms count
+    // Update GroupBooking.releasedRooms count and create audit + notification in a transaction
     const newReleasedRooms = alreadyReleased + totalAvailableForRelease;
 
-    const updatedGroup = await db.groupBooking.update({
-      where: { id: groupBookingId },
-      data: { releasedRooms: newReleasedRooms },
-    });
+    const updatedGroup = await db.$transaction(async (tx) => {
+      const updated = await tx.groupBooking.update({
+        where: { id: groupBookingId },
+        data: { releasedRooms: newReleasedRooms },
+      });
 
-    // Create audit log entry
-    await db.auditLog.create({
-      data: {
-        tenantId,
-        module: 'group_bookings',
-        action: 'rooms_released',
-        entityType: 'GroupBooking',
-        entityId: groupBookingId,
-        oldValue: JSON.stringify({ releasedRooms: alreadyReleased }),
-        newValue: JSON.stringify({ releasedRooms: newReleasedRooms, autoRelease }),
-        userId: auth.userId,
-      },
+      // Create audit log entry
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          module: 'group_bookings',
+          action: 'rooms_released',
+          entityType: 'GroupBooking',
+          entityId: groupBookingId,
+          oldValue: JSON.stringify({ releasedRooms: alreadyReleased }),
+          newValue: JSON.stringify({ releasedRooms: newReleasedRooms, autoRelease }),
+          userId: auth.userId,
+        },
+      });
+
+      return updated;
     });
 
     // Prepare notification data

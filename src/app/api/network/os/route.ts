@@ -10,6 +10,7 @@ import { parseNmConnectionFile, getRoutes, getInterfaceName } from '@/lib/networ
 import { NM_CONNECTIONS_DIR } from '@/lib/network/nettypes';
 import type { NmConnectionInfo } from '@/lib/network/nmcli';
 import { db } from '@/lib/db';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 /**
  * GET /api/network/os — Scan .nmconnection files and return all network interfaces
@@ -136,6 +137,10 @@ function augmentWithSysData(iface: NmConnectionInfo): NmConnectionInfo {
 
 export async function GET(request: NextRequest) {
   try {
+    // ── Auth ──
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const searchParams = request.nextUrl.searchParams;
     const section = searchParams.get('section');
 

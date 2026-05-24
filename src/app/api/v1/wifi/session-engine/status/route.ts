@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // ────────────────────────────────────────────────────────────────
 // GET /api/v1/wifi/session-engine/status
@@ -7,12 +7,11 @@ import { requireAuth } from '@/lib/auth/tenant-context';
 // Returns session engine diagnostics: last run, run count, errors,
 // recent log entries, log file size, active sessions, counter IPs.
 //
-// This is the admin-friendly endpoint (uses requireAuth, not cron secret).
-// For the cron-protected endpoint, see /api/cron/session-engine
+// Requires wifi.manage permission.
 // ────────────────────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAuth(request);
+  const auth = await requirePermission(request, 'wifi.manage');
   if (auth instanceof NextResponse) return auth;
 
   try {

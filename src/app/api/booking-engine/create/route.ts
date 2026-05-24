@@ -163,8 +163,9 @@ export async function POST(request: NextRequest) {
     let cancellationPolicy: string | null = null;
 
     if (ratePlanId) {
-      const ratePlan = await db.ratePlan.findUnique({
-        where: { id: ratePlanId },
+      // SECURITY FIX: Verify rate plan belongs to the property's tenant and is active
+      const ratePlan = await db.ratePlan.findFirst({
+        where: { id: ratePlanId, deletedAt: null, tenantId: property.tenantId },
       });
       if (ratePlan && ratePlan.roomTypeId === roomTypeId) {
         pricePerNight = ratePlan.basePrice;
@@ -248,7 +249,11 @@ export async function POST(request: NextRequest) {
         ? roomRate * (property.serviceChargePercent / 100)
         : 0;
 
-      totalAmount = roomRate + taxes + serviceCharge;
+      // SECURITY FIX: Round financial amounts to prevent floating point drift
+      roomRate = Math.round(roomRate * 100) / 100;
+      taxes = Math.round(taxes * 100) / 100;
+      serviceCharge = Math.round(serviceCharge * 100) / 100;
+      totalAmount = Math.round((roomRate + taxes + serviceCharge) * 100) / 100;
     }
 
     // Create or find guest (outside transaction — guest creation is not part of the race condition)

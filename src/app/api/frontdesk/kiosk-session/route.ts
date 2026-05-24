@@ -26,10 +26,11 @@ export async function GET(request: NextRequest) {
       ? { in: ['confirmed', 'checked_in'] }
       : 'confirmed';
 
-    // Find booking by confirmation code
+    // Find booking by confirmation code — tenant isolation via auth context
     const booking = await db.booking.findFirst({
       where: {
         confirmationCode: code.toUpperCase().trim(),
+        tenantId: ctx.tenantId,
         status: statusFilter,
         deletedAt: null,
       },

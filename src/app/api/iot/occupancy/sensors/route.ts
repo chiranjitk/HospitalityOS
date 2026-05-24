@@ -74,6 +74,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Permission check
+    const { hasPermission: hp } = await import('@/lib/auth-helpers');
+    if (!hp(user, 'iot.manage') && !hp(user, 'devices.manage')) {
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { name, propertyId, roomId, sensorType, protocol, deviceId, config } = body as {
       name: string;
@@ -144,6 +153,15 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Permission check
+    const { hasPermission: hp } = await import('@/lib/auth-helpers');
+    if (!hp(user, 'iot.manage') && !hp(user, 'devices.manage')) {
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { id, name, status, batteryLevel, config, roomId } = body as {
       id: string;
@@ -190,6 +208,15 @@ export async function DELETE(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user?.tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Permission check
+    const { hasPermission: hp } = await import('@/lib/auth-helpers');
+    if (!hp(user, 'iot.manage') && !hp(user, 'devices.manage')) {
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
     }
 
     const { searchParams } = new URL(request.url);

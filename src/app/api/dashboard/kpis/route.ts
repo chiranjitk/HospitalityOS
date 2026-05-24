@@ -68,8 +68,8 @@ export async function GET(request: NextRequest) {
       return sum + Math.ceil((new Date(b.checkOut).getTime() - new Date(b.checkIn).getTime()) / (1000 * 60 * 60 * 24));
     }, 0);
     const totalRevenue = paidBookings.reduce((sum, b) => sum + b.totalAmount, 0);
-    const adr = totalNights > 0 ? Math.round(totalRevenue / totalNights) : 0;
-    const revpar = totalRooms > 0 && adr > 0 ? Math.round(adr * (occupancyRate / 100)) : 0;
+    const adr = totalNights > 0 ? Math.round((totalRevenue / totalNights) * 100) / 100 : 0;
+    const revpar = totalRooms > 0 && adr > 0 ? Math.round((adr * (occupancyRate / 100)) * 100) / 100 : 0;
 
     // Week revenue for trend
     const weekRevenue = bookings

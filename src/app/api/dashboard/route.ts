@@ -183,10 +183,10 @@ export async function GET(request: NextRequest) {
       return sum + nights;
     }, 0);
     const totalRevenue = paidBookings.reduce((sum, b) => sum + b.totalAmount, 0);
-    const adr = totalNights > 0 ? Math.round(totalRevenue / totalNights) : 0;
+    const adr = totalNights > 0 ? Math.round((totalRevenue / totalNights) * 100) / 100 : 0;
 
     // RevPAR = ADR × Occupancy Rate (correct hospitality formula)
-    const revpar = totalRooms > 0 && adr > 0 ? Math.round(adr * (occupancyRate / 100)) : 0;
+    const revpar = totalRooms > 0 && adr > 0 ? Math.round((adr * (occupancyRate / 100)) * 100) / 100 : 0;
 
     // Pending bookings
     const pendingBookings = bookings.filter(b => b.status === 'confirmed').length;
@@ -293,7 +293,7 @@ export async function GET(request: NextRequest) {
       
       revenueChartData.push({
         date: date.toLocaleDateString('en-US', { weekday: 'short' }),
-        revenue: Math.round(dayRevenue),
+        revenue: Math.round(dayRevenue * 100) / 100,
         bookings: dayNewBookings.length,
         occupancy: dayOccupancy,
       });
@@ -584,7 +584,7 @@ export async function GET(request: NextRequest) {
         return sum + nights;
       }, 0);
       const propTotalRevenue = propPaidBookings.reduce((sum, b) => sum + b.totalAmount, 0);
-      const propAdr = propTotalNights > 0 ? Math.round(propTotalRevenue / propTotalNights) : 0;
+      const propAdr = propTotalNights > 0 ? Math.round((propTotalRevenue / propTotalNights) * 100) / 100 : 0;
 
       return {
         id: prop.id,
@@ -592,7 +592,7 @@ export async function GET(request: NextRequest) {
         totalRooms: propRooms,
         occupiedRooms: propOccupied,
         occupancyRate: propOccupancyRate,
-        revenueToday: Math.round(propRevenueToday),
+        revenueToday: Math.round(propRevenueToday * 100) / 100,
         arrivalsToday: propArrivals,
         departuresToday: propDepartures,
         adr: propAdr,

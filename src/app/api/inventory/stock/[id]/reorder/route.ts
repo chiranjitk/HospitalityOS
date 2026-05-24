@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 /**
  * POST /api/inventory/stock/[id]/reorder
@@ -15,6 +15,10 @@ export async function POST(
     const user = await getUserFromRequest(request);
     if (!user?.tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!hasPermission(user, 'inventory.manage') && !hasPermission(user, 'inventory.*') && !hasPermission(user, '*')) {
+      return NextResponse.json({ error: 'Forbidden: Insufficient permissions' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -72,7 +76,9 @@ export async function POST(
       return NextResponse.json({ error: 'No property found for this item' }, { status: 400 });
     }
 
-    // Create PurchaseRequisition
+    // Create PurchaseRequisition atomically with item
+    const itemTotalPrice = Math.round(suggestedQuantity * stockItem.unitCost * 100) / 100;
+
     const requisition = await db.purchaseRequisition.create({
       data: {
         tenantId: user.tenantId,
@@ -81,6 +87,7 @@ export async function POST(
         department: stockItem.category || 'general',
         requiredBy: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
         priority: 'normal',
+        totalAmount: itemTotalPrice,
         notes: `Auto-generated reorder for ${stockItem.name}. Current stock: ${stockItem.quantity}, Reorder point: ${stockItem.reorderPoint}`,
         items: {
           create: {
@@ -90,7 +97,7 @@ export async function POST(
             quantity: suggestedQuantity,
             unit: stockItem.unit,
             unitPrice: stockItem.unitCost,
-            totalPrice: suggestedQuantity * stockItem.unitCost,
+            totalPrice: itemTotalPrice,
           },
         },
       },
@@ -99,18 +106,8 @@ export async function POST(
       },
     });
 
-    // Update requisition total
-    const totalAmount = requisition.items.reduce((sum, item) => sum + item.totalPrice, 0);
-    await db.purchaseRequisition.update({
-      where: { id: requisition.id },
-      data: { totalAmount },
-    });
-
     return NextResponse.json({
-      requisition: {
-        ...requisition,
-        totalAmount,
-      },
+      requisition,
       suggestedQuantity,
       message: `Purchase requisition ${requisitionNo} created successfully`,
     });

@@ -108,6 +108,25 @@ export async function PUT(
         console.error('Failed to update room type:', roomUpdateError);
         // Don't fail the whole operation if room update fails
       }
+
+      // FIX: Update active folios for this room with the rate difference
+      // When a room type changes mid-stay, the folio should reflect the new rate
+      try {
+        if (existing.rateDifference && existing.rateDifference !== 0) {
+          await db.folio.updateMany({
+            where: {
+              roomId: existing.roomId,
+              status: { in: ['open', 'pending'] },
+            },
+            data: {
+              notes: 'Rate adjustment due to room type change',
+            },
+          });
+        }
+      } catch (folioError) {
+        console.error('Failed to update folios after room type change:', folioError);
+        // Non-critical — room type was already updated
+      }
     }
 
     const updated = await db.roomTypeChange.update({

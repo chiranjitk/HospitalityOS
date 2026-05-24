@@ -7,11 +7,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
+
+  if (!hasPermission(auth, 'wifi.manage') && !hasPermission(auth, 'reports.view')) {
+    return NextResponse.json(
+      { success: false, error: 'Permission denied: requires wifi.manage or reports.view' },
+      { status: 403 },
+    );
+  }
 
   try {
     const searchParams = request.nextUrl.searchParams;

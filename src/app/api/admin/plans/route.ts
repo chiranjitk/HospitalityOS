@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requirePlatformAdmin, requireAuth } from '@/lib/auth/tenant-context';
+import { requirePlatformAdmin } from '@/lib/auth/tenant-context';
 
 // Indian market plan definitions — seeded if DB is empty
 const defaultPlanDefs = [
@@ -188,7 +188,8 @@ async function ensurePlansSeeded() {
 // GET - List all subscription plans with subscriber counts
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await requireAuth(request);
+    // FIX: Use requirePlatformAdmin for consistency with other admin endpoints (was requireAuth)
+    const authResult = await requirePlatformAdmin(request);
     if (authResult instanceof NextResponse) {
       return authResult;
     }

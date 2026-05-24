@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth';
 
 // GET /api/minibar/consumption/[id] - Get a single consumption record
 export async function GET(
@@ -10,12 +10,10 @@ export async function GET(
   try {
     const user = await getUserFromRequest(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
-
-    // RBAC check
-    if (!hasPermission(user, 'housekeeping.view') && !hasPermission(user, 'tasks.view') && !hasPermission(user, 'housekeeping.*') && !hasPermission(user, 'tasks.*')) {
-      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    if (!hasAnyPermission(user, ['minibar.view', 'minibar.manage', 'inventory.*', '*'])) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -58,17 +56,16 @@ export async function PATCH(
   try {
     const user = await getUserFromRequest(request);
     if (!user) {
-      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
-
-    // RBAC check
-    if (!hasPermission(user, 'housekeeping.manage') && !hasPermission(user, 'tasks.update') && !hasPermission(user, 'housekeeping.*') && !hasPermission(user, 'tasks.*')) {
-      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    if (!hasAnyPermission(user, ['minibar.manage', 'inventory.*', '*'])) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const { id } = await params;
     const body = await request.json();
 
+    // Status guard: Cannot modify consumption already posted to folio
     const existing = await db.minibarConsumption.findFirst({
       where: { id, tenantId: user.tenantId },
     });
@@ -78,6 +75,14 @@ export async function PATCH(
     }
 
     const { notes, quantity, unitPrice, consumedAt, postToFolio } = body;
+
+    // Guard: Cannot modify quantity/price of a consumption already posted to folio
+    if (existing.postedToFolio && (quantity !== undefined || unitPrice !== undefined)) {
+      return NextResponse.json({
+        success: false,
+        error: 'Cannot modify quantity or price of a consumption already posted to folio. Reverse the folio entry first.',
+      }, { status: 400 });
+    }
 
     // Recalculate if quantity or price changed
     let totalPrice = existing.totalPrice;

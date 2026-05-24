@@ -45,9 +45,9 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get('dateTo');
     const search = searchParams.get('search');
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '50'), 1), 100);
     const stats = searchParams.get('stats') === 'true';
-    const days = parseInt(searchParams.get('days') || '30');
+    const days = Math.min(Math.max(parseInt(searchParams.get('days') || '30'), 1), 365);
 
     // If stats requested, return statistics
     if (stats) {

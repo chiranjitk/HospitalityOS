@@ -441,6 +441,14 @@ export async function PUT(request: NextRequest) {
     const updateData: Record<string, unknown> = {};
     
     if (status) {
+      // Validate status against allowed values
+      const validStatuses = ['active', 'trial', 'cancelled', 'suspended', 'past_due'];
+      if (!validStatuses.includes(status)) {
+        return NextResponse.json(
+          { success: false, error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` },
+          { status: 400 }
+        );
+      }
       updateData.status = status;
       
       // Handle status-specific updates
@@ -453,6 +461,14 @@ export async function PUT(request: NextRequest) {
     }
     
     if (plan) {
+      // Validate plan against allowed values
+      const validPlans = ['trial', 'starter', 'professional', 'enterprise'];
+      if (!validPlans.includes(plan)) {
+        return NextResponse.json(
+          { success: false, error: `Invalid plan. Must be one of: ${validPlans.join(', ')}` },
+          { status: 400 }
+        );
+      }
       updateData.plan = plan;
       const limits = planLimits[plan];
       if (limits) {

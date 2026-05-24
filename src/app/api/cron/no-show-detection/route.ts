@@ -95,10 +95,18 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   if (!CRON_SECRET_VALUE) {
     return NextResponse.json({ error: 'Cron secret not configured' }, { status: 403 });
   }
+
+  // Verify cron secret for GET as well
+  const authHeader = request.headers.get('authorization');
+  const providedSecret = authHeader?.replace('Bearer ', '');
+  if (providedSecret !== CRON_SECRET_VALUE) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+
   const lastStatus = await getLastExecutionStatus();
   const nextRun = getNextScheduledRun();
 

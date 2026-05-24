@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import crypto from 'crypto';
 
+// ─── Cron Secret ──────────────────────────────────────────────────────────────
+const CRON_SECRET = process.env.CRON_SECRET;
+if (!CRON_SECRET) {
+  console.error('[CRON:recurring-invoices] CRON_SECRET environment variable is required');
+}
+const CRON_SECRET_VALUE = CRON_SECRET;
+
+// ─── Idempotency helper: avoid processing the same invoice set twice within a window ──
+let lastProcessedAt: Date | null = null;
+const IDEMPOTENCY_WINDOW_MS = 60_000; // 1 minute
+
 // Generate invoice number
 function generateInvoiceNumber(): string {
   const date = new Date();
@@ -30,8 +41,16 @@ function calculateNextDate(currentDate: Date, frequency: string): Date {
   return next;
 }
 
-// GET /api/cron/recurring-invoices - Check status
-export async function GET() {
+// GET /api/cron/recurring-invoices - Check status (requires cron secret)
+export async function GET(request: NextRequest) {
+  if (!CRON_SECRET_VALUE) {
+    return NextResponse.json({ success: false, error: { code: 'CONFIG_ERROR', message: 'Cron secret not configured' } }, { status: 500 });
+  }
+  const authHeader = request.headers.get('authorization');
+  const providedSecret = authHeader?.replace('Bearer ', '');
+  if (providedSecret !== CRON_SECRET_VALUE) {
+    return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid cron credentials' } }, { status: 401 });
+  }
   try {
     const now = new Date();
     const pendingCount = await db.invoice.count({
@@ -57,9 +76,26 @@ export async function GET() {
 }
 
 // POST /api/cron/recurring-invoices - Process recurring invoices
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
+    if (!CRON_SECRET_VALUE) {
+      return NextResponse.json({ success: false, error: { code: 'CONFIG_ERROR', message: 'Cron secret not configured' } }, { status: 500 });
+    }
+    const authHeader = request.headers.get('authorization');
+    const providedSecret = authHeader?.replace('Bearer ', '');
+    if (providedSecret !== CRON_SECRET_VALUE) {
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid cron credentials' } }, { status: 401 });
+    }
+
+    // Idempotency check: skip if already processed within the window
     const now = new Date();
+    if (lastProcessedAt && (now.getTime() - lastProcessedAt.getTime()) < IDEMPOTENCY_WINDOW_MS) {
+      return NextResponse.json({
+        success: true,
+        data: { processed: 0, total: 0, message: 'Already processed within idempotency window', skipped: true },
+      });
+    }
+    lastProcessedAt = new Date();
 
     // Find all recurring invoices where next date <= today and not past end date
     const recurringInvoices = await db.invoice.findMany({

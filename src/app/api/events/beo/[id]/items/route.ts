@@ -10,6 +10,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
 
     const { id } = await params;
+    // Verify BEO belongs to tenant
+    const beo = await db.banquetEventOrder.findFirst({ where: { id, tenantId: user.tenantId } });
+    if (!beo) return NextResponse.json({ success: false, error: 'BEO not found' }, { status: 404 });
+
     const items = await db.bEOItem.findMany({
       where: { orderId: id },
       orderBy: { sortOrder: 'asc' },
@@ -37,19 +41,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { items = [] } = body;
     if (!items.length) return NextResponse.json({ success: false, error: 'Items required' }, { status: 400 });
 
-    const created = await db.bEOItem.createMany({
-      data: items.map((i: { category: string; description: string; quantity: number; unitPrice: number; notes?: string; sortOrder?: number }, idx: number) => ({
-        orderId: id,
-        category: i.category || 'food', description: i.description,
-        quantity: i.quantity || 1, unitPrice: i.unitPrice || 0,
-        totalPrice: (i.unitPrice || 0) * (i.quantity || 1),
-        notes: i.notes, sortOrder: i.sortOrder ?? idx,
-      })),
-    });
+    const created = await db.$transaction(async (tx) => {
+      const createdItems = await tx.bEOItem.createMany({
+        data: items.map((i: { category: string; description: string; quantity: number; unitPrice: number; notes?: string; sortOrder?: number }, idx: number) => ({
+          orderId: id,
+          category: i.category || 'food', description: i.description,
+          quantity: i.quantity || 1, unitPrice: i.unitPrice || 0,
+          totalPrice: (i.unitPrice || 0) * (i.quantity || 1),
+          notes: i.notes, sortOrder: i.sortOrder ?? idx,
+        })),
+      });
 
-    const totalAmount = (beo.totalAmount || 0) + created.reduce((s: number, i: { totalPrice: number }) => s + i.totalPrice, 0);
-    await db.banquetEventOrder.update({
-      where: { id }, data: { totalAmount },
+      const totalAmount = (beo.totalAmount || 0) + items.reduce((s: number, i: { unitPrice: number; quantity: number }) => s + ((i.unitPrice || 0) * (i.quantity || 1)), 0);
+      await tx.banquetEventOrder.update({
+        where: { id }, data: { totalAmount },
+      });
+      return createdItems;
     });
 
     return NextResponse.json({ success: true, data: created }, { status: 201 });

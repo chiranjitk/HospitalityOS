@@ -51,6 +51,9 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
     }
+    if (!hasPermission(user, 'restaurant.write') && !hasPermission(user, 'restaurant.*')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
 
     const body = await request.json();
     const { propertyId, menuItemId, name, price, sku, calories, isAvailable = true, isDefault = false, sortOrder = 0 } = body;
@@ -93,6 +96,9 @@ export async function PUT(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+    if (!hasPermission(user, 'restaurant.write') && !hasPermission(user, 'restaurant.*')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const body = await request.json();
@@ -146,6 +152,9 @@ export async function DELETE(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+    if (!hasPermission(user, 'restaurant.write') && !hasPermission(user, 'restaurant.*')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const searchParams = request.nextUrl.searchParams;

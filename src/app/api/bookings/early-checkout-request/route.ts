@@ -200,7 +200,35 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify access
-    if (token) {
+    if (!token) {
+      // SECURITY FIX: Staff access requires authentication and permission
+      const { getUserFromRequest, hasAnyPermission } = await import('@/lib/auth-helpers');
+      const user = await getUserFromRequest(request);
+      if (!user) {
+        return NextResponse.json(
+          { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required' } },
+          { status: 401 }
+        );
+      }
+      if (!hasAnyPermission(user, ['bookings.view', 'bookings.manage', 'bookings.*', 'admin.*'])) {
+        return NextResponse.json(
+          { success: false, error: { code: 'PERMISSION_DENIED', message: 'Permission denied' } },
+          { status: 403 }
+        );
+      }
+      // Verify booking belongs to tenant
+      const booking = await db.booking.findFirst({
+        where: { id: bookingId, tenantId: user.tenantId },
+        select: { id: true },
+      });
+      if (!booking) {
+        return NextResponse.json(
+          { success: false, error: { code: 'NOT_FOUND', message: 'Booking not found' } },
+          { status: 404 }
+        );
+      }
+    } else {
+      // Guest access via portal token
       const booking = await db.booking.findFirst({
         where: { portalToken: token, id: bookingId },
         select: { id: true },

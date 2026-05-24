@@ -73,10 +73,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // When using session auth (not vendor token), verify the vendor belongs to user's tenant
+    // When using session auth (not vendor token), verify the vendor belongs to the tenant
     if (!token && authenticatedVendorId) {
       const vendorBelongsToTenant = await db.vendor.findFirst({
-        where: { id: authenticatedVendorId, tenantId: user.tenantId, deletedAt: null },
+        where: { id: authenticatedVendorId, tenantId, deletedAt: null },
       });
       if (!vendorBelongsToTenant) {
         return NextResponse.json(
@@ -301,6 +301,20 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // If authenticated via token, verify the vendorId matches the token owner
+      if (token) {
+        const tokenVendor = await db.vendor.findFirst({
+          where: { portalToken: token, portalTokenExpires: { gt: new Date() }, deletedAt: null },
+          select: { id: true },
+        });
+        if (!tokenVendor || tokenVendor.id !== vendorId) {
+          return NextResponse.json(
+            { success: false, error: { code: 'FORBIDDEN', message: 'Cannot log out a different vendor' } },
+            { status: 403 }
+          );
+        }
+      }
+
       await db.vendor.update({
         where: { id: vendorId },
         data: {
@@ -326,6 +340,16 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Validate amount is a positive number with proper rounding (2 decimal places)
+      const parsedAmount = parseFloat(amount);
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Amount must be a positive number' } },
+          { status: 400 }
+        );
+      }
+      const roundedAmount = Math.round(parsedAmount * 100) / 100;
+
       // Verify vendor exists
       const vendor = await db.vendor.findFirst({
         where: { id: vendorId, deletedAt: null, status: 'active' },
@@ -347,7 +371,7 @@ export async function POST(request: NextRequest) {
           vendorId,
           workOrderId,
           paymentNumber,
-          amount: parseFloat(amount),
+          amount: roundedAmount,
           status: 'pending',
           notes,
           dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
@@ -408,6 +432,14 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
         { status: 401 }
+      );
+    }
+
+    // If authenticated via token, verify the vendorId matches the token owner
+    if (token && vendorId && vendorId !== authenticatedVendorId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Cannot update a different vendor profile' } },
+        { status: 403 }
       );
     }
 

@@ -147,6 +147,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 2: Create the upgrade record with coaStatus: 'pending'
+    const upgradeAmount = Math.round(((amount as number) || 0) * 100) / 100;
+
     const upgrade = await db.wiFiBandwidthUpgrade.create({
       data: {
         tenantId: auth.tenantId,
@@ -157,7 +159,7 @@ export async function POST(request: NextRequest) {
         username: username || `user_${Date.now()}`,
         fromPlanId: fromPlanId as string,
         toPlanId: toPlanId as string,
-        amount: (amount as number) || 0,
+        amount: upgradeAmount,
         currency: (currency as string) || 'USD',
         folioId: (folioId as string) || null,
         paymentStatus: 'completed',
@@ -167,6 +169,76 @@ export async function POST(request: NextRequest) {
         property: { select: { id: true, name: true } },
       },
     });
+
+    // Step 2b: Post charge to folio when linked to a booking (billing gap fix)
+    let effectiveFolioId = folioId as string | null;
+    try {
+      if ((bookingId || effectiveFolioId) && upgradeAmount > 0) {
+        if (!effectiveFolioId && bookingId) {
+          let folio = await db.folio.findFirst({ where: { bookingId: bookingId as string } });
+          if (!folio) {
+            const bookingForFolio = await db.booking.findUnique({
+              where: { id: bookingId as string },
+              select: { propertyId: true, primaryGuestId: true },
+            });
+            if (bookingForFolio) {
+              const { randomBytes } = await import('crypto');
+              const folioNumber = `FOL-${Date.now().toString(36).toUpperCase()}-${randomBytes(2).toString('hex').toUpperCase()}`;
+              folio = await db.folio.create({
+                data: {
+                  tenantId: auth.tenantId,
+                  propertyId: bookingForFolio.propertyId,
+                  bookingId: bookingId as string,
+                  guestId: bookingForFolio.primaryGuestId,
+                  folioNumber,
+                  status: 'open',
+                },
+              });
+            }
+          }
+          effectiveFolioId = folio?.id || null;
+        }
+
+        if (effectiveFolioId) {
+          const taxAmount = Math.round(upgradeAmount * 0.12 * 100) / 100; // 12% property tax
+          const totalAmount = Math.round((upgradeAmount + taxAmount) * 100) / 100;
+
+          await db.folioLineItem.create({
+            data: {
+              folioId: effectiveFolioId,
+              description: `WiFi Bandwidth Upgrade: ${fromPlan.name} → ${toPlan.name}`,
+              category: 'wifi',
+              unitPrice: upgradeAmount,
+              quantity: 1,
+              taxAmount,
+              totalAmount,
+            },
+          });
+
+          // Update folio totals
+          const allLineItems = await db.folioLineItem.findMany({ where: { folioId: effectiveFolioId } });
+          const newSubtotal = Math.round(allLineItems.reduce((sum, li) => sum + li.totalAmount, 0) * 100) / 100;
+          const newTaxes = Math.round(allLineItems.reduce((sum, li) => sum + (li.taxAmount || 0), 0) * 100) / 100;
+          const folioRec = await db.folio.findUnique({ where: { id: effectiveFolioId } });
+          const newTotal = Math.round((newSubtotal + newTaxes - (folioRec?.discount || 0)) * 100) / 100;
+          const balance = Math.round((newTotal - (folioRec?.paidAmount || 0)) * 100) / 100;
+
+          await db.folio.update({
+            where: { id: effectiveFolioId },
+            data: { subtotal: newSubtotal, taxes: newTaxes, totalAmount: newTotal, balance },
+          });
+
+          // Backfill folioId on the upgrade record
+          if (!upgrade.folioId) {
+            await db.wiFiBandwidthUpgrade.update({ where: { id: upgrade.id }, data: { folioId: effectiveFolioId } });
+          }
+
+          console.log(`[BandwidthUpsell] Posted $${totalAmount} to folio ${effectiveFolioId} (upgrade ${upgrade.id})`);
+        }
+      }
+    } catch (folioErr) {
+      console.error('[BandwidthUpsell] Folio charge error (non-fatal):', folioErr);
+    }
 
     // Step 3: Apply real CoA bandwidth change
     let coaResult;

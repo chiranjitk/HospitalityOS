@@ -72,14 +72,19 @@ Hotel Data:
 
 Respond ONLY with valid JSON, no explanation.`;
 
-      const completion = await zai.chat.completions.create({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: query },
-        ],
-        temperature: 0.5,
-        max_tokens: 1200,
-      });
+      const completion = await Promise.race([
+        zai.chat.completions.create({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: query },
+          ],
+          temperature: 0.5,
+          max_tokens: 1200,
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('AI query timed out after 30 seconds')), 30000)
+        ),
+      ]);
 
       const raw = completion.choices[0]?.message?.content || '';
       const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim();

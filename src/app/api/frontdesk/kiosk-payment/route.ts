@@ -80,10 +80,12 @@ export async function POST(request: NextRequest) {
 
     const { bookingId, amount, method, currency } = parsed.data;
 
-    // 2. Verify booking exists and is not deleted
+    // 2. Verify booking exists, is not deleted, and is active
     const booking = await db.booking.findFirst({
       where: {
         id: bookingId,
+        tenantId: ctx.tenantId,
+        status: { in: ['confirmed', 'checked_in'] },
         deletedAt: null,
       },
       select: {
@@ -244,12 +246,20 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Update folio: add paidAmount, recalculate balance
+      // Update folio: recalculate balance from line items using canonical formula
+      // balance = lineItems.reduce((sum, li) => sum + li.totalAmount, 0) - folio.paidAmount
+      const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: folio!.id } });
+      const recalculatedTotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+      const newBalance = recalculatedTotal + amount; // payment was just created, so line items haven't changed yet; newBalance = subtotal - newPaidAmount
+      const newPaidAmount = folio!.paidAmount + amount;
+
       const updatedFolio = await tx.folio.update({
         where: { id: folio!.id },
         data: {
-          paidAmount: { increment: amount },
-          balance: { decrement: amount },
+          paidAmount: newPaidAmount,
+          subtotal: Math.round(recalculatedTotal * 100) / 100,
+          totalAmount: Math.round(recalculatedTotal * 100) / 100,
+          balance: Math.round((recalculatedTotal - newPaidAmount) * 100) / 100,
         },
       });
 

@@ -466,15 +466,19 @@ export async function PUT(
                 postedBy: user.id,
               },
             });
-            // Recalculate folio
+            // Recalculate folio — FIX: recalculate taxes from line items too, fix balance formula
             const allItems = await db.folioLineItem.findMany({ where: { folioId: folio.id } });
-            const newSubtotal = allItems.reduce((s, li) => s + li.totalAmount, 0);
+            const newSubtotal = Math.round(allItems.reduce((s, li) => s + li.totalAmount, 0) * 100) / 100;
+            const newTaxes = Math.round(allItems.reduce((s, li) => s + (li.taxAmount || 0), 0) * 100) / 100;
+            const newTotalAmount = Math.round((newSubtotal + newTaxes - (folio.discount || 0)) * 100) / 100;
+            // BALANCE FIX: balance = totalAmount - paidAmount (not subtotal - paidAmount)
             await db.folio.update({
               where: { id: folio.id },
               data: {
                 subtotal: newSubtotal,
-                totalAmount: newSubtotal + folio.taxes - folio.discount,
-                balance: Math.max(0, newSubtotal - folio.paidAmount),
+                taxes: newTaxes,
+                totalAmount: newTotalAmount,
+                balance: Math.max(0, newTotalAmount - (folio.paidAmount || 0)),
               },
             });
           }

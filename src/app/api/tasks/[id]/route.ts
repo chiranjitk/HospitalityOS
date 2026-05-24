@@ -145,10 +145,11 @@ export async function PUT(
       recurrenceRule,
     } = body;
 
-    // If assigned to a user, verify they exist and belong to housekeeping
+    // If assigned to a user, verify they exist, belong to the same tenant, and have housekeeping role
+    // GAP-FIX(17b): Added tenantId check to prevent cross-tenant task assignment
     if (assignedTo) {
-      const assignedUser = await db.user.findUnique({
-        where: { id: assignedTo, deletedAt: null },
+      const assignedUser = await db.user.findFirst({
+        where: { id: assignedTo, tenantId: user.tenantId, deletedAt: null },
         include: {
           role: {
             select: { name: true, permissions: true },
@@ -181,6 +182,19 @@ export async function PUT(
       if (!isHousekeepingStaff) {
         return NextResponse.json(
           { success: false, error: { code: 'INVALID_ASSIGNEE', message: 'Task can only be assigned to housekeeping staff' } },
+          { status: 400 }
+        );
+      }
+    }
+
+    // GAP-FIX(17b): If roomId is changed, verify room belongs to the task's property/tenant
+    if (roomId !== undefined && roomId !== existingTask.roomId) {
+      const room = await db.room.findFirst({
+        where: { id: roomId, propertyId: existingTask.propertyId, deletedAt: null },
+      });
+      if (!room) {
+        return NextResponse.json(
+          { success: false, error: { code: 'INVALID_ROOM', message: 'Room not found for this property' } },
           { status: 400 }
         );
       }

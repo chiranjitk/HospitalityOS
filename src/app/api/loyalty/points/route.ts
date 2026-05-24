@@ -174,6 +174,7 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const errorMap: Record<string, { code: string; message: string; status: number }> = {
       'GUEST_NOT_FOUND': { code: 'NOT_FOUND', message: 'Guest not found', status: 404 },
+      'TENANT_MISMATCH': { code: 'FORBIDDEN', message: 'Guest does not belong to this tenant', status: 403 },
       'INSUFFICIENT_POINTS': { code: 'VALIDATION_ERROR', message: 'Insufficient points balance', status: 400 },
       'INVALID_REWARD': { code: 'VALIDATION_ERROR', message: 'Invalid reward selected', status: 400 },
     };
@@ -279,28 +280,38 @@ async function handleRedeemPoints(
   if (!reward) throw new Error('INVALID_REWARD');
   const pointsToRedeem = customPoints || reward.points;
 
-  // Get guest
-  const guest = await db.guest.findUnique({
-    where: { id: guestId, deletedAt: null },
-    select: { id: true, loyaltyPoints: true, tenantId: true },
-  });
-
-  if (!guest) throw new Error('GUEST_NOT_FOUND');
-  if (guest.tenantId !== tenantId) {
+  // Validate pointsToRedeem is positive
+  if (pointsToRedeem <= 0) {
     return NextResponse.json(
-      { success: false, error: { code: 'FORBIDDEN', message: 'Guest does not belong to this tenant' } },
-      { status: 403 }
+      { success: false, error: { code: 'VALIDATION_ERROR', message: 'Points to redeem must be positive' } },
+      { status: 400 }
     );
   }
 
-  if (guest.loyaltyPoints < pointsToRedeem) throw new Error('INSUFFICIENT_POINTS');
-
-  const previousBalance = guest.loyaltyPoints;
+  // Use transaction to atomically check balance and deduct points (prevents race condition)
   const result = await db.$transaction(async (tx) => {
+    // Get guest inside transaction for consistent read
+    const guest = await tx.guest.findUnique({
+      where: { id: guestId, deletedAt: null },
+      select: { id: true, loyaltyPoints: true, tenantId: true },
+    });
+
+    if (!guest) throw new Error('GUEST_NOT_FOUND');
+    if (guest.tenantId !== tenantId) throw new Error('TENANT_MISMATCH');
+
+    // Check balance inside transaction to prevent TOCTOU race condition
+    if (guest.loyaltyPoints < pointsToRedeem) throw new Error('INSUFFICIENT_POINTS');
+
+    const previousBalance = guest.loyaltyPoints;
     const updatedGuest = await tx.guest.update({
       where: { id: guestId },
       data: { loyaltyPoints: { decrement: pointsToRedeem } },
     });
+
+    // Safety check: ensure balance never goes negative
+    if (updatedGuest.loyaltyPoints < 0) {
+      throw new Error('INSUFFICIENT_POINTS');
+    }
 
     const transaction = await tx.loyaltyPointTransaction.create({
       data: {
@@ -314,7 +325,7 @@ async function handleRedeemPoints(
       },
     });
 
-    return { transaction, newBalance: updatedGuest.loyaltyPoints };
+    return { transaction, newBalance: updatedGuest.loyaltyPoints, previousBalance };
   });
 
   return NextResponse.json({
@@ -322,7 +333,7 @@ async function handleRedeemPoints(
     data: {
       transaction: result.transaction,
       guestId,
-      previousBalance,
+      previousBalance: result.previousBalance,
       newBalance: result.newBalance,
       pointsRedeemed: pointsToRedeem,
       reward: reward.name,

@@ -204,22 +204,30 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // For completed payments (non-card), update folio
+      // For completed payments (non-card), update folio using canonical balance formula
       if (paymentStatus === 'completed') {
-        const updatedFolio = await tx.folio.update({
+        // Recalculate balance from line items: balance = sum(lineItems) - paidAmount
+        const allLineItems = await tx.folioLineItem.findMany({ where: { folioId } });
+        const recalculatedSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+        const newPaidAmount = (folio.paidAmount || 0) + amount;
+
+        await tx.folio.update({
           where: { id: folioId },
           data: {
-            paidAmount: { increment: amount },
-            balance: { decrement: amount },
+            paidAmount: newPaidAmount,
+            subtotal: Math.round(recalculatedSubtotal * 100) / 100,
+            totalAmount: Math.round((recalculatedSubtotal + folio.taxes - folio.discount) * 100) / 100,
+            balance: Math.round((recalculatedSubtotal - newPaidAmount) * 100) / 100,
           },
         });
 
-        if (updatedFolio.balance <= 0) {
+        const updatedFolioBalance = Math.round((recalculatedSubtotal - newPaidAmount) * 100) / 100;
+        if (updatedFolioBalance <= 0) {
           await tx.folio.update({
             where: { id: folioId },
             data: { status: 'paid', closedAt: new Date() },
           });
-        } else if (updatedFolio.paidAmount > 0) {
+        } else if (newPaidAmount > 0) {
           await tx.folio.update({
             where: { id: folioId },
             data: { status: 'partially_paid' },

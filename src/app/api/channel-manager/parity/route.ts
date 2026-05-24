@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import {
   checkPropertyRateParity,
@@ -41,6 +42,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'propertyId is required' } },
         { status: 400 }
+      );
+    }
+
+    // SECURITY FIX: Verify property belongs to user's tenant
+    const property = await db.property.findFirst({ where: { id: propertyId, tenantId: user.tenantId } });
+    if (!property) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Property not found' } },
+        { status: 404 }
       );
     }
 
@@ -144,6 +154,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'propertyId is required' } },
         { status: 400 }
+      );
+    }
+
+    // SECURITY FIX: Verify property belongs to user's tenant
+    const propCheck = await db.property.findFirst({ where: { id: propertyId, tenantId: user.tenantId } });
+    if (!propCheck) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Property not found' } },
+        { status: 404 }
       );
     }
 

@@ -195,8 +195,8 @@ export async function GET(request: NextRequest) {
       // Get best available rate
       const bestRate = roomType.ratePlans.length > 0 ? roomType.ratePlans[0] : null;
 
-      // Calculate total price
-      const basePrice = bestRate ? bestRate.basePrice * nights : roomType.basePrice * nights;
+      // SECURITY FIX: Round price calculations to 2 decimal places
+      const basePrice = bestRate ? Math.round(bestRate.basePrice * nights * 100) / 100 : Math.round(roomType.basePrice * nights * 100) / 100;
 
       const fitsCapacity = adults + children <= roomType.maxOccupancy;
 
@@ -238,14 +238,16 @@ export async function GET(request: NextRequest) {
       }];
     });
 
-    // Calculate overall statistics
+    const availableRoomTypes = availability.filter(a => a.availability.isAvailable);
+    // SECURITY FIX: Guard against empty arrays for Math.min/max to avoid Infinity values
+    const priceArray = availableRoomTypes.map(a => a.pricing.pricePerNight);
     const stats = {
       totalRoomTypes: availability.length,
-      availableRoomTypes: availability.filter(a => a.availability.isAvailable).length,
+      availableRoomTypes: availableRoomTypes.length,
       totalRooms: availability.reduce((sum, a) => sum + a.availability.totalRooms, 0),
       availableRooms: availability.reduce((sum, a) => sum + a.availability.availableRooms, 0),
-      minPrice: Math.min(...availability.filter(a => a.availability.isAvailable).map(a => a.pricing.pricePerNight)),
-      maxPrice: Math.max(...availability.filter(a => a.availability.isAvailable).map(a => a.pricing.pricePerNight)),
+      minPrice: priceArray.length > 0 ? Math.min(...priceArray) : 0,
+      maxPrice: priceArray.length > 0 ? Math.max(...priceArray) : 0,
     };
 
     return NextResponse.json({

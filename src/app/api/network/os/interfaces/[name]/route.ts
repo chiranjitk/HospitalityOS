@@ -56,10 +56,14 @@ function tryNmcli(fn: () => void, fallback: () => { success: boolean; data?: any
 // GET — Read single interface details
 // ────────────────────────────────────────────────────────────
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
   try {
+    // ── Auth ──
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { name } = await params;
 
     if (!VALID_NAME.test(name)) {
@@ -390,10 +394,14 @@ export async function POST(
 // DELETE — Delete virtual interface ONLY (reject for physical)
 // ────────────────────────────────────────────────────────────
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ name: string }> }
 ) {
   try {
+    // ── Auth ──
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { name } = await params;
 
     if (!VALID_NAME.test(name)) {

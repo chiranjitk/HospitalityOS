@@ -683,9 +683,10 @@ export async function POST(request: NextRequest) {
         : (finalRoomRate * nights);
 
       // SECURITY FIX: Sanitize all financial values before DB write — NaN propagates from pricing engine on zero room charge
-      const safeRoomCharge = Number(roomChargeTotal) || 0;
-      const safeTaxes = Number(finalTaxes) || 0;
-      const safeTotal = Number(finalTotalAmount) || 0;
+      // DECIMAL FIX: Use Math.round(x * 100) / 100 for money precision
+      const safeRoomCharge = Math.round((Number(roomChargeTotal) || 0) * 100) / 100;
+      const safeTaxes = Math.round((Number(finalTaxes) || 0) * 100) / 100;
+      const safeTotal = Math.round((Number(finalTotalAmount) || 0) * 100) / 100;
 
       await tx.folioLineItem.create({
         data: {

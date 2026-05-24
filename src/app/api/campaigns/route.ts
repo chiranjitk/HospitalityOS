@@ -20,6 +20,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Permission check
+    if (!hasPermission(user, 'campaigns.view') && !hasPermission(user, 'marketing.view') && !hasPermission(user, 'marketing.manage') && !hasPermission(user, '*')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const tenantId = user.tenantId;
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status');

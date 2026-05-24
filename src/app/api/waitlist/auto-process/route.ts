@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 
 // POST /api/waitlist/auto-process - Auto-process waitlist entries when rooms become available
 export async function POST(request: NextRequest) {
   try {
     // Authenticate user
-    const tenantId = await getTenantIdFromSession(request);
-    if (!tenantId) {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    
+    if (!hasPermission(auth, 'reservations.update') && !hasPermission(auth, 'waitlist.manage')) {
       return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
       );
     }
+    
+    const tenantId = auth.tenantId;
     const body = await request.json();
     const { roomTypeId, checkIn, checkOut, propertyId } = body;
 

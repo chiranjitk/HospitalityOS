@@ -29,15 +29,10 @@ import { DNSMASQ_DNS_CONF } from '@/lib/wifi/paths';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function getTenant(request: NextRequest) {
+async function getTenant(request: NextRequest): Promise<string | null> {
   const tenantId = await getTenantIdFromSession(request);
   if (!tenantId) {
-    try {
-      const anyTenant = await db.tenant.findFirst({ select: { id: true } });
-      return anyTenant?.id || null;
-    } catch {
-      return null;
-    }
+    return null; // GAP-FIX: Removed fallback to anyTenant — unauthenticated users must NOT access DNS data
   }
   return tenantId;
 }
@@ -153,7 +148,7 @@ async function handleRequest(request: NextRequest, method: string) {
 
     const tenantId = await getTenant(request);
     if (!tenantId) {
-      return NextResponse.json({ success: false, error: 'No tenant found' }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
     }
 
     const propertyId = await getDefaultPropertyId(tenantId);
@@ -281,6 +276,11 @@ async function handleRequest(request: NextRequest, method: string) {
         // PUT /zones/:id
         if (method === 'PUT') {
           const b = body!;
+          // GAP-FIX: Verify tenant ownership before update
+          const existing = await db.dnsZone.findUnique({ where: { id }, select: { tenantId: true } });
+          if (!existing || existing.tenantId !== tenantId) {
+            return NextResponse.json({ success: false, error: 'Zone not found' }, { status: 404 });
+          }
           const updateData: Record<string, unknown> = {};
           if (b.domain !== undefined) updateData.domain = b.domain;
           if (b.description !== undefined) updateData.description = b.description;
@@ -308,8 +308,15 @@ async function handleRequest(request: NextRequest, method: string) {
         }
         // DELETE /zones/:id
         if (method === 'DELETE') {
-          await db.dnsRecord.deleteMany({ where: { zoneId: id } });
-          await db.dnsZone.delete({ where: { id } }).catch(() => {});
+          // GAP-FIX: Verify tenant ownership + atomic cascade
+          const zone = await db.dnsZone.findUnique({ where: { id }, select: { tenantId: true } });
+          if (!zone || zone.tenantId !== tenantId) {
+            return NextResponse.json({ success: false, error: 'Zone not found' }, { status: 404 });
+          }
+          await db.$transaction([
+            db.dnsRecord.deleteMany({ where: { zoneId: id } }),
+            db.dnsZone.delete({ where: { id } }),
+          ]);
           return NextResponse.json({ success: true, message: 'Zone deleted' });
         }
       }
@@ -398,6 +405,11 @@ async function handleRequest(request: NextRequest, method: string) {
         // PUT /records/:id
         if (method === 'PUT') {
           const b = body!;
+          // GAP-FIX: Verify tenant ownership before update
+          const existing = await db.dnsRecord.findUnique({ where: { id }, select: { tenantId: true } });
+          if (!existing || existing.tenantId !== tenantId) {
+            return NextResponse.json({ success: false, error: 'Record not found' }, { status: 404 });
+          }
           const updateData: Record<string, unknown> = {};
           if (b.name !== undefined) updateData.name = b.name;
           if (b.type !== undefined) updateData.type = b.type;
@@ -430,7 +442,12 @@ async function handleRequest(request: NextRequest, method: string) {
         }
         // DELETE /records/:id
         if (method === 'DELETE') {
-          await db.dnsRecord.delete({ where: { id } }).catch(() => {});
+          // GAP-FIX: Verify tenant ownership before delete
+          const existing = await db.dnsRecord.findUnique({ where: { id }, select: { tenantId: true } });
+          if (!existing || existing.tenantId !== tenantId) {
+            return NextResponse.json({ success: false, error: 'Record not found' }, { status: 404 });
+          }
+          await db.dnsRecord.delete({ where: { id } });
           return NextResponse.json({ success: true, message: 'Record deleted' });
         }
       }
@@ -523,6 +540,12 @@ async function handleRequest(request: NextRequest, method: string) {
       if (method === 'PUT') {
         const b = body!;
 
+        // GAP-FIX: Verify tenant ownership before update
+        const existingRedirect = await db.dnsRedirectRule.findUnique({ where: { id }, select: { tenantId: true } });
+        if (!existingRedirect || existingRedirect.tenantId !== tenantId) {
+          return NextResponse.json({ success: false, error: 'Redirect not found' }, { status: 404 });
+        }
+
         // Need to reconstruct matchPattern if domain/wildcard changed
         if (b.domain !== undefined || b.wildcard !== undefined) {
           const current = await db.dnsRedirectRule.findUnique({ where: { id } });
@@ -576,7 +599,12 @@ async function handleRequest(request: NextRequest, method: string) {
       }
       // DELETE /redirects/:id
       if (method === 'DELETE') {
-        await db.dnsRedirectRule.delete({ where: { id } }).catch(() => {});
+        // GAP-FIX(17b): Verify tenant ownership before delete
+        const existingRedirect = await db.dnsRedirectRule.findUnique({ where: { id }, select: { tenantId: true } });
+        if (!existingRedirect || existingRedirect.tenantId !== tenantId) {
+          return NextResponse.json({ success: false, error: 'Redirect not found' }, { status: 404 });
+        }
+        await db.dnsRedirectRule.delete({ where: { id } });
         return NextResponse.json({ success: true, message: 'Redirect deleted' });
       }
     }
@@ -589,7 +617,7 @@ async function handleRequest(request: NextRequest, method: string) {
         // GET /forwarders
         if (method === 'GET') {
           const rows = await db.$queryRawUnsafe<DnsForwarderRow[]>(
-            `SELECT * FROM "DnsForwarder" ORDER BY address ASC`
+            `SELECT * FROM "DnsForwarder" WHERE "tenantId" = '${tenantId}' ORDER BY address ASC`
           );
           return NextResponse.json({
             success: true,
@@ -628,12 +656,22 @@ async function handleRequest(request: NextRequest, method: string) {
         const id = segments[1];
         // DELETE /forwarders/:id
         if (method === 'DELETE') {
+          // GAP-FIX(17b): Verify tenant ownership before delete
+          const existingFwd = await db.$queryRawUnsafe<{ tenantId: string }[]>(`SELECT "tenantId" FROM "DnsForwarder" WHERE id = ${id}::uuid`);
+          if (existingFwd.length === 0 || existingFwd[0].tenantId !== tenantId) {
+            return NextResponse.json({ success: false, error: 'Forwarder not found' }, { status: 404 });
+          }
           await db.$executeRaw`DELETE FROM "DnsForwarder" WHERE id = ${id}::uuid`;
           return NextResponse.json({ success: true, message: 'Forwarder removed' });
         }
         // PUT /forwarders/:id
         if (method === 'PUT') {
           const b = body!;
+          // GAP-FIX(17b): Verify tenant ownership before update
+          const existingFwdPut = await db.$queryRawUnsafe<{ tenantId: string }[]>(`SELECT "tenantId" FROM "DnsForwarder" WHERE id = ${id}::uuid`);
+          if (existingFwdPut.length === 0 || existingFwdPut[0].tenantId !== tenantId) {
+            return NextResponse.json({ success: false, error: 'Forwarder not found' }, { status: 404 });
+          }
           const setClauses: Prisma.Sql[] = [];
 
           if (b.address !== undefined) {

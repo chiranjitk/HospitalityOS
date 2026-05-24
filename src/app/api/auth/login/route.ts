@@ -290,12 +290,10 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'An error occurred during login';
     const stack = error instanceof Error ? error.stack : undefined;
     
-    // In development, return detailed error info for debugging
+    // Sanitize error details — never expose stack traces, even in dev
+    // Log detailed info server-side only
     if (process.env.NODE_ENV !== 'production') {
-      return NextResponse.json(
-        { success: false, error: 'An error occurred during login', debug: { message, stack } },
-        { status: 500 }
-      );
+      console.error('[LOGIN DEBUG]', message);
     }
     
     return NextResponse.json(

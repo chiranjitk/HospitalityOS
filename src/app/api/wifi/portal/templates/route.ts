@@ -2,6 +2,33 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 
+/** Strip dangerous HTML from template content to prevent XSS. */
+function sanitizeTemplateHtml(html: string | undefined): string {
+  if (!html) return '';
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<script[^>]*\s*\/?>/gi, '')
+    .replace(/\son\w+\s*=/gi, 'data-blocked=')
+    .replace(/javascript\s*:/gi, 'blocked:')
+    .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<object[^>]*>[\s\S]*?<\/object>/gi, '')
+    .replace(/<embed[^>]*>/gi, '')
+    .replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '')
+    .trim();
+}
+
+/** Strip dangerous CSS expressions from template CSS. */
+function sanitizeTemplateCss(css: string | undefined): string {
+  if (!css) return '';
+  return css
+    .replace(/expression\s*\(/gi, 'blocked(')
+    .replace(/javascript\s*:/gi, 'blocked:')
+    .replace(/url\s*\(\s*['"]?\s*javascript:/gi, 'url(blocked:')
+    .replace(/@import\s+url\s*\(/gi, '/* blocked */')
+    .replace(/behavior\s*:/gi, 'blocked:')
+    .trim();
+}
+
 // GET /api/wifi/portal/templates - List portal templates
 export async function GET(request: NextRequest) {
   const user = await requirePermission(request, 'wifi.manage');
@@ -89,8 +116,8 @@ export async function POST(request: NextRequest) {
         description,
         category,
         thumbnail,
-        htmlContent,
-        cssContent,
+        htmlContent: sanitizeTemplateHtml(htmlContent),
+        cssContent: sanitizeTemplateCss(cssContent),
         isBuiltIn: false,
       },
     });

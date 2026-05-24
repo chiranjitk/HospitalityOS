@@ -154,9 +154,9 @@ async function calculateTaxReportData(
           // In production, this would come from proper tax configuration
           const taxAmount = item.taxAmount
           if (folio.booking?.primaryGuest?.country === 'IN' || !folio.booking?.primaryGuest?.country) {
-            // Same state - CGST + SGST
-            cgstAmount += taxAmount / 2
-            sgstAmount += taxAmount / 2
+            // Same state - CGST + SGST (round each half)
+            cgstAmount += Number((taxAmount / 2).toFixed(2));
+            sgstAmount += Number((taxAmount / 2).toFixed(2));
           } else {
             // Different state/country - IGST
             igstAmount += taxAmount
@@ -170,8 +170,8 @@ async function calculateTaxReportData(
 
         // For US Sales Tax
         if (jurisdiction === 'us') {
-          stateTaxAmount += item.taxAmount * 0.6 // Approximate split
-          localTaxAmount += item.taxAmount * 0.4
+          stateTaxAmount += Number((item.taxAmount * 0.6).toFixed(2)); // Approximate split
+          localTaxAmount += Number((item.taxAmount * 0.4).toFixed(2));
         }
       } else {
         exemptTransactions++
@@ -189,21 +189,21 @@ async function calculateTaxReportData(
   // For Canada GST/HST
   if (jurisdiction === 'canada') {
     // Simplified - in production would need proper provincial rates
-    cgstAmount = taxCollected * 0.5 // GST portion
-    sgstAmount = taxCollected * 0.5 // HST/PST portion
+    cgstAmount = Number((taxCollected * 0.5).toFixed(2)); // GST portion
+    sgstAmount = Number((taxCollected * 0.5).toFixed(2)); // HST/PST portion
   }
 
   return {
-    grossRevenue,
-    taxableRevenue,
-    taxCollected,
-    cgstAmount,
-    sgstAmount,
-    igstAmount,
-    cessAmount,
-    stateTaxAmount,
-    localTaxAmount,
-    vatOutput,
+    grossRevenue: Number(grossRevenue.toFixed(2)),
+    taxableRevenue: Number(taxableRevenue.toFixed(2)),
+    taxCollected: Number(taxCollected.toFixed(2)),
+    cgstAmount: Number(cgstAmount.toFixed(2)),
+    sgstAmount: Number(sgstAmount.toFixed(2)),
+    igstAmount: Number(igstAmount.toFixed(2)),
+    cessAmount: Number(cessAmount.toFixed(2)),
+    stateTaxAmount: Number(stateTaxAmount.toFixed(2)),
+    localTaxAmount: Number(localTaxAmount.toFixed(2)),
+    vatOutput: Number(vatOutput.toFixed(2)),
     vatInput: 0, // Would need purchase/invoice data
     transactionCount,
     exemptTransactions,

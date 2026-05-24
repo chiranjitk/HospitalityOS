@@ -103,6 +103,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (!hasPermission(user, 'notifications.view')) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden - Insufficient permissions' },
+        { status: 403 }
+      );
+    }
+
     // Check realtime service health
     let realtimeHealth = null;
     try {

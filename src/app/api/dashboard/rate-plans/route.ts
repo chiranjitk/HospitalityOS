@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
 
       const totalRevenue = bookings.reduce((sum, b) => sum + b.totalAmount, 0);
       const occupancy = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
-      const avgRate = bookings.length > 0 ? Math.round(totalRevenue / bookings.length) : plan.basePrice;
+      const avgRate = bookings.length > 0 ? Math.round((totalRevenue / bookings.length) * 100) / 100 : plan.basePrice;
 
       return {
         id: plan.id,

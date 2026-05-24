@@ -53,6 +53,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'propertyId and name are required' }, { status: 400 });
     }
 
+    // Validate status if provided
+    const validStatuses = ['online', 'offline', 'maintenance', 'disconnected'];
+    if (status && !validStatuses.includes(status)) {
+      return NextResponse.json({ success: false, error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` }, { status: 400 });
+    }
+
+    // Validate provider if provided
+    const validProviders = ['verifone', 'ingenico', 'pax', 'stripe', 'square', 'custom'];
+    if (provider && !validProviders.includes(provider)) {
+      return NextResponse.json({ success: false, error: `Invalid provider. Must be one of: ${validProviders.join(', ')}` }, { status: 400 });
+    }
+
+    // Verify property belongs to tenant
+    const property = await db.property.findFirst({ where: { id: propertyId, tenantId: user.tenantId } });
+    if (!property) {
+      return NextResponse.json({ success: false, error: 'Property not found' }, { status: 404 });
+    }
+
     const terminal = await db.paymentTerminal.create({
       data: {
         tenantId: user.tenantId,

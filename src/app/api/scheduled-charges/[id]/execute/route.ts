@@ -67,74 +67,77 @@ export async function POST(
       }
     }
 
-    // Execute the charge: create folio line item
-    const lineItem = await db.folioLineItem.create({
-      data: {
-        folioId: charge.folioId,
-        description: `${charge.description} (Scheduled - ${charge.frequency})`,
-        category: charge.category || charge.chargeType,
-        quantity: 1,
-        unitPrice: charge.amount,
-        totalAmount: charge.amount,
-        serviceDate: new Date(),
-        referenceType: 'ScheduledCharge',
-        referenceId: charge.id,
-        postedBy: user.id,
-      },
-    });
+    // Execute the charge atomically: folio line item + folio balance + execution record
+    const result = await db.$transaction(async (tx) => {
+      const lineItem = await tx.folioLineItem.create({
+        data: {
+          folioId: charge.folioId,
+          description: `${charge.description} (Scheduled - ${charge.frequency})`,
+          category: charge.category || charge.chargeType,
+          quantity: 1,
+          unitPrice: charge.amount,
+          totalAmount: charge.amount,
+          serviceDate: new Date(),
+          referenceType: 'ScheduledCharge',
+          referenceId: charge.id,
+          postedBy: user.id,
+        },
+      });
 
-    // Update folio balance
-    await db.folio.update({
-      where: { id: charge.folioId },
-      data: {
-        subtotal: { increment: charge.amount },
-        totalAmount: { increment: charge.amount },
-        balance: { increment: charge.amount },
-      },
-    });
+      // Update folio balance
+      await tx.folio.update({
+        where: { id: charge.folioId },
+        data: {
+          subtotal: { increment: charge.amount },
+          totalAmount: { increment: charge.amount },
+          balance: { increment: charge.amount },
+        },
+      });
 
-    // Create execution record
-    const execution = await db.scheduledChargeExecution.create({
-      data: {
-        tenantId: charge.tenantId,
-        scheduledChargeId: charge.id,
-        folioId: charge.folioId,
-        amount: charge.amount,
-        currency: charge.currency,
-        executedAt: new Date(),
-        executionDate: new Date(),
-        status: 'success',
-        postedBy: user.id,
-      },
-    });
+      // Create execution record
+      const execution = await tx.scheduledChargeExecution.create({
+        data: {
+          tenantId: charge.tenantId,
+          scheduledChargeId: charge.id,
+          folioId: charge.folioId,
+          amount: charge.amount,
+          currency: charge.currency,
+          executedAt: new Date(),
+          executionDate: new Date(),
+          status: 'success',
+          postedBy: user.id,
+        },
+      });
 
-    // Update scheduled charge
-    const newExecutedCount = charge.executedCount + 1;
-    let nextExecutionAt = charge.nextExecutionAt;
+      // Update scheduled charge metadata
+      const newExecutedCount = charge.executedCount + 1;
+      let nextExecutionAt = charge.nextExecutionAt;
 
-    // For recurring charges, calculate next execution
-    if (charge.frequency !== 'once') {
-      nextExecutionAt = calculateNextExecution(new Date(), charge.frequency);
+      if (charge.frequency !== 'once') {
+        nextExecutionAt = calculateNextExecution(new Date(), charge.frequency);
 
-      // Auto-deactivate if past end date
-      if (charge.endDate && nextExecutionAt > charge.endDate) {
-        await db.scheduledCharge.update({
+        if (charge.endDate && nextExecutionAt > charge.endDate) {
+          await tx.scheduledCharge.update({
+            where: { id },
+            data: { isActive: false, lastExecutedAt: new Date(), executedCount: newExecutedCount },
+          });
+        } else {
+          await tx.scheduledCharge.update({
+            where: { id },
+            data: { nextExecutionAt, lastExecutedAt: new Date(), executedCount: newExecutedCount },
+          });
+        }
+      } else {
+        await tx.scheduledCharge.update({
           where: { id },
           data: { isActive: false, lastExecutedAt: new Date(), executedCount: newExecutedCount },
         });
-      } else {
-        await db.scheduledCharge.update({
-          where: { id },
-          data: { nextExecutionAt, lastExecutedAt: new Date(), executedCount: newExecutedCount },
-        });
       }
-    } else {
-      // One-time charge: deactivate after execution
-      await db.scheduledCharge.update({
-        where: { id },
-        data: { isActive: false, lastExecutedAt: new Date(), executedCount: newExecutedCount },
-      });
-    }
+
+      return { lineItem, execution, newExecutedCount };
+    });
+
+    const { lineItem, execution, newExecutedCount } = result;
 
     // Audit log (non-blocking)
     try {

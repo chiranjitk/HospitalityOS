@@ -380,12 +380,16 @@ async function postLateCheckoutFeeToFolio(params: {
     // Recalculate folio totals
     const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: folio.id } });
     const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+    // BALANCE FIX: include discount in totalAmount calculation
+    const newTotalAmount = Math.round((newSubtotal + folio.taxes - (folio.discount || 0)) * 100) / 100;
+    // BALANCE FIX: balance = totalAmount - paidAmount (was missing discount before)
+    const newBalance = Math.max(0, Math.round((newTotalAmount - (folio.paidAmount || 0)) * 100) / 100);
     await tx.folio.update({
       where: { id: folio.id },
       data: {
-        subtotal: newSubtotal,
-        totalAmount: newSubtotal + folio.taxes - folio.discount,
-        balance: Math.max(0, newSubtotal + folio.taxes - folio.paidAmount),
+        subtotal: Math.round(newSubtotal * 100) / 100,
+        totalAmount: newTotalAmount,
+        balance: newBalance,
       },
     });
   });

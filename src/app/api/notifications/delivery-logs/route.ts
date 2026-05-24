@@ -64,22 +64,32 @@ export async function GET(request: NextRequest) {
       tenantId: log.tenantId,
     }));
 
-    // Calculate stats
-    const allLogs = await db.notificationLog.findMany({
+    // Calculate stats using server-side aggregation (avoids loading all rows)
+    const statusCounts = await db.notificationLog.groupBy({
+      by: ['status'],
       where: { tenantId: user.tenantId },
-      select: { status: true },
+      _count: true,
     });
 
+    const statusMap: Record<string, number> = {};
+    let totalLogs = 0;
+    for (const sc of statusCounts) {
+      statusMap[sc.status] = sc._count;
+      totalLogs += sc._count;
+    }
+
+    const deliveredCount = statusMap['delivered'] || 0;
+    const deliveryRate = totalLogs > 0
+      ? Math.round((deliveredCount / totalLogs) * 1000) / 10
+      : 0;
+
     const stats = {
-      total: allLogs.length,
-      delivered: allLogs.filter((l) => l.status === 'delivered').length,
-      failed: allLogs.filter((l) => l.status === 'failed').length,
-      bounced: allLogs.filter((l) => l.status === 'bounced').length,
-      pending: allLogs.filter((l) => l.status === 'pending').length,
-      deliveryRate:
-        allLogs.length > 0
-          ? ((allLogs.filter((l) => l.status === 'delivered').length / allLogs.length) * 100).toFixed(1)
-          : '0',
+      total: totalLogs,
+      delivered: deliveredCount,
+      failed: statusMap['failed'] || 0,
+      bounced: statusMap['bounced'] || 0,
+      pending: statusMap['pending'] || 0,
+      deliveryRate,
     };
 
     return NextResponse.json({

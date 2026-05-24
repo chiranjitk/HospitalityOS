@@ -221,7 +221,22 @@ export async function PUT(request: NextRequest) {
     const updateData: Record<string, unknown> = {};
     if (displayName) updateData.displayName = displayName;
     if (description !== undefined) updateData.description = description || null;
-    if (permissions) updateData.permissions = JSON.stringify(permissions);
+    if (permissions !== undefined) {
+      // Validate permissions is an array of strings
+      if (!Array.isArray(permissions)) {
+        return NextResponse.json(
+          { error: 'permissions must be an array' },
+          { status: 400 }
+        );
+      }
+      if (!permissions.every((p: unknown) => typeof p === 'string')) {
+        return NextResponse.json(
+          { error: 'Each permission must be a string' },
+          { status: 400 }
+        );
+      }
+      updateData.permissions = JSON.stringify(permissions);
+    }
 
     const role = await db.role.update({
       where: { id },

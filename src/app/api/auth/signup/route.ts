@@ -58,6 +58,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid email format' },
+        { status: 400 }
+      );
+    }
+
+    // Validate name lengths and sanitize
+    const trimmedFirst = String(firstName).trim().slice(0, 100);
+    const trimmedLast = String(lastName).trim().slice(0, 100);
+    if (trimmedFirst.length === 0 || trimmedLast.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'First name and last name must not be empty' },
+        { status: 400 }
+      );
+    }
+
     // Validate password strength
     const passwordCheck = validatePasswordStrength(password);
     if (!passwordCheck.valid) {
@@ -157,8 +176,8 @@ export async function POST(request: NextRequest) {
       data: {
         email: email.toLowerCase(),
         passwordHash: hashedPassword,
-        firstName,
-        lastName,
+        firstName: trimmedFirst,
+        lastName: trimmedLast,
         tenantId: targetTenantId,
         isVerified: false,
         passwordChangedAt: new Date(),
@@ -216,7 +235,7 @@ export async function POST(request: NextRequest) {
       user: {
         id: user.id,
         email: user.email,
-        name: `${user.firstName} ${user.lastName}`,
+        name: `${user.firstName} ${user.lastName}`.replace(/[<>"&]/g, ''),
         isVerified: false,
       },
     });

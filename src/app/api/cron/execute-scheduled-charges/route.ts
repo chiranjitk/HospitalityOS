@@ -74,49 +74,57 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Execute: create folio line item
-        await db.folioLineItem.create({
-          data: {
-            folioId: charge.folioId,
-            description: `${charge.description} (Auto-scheduled - ${charge.frequency})`,
-            category: charge.category || charge.chargeType,
-            quantity: 1,
-            unitPrice: charge.amount,
-            totalAmount: charge.amount,
-            serviceDate: now,
-            referenceType: 'ScheduledCharge',
-            referenceId: charge.id,
-            postedBy: 'system',
-          },
-        });
+        // Execute: create folio line item and update folio balance atomically in a transaction
+        await db.$transaction(async (tx) => {
+          await tx.folioLineItem.create({
+            data: {
+              folioId: charge.folioId,
+              description: `${charge.description} (Auto-scheduled - ${charge.frequency})`,
+              category: charge.category || charge.chargeType,
+              quantity: 1,
+              unitPrice: charge.amount,
+              totalAmount: charge.amount,
+              serviceDate: now,
+              referenceType: 'ScheduledCharge',
+              referenceId: charge.id,
+              postedBy: 'system',
+            },
+          });
 
-        // Update folio balance
-        await db.folio.update({
-          where: { id: charge.folioId },
-          data: {
-            subtotal: { increment: charge.amount },
-            totalAmount: { increment: charge.amount },
-            balance: { increment: charge.amount },
-          },
-        });
+          // Update folio balance
+          await tx.folio.update({
+            where: { id: charge.folioId },
+            data: {
+              subtotal: { increment: charge.amount },
+              totalAmount: { increment: charge.amount },
+              balance: { increment: charge.amount },
+            },
+          });
 
-        // Create execution record
-        await db.scheduledChargeExecution.create({
-          data: {
-            tenantId: charge.tenantId,
-            scheduledChargeId: charge.id,
-            folioId: charge.folioId,
-            amount: charge.amount,
-            currency: charge.currency,
-            executedAt: now,
-            executionDate: now,
-            status: 'success',
-            postedBy: 'system',
-          },
+          // Create execution record
+          await tx.scheduledChargeExecution.create({
+            data: {
+              tenantId: charge.tenantId,
+              scheduledChargeId: charge.id,
+              folioId: charge.folioId,
+              amount: charge.amount,
+              currency: charge.currency,
+              executedAt: now,
+              executionDate: now,
+              status: 'success',
+              postedBy: 'system',
+            },
+          });
         });
 
         // Calculate next execution
-        const newExecutedCount = charge.executedCount + 1;
+        // Use atomic increment for executedCount to prevent race conditions
+        const updatedCharge = await db.scheduledCharge.update({
+          where: { id: charge.id },
+          data: { executedCount: { increment: 1 } },
+          select: { executedCount: true },
+        });
+        const newExecutedCount = updatedCharge.executedCount;
         const nextExecutionAt = calculateNextExecution(now, charge.frequency);
 
         if (charge.frequency === 'once' || (charge.endDate && nextExecutionAt > charge.endDate)) {

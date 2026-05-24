@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { isValidCidr, parseIpToInt, isValidIp } from '@/lib/ip-whitelist/utils';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -87,10 +88,59 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const updateData: Record<string, unknown> = {};
 
     if (name) updateData.name = name;
-    if (subnet) updateData.subnet = subnet;
+    if (subnet) {
+      if (!isValidCidr(subnet)) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid subnet CIDR format' } },
+          { status: 400 },
+        );
+      }
+      updateData.subnet = subnet;
+
+      // Check for overlapping subnets within the same tenant+property
+      const existingSubnets = await db.dhcpSubnet.findMany({
+        where: { tenantId: ctx.tenantId, propertyId: existing.propertyId, id: { not: id } },
+        select: { id: true, subnet: true },
+      });
+      const newSlashIdx = subnet.indexOf('/');
+      const newNetIp = subnet.substring(0, newSlashIdx);
+      const newPrefix = parseInt(subnet.substring(newSlashIdx + 1), 10);
+      const newNetInt = parseIpToInt(newNetIp);
+      const newMask = newPrefix === 0 ? 0 : (~0 << (32 - newPrefix)) >>> 0;
+
+      for (const es of existingSubnets) {
+        const eSlashIdx = es.subnet.indexOf('/');
+        const eNetIp = es.subnet.substring(0, eSlashIdx);
+        const ePrefix = parseInt(es.subnet.substring(eSlashIdx + 1), 10);
+        const eNetInt = parseIpToInt(eNetIp);
+        const eMask = ePrefix === 0 ? 0 : (~0 << (32 - ePrefix)) >>> 0;
+        if ((newNetInt & eMask) === (eNetInt & eMask) || (eNetInt & newMask) === (newNetInt & newMask)) {
+          return NextResponse.json(
+            { success: false, error: { code: 'OVERLAP_ERROR', message: `Subnet overlaps with existing subnet "${es.subnet}"` } },
+            { status: 409 },
+          );
+        }
+      }
+    }
     if (gateway !== undefined) updateData.gateway = gateway;
-    if (poolStart) updateData.poolStart = poolStart;
-    if (poolEnd) updateData.poolEnd = poolEnd;
+    if (poolStart) {
+      if (!isValidIp(poolStart)) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'poolStart must be a valid IPv4 address' } },
+          { status: 400 },
+        );
+      }
+      updateData.poolStart = poolStart;
+    }
+    if (poolEnd) {
+      if (!isValidIp(poolEnd)) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'poolEnd must be a valid IPv4 address' } },
+          { status: 400 },
+        );
+      }
+      updateData.poolEnd = poolEnd;
+    }
     if (leaseTime !== undefined) updateData.leaseTime = parseInt(leaseTime, 10);
     if (vlanId !== undefined) updateData.vlanId = vlanId ? parseInt(vlanId, 10) : null;
     if (vlanConfigId !== undefined) updateData.vlanConfigId = vlanConfigId;
@@ -157,12 +207,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Delete associated leases first
-    await db.dhcpLease.deleteMany({ where: { subnetId: id } });
-
-    await db.dhcpSubnet.delete({ where: { id } }).catch(() => {
-      // Silently ignore if record was already deleted
-    });
+    // Delete associated leases and subnet atomically to prevent inconsistent state
+    await db.$transaction([
+      db.dhcpLease.deleteMany({ where: { subnetId: id } }),
+      db.dhcpSubnet.delete({ where: { id } }),
+    ]);
 
     return NextResponse.json({ success: true, message: 'DHCP subnet deleted successfully' });
   } catch (error) {

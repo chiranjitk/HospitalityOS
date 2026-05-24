@@ -1,18 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await getUserFromRequest(req);
+    if (!user) {
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+    if (!hasAnyPermission(user, ['pos.view', 'pos.manage', 'restaurant.read', 'restaurant.*', '*'])) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
+
+    // Fetch tenant's properties once for scoping
+    const tenantProperties = await db.property.findMany({ where: { tenantId: user.tenantId, deletedAt: null }, select: { id: true } });
+    const propertyIds = tenantProperties.map(p => p.id);
+
     const menuBoards = await db.menuItem.groupBy({
       by: ['categoryId'],
       _count: { id: true },
       _min: { price: true },
       _max: { price: true },
-      where: { isAvailable: true, deletedAt: null },
+      where: { isAvailable: true, deletedAt: null, propertyId: { in: propertyIds } },
     });
 
     const categories = await db.orderCategory.findMany({
-      where: { status: 'active' },
+      where: { status: 'active', propertyId: { in: propertyIds } },
       include: { menuItems: { where: { isAvailable: true, deletedAt: null }, take: 5, orderBy: { name: 'asc' } } },
       orderBy: { name: 'asc' },
     });
@@ -28,7 +41,7 @@ export async function GET(req: NextRequest) {
       lastUpdated: new Date().toISOString(),
     }));
 
-    const totalItems = await db.menuItem.count({ where: { isAvailable: true, deletedAt: null } });
+    const totalItems = await db.menuItem.count({ where: { isAvailable: true, deletedAt: null, propertyId: { in: propertyIds } } });
 
     return NextResponse.json({
       success: true,
@@ -45,6 +58,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await getUserFromRequest(req);
+    if (!user) {
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+    if (!hasAnyPermission(user, ['pos.manage', 'pos.*', 'restaurant.write', '*'])) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
+
     const body = await req.json();
     const { name, screen, categoryIds } = body;
 

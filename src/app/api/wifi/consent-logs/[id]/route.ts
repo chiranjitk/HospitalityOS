@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 
 // PATCH /api/wifi/consent-logs/[id] — Revoke consent by setting expiresAt to now
 export async function PATCH(
@@ -9,6 +9,13 @@ export async function PATCH(
 ) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
+
+  if (!hasPermission(auth, 'wifi.manage') && !hasPermission(auth, 'reports.view')) {
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied: requires wifi.manage or reports.view' } },
+      { status: 403 },
+    );
+  }
 
   try {
     const { id } = await params;
@@ -60,6 +67,13 @@ export async function DELETE(
 ) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
+
+  if (!hasPermission(auth, 'wifi.manage')) {
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied: requires wifi.manage' } },
+      { status: 403 },
+    );
+  }
 
   try {
     const { id } = await params;

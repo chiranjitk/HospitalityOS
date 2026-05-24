@@ -6,6 +6,8 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
     if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
+    if (!hasPermission(user, 'restaurant.read') && !hasPermission(user, 'restaurant.*'))
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN' } }, { status: 403 });
 
     const propertyId = request.nextUrl.searchParams.get('propertyId');
     const where: Record<string, unknown> = { tenantId: user.tenantId };

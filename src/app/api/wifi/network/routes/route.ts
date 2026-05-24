@@ -9,6 +9,7 @@ import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { addRoute, addDefaultRoute, deleteRoute, persistRouteAdd, persistRouteRemove } from '@/lib/network';
 import { isUUID, tenantWhere } from '@/lib/network/query-helpers';
+import { isValidIp, isValidCidr } from '@/lib/ip-whitelist/utils';
 
 // GET /api/wifi/network/routes - List all static routes
 export async function GET(request: NextRequest) {
@@ -73,6 +74,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate destination and gateway IP formats
+    if (!isValidIp(destination) && !isValidCidr(destination)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'destination must be a valid IPv4 address or CIDR (e.g., 192.168.1.0/24 or 0.0.0.0 for default)' } },
+        { status: 400 },
+      );
+    }
+    if (!isValidIp(gateway)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'gateway must be a valid IPv4 address' } },
+        { status: 400 },
+      );
+    }
+
+    // Validate metric range
+    const metricVal = parseInt(String(metric), 10);
+    if (isNaN(metricVal) || metricVal < 0 || metricVal > 9999) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'metric must be between 0 and 9999' } },
+        { status: 400 },
+      );
+    }
+
     // Execute OS-level route creation via shell script
     try {
       let osResult;
@@ -82,7 +106,7 @@ export async function POST(request: NextRequest) {
         osResult = addRoute({
           destination,
           gateway,
-          metric: parseInt(String(metric), 10),
+          metric: metricVal,
           interface: interfaceName || undefined,
         });
       }
@@ -123,7 +147,7 @@ export async function POST(request: NextRequest) {
         name,
         destination,
         gateway,
-        metric: parseInt(metric, 10),
+        metric: metricVal,
         interfaceName,
         protocol,
         isDefault,

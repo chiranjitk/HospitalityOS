@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { logger } from '@/lib/logger';
 
 export async function GET(
@@ -19,6 +19,10 @@ export async function GET(
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!hasPermission(user, 'reports.view')) {
+      return NextResponse.json({ error: 'Forbidden: insufficient permissions' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -44,6 +48,10 @@ export async function PUT(
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!hasPermission(user, 'reports.manage') && !hasPermission(user, 'reports.*')) {
+      return NextResponse.json({ error: 'Forbidden: insufficient permissions' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -82,6 +90,10 @@ export async function DELETE(
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!hasPermission(user, 'reports.manage') && !hasPermission(user, 'reports.*')) {
+      return NextResponse.json({ error: 'Forbidden: insufficient permissions' }, { status: 403 });
     }
 
     const { id } = await params;

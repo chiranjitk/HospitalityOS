@@ -21,6 +21,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // FIX: Validate signature payload size to prevent storing excessively large base64 data
+    if (typeof signature === 'string' && signature.length > 500000) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Signature data is too large (max 500KB)' } },
+        { status: 400 }
+      );
+    }
+
+    // FIX: Validate signature format (expect base64 data URI for image signatures)
+    if (typeof signature === 'string' && signature.length > 0 && !/^data:image\/[a-z]+;base64,/.test(signature)) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Invalid signature format. Expected base64-encoded image data URI.' } },
+        { status: 400 }
+      );
+    }
+
     // Find booking by portal token
     const booking = await db.booking.findFirst({
       where: {

@@ -25,6 +25,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Permission check for submitting feedback
+    const { hasPermission } = await import('@/lib/auth-helpers');
+    if (!hasPermission(user, 'ai.copilot') && !hasPermission(user, 'ai.view')) {
+      return NextResponse.json(
+        { success: false, error: 'Insufficient permissions' },
+        { status: 403 }
+      );
+    }
+
     // Store feedback in the database using AISuggestion model (non-critical, so we don't throw on failure)
     try {
       await db.aISuggestion.create({

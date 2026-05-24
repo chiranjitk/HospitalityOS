@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { analyzeReviewSentiment } from '@/lib/ai/review-analyzer';
 
 // POST /api/guests/reviews/[id]/respond - Submit response to a review
@@ -12,6 +12,11 @@ export async function POST(
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
+    // Permission check for responding to reviews
+    if (!hasAnyPermission(user, ['crm.manage', 'guests.manage', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const { id } = await params;

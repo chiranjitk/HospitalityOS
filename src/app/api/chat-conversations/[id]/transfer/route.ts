@@ -118,6 +118,13 @@ export async function GET(
       );
     }
 
+    if (!hasPermission(user, 'chat.view') && !hasPermission(user, 'communication.chat')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     // Verify conversation belongs to tenant
     const conversation = await db.chatConversation.findFirst({
       where: { id, tenantId: user.tenantId },

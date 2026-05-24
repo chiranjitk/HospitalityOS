@@ -51,6 +51,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Name and propertyId are required' }, { status: 400 });
     }
 
+    // Verify property belongs to user's tenant
+    const property = await db.property.findFirst({
+      where: { id: propertyId, tenantId: user.tenantId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!property) {
+      return NextResponse.json({ success: false, error: 'Property not found or access denied' }, { status: 400 });
+    }
+
     const terminal = await db.posTerminal.create({
       data: {
         tenantId: user.tenantId,

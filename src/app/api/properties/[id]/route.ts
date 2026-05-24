@@ -148,6 +148,48 @@ export async function PUT(
       totalFloors,
       status,
     } = body;
+
+    // GAP-FIX(17b): Validate status against valid values
+    const VALID_STATUSES = ['active', 'inactive', 'maintenance', 'archived'];
+    if (status !== undefined && !VALID_STATUSES.includes(status)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` } },
+        { status: 400 }
+      );
+    }
+
+    // GAP-FIX(17b): Validate tax rate range
+    if (defaultTaxRate !== undefined) {
+      const parsedRate = parseFloat(defaultTaxRate);
+      if (isNaN(parsedRate) || parsedRate < 0 || parsedRate > 100) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'defaultTaxRate must be between 0 and 100' } },
+          { status: 400 }
+        );
+      }
+    }
+
+    // GAP-FIX(17b): Validate service charge range
+    if (serviceChargePercent !== undefined) {
+      const parsedSc = parseFloat(serviceChargePercent);
+      if (isNaN(parsedSc) || parsedSc < 0 || parsedSc > 100) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'serviceChargePercent must be between 0 and 100' } },
+          { status: 400 }
+        );
+      }
+    }
+
+    // GAP-FIX(17b): Validate totalFloors range
+    if (totalFloors !== undefined) {
+      const parsedFloors = parseInt(String(totalFloors), 10);
+      if (isNaN(parsedFloors) || parsedFloors < 1 || parsedFloors > 999) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'totalFloors must be between 1 and 999' } },
+          { status: 400 }
+        );
+      }
+    }
     
     const property = await db.$transaction(async (tx) => {
       // If slug is being changed, check for conflicts

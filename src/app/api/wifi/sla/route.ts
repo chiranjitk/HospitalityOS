@@ -8,11 +8,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/sla — List SLA configs
 export async function GET(request: NextRequest) {
-  const auth = await requireAuth(request);
+  const auth = await requirePermission(request, 'wifi.manage');
   if (auth instanceof NextResponse) return auth;
 
   try {
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
 // POST /api/wifi/sla — Create or update SLA config
 export async function POST(request: NextRequest) {
-  const auth = await requireAuth(request);
+  const auth = await requirePermission(request, 'wifi.manage');
   if (auth instanceof NextResponse) return auth;
 
   try {

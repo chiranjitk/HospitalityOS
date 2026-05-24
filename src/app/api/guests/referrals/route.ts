@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth-helpers';
 
 function generateReferralCode(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = 'REF-';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
+  const bytes = crypto.randomBytes(4);
+  const hex = bytes.toString('hex').toUpperCase().slice(0, 6);
+  return `REF-${hex}`;
 }
 
 // GET /api/guests/referrals - List referrals with stats

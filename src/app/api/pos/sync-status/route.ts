@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getTenantContext } from '@/lib/auth/tenant-context';
+import { hasPermission } from '@/lib/auth-helpers';
 
 // GET /api/pos/sync-status — return pending sync item count and last sync timestamp
 export async function GET(request: NextRequest) {
@@ -66,6 +67,11 @@ export async function POST(request: NextRequest) {
     const ctx = await getTenantContext(request);
     if (!ctx) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
+    // Permission check for sync trigger
+    if (!hasPermission(ctx as any, 'pos.manage') && !hasPermission(ctx as any, 'pos.*')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const tenantId = ctx.tenantId;

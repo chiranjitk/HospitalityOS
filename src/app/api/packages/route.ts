@@ -107,13 +107,17 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Validate room type exists
+    // Validate room type exists and belongs to tenant
     const roomType = await db.roomType.findFirst({
       where: { id: baseRoomTypeId, propertyId },
+      include: { property: { select: { tenantId: true } } },
     });
 
     if (!roomType) {
       return NextResponse.json({ success: false, error: 'Room type not found' }, { status: 400 });
+    }
+    if (roomType.property?.tenantId && roomType.property.tenantId !== user.tenantId) {
+      return NextResponse.json({ success: false, error: 'Room type not found in your tenant' }, { status: 403 });
     }
 
     // Calculate total base price from components if not provided

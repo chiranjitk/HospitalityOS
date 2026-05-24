@@ -29,6 +29,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (!originalOrder) return NextResponse.json({ success: false, error: { code: 'NOT_FOUND' } }, { status: 404 });
 
+    // Status guard: cannot split paid, refunded, or cancelled orders
+    if (['paid', 'refunded', 'cancelled'].includes(originalOrder.status)) {
+      return NextResponse.json({ success: false, error: { code: 'INVALID_STATUS', message: `Cannot split order with status: ${originalOrder.status}` } }, { status: 400 });
+    }
+
     const allItemIds = new Set(splits.flatMap((s: { items: string[] }) => s.items));
     const originalItemIds = new Set(originalOrder.items.map(i => i.id));
     const allAccounted = originalOrder.items.every(i => allItemIds.has(i.id));
@@ -46,7 +51,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         if (split.items.length === 0) continue;
 
         const splitItems = originalOrder.items.filter((i: { id: string }) => split.items.includes(i.id));
-        const subtotal = splitItems.reduce((s: number, i: any) => s + i.totalAmount, 0);
+        const subtotal = Math.round(splitItems.reduce((s: number, i: any) => s + i.totalAmount, 0) * 100) / 100;
         const taxRate = originalOrder.subtotal > 0 ? (originalOrder.taxes / originalOrder.subtotal) * 100 : 0;
         const taxes = Math.round(subtotal * (taxRate / 100) * 100) / 100;
         // Include service charge proportionally
@@ -54,7 +59,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           ? ((originalOrder.totalAmount - originalOrder.subtotal - originalOrder.taxes) / originalOrder.subtotal) * 100
           : 0;
         const serviceCharge = Math.round(subtotal * (serviceChargeRate / 100) * 100) / 100;
-        const totalAmount = subtotal + taxes + serviceCharge;
+        const totalAmount = Math.round((subtotal + taxes + serviceCharge) * 100) / 100;
 
         const newOrder = await tx.order.create({
           data: {

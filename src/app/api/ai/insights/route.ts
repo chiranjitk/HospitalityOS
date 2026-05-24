@@ -220,6 +220,13 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    if (!hasPermission(user, 'ai.manage') && !hasPermission(user, 'insights.manage')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     // Verify insight belongs to user's tenant
     const existingInsight = await db.aISuggestion.findUnique({
       where: { id: insightId },

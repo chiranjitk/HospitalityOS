@@ -307,12 +307,15 @@ export async function POST(request: NextRequest) {
         menuItemId: item.menuItemId,
         quantity,
         unitPrice,
-        totalAmount,
+        totalAmount: Math.round(totalAmount * 100) / 100,
         notes: item.notes,
         options: item.options,
         status: 'pending',
       };
     });
+
+    // Round subtotal to 2 decimal places
+    subtotal = Math.round(subtotal * 100) / 100;
 
     // Calculate taxes from property settings
     let taxes = 0;
@@ -335,13 +338,16 @@ export async function POST(request: NextRequest) {
       taxes = subtotal * (taxRate / 100);
     }
 
-    // Add service charge if configured
+    // Round taxes to 2 decimal places
+    taxes = Math.round(taxes * 100) / 100;
+
+    // Add service charge if configured (on subtotal, pre-tax)
     let serviceCharge = 0;
     if (property.serviceChargePercent) {
-      serviceCharge = subtotal * (property.serviceChargePercent / 100);
+      serviceCharge = Math.round(subtotal * (property.serviceChargePercent / 100) * 100) / 100;
     }
 
-    const totalAmount = subtotal + taxes + serviceCharge;
+    const totalAmount = Math.round((subtotal + taxes + serviceCharge) * 100) / 100;
 
     // Generate order number
     const orderNumber = generateOrderNumber();

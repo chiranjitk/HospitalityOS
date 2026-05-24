@@ -190,6 +190,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate triggerEvent against valid events
+    const VALID_TRIGGER_EVENTS = [
+      'booking.created', 'booking.confirmed', 'booking.cancelled',
+      'guest.check_in', 'guest.check_out', 'guest.created', 'guest.birthday',
+      'payment.received', 'payment.failed',
+      'feedback.received', 'review.submitted',
+      'loyalty.tier_upgraded',
+      'task.completed', 'task.overdue',
+      'room.status_changed',
+      'wifi.session_started',
+      'scheduled.daily', 'scheduled.weekly',
+    ];
+    if (!VALID_TRIGGER_EVENTS.includes(triggerEvent)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid triggerEvent. Must be one of: ${VALID_TRIGGER_EVENTS.join(', ')}` } },
+        { status: 400 }
+      );
+    }
+
     // Validate actions format
     try {
       const parsedActions = typeof actions === 'string' ? JSON.parse(actions) : actions;
@@ -277,6 +296,33 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // GAP-FIX(17b): Validate name length on update (matches POST validation)
+    if (name && name.length > 200) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Name must be 200 characters or less' } },
+        { status: 400 }
+      );
+    }
+
+    // GAP-FIX(17b): Validate triggerEvent against valid events on update
+    const VALID_TRIGGER_EVENTS_UPDATE = [
+      'booking.created', 'booking.confirmed', 'booking.cancelled',
+      'guest.check_in', 'guest.check_out', 'guest.created', 'guest.birthday',
+      'payment.received', 'payment.failed',
+      'feedback.received', 'review.submitted',
+      'loyalty.tier_upgraded',
+      'task.completed', 'task.overdue',
+      'room.status_changed',
+      'wifi.session_started',
+      'scheduled.daily', 'scheduled.weekly',
+    ];
+    if (triggerEvent && !VALID_TRIGGER_EVENTS_UPDATE.includes(triggerEvent)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Invalid triggerEvent. Must be one of: ${VALID_TRIGGER_EVENTS_UPDATE.join(', ')}` } },
+        { status: 400 }
+      );
+    }
+
     // Validate actions format if provided
     if (actions) {
       try {
@@ -358,15 +404,15 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Delete execution logs first
-    await db.automationExecutionLog.deleteMany({
-      where: { ruleId: id },
-    });
-
-    // Delete rule
-    await db.automationRule.delete({
-      where: { id },
-    });
+    // GAP-FIX(17b): Delete execution logs + rule atomically in transaction
+    await db.$transaction([
+      db.automationExecutionLog.deleteMany({
+        where: { ruleId: id },
+      }),
+      db.automationRule.delete({
+        where: { id },
+      }),
+    ]);
 
     return NextResponse.json({
       success: true,

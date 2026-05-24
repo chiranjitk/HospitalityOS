@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const propertyId = searchParams.get('propertyId');
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { tenantId: user.tenantId };
     if (propertyId) where.propertyId = propertyId;
 
     const bridges = await db.bridgeConfig.findMany({
@@ -61,6 +61,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required fields: propertyId, name' } },
         { status: 400 },
+      );
+    }
+
+    // Validate STP timers
+    const fd = parseFloat(String(forwardDelay));
+    const ht = parseFloat(String(helloTime));
+    const ma = parseFloat(String(maxAge));
+    if (!isNaN(fd) && (fd < 4 || fd > 30)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'forwardDelay must be between 4 and 30 seconds' } },
+        { status: 400 },
+      );
+    }
+    if (!isNaN(ht) && (ht < 1 || ht > 10)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'helloTime must be between 1 and 10 seconds' } },
+        { status: 400 },
+      );
+    }
+    if (!isNaN(ma) && (ma < 6 || ma > 40)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'maxAge must be between 6 and 40 seconds' } },
+        { status: 400 },
+      );
+    }
+
+    // Verify property belongs to tenant
+    const property = await db.property.findFirst({
+      where: { id: propertyId, tenantId },
+    });
+    if (!property) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Property not found' } },
+        { status: 404 },
       );
     }
 

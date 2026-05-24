@@ -456,26 +456,21 @@ export async function PUT(request: NextRequest) {
       });
     });
 
-    // If order is received, update stock quantities
+    // If order is received, update stock quantities and create consumption logs atomically
     if (status === 'received') {
-      const orderItems = purchaseOrder.items;
-      await Promise.all(
-        orderItems.map(item =>
-          db.stockItem.update({
+      await db.$transaction(async (tx) => {
+        const orderItems = purchaseOrder.items;
+        for (const item of orderItems) {
+          await tx.stockItem.update({
             where: { id: item.stockItemId },
             data: {
               quantity: {
                 increment: item.receivedQuantity || item.quantity,
               },
             },
-          })
-        )
-      );
+          });
 
-      // Create consumption logs for received items
-      await Promise.all(
-        orderItems.map(item =>
-          db.stockConsumption.create({
+          await tx.stockConsumption.create({
             data: {
               stockItemId: item.stockItemId,
               quantity: item.receivedQuantity || item.quantity,
@@ -484,9 +479,9 @@ export async function PUT(request: NextRequest) {
               cost: item.totalAmount,
               notes: `Received from PO ${purchaseOrder.orderNumber}`,
             },
-          })
-        )
-      );
+          });
+        }
+      });
     }
 
     return NextResponse.json({ success: true, data: purchaseOrder });

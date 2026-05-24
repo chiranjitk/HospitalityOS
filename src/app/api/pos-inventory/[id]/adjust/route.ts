@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 // POST /api/pos-inventory/[id]/adjust
 export async function POST(
@@ -11,6 +11,9 @@ export async function POST(
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+    if (!hasPermission(user, 'restaurant.write') && !hasPermission(user, 'restaurant.*') && !hasPermission(user, 'inventory.write')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const { id } = await params;
@@ -30,7 +33,12 @@ export async function POST(
     }
 
     const previousStock = Number(existing.currentStock);
-    const newStock = Math.max(0, previousStock + Number(quantity));
+    const newStock = previousStock + Number(quantity);
+
+    // Reject adjustments that would result in negative stock
+    if (newStock < 0) {
+      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: `Resulting stock cannot be negative. Current: ${previousStock}, Adjustment: ${Number(quantity)}` } }, { status: 400 });
+    }
 
     // Create movement record and update stock in transaction
     const [item] = await db.$transaction([

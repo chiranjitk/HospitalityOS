@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
           byStatus: Object.fromEntries(byStatus.map(b => [b.status, b._count.status])),
           byType: Object.fromEntries(byType.map(b => [b.modificationType, b._count.modificationType])),
           byChannel: Object.fromEntries(byChannel.map(b => [b.channelCode, b._count.channelCode])),
-          totalPriceDifference: priceResult._sum.priceDifference || 0,
+          totalPriceDifference: Math.round((priceResult._sum.priceDifference || 0) * 100) / 100,
         },
       });
     }
@@ -205,7 +205,13 @@ export async function POST(request: NextRequest) {
     // If auto-applied, also update the underlying booking
     if (willAutoApply && bookingId) {
       try {
-        const booking = await db.booking.findUnique({ where: { id: bookingId } });
+        const booking = await db.booking.findFirst({ where: { id: bookingId, tenantId: user.tenantId } });
+        if (!booking) {
+          return NextResponse.json(
+            { success: false, error: { code: 'NOT_FOUND', message: 'Booking not found' } },
+            { status: 404 }
+          );
+        }
         if (booking) {
           const updateData: Record<string, unknown> = {};
           if (newCheckIn) updateData.checkIn = new Date(newCheckIn);
@@ -278,7 +284,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const existing = await db.bookingModification.findUnique({ where: { id } });
+    // SECURITY FIX: Verify modification belongs to user's tenant
+    const existing = await db.bookingModification.findFirst({ where: { id, tenantId: user.tenantId } });
     if (!existing) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Booking modification not found' } },
@@ -307,7 +314,13 @@ export async function PUT(request: NextRequest) {
       // Apply the approved change to the underlying booking
       if (existing.bookingId) {
         try {
-          const booking = await db.booking.findUnique({ where: { id: existing.bookingId } });
+          const booking = await db.booking.findFirst({ where: { id: existing.bookingId, tenantId: user.tenantId } });
+          if (!booking) {
+            return NextResponse.json(
+              { success: false, error: { code: 'NOT_FOUND', message: 'Booking not found' } },
+              { status: 404 }
+            );
+          }
           if (booking) {
             const updateData: Record<string, unknown> = {};
             if (existing.newCheckIn) updateData.checkIn = existing.newCheckIn;
@@ -390,7 +403,8 @@ export async function PUT(request: NextRequest) {
       let bookingUpdated = false;
       if (existing.bookingId) {
         try {
-          const booking = await db.booking.findUnique({ where: { id: existing.bookingId } });
+          // SECURITY FIX: Verify booking belongs to user's tenant
+          const booking = await db.booking.findFirst({ where: { id: existing.bookingId, tenantId: user.tenantId } });
           if (booking) {
             const updateData: Record<string, unknown> = {};
             if (existing.newCheckIn) updateData.checkIn = existing.newCheckIn;

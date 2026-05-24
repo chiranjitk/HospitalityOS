@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     // --- Resolve the terminal adapter config ---
     const adapterConfig = await db.hardwareAdapter.findFirst({
-      where: { propertyId, category: 'terminal', enabled: true },
+      where: { propertyId, category: 'terminal', enabled: true, tenantId: user.tenantId },
     });
 
     if (!adapterConfig) {
@@ -72,6 +72,17 @@ export async function POST(request: NextRequest) {
       amount,
       reason,
     };
+
+    // --- Idempotency: check for existing refund on this transaction ---
+    const existingRefund = await db.terminalTransaction.findFirst({
+      where: { id: transactionId, transactionType: 'refund' },
+    });
+    if (existingRefund && existingRefund.status === 'voided') {
+      return NextResponse.json({
+        success: true,
+        data: { transactionId: existingRefund.id, amount: existingRefund.amount, status: 'voided', message: 'Refund already processed (idempotent)' },
+      });
+    }
 
     // --- Execute refund ---
     const startMs = Date.now();

@@ -89,7 +89,7 @@ export async function POST(
     const { id: conversationId } = await params;
     const body = await request.json();
 
-    const { content, senderId, senderType = 'staff', messageType = 'text' } = body;
+    const { content, senderType = 'staff', messageType = 'text' } = body;
 
     if (!content) {
       return NextResponse.json(
@@ -97,6 +97,9 @@ export async function POST(
         { status: 400 }
       );
     }
+
+    // Force senderId to the authenticated user to prevent impersonation
+    const senderId = user.id;
 
     // Verify conversation exists and belongs to user's tenant
     const conversation = await db.chatConversation.findUnique({

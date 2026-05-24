@@ -53,11 +53,27 @@ export async function POST(
           },
         });
 
+        // BALANCE FIX: Recalculate from ALL line items instead of using increment to prevent drift
+        const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: creditNote.folioId } });
+        const newSubtotal = Math.round(allLineItems.reduce((sum, item) => sum + item.totalAmount, 0) * 100) / 100;
+        const newTaxes = Math.round(allLineItems.reduce((sum, item) => sum + item.taxAmount, 0) * 100) / 100;
+        const folioData = await tx.folio.findUnique({ where: { id: creditNote.folioId } });
+        const newTotalAmount = Math.round((newSubtotal + newTaxes - (folioData?.discount || 0)) * 100) / 100;
+        const completedPayments = await tx.payment.findMany({
+          where: { folioId: creditNote.folioId, status: 'completed' },
+          select: { amount: true },
+        });
+        const newPaidAmount = Math.round(completedPayments.reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
+        const newBalance = Math.max(0, Math.round((newTotalAmount - newPaidAmount) * 100) / 100);
+
         await tx.folio.update({
           where: { id: creditNote.folioId },
           data: {
-            totalAmount: { increment: creditNote.appliedAmount },
-            balance: { increment: creditNote.appliedAmount },
+            subtotal: newSubtotal,
+            taxes: newTaxes,
+            totalAmount: newTotalAmount,
+            paidAmount: newPaidAmount,
+            balance: newBalance,
           },
         });
 

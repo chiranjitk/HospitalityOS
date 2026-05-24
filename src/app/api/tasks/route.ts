@@ -219,9 +219,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify property exists
-    const property = await db.property.findUnique({
-      where: { id: propertyId, deletedAt: null },
+    // GAP-FIX(17b): Validate title is not empty/whitespace-only
+    if (!title.trim()) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'title must not be empty' } },
+        { status: 400 }
+      );
+    }
+
+    // GAP-FIX(17b): Validate title length
+    if (title.length > 500) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'title must not exceed 500 characters' } },
+        { status: 400 }
+      );
+    }
+
+    // GAP-FIX(17b): Validate priority against valid values
+    const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+    if (priority && !VALID_PRIORITIES.includes(priority)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `priority must be one of: ${VALID_PRIORITIES.join(', ')}` } },
+        { status: 400 }
+      );
+    }
+
+    // GAP-FIX(17b): Validate status against valid values
+    const VALID_STATUSES = ['pending', 'in_progress', 'completed', 'cancelled'];
+    if (status && !VALID_STATUSES.includes(status)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `status must be one of: ${VALID_STATUSES.join(', ')}` } },
+        { status: 400 }
+      );
+    }
+
+    // Verify property exists and belongs to user's tenant
+    // GAP-FIX(17b): Added tenant ownership check on property
+    const property = await db.property.findFirst({
+      where: { id: propertyId, tenantId: currentUser.tenantId, deletedAt: null },
     });
 
     if (!property) {
@@ -231,24 +266,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If room is specified, verify it exists
+    // If room is specified, verify it exists and belongs to the property/tenant
+    // GAP-FIX(17b): Added propertyId check to prevent cross-tenant room assignment
     if (roomId) {
-      const room = await db.room.findUnique({
-        where: { id: roomId, deletedAt: null },
+      const room = await db.room.findFirst({
+        where: { id: roomId, propertyId, deletedAt: null },
       });
 
       if (!room) {
         return NextResponse.json(
-          { success: false, error: { code: 'INVALID_ROOM', message: 'Room not found' } },
+          { success: false, error: { code: 'INVALID_ROOM', message: 'Room not found for this property' } },
           { status: 400 }
         );
       }
     }
 
-    // If assigned to a user, verify they exist and belong to housekeeping
+    // If assigned to a user, verify they exist, belong to the same tenant, and have housekeeping role
+    // GAP-FIX(17b): Added tenantId check to prevent cross-tenant task assignment
     if (assignedTo) {
-      const user = await db.user.findUnique({
-        where: { id: assignedTo, deletedAt: null },
+      const user = await db.user.findFirst({
+        where: { id: assignedTo, tenantId: currentUser.tenantId, deletedAt: null },
         include: {
           role: {
             select: { name: true, permissions: true },

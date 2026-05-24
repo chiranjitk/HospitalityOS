@@ -21,14 +21,16 @@ export async function GET(request: NextRequest) {
     const end = endDate ? new Date(endDate) : new Date();
     const start = startDate ? new Date(startDate) : subDays(end, 30);
 
-    // Get total rooms
-    const roomWhere: Record<string, unknown> = {};
-    if (propertyId) {
-      roomWhere.propertyId = propertyId;
-    }
+    // Get total rooms — scope to tenant's properties
+    const tenantProperties = await db.property.findMany({
+      where: { tenantId },
+      select: { id: true },
+    });
+    const tenantPropertyIds = tenantProperties.map(p => p.id);
+    const effectivePropertyIds = propertyId ? [propertyId] : tenantPropertyIds;
 
     const rooms = await db.room.findMany({
-      where: roomWhere,
+      where: { propertyId: { in: effectivePropertyIds } },
       include: {
         roomType: true,
       },
@@ -36,9 +38,9 @@ export async function GET(request: NextRequest) {
 
     const totalRooms = rooms.length;
 
-    // Get room types for grouping
+    // Get room types for grouping — scoped to tenant's properties
     const roomTypes = await db.roomType.findMany({
-      where: propertyId ? { propertyId } : undefined,
+      where: { propertyId: { in: effectivePropertyIds } },
       select: { id: true, name: true },
     });
 

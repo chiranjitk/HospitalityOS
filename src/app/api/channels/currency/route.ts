@@ -141,9 +141,9 @@ export async function POST(request: NextRequest) {
     if (action === 'convert') {
       const { configId, baseRate, tenantId } = body;
 
-      if (!configId || baseRate === undefined || baseRate === null || !tenantId) {
+      if (!configId || baseRate === undefined || baseRate === null) {
         return NextResponse.json(
-          { success: false, error: { code: 'VALIDATION_ERROR', message: 'configId, baseRate, and tenantId are required' } },
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'configId and baseRate are required' } },
           { status: 400 }
         );
       }
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
         where: { id: configId },
       });
 
-      if (!config || config.tenantId !== tenantId) {
+      if (!config || config.tenantId !== ctx.tenantId) {
         return NextResponse.json(
           { success: false, error: { code: 'NOT_FOUND', message: 'Currency config not found' } },
           { status: 404 }
@@ -191,9 +191,9 @@ export async function POST(request: NextRequest) {
     if (action === 'batch-convert') {
       const { configId, baseRates, tenantId } = body;
 
-      if (!configId || !tenantId || !Array.isArray(baseRates) || baseRates.length === 0) {
+      if (!configId || !Array.isArray(baseRates) || baseRates.length === 0) {
         return NextResponse.json(
-          { success: false, error: { code: 'VALIDATION_ERROR', message: 'configId, tenantId, and non-empty baseRates array are required' } },
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'configId and non-empty baseRates array are required' } },
           { status: 400 }
         );
       }
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
         where: { id: configId },
       });
 
-      if (!config || config.tenantId !== tenantId) {
+      if (!config || config.tenantId !== ctx.tenantId) {
         return NextResponse.json(
           { success: false, error: { code: 'NOT_FOUND', message: 'Currency config not found' } },
           { status: 404 }
@@ -252,10 +252,24 @@ export async function POST(request: NextRequest) {
       isActive,
     } = body;
 
-    // Validate required fields
-    if (!tenantId || !connectionId || !channelCode || !targetCurrency) {
+    // SECURITY FIX: Use tenantId from auth context, not from request body
+    const effectiveTenantId = ctx.tenantId;
+
+    // SECURITY FIX: Verify connection belongs to tenant
+    const connectionCheck = await db.channelConnection.findFirst({
+      where: { id: connectionId, tenantId: effectiveTenantId },
+    });
+    if (!connectionCheck) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'tenantId, connectionId, channelCode, and targetCurrency are required' } },
+        { success: false, error: { code: 'NOT_FOUND', message: 'Channel connection not found or access denied' } },
+        { status: 404 }
+      );
+    }
+
+    // Validate required fields
+    if (!connectionId || !channelCode || !targetCurrency) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'connectionId, channelCode, and targetCurrency are required' } },
         { status: 400 }
       );
     }
@@ -278,21 +292,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify connection exists
-    const connection = await db.channelConnection.findUnique({
-      where: { id: connectionId },
-    });
-
-    if (!connection) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Channel connection not found' } },
-        { status: 404 }
-      );
-    }
+    // Connection already verified above (tenant-isolated)
+    const connection = connectionCheck;
 
     const config = await db.channelCurrencyConfig.create({
       data: {
-        tenantId,
+        tenantId: effectiveTenantId,
         propertyId: propertyId || null,
         connectionId,
         channelCode: channelCode || connection.channel,
@@ -312,7 +317,7 @@ export async function POST(request: NextRequest) {
     if (exchangeRate) {
       await db.channelCurrencyHistory.create({
         data: {
-          tenantId,
+          tenantId: effectiveTenantId,
           configId: config.id,
           sourceCurrency: config.sourceCurrency,
           targetCurrency: config.targetCurrency,
@@ -357,7 +362,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const existing = await db.channelCurrencyConfig.findUnique({ where: { id } });
+    // SECURITY FIX: Verify config belongs to user's tenant
+    const existing = await db.channelCurrencyConfig.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!existing) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Currency config not found' } },
@@ -478,7 +484,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const existing = await db.channelCurrencyConfig.findUnique({ where: { id } });
+    // SECURITY FIX: Verify config belongs to user's tenant
+    const existing = await db.channelCurrencyConfig.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!existing) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Currency config not found' } },

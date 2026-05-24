@@ -236,7 +236,7 @@ async function handlePaymentIntentSucceeded(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const piId = paymentIntent.id as string;
-    const amount = (paymentIntent.amount as number) / 100;
+    const amount = Math.round((paymentIntent.amount as number)) / 100;
     const currency = (paymentIntent.currency as string)?.toUpperCase() || 'USD';
 
     const payment = await db.payment.findFirst({ where: { gateway: 'stripe', gatewayRef: piId } });
@@ -298,7 +298,7 @@ async function handleChargeRefunded(
   try {
     const chargeId = charge.id as string;
     const paymentIntentId = charge.payment_intent as string | undefined;
-    const amountRefunded = (charge.amount_refunded as number) / 100;
+    const amountRefunded = Math.round((charge.amount_refunded as number)) / 100;
 
     const payment = await db.payment.findFirst({
       where: { gateway: 'stripe', OR: [{ gatewayRef: chargeId }, { gatewayRef: paymentIntentId || '' }] },

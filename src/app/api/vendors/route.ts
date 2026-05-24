@@ -401,7 +401,13 @@ export async function PUT(request: NextRequest) {
     }
 
     // Hash new password if provided
-    const updateData: Record<string, unknown> = { ...updates };
+    const allowedVendorFields = ['name', 'contactPerson', 'email', 'phone', 'address', 'type', 'paymentTerms', 'status', 'notes', 'portalEmail'];
+    const updateData: Record<string, unknown> = {};
+    for (const field of allowedVendorFields) {
+      if (updates[field] !== undefined) {
+        updateData[field] = updates[field];
+      }
+    }
     if (portalPassword) {
       updateData.portalPassword = await bcrypt.hash(portalPassword, 12);
     }

@@ -60,6 +60,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       beo = await db.$transaction(async (tx) => {
         await tx.bEOItem.deleteMany({ where: { orderId: id } });
         const totalAmount = items.reduce((s: number, i: { unitPrice: number; quantity: number }) => s + (i.unitPrice || 0) * (i.quantity || 1), 0);
+        // Re-create items inside transaction for atomicity
+        await tx.bEOItem.createMany({
+          data: items.map((i: { category?: string; description?: string; quantity: number; unitPrice: number; notes?: string; sortOrder?: number }, idx: number) => ({
+            orderId: id,
+            category: i.category || 'food', description: i.description,
+            quantity: i.quantity || 1, unitPrice: i.unitPrice || 0,
+            totalPrice: (i.unitPrice || 0) * (i.quantity || 1),
+            notes: i.notes, sortOrder: i.sortOrder ?? idx,
+          })),
+        });
         return tx.banquetEventOrder.update({
           where: { id }, data: { ...updateData, totalAmount },
           include: { items: { orderBy: { sortOrder: 'asc' } } },

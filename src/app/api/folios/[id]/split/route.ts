@@ -267,10 +267,11 @@ export async function POST(
         where: { folioId: sourceFolio.id },
       });
 
-      const recalcSubtotal = remainingLineItems.reduce((sum, item) => sum + item.totalAmount, 0);
-      const recalcTaxes = remainingLineItems.reduce((sum, item) => sum + item.taxAmount, 0);
-      const recalcTotal = recalcSubtotal + recalcTaxes;
-      const recalcBalance = recalcTotal - sourceFolio.paidAmount;
+      const recalcSubtotal = Math.round(remainingLineItems.reduce((sum, item) => sum + item.totalAmount, 0) * 100) / 100;
+      const recalcTaxes = Math.round(remainingLineItems.reduce((sum, item) => sum + item.taxAmount, 0) * 100) / 100;
+      // BALANCE FIX: include discount in total, use balance = total - paidAmount
+      const recalcTotal = Math.round((recalcSubtotal + recalcTaxes - (sourceFolio.discount || 0)) * 100) / 100;
+      const recalcBalance = Math.max(0, Math.round((recalcTotal - (sourceFolio.paidAmount || 0)) * 100) / 100);
 
       // Update source folio
       const updatedSourceFolio = await tx.folio.update({
@@ -279,7 +280,7 @@ export async function POST(
           subtotal: recalcSubtotal,
           taxes: recalcTaxes,
           totalAmount: recalcTotal,
-          balance: Math.max(0, recalcBalance),
+          balance: recalcBalance,
         },
         include: {
           booking: {

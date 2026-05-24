@@ -212,16 +212,19 @@ export async function POST(request: NextRequest) {
     const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
 
     // Try to find an existing guest by email within the same tenant
-    let guest = await db.guest.findFirst({
-      where: {
-        tenantId: website.tenantId,
-        email: guestEmail.toLowerCase(),
-      },
-    });
+    // GAP-FIX(17b): Wrapped guest find-or-create in transaction to prevent TOCTOU race condition
+    let guest = await db.$transaction(async (tx) => {
+      const existing = await tx.guest.findFirst({
+        where: {
+          tenantId: website.tenantId,
+          email: guestEmail.toLowerCase(),
+        },
+      });
 
-    if (!guest) {
+      if (existing) return existing;
+
       // Create a new guest record
-      guest = await db.guest.create({
+      return tx.guest.create({
         data: {
           tenantId: website.tenantId,
           firstName,
@@ -231,7 +234,7 @@ export async function POST(request: NextRequest) {
           source: 'website',
         },
       });
-    }
+    });
 
     // ---- 7. Create the booking ----
     const checkInDatetime = new Date(checkIn);

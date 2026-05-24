@@ -260,31 +260,30 @@ export async function POST(request: NextRequest) {
         ? Math.floor((now.getTime() - shiftStart.getTime()) / (1000 * 60))
         : 0;
 
-      if (record) {
-        // Update existing record
-        record = await db.staffAttendance.update({
-          where: { id: record.id },
-          data: {
-            checkIn: now,
-            status: isLate ? 'late' : 'present',
-            lateMinutes: Math.max(0, lateMinutes - shiftConfig.graceMinutes),
-            notes,
-          },
-        });
-      } else {
-        // Create new record
-        record = await db.staffAttendance.create({
-          data: {
-            tenantId,
+      // Use upsert to prevent race condition from concurrent clock-in requests
+      record = await db.staffAttendance.upsert({
+        where: {
+          userId_date: {
             userId: targetStaffId,
             date: today,
-            checkIn: now,
-            status: isLate ? 'late' : 'present',
-            lateMinutes: Math.max(0, lateMinutes - shiftConfig.graceMinutes),
-            notes,
           },
-        });
-      }
+        },
+        create: {
+          tenantId,
+          userId: targetStaffId,
+          date: today,
+          checkIn: now,
+          status: isLate ? 'late' : 'present',
+          lateMinutes: Math.max(0, lateMinutes - shiftConfig.graceMinutes),
+          notes,
+        },
+        update: {
+          checkIn: now,
+          status: isLate ? 'late' : 'present',
+          lateMinutes: Math.max(0, lateMinutes - shiftConfig.graceMinutes),
+          notes,
+        },
+      });
     } else if (type === 'clock_out') {
       if (!record || !record.checkIn) {
         return NextResponse.json(

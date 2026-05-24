@@ -71,10 +71,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const { macAddress, reason, subnetId, enabled } = body;
 
+    // Validate MAC address format if provided
+    if (macAddress !== undefined) {
+      const macRegex = /^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$/;
+      if (!macRegex.test(macAddress)) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid MAC address format. Use XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX' } },
+          { status: 400 },
+        );
+      }
+    }
+
     const updated = await db.dhcpBlacklist.update({
       where: { id },
       data: {
-        ...(macAddress !== undefined && { macAddress }),
+        ...(macAddress !== undefined && { macAddress: macAddress.trim().toLowerCase() }),
         ...(reason !== undefined && { reason }),
         ...(subnetId !== undefined && { subnetId: subnetId === '__all__' || subnetId === null ? null : subnetId }),
         ...(enabled !== undefined && { enabled }),

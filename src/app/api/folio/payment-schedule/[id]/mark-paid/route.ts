@@ -127,12 +127,28 @@ export async function POST(
         },
       });
 
-      // Also update the folio's paidAmount and balance
+      // BALANCE FIX: Recalculate folio from ALL line items + payments instead of increment/decrement
+      // to prevent drift if folio was modified concurrently
+      const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: schedule.folioId } });
+      const newSubtotal = Math.round(allLineItems.reduce((sum, li) => sum + li.totalAmount, 0) * 100) / 100;
+      const newTaxes = Math.round(allLineItems.reduce((sum, li) => sum + (li.taxAmount || 0), 0) * 100) / 100;
+      const folioData = await tx.folio.findUnique({ where: { id: schedule.folioId } });
+      const newTotalAmount = Math.round((newSubtotal + newTaxes - (folioData?.discount || 0)) * 100) / 100;
+      const allPayments = await tx.payment.findMany({
+        where: { folioId: schedule.folioId, status: 'completed' },
+        select: { amount: true },
+      });
+      const newPaidAmount = Math.round(allPayments.reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
+      const newBalance = Math.max(0, Math.round((newTotalAmount - newPaidAmount) * 100) / 100);
+
       await tx.folio.update({
         where: { id: schedule.folioId },
         data: {
-          paidAmount: { increment: installmentAmount },
-          balance: { decrement: installmentAmount },
+          subtotal: newSubtotal,
+          taxes: newTaxes,
+          totalAmount: newTotalAmount,
+          paidAmount: newPaidAmount,
+          balance: newBalance,
         },
       });
 

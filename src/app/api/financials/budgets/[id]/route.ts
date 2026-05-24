@@ -148,8 +148,11 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Cannot delete an approved or active budget' }, { status: 400 });
     }
 
-    await db.budgetLine.deleteMany({ where: { budgetId: id } });
-    await db.budget.delete({ where: { id } });
+    // Delete budget lines and budget atomically
+    await db.$transaction(async (tx) => {
+      await tx.budgetLine.deleteMany({ where: { budgetId: id } });
+      await tx.budget.delete({ where: { id } });
+    });
 
     return NextResponse.json({ success: true, message: 'Budget deleted' });
   } catch (error) {

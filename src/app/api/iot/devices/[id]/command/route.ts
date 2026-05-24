@@ -24,9 +24,15 @@ export async function POST(
       );
     }
 
-    // Check device exists
+    // Check device exists and belongs to tenant
     const device = await db.iotDevice.findUnique({ where: { id } });
     if (!device) {
+      return NextResponse.json(
+        { success: false, error: 'Device not found' },
+        { status: 404 }
+      );
+    }
+    if (device.tenantId !== context.tenantId) {
       return NextResponse.json(
         { success: false, error: 'Device not found' },
         { status: 404 }

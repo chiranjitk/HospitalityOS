@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit');
     const offset = searchParams.get('offset');
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { tenantId: user.tenantId };
     if (propertyId) where.propertyId = propertyId;
     if (status) where.status = status;
     if (type) where.type = type;
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Count by status and type for summary
-    const summaryWhere: Record<string, unknown> = {};
+    const summaryWhere: Record<string, unknown> = { tenantId: user.tenantId };
     if (propertyId) summaryWhere.propertyId = propertyId;
 
     const [statusCounts, typeCounts] = await Promise.all([
@@ -132,6 +132,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate MTU range (576-9000)
+    const mtuVal = parseInt(String(mtu), 10);
+    if (isNaN(mtuVal) || mtuVal < 576 || mtuVal > 9000) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'MTU must be between 576 and 9000' } },
+        { status: 400 },
+      );
+    }
+
+    // Verify property belongs to tenant
+    const property = await db.property.findFirst({
+      where: { id: propertyId, tenantId },
+    });
+    if (!property) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Property not found' } },
+        { status: 404 },
+      );
+    }
+
     // Check for duplicate name within the property
     const existing = await db.networkInterface.findFirst({
       where: { propertyId, name },
@@ -151,7 +171,7 @@ export async function POST(request: NextRequest) {
         name,
         type,
         hwAddress,
-        mtu: parseInt(mtu, 10),
+        mtu: mtuVal,
         speed,
         status,
         carrier,

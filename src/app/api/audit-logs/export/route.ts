@@ -32,6 +32,14 @@ export async function GET(request: NextRequest) {
     const tenantId = user.tenantId;
     const { searchParams } = new URL(request.url);
     const format = searchParams.get('format') || 'json';
+
+    // Validate export format
+    if (!['json', 'csv'].includes(format)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid format. Supported formats: json, csv' },
+        { status: 400 }
+      );
+    }
     
     // Parse query parameters
     const moduleFilter = searchParams.get('module') as AuditModule | null;

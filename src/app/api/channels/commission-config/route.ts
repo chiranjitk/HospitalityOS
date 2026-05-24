@@ -151,7 +151,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const config = await db.channelCommissionConfig.findUnique({ where: { id: configId } });
+      // SECURITY FIX: Verify config belongs to user's tenant
+      const config = await db.channelCommissionConfig.findFirst({ where: { id: configId, tenantId: ctx.tenantId } });
       if (!config) {
         return NextResponse.json(
           { success: false, error: { code: 'NOT_FOUND', message: 'Commission config not found' } },
@@ -260,7 +261,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const source = await db.channelCommissionConfig.findUnique({ where: { id: sourceConfigId } });
+      // SECURITY FIX: Verify source config belongs to user's tenant
+      const source = await db.channelCommissionConfig.findFirst({ where: { id: sourceConfigId, tenantId: ctx.tenantId } });
       if (!source) {
         return NextResponse.json(
           { success: false, error: { code: 'NOT_FOUND', message: 'Source config not found' } },
@@ -336,10 +338,13 @@ export async function POST(request: NextRequest) {
       effectiveTo,
     } = body;
 
+    // SECURITY FIX: Use tenantId from auth context, not from request body
+    const effectiveTenantId = ctx.tenantId;
+
     // Validate required fields
-    if (!tenantId || !connectionId || !channelCode) {
+    if (!connectionId || !channelCode) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'tenantId, connectionId, and channelCode are required' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'connectionId and channelCode are required' } },
         { status: 400 }
       );
     }
@@ -371,7 +376,7 @@ export async function POST(request: NextRequest) {
 
     const config = await db.channelCommissionConfig.create({
       data: {
-        tenantId,
+        tenantId: effectiveTenantId,
         propertyId: propertyId || null,
         connectionId,
         channelCode,
@@ -418,7 +423,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const existing = await db.channelCommissionConfig.findUnique({ where: { id } });
+    // SECURITY FIX: Verify config belongs to user's tenant
+    const existing = await db.channelCommissionConfig.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!existing) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Commission config not found' } },
@@ -481,7 +487,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const existing = await db.channelCommissionConfig.findUnique({ where: { id } });
+    // SECURITY FIX: Verify config belongs to user's tenant
+    const existing = await db.channelCommissionConfig.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!existing) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Commission config not found' } },

@@ -278,6 +278,17 @@ export async function PUT(request: NextRequest) {
 
     // Update a specific shift template
     if (shiftTemplateId) {
+      // Verify the shift template belongs to the user's tenant
+      const existingTemplate = await db.shiftTemplate.findFirst({
+        where: { id: shiftTemplateId, tenantId },
+      });
+      if (!existingTemplate) {
+        return NextResponse.json(
+          { success: false, error: { code: 'NOT_FOUND', message: 'Shift template not found or access denied' } },
+          { status: 404 }
+        );
+      }
+
       const updateData: Record<string, unknown> = {};
 
       if (shiftData.name !== undefined) updateData.name = shiftData.name;

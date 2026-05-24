@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!hasPermission(user, 'financials:read') && !hasPermission(user, 'financials.*') && user.roleName !== 'admin') {
+    if (!hasPermission(user, 'financials:write') && !hasPermission(user, 'financials.*') && user.roleName !== 'admin') {
       return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 

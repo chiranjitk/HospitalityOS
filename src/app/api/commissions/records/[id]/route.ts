@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
+import { hasPermission } from '@/lib/auth-helpers';
 import { z } from 'zod';
 
 // ──────────────────────────────────────────────
@@ -70,6 +71,10 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!hasPermission(user, 'commissions.write') && !hasPermission(user, 'commissions.*') && !hasPermission(user, '*')) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const { id } = await params;

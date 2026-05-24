@@ -85,6 +85,13 @@ export async function DELETE(
 
     const { id } = await params;
 
+    if (!hasPermission(user, 'ai.copilot') && !hasPermission(user, 'ai.manage')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const conversation = await db.aiConversation.findUnique({
       where: { id, tenantId: user.tenantId, userId: user.id },
     });

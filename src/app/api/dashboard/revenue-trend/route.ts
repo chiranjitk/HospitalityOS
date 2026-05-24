@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
 
       dailyData.push({
         day: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
-        revenue: Math.round(dayRevenue),
+        revenue: Math.round(dayRevenue * 100) / 100,
       });
     }
 

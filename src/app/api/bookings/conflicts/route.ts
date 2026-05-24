@@ -962,6 +962,14 @@ export async function PUT(request: NextRequest) {    const user = await requireP
             );
           }
 
+          // SECURITY FIX: Release room when cancelling booking in conflict resolution
+          if (cancelBookingCheck.roomId) {
+            await db.room.update({
+              where: { id: cancelBookingCheck.roomId },
+              data: { status: 'available' },
+            });
+          }
+
           const booking = await db.booking.update({
             where: { id: bookingIds[i] },
             data: {

@@ -38,7 +38,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const record = await db.roomVlan.findFirst({
-      where: tenantWhere(user, { id }),
+      where: tenantWhere(user.tenantId, { id }),
       include: {
         bandwidthPolicy: { select: { id: true, name: true } },
         parentInterface: { select: { id: true, name: true, type: true, status: true, description: true } },
@@ -86,7 +86,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // Verify record exists
     const existing = await db.roomVlan.findFirst({
-      where: tenantWhere(user, { id }),
+      where: tenantWhere(user.tenantId, { id }),
     });
 
     if (!existing) {
@@ -115,7 +115,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Check roomNumber uniqueness if changing
     if (roomNumber && roomNumber !== existing.roomNumber) {
       const dup = await db.roomVlan.findFirst({
-        where: tenantWhere(user, { propertyId: existing.propertyId, roomNumber, id: { not: existing.id } }),
+        where: tenantWhere(user.tenantId, { propertyId: existing.propertyId, roomNumber, id: { not: existing.id } }),
       });
       if (dup) {
         return NextResponse.json(
@@ -131,7 +131,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Check vlanId uniqueness if changing
     if (vlanId !== undefined && vlanId !== existing.vlanId) {
       const dup = await db.roomVlan.findFirst({
-        where: tenantWhere(user, { propertyId: existing.propertyId, vlanId: parseInt(vlanId, 10), id: { not: existing.id } }),
+        where: tenantWhere(user.tenantId, { propertyId: existing.propertyId, vlanId: parseInt(vlanId, 10), id: { not: existing.id } }),
       });
       if (dup) {
         return NextResponse.json(
@@ -225,7 +225,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     const existing = await db.roomVlan.findFirst({
-      where: tenantWhere(user, { id }),
+      where: tenantWhere(user.tenantId, { id }),
     });
 
     if (!existing) {

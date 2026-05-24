@@ -128,24 +128,38 @@ export async function POST(
       console.error('Cancellation penalty application failed:', err);
 
       // Still try to cancel the booking even if penalty fails
+      // SECURITY FIX: Wrap fallback cancel + room release in a single transaction
       try {
-        await db.booking.update({
-          where: { id: booking.id },
-          data: {
-            status: 'cancelled',
-            cancelledAt: new Date(),
-            cancelledBy: user.id,
-            cancellationReason: reason || 'Cancelled (penalty application failed)',
-          },
-        });
-
-        // Release room
-        if (booking.roomId) {
-          await db.room.update({
-            where: { id: booking.roomId },
-            data: { status: 'available' },
+        await db.$transaction(async (tx) => {
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: {
+              status: 'cancelled',
+              cancelledAt: new Date(),
+              cancelledBy: user.id,
+              cancellationReason: reason || 'Cancelled (penalty application failed)',
+            },
           });
-        }
+
+          // Release room inside same transaction
+          if (booking.roomId) {
+            await tx.room.update({
+              where: { id: booking.roomId },
+              data: { status: 'available' },
+            });
+          }
+
+          // Close the open folio to prevent orphaned charges
+          const openFolio = await tx.folio.findFirst({
+            where: { bookingId: booking.id, status: { in: ['open', 'partially_paid'] } },
+          });
+          if (openFolio) {
+            await tx.folio.update({
+              where: { id: openFolio.id },
+              data: { status: 'closed', closedAt: new Date() },
+            });
+          }
+        });
 
         return NextResponse.json({
           success: true,

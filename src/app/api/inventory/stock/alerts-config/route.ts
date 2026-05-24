@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 /**
  * GET /api/inventory/stock/alerts-config
@@ -75,6 +75,10 @@ export async function PUT(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user?.tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!hasPermission(user, 'inventory.update') && !hasPermission(user, 'inventory.*') && !hasPermission(user, '*')) {
+      return NextResponse.json({ error: 'Forbidden: Insufficient permissions' }, { status: 403 });
     }
 
     const body = await request.json();

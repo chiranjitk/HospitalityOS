@@ -66,6 +66,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate token format (hex string)
+    if (!/^[a-fA-F0-9]{64}$/.test(token)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid token format' },
+        { status: 400 }
+      );
+    }
+
+    // Prevent excessively long passwords (DoS via bcrypt)
+    if (newPassword.length > 128) {
+      return NextResponse.json(
+        { success: false, error: 'Password is too long (max 128 characters)' },
+        { status: 400 }
+      );
+    }
+
     // Validate password strength
     const passwordCheck = validatePasswordStrength(newPassword);
     if (!passwordCheck.valid) {

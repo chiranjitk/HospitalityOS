@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/identity-logs/[id] — Get a single log entry
 export async function GET(
@@ -10,6 +10,13 @@ export async function GET(
 ) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
+
+  if (!hasPermission(auth, 'wifi.manage') && !hasPermission(auth, 'reports.view')) {
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied: requires wifi.manage or reports.view' } },
+      { status: 403 },
+    );
+  }
 
   try {
     const { id } = await params;
@@ -49,6 +56,13 @@ export async function PATCH(
 ) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
+
+  if (!hasPermission(auth, 'wifi.manage')) {
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied: requires wifi.manage' } },
+      { status: 403 },
+    );
+  }
 
   try {
     const { id } = await params;

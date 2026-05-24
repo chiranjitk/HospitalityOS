@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -231,19 +232,23 @@ function buildNftRuleLinesForChain(rule: DbRule, targetChain: GuiChain): string[
 // GET /api/wifi/firewall/config/preview — Generate full nftables config preview
 export async function GET(request: NextRequest) {
   try {
-    // Fetch all enabled rules (single-location device — no property filter needed)
+    // ── Auth ──
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
+    // Fetch all enabled rules scoped to tenant
     const rules = await db.firewallRule.findMany({
-      where: { enabled: true },
+      where: { enabled: true, tenantId: auth.tenantId },
       orderBy: { priority: 'asc' },
     });
 
     const portForwards = await db.portForwardRule.findMany({
-      where: { enabled: true },
+      where: { enabled: true, tenantId: auth.tenantId },
       orderBy: { externalPort: 'asc' },
     });
 
     const quickBlocks = await db.quickBlock.findMany({
-      where: { enabled: true },
+      where: { enabled: true, tenantId: auth.tenantId },
     });
 
     // Merge port forwards as DNAT rules

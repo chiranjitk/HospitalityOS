@@ -569,13 +569,16 @@ export async function PUT(request: NextRequest) {
         )
       }
 
+      const parsedAdjustment = Number(parseFloat(adjustmentAmount).toFixed(2))
+      const newReconciledAmount = Number((existing.reconciledAmount + parsedAdjustment).toFixed(2))
+
       const reconciliation = await db.reconciliation.update({
         where: { id },
         data: {
           status: 'adjusted',
-          adjustmentAmount: parseFloat(adjustmentAmount),
+          adjustmentAmount: parsedAdjustment,
           adjustmentReason,
-          reconciledAmount: existing.reconciledAmount + parseFloat(adjustmentAmount)
+          reconciledAmount: newReconciledAmount,
         }
       })
       return NextResponse.json(reconciliation)
@@ -585,7 +588,7 @@ export async function PUT(request: NextRequest) {
     const dataToUpdate: any = {}
     if (updateData.status) dataToUpdate.status = updateData.status
     if (updateData.notes !== undefined) dataToUpdate.notes = updateData.notes
-    if (updateData.adjustmentAmount !== undefined) dataToUpdate.adjustmentAmount = parseFloat(updateData.adjustmentAmount)
+    if (updateData.adjustmentAmount !== undefined) dataToUpdate.adjustmentAmount = Number(parseFloat(updateData.adjustmentAmount).toFixed(2))
     if (updateData.adjustmentReason !== undefined) dataToUpdate.adjustmentReason = updateData.adjustmentReason
 
     const reconciliation = await db.reconciliation.update({

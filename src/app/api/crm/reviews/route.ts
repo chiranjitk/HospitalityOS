@@ -134,6 +134,25 @@ export async function POST(request: NextRequest) {    const user = await require
       );
     }
 
+    // Validate rating range (1-5)
+    if (overallRating < 1 || overallRating > 5) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Rating must be between 1 and 5' } },
+        { status: 400 }
+      );
+    }
+
+    // Validate sub-ratings if provided
+    const subRatings = [cleanlinessRating, serviceRating, locationRating, valueRating].filter(r => r !== undefined && r !== null);
+    for (const sr of subRatings) {
+      if (sr < 1 || sr > 5) {
+        return NextResponse.json(
+          { success: false, error: { message: 'All sub-ratings must be between 1 and 5' } },
+          { status: 400 }
+        );
+      }
+    }
+
     // Verify guest belongs to current tenant
     const guestExists = await db.guest.findFirst({
       where: { id: guestId, tenantId: user.tenantId },

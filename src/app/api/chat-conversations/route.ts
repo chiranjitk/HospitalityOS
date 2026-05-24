@@ -193,6 +193,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verify property belongs to user's tenant
+    const property = await db.property.findFirst({
+      where: { id: propertyId, tenantId: user.tenantId, deletedAt: null },
+    });
+    if (!property) {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_PROPERTY', message: 'Property not found or access denied' } },
+        { status: 400 }
+      );
+    }
+
     const conversation = await db.chatConversation.create({
       data: {
         tenantId,

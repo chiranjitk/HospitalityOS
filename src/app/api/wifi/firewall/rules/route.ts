@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { fullApplyToNftables } from '@/lib/nftables-helper';
+import { isValidIpOrCidr } from '@/lib/ip-whitelist/utils';
 
 // GET /api/wifi/firewall/rules - List firewall rules with filters
 export async function GET(request: NextRequest) {
@@ -125,6 +126,40 @@ export async function POST(request: NextRequest) {
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'jumpTarget is required when action is "jump"' } },
         { status: 400 }
       );
+    }
+
+    // Validate IP addresses
+    if (sourceIp !== undefined && sourceIp !== null && !isValidIpOrCidr(sourceIp)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid sourceIp. Must be a valid IPv4 address or CIDR' } },
+        { status: 400 }
+      );
+    }
+    if (destIp !== undefined && destIp !== null && !isValidIpOrCidr(destIp)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid destIp. Must be a valid IPv4 address or CIDR' } },
+        { status: 400 }
+      );
+    }
+
+    // Validate ports
+    if (sourcePort !== undefined && sourcePort !== null) {
+      const sp = parseInt(sourcePort, 10);
+      if (isNaN(sp) || sp < 1 || sp > 65535) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'sourcePort must be between 1 and 65535' } },
+          { status: 400 }
+        );
+      }
+    }
+    if (destPort !== undefined && destPort !== null) {
+      const dp = parseInt(destPort, 10);
+      if (isNaN(dp) || dp < 1 || dp > 65535) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'destPort must be between 1 and 65535' } },
+          { status: 400 }
+        );
+      }
     }
 
     const rule = await db.firewallRule.create({

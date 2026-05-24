@@ -227,12 +227,26 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Non-platform-admins cannot assign admin or platform_admin roles
-    if (!currentUser.isPlatformAdmin && roleId) {
+    // Also verify the role belongs to the same tenant (prevent cross-tenant role assignment)
+    if (roleId) {
       const targetRole = await db.role.findUnique({
         where: { id: roleId },
-        select: { name: true },
+        select: { name: true, tenantId: true },
       });
-      if (targetRole && (targetRole.name === 'admin' || targetRole.name === 'platform_admin')) {
+      if (!targetRole) {
+        return NextResponse.json(
+          { error: 'Role not found' },
+          { status: 400 }
+        );
+      }
+      // Verify role belongs to the same tenant (security critical)
+      if (!currentUser.isPlatformAdmin && targetRole.tenantId !== currentUser.tenantId) {
+        return NextResponse.json(
+          { error: 'Permission denied. Cannot assign a role from another tenant.' },
+          { status: 403 }
+        );
+      }
+      if (!currentUser.isPlatformAdmin && (targetRole.name === 'admin' || targetRole.name === 'platform_admin')) {
         return NextResponse.json(
           { error: 'Permission denied. Cannot assign admin-level roles.' },
           { status: 403 }

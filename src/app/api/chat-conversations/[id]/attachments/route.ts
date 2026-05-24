@@ -31,6 +31,13 @@ export async function GET(
       );
     }
 
+    if (!hasPermission(user, 'chat.view') && !hasPermission(user, 'communication.chat')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const attachments = await db.chatAttachment.findMany({
       where: { conversationId: id, tenantId: user.tenantId },
       orderBy: { createdAt: 'desc' },
@@ -58,6 +65,13 @@ export async function POST(
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
         { status: 401 }
+      );
+    }
+
+    if (!hasPermission(user, 'chat.write') && !hasPermission(user, 'communication.chat')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
       );
     }
 
@@ -153,6 +167,13 @@ export async function DELETE(
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
         { status: 401 }
+      );
+    }
+
+    if (!hasPermission(user, 'chat.write') && !hasPermission(user, 'communication.chat')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
       );
     }
 

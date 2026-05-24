@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
-import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
 
 // GET /api/compliance - Compliance module overview with actual compliance data
@@ -17,16 +16,14 @@ export async function GET(request: NextRequest) {
     }
 
     const tenantId = ctx.tenantId;
-    const tenantId = user.tenantId;
 
     // Query compliance data from the database
-    const [gdprConsentRecords, recentAuditLogs, totalAuditLogs, dataExports] = await Promise.all([
+    const [gdprConsentRecords, recentAuditLogs, totalAuditLogs, gdprExports, ipWhitelistRuleCount] = await Promise.all([
       // Count GDPR consent records
-      db.consentRecord.count({
       db.gdprConsent.count({
         where: { tenantId },
       }),
-      // Recent audit logs (last 10)
+      // Recent audit logs (last 5)
       db.auditLog.findMany({
         where: { tenantId },
         orderBy: { createdAt: 'desc' },
@@ -38,19 +35,14 @@ export async function GET(request: NextRequest) {
         where: { tenantId },
       }),
       // Data export requests
-      db.gDPRRequest.count({
-        where: { tenantId, requestType: 'export', status: { in: ['pending', 'processing'] } },
       db.gdprDataRequest.count({
         where: { tenantId, type: 'export', status: { in: ['pending', 'processing'] } },
       }),
+      // Check if IP whitelist is configured
+      db.securitySetting.count({
+        where: { tenantId, type: 'ip_whitelist' },
+      }),
     ]);
-
-    // Check if IP whitelist is configured
-    const ipWhitelistCount = await db.ipWhitelistRule.count({
-      where: { tenantId },
-    const ipWhitelistCount = await db.securitySetting.count({
-      where: { tenantId, type: 'ip_whitelist' },
-    });
 
     return NextResponse.json({
       success: true,
@@ -59,8 +51,8 @@ export async function GET(request: NextRequest) {
         summary: {
           gdprConsentRecords,
           totalAuditLogs,
-          pendingDataExports: dataExports,
-          ipWhitelistConfigured: ipWhitelistCount > 0,
+          pendingDataExports: gdprExports,
+          ipWhitelistConfigured: ipWhitelistRuleCount > 0,
         },
         recentAuditLogs,
         endpoints: {

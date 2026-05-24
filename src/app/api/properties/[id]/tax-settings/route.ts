@@ -105,6 +105,36 @@ export async function PUT(
       serviceChargePercent,
       includeTaxInPrice,
     } = body;
+
+    // GAP-FIX(17b): Validate tax rate range
+    if (defaultTaxRate !== undefined) {
+      const rate = parseFloat(defaultTaxRate);
+      if (isNaN(rate) || rate < 0 || rate > 100) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'defaultTaxRate must be between 0 and 100' } },
+          { status: 400 }
+        );
+      }
+    }
+
+    // GAP-FIX(17b): Validate service charge range
+    if (serviceChargePercent !== undefined) {
+      const sc = parseFloat(serviceChargePercent);
+      if (isNaN(sc) || sc < 0 || sc > 100) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'serviceChargePercent must be between 0 and 100' } },
+          { status: 400 }
+        );
+      }
+    }
+
+    // GAP-FIX(17b): Validate taxComponents is an array if provided
+    if (taxComponents !== undefined && !Array.isArray(taxComponents)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'taxComponents must be an array' } },
+        { status: 400 }
+      );
+    }
     
     const oldValue = {
       taxId: existingProperty.taxId,

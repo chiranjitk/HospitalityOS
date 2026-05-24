@@ -69,20 +69,14 @@ export async function GET(request: NextRequest) {
   if (ctx instanceof NextResponse) return ctx;
 
   try {
+    // SECURITY FIX: Use tenantId from auth context, not from query params
+    const tenantId = ctx.tenantId;
     const searchParams = request.nextUrl.searchParams;
-    const tenantId = searchParams.get('tenantId');
     const connectionId = searchParams.get('connectionId');
     const channelCode = searchParams.get('channelCode');
     const roomTypeId = searchParams.get('roomTypeId');
     const ratePlanId = searchParams.get('ratePlanId');
     const isActive = searchParams.get('isActive');
-
-    if (!tenantId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'tenantId is required' } },
-        { status: 400 }
-      );
-    }
 
     const where: Record<string, unknown> = { tenantId };
 
@@ -361,8 +355,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Default: Create a new override
+    // SECURITY FIX: Use tenantId from auth context, not from request body
+    const effectiveTenantId = ctx.tenantId;
     const {
-      tenantId,
       propertyId,
       connectionId,
       channelCode,
@@ -384,9 +379,9 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
-    if (!tenantId || !channelCode || !name || overrideValue === undefined) {
+    if (!channelCode || !name || overrideValue === undefined) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'tenantId, channelCode, name, and overrideValue are required' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'channelCode, name, and overrideValue are required' } },
         { status: 400 }
       );
     }
@@ -411,7 +406,7 @@ export async function POST(request: NextRequest) {
 
     const override = await db.channelRateOverride.create({
       data: {
-        tenantId,
+        tenantId: effectiveTenantId,
         propertyId: propertyId || null,
         connectionId: connectionId || null,
         channelCode,
@@ -459,8 +454,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Verify override exists
-    const existing = await db.channelRateOverride.findUnique({ where: { id } });
+    // SECURITY FIX: Verify override belongs to user's tenant
+    const existing = await db.channelRateOverride.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!existing) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Rate override not found' } },
@@ -516,7 +511,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const existing = await db.channelRateOverride.findUnique({ where: { id } });
+    // SECURITY FIX: Verify override belongs to user's tenant
+    const existing = await db.channelRateOverride.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!existing) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Rate override not found' } },

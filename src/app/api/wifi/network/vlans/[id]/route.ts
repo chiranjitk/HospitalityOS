@@ -24,17 +24,18 @@ interface RouteParams {
 const VLAN_INCLUDE = { parentInterface: true, _count: { select: { dhcpSubnets: true } } };
 
 // Helper: resolve [id] — look up by subInterface (OS name) first, then UUID
-async function resolveVlan(id: string) {
+// CRITICAL: always filter by tenantId to prevent cross-tenant access
+async function resolveVlan(id: string, tenantId: string) {
   // Try subInterface name first (the natural OS identifier)
   const byName = await db.vlanConfig.findFirst({
-    where: { subInterface: id },
+    where: { subInterface: id, tenantId },
     include: VLAN_INCLUDE,
   });
   if (byName) return byName;
 
   // Fallback: try as UUID id
   return db.vlanConfig.findFirst({
-    where: { id },
+    where: { id, tenantId },
     include: VLAN_INCLUDE,
   });
 }
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   try {
     const { id } = await params;
-    const vlan = await resolveVlan(id);
+    const vlan = await resolveVlan(id, user.tenantId);
 
     if (!vlan) {
       return NextResponse.json(
@@ -84,7 +85,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const existing = await resolveVlan(id);
+    const existing = await resolveVlan(id, user.tenantId);
 
     if (!existing) {
       return NextResponse.json(
@@ -150,7 +151,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
   try {
     const { id } = await params;
-    const existing = await resolveVlan(id);
+    const existing = await resolveVlan(id, user.tenantId);
 
     if (!existing) {
       // Not in DB — try OS-level removal and report

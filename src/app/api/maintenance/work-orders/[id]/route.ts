@@ -188,43 +188,43 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const workOrder = await db.workOrder.update({
-      where: { id },
-      data: updateData,
-      include: {
-        vendor: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            type: true,
+    const workOrder = await db.$transaction(async (tx) => {
+      const wo = await tx.workOrder.update({
+        where: { id },
+        data: updateData,
+        include: {
+          vendor: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              type: true,
+            },
+          },
+          payments: {
+            select: {
+              id: true,
+              paymentNumber: true,
+              amount: true,
+              status: true,
+              paidAt: true,
+            },
           },
         },
-        payments: {
-          select: {
-            id: true,
-            paymentNumber: true,
-            amount: true,
-            status: true,
-            paidAt: true,
-          },
-        },
-      },
-    });
+      });
 
-    // Restore room status when work order is completed
-    if (status === 'completed' && existingWorkOrder.roomId) {
-      try {
-        await db.room.update({
+      // Restore room status when work order is completed (transactional — prevents inconsistent state)
+      if (status === 'completed' && existingWorkOrder.roomId) {
+        await tx.room.update({
           where: { id: existingWorkOrder.roomId },
           data: { status: 'dirty', housekeepingStatus: 'dirty' },
         });
         console.log(`[WorkOrder] Room ${existingWorkOrder.roomId} restored to 'dirty' after work order ${existingWorkOrder.workOrderNumber} completion`);
-      } catch (roomRestoreError) {
-        console.error(`[WorkOrder] Failed to restore room ${existingWorkOrder.roomId}:`, roomRestoreError);
       }
-    }
+
+      return wo;
+    });
 
     // Notify when work order starts in-progress for a room
     if (status === 'in_progress' && existingWorkOrder.status !== 'in_progress' && existingWorkOrder.roomId) {
@@ -282,11 +282,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Soft delete by setting deletedAt
+    // Cancel work order by setting status only (NOT soft-delete — deletedAt hides records from reports)
     await db.workOrder.update({
       where: { id },
       data: {
-        deletedAt: new Date(),
         status: 'cancelled',
       },
     });

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requireAuth, requirePermission } from '@/lib/auth/tenant-context';
 
 // GET /api/bookings/upgrade-offers - Get personalized upgrade offers for a checked-in booking
 export async function GET(request: NextRequest) {
-  const auth = await requireAuth(request);
-  if (auth instanceof NextResponse) return auth;
-  const { tenantId } = auth;
+  // SECURITY FIX: Add permission check
+  const permResult = await requirePermission(request, 'bookings.view');
+  if (permResult instanceof NextResponse) return permResult;
+  const { tenantId } = permResult;
 
   try {
     const bookingId = request.nextUrl.searchParams.get('bookingId');

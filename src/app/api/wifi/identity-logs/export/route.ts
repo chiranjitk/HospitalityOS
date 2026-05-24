@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/identity-logs/export — Export verification logs as CSV
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
+
+  if (!hasPermission(auth, 'wifi.manage') && !hasPermission(auth, 'reports.view')) {
+    return NextResponse.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied: requires wifi.manage or reports.view' } },
+      { status: 403 },
+    );
+  }
 
   try {
     const searchParams = request.nextUrl.searchParams;

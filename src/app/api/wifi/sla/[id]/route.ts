@@ -8,14 +8,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/sla/[id]
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAuth(request);
+  const auth = await requirePermission(request, 'wifi.manage');
   if (auth instanceof NextResponse) return auth;
 
   try {
@@ -54,7 +54,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAuth(request);
+  const auth = await requirePermission(request, 'wifi.manage');
   if (auth instanceof NextResponse) return auth;
 
   try {
@@ -107,7 +107,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAuth(request);
+  const auth = await requirePermission(request, 'wifi.manage');
   if (auth instanceof NextResponse) return auth;
 
   try {

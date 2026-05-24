@@ -43,8 +43,9 @@ export async function POST(request: NextRequest) {
     const { bookingId, forceCheckout } = parsed.data;
 
     // Fetch booking with all needed relations — must be checked_in and not soft-deleted
+    // Tenant isolation: ensure booking belongs to authenticated user's tenant
     const booking = await db.booking.findFirst({
-      where: { id: bookingId, status: 'checked_in', deletedAt: null },
+      where: { id: bookingId, tenantId: user.tenantId, status: 'checked_in', deletedAt null },
       include: {
         primaryGuest: {
           select: { id: true, firstName: true, lastName: true, email: true, phone: true },
@@ -165,15 +166,17 @@ export async function POST(request: NextRequest) {
               },
             });
 
-            // Recalculate folio totals
+            // Recalculate folio totals using canonical balance formula:
+            // balance = lineItems.reduce((sum, li) => sum + li.totalAmount, 0) - folio.paidAmount
             const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: wifiFolio.id } });
             const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+            const newBalance = newSubtotal - wifiFolio.paidAmount;
             await tx.folio.update({
               where: { id: wifiFolio.id },
               data: {
-                subtotal: newSubtotal,
-                totalAmount: newSubtotal + wifiFolio.taxes - wifiFolio.discount,
-                balance: Math.max(0, newSubtotal - wifiFolio.paidAmount),
+                subtotal: Math.round(newSubtotal * 100) / 100,
+                totalAmount: Math.round((newSubtotal + wifiFolio.taxes - wifiFolio.discount) * 100) / 100,
+                balance: Math.round(newBalance * 100) / 100,
               },
             });
           }

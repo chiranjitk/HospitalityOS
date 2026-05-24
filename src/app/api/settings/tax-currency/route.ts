@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { getCurrencySymbol } from '@/lib/currencies';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET - Get tax and currency settings
 export async function GET(request: NextRequest) {
@@ -177,40 +178,46 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { currency, taxes, taxGroups, rounding, taxSettings } = body;
 
-    // Get tenant
-    const tenant = await db.tenant.findUnique({
-      where: { id: tenantId, deletedAt: null },
+    // Wrap read-modify-write in a transaction to prevent race conditions
+    await db.$transaction(async (tx) => {
+      const tenant = await tx.tenant.findUnique({
+        where: { id: tenantId, deletedAt: null },
+      });
+
+      if (!tenant) {
+        throw new Error('Tenant not found');
+      }
+
+      // Update tenant with new settings
+      const currentSettings = tenant.settings ? JSON.parse(tenant.settings) : {};
+      const newSettings = {
+        ...currentSettings,
+        currencyPosition: currency?.position,
+        currencyDecimalPlaces: currency?.decimalPlaces,
+        currencyThousandSeparator: currency?.thousandSeparator,
+        currencyDecimalSeparator: currency?.decimalSeparator,
+        taxes: taxes,
+        taxGroups: taxGroups,
+        rounding: rounding,
+        taxSettings: taxSettings,
+      };
+
+      await tx.tenant.update({
+        where: { id: tenantId },
+        data: {
+          currency: currency?.default,
+          settings: JSON.stringify(newSettings),
+          updatedAt: new Date(),
+        },
+      });
     });
 
-    if (!tenant) {
-      return NextResponse.json(
-        { success: false, error: 'Tenant not found' },
-        { status: 404 }
-      );
+    // Audit log
+    try {
+      await auditLogService.logWithContext({ tenantId: user.tenantId, userId: user.id, module: 'settings', action: 'update', entityType: 'tax_currency_settings', description: 'Updated tax and currency settings' }, request);
+    } catch (auditErr) {
+      console.error('Audit log failed (non-blocking):', auditErr);
     }
-
-    // Update tenant with new settings
-    const currentSettings = tenant.settings ? JSON.parse(tenant.settings) : {};
-    const newSettings = {
-      ...currentSettings,
-      currencyPosition: currency?.position,
-      currencyDecimalPlaces: currency?.decimalPlaces,
-      currencyThousandSeparator: currency?.thousandSeparator,
-      currencyDecimalSeparator: currency?.decimalSeparator,
-      taxes: taxes,
-      taxGroups: taxGroups,
-      rounding: rounding,
-      taxSettings: taxSettings,
-    };
-
-    await db.tenant.update({
-      where: { id: tenantId },
-      data: {
-        currency: currency?.default,
-        settings: JSON.stringify(newSettings),
-        updatedAt: new Date(),
-      },
-    });
 
     return NextResponse.json({
       success: true,
@@ -258,80 +265,111 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get tenant
-    const tenant = await db.tenant.findUnique({
-      where: { id: tenantId, deletedAt: null },
-    });
-
-    if (!tenant) {
+    // Validate tax rate is a non-negative finite number
+    const parsedRate = parseFloat(tax.rate);
+    if (isNaN(parsedRate) || parsedRate < 0 || !Number.isFinite(parsedRate) || parsedRate > 100) {
       return NextResponse.json(
-        { success: false, error: 'Tenant not found' },
-        { status: 404 }
+        { success: false, error: 'Tax rate must be a number between 0 and 100' },
+        { status: 400 }
       );
     }
 
-    const currentSettings = tenant.settings ? JSON.parse(tenant.settings) : {};
-    const currentTaxes = (currentSettings.taxes as Array<{
-      id: string;
-      name: string;
-      rate: number;
-      type: string;
-      appliesTo: string;
-      included: boolean;
-      enabled: boolean;
-      priority: number;
-      compound: boolean;
-    }>) || getDefaultTaxes();
-
-    // Create new tax with unique ID
-    const newTax = {
-      id: uuidv4(),
-      name: tax.name,
-      rate: parseFloat(tax.rate),
-      type: tax.type || 'percentage',
-      appliesTo: tax.appliesTo || 'all',
-      included: tax.included ?? false,
-      enabled: tax.enabled ?? true,
-      priority: tax.priority ?? currentTaxes.length,
-      compound: tax.compound ?? false,
-    };
-
-    currentTaxes.push(newTax);
-    currentSettings.taxes = currentTaxes;
-
-    // Auto-populate: assign the new tax to relevant tax groups based on appliesTo
-    const currentTaxGroups = (currentSettings.taxGroups as Array<{
-      id: string;
-      name: string;
-      taxes: string[];
-      isDefault?: boolean;
-    }>) || getDefaultTaxGroups();
-
-    const appliesToMapping: Record<string, string[]> = {
-      all: ['Room Rates', 'Food & Beverage', 'Spa Services', 'Events & Conferences'],
-      room: ['Room Rates'],
-      food: ['Food & Beverage'],
-      beverage: ['Food & Beverage'],
-      service: ['Room Rates', 'Food & Beverage', 'Spa Services', 'Events & Conferences'],
-    };
-
-    const targetGroups = appliesToMapping[newTax.appliesTo] || appliesToMapping['all'];
-
-    for (const group of currentTaxGroups) {
-      if (targetGroups.includes(group.name) && newTax.enabled) {
-        if (!group.taxes.includes(newTax.id)) {
-          group.taxes.push(newTax.id);
-        }
+    // Validate currency code format if currency is being changed
+    if (tax?.currencyDefault) {
+      if (!/^[A-Z]{3}$/.test(tax.currencyDefault)) {
+        return NextResponse.json(
+          { success: false, error: 'Currency must be a valid 3-letter ISO code' },
+          { status: 400 }
+        );
       }
     }
-    currentSettings.taxGroups = currentTaxGroups;
 
-    await db.tenant.update({
-      where: { id: tenantId },
-      data: {
-        settings: JSON.stringify(currentSettings),
-        updatedAt: new Date(),
-      },
+    // Wrap read-modify-write in a transaction to prevent race conditions
+    let newTax: {
+      id: string; name: string; rate: number; type: string;
+      appliesTo: string; included: boolean; enabled: boolean;
+      priority: number; compound: boolean;
+    };
+
+    await db.$transaction(async (tx) => {
+      const tenant = await tx.tenant.findUnique({
+        where: { id: tenantId, deletedAt: null },
+      });
+
+      if (!tenant) {
+        throw new Error('Tenant not found');
+      }
+
+      const currentSettings = tenant.settings ? JSON.parse(tenant.settings) : {};
+      const currentTaxes = (currentSettings.taxes as Array<{
+        id: string;
+        name: string;
+        rate: number;
+        type: string;
+        appliesTo: string;
+        included: boolean;
+        enabled: boolean;
+        priority: number;
+        compound: boolean;
+      }>) || getDefaultTaxes();
+
+      // Create new tax with unique ID
+      newTax = {
+        id: uuidv4(),
+        name: tax.name,
+        rate: parsedRate,
+        type: tax.type || 'percentage',
+        appliesTo: tax.appliesTo || 'all',
+        included: tax.included ?? false,
+        enabled: tax.enabled ?? true,
+        priority: tax.priority ?? currentTaxes.length,
+        compound: tax.compound ?? false,
+      };
+
+      currentTaxes.push(newTax);
+      currentSettings.taxes = currentTaxes;
+
+      // Audit log
+      try {
+        await auditLogService.logWithContext({ tenantId: user.tenantId, userId: user.id, module: 'settings', action: 'create', entityType: 'tax', entityId: newTax.id, newValue: { name: newTax.name, rate: newTax.rate, appliesTo: newTax.appliesTo }, description: `Created tax: ${newTax.name}` }, request);
+      } catch (auditErr) {
+        console.error('Audit log failed (non-blocking):', auditErr);
+      }
+
+      // Auto-populate: assign the new tax to relevant tax groups based on appliesTo
+      const currentTaxGroups = (currentSettings.taxGroups as Array<{
+        id: string;
+        name: string;
+        taxes: string[];
+        isDefault?: boolean;
+      }>) || getDefaultTaxGroups();
+
+      const appliesToMapping: Record<string, string[]> = {
+        all: ['Room Rates', 'Food & Beverage', 'Spa Services', 'Events & Conferences'],
+        room: ['Room Rates'],
+        food: ['Food & Beverage'],
+        beverage: ['Food & Beverage'],
+        service: ['Room Rates', 'Food & Beverage', 'Spa Services', 'Events & Conferences'],
+      };
+
+      const targetGroups = appliesToMapping[newTax.appliesTo] || appliesToMapping['all'];
+
+      for (const group of currentTaxGroups) {
+        if (targetGroups.includes(group.name) && newTax.enabled) {
+          if (!group.taxes.includes(newTax.id)) {
+            group.taxes.push(newTax.id);
+          }
+        }
+      }
+      currentSettings.taxGroups = currentTaxGroups;
+
+      await tx.tenant.update({
+        where: { id: tenantId },
+        data: {
+          settings: JSON.stringify(currentSettings),
+          updatedAt: new Date(),
+        },
+      });
     });
 
     return NextResponse.json({
@@ -379,41 +417,48 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Get tenant
-    const tenant = await db.tenant.findUnique({
-      where: { id: tenantId, deletedAt: null },
-    });
+    // Wrap read-modify-write in a transaction to prevent race conditions
+    await db.$transaction(async (tx) => {
+      const tenant = await tx.tenant.findUnique({
+        where: { id: tenantId, deletedAt: null },
+      });
 
-    if (!tenant) {
-      return NextResponse.json(
-        { success: false, error: 'Tenant not found' },
-        { status: 404 }
-      );
-    }
+      if (!tenant) {
+        throw new Error('Tenant not found');
+      }
 
-    const currentSettings = tenant.settings ? JSON.parse(tenant.settings) : {};
-    const currentTaxes = (currentSettings.taxes as Array<{ id: string }>) || [];
+      const currentSettings = tenant.settings ? JSON.parse(tenant.settings) : {};
+      const currentTaxes = (currentSettings.taxes as Array<{ id: string }>) || [];
 
-    // Remove the tax
-    currentSettings.taxes = currentTaxes.filter(t => t.id !== taxId);
+      // Remove the tax
+      currentSettings.taxes = currentTaxes.filter(t => t.id !== taxId);
 
-    // Also remove from tax groups
-    const currentTaxGroups = (currentSettings.taxGroups as Array<{
-      id: string;
-      name: string;
-      taxes: string[];
-    }>) || [];
-    currentSettings.taxGroups = currentTaxGroups.map(group => ({
-      ...group,
-      taxes: group.taxes.filter(id => id !== taxId),
-    }));
+      // Also remove from tax groups
+      const currentTaxGroups = (currentSettings.taxGroups as Array<{
+        id: string;
+        name: string;
+        taxes: string[];
+      }>) || [];
+      currentSettings.taxGroups = currentTaxGroups.map(group => ({
+        ...group,
+        taxes: group.taxes.filter(id => id !== taxId),
+      }));
 
-    await db.tenant.update({
-      where: { id: tenantId },
-      data: {
-        settings: JSON.stringify(currentSettings),
-        updatedAt: new Date(),
-      },
+      // Audit log before deletion
+      const deletedTax = currentTaxes.find(t => t.id === taxId);
+      try {
+        await auditLogService.logWithContext({ tenantId: user.tenantId, userId: user.id, module: 'settings', action: 'delete', entityType: 'tax', entityId: taxId, oldValue: deletedTax, description: `Deleted tax: ${deletedTax?.name || taxId}` }, request);
+      } catch (auditErr) {
+        console.error('Audit log failed (non-blocking):', auditErr);
+      }
+
+      await tx.tenant.update({
+        where: { id: tenantId },
+        data: {
+          settings: JSON.stringify(currentSettings),
+          updatedAt: new Date(),
+        },
+      });
     });
 
     return NextResponse.json({
@@ -460,52 +505,90 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Get tenant
-    const tenant = await db.tenant.findUnique({
-      where: { id: tenantId, deletedAt: null },
-    });
-
-    if (!tenant) {
-      return NextResponse.json(
-        { success: false, error: 'Tenant not found' },
-        { status: 404 }
-      );
+    // Validate rate if being updated
+    // For 'percentage' type, rate must be 0-100. For 'fixed' type, rate can be any non-negative number.
+    if (updates.rate !== undefined) {
+      const parsedRate = parseFloat(updates.rate);
+      const rateType = updates.type || 'percentage'; // default to percentage if type not specified
+      if (isNaN(parsedRate) || parsedRate < 0 || !Number.isFinite(parsedRate)) {
+        return NextResponse.json(
+          { success: false, error: 'Tax rate must be a non-negative number' },
+          { status: 400 }
+        );
+      }
+      if (rateType === 'percentage' && parsedRate > 100) {
+        return NextResponse.json(
+          { success: false, error: 'Percentage tax rate must be between 0 and 100' },
+          { status: 400 }
+        );
+      }
+      if (parsedRate > 999999) {
+        return NextResponse.json(
+          { success: false, error: 'Tax rate is unreasonably large' },
+          { status: 400 }
+        );
+      }
     }
 
-    const currentSettings = tenant.settings ? JSON.parse(tenant.settings) : {};
-    const currentTaxes = (currentSettings.taxes as Array<{
-      id: string;
-      [key: string]: unknown;
-    }>) || getDefaultTaxes();
+    // Wrap read-modify-write in a transaction to prevent race conditions
+    let updatedTax: { id: string; [key: string]: unknown };
 
-    // Update the tax
-    const taxIndex = currentTaxes.findIndex(t => t.id === taxId);
-    if (taxIndex === -1) {
+    await db.$transaction(async (tx) => {
+      const tenant = await tx.tenant.findUnique({
+        where: { id: tenantId, deletedAt: null },
+      });
+
+      if (!tenant) {
+        throw new Error('Tenant not found');
+      }
+
+      const currentSettings = tenant.settings ? JSON.parse(tenant.settings) : {};
+      const currentTaxes = (currentSettings.taxes as Array<{
+        id: string;
+        [key: string]: unknown;
+      }>) || getDefaultTaxes();
+
+      // Update the tax
+      const taxIndex = currentTaxes.findIndex(t => t.id === taxId);
+      if (taxIndex === -1) {
+        throw new Error('TAX_NOT_FOUND');
+      }
+
+      currentTaxes[taxIndex] = {
+        ...currentTaxes[taxIndex],
+        ...updates,
+        id: taxId, // Ensure ID doesn't change
+      };
+
+      currentSettings.taxes = currentTaxes;
+
+      await tx.tenant.update({
+        where: { id: tenantId },
+        data: {
+          settings: JSON.stringify(currentSettings),
+          updatedAt: new Date(),
+        },
+      });
+
+      updatedTax = currentTaxes[taxIndex];
+    }).catch((error) => {
+      if (error instanceof Error && error.message === 'TAX_NOT_FOUND') {
+        return; // handled below
+      }
+      throw error;
+    });
+
+    // Check if tax was not found (from transaction error)
+    if (!updatedTax) {
       return NextResponse.json(
         { success: false, error: 'Tax not found' },
         { status: 404 }
       );
     }
 
-    currentTaxes[taxIndex] = {
-      ...currentTaxes[taxIndex],
-      ...updates,
-      id: taxId, // Ensure ID doesn't change
-    };
-
-    currentSettings.taxes = currentTaxes;
-
-    await db.tenant.update({
-      where: { id: tenantId },
-      data: {
-        settings: JSON.stringify(currentSettings),
-        updatedAt: new Date(),
-      },
-    });
-
     return NextResponse.json({
       success: true,
-      data: currentTaxes[taxIndex],
+      data: updatedTax,
       message: 'Tax updated successfully',
     });
   } catch (error) {

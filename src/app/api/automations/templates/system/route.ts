@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 // System-provided automation templates
 const SYSTEM_TEMPLATES = [
@@ -171,6 +171,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
     }
 
+    // GAP-FIX(17b): Added missing permission check for viewing system templates
+    if (!hasPermission(user, 'automation.view') && !hasPermission(user, 'automation.*')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
+
     const { searchParams } = request.nextUrl;
     const category = searchParams.get('category');
 
@@ -223,6 +228,11 @@ export async function POST(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
+    // GAP-FIX(17b): Added missing permission check for installing system templates
+    if (!hasPermission(user, 'automation.manage') && !hasPermission(user, 'automation.*')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const body = await request.json();

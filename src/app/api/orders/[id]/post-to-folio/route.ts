@@ -114,6 +114,14 @@ export async function POST(
         );
       }
 
+      // Validate guest has active reservation (checked_in)
+      if (booking.status !== 'checked_in') {
+        return NextResponse.json(
+          { success: false, error: { code: 'INVALID_BOOKING_STATUS', message: 'Room charge requires the guest to be checked in' } },
+          { status: 400 }
+        );
+      }
+
       if (booking.folios.length > 0) {
         targetFolioId = booking.folios[0].id;
       } else {

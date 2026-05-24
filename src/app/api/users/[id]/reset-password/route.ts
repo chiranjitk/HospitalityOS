@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { hashPassword } from '@/lib/auth';
+import { hashPassword, validatePasswordStrength } from '@/lib/auth';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 
 // POST /api/users/[id]/reset-password - Reset user password
@@ -34,6 +34,15 @@ export async function POST(
       );
     }
 
+    // Use the same password strength validation as user creation for consistency
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.valid) {
+      return NextResponse.json(
+        { error: { message: passwordValidation.errors.join(', ') } },
+        { status: 400 }
+      );
+    }
+
     // Check if user exists
     const existingUser = await db.user.findUnique({
       where: { id },
@@ -43,8 +52,8 @@ export async function POST(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Permission check - can only reset passwords for users in same tenant
-    if (existingUser.tenantId !== currentUser.tenantId) {
+    // Permission check - can only reset passwords for users in same tenant (platform admin bypass)
+    if (!currentUser.isPlatformAdmin && existingUser.tenantId !== currentUser.tenantId) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -78,10 +87,16 @@ export async function POST(
       await db.auditLog.create({
         data: {
           tenantId: existingUser.tenantId,
+          userId: currentUser.id,
           module: 'admin',
           action: 'reset_password',
           entityType: 'user',
           entityId: id,
+          newValue: JSON.stringify({
+            targetUser: existingUser.email,
+            performedBy: currentUser.email,
+            isPlatformAdmin: currentUser.isPlatformAdmin,
+          }),
         },
       });
     } catch {

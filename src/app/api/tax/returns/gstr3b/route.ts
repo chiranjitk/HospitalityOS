@@ -47,13 +47,15 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const totalOutwardSupply = eInvoices.reduce((sum, e) => sum + e.totalAmount, 0);
-    const totalTaxableValue = eInvoices.reduce((sum, e) => sum + e.totalValue, 0);
-    const totalCgst = eInvoices.reduce((sum, e) => sum + e.totalCgst, 0);
-    const totalSgst = eInvoices.reduce((sum, e) => sum + e.totalSgst, 0);
-    const totalIgst = eInvoices.reduce((sum, e) => sum + e.totalIgst, 0);
-    const totalCess = eInvoices.reduce((sum, e) => sum + e.totalCess, 0);
-    const totalTaxLiability = totalCgst + totalSgst + totalIgst + totalCess;
+    // FIX: Proper rounding for GST aggregate calculations (₹ precision)
+    const round2 = (v: number) => Math.round(v * 100) / 100;
+    const totalOutwardSupply = round2(eInvoices.reduce((sum, e) => sum + e.totalAmount, 0));
+    const totalTaxableValue = round2(eInvoices.reduce((sum, e) => sum + e.totalValue, 0));
+    const totalCgst = round2(eInvoices.reduce((sum, e) => sum + e.totalCgst, 0));
+    const totalSgst = round2(eInvoices.reduce((sum, e) => sum + e.totalSgst, 0));
+    const totalIgst = round2(eInvoices.reduce((sum, e) => sum + e.totalIgst, 0));
+    const totalCess = round2(eInvoices.reduce((sum, e) => sum + e.totalCess, 0));
+    const totalTaxLiability = round2(totalCgst + totalSgst + totalIgst + totalCess);
     const totalItcClaimed = 0; // Would be calculated from purchase invoices
     const netTaxPayable = Math.max(0, totalTaxLiability - totalItcClaimed);
 

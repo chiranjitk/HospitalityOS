@@ -303,41 +303,58 @@ export async function POST(request: NextRequest) {
     // Determine initial status
     const status = vendorId ? 'assigned' : 'pending';
 
-    const workOrder = await db.workOrder.create({
-      data: {
-        tenantId: user.tenantId,
-        propertyId,
-        vendorId: vendorId || null,
-        roomId: roomId || null,
-        assetId: assetId || null,
-        workOrderNumber,
-        title,
-        description,
-        type,
-        priority,
-        status,
-        requestedBy: requestedBy || user.name,
-        assignedAt: vendorId ? new Date() : null,
-        scheduledDate: scheduledDate ? new Date(scheduledDate) : null,
-        estimatedCost,
-        estimatedHours,
-        notes,
-        attachments: attachments ? JSON.stringify(attachments) : '[]',
-      },
-      include: {
-        vendor: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            type: true,
+    const workOrder = await db.$transaction(async (tx) => {
+      const wo = await tx.workOrder.create({
+        data: {
+          tenantId: user.tenantId,
+          propertyId,
+          vendorId: vendorId || null,
+          roomId: roomId || null,
+          assetId: assetId || null,
+          workOrderNumber,
+          title,
+          description,
+          type,
+          priority,
+          status,
+          requestedBy: requestedBy || user.name,
+          assignedAt: vendorId ? new Date() : null,
+          scheduledDate: scheduledDate ? new Date(scheduledDate) : null,
+          estimatedCost,
+          estimatedHours,
+          notes,
+          attachments: attachments ? JSON.stringify(attachments) : '[]',
+        },
+        include: {
+          vendor: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              type: true,
+            },
           },
         },
-      },
+      });
+
+      // Block room for high/urgent priority work orders (transactional — prevents inconsistent state)
+      if (roomId && (priority === 'high' || priority === 'urgent')) {
+        // Validate room exists before blocking
+        const room = await tx.room.findUnique({ where: { id: roomId }, select: { id: true, number: true } });
+        if (room) {
+          await tx.room.update({
+            where: { id: roomId },
+            data: { status: 'out_of_order' },
+          });
+          console.log(`[WorkOrder] Room ${roomId} set to 'out_of_order' due to ${priority} priority work order ${wo.workOrderNumber}`);
+        }
+      }
+
+      return wo;
     });
 
-    // Notify if work order is for a room
+    // Notify if work order is for a room (outside transaction — notification is non-critical)
     if (roomId) {
       const room = await db.room.findUnique({ where: { id: roomId }, select: { number: true } });
       if (room) {
@@ -348,19 +365,6 @@ export async function POST(request: NextRequest) {
           previousStatus: 'work_order_created',
           propertyId,
         });
-      }
-
-      // GAP 6: Block room for high/urgent priority work orders
-      if (priority === 'high' || priority === 'urgent') {
-        try {
-          await db.room.update({
-            where: { id: roomId },
-            data: { status: 'out_of_order' },
-          });
-          console.log(`[WorkOrder] Room ${roomId} set to 'out_of_order' due to ${priority} priority work order ${workOrder.workOrderNumber}`);
-        } catch (roomBlockError) {
-          console.error(`[WorkOrder] Failed to block room ${roomId}:`, roomBlockError);
-        }
       }
     }
 
@@ -489,43 +493,43 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const workOrder = await db.workOrder.update({
-      where: { id },
-      data: updateData,
-      include: {
-        vendor: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            type: true,
+    const workOrder = await db.$transaction(async (tx) => {
+      const wo = await tx.workOrder.update({
+        where: { id },
+        data: updateData,
+        include: {
+          vendor: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              type: true,
+            },
+          },
+          payments: {
+            select: {
+              id: true,
+              paymentNumber: true,
+              amount: true,
+              status: true,
+              paidAt: true,
+            },
           },
         },
-        payments: {
-          select: {
-            id: true,
-            paymentNumber: true,
-            amount: true,
-            status: true,
-            paidAt: true,
-          },
-        },
-      },
-    });
+      });
 
-    // Restore room status when work order is completed
-    if (status === 'completed' && existingWorkOrder.roomId) {
-      try {
-        await db.room.update({
+      // Restore room status when work order is completed (transactional — prevents inconsistent state)
+      if (status === 'completed' && existingWorkOrder.roomId) {
+        await tx.room.update({
           where: { id: existingWorkOrder.roomId },
           data: { status: 'dirty', housekeepingStatus: 'dirty' },
         });
         console.log(`[WorkOrder] Room ${existingWorkOrder.roomId} restored to 'dirty' after work order ${existingWorkOrder.workOrderNumber} completion`);
-      } catch (roomRestoreError) {
-        console.error(`[WorkOrder] Failed to restore room ${existingWorkOrder.roomId}:`, roomRestoreError);
       }
-    }
+
+      return wo;
+    });
 
     // Notify when work order starts in-progress for a room
     if (status === 'in_progress' && existingWorkOrder.status !== 'in_progress' && existingWorkOrder.roomId) {
@@ -581,7 +585,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Soft delete by setting deletedAt
+    // Cancel work orders by setting status only (NOT soft-delete — deletedAt hides records from reports)
     const results = await db.workOrder.updateMany({
       where: {
         id: { in: ids },
@@ -589,14 +593,13 @@ export async function DELETE(request: NextRequest) {
         deletedAt: null,
       },
       data: {
-        deletedAt: new Date(),
         status: 'cancelled',
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: `Soft deleted ${results.count} work orders`,
+      message: `Cancelled ${results.count} work order(s)`,
       data: { count: results.count },
     });
   } catch (error) {

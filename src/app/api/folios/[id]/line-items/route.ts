@@ -137,10 +137,11 @@ export async function POST(
 
       // Recalculate folio totals from ALL line items (BUG-009 fix)
       const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: id } });
-      const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
-      const newTaxes = allLineItems.reduce((sum, li) => sum + li.taxAmount, 0);
-      const newTotalAmount = newSubtotal + newTaxes - folio.discount;
-      const newBalance = newTotalAmount - folio.paidAmount;
+      // DECIMAL FIX: Use Math.round for money precision
+      const newSubtotal = Math.round(allLineItems.reduce((sum, li) => sum + li.totalAmount, 0) * 100) / 100;
+      const newTaxes = Math.round(allLineItems.reduce((sum, li) => sum + li.taxAmount, 0) * 100) / 100;
+      const newTotalAmount = Math.round((newSubtotal + newTaxes - folio.discount) * 100) / 100;
+      const newBalance = Math.round((newTotalAmount - folio.paidAmount) * 100) / 100;
 
       const updatedFolio = await tx.folio.update({
         where: { id },
@@ -271,10 +272,11 @@ export async function DELETE(
 
       // Recalculate folio totals from ALL remaining line items (BUG-009 fix)
       const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: id } });
-      const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
-      const newTaxes = allLineItems.reduce((sum, li) => sum + li.taxAmount, 0);
-      const newTotalAmount = newSubtotal + newTaxes - folio.discount;
-      const newBalance = newTotalAmount - folio.paidAmount;
+      // DECIMAL FIX: Use Math.round for money precision
+      const newSubtotal = Math.round(allLineItems.reduce((sum, li) => sum + li.totalAmount, 0) * 100) / 100;
+      const newTaxes = Math.round(allLineItems.reduce((sum, li) => sum + li.taxAmount, 0) * 100) / 100;
+      const newTotalAmount = Math.round((newSubtotal + newTaxes - folio.discount) * 100) / 100;
+      const newBalance = Math.round((newTotalAmount - folio.paidAmount) * 100) / 100;
 
       const updatedFolio = await tx.folio.update({
         where: { id },

@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit');
     const offset = searchParams.get('offset');
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { tenantId: user.tenantId };
     if (propertyId) where.propertyId = propertyId;
     if (parentInterfaceId) where.parentInterfaceId = parentInterfaceId;
     if (enabled !== null) where.enabled = enabled === 'true';
@@ -110,6 +110,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate VLAN ID range (1-4094)
+    const vlanNum = parseInt(String(vlanId), 10);
+    if (isNaN(vlanNum) || vlanNum < 1 || vlanNum > 4094) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'VLAN ID must be between 1 and 4094' } },
+        { status: 400 },
+      );
+    }
+
+    // Validate MTU range (576-9000)
+    const mtuVal = parseInt(String(mtu), 10);
+    if (isNaN(mtuVal) || mtuVal < 576 || mtuVal > 9000) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'MTU must be between 576 and 9000' } },
+        { status: 400 },
+      );
+    }
+
+    // Verify property belongs to tenant
+    const property = await db.property.findFirst({
+      where: { id: propertyId, tenantId },
+    });
+    if (!property) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Property not found' } },
+        { status: 404 },
+      );
+    }
+
     // Resolve parent interface by name — text identifier is the natural key
     // on a single-box gateway. Try: explicit parentInterfaceName → parentInterfaceId as name →
     // derive from subInterface (eth1.100 → eth1)
@@ -118,14 +147,14 @@ export async function POST(request: NextRequest) {
     // 1. Try explicit parentInterfaceName
     if (parentInterfaceName) {
       parentRecord = await db.networkInterface.findFirst({
-        where: { name: parentInterfaceName },
+        where: { name: parentInterfaceName, propertyId },
       });
     }
 
     // 2. Try parentInterfaceId as a name (OS interface name, not UUID)
     if (!parentRecord && parentInterfaceId) {
       parentRecord = await db.networkInterface.findFirst({
-        where: { name: parentInterfaceId },
+        where: { name: parentInterfaceId, propertyId },
       });
     }
 
@@ -133,7 +162,7 @@ export async function POST(request: NextRequest) {
     if (!parentRecord && subInterface.includes('.')) {
       const ifaceName = subInterface.split('.')[0];
       parentRecord = await db.networkInterface.findFirst({
-        where: { name: ifaceName },
+        where: { name: ifaceName, propertyId },
       });
     }
 

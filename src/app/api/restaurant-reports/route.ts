@@ -6,6 +6,9 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
     if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    if (!hasPermission(user, 'restaurant.read') && !hasPermission(user, 'restaurant.*') && !hasPermission(user, 'reports.view')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
 
     const { searchParams } = request.nextUrl;
     const type = searchParams.get('type') || 'overview';

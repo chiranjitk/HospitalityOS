@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
       propertyId,
       category: 'lock' as HardwareCategory,
       enabled: true,
+      tenantId: user.tenantId,
     };
     if (bodyProviderId) whereClause.providerId = bodyProviderId;
 

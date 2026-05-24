@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     // --- Resolve the terminal adapter config ---
     const adapterConfig = await db.hardwareAdapter.findFirst({
-      where: { propertyId, category: 'terminal', enabled: true },
+      where: { propertyId, category: 'terminal', enabled: true, tenantId: user.tenantId },
     });
 
     if (!adapterConfig) {
@@ -70,8 +70,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // --- Build HAL CreateCheckoutRequest ---
+    // --- Build correlation ID and check idempotency ---
     const correlationId = `chk-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+    // Idempotency: check for existing transaction with same correlationId
+    const existingTx = await db.terminalTransaction.findFirst({
+      where: { reference: correlationId },
+    });
+    if (existingTx) {
+      return NextResponse.json({
+        success: true,
+        data: { id: existingTx.id, checkoutId: existingTx.reference, amount: existingTx.amount, currency: existingTx.currency, message: 'Checkout already processed (idempotent)' },
+      });
+    }
+
+    // --- Build HAL CreateCheckoutRequest ---
 
     const halRequest: HalCheckoutRequest = {
       terminalId,

@@ -15,6 +15,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
     }
 
+    if (!hasAnyPermission(user, ['billing.view', 'billing.manage', 'accounting.view'])) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
     const propertyId = searchParams.get('propertyId');
@@ -105,10 +109,10 @@ export async function POST(request: NextRequest) {
 
     const result = await addCashEntry(user.tenantId, cashBookId, {
       time,
-      description,
+      description: String(description).trim().slice(0, 500),
       category,
-      amount: parseFloat(amount),
-      reference,
+      amount: Number(parseFloat(amount).toFixed(2)),
+      reference: reference ? String(reference).trim().slice(0, 100) : undefined,
       paymentMethod: paymentMethod || 'cash',
       createdBy: user.id,
     });
@@ -126,6 +130,11 @@ export async function PUT(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
+    // Permission check for mutation
+    if (!hasAnyPermission(user, ['billing.view', 'billing.manage'])) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const body = await request.json();
@@ -149,6 +158,11 @@ export async function DELETE(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
+    // Permission check for deletion
+    if (!hasAnyPermission(user, ['billing.manage'])) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);

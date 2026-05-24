@@ -15,6 +15,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Check permission — ad performance data is sensitive
+    if (!hasPermission(user, 'ads.view') && !hasPermission(user, 'marketing.manage')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const tenantId = user.tenantId;
     const { searchParams } = new URL(request.url);
     const days = parseInt(searchParams.get('days') || '30');

@@ -272,47 +272,46 @@ export async function POST(request: NextRequest) {
       let matched = 0;
       let discrepancies = 0;
       let missing = 0;
-      const updatePromises: any[] = [];
 
-      for (const item of settlement.settlementItems) {
-        // Try to match by channelBookingRef (externalRef on booking)
-        let matchedBooking = bookings.find(
-          b => b.externalRef === item.channelBookingRef
-        );
-
-        // Try to match by guest name + check-in date
-        if (!matchedBooking && item.guestName && item.checkIn) {
-          matchedBooking = bookings.find(
-            b =>
-              `${b.primaryGuest.firstName} ${b.primaryGuest.lastName}`.toLowerCase().trim() ===
-                item.guestName!.toLowerCase().trim() &&
-              b.checkIn.toISOString().slice(0, 10) ===
-                item.checkIn!.toISOString().slice(0, 10)
+      await db.$transaction(async (tx) => {
+        for (const item of settlement.settlementItems) {
+          // Try to match by channelBookingRef (externalRef on booking)
+          let matchedBooking = bookings.find(
+            b => b.externalRef === item.channelBookingRef
           );
-        }
 
-        // Try to match by gross amount + check-in date (within 1 day)
-        if (!matchedBooking && item.grossAmount > 0 && item.checkIn) {
-          const dayBefore = new Date(item.checkIn);
-          dayBefore.setDate(dayBefore.getDate() - 1);
-          const dayAfter = new Date(item.checkIn);
-          dayAfter.setDate(dayAfter.getDate() + 1);
-          matchedBooking = bookings.find(
-            b =>
-              Math.abs(b.totalAmount - item.grossAmount) < 1 &&
-              b.checkIn >= dayBefore &&
-              b.checkIn <= dayAfter
-          );
-        }
+          // Try to match by guest name + check-in date
+          if (!matchedBooking && item.guestName && item.checkIn) {
+            matchedBooking = bookings.find(
+              b =>
+                `${b.primaryGuest.firstName} ${b.primaryGuest.lastName}`.toLowerCase().trim() ===
+                  item.guestName!.toLowerCase().trim() &&
+                b.checkIn.toISOString().slice(0, 10) ===
+                  item.checkIn!.toISOString().slice(0, 10)
+            );
+          }
 
-        if (matchedBooking) {
-          const discrepancy = item.netAmount - matchedBooking.totalAmount;
-          const status = Math.abs(discrepancy) < 1 ? 'matched' : 'discrepancy';
-          if (status === 'matched') matched++;
-          else discrepancies++;
+          // Try to match by gross amount + check-in date (within 1 day)
+          if (!matchedBooking && item.grossAmount > 0 && item.checkIn) {
+            const dayBefore = new Date(item.checkIn);
+            dayBefore.setDate(dayBefore.getDate() - 1);
+            const dayAfter = new Date(item.checkIn);
+            dayAfter.setDate(dayAfter.getDate() + 1);
+            matchedBooking = bookings.find(
+              b =>
+                Math.abs(b.totalAmount - item.grossAmount) < 1 &&
+                b.checkIn >= dayBefore &&
+                b.checkIn <= dayAfter
+            );
+          }
 
-          updatePromises.push(
-            db.channelSettlementItem.update({
+          if (matchedBooking) {
+            const discrepancy = item.netAmount - matchedBooking.totalAmount;
+            const status = Math.abs(discrepancy) < 1 ? 'matched' : 'discrepancy';
+            if (status === 'matched') matched++;
+            else discrepancies++;
+
+            await tx.channelSettlementItem.update({
               where: { id: item.id },
               data: {
                 bookingId: matchedBooking.id,
@@ -321,33 +320,29 @@ export async function POST(request: NextRequest) {
                 status,
                 matchedAt: new Date(),
               },
-            })
-          );
-        } else {
-          missing++;
-          updatePromises.push(
-            db.channelSettlementItem.update({
+            });
+          } else {
+            missing++;
+            await tx.channelSettlementItem.update({
               where: { id: item.id },
               data: { status: 'missing' },
-            })
-          );
+            });
+          }
         }
-      }
 
-      await Promise.all(updatePromises);
+        // Update settlement status
+        const totalItems = settlement.settlementItems.length;
+        const newStatus =
+          missing === 0 && discrepancies === 0
+            ? 'reconciled'
+            : missing === totalItems
+              ? 'disputed'
+              : 'partial';
 
-      // Update settlement status
-      const totalItems = settlement.settlementItems.length;
-      const newStatus =
-        missing === 0 && discrepancies === 0
-          ? 'reconciled'
-          : missing === totalItems
-            ? 'disputed'
-            : 'partial';
-
-      await db.channelSettlement.update({
-        where: { id: settlement.id },
-        data: { status: newStatus },
+        await tx.channelSettlement.update({
+          where: { id: settlement.id },
+          data: { status: newStatus },
+        });
       });
 
       return NextResponse.json({
@@ -595,14 +590,15 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Delete items first, then settlement (cascade)
-    await db.channelSettlementItem.deleteMany({
-      where: { settlementId: id },
-    });
-
-    await db.channelSettlement.delete({
-      where: { id },
-    });
+    // SECURITY FIX: Use transaction for atomic cascading delete
+    await db.$transaction([
+      db.channelSettlementItem.deleteMany({
+        where: { settlementId: id },
+      }),
+      db.channelSettlement.delete({
+        where: { id },
+      }),
+    ]);
 
     return NextResponse.json({
       success: true,

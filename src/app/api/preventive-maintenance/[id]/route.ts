@@ -116,7 +116,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         } else if (field === 'estimatedDuration') {
           updateData[field] = updates[field] ? parseInt(updates[field], 10) : null;
         } else if (field === 'estimatedCost') {
-          updateData[field] = updates[field] ? parseFloat(updates[field]) : null;
+          const costVal = updates[field] ? parseFloat(updates[field]) : null;
+          if (costVal !== null && (isNaN(costVal) || costVal < 0)) {
+            return NextResponse.json(
+              { success: false, error: { code: 'VALIDATION_ERROR', message: 'estimatedCost must be a non-negative number' } },
+              { status: 400 }
+            );
+          }
+          updateData[field] = costVal !== null ? Math.round(costVal * 100) / 100 : null;
         } else {
           updateData[field] = updates[field];
         }

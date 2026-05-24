@@ -36,8 +36,12 @@ function isValidIPv4(ip: string): boolean {
 // ──────────────────────────────────────────────
 // GET — List bonds from scanConnections()
 // ──────────────────────────────────────────────
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // ── Auth ──
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const connections = scanConnections();
     const bonds = connections.filter(c => c.type === 'bond');
 

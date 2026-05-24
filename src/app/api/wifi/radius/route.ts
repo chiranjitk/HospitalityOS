@@ -213,9 +213,12 @@ export async function GET(request: NextRequest) {
 
           const conditions: string[] = [];
           const sqlParams: unknown[] = [];
-          if (propertyId) { conditions.push(`"propertyId" = $${sqlParams.length + 1}::uuid`); sqlParams.push(propertyId); }
+          // CRITICAL: Always filter by tenant to prevent cross-tenant data exposure
+          conditions.push(`vw."propertyId" IN (SELECT id FROM "Property" WHERE "tenantId" = $${sqlParams.length + 1}::uuid)`);
+          sqlParams.push(context.tenantId);
+          if (propertyId) { conditions.push(`vw."propertyId" = $${sqlParams.length + 1}::uuid`); sqlParams.push(propertyId); }
           if (status) { conditions.push(`vw.status = $${sqlParams.length + 1}`); sqlParams.push(status); }
-          const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+          const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
           const rows = await db.$queryRawUnsafe<Record<string, unknown>[]>(`
             SELECT vw.*, u."ipPoolId",
@@ -348,11 +351,14 @@ export async function GET(request: NextRequest) {
           // Query v_auth_logs view — includes client IP from radacct
           const conditions: string[] = [];
           const sqlParams: unknown[] = [];
+          // CRITICAL: Always filter by tenant via property_id to prevent cross-tenant exposure
+          conditions.push(`"property_id" IN (SELECT id FROM "Property" WHERE "tenantId" = $${sqlParams.length + 1}::uuid)`);
+          sqlParams.push(context.tenantId);
           if (usernameFilter) { conditions.push(`"username" LIKE $${sqlParams.length + 1}`); sqlParams.push(`%${usernameFilter}%`); }
           if (resultFilter) { conditions.push(`auth_result = $${sqlParams.length + 1}`); sqlParams.push(resultFilter); }
           if (startDateStr) { conditions.push(`"timestamp" >= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(startDateStr.length === 10 ? `${startDateStr} 00:00:00` : startDateStr); }
           if (endDateStr) { conditions.push(`"timestamp" <= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(endDateStr.length === 10 ? `${endDateStr} 23:59:59` : endDateStr); }
-          const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+          const whereClause = `WHERE ${conditions.join(' AND ')}`;
           sqlParams.push(limit);
 
           const authEvents = await db.$queryRawUnsafe<Record<string, unknown>[]>(`
@@ -685,6 +691,9 @@ export async function GET(request: NextRequest) {
           // Build SQL conditions on the view
           const conditions: string[] = ["session_status = 'active'"];
           const sqlParams: unknown[] = [];
+          // CRITICAL: Always filter by tenant via property_name or property_id to prevent cross-tenant exposure
+          conditions.push(`"property_id" IN (SELECT id FROM "Property" WHERE "tenantId" = $${sqlParams.length + 1}::uuid)`);
+          sqlParams.push(context.tenantId);
           if (search) {
             // Multi-field search: username, IP, MAC, device name/type, guest name, room
             const idx = sqlParams.length + 1;
@@ -1731,7 +1740,7 @@ export async function POST(request: NextRequest) {
             console.error('[test-auth] Failed to write auth log:', logErr);
           }
 
-          // Enrich response with user info from WiFiUser table
+          // Enrich response with user info from WiFiUser table — scoped to tenant's properties
           let userInfo = null;
           try {
             userInfo = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(`
@@ -1743,8 +1752,8 @@ export async function POST(request: NextRequest) {
               LEFT JOIN "Booking" b ON u."bookingId" = b.id
               LEFT JOIN "Room" r ON b."roomId" = r.id
               LEFT JOIN "Property" p ON u."propertyId" = p.id
-              WHERE u.username = $1
-            `, String(testUsername));
+              WHERE u.username = $1 AND u."propertyId" IN (SELECT id FROM "Property" WHERE "tenantId" = $2::uuid)
+            `, String(testUsername), context.tenantId);
           } catch {}
 
           return NextResponse.json({
@@ -1831,12 +1840,13 @@ export async function POST(request: NextRequest) {
             validityDays: number;
           }
 
-          // 1. Fetch all active WiFiUsers with their passwords
+          // 1. Fetch all active WiFiUsers with their passwords — scoped to tenant's properties
           const users = await db.$queryRawUnsafe<WifUserRow[]>(`
             SELECT id::text, username, password, "planId"::text, "propertyId"::text, status, "maxSessions"
             FROM "WiFiUser"
             WHERE status != 'expired'
-          `);
+              AND "propertyId" IN (SELECT id FROM "Property" WHERE "tenantId" = $1::uuid)
+          `, context.tenantId);
 
           // 2. Fetch all relevant WiFiPlans
           const planIds = [...new Set(users.map(u => u.planId).filter(Boolean))] as string[];

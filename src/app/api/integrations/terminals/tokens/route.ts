@@ -53,6 +53,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'tokenRef is required' }, { status: 400 });
     }
 
+    // Validate tokenRef is a non-empty string
+    if (typeof tokenRef !== 'string' || tokenRef.trim().length === 0) {
+      return NextResponse.json({ success: false, error: 'tokenRef must be a non-empty string' }, { status: 400 });
+    }
+
+    // Validate gateway if provided
+    const validGateways = ['stripe', 'adyen', 'worldpay', 'braintree', 'custom'];
+    if (gateway && !validGateways.includes(gateway)) {
+      return NextResponse.json({ success: false, error: `Invalid gateway. Must be one of: ${validGateways.join(', ')}` }, { status: 400 });
+    }
+
+    // Validate tokenType if provided
+    const validTokenTypes = ['card', 'bank_account', 'wallet'];
+    if (tokenType && !validTokenTypes.includes(tokenType)) {
+      return NextResponse.json({ success: false, error: `Invalid tokenType. Must be one of: ${validTokenTypes.join(', ')}` }, { status: 400 });
+    }
+
+    // Validate cardLast4 if provided (exactly 4 digits)
+    if (cardLast4 && (!/^[0-9]{4}$/.test(String(cardLast4)))) {
+      return NextResponse.json({ success: false, error: 'cardLast4 must be exactly 4 digits' }, { status: 400 });
+    }
+
+    // Validate expiry month/year if provided
+    if (expiryMonth !== undefined && (expiryMonth < 1 || expiryMonth > 12)) {
+      return NextResponse.json({ success: false, error: 'expiryMonth must be between 1 and 12' }, { status: 400 });
+    }
+    if (expiryYear !== undefined && (expiryYear < 2020 || expiryYear > 2099)) {
+      return NextResponse.json({ success: false, error: 'expiryYear must be between 2020 and 2099' }, { status: 400 });
+    }
+
     const token = await db.storedToken.create({
       data: {
         tenantId: user.tenantId,

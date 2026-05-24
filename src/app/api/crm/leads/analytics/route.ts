@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { getLeadAnalytics, autoExpireLeads } from '@/lib/crm/lead-pipeline';
 
 // GET /api/crm/leads/analytics — Lead pipeline analytics
@@ -51,6 +51,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
         { status: 401 }
+      );
+    }
+
+    // Permission check for maintenance actions
+    if (!hasAnyPermission(user, ['crm.manage', 'admin.*'])) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
       );
     }
 

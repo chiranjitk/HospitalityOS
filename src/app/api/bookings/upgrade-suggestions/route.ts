@@ -21,9 +21,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch booking with current room type
-    const booking = await db.booking.findUnique({
-      where: { id: bookingId },
+    // SECURITY FIX: Add tenant isolation to booking lookup
+    const booking = await db.booking.findFirst({
+      where: { id: bookingId, tenantId: user.tenantId },
       include: {
         roomType: true,
         room: true,

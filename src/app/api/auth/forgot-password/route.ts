@@ -56,6 +56,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid email format' },
+        { status: 400 }
+      );
+    }
+
     // Rate limit check (5 attempts per 15 minutes per IP)
     const clientIp = request.headers.get('x-forwarded-for') || 'unknown';
     if (!checkRateLimit(clientIp, 5, 15 * 60 * 1000)) {

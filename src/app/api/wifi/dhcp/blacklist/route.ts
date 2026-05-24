@@ -55,11 +55,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate MAC address format
+    const macRegex = /^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$/;
+    if (!macRegex.test(macAddress)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid MAC address format. Use XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX' } },
+        { status: 400 },
+      );
+    }
+
+    const normalizedMac = macAddress.trim().toLowerCase();
+
+    // Check for duplicate MAC in the same property
+    const existingMac = await db.dhcpBlacklist.findFirst({
+      where: { tenantId: ctx.tenantId, propertyId, macAddress: normalizedMac },
+    });
+
+    if (existingMac) {
+      return NextResponse.json(
+        { success: false, error: { code: 'DUPLICATE_MAC', message: 'This MAC address is already blacklisted for this property' } },
+        { status: 400 },
+      );
+    }
+
     const created = await db.dhcpBlacklist.create({
       data: {
         tenantId: ctx.tenantId,
         propertyId,
-        macAddress,
+        macAddress: normalizedMac,
         reason: reason ?? null,
         subnetId: subnetId === '__all__' || subnetId === null ? null : subnetId,
         enabled: enabled !== undefined ? enabled : true,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { analyzeReviewSentiment } from '@/lib/ai/review-analyzer';
 
 // GET /api/guests/reviews - List reviews with filters and aggregates
@@ -110,6 +110,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
     }
 
+    // Permission check for creating reviews
+    if (!hasAnyPermission(user, ['crm.manage', 'guests.manage', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
+
     const body = await request.json();
     const { propertyId, platform, externalId, authorName, rating, title, content, reviewDate, guestId } = body;
 
@@ -124,6 +129,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Rating must be between 0 and 5' } },
         { status: 400 }
+      );
+    }
+
+    // Validate property belongs to tenant
+    const property = await db.property.findFirst({
+      where: { id: propertyId, tenantId: user.tenantId },
+    });
+    if (!property) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Property not found' } },
+        { status: 404 }
       );
     }
 

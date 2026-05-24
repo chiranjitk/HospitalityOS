@@ -369,6 +369,7 @@ export async function PUT(request: NextRequest) {
       }
 
       // Use transaction for cancellation with point refund
+      // Read guest's current points INSIDE the transaction to prevent race condition
       const result = await db.$transaction(async (tx) => {
         // Update redemption status
         const updated = await tx.loyaltyRedemption.update({
@@ -380,12 +381,21 @@ export async function PUT(request: NextRequest) {
           },
         });
 
-        // Refund points to guest
-        const newPoints = existing.guest.loyaltyPoints + existing.pointsSpent;
-        await tx.guest.update({
+        // Read current guest points inside transaction for consistent snapshot
+        const currentGuest = await tx.guest.findUnique({
           where: { id: existing.guestId },
-          data: { loyaltyPoints: newPoints },
+          select: { loyaltyPoints: true },
         });
+
+        if (!currentGuest) throw new Error('GUEST_NOT_FOUND');
+
+        // Refund points to guest using atomic increment (not stale read)
+        const updatedGuest = await tx.guest.update({
+          where: { id: existing.guestId },
+          data: { loyaltyPoints: { increment: existing.pointsSpent } },
+        });
+
+        const newPoints = updatedGuest.loyaltyPoints;
 
         // Create refund transaction
         await tx.loyaltyPointTransaction.create({

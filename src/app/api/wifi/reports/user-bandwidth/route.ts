@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // GET /api/wifi/reports/user-bandwidth - Per-user bandwidth
 // Primary: v_user_usage (WiFiUser + WiFiSession) → v_session_history for IP/MAC/session detail
 export async function GET(request: NextRequest) {
-  const user = await requireAuth(request);
+  const user = await requirePermission(request, 'reports.view');
   if (user instanceof NextResponse) return user;
 
   try {

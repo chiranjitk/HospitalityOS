@@ -147,6 +147,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'tableId, transactionType, and amount are required' }, { status: 400 });
     }
 
+    // FIX: Validate amount is a valid non-negative number
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      return NextResponse.json({ success: false, error: 'Amount must be a valid non-negative number' }, { status: 400 });
+    }
+
+    // FIX: Validate transactionType whitelist
+    const validTypes = ['chip_buy', 'chip_cash', 'win', 'bet', 'comp', 'payout', 'tip'];
+    if (!validTypes.includes(transactionType)) {
+      return NextResponse.json({ success: false, error: `Invalid transaction type. Must be one of: ${validTypes.join(', ')}` }, { status: 400 });
+    }
+
     // Verify table belongs to tenant
     const table = await db.casinoTable.findFirst({ where: { id: tableId, tenantId: user.tenantId } });
     if (!table) {
@@ -161,7 +173,7 @@ export async function POST(request: NextRequest) {
         folioId: folioId || null,
         bookingId: bookingId || null,
         transactionType,
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         currency: currency || 'USD',
         chipColor: chipColor || null,
         pitBossApproval: pitBossApproval || null,

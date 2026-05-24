@@ -100,12 +100,12 @@ export async function GET(request: NextRequest) {
 
     // Handle "preview" action
     if (action === 'preview') {
-      return handlePreview(searchParams);
+      return handlePreview(searchParams, ctx.tenantId);
     }
 
     // Handle "snapshots" action
     if (action === 'snapshots') {
-      return handleSnapshots(searchParams);
+      return handleSnapshots(searchParams, ctx.tenantId);
     }
 
     // Default: list derived rate plans
@@ -191,12 +191,12 @@ export async function POST(request: NextRequest) {
 
     // Handle "generate" action
     if (action === 'generate') {
-      return handleGenerate(body);
+      return handleGenerate(body, ctx.tenantId);
     }
 
     // Handle "sync" action
     if (action === 'sync') {
-      return handleSync(body);
+      return handleSync(body, ctx.tenantId);
     }
 
     // Default: create a new derived rate plan
@@ -295,7 +295,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const existing = await db.derivedRatePlan.findUnique({ where: { id } });
+    // SECURITY FIX: Verify record belongs to user's tenant
+    const existing = await db.derivedRatePlan.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!existing) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Derived rate plan not found' } },
@@ -354,7 +355,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const existing = await db.derivedRatePlan.findUnique({ where: { id } });
+    // SECURITY FIX: Verify record belongs to user's tenant
+    const existing = await db.derivedRatePlan.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!existing) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Derived rate plan not found' } },
@@ -362,9 +364,11 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Delete snapshots first
-    await db.derivedRateSnapshot.deleteMany({ where: { derivedPlanId: id } });
-    await db.derivedRatePlan.delete({ where: { id } });
+    // Delete snapshots first, then plan (in transaction for atomicity)
+    await db.$transaction([
+      db.derivedRateSnapshot.deleteMany({ where: { derivedPlanId: id } }),
+      db.derivedRatePlan.delete({ where: { id } }),
+    ]);
 
     return NextResponse.json({ success: true, message: 'Derived rate plan deleted successfully' });
   } catch (error) {
@@ -380,7 +384,7 @@ export async function DELETE(request: NextRequest) {
 // ACTION HANDLERS
 // ============================================
 
-async function handlePreview(searchParams: URLSearchParams) {
+async function handlePreview(searchParams: URLSearchParams, tenantId: string) {
   const planId = searchParams.get('planId');
   const startDateStr = searchParams.get('startDate');
   const endDateStr = searchParams.get('endDate');
@@ -393,7 +397,8 @@ async function handlePreview(searchParams: URLSearchParams) {
     );
   }
 
-  const plan = await db.derivedRatePlan.findUnique({ where: { id: planId } });
+  // SECURITY FIX: Verify plan belongs to user's tenant
+  const plan = await db.derivedRatePlan.findFirst({ where: { id: planId, tenantId } });
   if (!plan) {
     return NextResponse.json(
       { success: false, error: { code: 'NOT_FOUND', message: 'Derived rate plan not found' } },
@@ -450,7 +455,7 @@ async function handlePreview(searchParams: URLSearchParams) {
   });
 }
 
-async function handleSnapshots(searchParams: URLSearchParams) {
+async function handleSnapshots(searchParams: URLSearchParams, tenantId: string) {
   const derivedPlanId = searchParams.get('derivedPlanId');
   const startDateStr = searchParams.get('startDate');
   const endDateStr = searchParams.get('endDate');
@@ -459,6 +464,15 @@ async function handleSnapshots(searchParams: URLSearchParams) {
     return NextResponse.json(
       { success: false, error: { code: 'VALIDATION_ERROR', message: 'derivedPlanId is required' } },
       { status: 400 },
+    );
+  }
+
+  // SECURITY FIX: Verify plan belongs to user's tenant
+  const plan = await db.derivedRatePlan.findFirst({ where: { id: derivedPlanId, tenantId } });
+  if (!plan) {
+    return NextResponse.json(
+      { success: false, error: { code: 'NOT_FOUND', message: 'Derived rate plan not found' } },
+      { status: 404 },
     );
   }
 
@@ -475,7 +489,7 @@ async function handleSnapshots(searchParams: URLSearchParams) {
   return NextResponse.json({ success: true, data: snapshots });
 }
 
-async function handleGenerate(body: Record<string, unknown>) {
+async function handleGenerate(body: Record<string, unknown>, tenantId: string) {
   const { planId, startDate, endDate, baseRate: baseRateStr } = body;
 
   if (!planId || !startDate || !endDate) {
@@ -485,7 +499,8 @@ async function handleGenerate(body: Record<string, unknown>) {
     );
   }
 
-  const plan = await db.derivedRatePlan.findUnique({ where: { id: planId as string } });
+  // SECURITY FIX: Verify plan belongs to user's tenant
+  const plan = await db.derivedRatePlan.findFirst({ where: { id: planId as string, tenantId } });
   if (!plan) {
     return NextResponse.json(
       { success: false, error: { code: 'NOT_FOUND', message: 'Derived rate plan not found' } },
@@ -548,7 +563,7 @@ async function handleGenerate(body: Record<string, unknown>) {
   });
 }
 
-async function handleSync(body: Record<string, unknown>) {
+async function handleSync(body: Record<string, unknown>, tenantId: string) {
   const { planId } = body;
 
   if (!planId) {
@@ -558,7 +573,8 @@ async function handleSync(body: Record<string, unknown>) {
     );
   }
 
-  const plan = await db.derivedRatePlan.findUnique({ where: { id: planId as string } });
+  // SECURITY FIX: Verify plan belongs to user's tenant
+  const plan = await db.derivedRatePlan.findFirst({ where: { id: planId as string, tenantId } });
   if (!plan) {
     return NextResponse.json(
       { success: false, error: { code: 'NOT_FOUND', message: 'Derived rate plan not found' } },

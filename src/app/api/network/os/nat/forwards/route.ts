@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 /**
  * GET /api/network/os/nat/forwards - Get NAT port forwarding rules from nftables/iptables
@@ -104,8 +105,12 @@ function parseNftablesNat(): any[] {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // ── Auth ──
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const forwards = parseNftablesNat();
     return NextResponse.json({ success: true, data: forwards });
   } catch (error) {

@@ -156,9 +156,16 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Get room type names
+    // Get room type names — scope to tenant's properties
+    const tenantProperties = await db.property.findMany({
+      where: { tenantId },
+      select: { id: true },
+    });
+    const tenantPropertyIds = tenantProperties.map(p => p.id);
+    const effectivePropertyIds = propertyId ? [propertyId] : tenantPropertyIds;
+
     const roomTypes = await db.roomType.findMany({
-      where: { propertyId: propertyId || undefined },
+      where: { propertyId: { in: effectivePropertyIds } },
       select: { id: true, name: true },
     });
 
@@ -200,7 +207,7 @@ export async function GET(request: NextRequest) {
     const periodDays = revenueData.length || 1;
     const totalRooms = await db.room.count({
       where: {
-        propertyId: propertyId || undefined,
+        propertyId: { in: effectivePropertyIds },
         status: { not: 'maintenance' },
       },
     }) || 100;

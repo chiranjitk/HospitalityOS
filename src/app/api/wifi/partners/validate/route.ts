@@ -27,13 +27,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find active partner with promo_code auth method
-    // The code is matched against the partner name (or config.promoCode)
-    // We search across all tenants since this is a public endpoint
+    if (!propertyId || typeof propertyId !== 'string') {
+      return NextResponse.json(
+        { valid: false, reason: 'Property ID is required' },
+        { status: 400 },
+      );
+    }
+
+    // Resolve the property to get its tenant — scope partner search to that tenant
+    const property = await db.property.findUnique({
+      where: { id: propertyId },
+      select: { id: true, tenantId: true },
+    });
+    if (!property) {
+      return NextResponse.json(
+        { valid: false, reason: 'Property not found' },
+        { status: 404 },
+      );
+    }
+
+    // Find active partner scoped to the property's tenant
     const partners = await db.wiFiPartner.findMany({
       where: {
         status: 'active',
         authMethod: 'promo_code',
+        tenantId: property.tenantId,
       },
     });
 

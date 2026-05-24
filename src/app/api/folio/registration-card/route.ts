@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 
 // GET /api/folio/registration-card - Get existing registration card
 export async function GET(request: NextRequest) {
   try {
+    // SECURITY FIX: Add auth check
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const bookingId = searchParams.get('bookingId');
     const cardId = searchParams.get('cardId');
@@ -18,6 +25,10 @@ export async function GET(request: NextRequest) {
           { status: 404 }
         );
       }
+      // SECURITY FIX: Tenant isolation
+      if (card.tenantId !== user.tenantId) {
+        return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Not found' } }, { status: 404 });
+      }
       return NextResponse.json({ success: true, data: card });
     }
 
@@ -28,8 +39,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // SECURITY FIX: Verify booking belongs to tenant
+    const booking = await db.booking.findFirst({ where: { id: bookingId, tenantId: user.tenantId } });
+    if (!booking) {
+      return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Booking not found' } }, { status: 404 });
+    }
+
     const card = await db.registrationCard.findFirst({
-      where: { bookingId },
+      where: { bookingId, tenantId: user.tenantId },
     });
 
     return NextResponse.json({ success: true, data: card });
@@ -45,6 +62,15 @@ export async function GET(request: NextRequest) {
 // POST /api/folio/registration-card - Generate registration card for a booking
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY FIX: Add auth check
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+    if (!hasAnyPermission(user, ['bookings.manage', 'admin.bookings', 'admin.*'])) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } }, { status: 403 });
+    }
+
     const body = await request.json();
     const { bookingId, purpose, companions, vehiclePlate } = body;
 
@@ -56,8 +82,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch booking with guest, room, property data
-    const booking = await db.booking.findUnique({
-      where: { id: bookingId },
+    // SECURITY FIX: Add tenant isolation
+    const booking = await db.booking.findFirst({
+      where: { id: bookingId, tenantId: user.tenantId },
       include: {
         primaryGuest: {
           select: {

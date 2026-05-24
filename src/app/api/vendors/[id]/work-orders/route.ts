@@ -253,7 +253,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         type,
         priority,
         status: 'assigned',
-        requestedBy: requestedBy || user.name,
+        requestedBy: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'System',
         assignedAt: new Date(),
         scheduledDate: scheduledDate ? new Date(scheduledDate) : null,
         estimatedCost,
@@ -327,8 +327,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Prepare update data
-    const updateData: Record<string, unknown> = { ...updates };
+    // Prepare update data - whitelist allowed fields to prevent overwriting protected fields
+    const allowedWorkOrderFields = ['title', 'description', 'type', 'priority', 'scheduledDate', 'estimatedCost', 'estimatedHours', 'notes', 'attachments', 'roomId', 'assetId', 'propertyId'];
+    const updateData: Record<string, unknown> = {};
+    for (const field of allowedWorkOrderFields) {
+      if (updates[field] !== undefined) {
+        updateData[field] = updates[field];
+      }
+    }
 
     // Handle status transitions
     if (status) {

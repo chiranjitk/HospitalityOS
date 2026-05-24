@@ -25,6 +25,16 @@ const DESIGNATION_SALARIES: Record<string, number> = {
 
 const DEFAULT_BASE = 25000;
 
+// In-memory idempotency tracker for payroll processing
+const payrollProcessingCache = new Map<string, { status: string; startedAt: number }>();
+// Clean up stale entries every 30 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of payrollProcessingCache.entries()) {
+    if (now - val.startedAt > 30 * 60 * 1000) payrollProcessingCache.delete(key);
+  }
+}, 30 * 60 * 1000).unref();
+
 // POST /api/staff/payroll/process — Trigger payroll processing for a given month
 export async function POST(request: NextRequest) {
   try {
@@ -44,6 +54,25 @@ export async function POST(request: NextRequest) {
     if (!/^\d{4}-\d{2}$/.test(payrollMonth)) {
       return NextResponse.json({ success: false, error: 'Invalid month format. Use YYYY-MM' }, { status: 400 });
     }
+
+    // Idempotency check: prevent duplicate payroll processing for same tenant+month
+    const cacheKey = `${user.tenantId}:${payrollMonth}`;
+    const existingRun = payrollProcessingCache.get(cacheKey);
+    if (existingRun && existingRun.status === 'processing') {
+      return NextResponse.json({
+        success: false,
+        error: `Payroll for ${payrollMonth} is already being processed. Please wait.`,
+        retryAfter: 30,
+      }, { status: 409 });
+    }
+    if (existingRun && existingRun.status === 'completed') {
+      return NextResponse.json({
+        success: false,
+        error: `Payroll for ${payrollMonth} has already been processed. Use payroll view to see results.`,
+        alreadyProcessed: true,
+      }, { status: 409 });
+    }
+    payrollProcessingCache.set(cacheKey, { status: 'processing', startedAt: Date.now() });
 
     // Fetch all active staff
     const staff = await db.user.findMany({
@@ -166,6 +195,9 @@ export async function POST(request: NextRequest) {
         status: 'processed' as const,
       };
     });
+
+    // Mark payroll as completed in idempotency cache
+    payrollProcessingCache.set(cacheKey, { status: 'completed', startedAt: Date.now() });
 
     // Summary stats
     const summary = {

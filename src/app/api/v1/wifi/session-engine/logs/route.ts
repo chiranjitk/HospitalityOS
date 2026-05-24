@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import fs from 'fs';
 import path from 'path';
 
@@ -10,6 +10,8 @@ import path from 'path';
 // Query params:
 //   ?lines=100    — last N lines (default: 100, max: 500)
 //   ?download=1   — return as text/plain for easy saving
+//
+// Requires wifi.manage permission.
 // ────────────────────────────────────────────────────────────────
 
 const LOG_DIR = path.join(process.cwd(), 'logs');
@@ -17,7 +19,7 @@ const LOG_FILE = path.join(LOG_DIR, 'session-engine.log');
 const MAX_LINES = 500;
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAuth(request);
+  const auth = await requirePermission(request, 'wifi.manage');
   if (auth instanceof NextResponse) return auth;
 
   try {

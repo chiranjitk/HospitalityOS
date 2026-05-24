@@ -106,6 +106,16 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // Validate endDate is after startDate
+    const parsedStartDate = new Date(startDate);
+    const parsedEndDate = new Date(endDate);
+    if (parsedEndDate <= parsedStartDate) {
+      return NextResponse.json({
+        success: false,
+        error: 'endDate must be after startDate',
+      }, { status: 400 });
+    }
+
     // Validate package plan exists and belongs to tenant
     const pkg = await db.packagePlan.findFirst({
       where: { id: packagePlanId, tenantId: user.tenantId, propertyId },

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
@@ -13,7 +14,7 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 function generateCardNumber(): string {
   const prefix = 'KC';
   const timestamp = Date.now().toString(36).toUpperCase();
-  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const random = crypto.randomBytes(3).toString('hex').toUpperCase();
   return `${prefix}-${timestamp}-${random}`;
 }
 

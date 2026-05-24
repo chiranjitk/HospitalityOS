@@ -20,18 +20,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Session expired' }, { status: 401 });
     }
 
-    // Verify the session's user exists
+    // GAP-FIX(17b): Verify user exists, is active, and not deleted
     const sessionUser = await db.user.findFirst({
       where: { id: currentSession.userId },
-      select: { id: true },
+      select: { id: true, status: true, deletedAt: true },
     });
-    if (!sessionUser) {
+    if (!sessionUser || sessionUser.deletedAt) {
       return NextResponse.json({ error: 'Session expired' }, { status: 401 });
     }
+    if (sessionUser.status !== 'active') {
+      return NextResponse.json({ error: 'Account is not active' }, { status: 401 });
+    }
 
-    // Get all sessions for this user
+    // Get all sessions for this user (excluding expired)
+    // GAP-FIX(17b): Filter out expired sessions from listing
     const sessions = await db.session.findMany({
-      where: { userId: currentSession.userId },
+      where: { userId: currentSession.userId, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -127,13 +131,16 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Session expired' }, { status: 401 });
     }
 
-    // Verify the session's user exists
+    // GAP-FIX(17b): Verify user exists, is active, and not deleted
     const sessionUser = await db.user.findFirst({
       where: { id: currentSession.userId },
-      select: { id: true },
+      select: { id: true, status: true, deletedAt: true },
     });
-    if (!sessionUser) {
+    if (!sessionUser || sessionUser.deletedAt) {
       return NextResponse.json({ error: 'Session expired' }, { status: 401 });
+    }
+    if (sessionUser.status !== 'active') {
+      return NextResponse.json({ error: 'Account is not active' }, { status: 401 });
     }
 
     // Find the session to revoke

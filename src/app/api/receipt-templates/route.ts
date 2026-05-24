@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,6 +26,9 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
     if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
+    if (!hasPermission(user, 'restaurant.write') && !hasPermission(user, 'restaurant.*') && !hasPermission(user, 'settings.write')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
 
     const body = await request.json();
 
@@ -48,6 +51,9 @@ export async function PUT(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
     if (!user) return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
+    if (!hasPermission(user, 'restaurant.write') && !hasPermission(user, 'restaurant.*') && !hasPermission(user, 'settings.write')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
 
     const body = await request.json();
 

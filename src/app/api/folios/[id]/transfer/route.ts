@@ -200,7 +200,7 @@ export async function POST(
         where: { id: sourceFolio.id },
         data: {
           subtotal: srcSubtotal,
-          taxAmount: srcTaxes,
+          taxes: srcTaxes,
           totalAmount: srcTotal,
           balance: srcBalance,
         },
@@ -219,7 +219,7 @@ export async function POST(
         where: { id: destinationFolio.id },
         data: {
           subtotal: destSubtotal,
-          taxAmount: destTaxes,
+          taxes: destTaxes,
           totalAmount: destTotal,
           balance: destBalance,
         },

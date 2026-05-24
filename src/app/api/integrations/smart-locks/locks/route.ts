@@ -53,6 +53,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'propertyId and name are required' }, { status: 400 });
     }
 
+    // Validate doorStatus if provided
+    const validDoorStatuses = ['open', 'closed', 'ajar', 'unknown'];
+    if (doorStatus && !validDoorStatuses.includes(doorStatus)) {
+      return NextResponse.json({ success: false, error: `Invalid doorStatus. Must be one of: ${validDoorStatuses.join(', ')}` }, { status: 400 });
+    }
+
+    // Validate lockStatus if provided
+    const validLockStatuses = ['locked', 'unlocked', 'jammed', 'unknown'];
+    if (lockStatus && !validLockStatuses.includes(lockStatus)) {
+      return NextResponse.json({ success: false, error: `Invalid lockStatus. Must be one of: ${validLockStatuses.join(', ')}` }, { status: 400 });
+    }
+
+    // Validate provider if provided
+    const validProviders = ['assa_abloy', 'salto', 'dormakaba', 'onity', 'saflok', 'custom'];
+    if (provider && !validProviders.includes(provider)) {
+      return NextResponse.json({ success: false, error: `Invalid provider. Must be one of: ${validProviders.join(', ')}` }, { status: 400 });
+    }
+
+    // Validate batteryLevel if provided (0-100)
+    if (batteryLevel !== undefined && (typeof batteryLevel !== 'number' || batteryLevel < 0 || batteryLevel > 100)) {
+      return NextResponse.json({ success: false, error: 'batteryLevel must be between 0 and 100' }, { status: 400 });
+    }
+
+    // Verify property belongs to tenant
+    const property = await db.property.findFirst({ where: { id: propertyId, tenantId: user.tenantId } });
+    if (!property) {
+      return NextResponse.json({ success: false, error: 'Property not found' }, { status: 404 });
+    }
+
+    // Verify room belongs to tenant if provided
+    if (roomId) {
+      const room = await db.room.findFirst({ where: { id: roomId, tenantId: user.tenantId } });
+      if (!room) {
+        return NextResponse.json({ success: false, error: 'Room not found' }, { status: 404 });
+      }
+    }
+
     const lock = await db.smartLock.create({
       data: {
         tenantId: user.tenantId,

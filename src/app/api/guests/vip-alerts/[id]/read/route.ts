@@ -13,6 +13,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const alert = await db.vipAlert.findFirst({ where: { id, tenantId: user.tenantId } });
     if (!alert) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
 
+    // Idempotent: if already read, return current state without update
+    if (alert.isRead) {
+      return NextResponse.json({ success: true, data: alert, message: 'Alert already read' });
+    }
+
     const updated = await db.vipAlert.update({
       where: { id },
       data: { isRead: true, readBy: user.id, readAt: new Date() },

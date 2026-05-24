@@ -49,21 +49,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       req = await db.$transaction(async (tx) => {
         await tx.purchaseRequisitionItem.deleteMany({ where: { requisitionId: id } });
         const totalAmount = items.reduce((s: number, i: { unitPrice: number; quantity: number }) => s + (i.unitPrice || 0) * (i.quantity || 0), 0);
+        // Re-create items inside the transaction for atomicity
+        await tx.purchaseRequisitionItem.createMany({
+          data: items.map((i: { stockItemId?: string; itemName: string; description?: string; quantity: number; unit: string; unitPrice: number; notes?: string }) => ({
+            requisitionId: id, stockItemId: i.stockItemId || null,
+            itemName: i.itemName, description: i.description,
+            quantity: i.quantity, unit: i.unit || 'pcs',
+            unitPrice: i.unitPrice || 0,
+            totalPrice: (i.unitPrice || 0) * (i.quantity || 0),
+            notes: i.notes,
+          })),
+        });
         return tx.purchaseRequisition.update({
           where: { id }, data: { ...updateData, ...(status ? { status } : {}), totalAmount },
           include: { items: true },
         });
-      });
-      // Re-create items
-      await db.purchaseRequisitionItem.createMany({
-        data: items.map((i: { stockItemId?: string; itemName: string; description?: string; quantity: number; unit: string; unitPrice: number; notes?: string }) => ({
-          requisitionId: id, stockItemId: i.stockItemId || null,
-          itemName: i.itemName, description: i.description,
-          quantity: i.quantity, unit: i.unit || 'pcs',
-          unitPrice: i.unitPrice || 0,
-          totalPrice: (i.unitPrice || 0) * (i.quantity || 0),
-          notes: i.notes,
-        })),
       });
     } else {
       if (status) updateData.status = status;

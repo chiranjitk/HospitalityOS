@@ -84,6 +84,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate bandwidth values
+    if (typeof bandwidthDownKbps !== 'number' || bandwidthDownKbps < 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'bandwidthDownKbps must be a non-negative number' } },
+        { status: 400 },
+      );
+    }
+    if (typeof bandwidthUpKbps !== 'number' || bandwidthUpKbps < 0) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'bandwidthUpKbps must be a non-negative number' } },
+        { status: 400 },
+      );
+    }
+
+    // Validate session timeout and max devices
+    if (typeof sessionTimeoutMins !== 'number' || sessionTimeoutMins < 1 || sessionTimeoutMins > 10080) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'sessionTimeoutMins must be between 1 and 10080 (7 days)' } },
+        { status: 400 },
+      );
+    }
+    if (typeof maxDevices !== 'number' || maxDevices < 1 || maxDevices > 100) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'maxDevices must be between 1 and 100' } },
+        { status: 400 },
+      );
+    }
+
+    // Validate priority
+    if (typeof priority !== 'number' || priority < 0 || priority > 100) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'priority must be between 0 and 100' } },
+        { status: 400 },
+      );
+    }
+
     const validTrustLevels = ['trusted', 'standard', 'restricted', 'quarantine'];
     if (!validTrustLevels.includes(trustLevel)) {
       return NextResponse.json(

@@ -21,7 +21,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     return NextResponse.json({ success: true, data: updated });
-  } catch (error) {
+  } catch (error: unknown) {
+    console.error('Failed to approve BEO:', error);
+    if (error instanceof Error && error.message.includes('Unique constraint')) {
+      return NextResponse.json({ success: false, error: 'BEO is already approved' }, { status: 409 });
+    }
     return NextResponse.json({ success: false, error: 'Failed to approve BEO' }, { status: 500 });
   }
 }

@@ -158,6 +158,14 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // SECURITY FIX: Status guard — don't allow updating guarantees on terminal bookings
+    if (['checked_out', 'cancelled', 'no_show'].includes(booking.status)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_STATUS', message: `Cannot update guarantee for a ${booking.status} booking` } },
+        { status: 400 }
+      );
+    }
+
     const updateData: Record<string, unknown> = {};
 
     if (depositPaid !== undefined) updateData.depositPaid = depositPaid;
@@ -261,6 +269,17 @@ export async function POST(request: NextRequest) {
             await tx.room.update({
               where: { id: booking.roomId },
               data: { status: 'available' },
+            });
+          }
+
+          // SECURITY FIX: Also close the open folio for this booking to prevent orphaned charges
+          const openFolio = await tx.folio.findFirst({
+            where: { bookingId: booking.id, status: { in: ['open', 'partially_paid'] } },
+          });
+          if (openFolio) {
+            await tx.folio.update({
+              where: { id: openFolio.id },
+              data: { status: 'closed', closedAt: now },
             });
           }
         });

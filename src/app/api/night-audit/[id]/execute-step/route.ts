@@ -183,94 +183,99 @@ async function postRoomCharges(audit: { id: string; propertyId: string; tenantId
   const endOfDay = new Date(businessDay);
   endOfDay.setHours(23, 59, 59, 999);
 
-  // Find all in-house bookings (checked in but not checked out, overlapping business day)
-  const activeBookings = await db.booking.findMany({
-    where: {
-      tenantId: audit.tenantId,
-      propertyId: audit.propertyId,
-      status: { in: ['confirmed', 'checked_in'] },
-      actualCheckIn: { lte: endOfDay },
-      OR: [
-        { actualCheckOut: null },
-        { actualCheckOut: { gte: startOfDay } },
-      ],
-    },
-    include: {
-      room: { select: { id: true, number: true } },
-      roomType: { select: { id: true, name: true, basePrice: true } },
-      folios: {
-        where: { status: 'open' },
-        select: { id: true },
+  // Run room charge posting in a transaction for atomicity
+  const result = await db.$transaction(async (tx) => {
+    // Find all in-house bookings (checked in but not checked out, overlapping business day)
+    const activeBookings = await tx.booking.findMany({
+      where: {
+        tenantId: audit.tenantId,
+        propertyId: audit.propertyId,
+        status: { in: ['confirmed', 'checked_in'] },
+        actualCheckIn: { lte: endOfDay },
+        OR: [
+          { actualCheckOut: null },
+          { actualCheckOut: { gte: startOfDay } },
+        ],
       },
-      primaryGuest: { select: { id: true, firstName: true, lastName: true } },
-    },
-  });
+      include: {
+        room: { select: { id: true, number: true } },
+        roomType: { select: { id: true, name: true, basePrice: true } },
+        folios: {
+          where: { status: 'open' },
+          select: { id: true },
+        },
+        primaryGuest: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
 
-  // Calculate tax rate from property settings
-  const property = await db.property.findUnique({
-    where: { id: audit.propertyId },
-    select: { taxComponents: true, defaultTaxRate: true },
-  });
-  let taxRate = 0;
-  if (property?.taxComponents) {
-    try {
-      const tc = JSON.parse(property.taxComponents || '[]');
-      if (Array.isArray(tc) && tc.length > 0) {
-        taxRate = tc.reduce((s: number, c: { rate: number }) => s + (c.rate || 0), 0) / 100;
-      } else { taxRate = (property.defaultTaxRate || 0) / 100; }
-    } catch { taxRate = (property.defaultTaxRate || 0) / 100; }
-  }
+    // Calculate tax rate from property settings (fetched INSIDE transaction)
+    const property = await tx.property.findUnique({
+      where: { id: audit.propertyId },
+      select: { taxComponents: true, defaultTaxRate: true },
+    });
+    let taxRate = 0;
+    if (property?.taxComponents) {
+      try {
+        const tc = JSON.parse(property.taxComponents || '[]');
+        if (Array.isArray(tc) && tc.length > 0) {
+          taxRate = tc.reduce((s: number, c: { rate: number }) => s + (c.rate || 0), 0) / 100;
+        } else { taxRate = (property.defaultTaxRate || 0) / 100; }
+      } catch { taxRate = (property.defaultTaxRate || 0) / 100; }
+    }
 
-  let chargesPosted = 0;
-  let totalAmount = 0;
-  const chargeDetails: Array<{ bookingId: string; room: string; amount: number; folioId: string }> = [];
+    let chargesPosted = 0;
+    let totalAmount = 0;
+    const chargeDetails: Array<{ bookingId: string; room: string; amount: number; folioId: string }> = [];
 
-  for (const booking of activeBookings) {
-    const roomRate = booking.roomRate > 0 ? booking.roomRate : booking.roomType.basePrice;
-    const taxAmount = Math.round(roomRate * taxRate * 100) / 100;
-    const folio = booking.folios[0];
+    for (const booking of activeBookings) {
+      const roomRate = booking.roomRate > 0 ? booking.roomRate : booking.roomType.basePrice;
+      const taxAmount = Math.round(roomRate * taxRate * 100) / 100;
+      const folio = booking.folios[0];
 
-    if (!folio) continue;
+      if (!folio) continue;
 
-    // Create folio line item for room charge
-    await db.folioLineItem.create({
-      data: {
+      // Create folio line item for room charge
+      await tx.folioLineItem.create({
+        data: {
+          folioId: folio.id,
+          description: `Room charge - Room ${booking.room?.number || 'N/A'} (${booking.roomType.name}) - Night Audit`,
+          category: 'room_charge',
+          quantity: 1,
+          unitPrice: roomRate,
+          totalAmount: roomRate,
+          taxAmount,
+          serviceDate: audit.businessDayDate,
+          referenceType: 'NightAudit',
+          referenceId: audit.id,
+          postedBy: 'system',
+        },
+      });
+
+      // Update folio balance
+      await tx.folio.update({
+        where: { id: folio.id },
+        data: {
+          subtotal: { increment: roomRate },
+          taxes: { increment: taxAmount },
+          totalAmount: { increment: roomRate + taxAmount },
+          balance: { increment: roomRate + taxAmount },
+        },
+      });
+
+      chargesPosted++;
+      totalAmount += roomRate + taxAmount;
+      chargeDetails.push({
+        bookingId: booking.id,
+        room: booking.room?.number || 'N/A',
+        amount: roomRate,
         folioId: folio.id,
-        description: `Room charge - Room ${booking.room?.number || 'N/A'} (${booking.roomType.name}) - Night Audit`,
-        category: 'room_charge',
-        quantity: 1,
-        unitPrice: roomRate,
-        totalAmount: roomRate,
-        taxAmount,
-        serviceDate: audit.businessDayDate,
-        referenceType: 'NightAudit',
-        referenceId: audit.id,
-        postedBy: 'system',
-      },
-    });
+      });
+    }
 
-    // Update folio balance
-    await db.folio.update({
-      where: { id: folio.id },
-      data: {
-        subtotal: { increment: roomRate },
-        taxes: { increment: taxAmount },
-        totalAmount: { increment: roomRate + taxAmount },
-        balance: { increment: roomRate + taxAmount },
-      },
-    });
+    return { chargesPosted, totalAmount, chargeDetails };
+  });
 
-    chargesPosted++;
-    totalAmount += roomRate + taxAmount;
-    chargeDetails.push({
-      bookingId: booking.id,
-      room: booking.room?.number || 'N/A',
-      amount: roomRate,
-      folioId: folio.id,
-    });
-  }
-
-  return { chargesPosted, totalAmount, chargeDetails };
+  return result;
 }
 
 /**

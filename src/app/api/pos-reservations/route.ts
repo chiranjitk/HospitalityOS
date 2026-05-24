@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth-helpers';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 
 // GET /api/pos-reservations
@@ -62,6 +62,9 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
     }
+    if (!hasPermission(user, 'restaurant.write') && !hasPermission(user, 'restaurant.*')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
 
     const body = await request.json();
     const data = nullifyEmptyStrings(body);
@@ -122,6 +125,9 @@ export async function PUT(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
     }
+    if (!hasPermission(user, 'restaurant.write') && !hasPermission(user, 'restaurant.*')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
+    }
 
     const body = await request.json();
     const { id, status, tableId, guestName, guestPhone, guestEmail, partySize, specialRequests, occasion, seatedAt, completedAt, cancelledAt } = body;
@@ -170,6 +176,9 @@ export async function DELETE(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+    if (!hasPermission(user, 'restaurant.write') && !hasPermission(user, 'restaurant.*')) {
+      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
     const searchParams = request.nextUrl.searchParams;

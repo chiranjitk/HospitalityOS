@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { execSync } from 'child_process';
 import { db } from '@/lib/db';
-import { getTenantContext, requireAuth, resolvePropertyId } from '@/lib/auth/tenant-context';
+import { requireAuth, resolvePropertyId } from '@/lib/auth/tenant-context';
 import {
   scanConnections,
   addSecondaryIP,
@@ -64,15 +64,10 @@ export async function GET(
   try {
     const { name } = await params;
 
-    // ── Auth (read-only: fallback to first property) ──
-    const context = await getTenantContext(request);
-    let propertyId: string;
-    if (context) {
-      propertyId = await resolvePropertyId(context) || context.tenantId;
-    } else {
-      const firstProperty = await db.property.findFirst({ select: { id: true } });
-      propertyId = firstProperty?.id || '';
-    }
+    // ── Auth ──
+    const context = await requireAuth(request);
+    if (context instanceof NextResponse) return context;
+    const propertyId = await resolvePropertyId(context) || context.tenantId;
 
     if (!VALID_NAME.test(name)) {
       return NextResponse.json(

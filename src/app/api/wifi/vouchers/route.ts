@@ -715,24 +715,32 @@ export async function PUT(request: NextRequest) {    const user = await requireP
           }
 
           if (folio) {
+            // Include property tax (12%) on WiFi charges
+            const taxRate = 0.12;
+            const unitPrice = Math.round(plan.price * 100) / 100;
+            const taxAmount = Math.round(unitPrice * taxRate * 100) / 100;
+            const totalAmount = Math.round((unitPrice + taxAmount) * 100) / 100;
+
             await db.folioLineItem.create({
               data: {
                 folioId: folio.id,
                 description: `WiFi - ${plan.name} (${formatPlanDuration(plan)})`,
                 category: 'wifi',
-                unitPrice: plan.price,
+                unitPrice,
                 quantity: 1,
-                totalAmount: plan.price,
+                taxAmount,
+                totalAmount,
               },
             });
 
-            // Update folio total
+            // Update folio total with proper rounding (billing gap fix)
             const existingLineItems = await db.folioLineItem.findMany({
               where: { folioId: folio.id },
             });
-            const newSubtotal = existingLineItems.reduce((sum, item) => sum + item.totalAmount, 0);
-            const newTaxes = existingLineItems.reduce((sum, item) => sum + item.taxAmount, 0);
-            const newTotal = newSubtotal + newTaxes - (folio.discount || 0);
+            const newSubtotal = Math.round(existingLineItems.reduce((sum, li) => sum + li.totalAmount, 0) * 100) / 100;
+            const newTaxes = Math.round(existingLineItems.reduce((sum, li) => sum + (li.taxAmount || 0), 0) * 100) / 100;
+            const newTotal = Math.round((newSubtotal + newTaxes - (folio.discount || 0)) * 100) / 100;
+            const balance = Math.round((newTotal - (folio.paidAmount || 0)) * 100) / 100;
 
             await db.folio.update({
               where: { id: folio.id },
@@ -740,7 +748,7 @@ export async function PUT(request: NextRequest) {    const user = await requireP
                 subtotal: newSubtotal,
                 taxes: newTaxes,
                 totalAmount: newTotal,
-                balance: newTotal - folio.paidAmount,
+                balance,
               },
             });
           }

@@ -57,11 +57,13 @@ export async function GET(request: NextRequest) {
     const b2bInvoices = eInvoices.filter(e => e.supplyType === 'b2b');
     const b2cInvoices = eInvoices.filter(e => e.supplyType === 'b2c' || e.supplyType === 'b2cl');
 
-    const totalTaxableValue = eInvoices.reduce((sum, e) => sum + e.totalValue, 0);
-    const totalCgst = eInvoices.reduce((sum, e) => sum + e.totalCgst, 0);
-    const totalSgst = eInvoices.reduce((sum, e) => sum + e.totalSgst, 0);
-    const totalIgst = eInvoices.reduce((sum, e) => sum + e.totalIgst, 0);
-    const totalCess = eInvoices.reduce((sum, e) => sum + e.totalCess, 0);
+    // FIX: Proper rounding for GST aggregate calculations (₹ precision)
+    const round2 = (v: number) => Math.round(v * 100) / 100;
+    const totalTaxableValue = round2(eInvoices.reduce((sum, e) => sum + e.totalValue, 0));
+    const totalCgst = round2(eInvoices.reduce((sum, e) => sum + e.totalCgst, 0));
+    const totalSgst = round2(eInvoices.reduce((sum, e) => sum + e.totalSgst, 0));
+    const totalIgst = round2(eInvoices.reduce((sum, e) => sum + e.totalIgst, 0));
+    const totalCess = round2(eInvoices.reduce((sum, e) => sum + e.totalCess, 0));
 
     const gstr1Data = {
       period,
@@ -70,13 +72,13 @@ export async function GET(request: NextRequest) {
       b2b: b2bInvoices,
       b2c: b2cInvoices,
       totalInvoices: eInvoices.length,
-      totalOutwardSupply: eInvoices.reduce((sum, e) => sum + e.totalAmount, 0),
+      totalOutwardSupply: round2(eInvoices.reduce((sum, e) => sum + e.totalAmount, 0)),
       totalTaxableValue,
       totalCgst,
       totalSgst,
       totalIgst,
       totalCess,
-      totalTax: totalCgst + totalSgst + totalIgst + totalCess,
+      totalTax: round2(totalCgst + totalSgst + totalIgst + totalCess),
     };
 
     return NextResponse.json({ success: true, data: gstr1Data });

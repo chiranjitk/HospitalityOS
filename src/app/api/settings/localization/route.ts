@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { getCurrencySymbol } from '@/lib/currencies';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET - Get localization settings
 export async function GET(request: NextRequest) {
@@ -191,43 +192,57 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Get tenant
-    const tenant = await db.tenant.findUnique({
-      where: { id: tenantId, deletedAt: null },
+    // Wrap read-modify-write in a transaction to prevent race conditions
+    await db.$transaction(async (tx) => {
+      const tenant = await tx.tenant.findUnique({
+        where: { id: tenantId, deletedAt: null },
+      });
+
+      if (!tenant) {
+        throw new Error('Tenant not found');
+      }
+
+      // Update tenant with new settings
+      const currentSettings = tenant.settings ? JSON.parse(tenant.settings) : {};
+      const newSettings = {
+        ...currentSettings,
+        availableLanguages: language?.available,
+        locale: region?.locale,
+        dateFormat: formats?.dateFormat,
+        timeFormat: formats?.timeFormat,
+        firstDayOfWeek: formats?.firstDayOfWeek,
+        autoTranslate: translations?.autoTranslate,
+        translationProvider: translations?.provider,
+        languageDetection: guestFacing?.languageDetection,
+        rememberLanguagePreference: guestFacing?.rememberPreference,
+        showLanguageSelector: guestFacing?.showLanguageSelector,
+      };
+
+      await tx.tenant.update({
+        where: { id: tenantId },
+        data: {
+          language: language?.default,
+          timezone: region?.timezone,
+          country: region?.country,
+          settings: JSON.stringify(newSettings),
+        },
+      });
     });
 
-    if (!tenant) {
-      return NextResponse.json(
-        { success: false, error: 'Tenant not found' },
-        { status: 404 }
-      );
+    // Audit log
+    try {
+      await auditLogService.logWithContext({
+        tenantId: user.tenantId,
+        userId: user.id,
+        module: 'settings',
+        action: 'update',
+        entityType: 'localization_settings',
+        description: 'Updated localization settings',
+        newValue: { language, region, formats, translations, guestFacing },
+      }, request);
+    } catch (auditErr) {
+      console.error('Audit log failed (non-blocking):', auditErr);
     }
-
-    // Update tenant with new settings
-    const currentSettings = tenant.settings ? JSON.parse(tenant.settings) : {};
-    const newSettings = {
-      ...currentSettings,
-      availableLanguages: language?.available,
-      locale: region?.locale,
-      dateFormat: formats?.dateFormat,
-      timeFormat: formats?.timeFormat,
-      firstDayOfWeek: formats?.firstDayOfWeek,
-      autoTranslate: translations?.autoTranslate,
-      translationProvider: translations?.provider,
-      languageDetection: guestFacing?.languageDetection,
-      rememberLanguagePreference: guestFacing?.rememberPreference,
-      showLanguageSelector: guestFacing?.showLanguageSelector,
-    };
-
-    await db.tenant.update({
-      where: { id: tenantId },
-      data: {
-        language: language?.default,
-        timezone: region?.timezone,
-        country: region?.country,
-        settings: JSON.stringify(newSettings),
-      },
-    });
 
     return NextResponse.json({
       success: true,

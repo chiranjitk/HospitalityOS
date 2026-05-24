@@ -17,6 +17,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (!hasPermission(user, 'marketing.view') && !hasPermission(user, 'marketing.manage') && !hasPermission(user, 'marketing.*') && !hasPermission(user, '*')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const tenantId = user.tenantId;
     const searchParams = request.nextUrl.searchParams;
     const statusFilter = searchParams.get('status') || '';

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth } from '@/lib/auth/tenant-context';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // ─── Valid alert types and severities ──────────────────────────────────────────
 const VALID_TYPES = [
@@ -20,7 +20,7 @@ const VALID_STATUSES = ['active', 'acknowledged', 'resolved'] as const;
 // List WiFi alerts with filters and pagination
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requirePermission(request, 'wifi.manage');
     if (auth instanceof NextResponse) return auth;
 
     const searchParams = request.nextUrl.searchParams;
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
 // Create a new WiFi alert (for programmatic alert creation from health checks)
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
+    const auth = await requirePermission(request, 'wifi.manage');
     if (auth instanceof NextResponse) return auth;
 
     const body = await request.json();

@@ -115,7 +115,7 @@ export async function PUT(
       const duplicate = await db.amenity.findFirst({
         where: {
           tenantId,
-          name,
+          name: String(name).trim(),
           id: { not: id },
         },
       });
@@ -131,7 +131,7 @@ export async function PUT(
     const amenity = await db.amenity.update({
       where: { id },
       data: {
-        ...(name !== undefined && { name: name.trim() }),
+        ...(name !== undefined && { name: String(name).trim().slice(0, 255) }),
         ...(icon !== undefined && { icon }),
         ...(category !== undefined && { category }),
         ...(isActive !== undefined && { isActive }),

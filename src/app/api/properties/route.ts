@@ -204,23 +204,22 @@ export async function POST(request: NextRequest) {
     }
     
     // Check if slug already exists
-    const existingProperty = await db.property.findUnique({
-      where: {
-        tenantId_slug: {
-          tenantId,
-          slug,
+    // GAP-FIX(17b): Wrapped slug check + create in transaction to prevent TOCTOU race condition
+    const property = await db.$transaction(async (tx) => {
+      const existingProperty = await tx.property.findUnique({
+        where: {
+          tenantId_slug: {
+            tenantId,
+            slug,
+          },
         },
-      },
-    });
+      });
     
-    if (existingProperty) {
-      return NextResponse.json(
-        { success: false, error: { code: 'DUPLICATE_SLUG', message: 'A property with this slug already exists' } },
-        { status: 400 }
-      );
-    }
+      if (existingProperty) {
+        throw new Error('DUPLICATE_SLUG');
+      }
     
-    const property = await db.property.create({
+      return tx.property.create({
       data: {
         tenantId,
         name,
@@ -251,10 +250,11 @@ export async function POST(request: NextRequest) {
         taxComponents: JSON.stringify(taxComponents),
         serviceChargePercent,
         includeTaxInPrice,
-        totalFloors,
+        totalFloors: Math.max(1, Math.min(999, parseInt(String(totalFloors), 10) || 1)),
         status,
       },
     });
+    }); // end transaction
 
     // Audit log for property creation
     try {
@@ -268,6 +268,12 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({ success: true, data: property }, { status: 201 });
   } catch (error) {
+    if (error instanceof Error && error.message === 'DUPLICATE_SLUG') {
+      return NextResponse.json(
+        { success: false, error: { code: 'DUPLICATE_SLUG', message: 'A property with this slug already exists' } },
+        { status: 400 }
+      );
+    }
     console.error('Error creating property:', error);
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create property' } },

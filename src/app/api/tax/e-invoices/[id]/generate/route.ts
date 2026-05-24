@@ -62,6 +62,9 @@ export async function POST(request: NextRequest) {
         const total = (inv.totalAmount as number) || 0;
         const value = total - tax;
 
+        // FIX: Tax calculation rounding for GST compliance — CGST+SGST = 50% each, IGST = 0 for intrastate
+        const cgst = Math.round(tax * 0.25 * 100) / 100;
+        const sgst = Math.round(tax * 0.25 * 100) / 100;
         return db.gstEInvoice.create({
           data: {
             tenantId: user.tenantId,
@@ -73,12 +76,12 @@ export async function POST(request: NextRequest) {
             placeOfSupply: data.placeOfSupply,
             invoiceNumber: inv.invoiceNumber,
             invoiceDate: inv.createdAt,
-            totalValue: value > 0 ? value : total * 0.846,
-            totalCgst: tax * 0.25,
-            totalSgst: tax * 0.25,
+            totalValue: Math.round(value > 0 ? value : total * 0.846 * 100) / 100,
+            totalCgst: cgst,
+            totalSgst: sgst,
             totalIgst: 0,
             totalCess: 0,
-            totalTax: tax * 0.5,
+            totalTax: Math.round((cgst + sgst) * 100) / 100,
             totalAmount: total,
             irn: null,
             irnStatus: 'PENDING',

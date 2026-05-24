@@ -99,14 +99,14 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
-    if (!name || typeof name !== 'string' || name.trim() === '') {
+    if (!name || typeof name !== 'string' || name.trim().length === 0 || name.trim().length > 255) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Name is required' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Name is required (max 255 characters)' } },
         { status: 400 }
       );
     }
 
-    const trimmedName = name.trim();
+    const trimmedName = name.trim().slice(0, 255);
 
     // Validate category
     const validCategories = ['general', 'room', 'property', 'services', 'accessibility', 'wellness', 'business', 'dining'];
@@ -191,6 +191,14 @@ export async function DELETE(request: NextRequest) {
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'IDs array is required' } },
+        { status: 400 }
+      );
+    }
+
+    // Cap batch delete size
+    if (ids.length > 100) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Maximum 100 IDs per batch delete' } },
         { status: 400 }
       );
     }

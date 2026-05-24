@@ -114,6 +114,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'unitId, ownerName, startDate, and purchasePrice are required' }, { status: 400 });
     }
 
+    // FIX: Validate numeric fields with NaN checks
+    const parsedPurchasePrice = parseFloat(purchasePrice);
+    if (isNaN(parsedPurchasePrice) || parsedPurchasePrice < 0) {
+      return NextResponse.json({ success: false, error: 'purchasePrice must be a valid non-negative number' }, { status: 400 });
+    }
+    const parsedAnnualMf = annualMf ? parseFloat(annualMf) : 0;
+    if (isNaN(parsedAnnualMf) || parsedAnnualMf < 0) {
+      return NextResponse.json({ success: false, error: 'annualMf must be a valid non-negative number' }, { status: 400 });
+    }
+
     // Verify unit belongs to tenant
     const unit = await db.timeshareUnit.findFirst({ where: { id: unitId, tenantId: user.tenantId } });
     if (!unit) {
@@ -130,8 +140,8 @@ export async function POST(request: NextRequest) {
         ownerPhone: ownerPhone || null,
         startDate: new Date(startDate),
         endDate: endDate ? new Date(endDate) : null,
-        purchasePrice: parseFloat(purchasePrice),
-        annualMf: parseFloat(annualMf) || 0,
+        purchasePrice: parsedPurchasePrice,
+        annualMf: parsedAnnualMf,
         status: status || 'active',
         notes: notes || null,
       },

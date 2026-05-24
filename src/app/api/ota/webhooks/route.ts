@@ -346,16 +346,19 @@ async function handleReservationModified(
     throw new Error(`Invalid booking dates: check_in=${data.check_in}, check_out=${data.check_out}`);
   }
 
-  return await db.booking.update({
-    where: { id: existingBooking.id },
-    data: {
-      checkIn,
-      checkOut,
-      adults: data.guests,
-      totalAmount: data.total_amount,
-      specialRequests: data.special_requests,
-      updatedAt: new Date(),
-    },
+  // SECURITY FIX: Use transaction for atomic modification
+  return await db.$transaction(async (tx) => {
+    return await tx.booking.update({
+      where: { id: existingBooking.id },
+      data: {
+        checkIn,
+        checkOut,
+        adults: data.guests,
+        totalAmount: data.total_amount,
+        specialRequests: data.special_requests,
+        updatedAt: new Date(),
+      },
+    });
   });
 }
 
@@ -377,13 +380,16 @@ async function handleReservationCancelled(
     return { id: 'not_found', confirmationCode: 'N/A' } as any;
   }
 
-  return await db.booking.update({
-    where: { id: existingBooking.id },
-    data: {
-      status: 'cancelled',
-      cancelledAt: new Date(),
-      cancellationReason: 'Cancelled via OTA webhook',
-    },
+  // SECURITY FIX: Use transaction for atomic cancellation
+  return await db.$transaction(async (tx) => {
+    return await tx.booking.update({
+      where: { id: existingBooking.id },
+      data: {
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        cancellationReason: 'Cancelled via OTA webhook',
+      },
+    });
   });
 }
 
