@@ -160,66 +160,69 @@ export async function POST(request: NextRequest) {
     // Auto-post to folio if an active folio exists
     if (folio && folio.status === 'open') {
       try {
-        // M-4 FIX: Calculate tax from property tax settings
-        let taxRate = 0;
-        const prop = await db.property.findFirst({
-          where: { id: propertyId },
-          select: { defaultTaxRate: true, taxComponents: true },
-        });
-        if (prop) {
-          try {
-            const tc = JSON.parse(prop.taxComponents || '[]');
-            if (Array.isArray(tc) && tc.length > 0) {
-              taxRate = tc.reduce((sum: number, c: { rate: number }) => sum + (c.rate || 0), 0) / 100;
-            } else {
-              taxRate = (prop.defaultTaxRate || 0) / 100;
-            }
-          } catch { taxRate = (prop.defaultTaxRate || 0) / 100; }
-        }
-        const taxAmount = Math.round(totalPrice * taxRate * 100) / 100;
+        // FIX: Use $transaction for atomic folio operations + consistent balance formula
+        await db.$transaction(async (tx) => {
+          // M-4 FIX: Calculate tax from property tax settings
+          let taxRate = 0;
+          const prop = await tx.property.findFirst({
+            where: { id: propertyId },
+            select: { defaultTaxRate: true, taxComponents: true },
+          });
+          if (prop) {
+            try {
+              const tc = JSON.parse(prop.taxComponents || '[]');
+              if (Array.isArray(tc) && tc.length > 0) {
+                taxRate = tc.reduce((sum: number, c: { rate: number }) => sum + (c.rate || 0), 0) / 100;
+              } else {
+                taxRate = (prop.defaultTaxRate || 0) / 100;
+              }
+            } catch { taxRate = (prop.defaultTaxRate || 0) / 100; }
+          }
+          const taxAmount = Math.round(totalPrice * taxRate * 100) / 100;
 
-        await db.folioLineItem.create({
-          data: {
-            folioId: folio.id,
-            description: `Minibar: ${itemName} x${qty}`,
-            category: 'minibar',
-            quantity: qty,
-            unitPrice: price,
-            totalAmount: totalPrice,
-            taxAmount,
-            serviceDate: consumptionDate,
-            referenceType: 'minibar_consumption',
-            referenceId: consumption.id,
-            postedBy: user.id,
-          },
-        });
+          await tx.folioLineItem.create({
+            data: {
+              folioId: folio.id,
+              description: `Minibar: ${itemName} x${qty}`,
+              category: 'minibar',
+              quantity: qty,
+              unitPrice: price,
+              totalAmount: totalPrice,
+              taxAmount,
+              serviceDate: consumptionDate,
+              referenceType: 'minibar_consumption',
+              referenceId: consumption.id,
+              postedBy: user.id,
+            },
+          });
 
-        // Recalculate folio taxes: sum all line item tax amounts
-        const allLineItems = await db.folioLineItem.findMany({
-          where: { folioId: folio.id },
-          select: { totalAmount: true, taxAmount: true },
-        });
-        const newSubtotal = allLineItems.reduce((s, i) => s + i.totalAmount, 0);
-        const newTaxes = allLineItems.reduce((s, i) => s + (i.taxAmount || 0), 0);
-        const newTotal = newSubtotal + newTaxes - (folio.discount || 0);
+          // Recalculate folio totals from ALL line items (consistent pattern)
+          const allLineItems = await tx.folioLineItem.findMany({
+            where: { folioId: folio.id },
+            select: { totalAmount: true, taxAmount: true },
+          });
+          const newSubtotal = allLineItems.reduce((s, i) => s + i.totalAmount, 0);
+          const newTaxes = allLineItems.reduce((s, i) => s + (i.taxAmount || 0), 0);
+          const newTotal = newSubtotal + newTaxes - (folio.discount || 0);
 
-        await db.folio.update({
-          where: { id: folio.id },
-          data: {
-            subtotal: newSubtotal,
-            taxes: newTaxes,
-            totalAmount: newTotal,
-            balance: folio.balance + totalPrice + taxAmount,
-          },
-        });
+          await tx.folio.update({
+            where: { id: folio.id },
+            data: {
+              subtotal: newSubtotal,
+              taxes: newTaxes,
+              totalAmount: newTotal,
+              balance: newTotal - (folio.paidAmount || 0),
+            },
+          });
 
-        // Mark consumption as posted
-        await db.minibarConsumption.update({
-          where: { id: consumption.id },
-          data: {
-            postedToFolio: true,
-            postedAt: new Date(),
-          },
+          // Mark consumption as posted
+          await tx.minibarConsumption.update({
+            where: { id: consumption.id },
+            data: {
+              postedToFolio: true,
+              postedAt: new Date(),
+            },
+          });
         });
 
         consumption.postedToFolio = true;

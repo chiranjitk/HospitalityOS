@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    const where: Record<string, unknown> = { tenantId: user.tenantId, status: { notIn: ['cancelled'] } };
+    const where: Record<string, unknown> = { tenantId: user.tenantId, status: { notIn: ['cancelled', 'refunded'] } };
 
     if (propertyId) {
       const prop = await db.property.findFirst({ where: { id: propertyId, tenantId: user.tenantId, deletedAt: null }, select: { id: true } });

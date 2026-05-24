@@ -141,6 +141,14 @@ export async function PUT(
 
     // Handle refund
     if (refundAmount && refundAmount > 0) {
+      // Only process refunds for non-voided payments
+      if (existingPayment.status === 'failed') {
+        return NextResponse.json(
+          { success: false, error: { code: 'PAYMENT_VOIDED', message: 'Cannot refund a voided payment' } },
+          { status: 400 }
+        );
+      }
+
       if (existingPayment.status === 'refunded') {
         return NextResponse.json(
           { success: false, error: { code: 'ALREADY_REFUNDED', message: 'Payment has already been fully refunded' } },
@@ -194,14 +202,26 @@ export async function PUT(
           },
         });
 
-        await tx.folio.update({
+        // Decrement folio paidAmount and recalculate balance from totalAmount
+        const currentFolio = await tx.folio.findUnique({
           where: { id: existingPayment.folioId },
-          data: {
-            paidAmount: { decrement: refundAmount },
-            balance: { increment: refundAmount },
-            status: 'partially_paid',
-          },
+          select: { paidAmount: true, totalAmount: true, subtotal: true, taxes: true, discount: true },
         });
+
+        if (currentFolio) {
+          const newPaidAmount = Math.max(0, currentFolio.paidAmount - refundAmount);
+          const newBalance = Math.max(0, currentFolio.totalAmount - newPaidAmount);
+          const folioStatus = newBalance <= 0 ? 'paid' : (newPaidAmount > 0 ? 'partially_paid' : 'open');
+
+          await tx.folio.update({
+            where: { id: existingPayment.folioId },
+            data: {
+              paidAmount: newPaidAmount,
+              balance: newBalance,
+              status: folioStatus,
+            },
+          });
+        }
 
         await tx.auditLog.create({
           data: {

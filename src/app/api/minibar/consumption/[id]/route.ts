@@ -96,73 +96,80 @@ export async function PATCH(
         const folio = await db.folio.findFirst({
           where: {
             bookingId: existing.bookingId,
-            status: 'open',
+            status: { in: ['open', 'partially_paid'] },
             tenantId: user.tenantId,
           },
         });
 
         if (folio) {
-          // M-4 FIX: Calculate tax from property tax settings
-          let taxRate = 0;
-          const prop = await db.property.findFirst({
-            where: { id: existing.propertyId },
-            select: { defaultTaxRate: true, taxComponents: true },
-          });
-          if (prop) {
-            try {
-              const tc = JSON.parse(prop.taxComponents || '[]');
-              if (Array.isArray(tc) && tc.length > 0) {
-                taxRate = tc.reduce((sum: number, c: { rate: number }) => sum + (c.rate || 0), 0) / 100;
-              } else {
+          // FIX: Use $transaction for atomic folio operations + consistent balance formula
+          await db.$transaction(async (tx) => {
+            // M-4 FIX: Calculate tax from property tax settings
+            let taxRate = 0;
+            const prop = await tx.property.findFirst({
+              where: { id: existing.propertyId },
+              select: { defaultTaxRate: true, taxComponents: true },
+            });
+            if (prop) {
+              try {
+                const tc = JSON.parse(prop.taxComponents || '[]');
+                if (Array.isArray(tc) && tc.length > 0) {
+                  taxRate = tc.reduce((sum: number, c: { rate: number }) => sum + (c.rate || 0), 0) / 100;
+                } else {
+                  taxRate = (prop.defaultTaxRate || 0) / 100;
+                }
+              } catch {
                 taxRate = (prop.defaultTaxRate || 0) / 100;
               }
-            } catch {
-              taxRate = (prop.defaultTaxRate || 0) / 100;
             }
-          }
-          const taxAmount = Math.round(consumption.totalPrice * taxRate * 100) / 100;
+            const taxAmount = Math.round(consumption.totalPrice * taxRate * 100) / 100;
 
-          await db.folioLineItem.create({
-            data: {
-              folioId: folio.id,
-              description: `Minibar: ${existing.itemName} x${consumption.quantity}`,
-              category: 'minibar',
-              quantity: consumption.quantity,
-              unitPrice: consumption.unitPrice,
-              totalAmount: consumption.totalPrice,
-              taxAmount,
-              serviceDate: consumption.consumedAt,
-              referenceType: 'minibar_consumption',
-              referenceId: consumption.id,
-              postedBy: user.id,
-            },
+            await tx.folioLineItem.create({
+              data: {
+                folioId: folio.id,
+                description: `Minibar: ${existing.itemName} x${consumption.quantity}`,
+                category: 'minibar',
+                quantity: consumption.quantity,
+                unitPrice: consumption.unitPrice,
+                totalAmount: consumption.totalPrice,
+                taxAmount,
+                serviceDate: consumption.consumedAt,
+                referenceType: 'minibar_consumption',
+                referenceId: consumption.id,
+                postedBy: user.id,
+              },
+            });
+
+            // Recalculate folio totals from ALL line items (consistent pattern)
+            const allLineItems = await tx.folioLineItem.findMany({
+              where: { folioId: folio.id },
+              select: { totalAmount: true, taxAmount: true },
+            });
+            const newSubtotal = allLineItems.reduce((s, i) => s + i.totalAmount, 0);
+            const newTaxes = allLineItems.reduce((s, i) => s + (i.taxAmount || 0), 0);
+            const newTotal = newSubtotal + newTaxes - (folio.discount || 0);
+
+            await tx.folio.update({
+              where: { id: folio.id },
+              data: {
+                subtotal: newSubtotal,
+                taxes: newTaxes,
+                totalAmount: newTotal,
+                balance: newTotal - (folio.paidAmount || 0),
+              },
+            });
+
+            // Mark consumption as posted
+            await tx.minibarConsumption.update({
+              where: { id },
+              data: { postedToFolio: true, postedAt: new Date() },
+            });
           });
 
-          // Recalculate folio totals with tax
-          const allLineItems = await db.folioLineItem.findMany({
-            where: { folioId: folio.id },
-            select: { totalAmount: true, taxAmount: true },
-          });
-          const newSubtotal = allLineItems.reduce((s, i) => s + i.totalAmount, 0);
-          const newTaxes = allLineItems.reduce((s, i) => s + (i.taxAmount || 0), 0);
-          const newTotal = newSubtotal + newTaxes - (folio.discount || 0);
+          consumption.postedToFolio = true;
+          consumption.postedAt = new Date();
 
-          await db.folio.update({
-            where: { id: folio.id },
-            data: {
-              subtotal: newSubtotal,
-              taxes: newTaxes,
-              totalAmount: newTotal,
-              balance: newTotal - (folio.paidAmount || 0),
-            },
-          });
-
-          const updated = await db.minibarConsumption.update({
-            where: { id },
-            data: { postedToFolio: true, postedAt: new Date() },
-          });
-
-          return NextResponse.json({ success: true, data: updated });
+          return NextResponse.json({ success: true, data: consumption });
         }
       } catch (folioError) {
         console.error('[PATCH /api/minibar/consumption/[id]] Post to folio failed:', folioError);

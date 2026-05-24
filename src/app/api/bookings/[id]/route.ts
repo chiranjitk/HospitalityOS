@@ -399,7 +399,7 @@ export async function PUT(
         ...(totalAmount !== undefined && { totalAmount }),
         ...(ratePlanId !== undefined && { ratePlanId: ratePlanId || null }),
         ...(promoCode !== undefined && { promoCode }),
-        ...(status !== undefined && status !== '' && status !== 'checked_out' && { status }),
+        ...(status !== undefined && status !== '' && status !== 'checked_out' && status !== 'checked_in' && { status }),
         ...(specialRequests !== undefined && { specialRequests }),
         ...(notes !== undefined && { notes }),
         ...(internalNotes !== undefined && { internalNotes }),
@@ -577,38 +577,63 @@ export async function PUT(
         }
       }
 
-      // H-16: Use atomic update with guard to prevent race condition when two admins check in to same room
-      const roomUpdateResult = await db.room.updateMany({
-        where: { id: effectiveRoomId, status: { not: 'occupied' } },
-        data: { status: 'occupied' },
-      });
-      if (roomUpdateResult.count === 0) {
-        return NextResponse.json(
-          { success: false, error: { code: 'ROOM_ALREADY_OCCUPIED', message: 'Room is already occupied — cannot check in another guest' } },
-          { status: 409 }
-        );
+      // H-16 FIX: Wrap booking status update + room occupancy guard in a single transaction.
+      // Previously the booking was updated to 'checked_in' BEFORE the room guard check,
+      // so a failed room guard (409) left the booking in 'checked_in' with no room change.
+      // Now both updates are atomic: if the room guard fails, the booking status rolls back.
+      try {
+        await db.$transaction(async (tx) => {
+          // 1. Update booking status to checked_in (inside transaction for atomicity)
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: {
+              status: 'checked_in',
+              actualCheckIn: actualCheckIn ? new Date(actualCheckIn) : new Date(),
+              checkedInBy: checkedInBy || user.id,
+            },
+          });
+          booking.status = 'checked_in'; // Update local reference for later use
+
+          // 2. Atomic room occupancy guard — prevent two bookings checking into same room
+          const roomUpdateResult = await tx.room.updateMany({
+            where: { id: effectiveRoomId, status: { not: 'occupied' } },
+            data: { status: 'occupied' },
+          });
+          if (roomUpdateResult.count === 0) {
+            throw new Error('ROOM_OCCUPIED'); // Rolls back the booking status update too
+          }
+
+          // 3. Create or update GuestStay record for stay history (inside transaction for atomicity)
+          const nights = Math.ceil((booking.checkOut.getTime() - booking.checkIn.getTime()) / (1000 * 60 * 60 * 24));
+          await tx.guestStay.upsert({
+            where: {
+              guestId_bookingId: {
+                guestId: booking.primaryGuestId,
+                bookingId: booking.id,
+              },
+            },
+            update: {
+              totalAmount: booking.totalAmount,
+              roomNights: nights,
+            },
+            create: {
+              guestId: booking.primaryGuestId,
+              bookingId: booking.id,
+              totalAmount: booking.totalAmount,
+              roomNights: nights,
+            },
+          });
+        });
+      } catch (checkInTxError) {
+        if (checkInTxError instanceof Error && checkInTxError.message === 'ROOM_OCCUPIED') {
+          return NextResponse.json(
+            { success: false, error: { code: 'ROOM_ALREADY_OCCUPIED', message: 'Room is already occupied — cannot check in another guest' } },
+            { status: 409 }
+          );
+        }
+        console.error('Check-in transaction failed, rolling back all side-effects:', checkInTxError);
+        throw checkInTxError;
       }
-      
-      // Create or update GuestStay record for stay history
-      const nights = Math.ceil((booking.checkOut.getTime() - booking.checkIn.getTime()) / (1000 * 60 * 60 * 24));
-      await db.guestStay.upsert({
-        where: {
-          guestId_bookingId: {
-            guestId: booking.primaryGuestId,
-            bookingId: booking.id,
-          },
-        },
-        update: {
-          totalAmount: booking.totalAmount,
-          roomNights: nights,
-        },
-        create: {
-          guestId: booking.primaryGuestId,
-          bookingId: booking.id,
-          totalAmount: booking.totalAmount,
-          roomNights: nights,
-        },
-      });
       
       // Emit room status change
       const room = await db.room.findUnique({
@@ -826,6 +851,22 @@ export async function PUT(
               });
 
               if (wifiFolio) {
+                // Calculate tax on WiFi fees from property tax settings
+                let wifiTaxRate = 0;
+                const wifiProperty = await tx.property.findUnique({
+                  where: { id: booking.propertyId },
+                  select: { taxComponents: true, defaultTaxRate: true },
+                });
+                if (wifiProperty?.taxComponents) {
+                  try {
+                    const tc = JSON.parse(wifiProperty.taxComponents || '[]');
+                    if (Array.isArray(tc) && tc.length > 0) {
+                      wifiTaxRate = tc.reduce((s: number, c: { rate: number }) => s + (c.rate || 0), 0) / 100;
+                    } else { wifiTaxRate = (wifiProperty.defaultTaxRate || 0) / 100; }
+                  } catch { wifiTaxRate = (wifiProperty.defaultTaxRate || 0) / 100; }
+                }
+                const wifiTaxAmount = Math.round(totalWifiFee * wifiTaxRate * 100) / 100;
+
                 await tx.folioLineItem.create({
                   data: {
                     folioId: wifiFolio.id,
@@ -834,25 +875,29 @@ export async function PUT(
                     quantity: 1,
                     unitPrice: totalWifiFee,
                     totalAmount: totalWifiFee,
+                    taxRate: wifiTaxRate,
+                    taxAmount: wifiTaxAmount,
                     serviceDate: new Date(),
                     postedBy: user.id,
                   },
                 });
 
-                // Recalculate folio totals
+                // Recalculate folio totals including WiFi tax
                 const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: wifiFolio.id } });
                 const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+                const newTaxes = allLineItems.reduce((sum, li) => sum + (li.taxAmount || 0), 0);
                 await tx.folio.update({
                   where: { id: wifiFolio.id },
                   data: {
                     subtotal: newSubtotal,
-                    totalAmount: newSubtotal + wifiFolio.taxes - wifiFolio.discount,
-                    balance: Math.max(0, newSubtotal - wifiFolio.paidAmount),
+                    taxes: newTaxes,
+                    totalAmount: newSubtotal + newTaxes - wifiFolio.discount,
+                    balance: Math.max(0, newSubtotal + newTaxes - wifiFolio.paidAmount),
                   },
                 });
 
                 if (process.env.NODE_ENV !== 'production') {
-                  console.log(`[WiFi] Posted WiFi usage fee of ${totalWifiFee} to folio ${wifiFolio.id} for booking ${booking.confirmationCode}`);
+                  console.log(`[WiFi] Posted WiFi usage fee of ${totalWifiFee} (tax: ${wifiTaxAmount}) to folio ${wifiFolio.id} for booking ${booking.confirmationCode}`);
                 }
               }
             }

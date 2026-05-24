@@ -57,12 +57,14 @@ export async function POST(
       );
     }
 
+    // Calculate total paid (order total + tips from payments)
+    const totalPaidAmount = order.payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
     const effectiveRefundAmount = refundAmount ?? order.totalAmount;
 
-    // Validate refund amount
-    if (effectiveRefundAmount > order.totalAmount) {
+    // Validate refund amount against total paid (includes tips)
+    if (effectiveRefundAmount > totalPaidAmount) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: `Refund amount ${effectiveRefundAmount} exceeds order total ${order.totalAmount}` } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `Refund amount ${effectiveRefundAmount} exceeds total paid ${totalPaidAmount}` } },
         { status: 400 }
       );
     }
@@ -78,7 +80,7 @@ export async function POST(
           data: {
             folioId: order.folioId,
             description: reason ? `Refund for Order ${order.orderNumber}: ${reason}` : `Refund for Order ${order.orderNumber}`,
-            category: 'refund',
+            category: 'adjustment', // Use valid FolioLineType enum
             quantity: 1,
             unitPrice: -effectiveRefundAmount,
             totalAmount: -effectiveRefundAmount,
@@ -119,20 +121,24 @@ export async function POST(
         });
       }
 
-      // Mark payments as refunded
+      // Mark payments as refunded — distribute proportionally by payment amount
       if (order.payments.length > 0) {
-        await tx.payment.updateMany({
-          where: {
-            id: { in: order.payments.map((p: { id: string }) => p.id) },
-            status: 'completed',
-          },
-          data: {
-            status: 'refunded',
-            refundedAt: new Date(),
-            refundAmount: effectiveRefundAmount / order.payments.length,
-            refundReason: reason || 'Order refund',
-          },
-        });
+        for (const payment of order.payments) {
+          const paymentShare = totalPaidAmount > 0
+            ? Math.round((effectiveRefundAmount * (payment.amount / totalPaidAmount)) * 100) / 100
+            : 0;
+          if (paymentShare > 0) {
+            await tx.payment.update({
+              where: { id: payment.id },
+              data: {
+                status: effectiveRefundAmount >= payment.amount ? 'refunded' : 'partially_refunded',
+                refundedAt: new Date(),
+                refundAmount: Math.min(paymentShare, payment.amount),
+                refundReason: reason || 'Order refund',
+              },
+            });
+          }
+        }
       }
 
       // Update order status to refunded

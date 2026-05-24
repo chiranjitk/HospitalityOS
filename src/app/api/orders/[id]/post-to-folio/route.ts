@@ -68,6 +68,22 @@ export async function POST(
       );
     }
 
+    // FIX: Block paid orders from being posted to folio (prevents double billing)
+    if (order.status === 'paid') {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_STATUS', message: 'Cannot post paid order to folio — payment was already processed directly' } },
+        { status: 400 }
+      );
+    }
+
+    // Block refunded orders too
+    if (order.status === 'refunded') {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_STATUS', message: 'Cannot post refunded order to folio' } },
+        { status: 400 }
+      );
+    }
+
     // Check if already posted
     if (order.folioId) {
       return NextResponse.json(
@@ -153,6 +169,9 @@ export async function POST(
 
     // H-2: Use proportional tax rate from order (matches pay route approach)
     const taxRate = order.subtotal > 0 ? order.taxes / order.subtotal : 0;
+    const serviceChargeRate = order.subtotal > 0
+      ? (order.totalAmount - order.subtotal - order.taxes) / order.subtotal
+      : 0;
 
     // Create folio line items for each order item
     const result = await db.$transaction(async (tx) => {
@@ -161,7 +180,7 @@ export async function POST(
         tenantId: order.tenantId,
         folioId: targetFolioId,
         description: `${item.menuItem.name}${item.notes ? ` (${item.notes})` : ''}`,
-        category: 'restaurant',
+        category: 'restaurant' as const,
         subcategory: order.orderType,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
@@ -174,6 +193,29 @@ export async function POST(
       }));
 
       await tx.folioLineItem.createMany({ data: lineItemsData });
+
+      // Create service charge line item if applicable
+      if (serviceChargeRate > 0) {
+        const scAmount = Math.round(order.subtotal * serviceChargeRate * 100) / 100;
+        if (scAmount > 0) {
+          await tx.folioLineItem.create({
+            data: {
+              tenantId: order.tenantId,
+              folioId: targetFolioId,
+              description: `Service Charge on Order ${order.orderNumber}`,
+              category: 'service',
+              quantity: 1,
+              unitPrice: scAmount,
+              totalAmount: scAmount,
+              taxAmount: 0,
+              serviceDate: order.createdAt,
+              referenceType: 'order',
+              referenceId: id,
+              postedBy: 'system',
+            },
+          });
+        }
+      }
 
       // Update folio totals
       const existingLineItems = await tx.folioLineItem.findMany({

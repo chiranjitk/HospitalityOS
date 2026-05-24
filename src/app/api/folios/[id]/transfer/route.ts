@@ -151,15 +151,16 @@ export async function POST(
 
     // Execute the transfer in a transaction
     const result = await db.$transaction(async (tx) => {
-      // Create debit line item on source folio (reduce balance)
+      // Create debit line item on source folio (negative amount reduces balance)
       const debitItem = await tx.folioLineItem.create({
         data: {
           folioId: sourceFolio.id,
           description: description || `Transfer to folio ${destinationFolio.folioNumber || destinationFolioId.substring(0, 8)}`,
-          category: 'transfer_out',
+          category: 'adjustment',
           quantity: 1,
           unitPrice: -amount, // Negative to represent debit
           totalAmount: -amount,
+          taxAmount: 0,
           serviceDate: new Date(),
           referenceType: referenceType || 'FolioTransfer',
           referenceId: destinationFolioId,
@@ -168,15 +169,16 @@ export async function POST(
         },
       });
 
-      // Create credit line item on destination folio (increase balance)
+      // Create credit line item on destination folio (positive amount increases balance)
       const creditItem = await tx.folioLineItem.create({
         data: {
           folioId: destinationFolio.id,
           description: description || `Transfer from folio ${sourceFolio.folioNumber || id.substring(0, 8)}${exchangeRateApplied ? ` (${sourceCurrency} ${amount.toFixed(2)} @ ${exchangeRateApplied})` : ''}`,
-          category: 'transfer_in',
+          category: 'adjustment',
           quantity: 1,
           unitPrice: transferAmount,
           totalAmount: transferAmount,
+          taxAmount: 0,
           serviceDate: new Date(),
           referenceType: referenceType || 'FolioTransfer',
           referenceId: sourceFolio.id,
@@ -185,21 +187,41 @@ export async function POST(
         },
       });
 
-      // Update source folio totals
+      // ── Recalculate source folio totals from ALL line items ──
+      const sourceItems = await tx.folioLineItem.findMany({
+        where: { folioId: sourceFolio.id },
+      });
+      const srcSubtotal = sourceItems.reduce((s, i) => s + i.totalAmount, 0);
+      const srcTaxes = sourceItems.reduce((s, i) => s + (i.taxAmount || 0), 0);
+      const srcTotal = srcSubtotal + srcTaxes - (sourceFolio.discount || 0);
+      const srcBalance = srcTotal - (sourceFolio.paidAmount || 0);
+
       const updatedSource = await tx.folio.update({
         where: { id: sourceFolio.id },
         data: {
-          totalAmount: { decrement: amount },
-          balance: { decrement: amount },
+          subtotal: srcSubtotal,
+          taxAmount: srcTaxes,
+          totalAmount: srcTotal,
+          balance: srcBalance,
         },
       });
 
-      // Update destination folio totals
+      // ── Recalculate destination folio totals from ALL line items ──
+      const destItems = await tx.folioLineItem.findMany({
+        where: { folioId: destinationFolio.id },
+      });
+      const destSubtotal = destItems.reduce((s, i) => s + i.totalAmount, 0);
+      const destTaxes = destItems.reduce((s, i) => s + (i.taxAmount || 0), 0);
+      const destTotal = destSubtotal + destTaxes - (destinationFolio.discount || 0);
+      const destBalance = destTotal - (destinationFolio.paidAmount || 0);
+
       const updatedDestination = await tx.folio.update({
         where: { id: destinationFolio.id },
         data: {
-          totalAmount: { increment: transferAmount },
-          balance: { increment: transferAmount },
+          subtotal: destSubtotal,
+          taxAmount: destTaxes,
+          totalAmount: destTotal,
+          balance: destBalance,
         },
       });
 

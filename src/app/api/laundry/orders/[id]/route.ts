@@ -125,79 +125,82 @@ export async function PATCH(
     // Auto-post to folio when order is delivered and linked to a booking
     if (status === 'delivered' && existing.bookingId && !existing.postedToFolio) {
       try {
-        const folio = await db.folio.findFirst({
-          where: {
-            bookingId: existing.bookingId,
-            status: 'open',
-            tenantId: user.tenantId,
-          },
-        });
-
-        if (folio) {
-          const lineItemDescription = `Laundry Service - Order #${existing.id.slice(0, 8)}`;
-          const amount = existing.totalPrice;
-
-          // M-4 FIX: Calculate tax from property tax settings
-          let taxRate = 0;
-          const prop = await db.property.findFirst({
-            where: { id: existing.propertyId },
-            select: { defaultTaxRate: true, taxComponents: true },
+        // FIX: Use $transaction for atomic folio operations
+        await db.$transaction(async (tx) => {
+          const folio = await tx.folio.findFirst({
+            where: {
+              bookingId: existing.bookingId,
+              status: { in: ['open', 'partially_paid'] },
+              tenantId: user.tenantId,
+            },
           });
-          if (prop) {
-            try {
-              const tc = JSON.parse(prop.taxComponents || '[]');
-              if (Array.isArray(tc) && tc.length > 0) {
-                taxRate = tc.reduce((sum: number, c: { rate: number }) => sum + (c.rate || 0), 0) / 100;
-              } else {
-                taxRate = (prop.defaultTaxRate || 0) / 100;
-              }
-            } catch { taxRate = (prop.defaultTaxRate || 0) / 100; }
+
+          if (folio) {
+            const lineItemDescription = `Laundry Service - Order #${existing.id.slice(0, 8)}`;
+            const amount = existing.totalPrice;
+
+            // Calculate tax from property tax settings
+            let taxRate = 0;
+            const prop = await tx.property.findFirst({
+              where: { id: existing.propertyId },
+              select: { defaultTaxRate: true, taxComponents: true },
+            });
+            if (prop) {
+              try {
+                const tc = JSON.parse(prop.taxComponents || '[]');
+                if (Array.isArray(tc) && tc.length > 0) {
+                  taxRate = tc.reduce((sum: number, c: { rate: number }) => sum + (c.rate || 0), 0) / 100;
+                } else {
+                  taxRate = (prop.defaultTaxRate || 0) / 100;
+                }
+              } catch { taxRate = (prop.defaultTaxRate || 0) / 100; }
+            }
+            const taxAmount = Math.round(amount * taxRate * 100) / 100;
+
+            await tx.folioLineItem.create({
+              data: {
+                folioId: folio.id,
+                description: lineItemDescription,
+                category: 'laundry',
+                quantity: existing.totalItems,
+                unitPrice: amount / existing.totalItems || amount,
+                totalAmount: amount,
+                taxAmount,
+                serviceDate: new Date(),
+                referenceType: 'laundry_order',
+                referenceId: existing.id,
+                postedBy: user.id,
+              },
+            });
+
+            // Recalculate folio totals from ALL line items (consistent pattern)
+            const allLineItems = await tx.folioLineItem.findMany({
+              where: { folioId: folio.id },
+              select: { totalAmount: true, taxAmount: true },
+            });
+            const newSubtotal = allLineItems.reduce((s, i) => s + i.totalAmount, 0);
+            const newTaxes = allLineItems.reduce((s, i) => s + (i.taxAmount || 0), 0);
+            const newTotal = newSubtotal + newTaxes - (folio.discount || 0);
+
+            await tx.folio.update({
+              where: { id: folio.id },
+              data: {
+                subtotal: newSubtotal,
+                taxes: newTaxes,
+                totalAmount: newTotal,
+                balance: newTotal - (folio.paidAmount || 0),
+              },
+            });
+
+            await tx.laundryOrder.update({
+              where: { id },
+              data: { folioId: folio.id, postedToFolio: true },
+            });
+
+            order.folioId = folio.id;
+            order.postedToFolio = true;
           }
-          const taxAmount = Math.round(amount * taxRate * 100) / 100;
-
-          await db.folioLineItem.create({
-            data: {
-              folioId: folio.id,
-              description: lineItemDescription,
-              category: 'laundry',
-              quantity: existing.totalItems,
-              unitPrice: amount / existing.totalItems || amount,
-              totalAmount: amount,
-              taxAmount,
-              serviceDate: new Date(),
-              referenceType: 'laundry_order',
-              referenceId: existing.id,
-              postedBy: user.id,
-            },
-          });
-
-          // Recalculate folio taxes: sum all line item tax amounts
-          const allLineItems = await db.folioLineItem.findMany({
-            where: { folioId: folio.id },
-            select: { totalAmount: true, taxAmount: true },
-          });
-          const newSubtotal = allLineItems.reduce((s, i) => s + i.totalAmount, 0);
-          const newTaxes = allLineItems.reduce((s, i) => s + (i.taxAmount || 0), 0);
-          const newTotal = newSubtotal + newTaxes - (folio.discount || 0);
-
-          await db.folio.update({
-            where: { id: folio.id },
-            data: {
-              subtotal: newSubtotal,
-              taxes: newTaxes,
-              totalAmount: newTotal,
-              balance: folio.balance + amount + taxAmount,
-            },
-          });
-
-          await db.laundryOrder.update({
-            where: { id },
-            data: { folioId: folio.id, postedToFolio: true },
-          });
-
-          order.folioId = folio.id;
-          order.postedToFolio = true;
-        }
+        });
       } catch (folioError) {
         console.error('[PATCH /api/laundry/orders/[id]] Auto-post to folio failed:', folioError);
         // Order status is still updated, just not posted to folio

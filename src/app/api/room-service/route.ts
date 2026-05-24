@@ -266,7 +266,9 @@ export async function PUT(request: NextRequest) {
                 .join(', ');
               const description = `Room Service - ${itemNames || existing.orderNumber}`;
 
-              // 4. Calculate amounts
+              // 4. Calculate amounts — use SUBTOTAL (pre-tax) as base, not totalAmount
+              //    totalAmount already includes taxes + serviceCharge, recalc would double-tax
+              const baseAmount = existing.subtotal;
 
               // Determine tax rate from property
               let taxRate = 0;
@@ -282,19 +284,20 @@ export async function PUT(request: NextRequest) {
                   taxRate = (existing.property.defaultTaxRate || 0) / 100;
                 }
               }
-              const taxAmount = Math.round(existing.totalAmount * taxRate * 100) / 100;
+              const taxAmount = existing.taxes || Math.round(baseAmount * taxRate * 100) / 100;
+              const serviceChargeAmt = existing.totalAmount - existing.subtotal - (existing.taxes || 0);
 
-              // 5. Create folio line item and update folio totals in a transaction
+              // 5. Create folio line items and update folio totals in a transaction
               await db.$transaction(async (tx) => {
-                // Create the line item
+                // Create food line item (pre-tax subtotal)
                 await tx.folioLineItem.create({
                   data: {
                     folioId,
                     description,
-                    category: 'restaurant',
+                    category: 'room_service',
                     quantity: 1,
-                    unitPrice: existing.totalAmount,
-                    totalAmount: existing.totalAmount,
+                    unitPrice: baseAmount,
+                    totalAmount: baseAmount,
                     serviceDate: new Date(),
                     referenceType: 'order',
                     referenceId: existing.id,
@@ -304,6 +307,26 @@ export async function PUT(request: NextRequest) {
                     itemCurrency: existing.property?.currency || 'USD',
                   },
                 });
+
+                // Create service charge line item if applicable
+                if (serviceChargeAmt > 0) {
+                  await tx.folioLineItem.create({
+                    data: {
+                      folioId,
+                      description: `Room Service Charge (${existing.property?.serviceChargePercent || 0}%)`,
+                      category: 'service',
+                      quantity: 1,
+                      unitPrice: serviceChargeAmt,
+                      totalAmount: serviceChargeAmt,
+                      serviceDate: new Date(),
+                      referenceType: 'order',
+                      referenceId: existing.id,
+                      taxAmount: 0,
+                      postedBy: `system:room_service_delivered`,
+                      itemCurrency: existing.property?.currency || 'USD',
+                    },
+                  });
+                }
 
                 // Recalculate folio totals
                 const folioLineItems = await tx.folioLineItem.findMany({

@@ -47,15 +47,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
         const splitItems = originalOrder.items.filter((i: { id: string }) => split.items.includes(i.id));
         const subtotal = splitItems.reduce((s: number, i: any) => s + i.totalAmount, 0);
-        const taxRate = originalOrder.taxes > 0 ? (originalOrder.taxes / originalOrder.subtotal) * 100 : 0;
-        const taxes = subtotal * (taxRate / 100);
+        const taxRate = originalOrder.subtotal > 0 ? (originalOrder.taxes / originalOrder.subtotal) * 100 : 0;
+        const taxes = Math.round(subtotal * (taxRate / 100) * 100) / 100;
+        // Include service charge proportionally
+        const serviceChargeRate = originalOrder.subtotal > 0
+          ? ((originalOrder.totalAmount - originalOrder.subtotal - originalOrder.taxes) / originalOrder.subtotal) * 100
+          : 0;
+        const serviceCharge = Math.round(subtotal * (serviceChargeRate / 100) * 100) / 100;
+        const totalAmount = subtotal + taxes + serviceCharge;
 
         const newOrder = await tx.order.create({
           data: {
             tenantId: user.tenantId, propertyId: originalOrder.propertyId, tableId: originalOrder.tableId,
             orderType: originalOrder.orderType, orderNumber: generateOrderNumber(),
             guestName: originalOrder.guestName, bookingId: originalOrder.bookingId,
-            subtotal, taxes, totalAmount: subtotal + taxes,
+            folioId: originalOrder.folioId, // Carry folio link from original order
+            subtotal, taxes, totalAmount,
             notes: `Split from ${originalOrder.orderNumber}${split.notes ? ` | ${split.notes}` : ''}`,
             status: 'pending', kitchenStatus: 'pending',
           },

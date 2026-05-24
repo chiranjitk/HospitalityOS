@@ -42,28 +42,44 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         data: { discount: totalDiscount, totalAmount: finalTotalAmount },
       });
 
-      // H-5: Sync folio discount and recalculate totals if order is linked to a folio
+      // H-5 FIX: Instead of overwriting the entire folio discount,
+      // create a separate discount line item scoped to this order's folio items only.
+      // This prevents the discount from affecting non-restaurant charges (room, minibar, etc.)
       if (order.folioId) {
         const folioRecord = await tx.folio.findUnique({ where: { id: order.folioId } });
-        if (folioRecord) {
-          // Sync discount from order to folio
+        if (folioRecord && folioRecord.status !== 'closed') {
+          // Create a negative line item for the discount
+          await tx.folioLineItem.create({
+            data: {
+              folioId: order.folioId,
+              description: `Discount on Order ${order.orderNumber}: ${type} ${value}${reason ? ` (${reason})` : ''}`,
+              category: 'discount',
+              quantity: 1,
+              unitPrice: -discountAmount,
+              totalAmount: -discountAmount,
+              taxAmount: 0,
+              serviceDate: new Date(),
+              referenceType: 'order',
+              referenceId: id,
+              postedBy: `user:${user.id}`,
+            },
+          });
+
+          // Recalculate folio totals from all line items (standard pattern)
+          const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: order.folioId } });
+          const newSubtotal = allLineItems.reduce((sum: number, li: { totalAmount: number }) => sum + li.totalAmount, 0);
+          const newTaxes = allLineItems.reduce((sum: number, li: { taxAmount: number }) => sum + (li.taxAmount || 0), 0);
+          const newTotal = newSubtotal + newTaxes - (folioRecord.discount || 0);
+
           await tx.folio.update({
             where: { id: order.folioId },
             data: {
-              discount: totalDiscount,
-              totalAmount: folioRecord.subtotal + folioRecord.taxes - totalDiscount,
+              subtotal: newSubtotal,
+              taxes: newTaxes,
+              totalAmount: newTotal,
+              balance: newTotal - (folioRecord.paidAmount || 0),
             },
           });
-          // Recalculate balance with new total
-          const recalculatedFolio = await tx.folio.findUnique({ where: { id: order.folioId } });
-          if (recalculatedFolio) {
-            await tx.folio.update({
-              where: { id: order.folioId },
-              data: {
-                balance: recalculatedFolio.totalAmount - (recalculatedFolio.paidAmount || 0),
-              },
-            });
-          }
         }
       }
     });

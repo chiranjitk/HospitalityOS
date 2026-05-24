@@ -209,6 +209,7 @@ export async function POST(request: NextRequest) {
     const isReturningVip = booking.primaryGuest.totalStays >= 3;
     const isAutoApproved = loyaltyWaived || isReturningVip;
 
+    const effectiveFeeAmount = loyaltyWaived ? 0 : feeAmount;
     const entry = await db.lateCheckoutRequest.create({
       data: {
         bookingId,
@@ -216,7 +217,7 @@ export async function POST(request: NextRequest) {
         propertyId: booking.propertyId,
         guestId: booking.primaryGuestId,
         requestedUntil: requestedUntilDate,
-        feeAmount: loyaltyWaived ? 0 : feeAmount,
+        feeAmount: effectiveFeeAmount,
         feeStatus: loyaltyWaived ? 'waived' : 'pending',
         loyaltyWaived,
         reason,
@@ -224,6 +225,21 @@ export async function POST(request: NextRequest) {
         approvedAt: isAutoApproved ? new Date() : null,
       },
     });
+
+    // Post late checkout fee to folio when auto-approved with a fee
+    if (isAutoApproved && effectiveFeeAmount > 0) {
+      try {
+        await postLateCheckoutFeeToFolio({
+          bookingId,
+          tenantId,
+          feeAmount: effectiveFeeAmount,
+          feeTier,
+        });
+      } catch (folioError) {
+        console.error('[LateCheckout] Failed to post auto-approved fee to folio:', folioError);
+        // Don't fail the approval if folio posting fails
+      }
+    }
 
     return NextResponse.json(
       {
@@ -249,4 +265,130 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// PUT /api/bookings/late-checkout - Approve/reject a late checkout request (manual)
+export async function PUT(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+  const { tenantId, userId } = auth;
+
+  try {
+    const body = await request.json();
+    const { id, status, waiveFee } = body;
+
+    if (!id || !status) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'id and status are required' } },
+        { status: 400 }
+      );
+    }
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Status must be "approved" or "rejected"' } },
+        { status: 400 }
+      );
+    }
+
+    const existing = await db.lateCheckoutRequest.findUnique({
+      where: { id },
+    });
+
+    if (!existing || existing.tenantId !== tenantId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Late checkout request not found' } },
+        { status: 404 }
+      );
+    }
+
+    if (existing.status !== 'pending') {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_STATUS', message: 'Can only approve/reject pending requests' } },
+        { status: 400 }
+      );
+    }
+
+    const effectiveFee = waiveFee ? 0 : existing.feeAmount;
+    const updated = await db.lateCheckoutRequest.update({
+      where: { id },
+      data: {
+        status,
+        approvedBy: userId,
+        approvedAt: new Date(),
+        feeAmount: effectiveFee,
+        feeStatus: waiveFee ? 'waived' : (effectiveFee > 0 ? 'pending' : 'waived'),
+      },
+    });
+
+    // Post late checkout fee to folio when approved with a fee
+    if (status === 'approved' && effectiveFee > 0) {
+      try {
+        await postLateCheckoutFeeToFolio({
+          bookingId: existing.bookingId,
+          tenantId,
+          feeAmount: effectiveFee,
+          feeTier: 'manual',
+        });
+      } catch (folioError) {
+        console.error('[LateCheckout] Failed to post fee to folio on approval:', folioError);
+        // Don't fail the approval if folio posting fails
+      }
+    }
+
+    return NextResponse.json({ success: true, data: updated });
+  } catch (error) {
+    console.error('[LateCheckout] PUT error:', error);
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update late check-out request' } },
+      { status: 500 }
+    );
+  }
+}
+
+// Helper: Post late checkout fee to the booking's open folio
+async function postLateCheckoutFeeToFolio(params: {
+  bookingId: string;
+  tenantId: string;
+  feeAmount: number;
+  feeTier: string;
+}) {
+  const { bookingId, tenantId, feeAmount, feeTier } = params;
+
+  const folio = await db.folio.findFirst({
+    where: { bookingId, tenantId, status: { in: ['open', 'partially_paid'] } },
+  });
+
+  if (!folio) {
+    console.warn(`[LateCheckout] No open folio found for booking ${bookingId} — cannot post late checkout fee`);
+    return;
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.folioLineItem.create({
+      data: {
+        folioId: folio.id,
+        description: `Late Checkout Fee (${feeTier})`,
+        category: 'late_checkout',
+        quantity: 1,
+        unitPrice: feeAmount,
+        totalAmount: feeAmount,
+        serviceDate: new Date(),
+      },
+    });
+
+    // Recalculate folio totals
+    const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: folio.id } });
+    const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+    await tx.folio.update({
+      where: { id: folio.id },
+      data: {
+        subtotal: newSubtotal,
+        totalAmount: newSubtotal + folio.taxes - folio.discount,
+        balance: Math.max(0, newSubtotal + folio.taxes - folio.paidAmount),
+      },
+    });
+  });
+
+  console.log(`[LateCheckout] Posted late checkout fee of ${feeAmount} to folio ${folio.id} for booking ${bookingId}`);
 }

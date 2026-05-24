@@ -199,7 +199,7 @@ export async function PUT(
       // Recalculate order totals
       const currentItems = await tx.orderItem.findMany({
         where: { orderId: id },
-        include: { menuItem: { select: { price: true } } },
+        include: { menuItem: { select: { price: true, name: true } } },
       });
 
       if (currentItems.length === 0) {
@@ -259,6 +259,96 @@ export async function PUT(
           },
         },
       });
+
+      // Sync updated charges to folio if this order has already been posted
+      if (existingOrder.folioId) {
+        const targetFolioId = existingOrder.folioId;
+
+        // Delete old folio line items for this order
+        await tx.folioLineItem.deleteMany({
+          where: {
+            folioId: targetFolioId,
+            OR: [
+              {
+                referenceType: 'order_item',
+                referenceId: { in: oldItemsSnapshot.map((i) => i.id) },
+              },
+              {
+                referenceType: 'order',
+                referenceId: existingOrder.id,
+                category: 'service',
+              },
+            ],
+          },
+        });
+
+        // Calculate proportional tax rate from the updated order
+        const taxRate = newSubtotal > 0 ? newTaxes / newSubtotal : 0;
+        const serviceChargeRate = newSubtotal > 0
+          ? (newTotalAmount - newSubtotal - newTaxes) / newSubtotal
+          : 0;
+
+        // Create new folio line items for each current order item
+        const newLineItemsData = currentItems.map((item) => ({
+          folioId: targetFolioId,
+          description: `${item.menuItem?.name || 'Item'}${item.notes ? ` (${item.notes})` : ''}`,
+          category: 'restaurant' as const,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalAmount: item.totalAmount,
+          taxAmount: Math.round(item.totalAmount * taxRate * 100) / 100,
+          serviceDate: existingOrder.createdAt,
+          referenceType: 'order_item',
+          referenceId: item.id,
+          postedBy: 'system',
+        }));
+
+        await tx.folioLineItem.createMany({ data: newLineItemsData });
+
+        // Create service charge line item if applicable
+        if (serviceChargeRate > 0) {
+          const scAmount = Math.round(newSubtotal * serviceChargeRate * 100) / 100;
+          if (scAmount > 0) {
+            await tx.folioLineItem.create({
+              data: {
+                folioId: targetFolioId,
+                description: `Service Charge on Order ${existingOrder.orderNumber}`,
+                category: 'service' as const,
+                quantity: 1,
+                unitPrice: scAmount,
+                totalAmount: scAmount,
+                taxAmount: 0,
+                serviceDate: existingOrder.createdAt,
+                referenceType: 'order',
+                referenceId: existingOrder.id,
+                postedBy: 'system',
+              },
+            });
+          }
+        }
+
+        // Recalculate folio totals from all line items
+        const allFolioLineItems = await tx.folioLineItem.findMany({
+          where: { folioId: targetFolioId },
+        });
+
+        const folioSubtotal = allFolioLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+        const folioTaxes = allFolioLineItems.reduce((sum, li) => sum + li.taxAmount, 0);
+        const folioRecord = await tx.folio.findUnique({ where: { id: targetFolioId } });
+
+        if (folioRecord) {
+          const folioTotal = folioSubtotal + folioTaxes - (folioRecord.discount || 0);
+          await tx.folio.update({
+            where: { id: targetFolioId },
+            data: {
+              subtotal: Math.round(folioSubtotal * 100) / 100,
+              taxes: Math.round(folioTaxes * 100) / 100,
+              totalAmount: Math.round(folioTotal * 100) / 100,
+              balance: Math.round((folioTotal - folioRecord.paidAmount) * 100) / 100,
+            },
+          });
+        }
+      }
 
       return order;
     });

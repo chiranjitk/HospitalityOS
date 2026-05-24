@@ -49,17 +49,27 @@ enum PaymentMethod {
   cheque
   split
   complementary
+  room_charge
 }
 
 enum FolioLineType {
   room_charge
   food_beverage
+  restaurant
+  room_service
+  spa
+  laundry
+  minibar
+  wifi
+  deposit
+  tip
   service
   tax
   discount
   payment
   adjustment
   miscellaneous
+  late_checkout
 }
 
 enum GuestType {
@@ -93,7 +103,10 @@ enum OrderStatus {
   preparing
   ready
   delivered
+  served
+  paid
   cancelled
+  refunded
 }
 
 enum InventoryTransactionType {
