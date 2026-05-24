@@ -34,6 +34,14 @@ export async function POST(
       );
     }
 
+    // Prevent double-dip: if already applied, reject
+    if (creditNote.status === 'applied') {
+      return NextResponse.json(
+        { success: false, error: { code: 'ALREADY_APPLIED', message: 'This credit note has already been fully applied' } },
+        { status: 400 }
+      );
+    }
+
     const result = await db.$transaction(async (tx) => {
       const applyAmount = creditNote.remainingAmount;
 

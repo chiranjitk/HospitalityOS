@@ -21,6 +21,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const order = await db.order.findFirst({ where: { id, tenantId: user.tenantId } });
     if (!order) return NextResponse.json({ success: false, error: { code: 'NOT_FOUND' } }, { status: 404 });
 
+    // Block discount on paid/refunded/cancelled orders
+    if (['paid', 'refunded', 'cancelled'].includes(order.status)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'INVALID_STATUS', message: `Cannot apply discount to order with status: ${order.status}` } },
+        { status: 400 }
+      );
+    }
+
+    // Validate percentage discount doesn't exceed 100%
+    if (type === 'percentage' && value > 100) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Percentage discount cannot exceed 100%' } },
+        { status: 400 }
+      );
+    }
+
     const discountAmount = type === 'percentage' ? (order.subtotal * value) / 100 : value;
 
     // H-5: Track updated total for audit log

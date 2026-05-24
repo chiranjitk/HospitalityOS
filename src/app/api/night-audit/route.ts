@@ -249,6 +249,12 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
     const endOfDay = new Date(businessDay);
     endOfDay.setHours(23, 59, 59, 999);
 
+    // Fetch property settings for tax calculation (property is NOT in scope here)
+    const property = await tx.property.findUnique({
+      where: { id: audit.propertyId },
+      select: { taxComponents: true, defaultTaxRate: true },
+    });
+
     // ── Step 1: Post room charges for all in-house guests ──
     const activeBookings = await tx.booking.findMany({
       where: {

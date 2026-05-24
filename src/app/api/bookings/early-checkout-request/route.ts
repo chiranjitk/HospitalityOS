@@ -39,9 +39,27 @@ export async function POST(request: NextRequest) {
         },
       });
     } else {
-      // Staff access - booking must exist
-      booking = await db.booking.findUnique({
-        where: { id: bookingId },
+      // Staff access - require authentication and permission
+      const { getUserFromRequest, hasAnyPermission } = await import('@/lib/auth-helpers');
+      const user = await getUserFromRequest(request);
+      if (!user) {
+        return NextResponse.json(
+          { success: false, error: { code: 'AUTH_REQUIRED', message: 'Authentication required for staff access' } },
+          { status: 401 }
+        );
+      }
+      if (!hasAnyPermission(user, ['bookings.manage', 'bookings.*', 'admin.*'])) {
+        return NextResponse.json(
+          { success: false, error: { code: 'PERMISSION_DENIED', message: 'Permission denied' } },
+          { status: 403 }
+        );
+      }
+      booking = await db.booking.findFirst({
+        where: {
+          id: bookingId,
+          tenantId: user.tenantId,
+          status: { in: ['confirmed', 'checked_in'] },
+        },
       });
     }
 

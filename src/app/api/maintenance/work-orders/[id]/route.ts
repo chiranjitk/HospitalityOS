@@ -182,7 +182,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
 
       if (status === 'cancelled') {
-        updateData.deletedAt = new Date();
+        // Don't set deletedAt — keep record visible; only use status to mark cancellation
+        updateData.completedAt = null;
+        updateData.startedAt = null;
       }
     }
 
@@ -210,6 +212,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         },
       },
     });
+
+    // Restore room status when work order is completed
+    if (status === 'completed' && existingWorkOrder.roomId) {
+      try {
+        await db.room.update({
+          where: { id: existingWorkOrder.roomId },
+          data: { status: 'dirty', housekeepingStatus: 'dirty' },
+        });
+        console.log(`[WorkOrder] Room ${existingWorkOrder.roomId} restored to 'dirty' after work order ${existingWorkOrder.workOrderNumber} completion`);
+      } catch (roomRestoreError) {
+        console.error(`[WorkOrder] Failed to restore room ${existingWorkOrder.roomId}:`, roomRestoreError);
+      }
+    }
 
     // Notify when work order starts in-progress for a room
     if (status === 'in_progress' && existingWorkOrder.status !== 'in_progress' && existingWorkOrder.roomId) {

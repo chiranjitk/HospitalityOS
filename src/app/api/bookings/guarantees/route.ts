@@ -244,15 +244,25 @@ export async function POST(request: NextRequest) {
 
     for (const booking of overdueBookings) {
       try {
-        // Cancel the booking
-        await db.booking.update({
-          where: { id: booking.id },
-          data: {
-            status: 'cancelled',
-            cancelledAt: now,
-            cancelledBy: 'system',
-            cancellationReason: 'Auto-cancelled: Deposit deadline passed without payment',
-          },
+        // Cancel the booking and release room in a single transaction
+        await db.$transaction(async (tx) => {
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: {
+              status: 'cancelled',
+              cancelledAt: now,
+              cancelledBy: 'system',
+              cancellationReason: 'Auto-cancelled: Deposit deadline passed without payment',
+            },
+          });
+
+          // Release the room back to available
+          if (booking.roomId) {
+            await tx.room.update({
+              where: { id: booking.roomId },
+              data: { status: 'available' },
+            });
+          }
         });
 
         // Create audit log

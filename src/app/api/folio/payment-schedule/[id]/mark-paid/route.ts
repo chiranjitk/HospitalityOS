@@ -109,16 +109,34 @@ export async function POST(
         },
       });
 
-      // Also update the folio's paidAmount if needed
-      await tx.folio.update({
-        where: { id: schedule.folioId },
+      const installmentAmount = installments[installmentIndex].amount;
+
+      // Create a Payment record for audit trail (without this, folio PUT recalculation will drift)
+      const payment = await tx.payment.create({
         data: {
-          paidAmount: { increment: installments[installmentIndex].amount },
-          balance: { decrement: installments[installmentIndex].amount },
+          tenantId: schedule.tenantId,
+          propertyId: schedule.propertyId,
+          folioId: schedule.folioId,
+          bookingId: schedule.bookingId,
+          amount: installmentAmount,
+          method: 'cash',
+          status: 'completed',
+          description: `Payment schedule installment ${installmentIndex + 1}`,
+          processedAt: new Date(),
+          processedBy: user?.id,
         },
       });
 
-      return updatedSchedule;
+      // Also update the folio's paidAmount and balance
+      await tx.folio.update({
+        where: { id: schedule.folioId },
+        data: {
+          paidAmount: { increment: installmentAmount },
+          balance: { decrement: installmentAmount },
+        },
+      });
+
+      return { schedule: updatedSchedule, payment };
     });
 
     return NextResponse.json({

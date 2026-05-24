@@ -67,8 +67,9 @@ export async function GET(
       );
     }
 
-    // Generate a key secret if not stored
-    const keySecret = booking.confirmationCode + '-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+    // Generate a key secret if not stored (use crypto.randomBytes for security)
+    const { randomBytes } = await import('crypto');
+    const keySecret = booking.confirmationCode + '-' + randomBytes(4).toString('hex').toUpperCase();
     const maskedSecret = keySecret.substring(0, 4) + '****' + keySecret.substring(keySecret.length - 4);
 
     return NextResponse.json({
