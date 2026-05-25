@@ -113,10 +113,11 @@ export async function GET(request: NextRequest) {
     const params: unknown[] = [context.tenantId];
 
     if (propertyId) {
-      // Only include system NAS if it belongs to the SAME property.
-      // Previously, the OR clause matched ALL system NAS rows across properties,
-      // causing duplicates when multiple system NAS entries existed.
-      query += ` AND ("propertyId" = $2::uuid OR ("ipAddress" = '${SYSTEM_NAS_IP}' AND type = '${SYSTEM_NAS_TYPE}' AND "propertyId" = $2::uuid))`;
+      // Show property-specific NAS clients PLUS the system gateway (Cryptsk Multimode).
+      // The system NAS is a tenant-level singleton — it must appear regardless of
+      // which property is selected.  Deduplication below ensures only one row is
+      // returned even if a stale duplicate row somehow exists in the DB.
+      query += ` AND ("propertyId" = $2::uuid OR ("ipAddress" = '${SYSTEM_NAS_IP}' AND type = '${SYSTEM_NAS_TYPE}'))`;
       params.push(propertyId);
     }
 
