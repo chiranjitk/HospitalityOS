@@ -113,7 +113,10 @@ export async function GET(request: NextRequest) {
     const params: unknown[] = [context.tenantId];
 
     if (propertyId) {
-      query += ` AND ("propertyId" = $2::uuid OR ("ipAddress" = '${SYSTEM_NAS_IP}' AND type = '${SYSTEM_NAS_TYPE}'))`;
+      // Only include system NAS if it belongs to the SAME property.
+      // Previously, the OR clause matched ALL system NAS rows across properties,
+      // causing duplicates when multiple system NAS entries existed.
+      query += ` AND ("propertyId" = $2::uuid OR ("ipAddress" = '${SYSTEM_NAS_IP}' AND type = '${SYSTEM_NAS_TYPE}' AND "propertyId" = $2::uuid))`;
       params.push(propertyId);
     }
 
@@ -121,7 +124,19 @@ export async function GET(request: NextRequest) {
 
     const nasList = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(query, ...params);
 
-    const data = nasList.map((n) => ({
+    // Deduplicate system NAS entries — in case multiple rows exist with same IP/type
+    // across different properties, only keep the first one (sorted by createdAt DESC)
+    const seen = new Set<string>();
+    const deduped = nasList.filter((n) => {
+      const key = `${n.ipAddress}_${n.type}`;
+      if (n.ipAddress === SYSTEM_NAS_IP && n.type === SYSTEM_NAS_TYPE) {
+        if (seen.has(key)) return false;
+        seen.add(key);
+      }
+      return true;
+    });
+
+    const data = deduped.map((n) => ({
       id: String(n.id),
       name: n.name,
       ipAddress: n.ipAddress,
@@ -170,6 +185,20 @@ export async function POST(request: NextRequest) {
 
     if (!name || !ipAddress) {
       return NextResponse.json({ success: false, error: 'Missing required fields: name, ipAddress' }, { status: 400 });
+    }
+
+    // Prevent creating duplicate system NAS entries (Cryptsk Gateway is a singleton per tenant)
+    if (ipAddress === SYSTEM_NAS_IP && (type === SYSTEM_NAS_TYPE || type === 'cryptsk')) {
+      const existing = await db.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM "RadiusNAS" WHERE "ipAddress" = $1 AND type = $2 AND "tenantId" = $3::uuid LIMIT 1`,
+        SYSTEM_NAS_IP, SYSTEM_NAS_TYPE, context.tenantId
+      );
+      if (existing && existing.length > 0) {
+        return NextResponse.json({
+          success: false,
+          error: 'A Cryptsk Gateway (Multimode) system NAS already exists for this tenant. Cannot create a duplicate.',
+        }, { status: 409 });
+      }
     }
 
     const id = crypto.randomUUID();
