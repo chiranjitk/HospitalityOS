@@ -5326,6 +5326,8 @@ model RadiusNAS {
   apiPort     Int       @default(443) // REST API port (default HTTPS)
   authMethods String    @default("pap,chap,mschapv2") // Comma-separated: pap,chap,mschapv2,eap,mac-auth — controls which auth methods this NAS is allowed to use
   requireMessageAuth Boolean @default(false) // Require Message-Authenticator in requests from this NAS (security best practice)
+  calledStationId   String?   // NAS MAC / Called-Station-Id (e.g. 00:1A:2B:3C:4D:5E) — identifies this NAS in radacct
+  nasIdentifier     String?   // NAS-Identifier name (e.g. StaySuite-Gateway) — human-readable NAS name in RADIUS packets
   status            String    @default("active")
   lastSeenAt        DateTime? @db.Timestamptz
   lastWentOnlineAt  DateTime? @db.Timestamptz // When NAS last transitioned from offline → online (for uptime tracking)

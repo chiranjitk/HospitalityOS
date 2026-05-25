@@ -1,5 +1,6 @@
 import { execFileSync } from 'child_process';
 import { RADDB_PATH, RADCLIENT_BIN, RADIUS_DICT_DIR, RADIUS_LIB_DIR } from '@/lib/wifi/paths';
+import { db } from '@/lib/db';
 
 /**
  * Send a RADIUS Access-Request via radclient to FreeRADIUS on localhost.
@@ -27,7 +28,7 @@ export async function radiusAuth(username: string, password: string): Promise<{
     const dictDir = RADIUS_DICT_DIR;
     const libDir = RADIUS_LIB_DIR;
 
-    const radclientInput = `User-Name = '${username}', User-Password = '${password}', NAS-IP-Address = 127.0.0.1, NAS-Port = 0, NAS-Port-Type = Wireless-802.11, Called-Station-Id = '00:00:00:00:00:01'\n`;
+    const radclientInput = `User-Name = '${username}', User-Password = '${password}', NAS-IP-Address = 127.0.0.1, NAS-Port = 0, NAS-Port-Type = Wireless-802.11, Called-Station-Id = '${await getSystemCalledStationId()}'\n`;
 
     const output = execFileSync(radclientBin, ['-D', dictDir, '-x', '127.0.0.1', 'auth', 'testing123', '3'], {
       input: radclientInput,
@@ -92,4 +93,20 @@ export function getRejectMessage(code: string): string {
     AUTH_FAILED: 'Authentication failed. Please try again or contact front desk.',
   };
   return messages[code] || messages.AUTH_FAILED;
+}
+
+/**
+ * Get the Called-Station-Id from the system NAS entry.
+ * Falls back to '00:00:00:00:00:01' if not configured.
+ */
+async function getSystemCalledStationId(): Promise<string> {
+  try {
+    const systemNas = await db.radiusNAS.findFirst({
+      where: { ipAddress: '127.0.0.1', type: 'cryptsk' },
+      select: { calledStationId: true },
+    });
+    return systemNas?.calledStationId || '00:00:00:00:00:01';
+  } catch {
+    return '00:00:00:00:00:01';
+  }
 }

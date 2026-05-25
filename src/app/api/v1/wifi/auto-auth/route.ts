@@ -11,6 +11,7 @@ import {
 } from '@/lib/network/script-runner';
 import { getExternalGatewayConfig, buildGatewayAuthResponse, type ExternalGatewayConfig } from '@/lib/wifi/utils/external-gateway';
 import { radiusAuth, getRejectMessage } from '@/lib/wifi/utils/radius-auth';
+import { getLocalNasConfig } from '@/lib/wifi/local-nas-config';
 
 // ────────────────────────────────────────────────────────────
 // IP Pool Validation Helpers (shared with wifi/auth)
@@ -610,7 +611,7 @@ export async function POST(request: NextRequest) {
     // The v_active_sessions view shows rows where acctstoptime IS NULL.
     // Without this, auto-auth users appear "connected" on the portal
     // but never show up in the admin Active Users dashboard.
-    const acctSessionId = await createAccountingSession(wifiUser.username, clientIp, request, 'auto_reauth', macAddress);
+    const acctSessionId = await createAccountingSession(wifiUser.username, clientIp, request, 'auto_reauth', macAddress, wifiUser.propertyId);
 
     // ── Resolve bandwidth from RADIUS radReply or WiFi plan ──
     const autoAuthBw = await resolvePlanBandwidthKbps(wifiUser.planId, wifiUser.username);
@@ -990,7 +991,8 @@ async function createAccountingSession(
   clientIp: string,
   request: NextRequest,
   loginType: string = 'portal',
-  macAddress?: string
+  macAddress?: string,
+  propertyId?: string
 ): Promise<string> {
   try {
     const acctSessionId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
@@ -1020,6 +1022,9 @@ async function createAccountingSession(
       } catch { /* non-fatal */ }
     }
 
+    // Get local NAS identity from RadiusNAS config (replaces hardcoded values)
+    const localNas = propertyId ? await getLocalNasConfig(propertyId) : { calledStationId: '00:00:00:00:00:01', nasIpAddress: '127.0.0.1' };
+
     await db.$executeRawUnsafe(
       `INSERT INTO radacct (
          acctuniqueid, acctsessionid, username,
@@ -1033,17 +1038,18 @@ async function createAccountingSession(
          $4, 'Wireless-802.11', $5, $5,
          'PAP', $6, 'start',
          0, 0, 0,
-         '00:00:00:00:00:01', $8,
+         $9, $8,
          $7, NOW(), NOW()
        )`,
       acctUniqueId,
       acctSessionId,
       username,
-      '127.0.0.1', // NAS IP (this device is the gateway)
+      localNas.nasIpAddress,
       now,
       clientIp,
       loginType,
-      formattedMac
+      formattedMac,
+      localNas.calledStationId
     );
 
     console.log(`[AutoAuth] radacct session created for ${username} (loginType: ${loginType}, IP: ${clientIp}, MAC: ${formattedMac || 'N/A'})`);

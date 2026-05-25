@@ -53,11 +53,59 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: synced, message: synced ? 'clients.conf synced with nas table' : 'Failed to sync clients.conf' });
     }
 
+    // Detect MAC address for system NAS
+    if (request.nextUrl.searchParams.get('action') === 'detect-mac') {
+      try {
+        // Find the first non-loopback interface with a MAC
+        let mac = '';
+        let iface = '';
+        try {
+          const ipOutput = execSync('ip -o link show', { timeout: 5000 }).toString();
+          const lines = ipOutput.split('\n').filter(l => l.trim());
+          for (const line of lines) {
+            // Skip loopback
+            if (line.includes('lo:')) continue;
+            const macMatch = line.match(/link\/\S+\s+([0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5})/);
+            if (macMatch && macMatch[1] !== '00:00:00:00:00:00') {
+              mac = macMatch[1].toLowerCase();
+              const ifaceMatch = line.match(/^\d+:\s+(\S+):/);
+              iface = ifaceMatch ? ifaceMatch[1] : 'unknown';
+              break;
+            }
+          }
+        } catch {
+          // Fallback: try /sys/class/net
+          try {
+            const fs = await import('fs');
+            const netDirs = fs.readdirSync('/sys/class/net').filter(d => d !== 'lo');
+            for (const dir of netDirs) {
+              try {
+                const addr = fs.readFileSync(`/sys/class/net/${dir}/address`, 'utf8').trim();
+                if (addr && addr !== '00:00:00:00:00:00') {
+                  mac = addr.toLowerCase();
+                  iface = dir;
+                  break;
+                }
+              } catch { /* skip */ }
+            }
+          } catch { /* skip */ }
+        }
+
+        if (mac) {
+          return NextResponse.json({ success: true, data: { mac, interface: iface } });
+        } else {
+          return NextResponse.json({ success: false, error: 'No MAC address found' }, { status: 404 });
+        }
+      } catch (error) {
+        return NextResponse.json({ success: false, error: 'Failed to detect MAC address' }, { status: 500 });
+      }
+    }
+
     let query = `
       SELECT id, "tenantId", "propertyId", name, shortname, "ipAddress", type,
              secret, "coaEnabled", "coaPort", "authPort", "acctPort",
              "apiUsername", "apiPassword", "apiPort", "authMethods",
-             "requireMessageAuth", status,
+             "requireMessageAuth", "calledStationId", "nasIdentifier", status,
              "createdAt", "updatedAt"
       FROM "RadiusNAS"
       WHERE "tenantId" = $1::uuid
@@ -91,6 +139,8 @@ export async function GET(request: NextRequest) {
       apiPort: Number(n.apiPort) || 443,
       authMethods: n.authMethods || 'pap,chap,mschapv2',
       requireMessageAuth: n.requireMessageAuth ?? false,
+      calledStationId: n.calledStationId || null,
+      nasIdentifier: n.nasIdentifier || null,
       status: n.status || 'active',
       createdAt: n.createdAt,
       updatedAt: n.updatedAt,
@@ -115,6 +165,7 @@ export async function POST(request: NextRequest) {
       coaEnabled, coaPort, authPort, acctPort, description,
       apiUsername, apiPassword, apiPort,
       authMethods: rawAuthMethods, requireMessageAuth,
+      calledStationId, nasIdentifier,
     } = body;
 
     if (!name || !ipAddress) {
@@ -126,24 +177,27 @@ export async function POST(request: NextRequest) {
     const authMethods = normalizeAuthMethods(rawAuthMethods);
     const now = new Date().toISOString();
 
-    // Insert into Prisma RadiusNAS (with authMethods)
+    // Insert into Prisma RadiusNAS (with authMethods, calledStationId, nasIdentifier)
     await db.$executeRawUnsafe(`
       INSERT INTO "RadiusNAS" (id, "tenantId", "propertyId", name, shortname, "ipAddress", type, secret,
         "coaEnabled", "coaPort", "authPort", "acctPort",
         "apiUsername", "apiPassword", "apiPort",
         "authMethods", "requireMessageAuth",
+        "calledStationId", "nasIdentifier",
         status, "createdAt", "updatedAt")
       VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8,
         $9, $10, $11, $12,
         $13, $14, $15,
         $16, $17,
-        'active', $18::timestamptz, $19::timestamptz)
+        $18, $19,
+        'active', $20::timestamptz, $21::timestamptz)
     `, id, context.tenantId, propertyId || null,
       name, shortname || name.replace(/\s+/g, '_').toLowerCase().slice(0, 32),
       ipAddress, type || 'other', nasSecret,
       coaEnabled !== false, coaPort || 3799, authPort || 1812, acctPort || 1813,
       apiUsername || null, apiPassword || null, apiPort || 443,
       authMethods, requireMessageAuth === true,
+      calledStationId || null, nasIdentifier || null,
       now, now);
 
     // Insert into native FreeRADIUS nas table
@@ -171,6 +225,7 @@ export async function POST(request: NextRequest) {
         authPort: authPort || 1812, acctPort: acctPort || 1813, coaPort: coaPort || 3799,
         apiUsername: apiUsername || null, apiPassword: apiPassword || null, apiPort: apiPort || 443,
         authMethods, requireMessageAuth: requireMessageAuth === true,
+        calledStationId: calledStationId || null, nasIdentifier: nasIdentifier || null,
         status: 'active',
       },
     });
@@ -192,6 +247,7 @@ export async function PUT(request: NextRequest) {
       coaEnabled, coaPort, authPort, acctPort,
       apiUsername, apiPassword, apiPort,
       authMethods: rawAuthMethods, requireMessageAuth,
+      calledStationId, nasIdentifier,
     } = body;
 
     if (!id) return NextResponse.json({ success: false, error: 'NAS id is required' }, { status: 400 });
@@ -230,6 +286,14 @@ export async function PUT(request: NextRequest) {
     if (requireMessageAuth !== undefined) {
       updates.push(`"requireMessageAuth" = $${params.length + 1}`);
       params.push(requireMessageAuth);
+    }
+    if (calledStationId !== undefined) {
+      updates.push(`"calledStationId" = $${params.length + 1}`);
+      params.push(calledStationId || null);
+    }
+    if (nasIdentifier !== undefined) {
+      updates.push(`"nasIdentifier" = $${params.length + 1}`);
+      params.push(nasIdentifier || null);
     }
 
     if (updates.length > 0) {

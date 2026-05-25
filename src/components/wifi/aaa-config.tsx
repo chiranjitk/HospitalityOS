@@ -129,6 +129,8 @@ interface NASClient {
   apiPort: number;
   authMethods: string; // Comma-separated: pap,chap,mschapv2,eap-tls,eap-ttls,eap-peap,eap-md5,mac-auth
   requireMessageAuth: boolean;
+  calledStationId?: string;
+  nasIdentifier?: string;
   status: string;
   lastSeenAt?: string;
 }
@@ -575,6 +577,8 @@ export default function AAAConfig() {
     apiPort: 443,
     authMethods: 'pap,chap,mschapv2' as string,
     requireMessageAuth: false,
+    calledStationId: '',
+    nasIdentifier: '',
   });
   const [showSecret, setShowSecret] = useState(false);
   const [showApiPassword, setShowApiPassword] = useState(false);
@@ -1059,6 +1063,8 @@ export default function AAAConfig() {
       apiPort: 443,
       authMethods: 'pap,chap,mschapv2',
       requireMessageAuth: false,
+      calledStationId: '',
+      nasIdentifier: '',
     });
     setShowSecret(false);
     setShowApiPassword(false);
@@ -1084,6 +1090,8 @@ export default function AAAConfig() {
       apiPort: nas.apiPort || 443,
       authMethods: nas.authMethods || 'pap,chap,mschapv2',
       requireMessageAuth: nas.requireMessageAuth ?? false,
+      calledStationId: nas.calledStationId || '',
+      nasIdentifier: nas.nasIdentifier || '',
     });
     setNasDialogOpen(true);
   };
@@ -1535,6 +1543,63 @@ export default function AAAConfig() {
                         </div>
                       </div>
                     </div>
+                    {/* ── Called-Station-Id & NAS-Identifier ── */}
+                    {(() => {
+                      const isSystemNASInDialog = nasForm.ipAddress === '127.0.0.1' && nasForm.type === 'cryptsk';
+                      return (
+                        <>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label>Called-Station-Id (NAS MAC)</Label>
+                              {isSystemNASInDialog && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 text-xs"
+                                  onClick={async () => {
+                                    try {
+                                      const res = await fetch('/api/wifi/nas?action=detect-mac');
+                                      const data = await res.json();
+                                      if (data.success && data.data?.mac) {
+                                        setNasForm(prev => ({ ...prev, calledStationId: data.data.mac }));
+                                        toast({ title: 'MAC Detected', description: `Found: ${data.data.mac} (${data.data.interface})` });
+                                      } else {
+                                        toast({ title: 'Detection Failed', description: data.error || 'Could not detect MAC', variant: 'destructive' });
+                                      }
+                                    } catch {
+                                      toast({ title: 'Error', description: 'Failed to detect MAC address', variant: 'destructive' });
+                                    }
+                                  }}
+                                >
+                                  <Wifi className="h-3 w-3 mr-1" />
+                                  Detect MAC
+                                </Button>
+                              )}
+                            </div>
+                            <Input
+                              value={nasForm.calledStationId || ''}
+                              onChange={(e) => setNasForm(prev => ({ ...prev, calledStationId: e.target.value }))}
+                              placeholder="00:00:00:00:00:01"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              MAC address that identifies this NAS in RADIUS accounting records (radacct.calledstationid)
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>NAS-Identifier</Label>
+                            <Input
+                              value={nasForm.nasIdentifier || ''}
+                              onChange={(e) => setNasForm(prev => ({ ...prev, nasIdentifier: e.target.value }))}
+                              placeholder="e.g. StaySuite-Gateway"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Human-readable name sent in RADIUS packets as NAS-Identifier attribute
+                            </p>
+                          </div>
+                        </>
+                      );
+                    })()}
                     <div className="space-y-2">
                       <Label>Auth Port</Label>
                       <Input
@@ -1801,10 +1866,9 @@ export default function AAAConfig() {
                             variant="ghost"
                             size="sm"
                             onClick={() => openEditNas(nas)}
-                            disabled={system}
-                            title={system ? 'System NAS — edit restricted (IP and type cannot be changed)' : 'Edit NAS'}
+                            title={system ? 'Edit System NAS (IP and type are locked)' : 'Edit NAS'}
                           >
-                            <Edit className={`h-4 w-4 ${system ? 'opacity-40' : ''}`} />
+                            <Edit className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"

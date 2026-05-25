@@ -14,6 +14,7 @@ import {
   type LoginScriptParams,
 } from '@/lib/network/script-runner';
 import { getExternalGatewayConfig, buildGatewayAuthResponse, type ExternalGatewayConfig } from '@/lib/wifi/utils/external-gateway';
+import { getLocalNasConfig } from '@/lib/wifi/local-nas-config';
 
 // ────────────────────────────────────────────────────────────
 // Device Info Helpers
@@ -960,7 +961,7 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
-        const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool);
+        const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, resolvedPropertyId);
 
         // Activate firewall (internal NAS) or skip (external gateway handles firewall)
         if (!externalGateway) {
@@ -1174,7 +1175,7 @@ export async function POST(request: NextRequest) {
           const pmsBwUp = pmsBwUpBps ? Math.round(Number(pmsBwUpBps) / 1000000) : (pmsUser.plan?.uploadSpeed || bwUp);
 
           await logAuthAttempt(pmsUser.username, 'Access-Accept', request, `pool:${pool.poolName} reuse:pms plan:${pmsUser.plan?.name || 'none'}`);
-          const sessionId = await createAccountingSession(pmsUser.username, request, 'portal', effectiveMac, pool);
+          const sessionId = await createAccountingSession(pmsUser.username, request, 'portal', effectiveMac, pool, match.propertyId);
 
           // Activate firewall (internal NAS) or skip (external gateway handles firewall)
           if (!externalGateway) {
@@ -1296,7 +1297,7 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName} fallback:room_user`);
-        const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool);
+        const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, match.propertyId);
 
         // Activate firewall (internal NAS) or skip (external gateway handles firewall)
         if (!externalGateway) {
@@ -1419,7 +1420,7 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(username.trim(), 'Access-Accept', request, `pool:${pool.poolName}`);
-        const sessionId = await createAccountingSession(username.trim(), request, 'portal', effectiveMac, pool);
+        const sessionId = await createAccountingSession(username.trim(), request, 'portal', effectiveMac, pool, wifiUser.propertyId);
 
         // ── Calculate plan validity for session timeout & display ──
         // validUntil is NOT reset here — it was set ONCE at user creation.
@@ -1647,7 +1648,7 @@ export async function POST(request: NextRequest) {
             }
 
             await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${smsPool.poolName}${smsPlanId ? ' plan:aaa' : ''}`);
-            const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, smsPool);
+            const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, smsPool, fallbackPropertyId);
 
             // Activate firewall (internal NAS) or skip (external gateway handles firewall)
             if (!externalGateway) {
@@ -1856,7 +1857,7 @@ export async function POST(request: NextRequest) {
               }
 
               await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
-              const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool);
+              const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, resolvedPropertyId);
 
               // Activate firewall (internal NAS) or skip (external gateway handles firewall)
               if (!externalGateway) {
@@ -2313,7 +2314,8 @@ async function createAccountingSession(
   request: NextRequest,
   loginType: string = 'portal',
   macAddress?: string,
-  pool?: MatchedPool | null
+  pool?: MatchedPool | null,
+  propertyId?: string
 ): Promise<string> {
   try {
     const clientIp = getClientIp(request) || '0.0.0.0';
@@ -2351,6 +2353,9 @@ async function createAccountingSession(
       ? `pool_id=${pool.poolId}|pool_name=${pool.poolName}|subnet=${pool.subnet || 'none'}|gateway=${pool.gateway || 'none'}`
       : '';
 
+    // Get local NAS identity from RadiusNAS config (replaces hardcoded values)
+    const localNas = propertyId ? await getLocalNasConfig(propertyId) : { calledStationId: '00:00:00:00:00:01', nasIpAddress: '127.0.0.1' };
+
     await db.$executeRawUnsafe(
       `INSERT INTO radacct (
          acctuniqueid, acctsessionid, username,
@@ -2364,18 +2369,19 @@ async function createAccountingSession(
          $4, 'Wireless-802.11', $5, $5,
          'PAP', $6, 'start',
          0, 0, 0,
-         '00:00:00:00:00:01', $8,
+         $10, $8,
          $7, $9, NOW(), NOW()
        )`,
       acctUniqueId,
       acctSessionId,
       username,
-      '127.0.0.1', // NAS IP (this device is the gateway)
+      localNas.nasIpAddress,
       now,
       clientIp,
       loginType,
       formattedMac,
-      connectInfoStart
+      connectInfoStart,
+      localNas.calledStationId,
     );
 
     // Return the session ID so it can be passed to the login script

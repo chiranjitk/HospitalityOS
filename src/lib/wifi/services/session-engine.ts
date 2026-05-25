@@ -89,6 +89,7 @@ import {
 } from '@/lib/wifi/utils/nftables-counters';
 import { runLogoutScript } from '@/lib/network/script-runner';
 import * as SELog from './session-engine-logger';
+import { getLocalNasConfig } from '@/lib/wifi/local-nas-config';
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -162,6 +163,24 @@ const DISCONNECT_CONCURRENCY = 5;
 function safeGetTime(date: Date | unknown): number {
   if (date instanceof Date) return date.getTime();
   return new Date(String(date)).getTime();
+}
+
+/**
+ * Get local NAS config for the session engine.
+ * The session engine runs globally (not per-request), so it doesn't have
+ * a specific propertyId. We look up the first system NAS entry.
+ */
+async function getLocalNasConfigFromFirstProperty() {
+  try {
+    const systemNas = await db.radiusNAS.findFirst({
+      where: { ipAddress: '127.0.0.1', type: 'cryptsk' },
+      select: { calledStationId: true, propertyId: true },
+    });
+    if (systemNas?.calledStationId) {
+      return { calledStationId: systemNas.calledStationId };
+    }
+  } catch { /* non-fatal */ }
+  return { calledStationId: '00:00:00:00:00:01' };
 }
 
 function minimalResult(): SessionEngineResult {
@@ -453,6 +472,8 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
               }
 
               // ── Batch INSERT interim-update rows (1 query) ──
+              // Use the configured Called-Station-Id from the system NAS entry
+              const localNasForInterim = await getLocalNasConfigFromFirstProperty();
               const interimValues = toUpdate.map(u =>
                 `('${u.session.acctsessionid}', '${u.session.username}', '${u.session.framedipaddress}', '${u.session.callingstationid || ''}', ` +
                 `TO_TIMESTAMP('${safeGetTime(u.session.acctstarttime) / 1000}'), ${u.newUl}, ${u.newDl}, ${u.sessionTime})`
@@ -470,7 +491,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
                   '127.0.0.1', 'Wireless-802.11', v.acctstarttime, NOW(),
                   'PAP', v.framedipaddress, 'interim-update',
                   v.input_octets, v.output_octets, v.session_time,
-                  '00:00:00:00:00:01', v.callingstationid,
+                  '${localNasForInterim.calledStationId}', v.callingstationid,
                   'session-engine', NOW(), NOW()
                 FROM (VALUES ${interimValues.join(',')}) AS v(
                   acctsessionid, username, framedipaddress, callingstationid,
@@ -957,6 +978,9 @@ async function disconnectSession(
   const uploadDelta = Math.max(0, uploadBytes - Number(session.acctinputoctets));
 
   // 6. DB operations in transaction
+  // Get local NAS config for Called-Station-Id
+  const localNasForStop = await getLocalNasConfigFromFirstProperty();
+
   await db.$transaction(async (tx) => {
     const updateResult = await tx.$executeRawUnsafe(`
       UPDATE radacct SET
@@ -985,11 +1009,12 @@ async function disconnectSession(
         '127.0.0.1', 'Wireless-802.11', $3, NOW(), NOW(),
         'PAP', $4, 'stop',
         $5, $6, $7, $8,
-        '00:00:00:00:00:01', $9,
+        $10, $9,
         'session-engine', NOW(), NOW()
       )
     `, session.acctsessionid, session.username, session.acctstarttime, ip,
-       uploadBytes, downloadBytes, sessionTime, reason, session.callingstationid);
+       uploadBytes, downloadBytes, sessionTime, reason, session.callingstationid,
+       localNasForStop.calledStationId);
 
     try {
       const wifiSession = await tx.wiFiSession.findFirst({
