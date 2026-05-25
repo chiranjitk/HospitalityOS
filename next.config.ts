@@ -5,6 +5,9 @@ import NodePolyfillPlugin from 'node-polyfill-webpack-plugin';
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 const nextConfig: NextConfig = {
+  // Enable standalone output for production deployment (PM2, Docker, etc.)
+  // Generates .next/standalone/ with a minimal server.js + pruned node_modules.
+  output: 'standalone',
   // Exclude native/binary packages and Node.js-only modules from bundling.
   serverExternalPackages: [
     'node-pre-gyp', '@mapbox/node-pre-gyp', 'node-cron',
