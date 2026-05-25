@@ -52,9 +52,8 @@ export async function PUT(request: NextRequest) {
       })).min(0),
       maxRefundHours: z.number().min(0).optional(),
       minUpgradeHoursBeforeExpiry: z.number().min(0).optional(),
-    }).catch(() => null);
+    });
 
-    // Try to validate with strict schema; fall back to basic checks
     const parsed = settingsSchema.safeParse(body);
     if (!parsed.success) {
       // Fall back to basic validation for backwards compatibility
@@ -86,7 +85,12 @@ export async function PUT(request: NextRequest) {
 
       await setWifiSettings(auth.tenantId, SETTINGS_KEY, data);
       return NextResponse.json({ success: true, data });
-    } catch (error) {
+    }
+
+    // Schema validation passed — save the parsed data
+    await setWifiSettings(auth.tenantId, SETTINGS_KEY, parsed.data as BandwidthUpsellSettings);
+    return NextResponse.json({ success: true, data: parsed.data });
+  } catch (error) {
     console.error('Error saving bandwidth upsell settings:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to save bandwidth upsell settings.' },

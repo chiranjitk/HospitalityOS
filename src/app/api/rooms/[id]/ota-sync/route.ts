@@ -282,7 +282,7 @@ export async function POST(
             });
 
             const syncData = {
-              status: 'failed',
+              status: 'failed' as const,
               error: `${channel.name} channel has no API credentials configured`,
               lastSyncedAt: now,
             };
@@ -315,33 +315,6 @@ export async function POST(
               remoteUrl: null,
               remoteId: null,
               error: syncData.error,
-          // TODO: Implement real OTA channel sync via channel-manager integration
-          // For now, update sync records with pending status and return current room state
-          const existingSync = await db.otaImageSync.findFirst({
-            where: {
-              imageId: image.id,
-              channelId: channel.id,
-            },
-          });
-
-          if (existingSync) {
-            await db.otaImageSync.update({
-              where: { id: existingSync.id },
-              data: {
-                status: 'pending',
-                lastSyncedAt: now,
-                error: null,
-              },
-            });
-          } else {
-            await db.otaImageSync.create({
-              data: {
-                imageId: image.id,
-                channelId: channel.id,
-                status: 'pending',
-                lastSyncedAt: now,
-                error: null,
-              },
             });
             continue; // Skip to next image-channel pair
           }
@@ -349,8 +322,6 @@ export async function POST(
           // Channel has credentials — attempt real OTA sync via the channel service.
           // If the OTA channel service endpoint is not reachable, the sync fails gracefully.
           const channelType = channel.type;
-          let remoteId: string | null = null;
-          let remoteUrl: string | null = null;
 
           try {
             // Attempt a real OTA channel API push (conceptual).
@@ -399,11 +370,14 @@ export async function POST(
               imageId: image.id,
               channelId: channel.id,
               status: 'failed',
-              remoteUrl,
-              remoteId,
+              remoteUrl: null,
+              remoteId: null,
               error: otaErrorMessage,
             });
+            continue;
           }
+
+          // If sync succeeded (not yet reached in current implementation)
           syncedCount++;
           results.push({
             imageId: image.id,

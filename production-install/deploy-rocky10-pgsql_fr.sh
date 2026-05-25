@@ -1211,7 +1211,15 @@ if [[ ! -f "${APP_DIR}/src/i18n/request.ts" ]]; then
 fi
 
 info "Building Next.js (this may take a few minutes)..."
-bun run build 2>&1 | tail -10
+BUILD_LOG=$(mktemp /tmp/staysuite-build-XXXXXX.log)
+if ! bun run build > "$BUILD_LOG" 2>&1; then
+  echo "──── Last 30 lines of build output ────"
+  tail -30 "$BUILD_LOG"
+  echo "───────────────────────────────────────"
+  rm -f "$BUILD_LOG"
+  die "Next.js build failed. See output above for errors."
+fi
+rm -f "$BUILD_LOG"
 success "Next.js build complete"
 
 # ── Copy standalone build artifacts ──────────────────────────────────────────

@@ -70,11 +70,6 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     }
   };
 
-  const showDemoCredentials = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
-  const demoUser = process.env.NEXT_PUBLIC_DEMO_USER || '';
-  const demoPass = process.env.NEXT_PUBLIC_DEMO_PASS || '';
-  const demoCredentials = showDemoCredentials && demoUser && demoPass ? [
-    { role: 'Demo', email: demoUser, password: demoPass, color: 'bg-gradient-to-br from-orange-600 to-amber-600' },
   const showDemoCredentials = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production';
   const demoCredentials = showDemoCredentials ? [
     { role: 'Admin', email: 'admin@royalstay.in', password: 'admin123', color: 'bg-gradient-to-br from-orange-600 to-amber-600' },

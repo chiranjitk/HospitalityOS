@@ -143,23 +143,12 @@ export async function PUT(
     if (specialRequests !== undefined) updateData.specialRequests = specialRequests;
     if (therapistId !== undefined) updateData.therapistId = therapistId;
 
-    // Execute status update (non-completion path, no folio interaction)
-    if (status !== 'completed' || !existing.bookingId || existing.folioId) {
-      const appointment = await db.spaAppointment.update({
-      where: { id },
-      data: updateData,
-      include: {
-        treatment: { select: { id: true, name: true, category: true, durationMinutes: true, price: true } },
-        therapist: { select: { id: true, name: true } },
-      },
-    });
-
     // ── Auto-post charge to folio when appointment is completed ─────────
     if (status === 'completed' && existing.bookingId && !existing.folioId) {
       try {
         // CRITICAL FIX: Status update must happen INSIDE the folio transaction
         // so that if folio posting fails, the appointment status rolls back too.
-        await db.$transaction(async (tx) => {
+        const appointment = await db.$transaction(async (tx) => {
           // Execute status update inside transaction
           const updatedAppointment = await tx.spaAppointment.update({
             where: { id },
@@ -184,7 +173,7 @@ export async function PUT(
             console.log(
               `[SpaAppointment PUT] No open folio found for booking ${existing.bookingId}, skipping auto-post.`,
             );
-            return;
+            return updatedAppointment;
           }
 
           const amount = existing.price;
@@ -195,19 +184,7 @@ export async function PUT(
             select: { defaultTaxRate: true, taxComponents: true },
           });
 
-          let taxRate = 0;
-          if (property?.taxComponents) {
-            try {
-              const tc = JSON.parse(property.taxComponents || '[]');
-              if (Array.isArray(tc) && tc.length > 0) {
-                taxRate = tc.reduce((sum: number, c: { rate: number }) => sum + (c.rate || 0), 0) / 100;
-              } else {
-                taxRate = (property.defaultTaxRate || 0) / 100;
-              }
-            } catch {
-              taxRate = (property.defaultTaxRate || 0) / 100;
-            }
-          }
+          const taxRate = resolveTaxRate(property);
           const taxAmount = Math.round(amount * taxRate * 100) / 100;
 
           // Build description
@@ -259,20 +236,30 @@ export async function PUT(
             data: { folioId: folio.id },
           });
 
-          // Attach folio info to response object
-          (appointment as Record<string, unknown>).folioId = folio.id;
-          // Copy updated appointment fields from transaction
-          Object.assign(appointment, updatedAppointment);
+          return updatedAppointment;
         });
 
         console.log(
           `[SpaAppointment PUT] Auto-posted appointment ${id} ($${existing.price}) to folio.`,
         );
+
+        return NextResponse.json({ success: true, data: appointment });
       } catch (folioError) {
         console.error('[SpaAppointment PUT] Auto-post to folio failed:', folioError);
         // Appointment status is still updated; folio posting is best-effort
+        // Fall through to simple update below
       }
     }
+
+    // Simple update (non-completion path, or folio posting failed)
+    const appointment = await db.spaAppointment.update({
+      where: { id },
+      data: updateData,
+      include: {
+        treatment: { select: { id: true, name: true, category: true, durationMinutes: true, price: true } },
+        therapist: { select: { id: true, name: true } },
+      },
+    });
 
     return NextResponse.json({ success: true, data: appointment });
   } catch (error) {

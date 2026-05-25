@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
-import crypto from 'crypto';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   issued: ['active', 'deactivated', 'lost'],
