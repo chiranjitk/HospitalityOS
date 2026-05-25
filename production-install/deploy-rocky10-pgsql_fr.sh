@@ -1304,6 +1304,11 @@ BUN_PATH="${BUN_INSTALL:-$HOME/.bun}/bin/bun"
 chmod +x "${APP_DIR}/start-next.sh" 2>/dev/null || true
 chmod +x "${APP_DIR}/start-nextjs.sh" 2>/dev/null || true
 
+# Ensure StaySuite core scripts (login/logout/nftables) are executable
+chmod -R +x "${APP_DIR}/scripts/staysuite_core/" 2>/dev/null || true
+chmod -R +x "${APP_DIR}/scripts/nftables/" 2>/dev/null || true
+chmod -R +x "${APP_DIR}/scripts/network/" 2>/dev/null || true
+
 # ── Use ecosystem.config.js (production config from ecosystem.config.js_dont-touch) ──
 # Step 8e copies ecosystem.config.js_dont-touch → ecosystem.config.js.
 # This file uses __dirname for all paths (portable to any install directory).
