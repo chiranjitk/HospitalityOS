@@ -1421,6 +1421,19 @@ export default function AAAConfig() {
                   </DialogHeader>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4 overflow-auto flex-1 pr-1">
+                    {/* System NAS protection banner */}
+                    {nasForm.ipAddress === '127.0.0.1' && nasForm.type === 'cryptsk' && (
+                      <div className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3 flex items-start gap-2.5">
+                        <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-semibold text-amber-800 dark:text-amber-400">System NAS — Partially Locked</p>
+                          <p className="text-xs text-amber-700 dark:text-amber-500 mt-0.5">
+                            IP Address, Vendor Type, and Shared Secret are locked for the Cryptsk Gateway system NAS.
+                            You can edit the name, Called-Station-Id, NAS-Identifier, and authentication settings.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <Label>Name *</Label>
                       <Input
@@ -1438,15 +1451,40 @@ export default function AAAConfig() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>IP Address *</Label>
+                      <div className="flex items-center gap-1.5">
+                        <Label>IP Address *</Label>
+                        {nasForm.ipAddress === '127.0.0.1' && nasForm.type === 'cryptsk' && (
+                          <Badge variant="outline" className="h-5 text-[10px] gap-1 border-amber-300 text-amber-600 dark:border-amber-700 dark:text-amber-400">
+                            <Lock className="h-2.5 w-2.5" /> Locked
+                          </Badge>
+                        )}
+                      </div>
                       <Input
                         value={nasForm.ipAddress}
                         onChange={(e) => setNasForm(prev => ({ ...prev, ipAddress: e.target.value }))}
                         placeholder="192.168.1.1"
+                        disabled={nasForm.ipAddress === '127.0.0.1' && nasForm.type === 'cryptsk'}
                       />
+                      {nasForm.ipAddress === '127.0.0.1' && nasForm.type === 'cryptsk' && (
+                        <p className="text-xs text-muted-foreground">System NAS IP is fixed for Multimode gateway</p>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label>NAS Vendor Type</Label>
+                      <div className="flex items-center gap-1.5">
+                        <Label>NAS Vendor Type</Label>
+                        {nasForm.type === 'cryptsk' && nasForm.ipAddress === '127.0.0.1' && (
+                          <Badge variant="outline" className="h-5 text-[10px] gap-1 border-amber-300 text-amber-600 dark:border-amber-700 dark:text-amber-400">
+                            <Lock className="h-2.5 w-2.5" /> Locked
+                          </Badge>
+                        )}
+                      </div>
+                      {nasForm.type === 'cryptsk' && nasForm.ipAddress === '127.0.0.1' ? (
+                        <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 text-sm">
+                          <ShieldCheck className="h-4 w-4 mr-2 text-amber-500" />
+                          <span className="font-medium">Cryptsk Gateway (Multimode)</span>
+                          <span className="ml-auto text-xs text-muted-foreground">System</span>
+                        </div>
+                      ) : (
                       <Popover open={vendorOpen} onOpenChange={setVendorOpen}>
                         <PopoverTrigger asChild>
                           <Button
@@ -1491,19 +1529,29 @@ export default function AAAConfig() {
                           </Command>
                         </PopoverContent>
                       </Popover>
+                      )}
                     </div>
                     <div className="space-y-2 sm:col-span-2">
                       <div className="flex items-center justify-between">
-                        <Label>Shared Secret *</Label>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={generateSecret}
-                        >
-                          <Key className="h-3 w-3 mr-1" />
-                          Generate
-                        </Button>
+                        <div className="flex items-center gap-1.5">
+                          <Label>Shared Secret *</Label>
+                          {nasForm.ipAddress === '127.0.0.1' && nasForm.type === 'cryptsk' && (
+                            <Badge variant="outline" className="h-5 text-[10px] gap-1 border-amber-300 text-amber-600 dark:border-amber-700 dark:text-amber-400">
+                              <Lock className="h-2.5 w-2.5" /> Locked
+                            </Badge>
+                          )}
+                        </div>
+                        {!(nasForm.ipAddress === '127.0.0.1' && nasForm.type === 'cryptsk') && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={generateSecret}
+                          >
+                            <Key className="h-3 w-3 mr-1" />
+                            Generate
+                          </Button>
+                        )}
                       </div>
                       <div className="relative">
                         <Input
@@ -1512,7 +1560,9 @@ export default function AAAConfig() {
                           placeholder="Enter or generate a secret"
                           type={showSecret ? 'text' : 'password'}
                           className="pr-20"
+                          disabled={nasForm.ipAddress === '127.0.0.1' && nasForm.type === 'cryptsk'}
                         />
+                        {!(nasForm.ipAddress === '127.0.0.1' && nasForm.type === 'cryptsk') && (
                         <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
                           <Button
                             type="button"
@@ -1541,7 +1591,11 @@ export default function AAAConfig() {
                             {secretCopied ? <CheckCheck className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
                           </Button>
                         </div>
+                        )}
                       </div>
+                      {nasForm.ipAddress === '127.0.0.1' && nasForm.type === 'cryptsk' && (
+                        <p className="text-xs text-muted-foreground">System NAS secret is managed by the gateway — not editable</p>
+                      )}
                     </div>
                     {/* ── Called-Station-Id & NAS-Identifier ── */}
                     {(() => {

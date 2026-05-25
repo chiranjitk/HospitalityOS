@@ -304,13 +304,20 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // System NAS protection
+    // System NAS protection — force back immutable fields even if the UI sent changes
     if (isSystemNas) {
       if (ipAddress && ipAddress !== '127.0.0.1') {
         await db.$executeRawUnsafe(`UPDATE "RadiusNAS" SET "ipAddress" = '127.0.0.1' WHERE id = $1::uuid`, id);
       }
       if (type && type !== 'cryptsk') {
         await db.$executeRawUnsafe(`UPDATE "RadiusNAS" SET type = 'cryptsk' WHERE id = $1::uuid`, id);
+      }
+      // Revert secret if someone tried to change it on system NAS
+      const currentSecret = await db.$queryRawUnsafe<Array<{ secret: string }>>(
+        `SELECT secret FROM "RadiusNAS" WHERE id = $1::uuid`, id
+      );
+      if (currentSecret?.[0]?.secret && (secret || sharedSecret) && (sharedSecret || secret) !== currentSecret[0].secret) {
+        await db.$executeRawUnsafe(`UPDATE "RadiusNAS" SET secret = $1 WHERE id = $2::uuid`, currentSecret[0].secret, id);
       }
     }
 
