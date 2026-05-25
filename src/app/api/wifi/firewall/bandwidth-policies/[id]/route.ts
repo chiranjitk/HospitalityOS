@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { applyToNftables } from '@/lib/nftables-helper';
+import { logWifi } from '@/lib/audit';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -98,6 +99,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       uploadKbps: policy.uploadKbps,
     });
 
+    // Audit log
+    try {
+      await logWifi(request, 'update', 'bandwidth_policy', id, { name: policy.name, downloadKbps: policy.downloadKbps, uploadKbps: policy.uploadKbps, priority: policy.priority, enabled: policy.enabled }, { tenantId: user.tenantId, userId: user.userId, oldValue: existingPolicy as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for bandwidth policy update:', auditErr);
+    }
+
     return NextResponse.json({ success: true, data: policy });
   } catch (error) {
     console.error('Error updating bandwidth policy:', error);
@@ -134,6 +142,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       action: 'remove',
       name: existingPolicy.name,
     });
+
+    // Audit log
+    try {
+      await logWifi(request, 'delete', 'bandwidth_policy', id, { name: existingPolicy.name, downloadKbps: existingPolicy.downloadKbps, uploadKbps: existingPolicy.uploadKbps }, { tenantId: user.tenantId, userId: user.userId, oldValue: existingPolicy as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for bandwidth policy delete:', auditErr);
+    }
 
     return NextResponse.json({ success: true, message: 'Bandwidth policy deleted successfully' });
   } catch (error) {

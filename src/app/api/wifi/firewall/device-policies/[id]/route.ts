@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { logWifi } from '@/lib/audit';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -129,6 +130,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       },
     });
 
+    // WiFi audit log
+    try {
+      await logWifi(request, 'update', 'device_policy', id, { name: policy.name, trustLevel: policy.trustLevel, enabled: policy.isActive }, { tenantId: user.tenantId, userId: user.userId, oldValue: existing as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for device policy update:', auditErr);
+    }
+
     return NextResponse.json({ success: true, data: policy });
   } catch (error) {
     console.error('Error updating device policy:', error);
@@ -186,6 +194,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         performedBy: user.userId,
       },
     });
+
+    // WiFi audit log
+    try {
+      await logWifi(request, 'delete', 'device_policy', id, { name: existing.name, trustLevel: existing.trustLevel, revokedAssignments: revokedCount.count }, { tenantId: user.tenantId, userId: user.userId, oldValue: existing as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for device policy delete:', auditErr);
+    }
 
     return NextResponse.json({
       success: true,

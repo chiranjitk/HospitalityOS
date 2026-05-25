@@ -3,6 +3,7 @@ import { execSync } from 'child_process';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
 import { syncClientsConf } from '@/lib/wifi/nas-sync';
+import { logWifi } from '@/lib/audit';
 
 // System NAS constants — Cryptsk Multimode gateway (127.0.0.1 / cryptsk type)
 const SYSTEM_NAS_IP = '127.0.0.1';
@@ -247,6 +248,14 @@ export async function POST(request: NextRequest) {
       console.error('[NAS Create] FreeRADIUS restart failed:', restartErr);
     }
 
+    // Audit log: NAS client created
+    await logWifi(request, 'create', 'nas_client', id, {
+      name, ipAddress, type: type || 'other',
+      authPort: authPort || 1812, acctPort: acctPort || 1813, coaPort: coaPort || 3799,
+      authMethods, coaEnabled: coaEnabled !== false,
+      calledStationId: calledStationId || null, nasIdentifier: nasIdentifier || null,
+    }, { tenantId: context.tenantId, userId: context.userId });
+
     return NextResponse.json({
       success: true,
       data: {
@@ -282,16 +291,18 @@ export async function PUT(request: NextRequest) {
 
     if (!id) return NextResponse.json({ success: false, error: 'NAS id is required' }, { status: 400 });
 
-    // Fetch current NAS
-    const currentNas = await db.$queryRawUnsafe<Array<{ ipAddress: string; type: string }>>(
-      `SELECT "ipAddress", type FROM "RadiusNAS" WHERE id = $1::uuid AND "tenantId" = $2::uuid`,
+    // Fetch current NAS (full record for audit logging)
+    const currentNas = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      `SELECT "ipAddress", type, name, shortname, secret, "coaEnabled", "coaPort", "authPort", "acctPort", "apiUsername", "apiPort", "authMethods", "requireMessageAuth", "calledStationId", "nasIdentifier" FROM "RadiusNAS" WHERE id = $1::uuid AND "tenantId" = $2::uuid`,
       id, context.tenantId
     );
     if (!currentNas || currentNas.length === 0) {
       return NextResponse.json({ success: false, error: 'NAS client not found' }, { status: 404 });
     }
-    const oldIpAddress = currentNas[0].ipAddress;
-    const isSystemNas = currentNas[0].type === 'cryptsk' && oldIpAddress === '127.0.0.1';
+    const oldIpAddress = String(currentNas[0].ipAddress);
+    const isSystemNas = String(currentNas[0].type) === 'cryptsk' && oldIpAddress === '127.0.0.1';
+    // Capture old values for audit
+    const oldValues = { ...currentNas[0] };
 
     const updates: string[] = [];
     const params: unknown[] = [];
@@ -374,6 +385,13 @@ export async function PUT(request: NextRequest) {
       console.error('[NAS Update] FreeRADIUS restart failed:', restartErr);
     }
 
+    // Audit log: NAS client updated
+    await logWifi(request, 'update', 'nas_client', id, {
+      name, ipAddress, type, coaEnabled, coaPort, authPort, acctPort,
+      authMethods: rawAuthMethods ? normalizeAuthMethods(rawAuthMethods) : undefined,
+      calledStationId, nasIdentifier,
+    }, { tenantId: context.tenantId, userId: context.userId, oldValue: oldValues });
+
     return NextResponse.json({ success: true, message: 'NAS updated' });
   } catch (error) {
     console.error('Error updating NAS client:', error);
@@ -390,8 +408,9 @@ export async function DELETE(request: NextRequest) {
     const id = request.nextUrl.searchParams.get('id');
     if (!id) return NextResponse.json({ success: false, error: 'NAS id is required' }, { status: 400 });
 
-    const nasRecord = await db.$queryRawUnsafe<Array<{ ipAddress: string; type: string }>>(
-      `SELECT "ipAddress", type FROM "RadiusNAS" WHERE id = $1::uuid AND "tenantId" = $2::uuid`,
+    // Fetch full NAS record before deletion for audit logging
+    const nasRecord = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      `SELECT "ipAddress", type, name, shortname, secret, "coaEnabled", "coaPort", "authPort", "acctPort", "authMethods", "calledStationId", "nasIdentifier" FROM "RadiusNAS" WHERE id = $1::uuid AND "tenantId" = $2::uuid`,
       id, context.tenantId
     );
 
@@ -399,16 +418,22 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'NAS client not found' }, { status: 404 });
     }
 
-    if (nasRecord[0].ipAddress === SYSTEM_NAS_IP && nasRecord[0].type === SYSTEM_NAS_TYPE) {
+    if (String(nasRecord[0].ipAddress) === SYSTEM_NAS_IP && String(nasRecord[0].type) === SYSTEM_NAS_TYPE) {
       return NextResponse.json({
         success: false,
         error: 'Cannot delete the Cryptsk Gateway (Multimode) system NAS. This is required for multimode operation.',
       }, { status: 403 });
     }
 
+    // Capture deleted values for audit
+    const deletedValues = { ...nasRecord[0] };
+
     await db.$executeRawUnsafe(`DELETE FROM "RadiusNAS" WHERE id = $1::uuid AND "tenantId" = $2::uuid`, id, context.tenantId);
     await db.$executeRawUnsafe(`DELETE FROM nas WHERE nasname = $1`, nasRecord[0].ipAddress);
     await syncClientsConf();
+
+    // Audit log: NAS client deleted
+    await logWifi(request, 'delete', 'nas_client', id, deletedValues, { tenantId: context.tenantId, userId: context.userId });
 
     return NextResponse.json({ success: true, message: 'NAS deleted' });
   } catch (error) {

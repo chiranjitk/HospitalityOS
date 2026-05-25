@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { logWifi } from '@/lib/audit';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -201,6 +202,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     });
 
+    // Audit log
+    try {
+      await logWifi(request, 'update', 'portal_instance', id, { name: instance.name, slug: instance.slug, enabled: instance.enabled, authMethod: instance.authMethod }, { tenantId: user.tenantId, userId: user.userId, oldValue: existing as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for portal instance update:', auditErr);
+    }
+
     return NextResponse.json({ success: true, data: instance });
   } catch (error: unknown) {
     // Handle unique constraint violation on slug
@@ -263,6 +271,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         data: { enabled: false },
       });
 
+      // Audit log (deactivation)
+      try {
+        await logWifi(request, 'update', 'portal_instance', id, { name: existing.name, slug: existing.slug, enabled: false, note: 'deactivated due to associations' }, { tenantId: user.tenantId, userId: user.userId, oldValue: existing as unknown as Record<string, unknown> });
+      } catch (auditErr) {
+        console.error('Audit log failed for portal instance deactivation:', auditErr);
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Portal instance deactivated (has associated mappings, auth methods, or pages)',
@@ -270,6 +285,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     await db.captivePortal.delete({ where: { id } });
+
+    // Audit log (deletion)
+    try {
+      await logWifi(request, 'delete', 'portal_instance', id, { name: existing.name, slug: existing.slug }, { tenantId: user.tenantId, userId: user.userId, oldValue: existing as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for portal instance delete:', auditErr);
+    }
 
     return NextResponse.json({
       success: true,

@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { logWifi } from '@/lib/audit';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -113,6 +114,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     });
 
+    // Audit log
+    try {
+      await logWifi(request, 'update', 'network_interface', existing.id, { name: iface.name, type: iface.type, mtu: iface.mtu, status: iface.status }, { tenantId: ctx.tenantId, userId: ctx.userId, oldValue: existing as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for network interface update:', auditErr);
+    }
+
     return NextResponse.json({ success: true, data: iface });
   } catch (error) {
     console.error('Error updating network interface:', error);
@@ -157,6 +165,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     await db.interfaceRole.deleteMany({ where: { interfaceId: existing.id } });
 
     await db.networkInterface.delete({ where: { id: existing.id } });
+
+    // Audit log
+    try {
+      await logWifi(request, 'delete', 'network_interface', existing.id, { name: existing.name, type: existing.type, status: existing.status }, { tenantId: ctx.tenantId, userId: ctx.userId, oldValue: existing as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for network interface delete:', auditErr);
+    }
 
     return NextResponse.json({ success: true, message: 'Network interface deleted successfully' });
   } catch (error) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { fullApplyToNftables } from '@/lib/nftables-helper';
+import { logWifi } from '@/lib/audit';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -114,6 +115,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Apply to nftables (best effort, non-blocking) — full apply to regenerate all rules
     fullApplyToNftables(user.tenantId);
 
+    // Audit log
+    try {
+      await logWifi(request, 'update', 'firewall_rule', id, { chain: rule.chain, protocol: rule.protocol, action: rule.action, enabled: rule.enabled, comment: rule.comment }, { tenantId: user.tenantId, userId: user.userId, oldValue: existingRule as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for firewall rule update:', auditErr);
+    }
+
     return NextResponse.json({ success: true, data: rule });
   } catch (error) {
     console.error('Error updating firewall rule:', error);
@@ -147,6 +155,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // Apply to nftables (best effort, non-blocking) — full apply to regenerate all rules
     fullApplyToNftables(user.tenantId);
+
+    // Audit log
+    try {
+      await logWifi(request, 'delete', 'firewall_rule', id, { chain: existingRule.chain, action: existingRule.action, comment: existingRule.comment }, { tenantId: user.tenantId, userId: user.userId, oldValue: existingRule as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for firewall rule delete:', auditErr);
+    }
 
     return NextResponse.json({ success: true, message: 'Firewall rule deleted successfully' });
   } catch (error) {

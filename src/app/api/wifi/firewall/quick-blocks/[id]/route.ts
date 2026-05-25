@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { fullApplyToNftables } from '@/lib/nftables-helper';
+import { logWifi } from '@/lib/audit';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -29,6 +30,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // Fire-and-forget apply
     try { fullApplyToNftables(user.tenantId); } catch {}
+
+    // Audit log
+    try {
+      await logWifi(request, 'delete', 'quick_block', id, { macAddress: existing.macAddress, reason: existing.reason }, { tenantId: user.tenantId, userId: user.userId, oldValue: existing as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for quick block delete:', auditErr);
+    }
 
     return NextResponse.json({ success: true, data: { id } });
   } catch (error) {
@@ -71,6 +79,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     // Fire-and-forget apply
     try { fullApplyToNftables(user.tenantId); } catch {}
+
+    // Audit log
+    try {
+      await logWifi(request, 'update', 'quick_block', id, { macAddress: block.macAddress, reason: block.reason, enabled: block.enabled, expiresAt: block.expiresAt?.toISOString() }, { tenantId: user.tenantId, userId: user.userId, oldValue: existing as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for quick block update:', auditErr);
+    }
 
     return NextResponse.json({ success: true, data: block });
   } catch (error) {

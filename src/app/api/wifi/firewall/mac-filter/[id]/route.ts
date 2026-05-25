@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { applyToNftables, macListTypeToSet } from '@/lib/nftables-helper';
+import { logWifi } from '@/lib/audit';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -108,6 +109,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       address: entry.macAddress,
     });
 
+    // Audit log
+    try {
+      await logWifi(request, 'update', 'mac_filter', id, { macAddress: entry.macAddress, listType: entry.listType, action: entry.action, description: entry.description, enabled: entry.enabled }, { tenantId: user.tenantId, userId: user.userId, oldValue: existingEntry as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for MAC filter update:', auditErr);
+    }
+
     return NextResponse.json({ success: true, data: entry });
   } catch (error) {
     console.error('Error updating MAC filter entry:', error);
@@ -144,6 +152,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       set: macListTypeToSet(existingEntry.listType),
       address: existingEntry.macAddress,
     });
+
+    // Audit log
+    try {
+      await logWifi(request, 'delete', 'mac_filter', id, { macAddress: existingEntry.macAddress, listType: existingEntry.listType, action: existingEntry.action }, { tenantId: user.tenantId, userId: user.userId, oldValue: existingEntry as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for MAC filter delete:', auditErr);
+    }
 
     return NextResponse.json({ success: true, message: 'MAC filter entry deleted successfully' });
   } catch (error) {

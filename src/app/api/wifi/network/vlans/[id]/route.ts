@@ -15,6 +15,7 @@ import { execSync } from 'child_process';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { deleteVlan as nmcliDeleteVlan } from '@/lib/network/nmcli';
+import { logWifi } from '@/lib/audit';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -133,6 +134,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     });
 
+    // Audit log
+    try {
+      await logWifi(request, 'update', 'vlan', existing.id, { vlanId: vlan.vlanId, subInterface: vlan.subInterface, description: vlan.description, enabled: vlan.enabled }, { tenantId: user.tenantId, userId: user.userId, oldValue: existing as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for VLAN update:', auditErr);
+    }
+
     return NextResponse.json({ success: true, data: vlan });
   } catch (error) {
     console.error('Error updating VLAN:', error);
@@ -188,6 +196,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // Always remove from DB (even if OS removal failed — phantom VLAN entry)
     await db.vlanConfig.delete({ where: { id: existing.id } });
+
+    // Audit log
+    try {
+      await logWifi(request, 'delete', 'vlan', existing.id, { vlanId: existing.vlanId, subInterface: existing.subInterface, description: existing.description, enabled: existing.enabled }, { tenantId: user.tenantId, userId: user.userId, oldValue: existing as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for VLAN delete:', auditErr);
+    }
 
     return NextResponse.json({ success: true, message: `VLAN ${ifaceName} deleted.` });
   } catch (error) {

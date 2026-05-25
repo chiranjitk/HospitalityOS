@@ -250,11 +250,11 @@ export async function logUser(
  */
 export async function logWifi(
   request: NextRequest,
-  action: 'create' | 'update' | 'delete' | 'voucher_create' | 'voucher_use' | 'session_start' | 'session_end',
-  entityType: 'voucher' | 'session' | 'plan' | 'user',
-  entityId: string,
+  action: 'create' | 'update' | 'delete' | 'voucher_create' | 'voucher_use' | 'voucher_revoke' | 'session_start' | 'session_end' | 'apply' | 'flush' | 'assign' | 'revoke' | 'sync' | 'block' | 'unblock' | 'connect' | 'disconnect',
+  entityType: 'nas_client' | 'voucher' | 'session' | 'plan' | 'user' | 'firewall_rule' | 'firewall_zone' | 'mac_filter' | 'bandwidth_policy' | 'dhcp_reservation' | 'dhcp_subnet' | 'portal_instance' | 'portal_page' | 'network_interface' | 'vlan' | 'bridge' | 'quick_block' | 'device_group' | 'device_policy' | 'content_filter' | 'rate_limit' | 'port_forward' | 'schedule' | 'walled_garden' | 'identity_log' | 'consent_log' | 'partner' | 'pre_arrival',
+  entityId: string | undefined,
   metadata?: Record<string, unknown>,
-  overrides?: { tenantId?: string; userId?: string },
+  overrides?: { tenantId?: string; userId?: string; oldValue?: Record<string, unknown> },
 ) {
   const ctx = extractRequestContext(request);
   return auditLogService.log({
@@ -264,6 +264,7 @@ export async function logWifi(
     action,
     entityType,
     entityId: safeUUID(entityId),
+    oldValue: overrides?.oldValue,
     newValue: metadata,
     ipAddress: ctx.ipAddress,
     userAgent: ctx.userAgent,

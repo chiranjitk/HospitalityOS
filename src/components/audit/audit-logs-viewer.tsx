@@ -142,6 +142,13 @@ const moduleColors: Record<string, string> = {
   inventory: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200',
   housekeeping: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-200',
   channel: 'bg-indigo-500/10 text-indigo-600 border-indigo-200',
+  wifi: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200',
+  iot: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-200',
+  settings: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-200',
+  users: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-200',
+  system: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-200',
+  integrations: 'bg-pink-500/10 text-pink-600 dark:text-pink-400 border-pink-200',
+  reports: 'bg-lime-500/10 text-lime-600 dark:text-lime-400 border-lime-200',
   security: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-200',
   default: 'bg-gray-500/10 text-gray-600 border-gray-200',
 };
@@ -178,6 +185,8 @@ const moduleOptions = [
   { value: 'inventory', label: 'Inventory' },
   { value: 'housekeeping', label: 'Housekeeping' },
   { value: 'channel', label: 'Channel Manager' },
+  { value: 'wifi', label: 'WiFi & Network' },
+  { value: 'iot', label: 'IoT & Smart Devices' },
   { value: 'security', label: 'Security' },
   { value: 'settings', label: 'Settings' },
   { value: 'users', label: 'Users' },
@@ -199,6 +208,15 @@ const actionOptions = [
   { value: 'refund', label: 'Refund' },
   { value: 'password_reset', label: 'Password Reset' },
   { value: 'access_denied', label: 'Access Denied' },
+  { value: 'apply', label: 'Apply Config' },
+  { value: 'flush', label: 'Flush Rules' },
+  { value: 'sync', label: 'Sync' },
+  { value: 'block', label: 'Block' },
+  { value: 'unblock', label: 'Unblock' },
+  { value: 'voucher_create', label: 'Voucher Create' },
+  { value: 'voucher_use', label: 'Voucher Use' },
+  { value: 'session_start', label: 'Session Start' },
+  { value: 'session_end', label: 'Session End' },
 ];
 
 export function AuditLogsViewer() {

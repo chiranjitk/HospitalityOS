@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { logWifi } from '@/lib/audit';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -116,6 +117,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       data: updateData,
     });
 
+    // Audit log
+    try {
+      await logWifi(request, 'update', 'dhcp_reservation', id, { macAddress: reservation.macAddress, ipAddress: reservation.ipAddress, hostname: reservation.hostname, enabled: reservation.enabled }, { tenantId: ctx.tenantId, userId: ctx.userId, oldValue: existing as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for DHCP reservation update:', auditErr);
+    }
+
     return NextResponse.json({ success: true, data: reservation });
   } catch (error) {
     console.error('Error updating DHCP reservation:', error);
@@ -146,6 +154,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     await db.dhcpReservation.delete({ where: { id } });
+
+    // Audit log
+    try {
+      await logWifi(request, 'delete', 'dhcp_reservation', id, { macAddress: existing.macAddress, ipAddress: existing.ipAddress, hostname: existing.hostname }, { tenantId: ctx.tenantId, userId: ctx.userId, oldValue: existing as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for DHCP reservation delete:', auditErr);
+    }
 
     return NextResponse.json({ success: true, message: 'DHCP reservation deleted successfully' });
   } catch (error) {

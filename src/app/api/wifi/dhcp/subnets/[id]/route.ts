@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { isValidCidr, parseIpToInt, isValidIp } from '@/lib/ip-whitelist/utils';
+import { logWifi } from '@/lib/audit';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -157,6 +158,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       data: updateData,
     });
 
+    // Audit log
+    try {
+      await logWifi(request, 'update', 'dhcp_subnet', id, { name: updatedSubnet.name, subnet: updatedSubnet.subnet, gateway: updatedSubnet.gateway, enabled: updatedSubnet.enabled }, { tenantId: ctx.tenantId, userId: ctx.userId, oldValue: existing as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for DHCP subnet update:', auditErr);
+    }
+
     return NextResponse.json({ success: true, data: updatedSubnet });
   } catch (error) {
     console.error('Error updating DHCP subnet:', error);
@@ -212,6 +220,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       db.dhcpLease.deleteMany({ where: { subnetId: id } }),
       db.dhcpSubnet.delete({ where: { id } }),
     ]);
+
+    // Audit log
+    try {
+      await logWifi(request, 'delete', 'dhcp_subnet', id, { name: existing.name, subnet: existing.subnet, gateway: existing.gateway }, { tenantId: ctx.tenantId, userId: ctx.userId, oldValue: existing as unknown as Record<string, unknown> });
+    } catch (auditErr) {
+      console.error('Audit log failed for DHCP subnet delete:', auditErr);
+    }
 
     return NextResponse.json({ success: true, message: 'DHCP subnet deleted successfully' });
   } catch (error) {
