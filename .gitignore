@@ -94,6 +94,7 @@ pgsql-runtime/data/
 
 # PostgreSQL data directory (binary runtime data, never track)
 pgsql-data/
+db/pgdata/
 
 # FreeRADIUS dependencies and runtime
 freeradius-deps/
