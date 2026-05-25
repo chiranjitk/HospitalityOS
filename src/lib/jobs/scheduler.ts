@@ -135,7 +135,6 @@ export function initializeScheduler(): void {
   // ─── Job 1: Scheduled Reports (every minute) ──────────────────────
   const mainJob = cron.schedule('* * * * *', async () => {
     try {
-      const { processScheduledReports } = await import('./report-executor');
       await processScheduledReports();
     } catch (err) {
       console.error('[Scheduler] Report check error:', err);
