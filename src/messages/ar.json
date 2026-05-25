@@ -535,10 +535,12 @@
     "wifi-partners": "Partner WiFi",
     "wifi-heatmap": "WiFi Heatmap",
     "facilities": "المرافق",
-    "securityIot": "الأمان وإنترنت الأشياء",
     "automationAi": "الأتمتة والذكاء الاصطناعي",
     "userRoleManagement": "إدارة المستخدمين والأدوار",
-    "platformAdmin": "مدير المنصة"
+    "platformAdmin": "مدير المنصة",
+    "accountSecurity": "Account Security",
+    "surveillanceCctv": "Surveillance & CCTV",
+    "iotSmartBuilding": "IoT & Smart Building"
   },
   "layout": {
     "searchNavigation": "البحث في التنقل...",

@@ -536,10 +536,12 @@
     "wifi-partners": "Partner WiFi",
     "wifi-heatmap": "WiFi Heatmap",
     "facilities": "Facilities",
-    "securityIot": "Security & IoT",
     "automationAi": "Automation & AI",
     "userRoleManagement": "User & Role Management",
-    "platformAdmin": "Platform Admin"
+    "platformAdmin": "Platform Admin",
+    "accountSecurity": "Account Security",
+    "surveillanceCctv": "Surveillance & CCTV",
+    "iotSmartBuilding": "IoT & Smart Building"
   },
   "layout": {
     "searchNavigation": "Search navigation...",

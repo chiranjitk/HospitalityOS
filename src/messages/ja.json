@@ -535,10 +535,12 @@
     "wifi-partners": "Partner WiFi",
     "wifi-heatmap": "WiFi Heatmap",
     "facilities": "施設",
-    "securityIot": "セキュリティ＆IoT",
     "automationAi": "自動化＆AI",
     "userRoleManagement": "ユーザー＆ロール管理",
-    "platformAdmin": "プラットフォーム管理"
+    "platformAdmin": "プラットフォーム管理",
+    "accountSecurity": "Account Security",
+    "surveillanceCctv": "Surveillance & CCTV",
+    "iotSmartBuilding": "IoT & Smart Building"
   },
   "layout": {
     "searchNavigation": "ナビゲーションを検索...",

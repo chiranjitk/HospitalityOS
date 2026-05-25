@@ -535,10 +535,12 @@
     "wifi-partners": "Partner WiFi",
     "wifi-heatmap": "WiFi Heatmap",
     "facilities": "সুবিধা",
-    "securityIot": "নিরাপত্তা ও IoT",
     "automationAi": "অটোমেশন ও AI",
     "userRoleManagement": "ইউজার ও রোল ম্যানেজমেন্ট",
-    "platformAdmin": "প্ল্যাটফর্ম অ্যাডমিন"
+    "platformAdmin": "প্ল্যাটফর্ম অ্যাডমিন",
+    "accountSecurity": "Account Security",
+    "surveillanceCctv": "Surveillance & CCTV",
+    "iotSmartBuilding": "IoT & Smart Building"
   },
   "layout": {
     "searchNavigation": "নেভিগেশন খুঁজুন...",
