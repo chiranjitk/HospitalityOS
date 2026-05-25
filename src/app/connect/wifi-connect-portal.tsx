@@ -1817,8 +1817,8 @@ function SuccessScreen({
       {/* Post-Connect Guest Survey (Feature 4) */}
       <GuestSurvey design={design} tenantId={tenantId} propertyId={propertyId} sessionId={authResult?.sessionId} guestId={authResult?.guestId} />
 
-      {/* F12: Detailed Survey Widget — rendered below GuestSurvey when tenantId/propertyId available */}
-      {tenantId && propertyId && (
+      {/* F12: Detailed Survey Widget — only when Portal Designer survey toggle is ON */}
+      {design.surveyConfig?.enabled && tenantId && propertyId && (
         <div className="mt-4">
           <SurveyWidget
             tenantId={tenantId}
