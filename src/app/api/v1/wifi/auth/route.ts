@@ -2354,7 +2354,7 @@ async function createAccountingSession(
       : '';
 
     // Get local NAS identity from RadiusNAS config (replaces hardcoded values)
-    const localNas = propertyId ? await getLocalNasConfig(propertyId) : { calledStationId: '00:00:00:00:00:01', nasIpAddress: '127.0.0.1' };
+    const localNas = propertyId ? await getLocalNasConfig(propertyId) : { calledStationId: '00:00:00:00:00:01', nasIpAddress: '127.0.0.1', nasIdentifier: 'Cryptsk-Gateway' };
 
     await db.$executeRawUnsafe(
       `INSERT INTO radacct (
