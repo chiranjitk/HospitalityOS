@@ -899,9 +899,14 @@ export default function LiveSessions() {
         ) : null}
 
         {/* Row 4: NAS info */}
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Router className="h-3 w-3" />
-          <span>{session.nasIdentifier || session.nasIp}{session.calledStationId ? ` (${session.calledStationId})` : ''}</span>
+        <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+          <Router className="h-3 w-3 mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <p className="font-medium text-foreground/80 truncate">{session.nasIdentifier || session.nasIp}</p>
+            {session.calledStationId && (
+              <p className="font-mono text-[10px] text-muted-foreground">MAC: {session.calledStationId}</p>
+            )}
+          </div>
         </div>
 
         {/* Row 5: Action buttons */}
@@ -1022,18 +1027,36 @@ export default function LiveSessions() {
         </Card>
       </div>
 
-      {/* Per-NAS Breakdown — compact inline */}
+      {/* Per-NAS Breakdown — cards with identifier + MAC */}
       {stats.perNas && stats.perNas.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap text-xs">
-          <span className="flex items-center gap-1 text-muted-foreground font-medium shrink-0">
-            <Router className="h-3.5 w-3.5" />
-            NAS
-          </span>
-          <span className="text-border">|</span>
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {stats.perNas.map((nas, idx) => (
-            <Badge key={`${nas.nasIp}_${idx}`} variant="outline" className="text-xs gap-1 py-0 px-2 h-6">
-              {nas.nasIdentifier || nas.nasIp}{nas.calledStationId ? ` (${nas.calledStationId})` : ''}: <span className="font-semibold">{nas.count}</span>
-            </Badge>
+            <Card key={`${nas.nasIp}_${idx}`} className="p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2 min-w-0">
+                  <div className="p-1.5 rounded-md bg-primary/10 shrink-0 mt-0.5">
+                    <Router className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm truncate">
+                      {nas.nasIdentifier || nas.nasIp}
+                    </p>
+                    {nas.calledStationId && (
+                      <p className="font-mono text-xs text-muted-foreground mt-0.5">
+                        MAC: {nas.calledStationId}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {nas.nasIp}
+                    </p>
+                  </div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <span className="text-2xl font-bold tabular-nums text-primary">{nas.count}</span>
+                  <p className="text-[10px] text-muted-foreground leading-tight">active</p>
+                </div>
+              </div>
+            </Card>
           ))}
         </div>
       )}

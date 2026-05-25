@@ -8,7 +8,7 @@
     "postinstall": "node scripts/fix-turbopack-native-modules.js",
     "start": "NODE_ENV=production bun .next/standalone/server.js",
     "lint": "eslint .",
-    "db:push": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) prisma db push",
+    "db:push": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) prisma db push && echo 'Recreating views...' && ./pgsql-runtime/bin/psql -h 127.0.0.1 -U staysuite -d staysuite -f pgsql-production/02-staysuite-views.sql",
     "db:generate": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) prisma generate",
     "db:migrate": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) prisma migrate dev",
     "db:reset": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) prisma migrate reset",

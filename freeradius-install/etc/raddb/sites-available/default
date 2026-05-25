@@ -828,6 +828,17 @@ accounting {
         #  use it only if your NAS boxes do not support CUI themselves
 #       cui
 
+        #  Override Called-Station-Id with the value from the RadiusNAS table.
+        #  The NAS (captive portal) may send 00:00:00:00:00:01 as the
+        #  Called-Station-Id, but we want the real hardware MAC instead.
+        #  We look up the Called-Station-Id from the RadiusNAS table by IP address.
+        if (&NAS-IP-Address) {
+                update request {
+                        &Called-Station-Id := "%{sql:SELECT \"calledStationId\" FROM \"RadiusNAS\" WHERE \"ipAddress\" = '%{NAS-IP-Address}' AND \"calledStationId\" IS NOT NULL AND \"calledStationId\" != '' LIMIT 1}"
+                        &NAS-Identifier := "%{sql:SELECT \"nasIdentifier\" FROM \"RadiusNAS\" WHERE \"ipAddress\" = '%{NAS-IP-Address}' AND \"nasIdentifier\" IS NOT NULL AND \"nasIdentifier\" != '' LIMIT 1}"
+                }
+        }
+
         #
         #  Create a 'detail'ed log of the packets.
         #  Note that accounting requests which are proxied
