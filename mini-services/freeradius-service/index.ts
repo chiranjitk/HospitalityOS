@@ -734,7 +734,8 @@ app.use('/api/*', async (c, next) => {
 // ============================================================================
 
 /**
- * Check if RADIUS server is installed and running (Rocky Linux 10: radiusd)
+ * Check if RADIUS server is installed and running
+ * Supports both production (system radiusd) and sandbox (compiled from source)
  */
 async function checkRadiusStatus(): Promise<{
   installed: boolean;
@@ -743,9 +744,12 @@ async function checkRadiusStatus(): Promise<{
   error?: string;
 }> {
   try {
-    const { stdout: whichOutput } = await execAsync('which radiusd || echo "not_found"');
+    // Check sandbox binary first
+    const sandboxInstalled = fsSync.existsSync(SANDBOX_RADIUSD);
+    const { stdout: whichOutput } = await execAsync('which radiusd 2>/dev/null || echo "not_found"');
+    const systemInstalled = whichOutput.trim() !== 'not_found';
 
-    if (whichOutput.trim() === 'not_found') {
+    if (!sandboxInstalled && !systemInstalled) {
       return {
         installed: false,
         running: false,
@@ -755,7 +759,10 @@ async function checkRadiusStatus(): Promise<{
 
     let version = '';
     try {
-      const { stdout } = await execAsync('radiusd -v 2>&1 | head -1');
+      const radiusdBin = sandboxInstalled ? SANDBOX_RADIUSD : 'radiusd';
+      const { stdout } = await execAsync(`${radiusdBin} -v 2>&1 | head -1`, {
+        env: sandboxInstalled ? getSandboxRadiusEnv() : undefined,
+      });
       version = stdout.trim();
     } catch {
       version = 'Unknown';
@@ -865,6 +872,28 @@ async function resolveTenantId(tenantId?: string): string {
 const IS_PRODUCTION = fsSync.existsSync('/usr/sbin/radiusd') || fsSync.existsSync('/etc/raddb');
 
 /**
+ * Sandbox FreeRADIUS binary and environment.
+ * In sandbox, FreeRADIUS is compiled from source and linked against a compat OpenSSL
+ * that requires the legacy provider for EAP/TLS. Without OPENSSL_CONF and
+ * OPENSSL_MODULES set, FreeRADIUS hangs at startup with "(TLS) Failed loading legacy provider".
+ */
+const SANDBOX_RADIUSD = '/home/z/my-project/freeradius-install/sbin/radiusd';
+const SANDBOX_RADDB = '/home/z/my-project/freeradius-install/etc/raddb';
+const SANDBOX_OPENSSL_CONF = '/home/z/my-project/freeradius-install/openssl-with-legacy.cnf';
+const SANDBOX_OPENSSL_MODULES = '/home/z/my-project/openssl-compat/lib64/ossl-modules';
+const SANDBOX_LD_LIBRARY_PATH = '/home/z/my-project/openssl-compat/lib64';
+
+/** Get sandbox radiusd environment variables */
+function getSandboxRadiusEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    OPENSSL_CONF: SANDBOX_OPENSSL_CONF,
+    OPENSSL_MODULES: SANDBOX_OPENSSL_MODULES,
+    LD_LIBRARY_PATH: SANDBOX_LD_LIBRARY_PATH,
+  };
+}
+
+/**
  * Sandbox-safe file write + chown.
  * In sandbox: just writes the file (no radiusd user).
  * In production: writes + chown radiusd:radiusd + chmod 640.
@@ -903,7 +932,23 @@ async function reloadRadius(): Promise<boolean> {
       } catch { /* try next */ }
     }
   }
-  // Sandbox: find and HUP the radiusd process
+  // Sandbox: stop existing radiusd, then restart with correct OpenSSL env
+  try {
+    await execAsync('pkill -f radiusd 2>/dev/null; sleep 1', { timeout: 5000 });
+  } catch { /* ignore */ }
+
+  try {
+    const { stdout } = await execAsync(
+      `${SANDBOX_RADIUSD} -d ${SANDBOX_RADDB}`,
+      { env: getSandboxRadiusEnv(), timeout: 10000 }
+    );
+    log.info('RADIUS server started in sandbox mode with OpenSSL compat env');
+    return true;
+  } catch (err) {
+    log.warn(`Sandbox radiusd start failed: ${String(err)}`);
+  }
+
+  // Fallback: try SIGHUP on existing process
   try {
     const { stdout } = await execAsync("pgrep -f 'radiusd.*-d' | head -1");
     const pid = stdout.trim();
@@ -912,17 +957,8 @@ async function reloadRadius(): Promise<boolean> {
       log.info(`RADIUS server SIGHUP sent to PID ${pid}`);
       return true;
     }
-  } catch { /* pgrep failed, try direct path */ }
-  // Last resort: try the compiled binary
-  try {
-    const { stdout } = await execAsync("pgrep -x radiusd | head -1");
-    const pid = stdout.trim();
-    if (pid) {
-      process.kill(Number(pid), 'SIGHUP');
-      log.info(`RADIUS server SIGHUP sent to PID ${pid} (via pgrep -x)`);
-      return true;
-    }
-  } catch { /* ignore */ }
+  } catch { /* pgrep failed */ }
+
   log.warn('Could not reload RADIUS server (this is OK in sandbox — restart manually if needed)');
   return false;
 }
@@ -1503,16 +1539,16 @@ app.get('/api/status', async (c) => {
 
 app.post('/api/service/start', async (c) => {
   try {
-    const status = await checkRadiusStatus();
-    if (!status.installed) {
-      return c.json({
-        success: false,
-        error: 'FreeRADIUS is not installed. Install it with: dnf install -y freeradius freeradius-utils',
-        mode: 'not_installed'
-      });
+    if (IS_PRODUCTION) {
+      await execAsync('sudo systemctl start radiusd');
+    } else {
+      // Sandbox: kill any existing instance, then start with OpenSSL compat env
+      await execAsync('pkill -f radiusd 2>/dev/null; sleep 1', { timeout: 5000 });
+      await execAsync(
+        `${SANDBOX_RADIUSD} -d ${SANDBOX_RADDB}`,
+        { env: getSandboxRadiusEnv(), timeout: 10000 }
+      );
     }
-
-    await execAsync('sudo systemctl start radiusd');
     serviceStatus = 'running';
 
     return c.json({
@@ -1530,16 +1566,12 @@ app.post('/api/service/start', async (c) => {
 
 app.post('/api/service/stop', async (c) => {
   try {
-    const status = await checkRadiusStatus();
-    if (!status.installed) {
-      return c.json({
-        success: false,
-        error: 'FreeRADIUS is not installed. Install it with: dnf install -y freeradius freeradius-utils',
-        mode: 'not_installed'
-      });
+    if (IS_PRODUCTION) {
+      await execAsync('sudo systemctl stop radiusd');
+    } else {
+      // Sandbox: kill the radiusd process
+      await execAsync('pkill -f radiusd 2>/dev/null', { timeout: 5000 });
     }
-
-    await execAsync('sudo systemctl stop radiusd');
     serviceStatus = 'stopped';
 
     return c.json({
@@ -1557,16 +1589,16 @@ app.post('/api/service/stop', async (c) => {
 
 app.post('/api/service/restart', async (c) => {
   try {
-    const status = await checkRadiusStatus();
-    if (!status.installed) {
-      return c.json({
-        success: false,
-        error: 'FreeRADIUS is not installed. Install it with: dnf install -y freeradius freeradius-utils',
-        mode: 'not_installed'
-      });
+    if (IS_PRODUCTION) {
+      await execAsync('sudo systemctl restart radiusd');
+    } else {
+      // Sandbox: kill then restart with OpenSSL compat env
+      await execAsync('pkill -f radiusd 2>/dev/null; sleep 1', { timeout: 5000 });
+      await execAsync(
+        `${SANDBOX_RADIUSD} -d ${SANDBOX_RADDB}`,
+        { env: getSandboxRadiusEnv(), timeout: 10000 }
+      );
     }
-
-    await execAsync('sudo systemctl restart radiusd');
     serviceStatus = 'running';
 
     return c.json({
@@ -7829,26 +7861,39 @@ app.post('/api/service/apply-server-config', async (c) => {
 
       let newContent = lines.join('\n');
 
-      // Add CoA listen block after the last IPv4 acct listen block
-      if (lastAcctV4EndLine >= 0) {
-        const coaBlock = `
-# ── StaySuite: CoA / Disconnect-Request listener ──
-# Auto-generated by StaySuite AAA Configuration.
-# Receives Change-of-Authorization and Disconnect-Request packets.
-listen {
-        ipaddr = ${bindAddress || '*'}
-        port = ${coaPort}
-        type = coa
-}`;
-        const newLines = newContent.split('\n');
-        newLines.splice(lastAcctV4EndLine + 1, 0, coaBlock);
-        newContent = newLines.join('\n');
-      }
+      // NOTE: Do NOT add a CoA listen block to sites-available/default.
+      // The CoA listener is already defined in sites-enabled/coa on port 3799.
+      // Adding a duplicate CoA listen block here causes "Failed binding to port 3799: Address already in use".
 
       await writeRadiusFile(SITES_DEFAULT_PATH, newContent);
-      results.push(`sites-available/default: auth=${authPort}, acct=${acctPort}, coa=${coaPort}, bind=${bindAddress || '*'}`);
+      results.push(`sites-available/default: auth=${authPort}, acct=${acctPort}, bind=${bindAddress || '*'}`);
     } catch (err) {
       results.push(`sites-available/default: FAILED - ${String(err)}`);
+    }
+
+    // ── 1b. Update sites-enabled/coa — CoA port and bind address ──
+    try {
+      const coaSitePath = path.join(RADIUS_CONFIG_PATH, 'sites-enabled', 'coa');
+      let coaContent = await fs.readFile(coaSitePath, 'utf-8');
+
+      // Update CoA port
+      coaContent = coaContent.replace(
+        /(\n\s*port\s*=\s*)\d+/,
+        `$1${coaPort}`
+      );
+
+      // Update CoA bind address
+      if (bindAddress && bindAddress !== '*') {
+        coaContent = coaContent.replace(
+          /(\n\s*ipaddr\s*=\s*)\*/,
+          `$1${bindAddress}`
+        );
+      }
+
+      await writeRadiusFile(coaSitePath, coaContent);
+      results.push(`sites-enabled/coa: port=${coaPort}, bind=${bindAddress || '*'}`);
+    } catch (err) {
+      results.push(`sites-enabled/coa: FAILED - ${String(err)}`);
     }
 
     // ── 2. Update radiusd.conf log section ──
