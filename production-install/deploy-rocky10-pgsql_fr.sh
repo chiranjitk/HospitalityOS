@@ -17,7 +17,7 @@
 #   8.  Install dependencies (bun install)
 #   9.  prisma db push (creates ~231 PMS tables)
 #  10.  complete-database.sql (4 helper tables, 6 views, 8 functions)
-#  10b. nftables-service-tables.sql (5 tables for firewall mini-service)
+#  10b. update-live-db.sql (incremental schema fixes for existing deployments)
 #  11.  Seed demo data (properties, rooms, plans, users)
 #  12.  Build Next.js standalone
 #  13.  Install PM2 + start services via ecosystem.config.cjs
@@ -1149,13 +1149,8 @@ if [[ -f "${APP_DIR}/pgsql-production/update-live-db.sql" ]]; then
   success "update-live-db.sql applied (incremental schema fixes)"
 fi
 
-# nftables-service tables (firewall mini-service DB storage)
-if [[ -f "${APP_DIR}/pgsql-production/nftables-service-tables.sql" ]]; then
-  psql -h 127.0.0.1 -U staysuite -d staysuite -f "${APP_DIR}/pgsql-production/nftables-service-tables.sql" 2>&1 | grep -v NOTICE
-  success "nftables-service-tables.sql applied (5 tables: NftGuiRule, NftPortForward, NftRateLimit, NftQuickBlock, NftSchedule)"
-else
-  warn "nftables-service-tables.sql not found, skipping"
-fi
+# nftables-service tables are now managed by the nftables mini-service itself
+# (removed — no longer a separate SQL file in pgsql-production/)
 
 # Re-grant all permissions (after prisma push and complete-database.sql)
 sudo -u postgres psql -d staysuite <<'EOSQL'
