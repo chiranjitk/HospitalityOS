@@ -197,10 +197,17 @@ function parseDateRange(
  */
 function buildSqlConditions(
   filters: SessionHistoryFilters,
-  dateRange: { startDate: string; endDate: string }
+  dateRange: { startDate: string; endDate: string },
+  tenantId?: string
 ): { whereClause: string; params: unknown[] } {
   const conditions: string[] = []
   const params: unknown[] = []
+
+  // Tenant isolation — filter by property_id so users only see their tenant's sessions
+  if (tenantId) {
+    conditions.push(`property_id IN (SELECT id FROM "Property" WHERE "tenantId" = $${params.length + 1}::uuid)`)
+    params.push(tenantId)
+  }
 
   // Filter by acctstarttime — include NULL rows (external NAS with unparseable dates)
   // NULL rows sort last (NULLS LAST is default for DESC), so they don't steal pagination
@@ -355,7 +362,7 @@ export async function GET(request: NextRequest) {
       export: exportFormat || undefined,
     }
 
-    const { whereClause, params } = buildSqlConditions(filters, dateRange)
+    const { whereClause, params } = buildSqlConditions(filters, dateRange, context.tenantId)
 
     // ── Diagnostic: check view data by NAS IP (runs once) ──────────────────
     let diagRun = false;

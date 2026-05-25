@@ -61,6 +61,10 @@
 --       fn_check_ip_pool updated: checks WiFiPlanIPPool before legacy ipPoolId
 --       fn_get_user_pool_info updated: returns all pools for a plan
 --       fn_get_pool_attr updated: prefers highest-priority pool from junction
+--   [18] v_session_history + v_active_sessions: added property_id column
+--       Derived from COALESCE(wu."propertyId", b."propertyId") for tenant filtering
+--       Fixes: live-sessions-list API crashed on "property_id" IN (SELECT ...)
+--       Also added guest_phone to v_user_usage for consistency with v_wifi_users
 -- ============================================================================
 
 SET client_encoding = 'UTF8';
@@ -301,6 +305,7 @@ CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS
     COALESCE(rm.name, ''::text) AS room_name,
     COALESCE(rm.floor, 0) AS room_floor,
     COALESCE(p.name, ''::text) AS property_name,
+    COALESCE(wu."propertyId", b."propertyId") AS property_id,
     COALESCE(wp.name, ''::text) AS plan_name,
     wp."downloadSpeed" AS downloadspeed,
     wp."downloadSpeed" AS plan_download_speed,
@@ -455,6 +460,7 @@ CREATE VIEW v_active_sessions AS  SELECT session_id,
     room_name,
     room_floor,
     property_name,
+    property_id,
     plan_name,
     downloadspeed,
     plan_download_speed,
@@ -557,7 +563,7 @@ SELECT pa.id::text AS id,
     COALESCE(g."lastName", ''::text) AS guest_last_name,
     COALESCE(rm.number, ''::text) AS room_number,
     COALESCE(p.name, ''::text) AS property_name,
-    COALESCE(u."propertyId"::text, ''::text) AS property_id,
+    u."propertyId" AS property_id,
     rg.groupname AS radius_group,
     wp.name AS plan_name,
     wp."downloadSpeed" AS plan_download_speed,
@@ -630,6 +636,7 @@ CREATE VIEW v_user_usage AS  SELECT u.id AS user_id,
     COALESCE(g."firstName", ''::text) AS guest_first_name,
     COALESCE(g."lastName", ''::text) AS guest_last_name,
     COALESCE(g.email, ''::citext) AS guest_email,
+    COALESCE(g.phone, ''::text) AS guest_phone,
     COALESCE(g."loyaltyTier", ''::text) AS guest_loyalty_tier,
     CASE WHEN g."isVip" = true THEN 1 ELSE 0 END AS guest_is_vip,
     COALESCE(r.number, ''::text) AS room_number,
