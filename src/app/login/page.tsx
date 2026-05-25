@@ -32,6 +32,9 @@ import {
   Wifi,
   Crown,
   KeyRound,
+  Network,
+  Fingerprint,
+  Building2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -109,6 +112,26 @@ const errorVariants = {
   exit: { opacity: 0, scale: 0.92, y: -6, transition: { duration: 0.15 } },
 };
 
+// Google "G" SVG icon — brand-accurate colors
+function GoogleIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+    </svg>
+  );
+}
+
+type SsoProvider = {
+  id: string;
+  type: 'google' | 'saml' | 'oidc' | 'ldap';
+  name: string;
+  loginUrl: string;
+  icon?: string;
+};
+
 export default function LoginPage() {
   const t = useTranslations('auth');
   const [email, setEmail] = useState('');
@@ -123,6 +146,13 @@ export default function LoginPage() {
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [currentSlide, setCurrentSlide] = useState(0);
   const slideTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // SSO providers
+  const [ssoProviders, setSsoProviders] = useState<SsoProvider[]>([]);
+  const [ldapProvider, setLdapProvider] = useState<SsoProvider | null>(null);
+  const [ldapUsername, setLdapUsername] = useState('');
+  const [ldapPassword, setLdapPassword] = useState('');
+  const [ldapLoading, setLdapLoading] = useState(false);
   const { login, completeTwoFactorLogin, isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -162,6 +192,18 @@ export default function LoginPage() {
       });
     }
   }, [searchParams, toast]);
+
+  // Fetch available SSO providers on mount
+  useEffect(() => {
+    fetch('/api/auth/sso/providers')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.providers)) {
+          setSsoProviders(data.providers);
+        }
+      })
+      .catch(() => { /* silently fail - SSO is optional */ });
+  }, []);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -252,6 +294,47 @@ export default function LoginPage() {
     setTempToken('');
     setError('');
   };
+
+  // LDAP SSO login (username/password form)
+  const handleLdapLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ldapProvider) return;
+    setLdapLoading(true);
+    setError('');
+    try {
+      const res = await fetch(ldapProvider.loginUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: ldapUsername, password: ldapPassword }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        window.location.href = '/';
+      } else {
+        setError(data.error || 'LDAP authentication failed');
+      }
+    } catch {
+      setError('LDAP authentication failed. Please try again.');
+    } finally {
+      setLdapLoading(false);
+    }
+  };
+
+  // Get icon for SSO provider type
+  const getSsoIcon = (type: string) => {
+    switch (type) {
+      case 'google': return <GoogleIcon />;
+      case 'saml': return <Network className="h-4 w-4" />;
+      case 'oidc': return <Fingerprint className="h-4 w-4" />;
+      case 'ldap': return <Building2 className="h-4 w-4" />;
+      default: return <KeyRound className="h-4 w-4" />;
+    }
+  };
+
+  // Providers that redirect (google, saml, oidc)
+  const redirectProviders = ssoProviders.filter((p) => p.type !== 'ldap');
+  const ldapProviders = ssoProviders.filter((p) => p.type === 'ldap');
+  const hasSso = redirectProviders.length > 0 || ldapProviders.length > 0;
 
   // Show loading while checking auth state — clean white loader
   if (authLoading) {
@@ -744,6 +827,128 @@ export default function LoginPage() {
                                 </span>
                               )}
                             </Button>
+                          </motion.div>
+                        )}
+
+                        {/* ── SSO / Enterprise Login Section ── */}
+                        {hasSso && (
+                          <motion.div
+                            className="pt-3"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.5, duration: 0.4 }}
+                          >
+                            {/* Divider */}
+                            <div className="relative my-4">
+                              <div className="absolute inset-0 flex items-center">
+                                <Separator className="bg-orange-100/50 dark:bg-orange-900/30" />
+                              </div>
+                              <div className="relative flex justify-center">
+                                <span className="bg-white dark:bg-[#1a1210] px-3 text-xs text-muted-foreground/50 flex items-center gap-1.5 font-medium">
+                                  <Shield className="h-3 w-3 text-orange-400" />
+                                  or continue with SSO
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Redirect-based SSO buttons (Google, SAML, OIDC) */}
+                            <div className="space-y-2">
+                              {redirectProviders.map((provider) => (
+                                <motion.button
+                                  key={provider.id}
+                                  type="button"
+                                  onClick={() => { window.location.href = provider.loginUrl; }}
+                                  whileHover={{ scale: 1.01, y: -1 }}
+                                  whileTap={{ scale: 0.99 }}
+                                  className={cn(
+                                    'w-full flex items-center justify-center gap-2.5 h-10 rounded-xl',
+                                    'border border-border/60 bg-white/60 dark:bg-[#1a1210]/60',
+                                    'backdrop-blur-sm text-sm font-medium',
+                                    'hover:bg-white dark:hover:bg-[#1a1210] transition-all duration-200',
+                                    'hover:border-orange-200/80 dark:hover:border-orange-700/40',
+                                    'text-foreground/80 hover:text-foreground',
+                                    'disabled:opacity-60',
+                                  )}
+                                >
+                                  {getSsoIcon(provider.type)}
+                                  <span>Sign in with {provider.name}</span>
+                                </motion.button>
+                              ))}
+
+                              {/* LDAP / AD providers — show username/password form */}
+                              {ldapProviders.length > 0 && !ldapProvider && (
+                                <motion.button
+                                  type="button"
+                                  onClick={() => setLdapProvider(ldapProviders[0])}
+                                  whileHover={{ scale: 1.01, y: -1 }}
+                                  whileTap={{ scale: 0.99 }}
+                                  className={cn(
+                                    'w-full flex items-center justify-center gap-2.5 h-10 rounded-xl',
+                                    'border border-border/60 bg-white/60 dark:bg-[#1a1210]/60',
+                                    'backdrop-blur-sm text-sm font-medium',
+                                    'hover:bg-white dark:hover:bg-[#1a1210] transition-all duration-200',
+                                    'hover:border-orange-200/80 dark:hover:border-orange-700/40',
+                                    'text-foreground/80 hover:text-foreground',
+                                  )}
+                                >
+                                  <Building2 className="h-4 w-4" />
+                                  <span>Sign in with {ldapProviders[0].name}</span>
+                                </motion.button>
+                              )}
+                            </div>
+
+                            {/* LDAP inline form */}
+                            {ldapProvider && (
+                              <div className="mt-3 space-y-3">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => { setLdapProvider(null); setLdapUsername(''); setLdapPassword(''); setError(''); }}
+                                    className="text-xs text-muted-foreground/50 hover:text-foreground flex items-center gap-1 transition-colors"
+                                  >
+                                    <ArrowLeft className="h-3 w-3" />
+                                    Back
+                                  </button>
+                                  <span className="text-xs font-medium text-muted-foreground/70">
+                                    {ldapProvider.name}
+                                  </span>
+                                </div>
+                                <form onSubmit={handleLdapLogin} className="space-y-2.5">
+                                  <Input
+                                    type="text"
+                                    placeholder="Username or email"
+                                    value={ldapUsername}
+                                    onChange={(e) => setLdapUsername(e.target.value)}
+                                    className="h-10 rounded-lg bg-white dark:bg-[#1a1210] border-orange-100/60 dark:border-orange-900/30 text-sm"
+                                    required
+                                    disabled={ldapLoading}
+                                    autoComplete="username"
+                                  />
+                                  <div className="relative">
+                                    <Input
+                                      type="password"
+                                      placeholder="Password"
+                                      value={ldapPassword}
+                                      onChange={(e) => setLdapPassword(e.target.value)}
+                                      className="h-10 rounded-lg bg-white dark:bg-[#1a1210] border-orange-100/60 dark:border-orange-900/30 text-sm pr-10"
+                                      required
+                                      disabled={ldapLoading}
+                                      autoComplete="current-password"
+                                    />
+                                    {ldapLoading && (
+                                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-orange-500" />
+                                    )}
+                                  </div>
+                                  <Button
+                                    type="submit"
+                                    className="w-full h-10 rounded-lg bg-neutral-800 hover:bg-neutral-900 dark:bg-neutral-200 dark:hover:bg-neutral-100 text-white dark:text-neutral-900 text-sm font-medium"
+                                    disabled={ldapLoading || !ldapUsername || !ldapPassword}
+                                  >
+                                    {ldapLoading ? 'Authenticating...' : `Sign in with ${ldapProvider.name}`}
+                                  </Button>
+                                </form>
+                              </div>
+                            )}
                           </motion.div>
                         )}
 
