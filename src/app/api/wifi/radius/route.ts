@@ -691,8 +691,8 @@ export async function GET(request: NextRequest) {
           // Build SQL conditions on the view
           const conditions: string[] = ["session_status = 'active'"];
           const sqlParams: unknown[] = [];
-          // CRITICAL: Always filter by tenant via property_name or property_id to prevent cross-tenant exposure
-          conditions.push(`"property_id" IN (SELECT id FROM "Property" WHERE "tenantId" = $${sqlParams.length + 1}::uuid)`);
+          // CRITICAL: Always filter by tenant to prevent cross-tenant exposure
+          conditions.push(`"tenantId" = $${sqlParams.length + 1}::uuid`);
           sqlParams.push(context.tenantId);
           if (search) {
             // Multi-field search: username, IP, MAC, device name/type, guest name, room
@@ -1017,8 +1017,8 @@ export async function GET(request: NextRequest) {
           }[]>(`
             SELECT nasipaddress, calledstationid, COALESCE(acctoutputoctets, 0) as acctoutputoctets, COALESCE(acctinputoctets, 0) as acctinputoctets
             FROM v_active_sessions
-            WHERE session_status = 'active'
-          `);
+            WHERE session_status = 'active' AND "tenantId" = $1::uuid
+          `, context.tenantId);
 
           const totalActive = activeRecords.length;
           // Group by NAS IP for per-NAS breakdown
