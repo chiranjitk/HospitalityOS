@@ -367,8 +367,8 @@ export async function GET(request: NextRequest) {
                    property_id, radius_group, plan_name,
                    plan_download_speed, plan_upload_speed, plan_data_limit
             FROM v_auth_logs
-            WHERE NULLIF("property_id", '') IS NOT NULL
-              AND NULLIF("property_id", '')::uuid IN (SELECT id FROM "Property" WHERE "tenantId" = $1::uuid)
+            WHERE property_id IS NOT NULL
+              AND property_id IN (SELECT id FROM "Property" WHERE "tenantId" = $1::uuid)
               ${filterClause}
             ORDER BY "timestamp" DESC
             LIMIT $${filterParams.length + 2}`;
@@ -384,7 +384,7 @@ export async function GET(request: NextRequest) {
                    property_id, radius_group, plan_name,
                    plan_download_speed, plan_upload_speed, plan_data_limit
             FROM v_auth_logs
-            WHERE (property_id = '' OR property_id IS NULL)
+            WHERE property_id IS NULL
               ${filterClause}
             ORDER BY "timestamp" DESC
             LIMIT $${filterParams.length + 1}`;
@@ -463,9 +463,9 @@ export async function GET(request: NextRequest) {
           const filterClause = filterConds.length > 0 ? ` AND ${filterConds.join(' AND ')}` : '';
 
           // Linked: tenant-filtered via property_id
-          const linkedWhere = `WHERE NULLIF("property_id", '') IS NOT NULL AND NULLIF("property_id", '')::uuid IN (SELECT id FROM "Property" WHERE "tenantId" = $1::uuid)${filterClause}`;
+          const linkedWhere = `WHERE property_id IS NOT NULL AND property_id IN (SELECT id FROM "Property" WHERE "tenantId" = $1::uuid)${filterClause}`;
           // Orphan: no property_id (unknown users, brute force, etc.)
-          const orphanWhere = `WHERE (property_id = '' OR property_id IS NULL)${filterClause}`;
+          const orphanWhere = `WHERE property_id IS NULL${filterClause}`;
 
           const [linkedTotal, orphanTotal, linkedAccept] = await Promise.all([
             db.$queryRawUnsafe<{ c: number | bigint }[]>(
@@ -498,7 +498,7 @@ export async function GET(request: NextRequest) {
 
           let last24hTrend = 0;
           try {
-            const combinedWhere = `WHERE (NULLIF("property_id", '') IS NOT NULL AND NULLIF("property_id", '')::uuid IN (SELECT id FROM "Property" WHERE "tenantId" = $1::uuid) OR property_id = '' OR property_id IS NULL)${filterClause}`;
+            const combinedWhere = `WHERE (property_id IS NOT NULL AND property_id IN (SELECT id FROM "Property" WHERE "tenantId" = $1::uuid) OR property_id IS NULL)${filterClause}`;
 
             const todayWhere = `${combinedWhere} AND "timestamp" >= $${filterParams.length + 2}::timestamptz`;
             const prevDayWhere = `${combinedWhere} AND "timestamp" >= $${filterParams.length + 2}::timestamptz AND "timestamp" < $${filterParams.length + 3}::timestamptz`;
