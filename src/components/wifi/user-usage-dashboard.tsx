@@ -59,6 +59,7 @@ import {
   XCircle,
   CircleDot,
   Router,
+  FileDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -229,6 +230,9 @@ export default function UserUsageDashboard() {
   // Disconnect confirmation
   const [disconnectTarget, setDisconnectTarget] = useState<UserSessionDetail | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+
+  // Export
+  const [isExporting, setIsExporting] = useState(false);
 
   // ─── Fetch Summary ───────────────────────────────────────────────────────────
 
@@ -448,6 +452,75 @@ export default function UserUsageDashboard() {
     return u.username.toLowerCase().includes(q);
   });
 
+  // ─── CSV Export Helpers ──────────────────────────────────────────────────────
+
+  const exportUserSessionsCsv = useCallback(() => {
+    if (!detailUser?.sessions?.length) return;
+    setIsExporting(true);
+    try {
+      const headers = ['Status', 'Started', 'Ended', 'Duration(s)', 'Download(Bytes)', 'Upload(Bytes)', 'NAS IP', 'IP Address', 'MAC Address', 'Port Type'];
+      const rows = detailUser.sessions.map((s) => [
+        s.isActive ? 'Active' : 'Ended',
+        s.startedAt ? new Date(s.startedAt).toISOString() : '',
+        s.endedAt ? new Date(s.endedAt).toISOString() : '',
+        String(s.sessionTime),
+        String(s.downloadBytes),
+        String(s.uploadBytes),
+        s.nasIp || '',
+        s.ipAddress || '',
+        s.macAddress || '',
+        s.nasPortType || '',
+      ]);
+
+      const csvContent = [headers, ...rows].map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `user-${detailUser.username}-sessions-${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      toast({ title: 'Export Complete', description: `Downloaded sessions for ${detailUser.username}` });
+    } catch {
+      toast({ title: 'Export Failed', description: 'Could not generate CSV file', variant: 'destructive' });
+    } finally {
+      setIsExporting(false);
+    }
+  }, [detailUser, toast]);
+
+  const exportAllUsersCsv = useCallback(() => {
+    if (!filteredUsers.length) return;
+    setIsExporting(true);
+    try {
+      const headers = ['Username', 'Total Sessions', 'Active Sessions', 'Download', 'Upload', 'Session Time', 'Last Seen'];
+      const rows = filteredUsers.map((u) => [
+        u.username,
+        String(u.totalSessions),
+        String(u.activeSessions),
+        String(u.totalDownloadBytes),
+        String(u.totalUploadBytes),
+        String(u.totalSessionTime),
+        u.lastSeen ? new Date(u.lastSeen).toISOString() : '',
+      ]);
+
+      const csvContent = [headers, ...rows].map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `user-usage-${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      toast({ title: 'Export Complete', description: `Exported ${filteredUsers.length} users` });
+    } catch {
+      toast({ title: 'Export Failed', description: 'Could not generate CSV file', variant: 'destructive' });
+    } finally {
+      setIsExporting(false);
+    }
+  }, [filteredUsers, toast]);
+
   // ─── Daily Bar Chart Component ───────────────────────────────────────────────
 
   const DailyBarChart = ({ entries }: { entries: DailyUsageEntry[] }) => {
@@ -607,6 +680,10 @@ export default function UserUsageDashboard() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={exportAllUsersCsv} disabled={isExporting || isLoading || filteredUsers.length === 0}>
+            {isExporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileDown className="h-4 w-4 mr-2" />}
+            Export CSV
+          </Button>
           <Button variant="outline" size="sm" onClick={fetchSummary} disabled={isLoading}>
             <RefreshCw className={cn('h-4 w-4 mr-2', isLoading && 'animate-spin')} />
             Refresh
@@ -836,7 +913,7 @@ export default function UserUsageDashboard() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto">
+        <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[95vh] overflow-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserCircle className="h-5 w-5" />
@@ -939,6 +1016,16 @@ export default function UserUsageDashboard() {
                   <Badge variant="secondary" className="text-xs">
                     {detailUser.sessions?.length ?? 0}
                   </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5 ml-auto"
+                    onClick={exportUserSessionsCsv}
+                    disabled={isExporting || !detailUser.sessions?.length}
+                  >
+                    {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                    Export CSV
+                  </Button>
                 </h4>
 
                 {!detailUser.sessions || detailUser.sessions.length === 0 ? (
@@ -946,7 +1033,7 @@ export default function UserUsageDashboard() {
                     No session records found for this user.
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-64 overflow-auto">
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
                     {detailUser.sessions.map((session) => (
                       <div
                         key={session.id}
