@@ -931,7 +931,23 @@ step 7 "Project" "Cloning StaySuite HospitalityOS"
 
 if [[ -d "${APP_DIR}/.git" ]]; then
   info "Updating existing clone at ${APP_DIR}..."
-  cd "$APP_DIR" && git pull origin main || warn "Git pull failed, using existing code"
+  cd "$APP_DIR"
+
+  # Stash any local changes (e.g. .env, config) so git pull doesn't fail
+  if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+    info "Stashing local changes before pull..."
+    git stash --include-untracked 2>/dev/null || true
+  fi
+
+  # Attempt git pull; reset to remote if merge conflicts occur
+  if ! git pull origin main 2>/dev/null; then
+    warn "Git pull failed — forcing hard reset to origin/main..."
+    git fetch origin main 2>/dev/null || true
+    git reset --hard origin/main 2>/dev/null || true
+  fi
+
+  # Restore stashed changes (non-fatal if nothing to restore)
+  git stash pop 2>/dev/null || true
 else
   [[ -d "$APP_DIR" ]] && mv "$APP_DIR" "${APP_DIR}.bak.$(date +%s)"
   info "Cloning from GitHub to ${APP_DIR}..."
@@ -939,7 +955,22 @@ else
     || die "Failed to clone repository."
 fi
 cd "$APP_DIR"
-success "Project ready at ${APP_DIR}"
+
+# ── Verify critical source files exist ──────────────────────────────────────────
+# The build will fail if next-intl config is missing (common after failed git pull).
+CRITICAL_FILES=(
+  "src/i18n/request.ts"
+  "src/i18n/config.ts"
+  "src/i18n/routing.ts"
+  "src/messages/en.json"
+  "next.config.ts"
+)
+for f in "${CRITICAL_FILES[@]}"; do
+  if [[ ! -f "${APP_DIR}/${f}" ]]; then
+    die "Critical file missing: ${f} — git clone/pull may have failed. Re-run with a fresh install."
+  fi
+done
+success "Project ready at ${APP_DIR} (verified ${#CRITICAL_FILES[@]} critical files)"
 
 # ════════════════════════════════════════════════════════════════════════════════
 # STEP 8: Configure .env
@@ -1171,6 +1202,13 @@ step 13 "Build" "Building Next.js application (standalone)"
 cd "$APP_DIR"
 export NODE_OPTIONS='--max-old-space-size=8192'
 export DATABASE_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
+
+# ── Pre-build verification ─────────────────────────────────────────────────────
+# next-intl requires src/i18n/request.ts to exist at build time.
+# If missing (e.g. git pull silently failed), abort early with a clear message.
+if [[ ! -f "${APP_DIR}/src/i18n/request.ts" ]]; then
+  die "src/i18n/request.ts not found — cannot build. Ensure git clone/pull succeeded in Step 7."
+fi
 
 info "Building Next.js (this may take a few minutes)..."
 bun run build 2>&1 | tail -10
