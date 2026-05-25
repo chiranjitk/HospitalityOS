@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, Shield, Key, Lock, Save, Activity, ShieldCheck, AlertTriangle, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { SectionGuard } from '@/components/common/section-guard';
@@ -69,6 +70,10 @@ export default function SecuritySettings() {
   const [saving, setSaving] = useState(false);
   const [admin2FAEnabled, setAdmin2FAEnabled] = useState<boolean | null>(null);
   const [show2FAModal, setShow2FAModal] = useState(false);
+  const [show2FADisableDialog, setShow2FADisableDialog] = useState(false);
+  const [disableLoading, setDisableLoading] = useState(false);
+  const [disablePassword, setDisablePassword] = useState('');
+  const [disableTotpCode, setDisableTotpCode] = useState('');
 
   const fetch2FAStatus = async () => {
     try {
@@ -104,6 +109,46 @@ export default function SecuritySettings() {
   const handle2FASuccess = () => {
     setAdmin2FAEnabled(true);
     fetch2FAStatus();
+  };
+
+  const handleMFAToggle = (enabled: boolean) => {
+    if (enabled) {
+      // Turning ON: open setup modal if 2FA not already active
+      if (!admin2FAEnabled) {
+        setShow2FAModal(true);
+      }
+      // If already enabled, do nothing (switch stays ON)
+    } else {
+      // Turning OFF: open disable confirmation dialog
+      if (admin2FAEnabled) {
+        setShow2FADisableDialog(true);
+      }
+    }
+  };
+
+  const handleDisable2FA = async () => {
+    setDisableLoading(true);
+    try {
+      const response = await fetch('/api/auth/2fa/disable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: disablePassword, totpCode: disableTotpCode }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setAdmin2FAEnabled(false);
+        setShow2FADisableDialog(false);
+        setDisablePassword('');
+        setDisableTotpCode('');
+        toast.success('Two-factor authentication disabled');
+      } else {
+        toast.error(data.error || 'Failed to disable 2FA');
+      }
+    } catch {
+      toast.error('Failed to disable 2FA');
+    } finally {
+      setDisableLoading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -172,78 +217,51 @@ export default function SecuritySettings() {
           <CardDescription>Configure authentication methods and policies</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-              <div>
-                <p className="font-medium">Multi-Factor Authentication</p>
-                <p className="text-sm text-muted-foreground">Require MFA for all admin operations</p>
-              </div>
-              <Switch checked={settings.authentication.mfaEnabled} onCheckedChange={(v) => setSettings({ ...settings, authentication: { ...settings.authentication, mfaEnabled: v } })} />
-            </div>
-            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-              <div>
-                <p className="font-medium">Single Sign-On (SSO)</p>
-                <p className="text-sm text-muted-foreground">Enable SSO integration</p>
-              </div>
-              <Switch checked={settings.authentication.ssoEnabled} onCheckedChange={(v) => setSettings({ ...settings, authentication: { ...settings.authentication, ssoEnabled: v } })} />
-            </div>
-          </div>
-          
-          {/* MFA Method + 2FA Status Card */}
+          {/* 2FA Toggle — directly controls real TOTP 2FA */}
           <div className="rounded-lg border p-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`rounded-full p-2 ${admin2FAEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
+                <div className={`rounded-full p-2 ${admin2FAEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-muted'}`}>
                   {admin2FAEnabled ? (
                     <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
                   ) : (
-                    <Smartphone className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    <Smartphone className="h-5 w-5 text-muted-foreground" />
                   )}
                 </div>
                 <div>
-                  <p className="font-medium">Authenticator App (TOTP)</p>
+                  <p className="font-medium">Two-Factor Authentication</p>
                   <p className="text-sm text-muted-foreground">
                     {admin2FAEnabled
-                      ? 'Your account is protected with 2FA'
-                      : 'Set up an authenticator app for 2FA verification'}
+                      ? 'Your account is protected — a code from your authenticator app is required for sensitive operations'
+                      : 'Enable to require an authenticator code for sensitive operations'}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant={admin2FAEnabled ? 'default' : 'secondary'} className={admin2FAEnabled ? 'bg-green-600' : ''}>
-                  {admin2FAEnabled ? 'Enabled' : 'Not Set Up'}
+                  {admin2FAEnabled ? 'Active' : 'Off'}
                 </Badge>
-                <Button
-                  variant={admin2FAEnabled ? 'outline' : 'default'}
-                  size="sm"
-                  onClick={() => setShow2FAModal(true)}
-                >
-                  {admin2FAEnabled ? 'Manage' : 'Set Up Now'}
-                </Button>
+                <Switch
+                  checked={!!admin2FAEnabled}
+                  onCheckedChange={handleMFAToggle}
+                />
               </div>
             </div>
 
-            {/* Warning when MFA is enabled but 2FA not set up */}
-            {settings.authentication.mfaEnabled && !admin2FAEnabled && (
-              <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800">
-                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                <AlertDescription className="text-amber-800 dark:text-amber-200">
-                  <strong>MFA is enabled</strong> but your account doesn&apos;t have 2FA configured yet. 
-                  You won&apos;t be able to perform sensitive operations (like deleting RADIUS users) until you set up an authenticator app. 
-                  Click <strong>&quot;Set Up Now&quot;</strong> above to configure it.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Info when 2FA is active */}
             {admin2FAEnabled && (
-              <Alert className="border-green-200 bg-green-50 dark:bg-green-950/30 dark:border-green-800">
-                <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
-                <AlertDescription className="text-green-800 dark:text-green-200">
-                  Two-factor authentication is active. You&apos;ll need to enter a code from your authenticator app when performing sensitive operations like deleting users.
-                </AlertDescription>
-              </Alert>
+              <p className="text-xs text-muted-foreground">
+                To disable 2FA, turn off the switch and confirm with your password and authenticator code.
+              </p>
             )}
+          </div>
+
+          {/* SSO Toggle */}
+          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+            <div>
+              <p className="font-medium">Single Sign-On (SSO)</p>
+              <p className="text-sm text-muted-foreground">Enable SSO integration</p>
+            </div>
+            <Switch checked={settings.authentication.ssoEnabled} onCheckedChange={(v) => setSettings({ ...settings, authentication: { ...settings.authentication, ssoEnabled: v } })} />
           </div>
 
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
@@ -460,6 +478,38 @@ export default function SecuritySettings() {
       onOpenChange={setShow2FAModal}
       onSuccess={handle2FASuccess}
     />
+
+    {/* 2FA Disable Dialog */}
+    <Dialog open={show2FADisableDialog} onOpenChange={(v) => { if (!v) { setShow2FADisableDialog(false); setDisablePassword(''); setDisableTotpCode(''); } }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+            Disable Two-Factor Authentication
+          </DialogTitle>
+          <DialogDescription>
+            This will remove 2FA protection from your account. You must verify your identity to continue.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="disablePassword">Password</Label>
+            <Input id="disablePassword" type="password" placeholder="Enter your password" value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="disableTotpCode">Authenticator Code</Label>
+            <Input id="disableTotpCode" type="text" placeholder="6-digit code from your app" value={disableTotpCode} onChange={(e) => setDisableTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))} className="text-center text-lg tracking-widest font-mono" maxLength={6} />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setShow2FADisableDialog(false); setDisablePassword(''); setDisableTotpCode(''); }}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDisable2FA} disabled={disableLoading || disablePassword.length < 1 || disableTotpCode.length !== 6}>
+              {disableLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Disable 2FA
+            </Button>
+          </DialogFooter>
+        </div>
+      </DialogContent>
+    </Dialog>
     </SectionGuard>
   );
 }
