@@ -141,6 +141,7 @@ APP_DIR="/opt/staysuite"
 APP_URL=""
 SKIP_MIKROTIK=false
 SKIP_CRYPTSK=false
+ENABLE_EAP=false
 AUTO_YES=false
 
 while [[ $# -gt 0 ]]; do
@@ -153,6 +154,7 @@ while [[ $# -gt 0 ]]; do
     --app-url)        APP_URL="$2"; shift 2 ;;
     --skip-mikrotik)  SKIP_MIKROTIK=true; shift ;;
     --skip-cryptsk)   SKIP_CRYPTSK=true; shift ;;
+    --enable-eap)     ENABLE_EAP=true; shift ;;
     --yes|-y)         AUTO_YES=true; shift ;;
     *) die "Unknown option: $1. Use --help." ;;
   esac
@@ -480,22 +482,23 @@ for mod in $REQUIRED_MODS; do
   [[ -f "${RADD}/mods-available/$mod" ]] && ln -sf "../mods-available/$mod" "${RADD}/mods-enabled/$mod" 2>/dev/null || true
 done
 # Disable unwanted
-for mod in sqlippool dhcp eap; do
+for mod in sqlippool dhcp; do
   rm -f "${RADD}/mods-enabled/$mod" 2>/dev/null || true
 done
-
-# ── 5a2: Comment out EAP references in site configs ─────────────────────────
-# Rocky 10's default sites-available/default and inner-tunnel have 'eap' uncommented
-# in authenticate/authorize sections, but we disabled the eap module above.
-# FreeRADIUS will fail config check if eap is referenced but not enabled.
-for site_file in "${RADD}/sites-available/default" "${RADD}/sites-available/inner-tunnel"; do
-  [[ -f "$site_file" ]] || continue
-  info "  Commenting out eap references in $(basename "$site_file")..."
-  # Comment out 'eap { ... }' blocks (authorize section)
-  sed -i '/^[[:space:]]*eap[[:space:]]*{/,/^[[:space:]]*}/ s/^[[:space:]]*/# /' "$site_file"
-  # Comment out standalone 'eap' lines (authenticate section, Post-Auth-Type REJECT)
-  sed -i '/^[[:space:]]*#.*eap/! { /^[[:space:]]*eap[[:space:]]*$/ s/^[[:space:]]*/# / }' "$site_file"
-done
+if ! $ENABLE_EAP; then
+  rm -f "${RADD}/mods-enabled/eap" 2>/dev/null || true
+  # Comment out EAP references in site configs so FreeRADIUS doesn't fail
+  for site_file in "${RADD}/sites-available/default" "${RADD}/sites-available/inner-tunnel"; do
+    [[ -f "$site_file" ]] || continue
+    info "  Commenting out eap references in $(basename "$site_file")..."
+    sed -i '/^[[:space:]]*eap[[:space:]]*{/,/^[[:space:]]*}/ s/^[[:space:]]*/# /' "$site_file"
+    sed -i '/^[[:space:]]*#.*eap/! { /^[[:space:]]*eap[[:space:]]*$/ s/^[[:space:]]*/# / }' "$site_file"
+  done
+else
+  # EAP requested — ensure the module is enabled
+  [[ -f "${RADD}/mods-available/eap" ]] && ln -sf "../mods-available/eap" "${RADD}/mods-enabled/eap" 2>/dev/null || true
+  info "  EAP module enabled (--enable-eap)"
+fi
 
 # ── 5b: Write SQL module ─────────────────────────────────────────────────────
 info "Configuring SQL module for PostgreSQL..."
