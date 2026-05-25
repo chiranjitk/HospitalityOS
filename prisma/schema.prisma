@@ -2482,6 +2482,8 @@ model FairAccessPolicy {
   applicableOn         String     @default("total")
   isEnabled            Boolean    @default(true)
   priority             Int        @default(0)
+  throttleDownKbps     Int        @default(256)
+  throttleUpKbps       Int        @default(128)
   createdAt            DateTime   @default(now()) @db.Timestamptz
   updatedAt            DateTime   @updatedAt @db.Timestamptz
   property             Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
@@ -5108,6 +5110,7 @@ model RadAcct {
   username            String?
   realm               String?
   nasipaddress        String
+  nasidentifier       String?
   nasportid           String?
   nasporttype         String?
   acctstarttime       DateTime? @db.Timestamptz
