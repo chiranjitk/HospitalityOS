@@ -348,22 +348,17 @@ export async function GET(request: NextRequest) {
           const endDateStr = searchParams.get('endDate');
           const usernameFilter = searchParams.get('username');
 
-          // Query v_auth_logs view — includes client IP from radacct
-          const conditions: string[] = [];
-          const sqlParams: unknown[] = [];
-          // CRITICAL: Always filter by tenant via property_id to prevent cross-tenant exposure
-          // Cast property_id (text in view) to uuid for comparison with Property.id
-          // NULLIF handles empty-string values that cause uuid parse errors
-          conditions.push(`NULLIF("property_id", '') IS NOT NULL AND NULLIF("property_id", '')::uuid IN (SELECT id FROM "Property" WHERE "tenantId" = $${sqlParams.length + 1}::uuid)`);
-          sqlParams.push(context.tenantId);
-          if (usernameFilter) { conditions.push(`"username" LIKE $${sqlParams.length + 1}`); sqlParams.push(`%${usernameFilter}%`); }
-          if (resultFilter) { conditions.push(`auth_result = $${sqlParams.length + 1}`); sqlParams.push(resultFilter); }
-          if (startDateStr) { conditions.push(`"timestamp" >= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(startDateStr.length === 10 ? `${startDateStr} 00:00:00` : startDateStr); }
-          if (endDateStr) { conditions.push(`"timestamp" <= $${sqlParams.length + 1}::timestamptz`); sqlParams.push(endDateStr.length === 10 ? `${endDateStr} 23:59:59` : endDateStr); }
-          const whereClause = `WHERE ${conditions.join(' AND ')}`;
-          sqlParams.push(limit);
+          // Build shared filter conditions (applied to both linked and orphan queries)
+          const filterConds: string[] = [];
+          const filterParams: unknown[] = [];
+          if (usernameFilter) { filterConds.push(`"username" LIKE $${filterParams.length + 1}`); filterParams.push(`%${usernameFilter}%`); }
+          if (resultFilter) { filterConds.push(`auth_result = $${filterParams.length + 1}`); filterParams.push(resultFilter); }
+          if (startDateStr) { filterConds.push(`"timestamp" >= $${filterParams.length + 1}::timestamptz`); filterParams.push(startDateStr.length === 10 ? `${startDateStr} 00:00:00` : startDateStr); }
+          if (endDateStr) { filterConds.push(`"timestamp" <= $${filterParams.length + 1}::timestamptz`); filterParams.push(endDateStr.length === 10 ? `${endDateStr} 23:59:59` : endDateStr); }
+          const filterClause = filterConds.length > 0 ? ` AND ${filterConds.join(' AND ')}` : '';
 
-          const authEvents = await db.$queryRawUnsafe<Record<string, unknown>[]>(`
+          // Query 1: Tenant-linked rows (property_id maps to a Property in this tenant)
+          const linkedQuery = `
             SELECT id, "username", auth_result, "timestamp",
                    client_ip_address, nas_ip_address, source_ip_address,
                    calling_station_id, called_station_id,
@@ -372,10 +367,32 @@ export async function GET(request: NextRequest) {
                    property_id, radius_group, plan_name,
                    plan_download_speed, plan_upload_speed, plan_data_limit
             FROM v_auth_logs
-            ${whereClause}
+            WHERE NULLIF("property_id", '') IS NOT NULL
+              AND NULLIF("property_id", '')::uuid IN (SELECT id FROM "Property" WHERE "tenantId" = $1::uuid)
+              ${filterClause}
             ORDER BY "timestamp" DESC
-            LIMIT $${sqlParams.length}
-          `, ...sqlParams);
+            LIMIT $${filterParams.length + 2}`;
+
+          // Query 2: Orphan/unlinked rows (no property_id — unknown users, brute force, etc.)
+          const orphanLimit = Math.min(Math.floor(limit / 3), 50); // Cap orphans at 1/3 of limit
+          const orphanQuery = `
+            SELECT id, "username", auth_result, "timestamp",
+                   client_ip_address, nas_ip_address, source_ip_address,
+                   calling_station_id, called_station_id,
+                   reply_message,
+                   guest_first_name, guest_last_name, room_number, property_name,
+                   property_id, radius_group, plan_name,
+                   plan_download_speed, plan_upload_speed, plan_data_limit
+            FROM v_auth_logs
+            WHERE (property_id = '' OR property_id IS NULL)
+              ${filterClause}
+            ORDER BY "timestamp" DESC
+            LIMIT $${filterParams.length + 1}`;
+
+          const [linkedRows, orphanRows] = await Promise.all([
+            db.$queryRawUnsafe<Record<string, unknown>[]>(linkedQuery, context.tenantId, ...filterParams, limit),
+            db.$queryRawUnsafe<Record<string, unknown>[]>(orphanQuery, ...filterParams, orphanLimit).catch(() => [] as Record<string, unknown>[]),
+          ]);
 
           const stripCidr = (v: string | null) => (v || '').replace(/\/\d+$/, '');
           const formatSpeed = (v: unknown) => {
@@ -386,38 +403,38 @@ export async function GET(request: NextRequest) {
             const n = typeof v === 'number' ? v : parseInt(String(v || '0'), 10);
             return n > 0 ? n : null;
           };
-          const mapped = authEvents.map((e) => ({
+
+          const mapRow = (e: Record<string, unknown>, isUnlinked: boolean) => ({
             id: e.id || `auth_${e.id}`,
             timestamp: e.timestamp || '',
             username: e.username || '',
             authResult: e.auth_result || '',
             authType: 'RADIUS',
-            // Client real IP — the user's assigned IP from pool/accounting
+            isUnlinked,
             clientIpAddress: stripCidr(e.client_ip_address as string),
-            // NAS source IP (where auth request came from)
             nasIpAddress: stripCidr(e.nas_ip_address as string),
-            // Source IP — the client's real IP at time of auth (from HTTP headers or RADIUS packet)
             sourceIpAddress: stripCidr(e.source_ip_address as string),
-            // MAC addresses
             callingStationId: (e.calling_station_id as string) || '',
             calledStationId: (e.called_station_id as string) || '',
-            // Reply message (already built in view with client IP priority)
             replyMessage: e.reply_message || '',
-            // Enriched fields
             propertyName: e.property_name || '',
             guestName: [e.guest_first_name, e.guest_last_name].filter(Boolean).join(' ') || '',
             roomNumber: e.room_number || '',
-            // Plan & RADIUS group info (from v_auth_logs)
             propertyId: (e.property_id as string) || '',
             radiusGroup: (e.radius_group as string) || '',
             planName: (e.plan_name as string) || '',
             planDownloadSpeed: formatSpeed(e.plan_download_speed),
             planUploadSpeed: formatSpeed(e.plan_upload_speed),
             planDataLimit: formatDataLimit(e.plan_data_limit),
-          }));
+          });
 
-          console.log(`[auth-logs] Returning ${mapped.length} entries`);
-          return NextResponse.json({ success: true, data: mapped });
+          const linked = linkedRows.map((e) => mapRow(e, false));
+          const orphans = orphanRows.map((e) => mapRow(e, true));
+          // Merge: linked first, then orphans (both sorted by timestamp DESC within their group)
+          const all = [...linked, ...orphans];
+
+          console.log(`[auth-logs] Returning ${linked.length} linked + ${orphans.length} orphan entries`);
+          return NextResponse.json({ success: true, data: all, _debug: { linkedCount: linked.length, orphanCount: orphans.length } });
         } catch (error) {
           console.error('[auth-logs] Direct query error:', error);
           return NextResponse.json({
@@ -428,7 +445,7 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // ─── Auth Logs Stats: Query from radpostauth ──────
+      // ─── Auth Logs Stats: Tenant-aware counts from v_auth_logs ──────
       case 'auth-logs-stats': {
         try {
           const usernameFilter = searchParams.get('username');
@@ -436,28 +453,36 @@ export async function GET(request: NextRequest) {
           const startDateStr = searchParams.get('startDate');
           const endDateStr = searchParams.get('endDate');
 
-          const conditions: string[] = [];
-          const params: unknown[] = [];
-          if (usernameFilter) { conditions.push(`username LIKE $${params.length + 1}`); params.push(`%${usernameFilter}%`); }
-          if (resultFilter) { conditions.push(`reply = $${params.length + 1}`); params.push(resultFilter); }
-          if (startDateStr) { conditions.push(`authdate >= $${params.length + 1}::timestamptz`); params.push(startDateStr.length === 10 ? `${startDateStr} 00:00:00` : startDateStr); }
-          if (endDateStr) { conditions.push(`authdate <= $${params.length + 1}::timestamptz`); params.push(endDateStr.length === 10 ? `${endDateStr} 23:59:59` : endDateStr); }
-          const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+          // Build filter conditions (shared between linked + orphan counts)
+          const filterConds: string[] = [];
+          const filterParams: unknown[] = [];
+          if (usernameFilter) { filterConds.push(`"username" LIKE $${filterParams.length + 1}`); filterParams.push(`%${usernameFilter}%`); }
+          if (resultFilter) { filterConds.push(`auth_result = $${filterParams.length + 1}`); filterParams.push(resultFilter); }
+          if (startDateStr) { filterConds.push(`"timestamp" >= $${filterParams.length + 1}::timestamptz`); filterParams.push(startDateStr.length === 10 ? `${startDateStr} 00:00:00` : startDateStr); }
+          if (endDateStr) { filterConds.push(`"timestamp" <= $${filterParams.length + 1}::timestamptz`); filterParams.push(endDateStr.length === 10 ? `${endDateStr} 23:59:59` : endDateStr); }
+          const filterClause = filterConds.length > 0 ? ` AND ${filterConds.join(' AND ')}` : '';
 
-          const totalAuths = Number((await db.$queryRawUnsafe<{ c: number | bigint }[]>(
-            `SELECT COUNT(*) as c FROM radpostauth ${whereClause}`,
-            ...params
-          ))[0]?.c ?? 0);
+          // Linked: tenant-filtered via property_id
+          const linkedWhere = `WHERE NULLIF("property_id", '') IS NOT NULL AND NULLIF("property_id", '')::uuid IN (SELECT id FROM "Property" WHERE "tenantId" = $1::uuid)${filterClause}`;
+          // Orphan: no property_id (unknown users, brute force, etc.)
+          const orphanWhere = `WHERE (property_id = '' OR property_id IS NULL)${filterClause}`;
 
-          // Count accepts and rejects using the same base conditions
-          const acceptWhere = conditions.length > 0
-            ? `${whereClause} AND reply = 'Access-Accept'`
-            : `WHERE reply = 'Access-Accept'`;
-          const acceptCount = Number((await db.$queryRawUnsafe<{ c: number | bigint }[]>(
-            `SELECT COUNT(*) as c FROM radpostauth ${acceptWhere}`,
-            ...params
-          ))[0]?.c ?? 0);
+          const [linkedTotal, orphanTotal, linkedAccept] = await Promise.all([
+            db.$queryRawUnsafe<{ c: number | bigint }[]>(
+              `SELECT COUNT(*) as c FROM v_auth_logs ${linkedWhere}`,
+              context.tenantId, ...filterParams),
+            db.$queryRawUnsafe<{ c: number | bigint }[]>(
+              `SELECT COUNT(*) as c FROM v_auth_logs ${orphanWhere}`,
+              ...filterParams).catch(() => [{ c: 0 }] as { c: number | bigint }[]),
+            db.$queryRawUnsafe<{ c: number | bigint }[]>(
+              `SELECT COUNT(*) as c FROM v_auth_logs ${linkedWhere} AND auth_result = 'Access-Accept'`,
+              context.tenantId, ...filterParams),
+          ]);
 
+          const linkedCount = Number(linkedTotal[0]?.c ?? 0);
+          const orphanCount = Number(orphanTotal[0]?.c ?? 0);
+          const totalAuths = linkedCount + orphanCount;
+          const acceptCount = Number(linkedAccept[0]?.c ?? 0);
           const rejectCount = totalAuths - acceptCount;
           const successRate = totalAuths > 0 ? Math.round((acceptCount / totalAuths) * 100) : 0;
 
@@ -467,30 +492,25 @@ export async function GET(request: NextRequest) {
           const dayBefore = new Date();
           dayBefore.setDate(dayBefore.getDate() - 2);
 
-          // Format dates as YYYY-MM-DD in local timezone (not UTC) for day-boundary comparison
           const toLocalDateStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
           const yesterdayStr = toLocalDateStr(yesterday);
           const dayBeforeStr = toLocalDateStr(dayBefore);
 
           let last24hTrend = 0;
           try {
-            const nextParam = params.length + 1;
-            const todayWhere = conditions.length > 0
-              ? `${whereClause} AND authdate >= $${nextParam}::timestamptz`
-              : `WHERE authdate >= $${nextParam}::timestamptz`;
+            const combinedWhere = `WHERE (NULLIF("property_id", '') IS NOT NULL AND NULLIF("property_id", '')::uuid IN (SELECT id FROM "Property" WHERE "tenantId" = $1::uuid) OR property_id = '' OR property_id IS NULL)${filterClause}`;
 
-            const prevDayWhere = conditions.length > 0
-              ? `${whereClause} AND authdate >= $${params.length + 1}::timestamptz AND authdate < $${params.length + 2}::timestamptz`
-              : `WHERE authdate >= $${params.length + 1}::timestamptz AND authdate < $${params.length + 2}::timestamptz`;
+            const todayWhere = `${combinedWhere} AND "timestamp" >= $${filterParams.length + 2}::timestamptz`;
+            const prevDayWhere = `${combinedWhere} AND "timestamp" >= $${filterParams.length + 2}::timestamptz AND "timestamp" < $${filterParams.length + 3}::timestamptz`;
 
             const todayCount = Number((await db.$queryRawUnsafe<{ c: number | bigint }[]>(
-              `SELECT COUNT(*) as c FROM radpostauth ${todayWhere}`,
-              ...params, yesterdayStr
+              `SELECT COUNT(*) as c FROM v_auth_logs ${todayWhere}`,
+              context.tenantId, ...filterParams, yesterdayStr
             ))[0]?.c ?? 0);
 
             const prevDayCount = Number((await db.$queryRawUnsafe<{ c: number | bigint }[]>(
-              `SELECT COUNT(*) as c FROM radpostauth ${prevDayWhere}`,
-              ...params, dayBeforeStr, yesterdayStr
+              `SELECT COUNT(*) as c FROM v_auth_logs ${prevDayWhere}`,
+              context.tenantId, ...filterParams, dayBeforeStr, yesterdayStr
             ))[0]?.c ?? 0);
 
             last24hTrend = prevDayCount > 0
@@ -504,6 +524,8 @@ export async function GET(request: NextRequest) {
             success: true,
             data: {
               totalAuths,
+              linkedCount,
+              orphanCount,
               acceptCount,
               rejectCount,
               successRate,

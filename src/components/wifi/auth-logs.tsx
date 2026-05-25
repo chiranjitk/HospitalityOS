@@ -40,6 +40,7 @@ import {
 import {
   Shield,
   Search,
+  AlertTriangle,
   Loader2,
   RefreshCw,
   CheckCircle,
@@ -72,6 +73,7 @@ interface AuthLogEntry {
   username: string;
   authResult: string;
   authType: string;
+  isUnlinked?: boolean;
   nasIpAddress?: string;
   clientIpAddress?: string;
   sourceIpAddress?: string;
@@ -91,6 +93,8 @@ interface AuthLogEntry {
 
 interface AuthLogStats {
   totalAuths: number;
+  linkedCount: number;
+  orphanCount: number;
   acceptCount: number;
   rejectCount: number;
   successRate: number;
@@ -149,6 +153,8 @@ export default function AuthLogs() {
   const [logs, setLogs] = useState<AuthLogEntry[]>([]);
   const [stats, setStats] = useState<AuthLogStats>({
     totalAuths: 0,
+    linkedCount: 0,
+    orphanCount: 0,
     acceptCount: 0,
     rejectCount: 0,
     successRate: 0,
@@ -251,6 +257,10 @@ export default function AuthLogs() {
     }
     return true;
   });
+
+  // Split logs into linked (tenant-mapped) and orphan (unknown/unlinked)
+  const linkedLogs = filteredLogs.filter(log => !log.isUnlinked);
+  const orphanLogs = filteredLogs.filter(log => log.isUnlinked);
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -376,6 +386,24 @@ export default function AuthLogs() {
         </Card>
       </div>
 
+      {/* Linked vs Orphan summary bar */}
+      {stats.orphanCount > 0 && (
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <div className="h-2 w-2 rounded-full bg-primary" />
+            <span><strong>{stats.linkedCount}</strong> linked to property</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="h-2 w-2 rounded-full bg-orange-500" />
+            <span><strong>{stats.orphanCount}</strong> unknown / unlinked</span>
+          </div>
+          <div className="flex items-center gap-1.5 ml-auto">
+            <AlertTriangle className="h-3 w-3 text-orange-500" />
+            <span className="text-orange-600 dark:text-orange-400">Unlinked entries are from users not mapped to any property (unknown, brute force, rogue clients)</span>
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
@@ -442,9 +470,10 @@ export default function AuthLogs() {
             <>
               {/* Mobile: Card Layout */}
               <div className="sm:hidden divide-y">
-                {filteredLogs.map((log, index) => (
+                {/* Linked entries */}
+                {linkedLogs.map((log, index) => (
                   <div
-                    key={`${index}-${log.id || ''}`}
+                    key={`linked-${index}-${log.id || ''}`}
                     className="p-4 space-y-2 cursor-pointer hover:bg-muted/30 transition-colors"
                     onClick={() => setSelectedLog(log)}
                   >
@@ -503,6 +532,54 @@ export default function AuthLogs() {
                     </div>
                   </div>
                 ))}
+                {/* Orphan section divider (mobile) */}
+                {orphanLogs.length > 0 && (
+                  <div className="flex items-center gap-2 p-3 bg-orange-50/50 dark:bg-orange-950/10">
+                    <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />
+                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+                      Unknown / Unlinked ({orphanLogs.length})
+                    </span>
+                  </div>
+                )}
+                {/* Orphan entries */}
+                {orphanLogs.map((log, index) => (
+                  <div
+                    key={`orphan-${index}-${log.id || ''}`}
+                    className="p-4 space-y-2 cursor-pointer hover:bg-muted/30 transition-colors border-l-2 border-l-orange-400"
+                    onClick={() => setSelectedLog(log)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-xs font-mono tabular-nums">
+                          {formatShortTimestamp(log.timestamp)}
+                        </span>
+                      </div>
+                      {getResultBadge(log.authResult)}
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-orange-500" />
+                        <p className="font-medium text-sm text-orange-700 dark:text-orange-300">{log.username}</p>
+                      </div>
+                      {(() => {
+                        const reqIp = getRequestFromIp(log);
+                        return reqIp ? (
+                          <div className="flex items-center gap-1.5">
+                            <Server className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs font-mono">{reqIp}</span>
+                          </div>
+                        ) : <span />;
+                      })()}
+                    </div>
+                    {(() => {
+                      const msg = getEnhancedReplyMessage(log);
+                      return msg ? (
+                        <div className="text-xs leading-tight text-red-600 dark:text-red-400">{msg}</div>
+                      ) : null;
+                    })()}
+                  </div>
+                ))}
               </div>
 
               {/* Desktop: Table Layout */}
@@ -532,12 +609,13 @@ export default function AuthLogs() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredLogs.map((log, index) => {
+                    {/* Linked entries */}
+                    {linkedLogs.map((log, index) => {
                       const isReject = log.authResult?.toLowerCase().includes('reject');
                       const requestFromIp = getRequestFromIp(log);
                       return (
                         <TableRow
-                          key={`${index}-${log.id || ''}`}
+                          key={`linked-${index}-${log.id || ''}`}
                           className={cn(
                             'cursor-pointer hover:bg-muted/50 transition-colors',
                             isReject && 'bg-red-50/30 dark:bg-red-950/10'
@@ -589,6 +667,75 @@ export default function AuthLogs() {
                         </TableRow>
                       );
                     })}
+                    {/* Orphan / Unlinked entries section divider */}
+                    {orphanLogs.length > 0 && (
+                      <>
+                        <TableRow className="bg-orange-50/50 dark:bg-orange-950/10 hover:bg-orange-50/50 dark:hover:bg-orange-950/10">
+                          <TableCell colSpan={5} className="py-2 px-4">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="h-3.5 w-3.5 text-orange-500" />
+                              <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+                                Unknown / Unlinked ({orphanLogs.length})
+                              </span>
+                              <span className="text-[10px] text-orange-500/70 dark:text-orange-400/60">
+                                — no property mapping (brute force, unknown users, rogue clients)
+                              </span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {orphanLogs.map((log, index) => {
+                          const isReject = log.authResult?.toLowerCase().includes('reject');
+                          const requestFromIp = getRequestFromIp(log);
+                          return (
+                            <TableRow
+                              key={`orphan-${index}-${log.id || ''}`}
+                              className={cn(
+                                'cursor-pointer hover:bg-muted/50 transition-colors border-l-2 border-l-orange-400',
+                                isReject && 'bg-red-50/20 dark:bg-red-950/5'
+                              )}
+                              onClick={() => setSelectedLog(log)}
+                            >
+                              <TableCell>
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-mono tabular-nums">
+                                    {timeFormat === 'full' ? formatShortTimestamp(log.timestamp) : formatRelativeTime(log.timestamp)}
+                                  </span>
+                                  {timeFormat === 'full' && log.timestamp && (
+                                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                                      {formatRelativeTime(log.timestamp)}
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>{getResultBadge(log.authResult)}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                                  <div>
+                                    <p className="font-medium text-sm text-orange-700 dark:text-orange-300">{log.username}</p>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {requestFromIp ? (
+                                  <Badge variant="outline" className="font-mono text-[11px] bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 whitespace-nowrap">
+                                    <Server className="h-2.5 w-2.5 mr-1" />
+                                    {requestFromIp}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-xs leading-tight text-red-600 dark:text-red-400">
+                                  {getEnhancedReplyMessage(log)}
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </>
+                    )}
                   </TableBody>
                 </Table>
                 </div>
