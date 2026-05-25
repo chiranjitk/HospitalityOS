@@ -271,14 +271,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Get menu items to calculate totals
-    const menuItemIds = items.map((item: { menuItemId: string }) => item.menuItemId);
-    const menuItems = await db.menuItem.findMany({
-      where: { id: { in: menuItemIds }, propertyId, deletedAt: null },
-    });
+    // Get menu items to calculate totals (filter out undefined IDs)
+    const menuItemIds = items.map((item: { menuItemId?: string }) => item.menuItemId).filter(Boolean);
+    const menuItems = menuItemIds.length > 0
+      ? await db.menuItem.findMany({
+          where: { id: { in: menuItemIds }, propertyId, deletedAt: null },
+        })
+      : [];
 
-    // Validate all menu items exist and are available
+    // Validate menu items that have a menuItemId (skip custom items without one)
     for (const item of items) {
+      if (!item.menuItemId) continue; // Custom item — no menu validation needed
       const menuItem = menuItems.find(m => m.id === item.menuItemId);
       if (!menuItem) {
         return NextResponse.json(
@@ -296,21 +299,23 @@ export async function POST(request: NextRequest) {
 
     // Calculate subtotal and build order items data
     let subtotal = 0;
-    const orderItemsData = items.map((item: { menuItemId: string; quantity?: number; notes?: string; options?: string }) => {
-      const menuItem = menuItems.find(m => m.id === item.menuItemId)!;
+    const orderItemsData = items.map((item: { menuItemId?: string; quantity?: number; unitPrice?: number; price?: number; name?: string; notes?: string; options?: string }) => {
+      const menuItem = item.menuItemId ? menuItems.find(m => m.id === item.menuItemId) : null;
       const quantity = item.quantity || 1;
 
       // Validate quantity bounds
       if (quantity < 1 || quantity > 100) {
-        throw new Error(`Invalid quantity ${quantity} for item ${menuItem.name}. Quantity must be between 1 and 100.`);
+        throw new Error(`Invalid quantity ${quantity}. Quantity must be between 1 and 100.`);
       }
 
-      const unitPrice = menuItem.price;
+      // Use menuItem price if available, otherwise fall back to item's price/unitPrice
+      const unitPrice = menuItem?.price || item.unitPrice || item.price || 0;
       const totalAmount = Math.round(unitPrice * quantity * 100) / 100;
       subtotal += totalAmount;
 
       return {
-        menuItemId: item.menuItemId,
+        menuItemId: item.menuItemId || null,
+        itemName: menuItem?.name || item.name || null,
         quantity,
         unitPrice,
         totalAmount: Math.round(totalAmount * 100) / 100,
@@ -373,7 +378,6 @@ export async function POST(request: NextRequest) {
           subtotal,
           taxes,
           totalAmount,
-          serviceCharge,
           notes,
           specialInstructions,
           status: 'pending',

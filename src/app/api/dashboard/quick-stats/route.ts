@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     const outOfOrderCount = await db.room.count({
       where: {
         propertyId: { in: propertyIds },
-        status: { in: ['outOfOrder', 'maintenance'] },
+        status: { in: ['out_of_service', 'maintenance'] },
         deletedAt: null,
       },
     });

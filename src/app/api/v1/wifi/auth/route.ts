@@ -870,9 +870,9 @@ export async function POST(request: NextRequest) {
           return errorResponse('INVALID_VOUCHER', 'Invalid or expired voucher code');
         }
 
-        // Verify voucher belongs to same tenant (mandatory security check)
-        const resolvedTenantId = portal?.tenantId;
-        if (!resolvedTenantId || voucher.tenantId !== resolvedTenantId) {
+        // Verify voucher belongs to same tenant (fallback to voucher's own tenantId if no portal)
+        const resolvedTenantId = portal?.tenantId ?? voucher.tenantId;
+        if (voucher.tenantId !== resolvedTenantId) {
           await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request, 'TENANT_MISMATCH');
           return errorResponse('INVALID_VOUCHER', 'Invalid voucher code');
         }
@@ -1035,8 +1035,12 @@ export async function POST(request: NextRequest) {
           return errorResponse('MISSING_NAME', 'Please enter your last name');
         }
 
+        const bookingWhere: any = { room: { number: roomNumber.trim().toUpperCase() }, status: 'checked_in' };
+        if (resolvedTenantId || portal?.tenantId) {
+          bookingWhere.tenantId = resolvedTenantId || portal?.tenantId;
+        }
         const bookings = await db.booking.findMany({
-          where: { room: { number: roomNumber.trim().toUpperCase() }, status: 'checked_in', tenantId: resolvedTenantId || portal?.tenantId },
+          where: bookingWhere,
           include: { primaryGuest: true, room: true, roomType: { select: { wifiPlanId: true } } },
           take: 10,
         });

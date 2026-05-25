@@ -23,24 +23,24 @@ export async function GET(request: NextRequest) {
     const tenantId = user.tenantId;
 
     // Query billing summary data from the database
-    const [totalReceivable, totalPayable, overdueCount, recentInvoices, recentDeposits] = await Promise.all([
+    const [totalReceivable, totalPayable, overdueCount, recentInvoices] = await Promise.all([
       // Total receivable: sum of folio balances where balance > 0
       db.folio.aggregate({
-        where: { tenantId, status: { in: ['open', 'checked_in', 'checked_out'] } },
+        where: { tenantId, status: { in: ['open', 'partially_paid'] } },
         _sum: { balance: true },
       }),
       // Total payable: sum of AP invoices
-      db.aPInvoice.aggregate({
+      db.apInvoice.aggregate({
         where: { tenantId, status: { in: ['pending', 'approved', 'partial'] } },
         _sum: { totalAmount: true },
       }),
-      // Overdue count: invoices past due date with unpaid balance
+      // Overdue count: closed folios past their close date with unpaid balance
       db.folio.count({
         where: {
           tenantId,
-          status: 'checked_out',
+          status: 'closed',
           balance: { gt: 0 },
-          checkOut: { lt: new Date() },
+          closedAt: { lt: new Date() },
         },
       }),
       // Recent invoices
@@ -50,14 +50,10 @@ export async function GET(request: NextRequest) {
         take: 5,
         select: { id: true, invoiceNumber: true, totalAmount: true, status: true, createdAt: true },
       }),
-      // Recent deposits
-      db.deposit.findMany({
-        where: { tenantId },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        select: { id: true, amount: true, status: true, type: true, createdAt: true },
-      }),
     ]);
+
+    // Deposit model does not exist yet — return empty array
+    const recentDeposits: unknown[] = [];
 
     return NextResponse.json({
       success: true,

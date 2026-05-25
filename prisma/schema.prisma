@@ -4337,7 +4337,7 @@ model OrderCategory {
 model OrderItem {
   id          String   @id @default(uuid()) @db.Uuid
   orderId     String   @db.Uuid
-  menuItemId  String   @db.Uuid
+  menuItemId  String?  @db.Uuid
   quantity    Int      @default(1)
   unitPrice   Float
   totalAmount Float
@@ -4346,10 +4346,12 @@ model OrderItem {
   status      String   @default("pending")
   createdAt   DateTime @default(now()) @db.Timestamptz
   updatedAt   DateTime @updatedAt @db.Timestamptz
-  menuItem    MenuItem @relation(fields: [menuItemId], references: [id])
+  menuItem    MenuItem? @relation(fields: [menuItemId], references: [id])
   order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemName    String?
 
   @@index([orderId])
+  @@index([menuItemId])
 }
 
 model ParkingSlot {

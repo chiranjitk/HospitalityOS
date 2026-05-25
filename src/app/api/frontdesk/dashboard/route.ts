@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       where: {
         propertyId: { in: propertyIds },
         checkIn: { gte: today, lt: tomorrow },
-        status: { in: ['confirmed', 'pending', 'checked_in'] },
+        status: { in: ['confirmed', 'draft', 'checked_in'] },
         deletedAt: null,
       },
       include: {
@@ -144,7 +144,10 @@ export async function GET(request: NextRequest) {
     const roomsNeedingAttention = await db.room.count({
       where: {
         propertyId: { in: propertyIds },
-        status: { in: ['maintenance', 'dirty'] },
+        OR: [
+          { status: 'maintenance' },
+          { housekeepingStatus: 'dirty' },
+        ],
         deletedAt: null,
       },
     });
