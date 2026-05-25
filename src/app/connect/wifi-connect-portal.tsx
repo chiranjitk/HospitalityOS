@@ -2668,7 +2668,7 @@ function PortalContent() {
 
         {/* Post-Connect Survey (Feature 4) — fallback mode */}
         {state === 'success' && design.surveyConfig?.enabled && (
-          <GuestSurvey design={design} tenantId={tenantId} propertyId={propertyId} sessionId={authResult?.sessionId} guestId={authResult?.guestId} />
+          <GuestSurvey design={design} tenantId={portalConfig?.tenantId} propertyId={portalConfig?.propertyId} sessionId={authResult?.sessionId} guestId={authResult?.guestId} />
         )}
       </>
     );
@@ -2746,7 +2746,7 @@ function PortalContent() {
       case 'survey':
         // Render survey after success or always if enabled (GuestSurvey handles its own state)
         if (!design.surveyConfig?.enabled) return null;
-        return <div className="mt-2"><GuestSurvey design={design} tenantId={tenantId} propertyId={propertyId} sessionId={authResult?.sessionId} guestId={authResult?.guestId} /></div>;
+        return <div className="mt-2"><GuestSurvey design={design} tenantId={portalConfig?.tenantId} propertyId={portalConfig?.propertyId} sessionId={authResult?.sessionId} guestId={authResult?.guestId} /></div>;
       default:
         return null;
     }
@@ -2882,7 +2882,7 @@ function PortalContent() {
 
                   {/* Post-Connect Survey (Feature 4) — inside the form card, after success */}
                   {state === 'success' && design.surveyConfig?.enabled && (
-                    <GuestSurvey design={design} tenantId={tenantId} propertyId={propertyId} sessionId={authResult?.sessionId} guestId={authResult?.guestId} />
+                    <GuestSurvey design={design} tenantId={portalConfig?.tenantId} propertyId={portalConfig?.propertyId} sessionId={authResult?.sessionId} guestId={authResult?.guestId} />
                   )}
                 </div>
               </div>
