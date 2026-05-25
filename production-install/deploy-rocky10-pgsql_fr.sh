@@ -1059,13 +1059,20 @@ if [[ -f "${APP_DIR}/.env.production" ]]; then
   success "Renamed .env.production → .env.production.template (prevents Next.js override)"
 fi
 
-# Also rename the old ecosystem.config.js (has hardcoded /home/z paths)
-# if ecosystem.config.cjs exists (the new portable version).
-# IMPORTANT: Never rename ecosystem.config.js_dont-touch — this is the
-# user's production PM2 config that must not be modified by the deploy script.
-if [[ -f "${APP_DIR}/ecosystem.config.cjs" && -f "${APP_DIR}/ecosystem.config.js" ]]; then
-  mv "${APP_DIR}/ecosystem.config.js" "${APP_DIR}/ecosystem.config.js.old"
-  success "Renamed ecosystem.config.js → ecosystem.config.js.old (using portable .cjs)"
+# ── Production PM2 config: use ecosystem.config.js_dont-touch ──────────────
+# ecosystem.config.js_dont-touch is the master production PM2 config.
+# It uses __dirname for all paths (portable) and references start-nextjs.sh.
+# Copy it to ecosystem.config.js so PM2 picks it up by default.
+# IMPORTANT: Never modify ecosystem.config.js_dont-touch — it is the source of truth.
+# If ecosystem.config.js already exists (e.g. from previous deploy), keep it
+# so user's custom changes are preserved.
+if [[ -f "${APP_DIR}/ecosystem.config.js_dont-touch" ]]; then
+  if [[ ! -f "${APP_DIR}/ecosystem.config.js" ]]; then
+    cp "${APP_DIR}/ecosystem.config.js_dont-touch" "${APP_DIR}/ecosystem.config.js"
+    success "Copied ecosystem.config.js_dont-touch → ecosystem.config.js (production PM2 config)"
+  else
+    success "ecosystem.config.js already exists — keeping existing config"
+  fi
 fi
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -1297,17 +1304,24 @@ BUN_PATH="${BUN_INSTALL:-$HOME/.bun}/bin/bun"
 chmod +x "${APP_DIR}/start-next.sh" 2>/dev/null || true
 chmod +x "${APP_DIR}/start-nextjs.sh" 2>/dev/null || true
 
-# ── Use ecosystem.config.cjs (portable — uses INSTALL_DIR env var) ──────────
-# The repo has ecosystem.config.cjs which uses path.join(INSTALL_DIR, ...) 
-# instead of hardcoded paths. We set INSTALL_DIR=${APP_DIR} via PM2 env.
+# ── Use ecosystem.config.js (production config from ecosystem.config.js_dont-touch) ──
+# Step 8e copies ecosystem.config.js_dont-touch → ecosystem.config.js.
+# This file uses __dirname for all paths (portable to any install directory).
+# No need for INSTALL_DIR env var — __dirname resolves to APP_DIR automatically.
 mkdir -p "${APP_DIR}/logs"
-info "Using portable ecosystem.config.cjs with INSTALL_DIR=${APP_DIR}..."
+ECOSYSTEM_FILE="${APP_DIR}/ecosystem.config.js"
+
+if [[ ! -f "$ECOSYSTEM_FILE" ]]; then
+  warn "ecosystem.config.js not found — falling back to ecosystem.config.cjs"
+  ECOSYSTEM_FILE="${APP_DIR}/ecosystem.config.cjs"
+fi
+info "Using PM2 config: $(basename "$ECOSYSTEM_FILE")"
 
 # Replace DATABASE_URL if using non-default password
 if [[ "${DB_PASSWORD}" != "Staysuite2025" ]]; then
   PROD_DB_URL="postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
-  sed -i "s|postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite|${PROD_DB_URL}|g" "${APP_DIR}/ecosystem.config.cjs"
-  info "Database password replaced in ecosystem.config.cjs"
+  sed -i "s|postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite|${PROD_DB_URL}|g" "$ECOSYSTEM_FILE"
+  info "Database password replaced in $(basename "$ECOSYSTEM_FILE")"
 else
   info "Using default DATABASE_URL from repo (no modification needed)"
 fi
@@ -1315,7 +1329,7 @@ fi
 # Stop old processes and start fresh
 pm2 delete all 2>/dev/null || true
 cd "$APP_DIR"
-INSTALL_DIR="${APP_DIR}" pm2 start ecosystem.config.cjs 2>&1 | tail -15
+pm2 start "$ECOSYSTEM_FILE" 2>&1 | tail -15
 # Wait for Next.js to be ready on port 3000
 if wait_for_tcp 3000 127.0.0.1 60 2>/dev/null; then
   info "Next.js is listening on port 3000"

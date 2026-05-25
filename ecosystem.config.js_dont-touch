@@ -16,6 +16,11 @@
  * FIX: Use start-nextjs.sh wrapper which explicitly sets HOSTNAME=0.0.0.0
  * before launching the standalone server.
  *
+ * ENV LOADING: This file loads .env at PM2 start time. All secrets
+ * (DATABASE_URL, NEXTAUTH_SECRET, CRON_SECRET, etc.) come from .env.
+ * Edit .env to change any runtime value — no need to edit this file.
+ * Service-specific env vars (PORT) are set explicitly per-app below.
+ *
  * Production features enabled:
  *   - max_memory_restart  → auto-restart on memory leak (per-app limits)
  *   - kill_timeout        → graceful shutdown (5s SIGTERM before SIGKILL)
@@ -46,8 +51,40 @@
  */
 
 const BUN_PATH = process.env.BUN_PATH || '/usr/bin/bun';
+const path = require('path');
+const fs = require('fs');
 const APP_DIR = __dirname;
 const LOG_DIR = `${APP_DIR}/logs`;
+
+// ============================================================================
+// Load .env file — propagates all secrets to PM2 process env
+// Next.js reads .env automatically, but PM2-managed mini-services need
+// explicit env vars. This ensures DATABASE_URL, NEXTAUTH_SECRET, etc.
+// are available to ALL services from a single source of truth (.env).
+// ============================================================================
+function loadDotEnv() {
+  const envPath = path.join(APP_DIR, '.env');
+  const env = {};
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, 'utf-8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx === -1) continue;
+      const key = trimmed.slice(0, eqIdx).trim();
+      let val = trimmed.slice(eqIdx + 1).trim();
+      // Remove surrounding quotes
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      env[key] = val;
+    }
+  }
+  return env;
+}
+
+const dotEnv = loadDotEnv();
 
 // ============================================================================
 // Shared production defaults applied to ALL apps
@@ -75,11 +112,11 @@ const MINI_SERVICE_DEFAULTS = {
 
 /**
  * Helper: create a mini-service config entry.
- * Merges shared defaults + service-specific overrides.
+ * Merges shared defaults + .env vars + service-specific overrides.
  */
 function miniService(name, overrides = {}) {
-  // Extract internal metadata before passing to PM2
-  const { _port, ...pm2Config } = overrides;
+  // Extract internal metadata and env overrides before passing to PM2
+  const { _port, env: envOverride, ...pm2Config } = overrides;
   return {
     ...MINI_SERVICE_DEFAULTS,
     name,
@@ -87,7 +124,8 @@ function miniService(name, overrides = {}) {
     error_file: `${LOG_DIR}/${name}-error.log`,
     out_file: `${LOG_DIR}/${name}-out.log`,
     description: _port ? `Port ${_port}` : name,
-    env: { NODE_ENV: 'production' },
+    // Deep-merge: .env base → NODE_ENV → per-service env overrides
+    env: { ...dotEnv, NODE_ENV: 'production', ...envOverride },
     ...pm2Config,
   };
 }
@@ -116,30 +154,31 @@ module.exports = {
       merge_logs: true,
       // -------------------------------------------------------------------
       // Environment Profiles
+      // .env values are loaded first (dotEnv), then explicit overrides below.
+      // This ensures DATABASE_URL from .env propagates to Next.js via PM2.
       // -------------------------------------------------------------------
       env: {
+        ...dotEnv,
         NODE_ENV: 'production',
         PORT: 3000,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-        CRON_SECRET: 'staysuite-cron-secret-2025',
         RRD_BIN_PATH: `${APP_DIR}/rrdtool/bin/rrdtool`,
         RRD_LIB_PATH: `${APP_DIR}/rrdtool/lib`,
         RRD_DATA_PATH: `${APP_DIR}/data/rrd`,
       },
       env_staging: {
+        ...dotEnv,
         NODE_ENV: 'production',
         PORT: 3000,
         DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite_staging',
-        CRON_SECRET: 'staysuite-cron-secret-staging',
         RRD_BIN_PATH: `${APP_DIR}/rrdtool/bin/rrdtool`,
         RRD_LIB_PATH: `${APP_DIR}/rrdtool/lib`,
         RRD_DATA_PATH: `${APP_DIR}/data/rrd`,
       },
       env_development: {
+        ...dotEnv,
         NODE_ENV: 'development',
         PORT: 3000,
         DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite_dev',
-        CRON_SECRET: 'staysuite-cron-secret-dev',
         RRD_BIN_PATH: `${APP_DIR}/rrdtool/bin/rrdtool`,
         RRD_LIB_PATH: `${APP_DIR}/rrdtool/lib`,
         RRD_DATA_PATH: `${APP_DIR}/data/rrd`,
@@ -151,45 +190,25 @@ module.exports = {
     // =========================================================================
     miniService('dhcp-service', {
       _port: 3011,
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3011,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-      },
+      env: { PORT: 3011 },
     }),
     miniService('dns-service', {
       _port: 3012,
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3012,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-      },
+      env: { PORT: 3012 },
     }),
     miniService('nftables-service', {
       _port: 3013,
       max_memory_restart: '150M',  // Firewall rules are memory-light
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3013,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-      },
+      env: { PORT: 3013 },
     }),
     miniService('freeradius-service', {
       _port: 3010,
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3010,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-      },
+      env: { PORT: 3010 },
     }),
     miniService('captive-redirect', {
       _port: 8888,
       script: 'index.ts',
-      env: {
-        NODE_ENV: 'production',
-        PORT: 8888,
-        PORTAL_PORT: 3000,
-      },
+      env: { PORT: 8888, PORTAL_PORT: 3000 },
     }),
 
     // =========================================================================
@@ -197,19 +216,11 @@ module.exports = {
     // =========================================================================
     miniService('realtime-service', {
       _port: 3003,
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3003,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-      },
+      env: { PORT: 3003 },
     }),
     miniService('notification-ws', {
       _port: 3004,
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3004,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-      },
+      env: { PORT: 3004 },
     }),
 
     // =========================================================================
@@ -218,26 +229,15 @@ module.exports = {
     miniService('availability-service', {
       _port: 3002,
       script: 'server.ts',
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3002,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-      },
+      env: { PORT: 3002 },
     }),
     miniService('live-speed-service', {
       _port: 3018,
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3018,
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
-      },
+      env: { PORT: 3018 },
     }),
     miniService('shell-console', {
       _port: 3025,
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3025,
-      },
+      env: { PORT: 3025 },
     }),
 
     // =========================================================================
@@ -247,11 +247,9 @@ module.exports = {
       _port: 3020,
       max_memory_restart: '500M',  // High throughput — may buffer many connections
       env: {
-        NODE_ENV: 'production',
         PORT: 3020,
         CLICKHOUSE_URL: 'http://127.0.0.1:8123',
         CONNTRACK_BIN: '/usr/sbin/conntrack',
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
         GUEST_ENRICHER_SILENT: 'true',  // Suppress repeated "DATABASE_URL not set" warnings
       },
     }),
@@ -259,7 +257,6 @@ module.exports = {
       _port: 3022,
       max_memory_restart: '500M',  // Parses high-volume SNI logs
       env: {
-        NODE_ENV: 'production',
         PORT: 3022,
         CLICKHOUSE_URL: 'http://127.0.0.1:8123',
         SNI_LOG_FILE: '/var/log/ulogd2/sni.json',
@@ -280,10 +277,9 @@ module.exports = {
       cwd: APP_DIR,
       max_memory_restart: '800M',
       env: {
+        ...dotEnv,
         NODE_ENV: 'production',
-        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite',
         NODE_OPTIONS: '--max-old-space-size=512',
-        CRON_SECRET: 'staysuite-cron-secret-2025',
       },
       error_file: `${LOG_DIR}/scheduler-error.log`,
       out_file: `${LOG_DIR}/scheduler-out.log`,
