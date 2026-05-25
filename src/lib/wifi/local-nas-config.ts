@@ -37,6 +37,7 @@ export interface LocalNasConfig {
  */
 export async function getLocalNasConfig(propertyId: string): Promise<LocalNasConfig> {
   try {
+    // Try property-specific NAS first (most precise match)
     const localNas = await db.radiusNAS.findFirst({
       where: {
         propertyId,
@@ -55,6 +56,30 @@ export async function getLocalNasConfig(propertyId: string): Promise<LocalNasCon
         calledStationId: localNas.calledStationId || '00:00:00:00:00:01',
         nasIpAddress: localNas.ipAddress || '127.0.0.1',
         nasIdentifier: localNas.nasIdentifier,
+      };
+    }
+
+    // Fallback: look up ANY active system NAS on 127.0.0.1
+    // The Cryptsk Gateway is a shared system NAS — it may not be linked
+    // to the requesting property (e.g. voucher login resolves a different
+    // property than the one the NAS was created under).
+    const anyLocalNas = await db.radiusNAS.findFirst({
+      where: {
+        ipAddress: '127.0.0.1',
+        status: 'active',
+      },
+      select: {
+        calledStationId: true,
+        nasIdentifier: true,
+        ipAddress: true,
+      },
+    });
+
+    if (anyLocalNas) {
+      return {
+        calledStationId: anyLocalNas.calledStationId || '00:00:00:00:00:01',
+        nasIpAddress: anyLocalNas.ipAddress || '127.0.0.1',
+        nasIdentifier: anyLocalNas.nasIdentifier,
       };
     }
   } catch (err) {

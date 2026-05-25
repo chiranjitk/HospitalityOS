@@ -172,8 +172,10 @@ function safeGetTime(date: Date | unknown): number {
  */
 async function getLocalNasConfigFromFirstProperty() {
   try {
+    // Look up ANY active system NAS on 127.0.0.1 (Cryptsk Gateway)
+    // Don't filter by propertyId — the system NAS is shared across properties
     const systemNas = await db.radiusNAS.findFirst({
-      where: { ipAddress: '127.0.0.1', type: 'cryptsk' },
+      where: { ipAddress: '127.0.0.1', status: 'active' },
       select: { calledStationId: true, propertyId: true },
     });
     if (systemNas?.calledStationId) {

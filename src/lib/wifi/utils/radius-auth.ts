@@ -35,7 +35,15 @@ export async function radiusAuth(username: string, password: string): Promise<{
       encoding: 'utf-8',
       timeout: 5000,
       cwd: raddbDir,
-      env: { ...process.env, LD_LIBRARY_PATH: `${libDir}:${process.env.LD_LIBRARY_PATH || ''}` },
+      env: {
+        ...process.env,
+        LD_LIBRARY_PATH: `${libDir}:${process.env.LD_LIBRARY_PATH || ''}`,
+        // Sandbox: radclient is linked against OpenSSL 3.0.x compat which needs
+        // the legacy provider for EAP/TLS. Without these, radclient shows
+        // "(TLS) Failed loading legacy provider" and may hang.
+        OPENSSL_CONF: process.env.OPENSSL_CONF || '/home/z/my-project/freeradius-install/openssl-with-legacy.cnf',
+        OPENSSL_MODULES: process.env.OPENSSL_MODULES || '/home/z/my-project/openssl-compat/lib64/ossl-modules',
+      },
     });
 
     // Parse radclient output — look for "Received Access-Accept" or "Received Access-Reject"
@@ -101,8 +109,10 @@ export function getRejectMessage(code: string): string {
  */
 async function getSystemCalledStationId(): Promise<string> {
   try {
+    // Look up ANY active system NAS on 127.0.0.1 (Cryptsk Gateway)
+    // Don't filter by propertyId — the system NAS is shared across properties
     const systemNas = await db.radiusNAS.findFirst({
-      where: { ipAddress: '127.0.0.1', type: 'cryptsk' },
+      where: { ipAddress: '127.0.0.1', status: 'active' },
       select: { calledStationId: true },
     });
     return systemNas?.calledStationId || '00:00:00:00:00:01';
