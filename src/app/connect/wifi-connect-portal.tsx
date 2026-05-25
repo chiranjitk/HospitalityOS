@@ -2039,6 +2039,7 @@ function PortalContent() {
   // Auto-auth state
   const [autoAuthAttempted, setAutoAuthAttempted] = useState(false);
   const [maxDeviceMessage, setMaxDeviceMessage] = useState('');
+  const [debugOtp, setDebugOtp] = useState<string | null>(null);
 
   // Pre-generated fingerprint — computed once on mount and reused for
   // both auto-auth attempts and manual auth DeviceProfile creation.

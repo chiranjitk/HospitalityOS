@@ -1,0 +1,4 @@
+2026-05-25 08:07:46.107 UTC [5561] FATAL:  data directory "/home/z/my-project/db/pgdata" has invalid permissions
+2026-05-25 08:07:46.107 UTC [5561] DETAIL:  Permissions should be u=rwx (0700) or u=rwx,g=rx (0750).
+2026-05-25 08:08:16.033 UTC [5603] FATAL:  could not open directory "pg_notify": No such file or directory
+2026-05-25 08:08:16.036 UTC [5603] LOG:  database system is shut down

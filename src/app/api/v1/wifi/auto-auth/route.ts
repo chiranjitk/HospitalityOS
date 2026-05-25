@@ -10,6 +10,7 @@ import {
   type LoginScriptParams,
 } from '@/lib/network/script-runner';
 import { getExternalGatewayConfig, buildGatewayAuthResponse, type ExternalGatewayConfig } from '@/lib/wifi/utils/external-gateway';
+import { radiusAuth, getRejectMessage } from '@/lib/wifi/utils/radius-auth';
 
 // ────────────────────────────────────────────────────────────
 // IP Pool Validation Helpers (shared with wifi/auth)
@@ -366,7 +367,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── Close any existing active radacct session for this user ──
+    // For auto-reauth, the SAME device is reconnecting — its previous session
+    // may still be active in radacct (stale). We must close it BEFORE checking
+    // the max device limit, otherwise the old session counts against the user
+    // and auto-reauth always fails with MAX_DEVICES.
+    try {
+      const closeResult = await db.$executeRawUnsafe(
+        `UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'Auto-Reauth', acctstatus = 'stop', acctupdatetime = NOW(), updatedat = NOW() WHERE username = $1 AND acctstoptime IS NULL`,
+        wifiUser.username
+      );
+      if (closeResult > 0) {
+        console.log(`[AutoAuth] Closed ${closeResult} stale session(s) for ${wifiUser.username} before reauth`);
+      }
+    } catch (closeErr) {
+      console.warn('[AutoAuth] Failed to close existing sessions (non-critical):', closeErr);
+    }
+
     // ── Check max device limit ──
+    // After closing stale sessions, the count should be 0 for the same device.
+    // If another device is connected (different username sharing is not possible,
+    // but if maxDevices > 1 the user could have multiple devices), this still
+    // correctly enforces the limit.
     const maxDevices = wifiUser.maxSessions || wifiUser.plan?.maxDevices || 1;
     if (maxDevices > 0) {
       try {
@@ -553,18 +575,6 @@ export async function POST(request: NextRequest) {
     } else {
       console.warn(`[AutoAuth] No valid client IP detected — proceeding without firewall activation`);
       skipFirewall = true;
-    }
-
-    // ── Close any existing active radacct session for this user ──
-    // Must do this BEFORE calling radiusAuth so that the Simultaneous-Use
-    // check does not count the stale session against the user.
-    try {
-      await db.$executeRawUnsafe(
-        `UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'User-Request', acctstatus = 'stop', acctupdatetime = NOW(), updatedat = NOW() WHERE username = $1 AND acctstoptime IS NULL`,
-        wifiUser.username
-      );
-    } catch (closeErr) {
-      console.warn('[AutoAuth] Failed to close existing sessions (non-critical):', closeErr);
     }
 
     // ── Authenticate via FreeRADIUS (validates Simultaneous-Use, expiration, etc.) ──
