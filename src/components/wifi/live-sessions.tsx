@@ -83,6 +83,7 @@ interface LiveSession {
   macAddress: string;
   nasIp: string;
   nasIdentifier?: string;
+  calledStationId?: string;
   deviceType?: string;
   deviceName?: string;
   operatingSystem?: string;
@@ -120,7 +121,7 @@ interface LiveSessionStats {
   totalActive: number;
   peakToday: number;
   peakTodayTime?: string;
-  perNas: { nasIp: string; nasIdentifier?: string; count: number }[];
+  perNas: { nasIp: string; nasIdentifier?: string; calledStationId?: string; count: number }[];
   totalDownload: number;
   totalUpload: number;
 }
@@ -900,7 +901,7 @@ export default function LiveSessions() {
         {/* Row 4: NAS info */}
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Router className="h-3 w-3" />
-          <span>{session.nasIdentifier || session.nasIp}</span>
+          <span>{session.nasIdentifier || session.nasIp}{session.calledStationId ? ` (${session.calledStationId})` : ''}</span>
         </div>
 
         {/* Row 5: Action buttons */}
@@ -1031,7 +1032,7 @@ export default function LiveSessions() {
           <span className="text-border">|</span>
           {stats.perNas.map((nas, idx) => (
             <Badge key={`${nas.nasIp}_${idx}`} variant="outline" className="text-xs gap-1 py-0 px-2 h-6">
-              {nas.nasIdentifier || nas.nasIp}: <span className="font-semibold">{nas.count}</span>
+              {nas.nasIdentifier || nas.nasIp}{nas.calledStationId ? ` (${nas.calledStationId})` : ''}: <span className="font-semibold">{nas.count}</span>
             </Badge>
           ))}
         </div>

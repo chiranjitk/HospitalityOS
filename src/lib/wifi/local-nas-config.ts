@@ -90,5 +90,6 @@ export async function getLocalNasConfig(propertyId: string): Promise<LocalNasCon
   return {
     calledStationId: '00:00:00:00:00:01',
     nasIpAddress: '127.0.0.1',
+    nasIdentifier: 'cryptsk-gateway',
   };
 }

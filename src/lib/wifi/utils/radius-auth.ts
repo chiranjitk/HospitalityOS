@@ -28,9 +28,12 @@ export async function radiusAuth(username: string, password: string): Promise<{
     const dictDir = RADIUS_DICT_DIR;
     const libDir = RADIUS_LIB_DIR;
 
-    const radclientInput = `User-Name = '${username}', User-Password = '${password}', NAS-IP-Address = 127.0.0.1, NAS-Port = 0, NAS-Port-Type = Wireless-802.11, Called-Station-Id = '${await getSystemCalledStationId()}'\n`;
+    // Look up the shared secret for the local system NAS (Cryptsk Gateway)
+    const { calledStationId, nasSecret, nasIdentifier } = await getSystemNasConfig();
 
-    const output = execFileSync(radclientBin, ['-D', dictDir, '-x', '127.0.0.1', 'auth', 'testing123', '3'], {
+    const radclientInput = `User-Name = '${username}', User-Password = '${password}', NAS-IP-Address = 127.0.0.1, NAS-Port = 0, NAS-Port-Type = Wireless-802.11, Called-Station-Id = '${calledStationId}', NAS-Identifier = '${nasIdentifier}'\n`;
+
+    const output = execFileSync(radclientBin, ['-D', dictDir, '-x', '127.0.0.1', 'auth', nasSecret, '3'], {
       input: radclientInput,
       encoding: 'utf-8',
       timeout: 5000,
@@ -42,7 +45,7 @@ export async function radiusAuth(username: string, password: string): Promise<{
         // the legacy provider for EAP/TLS. Without these, radclient shows
         // "(TLS) Failed loading legacy provider" and may hang.
         OPENSSL_CONF: process.env.OPENSSL_CONF || '/home/z/my-project/freeradius-install/openssl-with-legacy.cnf',
-        OPENSSL_MODULES: process.env.OPENSSL_MODULES || '/home/z/my-project/openssl-compat/lib64/ossl-modules',
+        OPENSSL_MODULES: process.env.OPENSSL_MODULES || '/usr/lib/x86_64-linux-gnu/ossl-modules',
       },
     });
 
@@ -104,19 +107,23 @@ export function getRejectMessage(code: string): string {
 }
 
 /**
- * Get the Called-Station-Id from the system NAS entry.
- * Falls back to '00:00:00:00:00:01' if not configured.
+ * Get the Called-Station-Id and NAS secret from the system NAS entry.
+ * Falls back to '00:00:00:00:00:01' / 'localkey' if not configured.
  */
-async function getSystemCalledStationId(): Promise<string> {
+async function getSystemNasConfig(): Promise<{ calledStationId: string; nasSecret: string; nasIdentifier: string }> {
   try {
     // Look up ANY active system NAS on 127.0.0.1 (Cryptsk Gateway)
     // Don't filter by propertyId — the system NAS is shared across properties
     const systemNas = await db.radiusNAS.findFirst({
       where: { ipAddress: '127.0.0.1', status: 'active' },
-      select: { calledStationId: true },
+      select: { calledStationId: true, secret: true, nasIdentifier: true },
     });
-    return systemNas?.calledStationId || '00:00:00:00:00:01';
+    return {
+      calledStationId: systemNas?.calledStationId || '00:00:00:00:00:01',
+      nasSecret: systemNas?.secret || 'localkey',
+      nasIdentifier: systemNas?.nasIdentifier || 'cryptsk-gateway',
+    };
   } catch {
-    return '00:00:00:00:00:01';
+    return { calledStationId: '00:00:00:00:00:01', nasSecret: 'localkey', nasIdentifier: 'cryptsk-gateway' };
   }
 }

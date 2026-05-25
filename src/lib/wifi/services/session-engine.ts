@@ -176,13 +176,13 @@ async function getLocalNasConfigFromFirstProperty() {
     // Don't filter by propertyId — the system NAS is shared across properties
     const systemNas = await db.radiusNAS.findFirst({
       where: { ipAddress: '127.0.0.1', status: 'active' },
-      select: { calledStationId: true, propertyId: true },
+      select: { calledStationId: true, nasIdentifier: true, propertyId: true },
     });
     if (systemNas?.calledStationId) {
-      return { calledStationId: systemNas.calledStationId };
+      return { calledStationId: systemNas.calledStationId, nasIdentifier: systemNas.nasIdentifier || 'cryptsk-gateway' };
     }
   } catch { /* non-fatal */ }
-  return { calledStationId: '00:00:00:00:00:01' };
+  return { calledStationId: '00:00:00:00:00:01', nasIdentifier: 'cryptsk-gateway' };
 }
 
 function minimalResult(): SessionEngineResult {
@@ -486,14 +486,14 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
                   nasipaddress, nasporttype, acctstarttime, acctupdatetime,
                   acctauthentic, framedipaddress, acctstatus,
                   acctinputoctets, acctoutputoctets, acctsessiontime,
-                  calledstationid, callingstationid,
+                  calledstationid, callingstationid, nasidentifier,
                   "loginType", createdat, updatedat
                 ) SELECT
                   gen_random_uuid(), v.acctsessionid, v.username,
                   '127.0.0.1', 'Wireless-802.11', v.acctstarttime, NOW(),
                   'PAP', v.framedipaddress, 'interim-update',
                   v.input_octets, v.output_octets, v.session_time,
-                  '${localNasForInterim.calledStationId}', v.callingstationid,
+                  '${localNasForInterim.calledStationId}', v.callingstationid, '${localNasForInterim.nasIdentifier}',
                   'session-engine', NOW(), NOW()
                 FROM (VALUES ${interimValues.join(',')}) AS v(
                   acctsessionid, username, framedipaddress, callingstationid,
@@ -1004,19 +1004,19 @@ async function disconnectSession(
         nasipaddress, nasporttype, acctstarttime, acctstoptime, acctupdatetime,
         acctauthentic, framedipaddress, acctstatus,
         acctinputoctets, acctoutputoctets, acctsessiontime, acctterminatecause,
-        calledstationid, callingstationid,
+        calledstationid, callingstationid, nasidentifier,
         "loginType", createdat, updatedat
       ) VALUES (
         gen_random_uuid(), $1, $2,
         '127.0.0.1', 'Wireless-802.11', $3, NOW(), NOW(),
         'PAP', $4, 'stop',
         $5, $6, $7, $8,
-        $10, $9,
+        $10, $9, $11,
         'session-engine', NOW(), NOW()
       )
     `, session.acctsessionid, session.username, session.acctstarttime, ip,
        uploadBytes, downloadBytes, sessionTime, reason, session.callingstationid,
-       localNasForStop.calledStationId);
+       localNasForStop.calledStationId, localNasForStop.nasIdentifier);
 
     try {
       const wifiSession = await tx.wiFiSession.findFirst({

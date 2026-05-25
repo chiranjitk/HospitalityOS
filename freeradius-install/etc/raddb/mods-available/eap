@@ -197,8 +197,8 @@ eap {
         #  authenticate via EAP-TLS!  This is likely not what you want.
         #
         tls-config tls-common {
-        #       private_key_password = whatever
-                private_key_file = ${certdir}/server_unencrypted.key
+                private_key_password =
+                private_key_file = ${certdir}/server_trad.key
 
                 #  If Private key & Certificate are located in
                 #  the same file, then private_key_file &
@@ -234,7 +234,7 @@ eap {
                 #  give advice which will work everywhere.  Instead,
                 #  we give general guidelines.
                 #
-                certificate_file = ${certdir}/server_cert_only.crt
+                certificate_file = ${certdir}/server.crt
 
                 #  Trusted Root CA list
                 #

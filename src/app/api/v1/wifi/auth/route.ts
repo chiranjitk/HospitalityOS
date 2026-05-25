@@ -2362,14 +2362,14 @@ async function createAccountingSession(
          nasipaddress, nasporttype, acctstarttime, acctupdatetime,
          acctauthentic, framedipaddress, acctstatus,
          acctinputoctets, acctoutputoctets, acctsessiontime,
-         calledstationid, callingstationid,
+         calledstationid, callingstationid, nasidentifier,
          "loginType", connectinfo_start, createdat, updatedat
        ) VALUES (
          $1, $2, $3,
          $4, 'Wireless-802.11', $5, $5,
          'PAP', $6, 'start',
          0, 0, 0,
-         $10, $8,
+         $10, $8, $11,
          $7, $9, NOW(), NOW()
        )`,
       acctUniqueId,
@@ -2382,6 +2382,7 @@ async function createAccountingSession(
       formattedMac,
       connectInfoStart,
       localNas.calledStationId,
+      localNas.nasIdentifier || 'cryptsk-gateway',
     );
 
     // Return the session ID so it can be passed to the login script

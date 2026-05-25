@@ -747,6 +747,7 @@ export async function GET(request: NextRequest) {
             framedipaddress: string | null;
             callingstationid: string | null;
             nasipaddress: string | null;
+            nasidentifier: string | null;
             calledstationid: string | null;
             acctstarttime: string | null;
             acctupdatetime: string | null;
@@ -774,7 +775,7 @@ export async function GET(request: NextRequest) {
           };
 
           const baseCols = `acctuniqueid, acctsessionid, username, framedipaddress,
-                   callingstationid, nasipaddress, calledstationid,
+                   callingstationid, nasipaddress, nasidentifier, calledstationid,
                    acctstarttime, acctupdatetime, acctsessiontime,
                    acctinputoctets, acctoutputoctets, nasporttype,
                    guest_first_name, guest_last_name, room_number,
@@ -865,6 +866,7 @@ export async function GET(request: NextRequest) {
             macAddress: string;
             nasIp: string;
             nasIdentifier: string;
+            calledStationId: string;
             deviceType: string;
             deviceName: string;
             operatingSystem: string;
@@ -933,7 +935,8 @@ export async function GET(request: NextRequest) {
               ipAddress: stripCidr(s.framedipaddress),
               macAddress: s.callingstationid || s.dp_macAddress || '',
               nasIp: stripCidr(s.nasipaddress),
-              nasIdentifier: s.calledstationid || '',
+              nasIdentifier: s.nasidentifier || '',
+              calledStationId: s.calledstationid || '',
               // Device info: DeviceProfile (fingerprint) > MAC OUI (external NAS) > empty
               deviceType: devType,
               deviceName: devName,
@@ -1035,18 +1038,19 @@ export async function GET(request: NextRequest) {
         try {
           const activeRecords = await db.$queryRawUnsafe<{
             nasipaddress: string | null;
+            nasidentifier: string | null;
             calledstationid: string | null;
             acctoutputoctets: number | null;
             acctinputoctets: number | null;
           }[]>(`
-            SELECT nasipaddress, calledstationid, COALESCE(acctoutputoctets, 0) as acctoutputoctets, COALESCE(acctinputoctets, 0) as acctinputoctets
+            SELECT nasipaddress, nasidentifier, calledstationid, COALESCE(acctoutputoctets, 0) as acctoutputoctets, COALESCE(acctinputoctets, 0) as acctinputoctets
             FROM v_active_sessions
             WHERE session_status = 'active' AND "tenantId" = $1::uuid
           `, context.tenantId);
 
           const totalActive = activeRecords.length;
           // Group by NAS IP for per-NAS breakdown
-          const nasMap = new Map<string, { nasIdentifier: string; count: number }>();
+          const nasMap = new Map<string, { nasIdentifier: string; calledStationId: string; count: number }>();
           let totalDownload = 0;
           let totalUpload = 0;
 
@@ -1057,8 +1061,11 @@ export async function GET(request: NextRequest) {
             const existing = nasMap.get(key);
             if (existing) {
               existing.count++;
+              // Prefer non-empty values for nasIdentifier and calledStationId
+              if (r.nasidentifier && !existing.nasIdentifier) existing.nasIdentifier = r.nasidentifier;
+              if (r.calledstationid && !existing.calledStationId) existing.calledStationId = r.calledstationid;
             } else {
-              nasMap.set(key, { nasIdentifier: r.calledstationid || '', count: 1 });
+              nasMap.set(key, { nasIdentifier: r.nasidentifier || '', calledStationId: r.calledstationid || '', count: 1 });
             }
           }
 
@@ -1070,6 +1077,7 @@ export async function GET(request: NextRequest) {
               perNas: Array.from(nasMap.entries()).map(([nasIp, info]) => ({
                 nasIp,
                 nasIdentifier: info.nasIdentifier,
+                calledStationId: info.calledStationId,
                 count: info.count,
               })),
               totalDownload,

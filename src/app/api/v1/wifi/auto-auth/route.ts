@@ -1031,14 +1031,14 @@ async function createAccountingSession(
          nasipaddress, nasporttype, acctstarttime, acctupdatetime,
          acctauthentic, framedipaddress, acctstatus,
          acctinputoctets, acctoutputoctets, acctsessiontime,
-         calledstationid, callingstationid,
+         calledstationid, callingstationid, nasidentifier,
          "loginType", createdat, updatedat
        ) VALUES (
          $1, $2, $3,
          $4, 'Wireless-802.11', $5, $5,
          'PAP', $6, 'start',
          0, 0, 0,
-         $9, $8,
+         $9, $8, $10,
          $7, NOW(), NOW()
        )`,
       acctUniqueId,
@@ -1049,7 +1049,8 @@ async function createAccountingSession(
       clientIp,
       loginType,
       formattedMac,
-      localNas.calledStationId
+      localNas.calledStationId,
+      localNas.nasIdentifier || 'cryptsk-gateway'
     );
 
     console.log(`[AutoAuth] radacct session created for ${username} (loginType: ${loginType}, IP: ${clientIp}, MAC: ${formattedMac || 'N/A'})`);
