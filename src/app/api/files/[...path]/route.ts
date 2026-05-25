@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 // Resolve upload dir relative to project root (works on any setup)
-const UPLOAD_DIR = path.resolve(process.cwd(), 'upload');
+const UPLOAD_DIR = path.resolve(/*turbopackIgnore: true*/ process.cwd(), 'upload');
 
 const MIME_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -24,7 +24,7 @@ export async function GET(
     const relativePath = pathSegments.join('/');
 
     // Resolve to an absolute path
-    const resolvedPath = path.resolve(UPLOAD_DIR, relativePath);
+    const resolvedPath = path.resolve(/*turbopackIgnore: true*/ UPLOAD_DIR, relativePath);
 
     // Prevent directory traversal: ensure the resolved path is within UPLOAD_DIR
     if (!resolvedPath.startsWith(UPLOAD_DIR + path.sep) && resolvedPath !== UPLOAD_DIR) {
@@ -32,12 +32,12 @@ export async function GET(
     }
 
     // Check if the file exists
-    if (!fs.existsSync(resolvedPath)) {
+    if (!fs.existsSync(/*turbopackIgnore: true*/ resolvedPath)) {
       return new NextResponse('Not Found', { status: 404 });
     }
 
     // Verify it's a file, not a directory
-    const stat = fs.statSync(resolvedPath);
+    const stat = fs.statSync(/*turbopackIgnore: true*/ resolvedPath);
     if (!stat.isFile()) {
       return new NextResponse('Not Found', { status: 404 });
     }
@@ -51,7 +51,7 @@ export async function GET(
     }
 
     // Read the file
-    const fileBuffer = fs.readFileSync(resolvedPath);
+    const fileBuffer = fs.readFileSync(/*turbopackIgnore: true*/ resolvedPath);
 
     // Return the file with proper headers
     return new Response(fileBuffer, {

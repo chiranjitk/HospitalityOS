@@ -29,11 +29,11 @@ import path from 'path';
 // Production:  /usr/local/scripts/nftables/ztna-apply.sh
 // Sandbox:    <project>/scripts/nftables/ztna-apply.sh
 
-const PROJECT_ROOT = process.cwd();
+const PROJECT_ROOT = /*turbopackIgnore: true*/ process.cwd();
 const ZTNA_SCRIPT = process.env.ZTNA_SCRIPT_PATH ||
   (process.env.NODE_ENV === 'production'
     ? '/usr/local/scripts/nftables/ztna-apply.sh'
-    : path.join(PROJECT_ROOT, 'scripts', 'nftables', 'ztna-apply.sh'));
+    : path.join(/*turbopackIgnore: true*/ PROJECT_ROOT, 'scripts', 'nftables', 'ztna-apply.sh'));
 
 // ─── Types ────────────────────────────────────────────────────────
 

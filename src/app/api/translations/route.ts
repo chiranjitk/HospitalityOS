@@ -31,32 +31,32 @@ export async function GET(request: NextRequest) {
   
   try {
     // Construct the file path safely
-    const messagesDir = path.join(process.cwd(), 'src', 'messages');
-    const filePath = path.join(messagesDir, `${locale}.json`);
+    const messagesDir = path.join(/*turbopackIgnore: true*/ process.cwd(), 'src', 'messages');
+    const filePath = path.join(/*turbopackIgnore: true*/ messagesDir, `${locale}.json`);
     
     // Ensure the resolved path is still within messages directory (double-check)
-    const resolvedPath = path.resolve(filePath);
-    if (!resolvedPath.startsWith(path.resolve(messagesDir))) {
+    const resolvedPath = path.resolve(/*turbopackIgnore: true*/ filePath);
+    if (!resolvedPath.startsWith(path.resolve(/*turbopackIgnore: true*/ messagesDir))) {
       return NextResponse.json(
         { error: 'Invalid locale path' },
         { status: 400 }
       );
     }
     
-    if (!fs.existsSync(filePath)) {
+    if (!fs.existsSync(/*turbopackIgnore: true*/ filePath)) {
       // Fallback to English if locale file doesn't exist
-      const fallbackPath = path.join(messagesDir, 'en.json');
+      const fallbackPath = path.join(/*turbopackIgnore: true*/ messagesDir, 'en.json');
       
       // Check fallback path is also safe
-      const resolvedFallback = path.resolve(fallbackPath);
-      if (!resolvedFallback.startsWith(path.resolve(messagesDir))) {
+      const resolvedFallback = path.resolve(/*turbopackIgnore: true*/ fallbackPath);
+      if (!resolvedFallback.startsWith(path.resolve(/*turbopackIgnore: true*/ messagesDir))) {
         return NextResponse.json(
           { error: 'Invalid fallback path' },
           { status: 500 }
         );
       }
       
-      if (!fs.existsSync(fallbackPath)) {
+      if (!fs.existsSync(/*turbopackIgnore: true*/ fallbackPath)) {
         return NextResponse.json(
           { error: 'Translation file not found' },
           { status: 404 }
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Check file size before reading
-    const stats = fs.statSync(filePath);
+    const stats = fs.statSync(/*turbopackIgnore: true*/ filePath);
     if (stats.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         { error: 'Translation file too large' },

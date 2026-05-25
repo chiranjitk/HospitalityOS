@@ -19,7 +19,7 @@ function resolveDatabaseUrl(): string {
 
   // Try to read from .env file directly
   try {
-    const envPath = join(process.cwd(), '.env');
+    const envPath = join(/*turbopackIgnore: true*/ process.cwd(), '.env');
     const envContent = readFileSync(envPath, 'utf-8');
     const match = envContent.match(/^DATABASE_URL=(.+)$/m);
     if (match?.[1]) {

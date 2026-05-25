@@ -28,11 +28,11 @@ import path from 'path';
 
 // ─── Script Path ──────────────────────────────────────────────────
 
-const PROJECT_ROOT = process.cwd();
+const PROJECT_ROOT = /*turbopackIgnore: true*/ process.cwd();
 const ROOM_VLAN_SCRIPT = process.env.ROOM_VLAN_SCRIPT_PATH ||
   (process.env.NODE_ENV === 'production'
     ? '/usr/local/scripts/nftables/room-vlan-apply.sh'
-    : path.join(PROJECT_ROOT, 'scripts', 'nftables', 'room-vlan-apply.sh'));
+    : path.join(/*turbopackIgnore: true*/ PROJECT_ROOT, 'scripts', 'nftables', 'room-vlan-apply.sh'));
 
 // ─── Types ────────────────────────────────────────────────────────
 

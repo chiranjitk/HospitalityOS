@@ -83,10 +83,10 @@ export async function POST(req: NextRequest) {
   }
 
   const langName = LANGUAGE_NAMES[locale];
-  const msgsDir = path.join(process.cwd(), 'src', 'messages');
+  const msgsDir = path.join(/*turbopackIgnore: true*/ process.cwd(), 'src', 'messages');
   
-  const en = JSON.parse(fs.readFileSync(path.join(msgsDir, 'en.json'), 'utf8'));
-  const locData = JSON.parse(fs.readFileSync(path.join(msgsDir, `${locale}.json`), 'utf8'));
+  const en = JSON.parse(fs.readFileSync(path.join(/*turbopackIgnore: true*/ msgsDir, 'en.json'), 'utf8'));
+  const locData = JSON.parse(fs.readFileSync(path.join(/*turbopackIgnore: true*/ msgsDir, `${locale}.json`), 'utf8'));
   
   const enFlat = flatten(en);
   const locFlat = flatten(locData);
@@ -200,14 +200,14 @@ export async function GET() {
   const ctx = await requirePlatformAdmin(request);
   if (ctx instanceof NextResponse) return ctx;
 
-  const msgsDir = path.join(process.cwd(), 'src', 'messages');
-  const en = JSON.parse(fs.readFileSync(path.join(msgsDir, 'en.json'), 'utf8'));
+  const msgsDir = path.join(/*turbopackIgnore: true*/ process.cwd(), 'src', 'messages');
+  const en = JSON.parse(fs.readFileSync(path.join(/*turbopackIgnore: true*/ msgsDir, 'en.json'), 'utf8'));
   const enFlat = flatten(en);
   const locales = Object.keys(LANGUAGE_NAMES);
   
   const status: Record<string, { total: number; translated: number; pct: string }> = {};
   for (const loc of locales) {
-    const data = JSON.parse(fs.readFileSync(path.join(msgsDir, `${loc}.json`), 'utf8'));
+    const data = JSON.parse(fs.readFileSync(path.join(/*turbopackIgnore: true*/ msgsDir, `${loc}.json`), 'utf8'));
     const locFlat = flatten(data);
     let same = 0, diff = 0;
     for (const [k, v] of Object.entries(enFlat)) {

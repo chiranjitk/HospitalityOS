@@ -29,7 +29,7 @@ function resolveScriptsDir(): string {
     // 1. Relative to process.cwd() (works in dev and production)
     path.resolve(/*turbopackIgnore: true*/ process.cwd(), 'scripts/network'),
     // 2. Relative to this source file (works in production builds)
-    path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/\/src\/lib\/network\/.*/, '')), 'scripts/network'),
+    path.resolve(/*turbopackIgnore: true*/ path.dirname(new URL(import.meta.url).pathname.replace(/\/src\/lib\/network\/.*/, '')), 'scripts/network'),
     // 3. Relative to __dirname in CommonJS context
     ...(typeof __dirname !== 'undefined' ? [
       path.resolve(path.dirname(__dirname), '../../scripts/network'),

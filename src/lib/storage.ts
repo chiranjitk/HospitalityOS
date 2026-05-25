@@ -161,7 +161,7 @@ async function uploadToLocal(
   contentType?: string
 ): Promise<UploadResult> {
   try {
-    const filePath = join(process.cwd(), 'public', 'uploads', key);
+    const filePath = join(/*turbopackIgnore: true*/ process.cwd(), 'public', 'uploads', key);
     const dir = filePath.substring(0, filePath.lastIndexOf('/'));
     
     await mkdir(dir, { recursive: true });

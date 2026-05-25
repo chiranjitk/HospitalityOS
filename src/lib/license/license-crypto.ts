@@ -60,15 +60,15 @@ export interface SignedLicense {
  * Override with LICENSE_KEY_DIR env var.
  */
 function getKeyDir(): string {
-  return process.env.LICENSE_KEY_DIR || join(process.cwd(), '.license-keys');
+  return process.env.LICENSE_KEY_DIR || join(/*turbopackIgnore: true*/ process.cwd(), '.license-keys');
 }
 
 export function getPrivateKeyPath(): string {
-  return join(getKeyDir(), 'private.pem');
+  return join(/*turbopackIgnore: true*/ getKeyDir(), 'private.pem');
 }
 
 export function getPublicKeyPath(): string {
-  return join(getKeyDir(), 'public.pem');
+  return join(/*turbopackIgnore: true*/ getKeyDir(), 'public.pem');
 }
 
 // =====================================================
@@ -82,15 +82,15 @@ export function getPublicKeyPath(): string {
 export function ensureKeyPair(): string {
   const dir = getKeyDir();
 
-  if (!existsSync(dir)) {
+  if (!existsSync(/*turbopackIgnore: true*/ dir)) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
 
   const privateKeyPath = getPrivateKeyPath();
   const publicKeyPath = getPublicKeyPath();
 
-  if (existsSync(publicKeyPath) && existsSync(privateKeyPath)) {
-    return readFileSync(publicKeyPath, 'utf-8');
+  if (existsSync(/*turbopackIgnore: true*/ publicKeyPath) && existsSync(/*turbopackIgnore: true*/ privateKeyPath)) {
+    return readFileSync(/*turbopackIgnore: true*/ publicKeyPath, 'utf-8');
   }
 
   // Generate new Ed25519 key pair
@@ -134,8 +134,8 @@ export function getPublicKey(): string {
 
   // 3. File on disk
   const pubPath = getPublicKeyPath();
-  if (existsSync(pubPath)) {
-    return readFileSync(pubPath, 'utf-8');
+  if (existsSync(/*turbopackIgnore: true*/ pubPath)) {
+    return readFileSync(/*turbopackIgnore: true*/ pubPath, 'utf-8');
   }
 
   // 4. Generate (dev mode)
@@ -148,8 +148,8 @@ export function getPublicKey(): string {
  */
 export function getPrivateKey(): string {
   const privPath = getPrivateKeyPath();
-  if (existsSync(privPath)) {
-    return readFileSync(privPath, 'utf-8');
+  if (existsSync(/*turbopackIgnore: true*/ privPath)) {
+    return readFileSync(/*turbopackIgnore: true*/ privPath, 'utf-8');
   }
 
   // Dev mode: generate

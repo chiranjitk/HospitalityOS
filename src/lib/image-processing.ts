@@ -38,13 +38,13 @@ export async function processImage(
   const metadata = await getImageMetadata(filePath);
 
   // ---- Ensure thumbnail directory exists ----
-  const thumbsDir = path.join(UPLOAD_DIR, folder, 'thumbs');
-  if (!existsSync(thumbsDir)) {
+  const thumbsDir = path.join(/*turbopackIgnore: true*/ UPLOAD_DIR, folder, 'thumbs');
+  if (!existsSync(/*turbopackIgnore: true*/ thumbsDir)) {
     await fs.mkdir(thumbsDir, { recursive: true });
   }
 
   // ---- Generate thumbnail ----
-  const thumbPath = path.join(thumbsDir, filename);
+  const thumbPath = path.join(/*turbopackIgnore: true*/ thumbsDir, filename);
   try {
     await sharp(filePath)
       .resize(300, 300, { fit: 'cover', withoutEnlargement: true })
@@ -64,7 +64,7 @@ export async function processImage(
   // Replace extension with .jpg for medium output consistency
   const parsed = path.parse(filename);
   const mediumFilename = `${parsed.name}-medium.jpg`;
-  const mediumPath = path.join(UPLOAD_DIR, folder, mediumFilename);
+  const mediumPath = path.join(/*turbopackIgnore: true*/ UPLOAD_DIR, folder, mediumFilename);
 
   try {
     await sharp(filePath)

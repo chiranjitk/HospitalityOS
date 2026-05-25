@@ -6,7 +6,7 @@ import { processImage } from '@/lib/image-processing';
 import { checkStorageLimit, updateStorageUsage } from '@/lib/storage-quota';
 import { db } from '@/lib/db';
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'upload');
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(/*turbopackIgnore: true*/ process.cwd(), 'upload');
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
@@ -21,8 +21,8 @@ function sanitizeFolder(folder: string): string {
 
 function isPathSafe(resolvedPath: string): boolean {
   // Ensure the resolved path is within the upload directory
-  const normalizedUploadDir = path.resolve(UPLOAD_DIR);
-  const normalizedTargetPath = path.resolve(resolvedPath);
+  const normalizedUploadDir = path.resolve(/*turbopackIgnore: true*/ UPLOAD_DIR);
+  const normalizedTargetPath = path.resolve(/*turbopackIgnore: true*/ resolvedPath);
   return normalizedTargetPath.startsWith(normalizedUploadDir + path.sep) || normalizedTargetPath === normalizedUploadDir;
 }
 
@@ -118,8 +118,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the target directory
-    const targetDir = path.join(UPLOAD_DIR, safeFolder);
-    const resolvedTargetDir = path.resolve(targetDir);
+    const targetDir = path.join(/*turbopackIgnore: true*/ UPLOAD_DIR, safeFolder);
+    const resolvedTargetDir = path.resolve(/*turbopackIgnore: true*/ targetDir);
 
     if (!isPathSafe(resolvedTargetDir)) {
       return NextResponse.json(
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create directory if it doesn't exist
-    if (!fs.existsSync(resolvedTargetDir)) {
+    if (!fs.existsSync(/*turbopackIgnore: true*/ resolvedTargetDir)) {
       fs.mkdirSync(resolvedTargetDir, { recursive: true });
     }
 
@@ -139,8 +139,8 @@ export async function POST(request: NextRequest) {
     const originalExt = path.extname(file.name) || '.jpg';
     const uniqueFilename = `${timestamp}-${randomSuffix}${originalExt}`;
 
-    const filePath = path.join(resolvedTargetDir, uniqueFilename);
-    const resolvedFilePath = path.resolve(filePath);
+    const filePath = path.join(/*turbopackIgnore: true*/ resolvedTargetDir, uniqueFilename);
+    const resolvedFilePath = path.resolve(/*turbopackIgnore: true*/ filePath);
 
     // Double-check the resolved file path is still safe
     if (!isPathSafe(resolvedFilePath)) {
@@ -278,8 +278,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const filePath = path.join(UPLOAD_DIR, relativePath);
-    const resolvedFilePath = path.resolve(filePath);
+    const filePath = path.join(/*turbopackIgnore: true*/ UPLOAD_DIR, relativePath);
+    const resolvedFilePath = path.resolve(/*turbopackIgnore: true*/ filePath);
 
     // Security: ensure the resolved path is within the upload directory
     if (!isPathSafe(resolvedFilePath)) {
@@ -290,7 +290,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if file exists
-    if (!fs.existsSync(resolvedFilePath)) {
+    if (!fs.existsSync(/*turbopackIgnore: true*/ resolvedFilePath)) {
       return NextResponse.json(
         { success: false, error: 'File not found' },
         { status: 404 }
@@ -298,7 +298,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify it's a file, not a directory
-    const stat = fs.statSync(resolvedFilePath);
+    const stat = fs.statSync(/*turbopackIgnore: true*/ resolvedFilePath);
     if (!stat.isFile()) {
       return NextResponse.json(
         { success: false, error: 'Invalid file path' },
@@ -325,12 +325,12 @@ export async function DELETE(request: NextRequest) {
     // Also try to delete the thumbnail file from disk if it exists
     const folder = parts[0];
     const filename = parts.length === 3 ? parts[2] : parts[1];
-    const thumbPath = path.join(UPLOAD_DIR, folder, 'thumbs', filename);
-    const resolvedThumbPath = path.resolve(thumbPath);
+    const thumbPath = path.join(/*turbopackIgnore: true*/ UPLOAD_DIR, folder, 'thumbs', filename);
+    const resolvedThumbPath = path.resolve(/*turbopackIgnore: true*/ thumbPath);
     if (isPathSafe(resolvedThumbPath)) {
       try {
-        if (fs.existsSync(resolvedThumbPath)) {
-          const thumbStat = fs.statSync(resolvedThumbPath);
+        if (fs.existsSync(/*turbopackIgnore: true*/ resolvedThumbPath)) {
+          const thumbStat = fs.statSync(/*turbopackIgnore: true*/ resolvedThumbPath);
           if (thumbStat.isFile()) {
             fs.unlinkSync(resolvedThumbPath);
           }

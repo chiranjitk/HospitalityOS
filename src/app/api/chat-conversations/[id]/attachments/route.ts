@@ -199,7 +199,7 @@ export async function DELETE(
     // Delete file from disk (only for locally stored files with valid path)
     if ((attachment.storageProvider === 'local' || attachment.fileUrl.startsWith('/uploads/')) && attachment.fileUrl.startsWith('/uploads/chat/')) {
       try {
-        const filePath = join(process.cwd(), 'public', attachment.fileUrl);
+        const filePath = join(/*turbopackIgnore: true*/ process.cwd(), 'public', attachment.fileUrl);
         await unlink(filePath);
       } catch {
         // File might not exist, continue with DB deletion

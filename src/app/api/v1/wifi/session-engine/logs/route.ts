@@ -14,8 +14,8 @@ import path from 'path';
 // Requires wifi.manage permission.
 // ────────────────────────────────────────────────────────────────
 
-const LOG_DIR = path.join(process.cwd(), 'logs');
-const LOG_FILE = path.join(LOG_DIR, 'session-engine.log');
+const LOG_DIR = path.join(/*turbopackIgnore: true*/ process.cwd(), 'logs');
+const LOG_FILE = path.join(/*turbopackIgnore: true*/ LOG_DIR, 'session-engine.log');
 const MAX_LINES = 500;
 
 export async function GET(request: NextRequest) {
