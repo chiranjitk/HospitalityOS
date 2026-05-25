@@ -1149,8 +1149,11 @@ if [[ -f "${APP_DIR}/pgsql-production/update-live-db.sql" ]]; then
   success "update-live-db.sql applied (incremental schema fixes)"
 fi
 
-# nftables-service tables are now managed by the nftables mini-service itself
-# (removed — no longer a separate SQL file in pgsql-production/)
+# nftables-service tables (FirewallRule, PortForwardRule, RateLimitRule, QuickBlock,
+# FirewallSchedule) are managed by prisma/schema.prisma — created automatically by
+# "prisma db push" in Step 10. No separate SQL file needed.
+# Note: nftables runs on a physical box serving one property only, so the service
+# reads ALL enabled rules without tenant/property filtering.
 
 # Re-grant all permissions (after prisma push and complete-database.sql)
 sudo -u postgres psql -d staysuite <<'EOSQL'
