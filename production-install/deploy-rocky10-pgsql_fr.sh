@@ -1660,7 +1660,7 @@ echo ""
 
 echo -e "${BOLD}  CREDENTIALS${NC}"
 echo "    DB (staysuite):    postgresql://staysuite:${DB_PASSWORD}@127.0.0.1:5432/staysuite"
-echo "    NextAuth Secret:  ${APP_SECRET}"
+echo "    NextAuth Secret:  (see NEXTAUTH_SECRET in ${APP_DIR}/.env)"
 if ! $SKIP_MIKROTIK; then
 echo "    MikroTik IP:      ${MIKROTIK_IP}"
 fi
