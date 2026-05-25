@@ -961,7 +961,8 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
-        const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, resolvedPropertyId);
+        let voucherSessionId: string | null = null;
+        voucherSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, resolvedPropertyId);
 
         // Activate firewall (internal NAS) or skip (external gateway handles firewall)
         if (!externalGateway) {
@@ -971,7 +972,7 @@ export async function POST(request: NextRequest) {
           );
           await activateUserFirewall({
             username: wifiUsername, clientIp: getClientIpString(request),
-            propertyId: resolvedPropertyId, sessionId,
+            propertyId: resolvedPropertyId, sessionId: voucherSessionId,
             macAddress: effectiveMac,
             dnKbps: voucherBw.dn,
             upKbps: voucherBw.up,
@@ -1009,7 +1010,7 @@ export async function POST(request: NextRequest) {
             authenticated: true, method: 'voucher', username: wifiUsername,
             sessionTimeout: voucherSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
             poolName: pool.poolName, message: 'Connected successfully!',
-            sessionId,
+            sessionId: voucherSessionId,
             guestId: voucher.guestId || null,
           },
           { username: wifiUsername, password: voucher.code },
@@ -1104,11 +1105,14 @@ export async function POST(request: NextRequest) {
 
         const existingUser = existingByBooking || existingByGuest;
         const reuseExisting = !!existingUser;
+        let pmsReuseSessionId: string | null = null;
+        let pmsGuestId: string | null = null;
 
         if (reuseExisting) {
           // ── Reuse existing PMS-provisioned user ──
           // This guest was auto-provisioned at check-in — use their plan attrs
           const pmsUser = existingUser!;
+          pmsGuestId = pmsUser.guestId || null;
 
           if (pmsUser.status !== 'active') {
             await logAuthAttempt(pmsUser.username, 'Access-Reject', request, 'ACCOUNT_INACTIVE');
@@ -1179,7 +1183,7 @@ export async function POST(request: NextRequest) {
           const pmsBwUp = pmsBwUpBps ? Math.round(Number(pmsBwUpBps) / 1000000) : (pmsUser.plan?.uploadSpeed || bwUp);
 
           await logAuthAttempt(pmsUser.username, 'Access-Accept', request, `pool:${pool.poolName} reuse:pms plan:${pmsUser.plan?.name || 'none'}`);
-          const sessionId = await createAccountingSession(pmsUser.username, request, 'portal', effectiveMac, pool, match.propertyId);
+          pmsReuseSessionId = await createAccountingSession(pmsUser.username, request, 'portal', effectiveMac, pool, match.propertyId);
 
           // Activate firewall (internal NAS) or skip (external gateway handles firewall)
           if (!externalGateway) {
@@ -1189,7 +1193,7 @@ export async function POST(request: NextRequest) {
             );
             await activateUserFirewall({
               username: pmsUser.username, clientIp: getClientIpString(request),
-              propertyId: match.propertyId, sessionId,
+              propertyId: match.propertyId, sessionId: pmsReuseSessionId,
               macAddress: effectiveMac, userId: pmsUser.id,
               dnKbps: pmsBw.dn,
               upKbps: pmsBw.up,
@@ -1229,8 +1233,8 @@ export async function POST(request: NextRequest) {
               bandwidthDown: pmsBwDown, bandwidthUp: pmsBwUp,
               poolName: pool.poolName, planName: pmsUser.plan?.name || null,
               message: 'Connected successfully!',
-              sessionId,
-              guestId: pmsUser.guestId || null,
+              sessionId: pmsReuseSessionId,
+              guestId: pmsGuestId,
             },
             { username: pmsUser.username, password: pmsUser.password },
             externalGateway
@@ -1301,13 +1305,14 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName} fallback:room_user`);
-        const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, match.propertyId);
+        let roomSessionId: string | null = null;
+        roomSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, match.propertyId);
 
         // Activate firewall (internal NAS) or skip (external gateway handles firewall)
         if (!externalGateway) {
           await activateUserFirewall({
             username: wifiUsername, clientIp: getClientIpString(request),
-            propertyId: match.propertyId, sessionId,
+            propertyId: match.propertyId, sessionId: roomSessionId,
             macAddress: effectiveMac,
             dnKbps: roomPlanDnKbps,
             upKbps: roomPlanUpKbps,
@@ -1343,7 +1348,7 @@ export async function POST(request: NextRequest) {
             authenticated: true, method: 'room_number', username: wifiUsername,
             sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
             poolName: pool.poolName, message: 'Connected successfully!',
-            sessionId,
+            sessionId: roomSessionId,
             guestId: match.primaryGuestId || null,
           },
           { username: wifiUsername, password: userPassword },
@@ -1424,7 +1429,8 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(username.trim(), 'Access-Accept', request, `pool:${pool.poolName}`);
-        const sessionId = await createAccountingSession(username.trim(), request, 'portal', effectiveMac, pool, wifiUser.propertyId);
+        let pmsCredSessionId: string | null = null;
+        pmsCredSessionId = await createAccountingSession(username.trim(), request, 'portal', effectiveMac, pool, wifiUser.propertyId);
 
         // ── Calculate plan validity for session timeout & display ──
         // validUntil is NOT reset here — it was set ONCE at user creation.
@@ -1481,7 +1487,7 @@ export async function POST(request: NextRequest) {
         if (!externalGateway) {
           await activateUserFirewall({
             username: username.trim(), clientIp: getClientIpString(request),
-            propertyId: wifiUser.propertyId, sessionId,
+            propertyId: wifiUser.propertyId, sessionId: pmsCredSessionId,
             macAddress: effectiveMac, userId: wifiUser.id,
             dnKbps: bwDownBps ? Math.round(Number(bwDownBps) / 1000) : (wifiUser.plan?.downloadSpeed || bwDown) * 1000,
             upKbps: bwUpBps ? Math.round(Number(bwUpBps) / 1000) : (wifiUser.plan?.uploadSpeed || bwUp) * 1000,
@@ -1523,7 +1529,7 @@ export async function POST(request: NextRequest) {
             authenticated: true, method: 'pms_credentials', username: wifiUser.username,
             sessionTimeout: planValidityMin, remainingMinutes, bandwidthDown: userBwDown, bandwidthUp: userBwUp,
             poolName: pool.poolName, message: 'Connected successfully!',
-            sessionId,
+            sessionId: pmsCredSessionId,
             guestId: wifiUser.guestId || null,
           },
           { username: wifiUser.username, password: wifiUser.password },
@@ -1586,6 +1592,8 @@ export async function POST(request: NextRequest) {
           const now = new Date();
           const validUntil = new Date(now.getTime() + portalSessionTimeoutMin * 60 * 1000);
           const wifiUsername = `sms-${normalizedPhone.replace(/[^a-z0-9]/gi, '')}`;
+          let smsSessionId: string | null = null;
+          let smsGuestId: string | null = null;
 
           const fallbackPropertyId = portal?.propertyId
             || await (portal?.tenantId
@@ -1652,13 +1660,13 @@ export async function POST(request: NextRequest) {
             }
 
             await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${smsPool.poolName}${smsPlanId ? ' plan:aaa' : ''}`);
-            const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, smsPool, fallbackPropertyId);
+            smsSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, smsPool, fallbackPropertyId);
 
             // Activate firewall (internal NAS) or skip (external gateway handles firewall)
             if (!externalGateway) {
               await activateUserFirewall({
                 username: wifiUsername, clientIp: getClientIpString(request),
-                propertyId: fallbackPropertyId, sessionId,
+                propertyId: fallbackPropertyId, sessionId: smsSessionId,
                 macAddress: effectiveMac,
                 dnKbps: smsPlanDnKbps,
                 upKbps: smsPlanUpKbps,
@@ -1679,6 +1687,7 @@ export async function POST(request: NextRequest) {
                 select: { id: true, tenantId: true, propertyId: true, guestId: true },
               });
               if (smsUser) {
+                smsGuestId = smsUser.guestId || null;
                 await upsertDeviceProfileWithFingerprint({
                   wifiUserId: smsUser.id, tenantId: smsUser.tenantId,
                   propertyId: smsUser.propertyId, guestId: smsUser.guestId,
@@ -1702,8 +1711,8 @@ export async function POST(request: NextRequest) {
               authenticated: true, method: 'sms_otp', username: wifiUsername,
               sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
               poolName: smsPool.poolName, message: 'Connected successfully!',
-              sessionId,
-              guestId: smsUser?.guestId || null,
+              sessionId: smsSessionId,
+              guestId: smsGuestId,
             },
             { username: wifiUsername, password: smsOtpPassword },
             externalGateway
@@ -1804,6 +1813,7 @@ export async function POST(request: NextRequest) {
         const validUntil = new Date(now.getTime() + portalSessionTimeoutMin * 60 * 1000);
         let wifiUsername: string | null = null;
         let openPassword: string | null = null;
+        let openAccessSessionId: string | null = null;
 
         if (portal) {
           const openTimestamp = Date.now();
@@ -1861,13 +1871,13 @@ export async function POST(request: NextRequest) {
               }
 
               await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
-              const sessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, resolvedPropertyId);
+              openAccessSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, resolvedPropertyId);
 
               // Activate firewall (internal NAS) or skip (external gateway handles firewall)
               if (!externalGateway) {
                 await activateUserFirewall({
                   username: wifiUsername, clientIp: getClientIpString(request),
-                  propertyId: resolvedPropertyId, sessionId,
+                  propertyId: resolvedPropertyId, sessionId: openAccessSessionId,
                   macAddress: effectiveMac,
                   dnKbps: openPlanDnKbps,
                   upKbps: openPlanUpKbps,
@@ -1900,7 +1910,7 @@ export async function POST(request: NextRequest) {
             authenticated: true, method: 'open_access', username: wifiUsername,
             sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
             poolName: pool.poolName, message: 'Connected successfully!',
-            sessionId,
+            sessionId: openAccessSessionId,
             guestId: null,
           },
           wifiUsername && openPassword ? { username: wifiUsername, password: openPassword } : undefined,
