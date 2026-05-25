@@ -437,10 +437,10 @@ authorize {
         #  previous versions of this configuration, but you may wish to
         #  uncomment it as well; this will further reduce the number of
         #  LDAP and/or SQL queries for TTLS or PEAP.
-        eap {
-                ok = return
-                updated = return
-        }
+        # eap {  (disabled — no certs in sandbox)
+        #         ok = return
+        #         updated = return
+        # }
 
         #
         #  Pull crypt'd passwords from /etc/passwd or /etc/shadow,
@@ -746,7 +746,7 @@ authenticate {
 
         #
         #  Allow EAP authentication.
-        eap
+        # eap  (disabled — no certs in sandbox)
 
         #
         #  The older configurations sent a number of attributes in
@@ -754,15 +754,15 @@ authenticate {
         #  If you want to filter out these attributes, uncomment
         #  the following lines.
         #
-        Auth-Type eap {
-                eap {
-                        handled = 1
-                }
-                if (handled && (Response-Packet-Type == Access-Challenge)) {
-                        attr_filter.access_challenge.post-auth
-                        handled  # override the "updated" code from attr_filter
-                }
-        }
+        # Auth-Type eap {  (disabled — no certs in sandbox)
+        #         eap {
+        #                 handled = 1
+        #         }
+        #         if (handled && (Response-Packet-Type == Access-Challenge)) {
+        #                 attr_filter.access_challenge.post-auth
+        #                 handled  # override the "updated" code from attr_filter
+        #         }
+        # }
 }
 
 
@@ -1146,7 +1146,7 @@ post-auth {
 #       }
 
         #  Remove reply message if the response contains an EAP-Message
-        remove_reply_message_if_eap
+        # remove_reply_message_if_eap  (disabled — no certs in sandbox)
 
         #
         #  Access-Reject packets are sent through the REJECT sub-section of the
@@ -1165,10 +1165,10 @@ post-auth {
                 # Insert EAP-Failure message if the request was
                 # rejected by policy instead of because of an
                 # authentication failure
-                eap
+                # eap  (disabled — no certs in sandbox)
 
                 #  Remove reply message if the response contains an EAP-Message
-                remove_reply_message_if_eap
+                # remove_reply_message_if_eap  (disabled — no certs in sandbox)
         }
 
         #

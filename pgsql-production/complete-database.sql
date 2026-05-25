@@ -368,8 +368,8 @@ CREATE VIEW v_session_history AS  SELECT COALESCE(s.id::text, r.acctuniqueid) AS
             radacct.acctinputpackets,
             radacct.acctoutputpackets,
             radacct.acctstatus,
-            radacct."createdAt",
-            radacct."updatedAt",
+            radacct.createdat AS "createdAt",
+            radacct.updatedat AS "updatedAt",
             radacct.class,
             radacct."loginType"
            FROM radacct
