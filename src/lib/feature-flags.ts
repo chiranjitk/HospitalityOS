@@ -377,16 +377,16 @@ export const FEATURES: Record<string, FeatureConfig> = {
   },
 
   // =====================================================
-  // ADDON MODULES - Security
+  // ADDON MODULES - Security (renamed from security_center → account_security)
   // =====================================================
-  security_center: {
-    id: 'security_center',
-    name: 'Security Center',
-    description: 'Security overview, two-factor auth, device sessions, and SSO configuration',
+  account_security: {
+    id: 'account_security',
+    name: 'Account Security',
+    description: 'Security overview, security settings, two-factor auth, device sessions, SSO configuration, and audit logs',
     category: 'addons',
     subcategory: 'Security',
-    menuItems: ['security-overview', 'security-audit-logs', 'security-2fa', 'security-sessions', 'security-sso'],
-    apiRoutes: ['/api/security', '/api/2fa', '/api/sso'],
+    menuItems: ['security-overview', 'settings-security', 'security-audit-logs', 'security-2fa', 'security-sessions', 'security-sso'],
+    apiRoutes: ['/api/security', '/api/2fa', '/api/sso', '/api/settings/security'],
   },
 
   // =====================================================
@@ -505,7 +505,7 @@ export const PLAN_FEATURES: Record<string, string[]> = {
     'inventory', 'reports', 'notifications',
     'guest_experience', 'pos', 'parking', 'surveillance', 'iot', 'wifi',
     'revenue_management', 'channel_manager', 'crm', 'marketing', 'ads',
-    'events', 'resort', 'staff_management', 'security_center',
+    'events', 'resort', 'staff_management', 'account_security',
     'integrations', 'automation', 'ai_features',
     'admin', 'chain_management', 'saas_billing', 'webhooks',
   ],

@@ -25,6 +25,8 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/security/device-sessions');
     case 'security-sso':
       return import('@/components/security/sso-config');
+    case 'settings-security':
+      return import('@/components/settings/security');
     case 'surveillance-settings':
       return import('@/components/security/surveillance-settings');
     default:
