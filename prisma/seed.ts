@@ -3441,8 +3441,9 @@ async function main() {
           posY: 200,
         },
       ],
+      skipDuplicates: true,
     });
-    console.log('5 parking slots seeded!');
+    console.log('5 parking slots seeded (skipDuplicates)!');
   } catch (e: any) {
     console.log('Parking slots seed error:', e.message);
   }
@@ -3886,7 +3887,7 @@ async function main() {
         { id: uuid('lord-3'), tenantId: uuid('tenant-1'), propertyId: uuid('property-1'), orderType: 'housekeeping', roomId: uuid('room-510'), status: 'ready', receivedAt: new Date(today.getTime() - 2 * 24 * 60 * 60 * 1000), readyAt: new Date(today.getTime() - 1.5 * 24 * 60 * 60 * 1000), totalItems: 15, totalPrice: 750, currency: 'INR', paymentMethod: 'room_charge', notes: 'Bulk linen change — 15 bath towels + 10 hand towels for room 510.' },
         { id: uuid('lord-4'), tenantId: uuid('tenant-1'), propertyId: uuid('property-1'), bookingId: uuid('booking-4'), guestId: uuid('guest-5'), roomId: uuid('room-1002'), orderType: 'guest', status: 'received', receivedAt: new Date(today.getTime() - 2 * 60 * 60 * 1000), totalItems: 6, totalPrice: 2400, currency: 'INR', specialInstructions: 'Dry clean only. Presidential Suite guest.' },
         { id: uuid('lord-5'), tenantId: uuid('tenant-1'), propertyId: uuid('property-1'), orderType: 'housekeeping', roomId: uuid('room-101'), status: 'delivered', receivedAt: new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000), readyAt: new Date(today.getTime() - 2.5 * 24 * 60 * 60 * 1000), deliveredAt: new Date(today.getTime() - 2 * 24 * 60 * 60 * 1000), totalItems: 20, totalPrice: 1000, currency: 'INR', paymentMethod: 'room_charge', notes: 'Weekly deep clean linen batch.' },
-        { id: uuid('lord-6'), tenantId: uuid('tenant-1'), propertyId: uuid('property-1'), orderType: 'housekeeping', status: 'in_progress', receivedAt: new Date(today.getTime() - 4 * 60 * 60 * 1000), totalItems: 8, totalPrice: 4800, currency: 'INR', notes: 'Staff uniform batch — 8 shirts for front desk team.' },
+        { id: uuid('lord-6'), tenantId: uuid('tenant-1'), propertyId: uuid('property-1'), orderType: 'housekeeping', roomId: uuid('room-305'), status: 'in_progress', receivedAt: new Date(today.getTime() - 4 * 60 * 60 * 1000), totalItems: 8, totalPrice: 4800, currency: 'INR', notes: 'Staff uniform batch — 8 shirts for front desk team.' },
       ],
     });
     await prisma.laundryOrderItem.createMany({

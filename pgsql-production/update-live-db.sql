@@ -290,7 +290,7 @@ CREATE VIEW v_session_history AS
     wp."dataLimit" AS datalimit,
     wp."dataLimit" AS plan_data_limit,
     COALESCE(b."confirmationCode", ''::text) AS booking_code,
-    COALESCE(b.status, ''::text) AS booking_status,
+    COALESCE(b.status, ''::BookingStatus) AS booking_status,
     COALESCE(s.id::text, r.acctuniqueid) AS acctuniqueid,
     r.framedipv6address,
     COALESCE(r.nasipaddress, '0.0.0.0'::text) AS nasipaddress,

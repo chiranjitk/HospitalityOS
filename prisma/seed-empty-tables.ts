@@ -300,8 +300,8 @@ export async function seedEmptyTables(prisma: PrismaClient) {
     await prisma.webCategorySchedule.createMany({
       data: [
         { id: uuid('wcs-1'), tenantId: T1, propertyId: P1, webCategoryId: uuid('wc-1'), isAllow: false, orderIndex: 0, startTime: '06:00', endTime: '23:59', daysOfWeek: '1,2,3,4,5', enabled: true },
-        { id: uuid('wcs-2'), tenantId: T1, propertyId: P1, webCategoryId: uuid('wc-1'), isAllow: true, orderIndex: 1, startTime: '00:00', endTime: '05:59', daysOfWeek: '1,2,3,4,5', enabled: true, description: 'Allow social media during off-hours on weekdays' },
-        { id: uuid('wcs-3'), tenantId: T1, propertyId: P1, webCategoryId: uuid('wc-2'), isAllow: true, orderIndex: 0, startTime: '18:00', endTime: '22:00', daysOfWeek: '0,6', enabled: true, description: 'Allow streaming on weekends evenings' },
+        { id: uuid('wcs-2'), tenantId: T1, propertyId: P1, webCategoryId: uuid('wc-1'), isAllow: true, orderIndex: 1, startTime: '00:00', endTime: '05:59', daysOfWeek: '1,2,3,4,5', enabled: true },
+        { id: uuid('wcs-3'), tenantId: T1, propertyId: P1, webCategoryId: uuid('wc-2'), isAllow: true, orderIndex: 0, startTime: '18:00', endTime: '22:00', daysOfWeek: '0,6', enabled: true },
       ],
     });
   } catch (e: any) { console.log('  WebCategorySchedule error:', e.message); }
@@ -369,10 +369,10 @@ export async function seedEmptyTables(prisma: PrismaClient) {
   try {
     await prisma.wiFiUserStatusHistory.createMany({
       data: [
-        { id: uuid('wush-1'), tenantId: T1, wifiUserId: WU1, oldStatus: 'pending', newStatus: 'active', changedBy: 'system', reason: 'Auto-provisioned on check-in', changedAt: daysAgo(5) },
-        { id: uuid('wush-2'), tenantId: T1, wifiUserId: WU1, oldStatus: 'active', newStatus: 'suspended', changedBy: U1, reason: 'FUP daily limit exceeded', changedAt: daysAgo(2) },
-        { id: uuid('wush-3'), tenantId: T1, wifiUserId: WU1, oldStatus: 'suspended', newStatus: 'active', changedBy: 'system', reason: 'FUP cycle reset', changedAt: daysAgo(1) },
-        { id: uuid('wush-4'), tenantId: T1, wifiUserId: WU2, oldStatus: 'pending', newStatus: 'active', changedBy: 'system', reason: 'Auto-provisioned on check-in', changedAt: daysAgo(3) },
+        { id: uuid('wush-1'), tenantId: T1, propertyId: P1, username: 'guest.amit.mukherjee', userId: WU1, oldStatus: 'pending', newStatus: 'active', changedBy: 'system', changeReason: 'Auto-provisioned on check-in' },
+        { id: uuid('wush-2'), tenantId: T1, propertyId: P1, username: 'guest.amit.mukherjee', userId: WU1, oldStatus: 'active', newStatus: 'suspended', changedBy: U1, changeReason: 'FUP daily limit exceeded' },
+        { id: uuid('wush-3'), tenantId: T1, propertyId: P1, username: 'guest.amit.mukherjee', userId: WU1, oldStatus: 'suspended', newStatus: 'active', changedBy: 'system', changeReason: 'FUP cycle reset' },
+        { id: uuid('wush-4'), tenantId: T1, propertyId: P1, username: 'guest.rahul.banerjee', userId: WU2, oldStatus: 'pending', newStatus: 'active', changedBy: 'system', changeReason: 'Auto-provisioned on check-in' },
       ],
     });
   } catch (e: any) { console.log('  WiFiUserStatusHistory error:', e.message); }
@@ -586,7 +586,7 @@ export async function seedEmptyTables(prisma: PrismaClient) {
     await prisma.databaseBackup.createMany({
       data: [
         { id: uuid('dbbk-1'), tenantId: T1, type: 'full', status: 'completed', fileSize: 52428800, storageLocation: 's3://staysuite-backups/tenant-1/full-20250101.dump', startedAt: daysAgo(7), completedAt: daysAgo(7), expiresAt: daysFromNow(23), createdBy: U1, notes: 'Weekly full backup' },
-        { id: uuid('dbbk-2'), tenantId: T1, type: 'incremental', status: 'completed', fileSize: 5242880, storageLocation: 's3://staysuite-backups/tenant-1/incr-20250108.dump', startedAt: daysAgo(0), completedAt: daysAgo(0), expiresAt: daysFromNow(30), createdBy: 'system', notes: 'Daily incremental backup' },
+        { id: uuid('dbbk-2'), tenantId: T1, type: 'incremental', status: 'completed', fileSize: 5242880, storageLocation: 's3://staysuite-backups/tenant-1/incr-20250108.dump', startedAt: daysAgo(0), completedAt: daysAgo(0), expiresAt: daysFromNow(30), createdBy: U1, notes: 'Daily incremental backup' },
         { id: uuid('dbbk-3'), tenantId: T2, type: 'full', status: 'failed', fileSize: null, storageLocation: null, startedAt: daysAgo(2), completedAt: null, createdBy: uuid('user-t2-1'), notes: 'Backup failed due to disk space' },
       ],
     });
@@ -612,7 +612,7 @@ export async function seedEmptyTables(prisma: PrismaClient) {
   try {
     await prisma.overbookingLog.createMany({
       data: [
-        { id: uuid('oblog-1'), tenantId: T1, propertyId: P1, date: daysFromNow(7), roomTypeId: RT1, action: 'created', details: '{"maxExtra":2,"confidence":0.25,"bookingsAnalyzed":48}', performedBy: 'system', createdAt: daysAgo(0) },
+        { id: uuid('oblog-1'), tenantId: T1, propertyId: P1, date: daysFromNow(7), roomTypeId: RT1, action: 'created', details: '{"maxExtra":2,"confidence":0.25,"bookingsAnalyzed":48}', performedBy: U1 },
         { id: uuid('oblog-2'), tenantId: T1, propertyId: P1, date: daysFromNow(14), roomTypeId: RT2, action: 'updated', details: '{"maxExtra":1,"confidence":0.35,"bookingsAnalyzed":52}', performedBy: U1, createdAt: daysAgo(0) },
         { id: uuid('oblog-3'), tenantId: T1, propertyId: P1, date: daysFromNow(21), roomTypeId: RT1, action: 'absorbed', details: '{"maxExtra":2,"confidence":0.18,"absorbedWalkups":1,"upgradedTo":"Deluxe Room"}', performedBy: U2, createdAt: daysAgo(1) },
       ],
