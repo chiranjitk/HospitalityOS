@@ -119,6 +119,7 @@ export const FEATURES: Record<string, FeatureConfig> = {
     menuItems: [
       'settings-general', 'settings-tax', 'settings-localization', 'settings-features', 'settings-gdpr',
       'settings-license', 'settings-license-keys', 'settings-security', 'settings-integrations',
+      'security-overview', 'security-2fa', 'security-sso', 'security-sessions', 'security-audit-logs',
       'staff-users', 'staff-roles',
     ],
     apiRoutes: ['/api/settings'],
@@ -377,17 +378,8 @@ export const FEATURES: Record<string, FeatureConfig> = {
   },
 
   // =====================================================
-  // ADDON MODULES - Security (renamed from security_center → account_security)
+  // NOTE: account_security removed — all items merged into Settings (always-enabled base module)
   // =====================================================
-  account_security: {
-    id: 'account_security',
-    name: 'Account Security',
-    description: 'Security overview, security settings, two-factor auth, device sessions, SSO configuration, and audit logs',
-    category: 'addons',
-    subcategory: 'Security',
-    menuItems: ['security-overview', 'settings-security', 'security-audit-logs', 'security-2fa', 'security-sessions', 'security-sso'],
-    apiRoutes: ['/api/security', '/api/2fa', '/api/sso', '/api/settings/security'],
-  },
 
   // =====================================================
   // ADDON MODULES - Integrations & Automation
@@ -505,7 +497,7 @@ export const PLAN_FEATURES: Record<string, string[]> = {
     'inventory', 'reports', 'notifications',
     'guest_experience', 'pos', 'parking', 'surveillance', 'iot', 'wifi',
     'revenue_management', 'channel_manager', 'crm', 'marketing', 'ads',
-    'events', 'resort', 'staff_management', 'account_security',
+    'events', 'resort', 'staff_management',
     'integrations', 'automation', 'ai_features',
     'admin', 'chain_management', 'saas_billing', 'webhooks',
   ],

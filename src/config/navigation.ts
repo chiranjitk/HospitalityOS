@@ -550,22 +550,6 @@ export const navigationConfig: NavSection[] = [
     ],
   },
 
-  // SPLIT: Security & IoT → 3 focused sections (was 1 merged section)
-  // Account Security — Cyber security: auth, 2FA, SSO, sessions, audit
-  {
-    id: 'accountSecurity',
-    title: 'Account Security',
-    icon: Shield,
-    category: 'addons',
-    items: [
-      { id: 'security-overview', title: 'Security Overview', href: '#security-overview', icon: Shield },
-      { id: 'settings-security', title: 'Security Settings', href: '#settings-security', icon: Settings },
-      { id: 'security-2fa', title: 'Two-Factor Auth', href: '#security-2fa', icon: Lock },
-      { id: 'security-sso', title: 'SSO Configuration', href: '#security-sso', icon: Key },
-      { id: 'security-sessions', title: 'Device Sessions', href: '#security-sessions', icon: Smartphone },
-      { id: 'security-audit-logs', title: 'Audit Logs', href: '#security-audit-logs', icon: History },
-    ],
-  },
   // Surveillance & CCTV — Physical security: cameras, playback, incidents
   {
     id: 'surveillanceCctv',
@@ -710,7 +694,14 @@ export const navigationConfig: NavSection[] = [
       { id: 'settings-tax', title: 'Tax & Currency', href: '#settings-tax', icon: DollarSign },
       { id: 'settings-localization', title: 'Localization', href: '#settings-localization', icon: Globe },
       { id: 'settings-gdpr', title: 'GDPR Compliance', href: '#settings-gdpr', icon: Shield },
+      { id: 'settings-security', title: 'Security Settings', href: '#settings-security', icon: Settings },
       { id: 'settings-integrations', title: 'System Integrations', href: '#settings-integrations', icon: Plug },
+      // Security (moved from Account Security section)
+      { id: 'security-overview', title: 'Security Overview', href: '#security-overview', icon: Shield },
+      { id: 'security-2fa', title: 'Two-Factor Auth', href: '#security-2fa', icon: Lock },
+      { id: 'security-sso', title: 'SSO Configuration', href: '#security-sso', icon: Key },
+      { id: 'security-sessions', title: 'Device Sessions', href: '#security-sessions', icon: Smartphone },
+      { id: 'security-audit-logs', title: 'Audit Logs', href: '#security-audit-logs', icon: History },
     ],
   },
   {
@@ -729,19 +720,19 @@ export const navigationConfig: NavSection[] = [
 // =====================================================
 // MENU STATISTICS
 // =====================================================
-// Total Sections: 28 (restructured from 26 — split Security & IoT into 3)
+// Total Sections: 27 (Security & IoT split into Surveillance & CCTV + IoT & Smart Building,
+//                       Account Security items merged into Settings)
 // Base Modules: 8 (Dashboard, PMS, Bookings, Front Desk, Guests,
 //                        Housekeeping, Billing, Settings, Help)
-// Addon Modules: 20 (Experience, Restaurant, Inventory, Facilities, WiFi,
+// Addon Modules: 19 (Experience, Restaurant, Inventory, Facilities, WiFi,
 //                       Revenue, Channels, CRM & Marketing, Ads, Reports,
-//                       Staff, Account Security, Surveillance & CCTV,
-//                       IoT & Smart Building, Integrations, Automation & AI,
-//                       Notifications, Platform Admin)
+//                       Staff, Surveillance & CCTV, IoT & Smart Building,
+//                       Integrations, Automation & AI, Notifications, Platform Admin)
 // Total Menu Items: ~172
 //
 // Latest changes:
-// - Split Security & IoT → Account Security + Surveillance & CCTV + IoT & Smart Building (1→3)
-// - Moved Security Settings from Settings → Account Security (no duplicate)
+// - Merged Account Security into Settings (no separate section needed)
+// - Split Security & IoT → Surveillance & CCTV + IoT & Smart Building
 // - CRM + Marketing → CRM & Marketing (2→1)
 // - Parking + Events + Resort → Facilities (3→1)
 // - Admin + SaaS Billing + Chain + Feature Flags + License → Platform Admin (3→1)
