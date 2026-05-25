@@ -1,6 +1,6 @@
 # StaySuite auto-generated — FreeRADIUS SQL module config
 # Points to the PostgreSQL database
-# Last updated: 2026-05-25T06:26:47.730Z
+# Last updated: 2026-05-25T14:27:30.649Z
 
 sql {
     driver = "rlm_sql_postgresql"
@@ -8,8 +8,8 @@ sql {
 
     server = "localhost"
     port = 5432
-    login = "staysuite"
-    password = "Staysuite2025"
+    login = "postgres"
+    password = "postgres"
     radius_db = "staysuite"
 
     # Read NAS clients from SQL (nas table)

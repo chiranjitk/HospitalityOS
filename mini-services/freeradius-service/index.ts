@@ -7700,6 +7700,214 @@ checkRadiusStatus().then(status => {
   }
 });
 
+// ============================================================================
+// Server Configuration — Apply settings to FreeRADIUS config files
+// ============================================================================
+
+const SITES_DEFAULT_PATH = path.join(RADIUS_CONFIG_PATH, 'sites-available', 'default');
+const RADIUSD_CONF_PATH = path.join(RADIUS_CONFIG_PATH, 'radiusd.conf');
+
+/**
+ * Apply RADIUS server configuration from the GUI to actual FreeRADIUS config files.
+ *
+ * This writes:
+ *   1. sites-available/default — listen sections (ipaddr, port for auth/acct/coa)
+ *   2. radiusd.conf — log section (destination, auth, auth_badpass, auth_goodpass)
+ *
+ * Then reloads FreeRADIUS to apply changes.
+ */
+app.post('/api/service/apply-server-config', async (c) => {
+  try {
+    const body = await c.req.json();
+    const {
+      authPort = 1812,
+      acctPort = 1813,
+      coaPort = 3799,
+      bindAddress = '*',
+      logDestination = 'files',
+      logAuth = false,
+      logAuthBadpass = false,
+      logAuthGoodpass = false,
+    } = body;
+
+    const results: string[] = [];
+
+    // ── 1. Update sites-available/default listen sections ──
+    try {
+      let sitesContent = await fs.readFile(SITES_DEFAULT_PATH, 'utf-8');
+
+      // Remove any previously auto-generated StaySuite CoA block
+      sitesContent = sitesContent.replace(
+        /\n*# ── StaySuite: CoA[\s\S]*?type\s*=\s*coa[\s\S]*?\}\n*/m,
+        '\n'
+      );
+
+      // Simple targeted approach: find the first IPv4 auth listen block and update its port
+      // The file has a consistent structure where the first `listen {` block is IPv4 auth,
+      // the second is IPv4 acct, then IPv6 auth, then IPv6 acct.
+      // We use line-by-line processing to be more reliable.
+
+      const lines = sitesContent.split('\n');
+      let inListenBlock = false;
+      let listenDepth = 0;
+      let blockStartLine = -1;
+      let authV4Updated = false;
+      let acctV4Updated = false;
+      let lastAcctV4EndLine = -1;
+
+      // Two-pass approach:
+      // Pass 1: Find all IPv4 listen block boundaries and their types
+      // Pass 2: Update port lines in the correct blocks
+      const listenBlocks: { start: number; end: number; isIPv4: boolean; type: string }[] = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const trimmed = lines[i].trim();
+
+        if (!inListenBlock && trimmed.startsWith('listen') && trimmed.includes('{')) {
+          inListenBlock = true;
+          blockStartLine = i;
+          // Count braces: the { on the same line as 'listen'
+          listenDepth = 0;
+          for (const ch of lines[i]) {
+            if (ch === '{') listenDepth++;
+            if (ch === '}') listenDepth--;
+          }
+          if (listenDepth <= 0) {
+            // Single-line listen {} block (unlikely but handle it)
+            const isIPv4 = /ipaddr\s*=\s*\*/.test(lines[i]) && !/ipv6addr/.test(lines[i]);
+            const typeMatch = lines[i].match(/type\s*=\s*(\w+)/);
+            listenBlocks.push({ start: i, end: i, isIPv4, type: typeMatch?.[1] || '' });
+            inListenBlock = false;
+          }
+          continue;
+        }
+
+        if (inListenBlock) {
+          for (const ch of lines[i]) {
+            if (ch === '{') listenDepth++;
+            if (ch === '}') listenDepth--;
+          }
+          if (listenDepth <= 0) {
+            // End of listen block — determine type and IPv4 status
+            const blockLines = lines.slice(blockStartLine, i + 1);
+            const blockText = blockLines.join('\n');
+            const isIPv4 = /ipaddr\s*=\s*\*/.test(blockText) && !/^\s*ipv6addr\s*=/m.test(blockText);
+            const typeMatch = blockText.match(/type\s*=\s*(auth|acct|coa)/);
+            listenBlocks.push({ start: blockStartLine, end: i, isIPv4, type: typeMatch?.[1] || '' });
+            if (isIPv4 && typeMatch?.[1] === 'acct') {
+              lastAcctV4EndLine = i;
+            }
+            inListenBlock = false;
+          }
+        }
+      }
+
+      // Pass 2: Update port and bind address in IPv4 auth/acct blocks
+      for (const block of listenBlocks) {
+        if (!block.isIPv4) continue;
+
+        for (let i = block.start; i <= block.end; i++) {
+          const line = lines[i];
+
+          // Update port
+          if (/^(\s*)port\s*=\s*\d+/.test(line)) {
+            if (block.type === 'auth' && !authV4Updated) {
+              lines[i] = line.replace(/(port\s*=\s*)\d+/, `$1${authPort}`);
+              authV4Updated = true;
+            } else if (block.type === 'acct' && !acctV4Updated) {
+              lines[i] = line.replace(/(port\s*=\s*)\d+/, `$1${acctPort}`);
+              acctV4Updated = true;
+            }
+          }
+
+          // Update bind address
+          if (bindAddress && bindAddress !== '*' && /^(\s*)ipaddr\s*=\s*\*/.test(line)) {
+            lines[i] = line.replace(/(ipaddr\s*=\s*)\*/, `$1${bindAddress}`);
+          }
+        }
+      }
+
+      let newContent = lines.join('\n');
+
+      // Add CoA listen block after the last IPv4 acct listen block
+      if (lastAcctV4EndLine >= 0) {
+        const coaBlock = `
+# ── StaySuite: CoA / Disconnect-Request listener ──
+# Auto-generated by StaySuite AAA Configuration.
+# Receives Change-of-Authorization and Disconnect-Request packets.
+listen {
+        ipaddr = ${bindAddress || '*'}
+        port = ${coaPort}
+        type = coa
+}`;
+        const newLines = newContent.split('\n');
+        newLines.splice(lastAcctV4EndLine + 1, 0, coaBlock);
+        newContent = newLines.join('\n');
+      }
+
+      await writeRadiusFile(SITES_DEFAULT_PATH, newContent);
+      results.push(`sites-available/default: auth=${authPort}, acct=${acctPort}, coa=${coaPort}, bind=${bindAddress || '*'}`);
+    } catch (err) {
+      results.push(`sites-available/default: FAILED - ${String(err)}`);
+    }
+
+    // ── 2. Update radiusd.conf log section ──
+    try {
+      let confContent = await fs.readFile(RADIUSD_CONF_PATH, 'utf-8');
+
+      // Update log destination
+      confContent = confContent.replace(
+        /(\n\s*destination\s*=\s*)(\S+)/,
+        `$1${logDestination}`
+      );
+
+      // Update auth log setting
+      const authValue = logAuth ? 'yes' : 'no';
+      confContent = confContent.replace(
+        /(\n\s*auth\s*=\s*)(\S+)/,
+        `$1${authValue}`
+      );
+
+      // Update auth_badpass
+      const badpassValue = logAuthBadpass ? 'yes' : 'no';
+      confContent = confContent.replace(
+        /(\n\s*auth_badpass\s*=\s*)(\S+)/,
+        `$1${badpassValue}`
+      );
+
+      // Update auth_goodpass
+      const goodpassValue = logAuthGoodpass ? 'yes' : 'no';
+      confContent = confContent.replace(
+        /(\n\s*auth_goodpass\s*=\s*)(\S+)/,
+        `$1${goodpassValue}`
+      );
+
+      await writeRadiusFile(RADIUSD_CONF_PATH, confContent);
+      results.push(`radiusd.conf: destination=${logDestination}, auth=${logAuth}, badpass=${logAuthBadpass}, goodpass=${logAuthGoodpass}`);
+    } catch (err) {
+      results.push(`radiusd.conf: FAILED - ${String(err)}`);
+    }
+
+    // ── 3. Reload FreeRADIUS to apply changes ──
+    const reloaded = await reloadRadius();
+    results.push(`FreeRADIUS reload: ${reloaded ? 'success' : 'failed (manual restart may be needed)'}`);
+
+    log.info('Applied server configuration to FreeRADIUS', { results });
+
+    return c.json({
+      success: true,
+      message: 'Server configuration applied to FreeRADIUS',
+      results,
+    });
+  } catch (error) {
+    log.error('Failed to apply server configuration', { error: String(error) });
+    return c.json({
+      success: false,
+      error: `Failed to apply server configuration: ${String(error)}`,
+    });
+  }
+});
+
 // Sync config files from database on startup (regenerates clients.conf)
 syncAllConfigFiles().catch(err => {
   log.error('Startup config sync failed', { error: String(err) });

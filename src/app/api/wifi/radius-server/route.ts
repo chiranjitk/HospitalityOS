@@ -1,12 +1,54 @@
 /**
  * RADIUS Server Configuration API Route
  * 
- * Manages FreeRADIUS server configuration per property
+ * Manages FreeRADIUS server configuration per property.
+ * After saving to DB, applies changes to actual FreeRADIUS config files
+ * via the freeradius-service mini-service on port 3010.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission, tenantWhere, resolvePropertyId } from '@/lib/auth/tenant-context';
+
+// FreeRADIUS service port (mini-service on 3010)
+const FREERADIUS_SERVICE_PORT = 3010;
+
+interface FreeRADIUSConfig {
+  authPort: number;
+  acctPort: number;
+  coaPort: number;
+  bindAddress: string;
+  logDestination: string;
+  logAuth: boolean;
+  logAuthBadpass: boolean;
+  logAuthGoodpass: boolean;
+}
+
+/**
+ * Apply server configuration to actual FreeRADIUS config files
+ * by calling the freeradius-service's apply-server-config endpoint.
+ * This modifies sites-available/default and radiusd.conf, then reloads FreeRADIUS.
+ */
+async function applyServerConfigToFreeRADIUS(config: FreeRADIUSConfig): Promise<{ success: boolean; results?: string[]; error?: string }> {
+  try {
+    const url = `/api/service/apply-server-config?XTransformPort=${FREERADIUS_SERVICE_PORT}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    const result = await response.json();
+    if (result.success) {
+      console.log('[radius-server] FreeRADIUS config applied:', result.results);
+    } else {
+      console.error('[radius-server] FreeRADIUS config apply failed:', result.error);
+    }
+    return result;
+  } catch (err) {
+    console.error('[radius-server] FreeRADIUS service unreachable:', err);
+    return { success: false, error: 'FreeRADIUS service unreachable — config saved to DB only' };
+  }
+}
 
 // GET /api/wifi/radius-server - Get RADIUS server config for property
 export async function GET(request: NextRequest) {
@@ -139,10 +181,31 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Apply to FreeRADIUS config files via freeradius-service
+    let applyResult: { success: boolean; results?: string[]; error?: string } | null = null;
+    try {
+      applyResult = await applyServerConfigToFreeRADIUS({
+        authPort: config.authPort,
+        acctPort: config.acctPort,
+        coaPort: config.coaPort,
+        bindAddress: config.listenAllInterfaces ? '*' : (config.bindAddress || '*'),
+        logDestination: config.logDestination,
+        logAuth: config.logAuth,
+        logAuthBadpass: config.logAuthBadpass,
+        logAuthGoodpass: config.logAuthGoodpass,
+      });
+    } catch (err) {
+      console.error('[radius-server] Failed to apply config to FreeRADIUS:', err);
+    }
+
     return NextResponse.json({
       success: true,
       data: config,
-      message: 'RADIUS server configuration saved successfully',
+      message: applyResult?.success
+        ? 'RADIUS server configuration saved and applied to FreeRADIUS'
+        : 'Configuration saved to DB but failed to apply to FreeRADIUS. Restart may be needed.',
+      applied: applyResult?.success ?? false,
+      applyResults: applyResult?.results,
     });
   } catch (error) {
     console.error('Error saving RADIUS server config:', error);

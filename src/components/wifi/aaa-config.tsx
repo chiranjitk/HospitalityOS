@@ -772,7 +772,11 @@ export default function AAAConfig() {
       });
       const data = await res.json();
       if (data.success) {
-        toast({ title: 'Success', description: 'Server configuration saved successfully' });
+        if (data.applied) {
+          toast({ title: 'Success', description: 'Server configuration saved and applied to FreeRADIUS' });
+        } else {
+          toast({ title: 'Saved', description: 'Configuration saved to DB but could not apply to FreeRADIUS. Restart may be needed.', variant: 'destructive' });
+        }
       } else {
         toast({ title: 'Error', description: data.error || 'Failed to save server config', variant: 'destructive' });
       }
