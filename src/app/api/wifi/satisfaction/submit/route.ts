@@ -180,6 +180,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // --- Resolve guestId from sessionId if not provided ---
+    // When the portal doesn't pass guestId (e.g. manually created users),
+    // try to resolve it from the radacct session → WiFiUser → guestId.
+    let resolvedGuestId: string | null = typeof guestId === 'string' && guestId.length > 0 ? guestId : null;
+    let resolvedUsername: string | null = null;
+    if (!resolvedGuestId && sessionId && typeof sessionId === 'string') {
+      try {
+        // Look up the radacct row to find the username, then WiFiUser for guestId
+        const radAcctRow = await db.$queryRawUnsafe<Array<{ username: string }>>(
+          `SELECT username FROM radacct WHERE acctsessionid = $1 AND acctstoptime IS NULL LIMIT 1`,
+          sessionId
+        );
+        if (radAcctRow.length > 0 && radAcctRow[0].username) {
+          resolvedUsername = radAcctRow[0].username;
+          const wifiUser = await db.wiFiUser.findUnique({
+            where: { username: resolvedUsername },
+            select: { guestId: true },
+          });
+          if (wifiUser?.guestId) {
+            resolvedGuestId = wifiUser.guestId;
+          }
+        }
+      } catch {
+        // Non-critical — proceed without guestId
+      }
+    }
+
     // --- Create survey ---
 
     const survey = await db.wiFiSatisfactionSurvey.create({
@@ -187,7 +214,7 @@ export async function POST(request: NextRequest) {
         tenantId,
         propertyId: typeof propertyId === 'string' ? propertyId : null,
         sessionId: typeof sessionId === 'string' ? sessionId : null,
-        guestId: typeof guestId === 'string' ? guestId : null,
+        guestId: resolvedGuestId,
         rating: ratingValue,
         comment: typeof comment === 'string' && comment.length > 0 ? comment : null,
         categories: categories

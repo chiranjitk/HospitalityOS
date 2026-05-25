@@ -60,9 +60,36 @@ export async function GET(request: NextRequest) {
       db.wiFiSatisfactionSurvey.count({ where }),
     ]);
 
+    // ── Enrich surveys without a guest with WiFiUser username from sessionId ──
+    // For manually created users (no linked Guest), resolve the username from
+    // radacct via sessionId, so the admin UI shows "test" instead of "Anonymous".
+    const orphanSessionIds = surveys
+      .filter(s => !s.guest && s.sessionId)
+      .map(s => s.sessionId!);
+
+    const sessionUserMap = new Map<string, string>(); // sessionId → username
+    if (orphanSessionIds.length > 0) {
+      try {
+        const rows = await db.$queryRawUnsafe<Array<{ acctsessionid: string; username: string }>>(
+          `SELECT acctsessionid, username FROM radacct WHERE acctsessionid = ANY($1::text[]) LIMIT 100`,
+          orphanSessionIds
+        );
+        for (const r of rows) {
+          sessionUserMap.set(r.acctsessionid, r.username);
+        }
+      } catch {
+        // Non-critical — proceed without enrichment
+      }
+    }
+
+    const enrichedSurveys = surveys.map(s => ({
+      ...s,
+      _wifiUsername: (!s.guest && s.sessionId) ? (sessionUserMap.get(s.sessionId!) || null) : null,
+    }));
+
     return NextResponse.json({
       success: true,
-      data: surveys,
+      data: enrichedSurveys,
       pagination: {
         page,
         limit,

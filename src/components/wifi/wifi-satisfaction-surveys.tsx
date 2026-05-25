@@ -96,6 +96,7 @@ interface Survey {
   createdAt: string;
   guest: SurveyGuest | null;
   property?: { id: string; name: string } | null;
+  _wifiUsername?: string | null;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
@@ -230,7 +231,7 @@ export default function WiFiSatisfactionSurveys() {
       if (roomFilter !== 'all' && s.roomNumber !== roomFilter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        const matchGuest = s.guest && `${s.guest.firstName} ${s.guest.lastName}`.toLowerCase().includes(q);
+        const matchGuest = s.guest ? `${s.guest.firstName} ${s.guest.lastName}`.toLowerCase().includes(q) : (s._wifiUsername || '').toLowerCase().includes(q);
         const matchComment = s.comment && s.comment.toLowerCase().includes(q);
         if (!matchGuest && !matchComment) return false;
       }
@@ -521,7 +522,7 @@ export default function WiFiSatisfactionSurveys() {
                             </TableCell>
                             <TableCell>
                               <span className="text-sm font-medium">
-                                {survey.guest ? `${survey.guest.firstName} ${survey.guest.lastName}` : 'Anonymous'}
+                                {survey.guest ? `${survey.guest.firstName} ${survey.guest.lastName}` : (survey._wifiUsername || 'Anonymous')}
                               </span>
                             </TableCell>
                             <TableCell className="hidden md:table-cell">

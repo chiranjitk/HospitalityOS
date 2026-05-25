@@ -1008,6 +1008,8 @@ export async function POST(request: NextRequest) {
             authenticated: true, method: 'voucher', username: wifiUsername,
             sessionTimeout: voucherSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
             poolName: pool.poolName, message: 'Connected successfully!',
+            sessionId,
+            guestId: voucher.guestId || null,
           },
           { username: wifiUsername, password: voucher.code },
           externalGateway
@@ -1222,6 +1224,8 @@ export async function POST(request: NextRequest) {
               bandwidthDown: pmsBwDown, bandwidthUp: pmsBwUp,
               poolName: pool.poolName, planName: pmsUser.plan?.name || null,
               message: 'Connected successfully!',
+              sessionId,
+              guestId: pmsUser.guestId || null,
             },
             { username: pmsUser.username, password: pmsUser.password },
             externalGateway
@@ -1334,6 +1338,8 @@ export async function POST(request: NextRequest) {
             authenticated: true, method: 'room_number', username: wifiUsername,
             sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
             poolName: pool.poolName, message: 'Connected successfully!',
+            sessionId,
+            guestId: match.primaryGuestId || null,
           },
           { username: wifiUsername, password: userPassword },
           externalGateway
@@ -1512,6 +1518,8 @@ export async function POST(request: NextRequest) {
             authenticated: true, method: 'pms_credentials', username: wifiUser.username,
             sessionTimeout: planValidityMin, remainingMinutes, bandwidthDown: userBwDown, bandwidthUp: userBwUp,
             poolName: pool.poolName, message: 'Connected successfully!',
+            sessionId,
+            guestId: wifiUser.guestId || null,
           },
           { username: wifiUser.username, password: wifiUser.password },
           externalGateway
@@ -1689,6 +1697,8 @@ export async function POST(request: NextRequest) {
               authenticated: true, method: 'sms_otp', username: wifiUsername,
               sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
               poolName: smsPool.poolName, message: 'Connected successfully!',
+              sessionId,
+              guestId: smsUser?.guestId || null,
             },
             { username: wifiUsername, password: smsOtpPassword },
             externalGateway
@@ -1885,6 +1895,8 @@ export async function POST(request: NextRequest) {
             authenticated: true, method: 'open_access', username: wifiUsername,
             sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
             poolName: pool.poolName, message: 'Connected successfully!',
+            sessionId,
+            guestId: null,
           },
           wifiUsername && openPassword ? { username: wifiUsername, password: openPassword } : undefined,
           externalGateway

@@ -566,11 +566,13 @@ function GuestSurvey({
   tenantId,
   propertyId,
   sessionId,
+  guestId,
 }: {
   design: PortalDesignConfig;
   tenantId?: string;
   propertyId?: string;
   sessionId?: string;
+  guestId?: string;
 }) {
   const lang = usePortalLang();
   const surveyConfig = design.surveyConfig;
@@ -600,6 +602,7 @@ function GuestSurvey({
           tenantId,
           propertyId,
           sessionId: sessionId || undefined,
+          guestId: guestId || undefined,
           rating,
           comment: option, // Store the selected option text as comment
           deviceType: detectDeviceType(),
@@ -1812,7 +1815,7 @@ function SuccessScreen({
       </button>
 
       {/* Post-Connect Guest Survey (Feature 4) */}
-      <GuestSurvey design={design} tenantId={tenantId} propertyId={propertyId} sessionId={authResult?.sessionId} />
+      <GuestSurvey design={design} tenantId={tenantId} propertyId={propertyId} sessionId={authResult?.sessionId} guestId={authResult?.guestId} />
 
       {/* F12: Detailed Survey Widget — rendered below GuestSurvey when tenantId/propertyId available */}
       {tenantId && propertyId && (
@@ -2665,7 +2668,7 @@ function PortalContent() {
 
         {/* Post-Connect Survey (Feature 4) — fallback mode */}
         {state === 'success' && design.surveyConfig?.enabled && (
-          <GuestSurvey design={design} />
+          <GuestSurvey design={design} tenantId={tenantId} propertyId={propertyId} sessionId={authResult?.sessionId} guestId={authResult?.guestId} />
         )}
       </>
     );
@@ -2743,7 +2746,7 @@ function PortalContent() {
       case 'survey':
         // Render survey after success or always if enabled (GuestSurvey handles its own state)
         if (!design.surveyConfig?.enabled) return null;
-        return <div className="mt-2"><GuestSurvey design={design} /></div>;
+        return <div className="mt-2"><GuestSurvey design={design} tenantId={tenantId} propertyId={propertyId} sessionId={authResult?.sessionId} guestId={authResult?.guestId} /></div>;
       default:
         return null;
     }
@@ -2879,7 +2882,7 @@ function PortalContent() {
 
                   {/* Post-Connect Survey (Feature 4) — inside the form card, after success */}
                   {state === 'success' && design.surveyConfig?.enabled && (
-                    <GuestSurvey design={design} />
+                    <GuestSurvey design={design} tenantId={tenantId} propertyId={propertyId} sessionId={authResult?.sessionId} guestId={authResult?.guestId} />
                   )}
                 </div>
               </div>
