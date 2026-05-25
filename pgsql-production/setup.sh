@@ -14,7 +14,6 @@
 #   2. prisma generate          → Generates Prisma Client
 #   3. complete-database.sql    → Creates extensions, 4 helper tables,
 #                                  6 views, 8 functions, + ALTER TABLE columns
-#   3b. nftables-service-tables → Creates 5 tables for nftables firewall service
 #   4. Seed demo data           → Inserts ALL demo data
 #
 # PREREQUISITES:
@@ -125,20 +124,7 @@ echo "       - ALTER TABLE      (radpostauth.clientipaddress,"
 echo "                           FairAccessPolicy.throttleDownKbps/throttleUpKbps)"
 echo ""
 
-# Step 3b: nftables-service tables (firewall mini-service DB storage)
-echo "[3b/5] Creating nftables-service tables..."
-if [[ -f "$SCRIPT_DIR/nftables-service-tables.sql" ]]; then
-    $PSQL $DB_CONN -f "$SCRIPT_DIR/nftables-service-tables.sql" 2>&1 | grep -v NOTICE
-echo "  OK nftables-service tables created:"
-echo "       - NftGuiRule        (firewall rules for 6 GUI chains)"
-echo "       - NftPortForward   (DNAT port forwarding rules)"
-echo "       - NftRateLimit     (bandwidth rate limiting rules)"
-echo "       - NftQuickBlock     (IP/subnet/MAC quick blocks)"
-echo "       - NftSchedule       (time-based rule schedules)"
-else
-    echo "  SKIP nftables-service-tables.sql not found"
-fi
-echo ""
+# Step 3b: (removed — nftables tables are managed by the mini-service)
 
 # Step 4: Seed demo data
 echo "[4/5] Seeding demo data..."
