@@ -1936,11 +1936,13 @@ app.post('/api/rules', async (c) => {
     };
 
     await pool.query(
-      `INSERT INTO "FirewallRule" (id, name, "chain", protocol, "sourceIp", "destIp", "destPort", "sourcePort",
-        action, "markValue", "dnatTo", "snatTo", enabled, comment, priority, "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
-      [rule.id, rule.name, rule.chain, rule.protocol, rule.sourceIp, rule.destIp, rule.destPort, rule.sourcePort,
-       rule.action, rule.markValue, rule.dnatTo, rule.snatTo, rule.enabled, rule.comment, rule.priority,
+      `INSERT INTO "FirewallRule" (id, "tenantId", "propertyId", "zoneId", name, "chain", protocol, "sourceIp", "destIp", "destPort", "sourcePort",
+        action, "proxyTo", "jumpTarget", enabled, comment, priority, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+      [rule.id, body.tenantId || '00000000-0000-0000-0000-000000000000', body.propertyId || '00000000-0000-0000-0000-000000000000',
+       body.zoneId || '00000000-0000-0000-0000-000000000000',
+       rule.name, rule.chain, rule.protocol, rule.sourceIp, rule.destIp, rule.destPort, rule.sourcePort,
+       rule.action, rule.dnatTo, rule.snatTo, rule.enabled, rule.comment, rule.priority,
        rule.createdAt, rule.updatedAt]
     );
 
@@ -2046,9 +2048,10 @@ app.post('/api/port-forwards', async (c) => {
     };
 
     await pool.query(
-      `INSERT INTO "NftPortForward" (id, name, protocol, "externalPort", "internalIp", "internalPort", "sourceIp", enabled, comment, "createdAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [pf.id, pf.name, pf.protocol, pf.externalPort, pf.internalIp, pf.internalPort, pf.sourceIp, pf.enabled, pf.comment, pf.createdAt]
+      `INSERT INTO "PortForwardRule" (id, "tenantId", "propertyId", name, protocol, "externalPort", "internalIp", "internalPort", "sourceIp", enabled, description, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)`,
+      [pf.id, body.tenantId || '00000000-0000-0000-0000-000000000000', body.propertyId || '00000000-0000-0000-0000-000000000000',
+       pf.name, pf.protocol, pf.externalPort, pf.internalIp, pf.internalPort, pf.sourceIp, pf.enabled, pf.comment, pf.createdAt]
     );
 
     const applyResult = await autoApplyRules();
@@ -2070,11 +2073,11 @@ app.put('/api/port-forwards/:id', async (c) => {
     const body = await c.req.json();
 
     const result = await pool.query(
-      `UPDATE "NftPortForward"
+      `UPDATE "PortForwardRule"
        SET name = COALESCE($1, name), protocol = COALESCE($2, protocol),
            "externalPort" = COALESCE($3, "externalPort"), "internalIp" = COALESCE($4, "internalIp"),
            "internalPort" = COALESCE($5, "internalPort"), "sourceIp" = $6,
-           enabled = COALESCE($7, enabled), comment = $8
+           enabled = COALESCE($7, enabled), description = $8, "updatedAt" = NOW()
        WHERE id = $9 RETURNING *`,
       [body.name, body.protocol, body.externalPort, body.internalIp, body.internalPort,
        body.sourceIp ?? null, body.enabled, body.comment ?? null, id]
@@ -2113,7 +2116,7 @@ app.put('/api/port-forwards/:id', async (c) => {
 app.delete('/api/port-forwards/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    const result = await pool.query(`DELETE FROM "NftPortForward" WHERE id = $1 RETURNING id`, [id]);
+    const result = await pool.query(`DELETE FROM "PortForwardRule" WHERE id = $1 RETURNING id`, [id]);
 
     if (result.rowCount === 0) {
       return c.json({ success: false, error: 'Port forward not found' }, 404);
@@ -2163,9 +2166,10 @@ app.post('/api/rate-limits', async (c) => {
     };
 
     await pool.query(
-      `INSERT INTO "NftRateLimit" (id, name, "targetIp", "targetSet", "downloadRate", "uploadRate", protocol, enabled, comment, "createdAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [rl.id, rl.name, rl.targetIp, rl.targetSet, rl.downloadRate, rl.uploadRate, rl.protocol, rl.enabled, rl.comment, rl.createdAt]
+      `INSERT INTO "RateLimitRule" (id, "tenantId", "propertyId", name, "targetIp", "targetSet", "downloadRate", "uploadRate", protocol, enabled, comment, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)`,
+      [rl.id, body.tenantId || '00000000-0000-0000-0000-000000000000', body.propertyId || '00000000-0000-0000-0000-000000000000',
+       rl.name, rl.targetIp, rl.targetSet, rl.downloadRate, rl.uploadRate, rl.protocol, rl.enabled, rl.comment, rl.createdAt]
     );
 
     return c.json({
@@ -2184,10 +2188,10 @@ app.put('/api/rate-limits/:id', async (c) => {
     const body = await c.req.json();
 
     const result = await pool.query(
-      `UPDATE "NftRateLimit"
+      `UPDATE "RateLimitRule"
        SET name = COALESCE($1, name), "targetIp" = $2, "targetSet" = $3,
            "downloadRate" = COALESCE($4, "downloadRate"), "uploadRate" = COALESCE($5, "uploadRate"),
-           protocol = $6, enabled = COALESCE($7, enabled), comment = $8
+           protocol = $6, enabled = COALESCE($7, enabled), comment = $8, "updatedAt" = NOW()
        WHERE id = $9 RETURNING *`,
       [body.name, body.targetIp ?? null, body.targetSet ?? null, body.downloadRate, body.uploadRate,
        body.protocol, body.enabled, body.comment ?? null, id]
@@ -2216,7 +2220,7 @@ app.put('/api/rate-limits/:id', async (c) => {
 app.delete('/api/rate-limits/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    const result = await pool.query(`DELETE FROM "NftRateLimit" WHERE id = $1 RETURNING id`, [id]);
+    const result = await pool.query(`DELETE FROM "RateLimitRule" WHERE id = $1 RETURNING id`, [id]);
 
     if (result.rowCount === 0) {
       return c.json({ success: false, error: 'Rate limit not found' }, 404);
@@ -2255,9 +2259,10 @@ app.post('/api/quick-blocks', async (c) => {
     };
 
     await pool.query(
-      `INSERT INTO "NftQuickBlock" (id, type, value, reason, "blockedAt")
-       VALUES ($1, $2, $3, $4, $5)`,
-      [qb.id, qb.type, qb.value, qb.reason, qb.blockedAt]
+      `INSERT INTO "QuickBlock" (id, "tenantId", "propertyId", type, value, reason, enabled, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, true, $7, $7)`,
+      [qb.id, body.tenantId || '00000000-0000-0000-0000-000000000000', body.propertyId || '00000000-0000-0000-0000-000000000000',
+       qb.type, qb.value, qb.reason, qb.blockedAt]
     );
 
     const applyResult = await autoApplyRules();
@@ -2276,7 +2281,7 @@ app.post('/api/quick-blocks', async (c) => {
 app.delete('/api/quick-blocks/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    const result = await pool.query(`DELETE FROM "NftQuickBlock" WHERE id = $1 RETURNING id`, [id]);
+    const result = await pool.query(`DELETE FROM "QuickBlock" WHERE id = $1 RETURNING id`, [id]);
 
     if (result.rowCount === 0) {
       return c.json({ success: false, error: 'Quick block not found' }, 404);
@@ -2325,10 +2330,10 @@ app.post('/api/schedules', async (c) => {
     };
 
     await pool.query(
-      `INSERT INTO "NftSchedule" (id, name, days, "startTime", "endTime", timezone, "linkedRuleIds", enabled, "createdAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [sched.id, sched.name, sched.days, sched.startTime, sched.endTime, sched.timezone,
-       JSON.stringify(sched.linkedRuleIds), sched.enabled, sched.createdAt]
+      `INSERT INTO "FirewallSchedule" (id, "tenantId", "propertyId", name, "daysOfWeek", "startTime", "endTime", timezone, enabled, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)`,
+      [sched.id, body.tenantId || '00000000-0000-0000-0000-000000000000', body.propertyId || '00000000-0000-0000-0000-000000000000',
+       sched.name, sched.days, sched.startTime, sched.endTime, sched.timezone, sched.enabled, sched.createdAt]
     );
 
     return c.json({
@@ -2349,13 +2354,13 @@ app.put('/api/schedules/:id', async (c) => {
     const linkedRuleIds = body.linkedRuleIds !== undefined ? JSON.stringify(body.linkedRuleIds) : undefined;
 
     const result = await pool.query(
-      `UPDATE "NftSchedule"
-       SET name = COALESCE($1, name), days = COALESCE($2, days),
+      `UPDATE "FirewallSchedule"
+       SET name = COALESCE($1, name), "daysOfWeek" = COALESCE($2, "daysOfWeek"),
            "startTime" = COALESCE($3, "startTime"), "endTime" = COALESCE($4, "endTime"),
-           timezone = COALESCE($5, timezone), "linkedRuleIds" = COALESCE($6, "linkedRuleIds"),
-           enabled = COALESCE($7, enabled)
-       WHERE id = $8 RETURNING *`,
-      [body.name, body.days, body.startTime, body.endTime, body.timezone, linkedRuleIds, body.enabled, id]
+           timezone = COALESCE($5, timezone),
+           enabled = COALESCE($6, enabled), "updatedAt" = NOW()
+       WHERE id = $7 RETURNING *`,
+      [body.name, body.days, body.startTime, body.endTime, body.timezone, body.enabled, id]
     );
 
     if (result.rowCount === 0) {
@@ -2379,7 +2384,7 @@ app.put('/api/schedules/:id', async (c) => {
 app.delete('/api/schedules/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    const result = await pool.query(`DELETE FROM "NftSchedule" WHERE id = $1 RETURNING id`, [id]);
+    const result = await pool.query(`DELETE FROM "FirewallSchedule" WHERE id = $1 RETURNING id`, [id]);
 
     if (result.rowCount === 0) {
       return c.json({ success: false, error: 'Schedule not found' }, 404);
@@ -2436,11 +2441,12 @@ app.post('/api/presets/:id/apply', async (c) => {
       };
 
       await pool.query(
-        `INSERT INTO "FirewallRule" (id, name, "chain", protocol, "sourceIp", "destIp", "destPort", "sourcePort",
-          action, "markValue", "dnatTo", "snatTo", enabled, comment, priority, "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
-        [rule.id, rule.name, rule.chain, rule.protocol, rule.sourceIp, rule.destIp, rule.destPort, rule.sourcePort,
-         rule.action, rule.markValue, rule.dnatTo, rule.snatTo, rule.enabled, rule.comment, rule.priority,
+        `INSERT INTO "FirewallRule" (id, "tenantId", "propertyId", "zoneId", name, "chain", protocol, "sourceIp", "destIp", "destPort", "sourcePort",
+          action, "proxyTo", "jumpTarget", enabled, comment, priority, "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+        [rule.id, '00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000',
+         rule.name, rule.chain, rule.protocol, rule.sourceIp, rule.destIp, rule.destPort, rule.sourcePort,
+         rule.action, rule.dnatTo, rule.snatTo, rule.enabled, rule.comment, rule.priority,
          rule.createdAt, rule.updatedAt]
       );
       createdCount++;
