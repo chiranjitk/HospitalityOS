@@ -119,7 +119,7 @@ export const FEATURES: Record<string, FeatureConfig> = {
     menuItems: [
       'settings-general', 'settings-tax', 'settings-localization', 'settings-features', 'settings-gdpr',
       'settings-license', 'settings-license-keys', 'settings-security', 'settings-integrations',
-      'security-overview', 'security-2fa', 'security-sso', 'security-sessions', 'security-audit-logs',
+      'security-overview', 'security-sso', 'security-sessions', 'security-audit-logs',
       'staff-users', 'staff-roles',
     ],
     apiRoutes: ['/api/settings'],

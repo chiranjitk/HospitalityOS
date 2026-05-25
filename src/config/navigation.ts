@@ -696,9 +696,8 @@ export const navigationConfig: NavSection[] = [
       { id: 'settings-gdpr', title: 'GDPR Compliance', href: '#settings-gdpr', icon: Shield },
       { id: 'settings-security', title: 'Security Settings', href: '#settings-security', icon: Settings },
       { id: 'settings-integrations', title: 'System Integrations', href: '#settings-integrations', icon: Plug },
-      // Security (moved from Account Security section)
+      // Security
       { id: 'security-overview', title: 'Security Overview', href: '#security-overview', icon: Shield },
-      { id: 'security-2fa', title: 'Two-Factor Auth', href: '#security-2fa', icon: Lock },
       { id: 'security-sso', title: 'SSO Configuration', href: '#security-sso', icon: Key },
       { id: 'security-sessions', title: 'Device Sessions', href: '#security-sessions', icon: Smartphone },
       { id: 'security-audit-logs', title: 'Audit Logs', href: '#security-audit-logs', icon: History },
