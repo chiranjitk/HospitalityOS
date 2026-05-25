@@ -352,7 +352,9 @@ export async function GET(request: NextRequest) {
           const conditions: string[] = [];
           const sqlParams: unknown[] = [];
           // CRITICAL: Always filter by tenant via property_id to prevent cross-tenant exposure
-          conditions.push(`"property_id" IN (SELECT id FROM "Property" WHERE "tenantId" = $${sqlParams.length + 1}::uuid)`);
+          // Cast property_id (text in view) to uuid for comparison with Property.id
+          // NULLIF handles empty-string values that cause uuid parse errors
+          conditions.push(`NULLIF("property_id", '') IS NOT NULL AND NULLIF("property_id", '')::uuid IN (SELECT id FROM "Property" WHERE "tenantId" = $${sqlParams.length + 1}::uuid)`);
           sqlParams.push(context.tenantId);
           if (usernameFilter) { conditions.push(`"username" LIKE $${sqlParams.length + 1}`); sqlParams.push(`%${usernameFilter}%`); }
           if (resultFilter) { conditions.push(`auth_result = $${sqlParams.length + 1}`); sqlParams.push(resultFilter); }
