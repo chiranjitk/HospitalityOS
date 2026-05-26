@@ -666,9 +666,9 @@ async function fullSync(): Promise<{ config: any; reload: any }> {
 // Auth middleware - check Bearer token, skip for health/status/service endpoints
 // Status and service control endpoints don't need auth — they just check systemctl state.
 app.use('*', async (c, next) => {
-  // No auth needed for health, status, and service control endpoints
-  const noAuthPaths = ['/health', '/api/status'];
-  const noAuthPrefixes = ['/api/service/'];
+  // No auth needed for health, status, service control, sync, cache, and config endpoints
+  const noAuthPaths = ['/health', '/api/status', '/api/sync'];
+  const noAuthPrefixes = ['/api/service/', '/api/cache'];
   if (noAuthPaths.includes(c.req.path) || noAuthPrefixes.some(p => c.req.path.startsWith(p))) {
     return next();
   }

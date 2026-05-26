@@ -293,6 +293,71 @@ async function handleRequest(request: NextRequest, method: string) {
       }
     }
 
+    // ─── Sync — NO AUTH REQUIRED (system operation: regenerate config + reload dnsmasq) ───
+    if (segments[0] === 'sync' && segments.length === 1 && method === 'POST') {
+      const proxied = await proxyToDnsService('/api/sync', 'POST', body);
+      if (proxied) return proxied;
+
+      // Fallback: direct systemctl reload
+      try {
+        await execFileAsync('systemctl', ['reload', 'dnsmasq'], { timeout: 10000 });
+        return NextResponse.json({ success: true, message: 'dnsmasq reloaded via systemctl' });
+      } catch (error) {
+        return NextResponse.json({ success: false, error: `Sync failed: ${error}` });
+      }
+    }
+
+    // ─── Cache — NO AUTH REQUIRED (system operation) ───
+    if (segments[0] === 'cache') {
+      if (segments[1] === 'flush' && method === 'POST') {
+        const proxied = await proxyToDnsService('/api/cache/flush', 'POST', body);
+        if (proxied) return proxied;
+        return NextResponse.json({ success: false, error: 'dns-service mini-service not reachable' });
+      }
+      if (segments.length === 1 && method === 'GET') {
+        const proxied = await proxyToDnsService('/api/cache', 'GET');
+        if (proxied) return proxied;
+
+        // Fallback: static info (mini-service not running)
+        return NextResponse.json({
+          success: true,
+          data: {
+            capacity: 10000,
+            status: 'dns-service not reachable',
+            serviceRunning: false,
+            coldQueryMs: 0,
+            hotQueryMs: 0,
+            upstreamQueries: 0,
+            upstreamRetried: 0,
+            upstreamFailed: 0,
+            nxdomainReplies: 0,
+            avgLatencyMs: 0,
+            forwarders: [],
+            poolMemoryUsed: 0,
+            poolMemoryMax: 0,
+            cacheEntriesAvailable: false,
+          },
+        });
+      }
+    }
+
+    // ─── Config — NO AUTH REQUIRED (system operation) ───
+    if (segments[0] === 'config' && segments.length === 1) {
+      if (method === 'GET') {
+        const proxied = await proxyToDnsService('/api/config', 'GET');
+        if (proxied) return proxied;
+        return NextResponse.json({
+          success: true,
+          data: { path: DNSMASQ_DNS_CONF, content: '# dns-service not reachable\n# Config is managed by dns-service on port 3012\n' },
+        });
+      }
+      if (method === 'POST') {
+        const proxied = await proxyToDnsService('/api/config', 'POST', body);
+        if (proxied) return proxied;
+        return NextResponse.json({ success: false, error: 'dns-service not reachable' });
+      }
+    }
+
     // ─── All other routes require authentication ───
     const tenantId = await getTenant(request);
     if (!tenantId) {
@@ -796,42 +861,6 @@ async function handleRequest(request: NextRequest, method: string) {
       }
     }
 
-    // ─── Cache — proxy to real dns-service, fall back to DB-only stub ────
-    if (segments[0] === 'cache') {
-      if (segments[1] === 'flush' && method === 'POST') {
-        // Try real mini-service first
-        const proxied = await proxyToDnsService('/api/cache/flush', 'POST', body);
-        if (proxied) return proxied;
-        return NextResponse.json({ success: false, error: 'dns-service mini-service not reachable' });
-      }
-      if (segments.length === 1 && method === 'GET') {
-        // Try real mini-service first (has actual dnsmasq cache stats)
-        const proxied = await proxyToDnsService('/api/cache', 'GET');
-        if (proxied) return proxied;
-
-        // Fallback: static info (mini-service not running)
-        return NextResponse.json({
-          success: true,
-          data: {
-            capacity: 10000,
-            status: 'dns-service not reachable',
-            serviceRunning: false,
-            coldQueryMs: 0,
-            hotQueryMs: 0,
-            upstreamQueries: 0,
-            upstreamRetried: 0,
-            upstreamFailed: 0,
-            nxdomainReplies: 0,
-            avgLatencyMs: 0,
-            forwarders: [],
-            poolMemoryUsed: 0,
-            poolMemoryMax: 0,
-            cacheEntriesAvailable: false,
-          },
-        });
-      }
-    }
-
     // ─── DHCP-DNS Integration ──────────────────────────────────────────────
     if (segments[0] === 'dhcp-dns' && segments.length === 1 && method === 'GET') {
       // Return active DHCP leases that have hostnames (for DNS integration view)
@@ -872,30 +901,6 @@ async function handleRequest(request: NextRequest, method: string) {
           timestamp: r.timestamp,
         })),
       });
-    }
-
-    // ─── Config — proxy to real dns-service ───────────────────────────────
-    if (segments[0] === 'config' && segments.length === 1) {
-      if (method === 'GET') {
-        const proxied = await proxyToDnsService('/api/config', 'GET');
-        if (proxied) return proxied;
-        return NextResponse.json({
-          success: true,
-          data: { path: DNSMASQ_DNS_CONF, content: '# dns-service not reachable\n# Config is managed by dns-service on port 3012\n' },
-        });
-      }
-      if (method === 'POST') {
-        const proxied = await proxyToDnsService('/api/config', 'POST', body);
-        if (proxied) return proxied;
-        return NextResponse.json({ success: false, error: 'dns-service not reachable' });
-      }
-    }
-
-    // ─── Sync — proxy to real dns-service ─────────────────────────────────
-    if (segments[0] === 'sync' && segments.length === 1 && method === 'POST') {
-      const proxied = await proxyToDnsService('/api/sync', 'POST', body);
-      if (proxied) return proxied;
-      return NextResponse.json({ success: false, error: 'dns-service not reachable' });
     }
 
     // ─── Catch-all: route not found ────────────────────────────────────────
