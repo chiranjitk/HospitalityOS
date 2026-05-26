@@ -1573,13 +1573,18 @@ export async function POST(request: NextRequest) {
 
           const normalizedPhone = normalizePhoneNumberLocal(phoneNumber.trim());
           const stored = otpStore.get(normalizedPhone);
+          const smsUser = `sms-${normalizedPhone.replace(/[^a-z0-9]/gi, '')}`;
 
           if (!stored) {
+            recordFailedAttempt(extractClientIp(request) || 'unknown');
+            logAuthAttempt(smsUser, 'Access-Reject', request, 'OTP_NOT_FOUND').catch(() => {});
             return errorResponse('OTP_NOT_FOUND', 'No OTP found. Please request a new one.');
           }
 
           if (Date.now() > stored.expiresAt) {
             otpStore.delete(normalizedPhone);
+            recordFailedAttempt(extractClientIp(request) || 'unknown');
+            logAuthAttempt(smsUser, 'Access-Reject', request, 'OTP_EXPIRED').catch(() => {});
             return errorResponse('OTP_EXPIRED', 'Your OTP has expired. Please request a new one.');
           }
 
@@ -1587,10 +1592,14 @@ export async function POST(request: NextRequest) {
           stored.attempts++;
           if (stored.attempts > OTP_MAX_VERIFY_ATTEMPTS) {
             otpStore.delete(normalizedPhone);
+            recordFailedAttempt(extractClientIp(request) || 'unknown');
+            logAuthAttempt(smsUser, 'Access-Reject', request, 'OTP_MAX_ATTEMPTS').catch(() => {});
             return errorResponse('OTP_MAX_ATTEMPTS', 'Too many incorrect attempts. Please request a new OTP.');
           }
 
           if (stored.code !== otpCode.trim()) {
+            recordFailedAttempt(extractClientIp(request) || 'unknown');
+            logAuthAttempt(smsUser, 'Access-Reject', request, 'OTP_INVALID').catch(() => {});
             const remaining = OTP_MAX_VERIFY_ATTEMPTS - stored.attempts;
             return errorResponse('OTP_INVALID', `Invalid OTP code. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`);
           }
