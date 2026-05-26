@@ -1835,10 +1835,7 @@ function SuccessScreen({
         Disconnect & Logout
       </button>
 
-      {/* Post-Connect Guest Survey (Feature 4) */}
-      <GuestSurvey design={design} tenantId={tenantId} propertyId={propertyId} sessionId={authResult?.sessionId} guestId={authResult?.guestId} />
-
-      {/* F12: Detailed Survey Widget — only when Portal Designer survey toggle is ON */}
+      {/* Post-Connect Guest Survey — rendered via SurveyWidget when enabled in Portal Designer */}
       {design.surveyConfig?.enabled && tenantId && propertyId && (
         <div className="mt-4">
           <SurveyWidget
