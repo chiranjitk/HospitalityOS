@@ -1317,6 +1317,8 @@ export async function POST(request: NextRequest) {
             macAddress: effectiveMac,
             dnKbps: roomPlanDnKbps,
             upKbps: roomPlanUpKbps,
+            dnCeilKbps: Math.ceil(roomPlanDnKbps * 1.2),
+            upCeilKbps: Math.ceil(roomPlanUpKbps * 1.2),
             subnet: pool.subnet,
           });
 
@@ -1508,6 +1510,8 @@ export async function POST(request: NextRequest) {
             macAddress: effectiveMac, userId: wifiUser.id,
             dnKbps: bwDownBps ? Math.round(Number(bwDownBps) / 1000) : (wifiUser.plan?.downloadSpeed || bwDown) * 1000,
             upKbps: bwUpBps ? Math.round(Number(bwUpBps) / 1000) : (wifiUser.plan?.uploadSpeed || bwUp) * 1000,
+            dnCeilKbps: Math.ceil((bwDownBps ? Math.round(Number(bwDownBps) / 1000) : (wifiUser.plan?.downloadSpeed || bwDown) * 1000) * 1.2),
+            upCeilKbps: Math.ceil((bwUpBps ? Math.round(Number(bwUpBps) / 1000) : (wifiUser.plan?.uploadSpeed || bwUp) * 1000) * 1.2),
             subnet: pool.subnet,
           });
 
@@ -1708,6 +1712,8 @@ export async function POST(request: NextRequest) {
                 macAddress: effectiveMac,
                 dnKbps: smsPlanDnKbps,
                 upKbps: smsPlanUpKbps,
+                dnCeilKbps: Math.ceil(smsPlanDnKbps * 1.2),
+                upCeilKbps: Math.ceil(smsPlanUpKbps * 1.2),
                 subnet: smsPool.subnet,
               });
 
