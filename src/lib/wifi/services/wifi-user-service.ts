@@ -47,8 +47,14 @@ const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3
  * "VIP Suite Plan" → "vip_suite_plan"
  * "Free WiFi" → "free_wifi"
  */
-export function planNameToGroupName(planName: string): string {
-  return planName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard_guests';
+export function planNameToGroupName(planName: string, planId?: string): string {
+  const base = planName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard_guests';
+  // Include plan ID suffix to prevent collision between similar plan names
+  if (planId) {
+    const shortId = planId.replace(/-/g, '').substring(0, 8);
+    return `${base}_${shortId}`;
+  }
+  return base;
 }
 
 /**
