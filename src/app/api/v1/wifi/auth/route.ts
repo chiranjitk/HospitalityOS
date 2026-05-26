@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { normalizeIPv4, getClientIp } from '@/lib/utils/ip';
+import { getClientIp } from '@/lib/utils/ip';
 import { db } from '@/lib/db';
 import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
 import { sendSMSNow } from '@/lib/services/sms-service';
@@ -700,7 +700,12 @@ export async function POST(request: NextRequest) {
     // ════════════════════════════════════════════════════════════
     // STEP 1: Parse request body — extract username & method first
     // ════════════════════════════════════════════════════════════
-    const body = await request.json();
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse('INVALID_REQUEST', 'Invalid request body. Please send valid JSON.', 400);
+    }
     const {
       method,
       portalSlug,
