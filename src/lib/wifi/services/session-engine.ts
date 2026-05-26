@@ -146,6 +146,31 @@ interface UserPolicy {
 // Maps IP → last timestamp when bytes delta was > 0
 const lastActivityMap = new Map<string, number>();
 
+/**
+ * Restore lastActivityMap from radacct on startup so idle timeouts survive restarts.
+ * Uses acctupdatetime as the last-known activity timestamp.
+ */
+async function restoreActivityMapFromDb(): Promise<void> {
+  try {
+    const sessions = await db.$queryRawUnsafe<Array<{ framedipaddress: string; acctupdatetime: Date }>>(`
+      SELECT framedipaddress, acctupdatetime
+      FROM radacct
+      WHERE acctstoptime IS NULL
+        AND framedipaddress IS NOT NULL
+        AND framedipaddress != '' AND framedipaddress != '0.0.0.0'
+    `);
+    for (const s of sessions) {
+      const ip = normalizeIPv4(s.framedipaddress);
+      if (ip) {
+        lastActivityMap.set(ip, new Date(s.acctupdatetime).getTime());
+      }
+    }
+    console.log(`[Session Engine] Restored ${sessions.length} activity timestamps from radacct`);
+  } catch (err) {
+    console.warn('[Session Engine] Failed to restore activity map from DB:', err);
+  }
+}
+
 // Bug 7: Concurrency guard to prevent overlapping runs
 let isRunning = false;
 
@@ -242,6 +267,11 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
   isRunning = true;
 
   try {
+    // Restore activity timestamps from DB on first run after restart
+    if (lastActivityMap.size === 0) {
+      await restoreActivityMapFromDb();
+    }
+
     const startTime = Date.now();
     const result: SessionEngineResult = {
       sessionsProcessed: 0,
