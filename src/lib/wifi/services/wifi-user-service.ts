@@ -80,7 +80,7 @@ export async function syncRadiusGroup(plan: {
   sessionLimit?: number | null;
   sessionTimeoutSec?: number | null;
   idleTimeoutSec?: number | null;
-}, propertyId?: string): Promise<void> {
+}, propertyId?: string, parentTx?: any): Promise<void> {
   const groupName = planNameToGroupName(plan.name);
   const vendors = await getActiveNASVendors(propertyId);
   const downloadMbps = plan.downloadSpeed || 10;
@@ -91,7 +91,11 @@ export async function syncRadiusGroup(plan: {
   const sessionLimit = plan.sessionLimit || 0;
   const sessionTimeoutMin = sessionTimeoutSec > 0 ? Math.floor(sessionTimeoutSec / 60) : 0;
 
-  await db.$transaction(async (tx) => {
+  const runInTx = parentTx
+    ? parentTx // Reuse parent transaction (no nesting)
+    : async (fn: (tx: any) => Promise<void>) => db.$transaction(fn);
+
+  await runInTx(async (tx) => {
     // ── Delete old group entries ──
     await tx.radGroupCheck.deleteMany({ where: { groupname: groupName } });
     await tx.radGroupReply.deleteMany({ where: { groupname: groupName } });
@@ -379,8 +383,7 @@ export class WiFiUserService {
               // Check if group already has entries (avoid re-sync on every provision)
               const existingGroupEntries = await tx.radGroupCheck.count({ where: { groupname: groupName } });
               if (existingGroupEntries === 0) {
-                // Sync group attributes (best-effort, non-blocking)
-                // We use the tx to ensure consistency
+                // Sync group attributes within the SAME transaction (no nesting)
                 await syncRadiusGroup({
                   id: planFull.id,
                   name: planFull.name,
@@ -393,9 +396,7 @@ export class WiFiUserService {
                   sessionLimit: planFull.sessionLimit,
                   sessionTimeoutSec: planFull.sessionTimeoutSec,
                   idleTimeoutSec: planFull.idleTimeoutSec,
-                }, input.propertyId).catch(err => {
-                  console.warn(`[WiFi Provisioning] Group sync failed for ${groupName}:`, err instanceof Error ? err.message : err);
-                });
+                }, input.propertyId, tx);
               }
             }
           }
@@ -913,9 +914,7 @@ export class WiFiUserService {
               sessionLimit: wifiUser.plan.sessionLimit,
               sessionTimeoutSec: wifiUser.plan.sessionTimeoutSec,
               idleTimeoutSec: wifiUser.plan.idleTimeoutSec,
-            }, wifiUser.propertyId).catch(err => {
-              console.warn(`[Resume] Group sync failed:`, err instanceof Error ? err.message : err);
-            });
+            }, wifiUser.propertyId, tx);
           }
         }
 
