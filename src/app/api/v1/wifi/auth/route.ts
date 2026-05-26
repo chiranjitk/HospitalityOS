@@ -1611,6 +1611,9 @@ export async function POST(request: NextRequest) {
           const wifiUsername = `sms-${normalizedPhone.replace(/[^a-z0-9]/gi, '')}`;
           let smsSessionId: string | null = null;
           let smsGuestId: string | null = null;
+          // Declared outside if-block so they remain in scope for the response
+          let smsPlanDnKbps = bwDown * 1000;  // kbps
+          let smsPlanUpKbps = bwUp * 1000;    // kbps
 
           const fallbackPropertyId = portal?.propertyId
             || await (portal?.tenantId
@@ -1622,8 +1625,6 @@ export async function POST(request: NextRequest) {
             let smsPlanId: string | null = null;
             let smsMaxDevices = 1;
             let smsDataLimit: number | undefined;
-            let smsPlanDnKbps = bwDown * 1000;  // kbps
-            let smsPlanUpKbps = bwUp * 1000;    // kbps
 
             if (portalPlanIpPoolId || fallbackPropertyId) {
               // Try property default AAA plan
