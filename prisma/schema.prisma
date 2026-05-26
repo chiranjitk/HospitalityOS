@@ -4225,7 +4225,7 @@ model NotificationLog {
   body           String
   status         String    @default("pending")
   errorMessage   String?
-  externalId     String?   @db.Uuid
+  externalId     String?
   retryCount     Int       @default(0)
   sentAt         DateTime? @db.Timestamptz
   deliveredAt    DateTime? @db.Timestamptz
