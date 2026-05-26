@@ -41,13 +41,29 @@ function getClientIpFromRequest(request: NextRequest): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { username, clientIp: bodyIp, source, _sessionToken } = body as { username?: string; clientIp?: string; source?: string; _sessionToken?: string };
+    const { username, sessionId, clientIp: bodyIp, source, _sessionToken } = body as { username?: string; sessionId?: string; clientIp?: string; source?: string; _sessionToken?: string };
 
-    if (!username) {
+    if (!username && !sessionId) {
       return NextResponse.json(
-        { success: false, error: { code: 'MISSING_USERNAME', message: 'Username is required' } },
+        { success: false, error: { code: 'MISSING_IDENTIFIER', message: 'Username or session ID is required' } },
         { status: 400 }
       );
+    }
+
+    // If only sessionId provided, resolve username from WiFiSession
+    let resolvedUsername = username;
+    if (!resolvedUsername && sessionId) {
+      try {
+        const wifiSession = await db.wiFiSession.findUnique({
+          where: { id: sessionId },
+          select: { username: true },
+        });
+        if (wifiSession?.username) {
+          resolvedUsername = wifiSession.username;
+        }
+      } catch {
+        // Non-fatal
+      }
     }
 
     // Security: Require either admin auth (via session cookie) or a valid
@@ -92,7 +108,7 @@ export async function POST(request: NextRequest) {
              AND framedipaddress != '' AND framedipaddress != '0.0.0.0'
            ORDER BY acctstarttime DESC
            LIMIT 1`,
-          username,
+          resolvedUsername,
         );
         if (session.length > 0 && session[0].framedipaddress) {
           clientIp = session[0].framedipaddress;
@@ -107,7 +123,7 @@ export async function POST(request: NextRequest) {
     if (!clientIp) {
       try {
         const wifiSession = await db.wiFiSession.findFirst({
-          where: { username, status: 'active', ipAddress: { not: '' } },
+          where: { username: resolvedUsername, status: 'active', ipAddress: { not: '' } },
           select: { ipAddress: true },
           orderBy: { startTime: 'desc' },
         });
@@ -140,7 +156,7 @@ export async function POST(request: NextRequest) {
             clientIp = ips[0];
             ipSource = 'nftables (sole IP)';
           } else if (ips.length > 1) {
-            console.warn(`[Guest Disconnect] nftables has ${ips.length} IPs in loggedinusers, can't determine which belongs to ${username}`);
+            console.warn(`[Guest Disconnect] nftables has ${ips.length} IPs in loggedinusers, can't determine which belongs to ${resolvedUsername}`);
           }
         }
       } catch {
@@ -149,9 +165,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (clientIp) {
-      console.log(`[Guest Disconnect] Resolved IP for ${username}: ${clientIp} (source: ${ipSource})`);
+      console.log(`[Guest Disconnect] Resolved IP for ${resolvedUsername}: ${clientIp} (source: ${ipSource})`);
     } else {
-      console.warn(`[Guest Disconnect] No client IP found for ${username} after all strategies`);
+      console.warn(`[Guest Disconnect] No client IP found for ${resolvedUsername} after all strategies`);
     }
 
     // ── Close all active radacct sessions for this user ──
@@ -168,12 +184,12 @@ export async function POST(request: NextRequest) {
             acctupdatetime = NOW()
         WHERE acctstoptime IS NULL
           AND username = $1
-      `, username);
+      `, resolvedUsername);
 
       // Verify rows were affected
       const check = await db.$queryRawUnsafe<{ cnt: bigint }[]>(
         `SELECT COUNT(*) as cnt FROM radacct WHERE acctterminatecause = 'User-Request' AND username = $1 AND acctstoptime > NOW() - INTERVAL '5 seconds'`,
-        username
+        resolvedUsername
       );
       closedCount = Number(check[0]?.cnt || 0);
     } catch (err) {
@@ -187,7 +203,7 @@ export async function POST(request: NextRequest) {
         SET status = 'completed', "endTime" = NOW(), "updatedAt" = NOW()
         WHERE status = 'active'
           AND username = $1
-      `, username);
+      `, resolvedUsername);
     } catch {
       // WiFiSession may not exist or have no matching rows — non-fatal
     }
@@ -215,10 +231,10 @@ export async function POST(request: NextRequest) {
       try {
         const result = runLogoutScript({ ip: clientIp });
         if (result.success) {
-          console.log(`[Guest Disconnect] Firewall OK: ${username} ip=${clientIp} (${result.durationMs}ms)`);
+          console.log(`[Guest Disconnect] Firewall OK: ${resolvedUsername} ip=${clientIp} (${result.durationMs}ms)`);
         } else {
           console.error(
-            `[Guest Disconnect] Firewall FAIL: ${username} ip=${clientIp} exit=${result.exitCode} stderr=${result.stderr || '(none)'} (${result.durationMs}ms)`
+            `[Guest Disconnect] Firewall FAIL: ${resolvedUsername} ip=${clientIp} exit=${result.exitCode} stderr=${result.stderr || '(none)'} (${result.durationMs}ms)`
           );
         }
       } catch (err) {
@@ -230,10 +246,10 @@ export async function POST(request: NextRequest) {
       // This immediately blocks internet access even if the logout script failed
       deauthIP(clientIp);
     } else {
-      console.warn(`[Guest Disconnect] No client IP found for ${username} — skipping firewall cleanup`);
+      console.warn(`[Guest Disconnect] No client IP found for ${resolvedUsername} — skipping firewall cleanup`);
     }
 
-    console.log(`[Guest Disconnect] User ${username} disconnected, ${closedCount} radacct session(s) closed`);
+    console.log(`[Guest Disconnect] User ${resolvedUsername} disconnected, ${closedCount} radacct session(s) closed`);
 
     // NOTE: Admin disconnect does NOT deactivate DeviceProfile — auto-auth
     // is controlled solely by the portal panel toggle (CaptivePortal.autoAuthEnabled).

@@ -2300,12 +2300,14 @@ function PortalContent() {
   const handleDisconnect = useCallback(async () => {
     try {
       // 1. Close any active radacct sessions for this user (sets acctstoptime)
-      if (authResult?.username) {
+      const disconnectUser = authResult?.username || authResult?.sessionId;
+      if (disconnectUser) {
         await fetch('/api/v1/wifi/disconnect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            username: authResult.username,
+            username: authResult?.username || undefined,
+            sessionId: authResult?.sessionId || undefined,
             source: 'portal', // Keep DeviceProfile active for future auto-auth
             _sessionToken: saveStorageToken(),
           }),
