@@ -1822,10 +1822,8 @@ export async function POST(request: NextRequest) {
               message: smsSent
                 ? 'OTP sent to your phone'
                 : 'OTP generated but SMS delivery failed. Please try again.',
-              // Always expose OTP for testing without SMS gateway
-              // In production with a real SMS gateway, this is harmless —
-              // the guest receives the OTP via SMS and ignores this field.
-              _debugOtp: code,
+              // Only expose OTP in non-production environments for testing
+              ...(process.env.NODE_ENV !== 'production' && { _debugOtp: code }),
               _smsSent: smsSent,
               ...(!smsSent && smsError && { _error: smsError }),
             },
