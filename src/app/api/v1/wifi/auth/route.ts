@@ -1008,7 +1008,7 @@ export async function POST(request: NextRequest) {
         return successResponse(
           {
             authenticated: true, method: 'voucher', username: wifiUsername,
-            sessionTimeout: voucherSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
+            sessionTimeout: voucherSessionTimeoutMin, bandwidthDown: voucher.plan?.downloadSpeed || bwDown, bandwidthUp: voucher.plan?.uploadSpeed || bwUp,
             poolName: pool.poolName, message: 'Connected successfully!',
             sessionId: voucherSessionId,
             guestId: voucher.guestId || null,
@@ -1347,7 +1347,7 @@ export async function POST(request: NextRequest) {
         return successResponse(
           {
             authenticated: true, method: 'room_number', username: wifiUsername,
-            sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
+            sessionTimeout: portalSessionTimeoutMin, bandwidthDown: roomPlanDnKbps / 1000, bandwidthUp: roomPlanUpKbps / 1000,
             poolName: pool.poolName, message: 'Connected successfully!',
             sessionId: roomSessionId,
             guestId: match.primaryGuestId || null,
@@ -1726,7 +1726,7 @@ export async function POST(request: NextRequest) {
           return successResponse(
             {
               authenticated: true, method: 'sms_otp', username: wifiUsername,
-              sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
+              sessionTimeout: portalSessionTimeoutMin, bandwidthDown: smsPlanDnKbps / 1000, bandwidthUp: smsPlanUpKbps / 1000,
               poolName: smsPool.poolName, message: 'Connected successfully!',
               sessionId: smsSessionId,
               guestId: smsGuestId,
@@ -1925,7 +1925,7 @@ export async function POST(request: NextRequest) {
         return successResponse(
           {
             authenticated: true, method: 'open_access', username: wifiUsername,
-            sessionTimeout: portalSessionTimeoutMin, bandwidthDown: bwDown, bandwidthUp: bwUp,
+            sessionTimeout: portalSessionTimeoutMin, bandwidthDown: openPlanDnKbps / 1000, bandwidthUp: openPlanUpKbps / 1000,
             poolName: pool.poolName, message: 'Connected successfully!',
             sessionId: openAccessSessionId,
             guestId: null,
