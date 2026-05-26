@@ -64,11 +64,26 @@ function getOpenSSLEnv(): Record<string, string> {
  * resolved from @/lib/wifi/paths which auto-detects the install prefix
  * by probing the filesystem (RPM at /usr vs source at /usr/local).
  */
+const RADIUS_AUTH_TIMEOUT_MS = 15000; // 15 second total timeout including DB lookup + radclient
+
+/**
+ * Wraps a promise with a timeout.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
 export async function radiusAuth(username: string, password: string): Promise<{
   accepted: boolean;
   replyAttrs: Record<string, string>;
   rejectReason?: string;
 }> {
+  return withTimeout((async () => {
   try {
     const radclientBin = RADCLIENT_BIN;
     const raddbDir = RADDB_PATH;
@@ -139,6 +154,7 @@ export async function radiusAuth(username: string, password: string): Promise<{
     console.error('[RADIUS Auth] radclient error:', error.message);
     return { accepted: false, replyAttrs: {}, rejectReason: 'RADIUS_UNREACHABLE' };
   }
+  })(), RADIUS_AUTH_TIMEOUT_MS, 'RADIUS auth');
 }
 
 /**
