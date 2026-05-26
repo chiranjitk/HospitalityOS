@@ -1,35 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import sanitizeHtml from 'sanitize-html';
 
 /**
- * Strip dangerous HTML content to prevent XSS in captive portal pages.
- * Removes <script>, event handlers (onclick, onerror, etc.), and javascript: URLs.
+ * Sanitize HTML content to prevent XSS in captive portal pages.
+ * Uses sanitize-html library for comprehensive protection.
  */
 function sanitizePortalHtml(html: string | null | undefined): string | null {
   if (!html) return null;
-  return html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<script[^>]*\s*\/?>/gi, '')
-    .replace(/\son\w+\s*=/gi, 'data-blocked=')
-    .replace(/javascript\s*:/gi, 'blocked:')
-    .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '')
-    .replace(/<object[^>]*>[\s\S]*?<\/object>/gi, '')
-    .replace(/<embed[^>]*>/gi, '')
-    .replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '')
-    .trim() || null;
+  const result = sanitizeHtml(html, {
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+      'img', 'hr', 'br', 'p', 'div', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'ul', 'ol', 'li', 'a', 'b', 'i', 'em', 'strong', 'u', 'center',
+      'table', 'thead', 'tbody', 'tr', 'th', 'td', 'blockquote', 'pre', 'code',
+      'section', 'article', 'header', 'footer', 'nav', 'figure', 'figcaption',
+    ]),
+    allowedAttributes: {
+      ...sanitizeHtml.defaults.allowedAttributes,
+      img: ['src', 'alt', 'width', 'height', 'style'],
+      a: ['href', 'target', 'style'],
+      td: ['colspan', 'rowspan', 'style'],
+      th: ['colspan', 'rowspan', 'style'],
+      table: ['style'], div: ['style', 'class', 'id'], span: ['style', 'class', 'id'], p: ['style', 'class'],
+    },
+    allowedSchemes: ['http', 'https', 'mailto'],
+    allowProtocolRelative: false,
+  });
+  return result.trim() || null;
 }
 
 /** Strip dangerous CSS to prevent CSS-based attacks. */
 function sanitizePortalCss(css: string | null | undefined): string | null {
   if (!css) return null;
-  return css
-    .replace(/expression\s*\(/gi, 'blocked(')
-    .replace(/javascript\s*:/gi, 'blocked:')
-    .replace(/url\s*\(\s*['"]?\s*javascript:/gi, 'url(blocked:')
-    .replace(/@import\s+url\s*\(/gi, '/* blocked */')
-    .replace(/behavior\s*:/gi, 'blocked:')
-    .trim() || null;
+  const sanitized = css
+    .replace(/expression\s*\([^)]*\)/gi, '')
+    .replace(/javascript\s*:/gi, '')
+    .replace(/url\s*\(\s*['"]?\s*javascript\s*:[^)]*\)/gi, '')
+    .replace(/@import\s+[^;]+;/gi, '')
+    .replace(/behavior\s*:[^;]*;/gi, '')
+    .replace(/-moz-binding\s*:[^;]*;/gi, '')
+    .replace(/expr\65ssion\s*\([^)]*\)/gi, '')
+    .replace(/expre\s*\/\*.*?\*\/ssion\s*\([^)]*\)/gi, '')
+    .trim();
+  return sanitized || null;
 }
 
 // GET /api/wifi/portal/pages - List portal pages or get by portalId

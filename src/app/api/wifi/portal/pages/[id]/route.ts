@@ -1,6 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import sanitizeHtml from 'sanitize-html';
+
+/** Sanitize HTML — same logic as POST handler in pages/route.ts */
+function sanitizePortalHtml(html: string | null | undefined): string | null {
+  if (!html) return null;
+  const result = sanitizeHtml(html, {
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+      'img', 'hr', 'br', 'p', 'div', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'ul', 'ol', 'li', 'a', 'b', 'i', 'em', 'strong', 'u', 'center',
+      'table', 'thead', 'tbody', 'tr', 'th', 'td', 'blockquote', 'pre', 'code',
+      'section', 'article', 'header', 'footer', 'nav', 'figure', 'figcaption',
+    ]),
+    allowedAttributes: {
+      ...sanitizeHtml.defaults.allowedAttributes,
+      img: ['src', 'alt', 'width', 'height', 'style'],
+      a: ['href', 'target', 'style'],
+      td: ['colspan', 'rowspan', 'style'],
+      th: ['colspan', 'rowspan', 'style'],
+      table: ['style'], div: ['style', 'class', 'id'], span: ['style', 'class', 'id'], p: ['style', 'class'],
+    },
+    allowedSchemes: ['http', 'https', 'mailto'],
+    allowProtocolRelative: false,
+  });
+  return result.trim() || null;
+}
+
+/** Sanitize CSS — same logic as POST handler */
+function sanitizePortalCss(css: string | null | undefined): string | null {
+  if (!css) return null;
+  const sanitized = css
+    .replace(/expression\s*\([^)]*\)/gi, '')
+    .replace(/javascript\s*:/gi, '')
+    .replace(/url\s*\(\s*['"]?\s*javascript\s*:[^)]*\)/gi, '')
+    .replace(/@import\s+[^;]+;/gi, '')
+    .replace(/behavior\s*:[^;]*;/gi, '')
+    .replace(/-moz-binding\s*:[^;]*;/gi, '')
+    .replace(/expr\65ssion\s*\([^)]*\)/gi, '')
+    .replace(/expre\s*\/\*.*?\*\/ssion\s*\([^)]*\)/gi, '')
+    .trim();
+  return sanitized || null;
+}
 
 // PUT /api/wifi/portal/pages/[id] - Update portal page design
 export async function PUT(
@@ -37,10 +78,10 @@ export async function PUT(
     if (body.brandColor !== undefined) updatePayload.accentColor = body.brandColor;
     if (body.termsText !== undefined) updatePayload.termsText = body.termsText;
     if (body.termsUrl !== undefined) updatePayload.termsUrl = body.termsUrl;
-    if (body.customCss !== undefined) updatePayload.customCss = body.customCss;
-    if (body.customCSS !== undefined) updatePayload.customCss = body.customCSS;
-    if (body.customHtml !== undefined) updatePayload.customHtml = body.customHtml;
-    if (body.customHTML !== undefined) updatePayload.customHtml = body.customHTML;
+    if (body.customCss !== undefined) updatePayload.customCss = sanitizePortalCss(body.customCss);
+    if (body.customCSS !== undefined) updatePayload.customCss = sanitizePortalCss(body.customCSS);
+    if (body.customHtml !== undefined) updatePayload.customHtml = sanitizePortalHtml(body.customHtml);
+    if (body.customHTML !== undefined) updatePayload.customHtml = sanitizePortalHtml(body.customHTML);
     if (body.showSocial !== undefined) updatePayload.showSocial = body.showSocial;
     if (body.showBranding !== undefined) updatePayload.showBranding = body.showBranding;
     if (body.formFields !== undefined) updatePayload.formFields = typeof body.formFields === 'string' ? body.formFields : JSON.stringify(body.formFields);
