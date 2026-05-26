@@ -81,6 +81,8 @@ export const DATA_LIMIT_ATTRIBUTES: string[] = [
   'ChilliSpot-Max-Total-Octets',    // CoovaChilli/pfSense — total bytes
   'ChilliSpot-Max-Input-Octets',    // CoovaChilli — input bytes
   'ChilliSpot-Max-Output-Octets',   // CoovaChilli — output bytes
+  'Cisco-AVPair-1',                // Cisco — sub:quota-in= (data limit)
+  'Cisco-AVPair-2',                // Cisco — data-limit= (data limit)
 ];
 
 /**
@@ -98,6 +100,7 @@ export const BANDWIDTH_ATTRIBUTES: string[] = [
   'ChilliSpot-Bandwidth-Max-Up',    // CoovaChilli — bps
   'WISPr-Bandwidth-Max-Down',       // RFC WISPr — bps (universal)
   'WISPr-Bandwidth-Max-Up',         // RFC WISPr — bps (universal)
+  'Cisco-AVPair-0',                // Cisco Meraki — bandwidth
 ];
 
 /**
@@ -116,6 +119,9 @@ export const ALL_VENDOR_SPECIFIC_ATTRIBUTES: string[] = [
   ...DATA_LIMIT_ATTRIBUTES.filter(a => !a.startsWith('Cryptsk')),
   ...BANDWIDTH_ATTRIBUTES.filter(a => !a.startsWith('Cryptsk') && !a.startsWith('WISPr')), // WISPr is RFC-standard, always kept
   'Cisco-AVPair',                   // Cisco — multipurpose VSA
+  'Cisco-AVPair-0',                  // Cisco Meraki — bandwidth
+  'Cisco-AVPair-1',                  // Cisco — data limit (sub:quota-in=)
+  'Cisco-AVPair-2',                  // Cisco — data limit (data-limit=)
 ];
 
 // ─── Reading Functions (vendor-agnostic) ─────────────────────────────────
