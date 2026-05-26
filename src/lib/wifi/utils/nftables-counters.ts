@@ -254,6 +254,10 @@ export function removeUserCounter(ip: string): boolean {
 export function readUserCounter(ip: string): IPByteCount | null {
   if (!isNftablesAvailable()) return null;
   const cleanIp = normalizeIPv4(ip);
+  if (!cleanIp || !/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(cleanIp)) {
+    console.warn(`[Counter] readUserCounter: invalid IP '${ip}' — returning null`);
+    return null;
+  }
   try {
     const output = execSync(`bash ${getCOUNTER_SCRIPT()} read ${cleanIp} 2>&1`, {
       encoding: 'utf-8',
@@ -367,6 +371,10 @@ export function isIPAuthenticated(ip: string): boolean {
   }
 
   const cleanIp = normalizeIPv4(ip);
+  if (!cleanIp || !/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(cleanIp)) {
+    console.warn(`[Counter] isIPAuthenticated: invalid IP '${ip}' — returning false`);
+    return false;
+  }
   // Detect the actual table name dynamically (could be 'mangle', 'staysuite_mangle', etc.)
   const tableName = getMangleTableName();
 
@@ -438,6 +446,10 @@ export function getAllAuthenticatedIPs(): Set<string> | null {
  */
 export function deauthIP(ip: string): boolean {
   const cleanIp = normalizeIPv4(ip);
+  if (!cleanIp || !/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(cleanIp)) {
+    console.warn(`[Counter] deauthIP: invalid IP '${ip}' — skipping`);
+    return false;
+  }
   const tableName = getMangleTableName();
   try {
     execSync(
