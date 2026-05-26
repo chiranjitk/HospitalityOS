@@ -799,11 +799,11 @@ async function handleRequest(request: NextRequest, method: string) {
           const id = crypto.randomUUID();
           await db.$executeRaw(
             Prisma.sql`INSERT INTO "DnsForwarder" (id, "tenantId", "propertyId", address, port, description, enabled)
-             VALUES (${id}::uuid, ${tenantId}::uuid, ${propertyId || tenantId}::uuid, ${(b.address as string) || ''}, ${(b.port as number) || 53}, ${(b.description as string) || null}, ${b.enabled !== false})
+             VALUES (${id}::text, ${tenantId}::text, ${(propertyId || tenantId)}::text, ${(b.address as string) || ''}, ${(b.port as number) || 53}, ${(b.description as string) || null}, ${b.enabled !== false})
              ON CONFLICT ON CONSTRAINT "DnsForwarder_address_port_propertyId_key" DO NOTHING`
           );
           const rows = await db.$queryRaw<DnsForwarderRow[]>(
-            Prisma.sql`SELECT * FROM "DnsForwarder" WHERE id = ${id}::uuid`
+            Prisma.sql`SELECT * FROM "DnsForwarder" WHERE id = ${id}::text`
           );
           return NextResponse.json({
             success: true,
@@ -818,18 +818,18 @@ async function handleRequest(request: NextRequest, method: string) {
         // DELETE /forwarders/:id
         if (method === 'DELETE') {
           // GAP-FIX(17b): Verify tenant ownership before delete
-          const existingFwd = await db.$queryRawUnsafe<{ tenantId: string }[]>(`SELECT "tenantId" FROM "DnsForwarder" WHERE id = ${id}::uuid`);
+          const existingFwd = await db.$queryRawUnsafe<{ tenantId: string }[]>(`SELECT "tenantId" FROM "DnsForwarder" WHERE id = '${id}'`);
           if (existingFwd.length === 0 || existingFwd[0].tenantId !== tenantId) {
             return NextResponse.json({ success: false, error: 'Forwarder not found' }, { status: 404 });
           }
-          await db.$executeRaw`DELETE FROM "DnsForwarder" WHERE id = ${id}::uuid`;
+          await db.$executeRaw`DELETE FROM "DnsForwarder" WHERE id = ${id}::text`;
           return NextResponse.json({ success: true, message: 'Forwarder removed' });
         }
         // PUT /forwarders/:id
         if (method === 'PUT') {
           const b = body!;
           // GAP-FIX(17b): Verify tenant ownership before update
-          const existingFwdPut = await db.$queryRawUnsafe<{ tenantId: string }[]>(`SELECT "tenantId" FROM "DnsForwarder" WHERE id = ${id}::uuid`);
+          const existingFwdPut = await db.$queryRawUnsafe<{ tenantId: string }[]>(`SELECT "tenantId" FROM "DnsForwarder" WHERE id = '${id}'`);
           if (existingFwdPut.length === 0 || existingFwdPut[0].tenantId !== tenantId) {
             return NextResponse.json({ success: false, error: 'Forwarder not found' }, { status: 404 });
           }
@@ -854,7 +854,7 @@ async function handleRequest(request: NextRequest, method: string) {
           }
 
           await db.$executeRaw(
-            Prisma.sql`UPDATE "DnsForwarder" SET ${Prisma.join(setClauses, ', ')} WHERE id = ${id}::uuid`
+            Prisma.sql`UPDATE "DnsForwarder" SET ${Prisma.join(setClauses, ', ')} WHERE id = ${id}::text`
           );
           return NextResponse.json({ success: true, message: 'Forwarder updated' });
         }
