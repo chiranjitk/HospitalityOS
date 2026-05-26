@@ -156,6 +156,15 @@ export function setupCounterTable(): boolean {
 export function addUserCounter(ip: string): boolean {
   if (!isNftablesAvailable()) return false;
   const cleanIp = normalizeIPv4(ip);
+  if (!cleanIp) {
+    console.warn(`[Counter] addUserCounter: invalid IP '${ip}' — skipping`);
+    return false;
+  }
+  // Validate format: must be d.d.d.d where d is 0-255
+  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(cleanIp)) {
+    console.warn(`[Counter] addUserCounter: unexpected IP format '${cleanIp}' — skipping`);
+    return false;
+  }
   try {
     execSync(`bash ${getCOUNTER_SCRIPT()} add ${cleanIp} 2>&1`, {
       encoding: 'utf-8',
@@ -176,6 +185,10 @@ export function addUserCounter(ip: string): boolean {
  */
 export function removeUserCounter(ip: string): boolean {
   const cleanIp = normalizeIPv4(ip);
+  if (!cleanIp || !/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(cleanIp)) {
+    console.warn(`[Counter] removeUserCounter: invalid IP '${ip}' — skipping`);
+    return false;
+  }
   if (!isNftablesAvailable()) {
     console.warn(`[Counter] removeUserCounter(${cleanIp}) skipped — nftables not available`);
     return false;
@@ -214,7 +227,7 @@ export function removeUserCounter(ip: string): boolean {
     let removed = 0;
     for (const h of handles.split('\n')) {
       const handle = h.trim();
-      if (!handle) continue;
+      if (!handle || !/^\d+$/.test(handle)) continue;
       try {
         execSync(`nft delete rule inet staysuite_count forward handle ${handle} 2>/dev/null`, {
           encoding: 'utf-8',
