@@ -2040,6 +2040,11 @@ export async function POST(request: NextRequest) {
           }).catch(() => {});
         }
 
+        // Log auth for the no-portal case (null username, no RADIUS provisioning)
+        if (!portal) {
+          await logAuthAttempt('open-access-no-portal', 'Access-Accept', request, `pool:${pool.poolName}`);
+        }
+
         resetRateLimit(clientRateLimitIp);
         await openSessionCheck?.releaseLock?.();
         return successResponse(
