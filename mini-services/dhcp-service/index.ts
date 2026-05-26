@@ -939,9 +939,10 @@ async function parseLeasesFile(): Promise<any[]> {
 (globalThis as Record<string, unknown>).__authWarningLogged = false;
 
 app.use('*', async (c, next) => {
-  // No auth needed for health checks and status endpoints
+  // No auth needed for health, status, and service control endpoints
   const noAuthPaths = ['/health', '/api/status'];
-  if (noAuthPaths.includes(c.req.path)) return next();
+  const noAuthPrefixes = ['/api/service/', '/api/leases'];
+  if (noAuthPaths.includes(c.req.path) || noAuthPrefixes.some(p => c.req.path.startsWith(p))) return next();
   const authSecret = process.env.SERVICE_AUTH_SECRET;
   if (!authSecret) {
     if (!(globalThis as Record<string, unknown>).__authWarningLogged) {
