@@ -4184,7 +4184,7 @@ model NetworkInterface {
 model Notification {
   id          String    @id @default(uuid()) @db.Uuid
   tenantId    String    @db.Uuid
-  userId      String    @db.Uuid
+  userId      String?   @db.Uuid
   type        String // booking, payment, housekeeping, maintenance, system, etc.
   category    String // info, warning, success, error
   title       String

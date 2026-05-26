@@ -464,7 +464,7 @@ export class NotificationService {
       const notification = await db.notification.create({
         data: {
           tenantId: data.tenantId,
-          userId: data.userId || '',
+          userId: data.userId || null,
           type: data.type,
           category: data.category,
           title: data.title,
