@@ -368,18 +368,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Close any existing active radacct session for this user ──
-    // For auto-reauth, the SAME device is reconnecting — its previous session
-    // may still be active in radacct (stale). We must close it BEFORE checking
-    // the max device limit, otherwise the old session counts against the user
-    // and auto-reauth always fails with MAX_DEVICES.
+    // ── Close stale radacct session for THIS device only ──
+    // Only close sessions matching the current device's IP, not ALL sessions.
+    // Previously closed ALL sessions which killed other active device connections.
     try {
       const closeResult = await db.$executeRawUnsafe(
-        `UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'Auto-Reauth', acctstatus = 'stop', acctupdatetime = NOW(), updatedat = NOW() WHERE username = $1 AND acctstoptime IS NULL`,
-        wifiUser.username
+        `UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'Auto-Reauth', acctstatus = 'stop', acctupdatetime = NOW(), updatedat = NOW()
+         WHERE username = $1 AND acctstoptime IS NULL AND framedipaddress = $2`,
+        wifiUser.username, clientIp || '0.0.0.0'
       );
       if (closeResult > 0) {
-        console.log(`[AutoAuth] Closed ${closeResult} stale session(s) for ${wifiUser.username} before reauth`);
+        console.log(`[AutoAuth] Closed ${closeResult} stale session(s) for ${wifiUser.username} (IP: ${clientIp}) before reauth`);
       }
     } catch (closeErr) {
       console.warn('[AutoAuth] Failed to close existing sessions (non-critical):', closeErr);
