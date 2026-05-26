@@ -4234,6 +4234,7 @@ model NotificationLog {
   @@index([tenantId])
   @@index([recipientId])
   @@index([status])
+  @@index([tenantId, channel, status])
 }
 
 model NotificationPreference {
