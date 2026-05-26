@@ -137,7 +137,25 @@ export async function processPreArrivalDelivery(): Promise<PreArrivalDeliveryRes
         // ── Step 4: Process each booking (defensive — one failure must not stop all) ──
         for (const booking of bookings) {
           try {
-            await processBooking(booking, config, result);
+            // Advisory lock per booking to prevent concurrent processing
+            // (e.g. multi-pod deployments or overlapping cron executions)
+            const lockId = ((booking.id as string).charCodeAt(0) << 24) ^
+              ((booking.id as string).charCodeAt(1) << 16) ^
+              ((booking.id as string).charCodeAt(2) << 8) ^
+              (booking.id as string).charCodeAt(3);
+
+            await db.$executeRawUnsafe(
+              `SELECT pg_advisory_lock($1)`,
+              Math.abs(lockId)
+            );
+            try {
+              await processBooking(booking, config, result);
+            } finally {
+              await db.$executeRawUnsafe(
+                `SELECT pg_advisory_unlock($1)`,
+                Math.abs(lockId)
+              );
+            }
           } catch (bookingError) {
             console.error(
               `[PreArrivalScheduler] Error processing booking ${booking.id} ` +
@@ -210,71 +228,76 @@ async function processBooking(
   const property = booking.property;
   const wifiUsername = `guest_${guest.firstName.toLowerCase().replace(/[^a-z]/g, '')}_${booking.confirmationCode.toLowerCase()}`;
 
-  // ── 4a: Generate WiFi credentials ─────────────────────────────────
+  // Track whether at least one channel succeeded
+  let anyChannelSucceeded = false;
+
+  // ── 4a: Generate WiFi credentials (inside transaction for atomicity) ──
   if (config.autoGenerateCreds) {
     try {
-      // Check if a WiFi user already exists for this booking (avoid duplicates)
-      const existingUser = await db.wiFiUser.findFirst({
-        where: {
-          bookingId: booking.id,
-          status: 'active',
-        },
-      });
-
-      if (!existingUser) {
-        // Build a unique username
-        let finalUsername = wifiUsername;
-        let counter = 1;
-        while (await db.wiFiUser.findUnique({ where: { username: finalUsername } })) {
-          finalUsername = `${wifiUsername}${counter}`;
-          counter++;
-        }
-
-        const password = generatePassword();
-
-        // Determine validity from plan (if configured) or booking dates
-        const validFrom = new Date();
-        let validUntil = new Date(booking.checkOut);
-        if (booking.checkOut <= validFrom) {
-          validUntil.setDate(validUntil.getDate() + 1);
-        }
-
-        if (config.planId) {
-          const plan = await db.wiFiPlan.findUnique({
-            where: { id: config.planId },
-            select: { validityMinutes: true },
-          });
-          if (plan?.validityMinutes) {
-            validUntil = new Date(validFrom.getTime() + plan.validityMinutes * 60 * 1000);
-          }
-        }
-
-        await db.wiFiUser.create({
-          data: {
-            tenantId: config.tenantId,
-            propertyId: config.propertyId,
-            username: finalUsername,
-            password,
-            guestId: guest.id,
+      await db.$transaction(async (tx) => {
+        // Check if a WiFi user already exists for this booking (avoid duplicates)
+        const existingUser = await tx.wiFiUser.findFirst({
+          where: {
             bookingId: booking.id,
-            userType: 'guest',
-            planId: config.planId,
-            validFrom,
-            validUntil,
             status: 'active',
           },
         });
 
-        result.credentialsGenerated++;
-        console.log(
-          `[PreArrivalScheduler] Generated WiFi credentials for booking ${booking.id}: ` +
-          `username=${finalUsername}`,
-        );
-      } else {
-        console.log(
-          `[PreArrivalScheduler] WiFi user already exists for booking ${booking.id} (${existingUser.username}) — skipping credential generation.`,
-        );
-      }
+        if (!existingUser) {
+          // Build a unique username
+          let finalUsername = wifiUsername;
+          let counter = 1;
+          while (await tx.wiFiUser.findUnique({ where: { username: finalUsername } })) {
+            finalUsername = `${wifiUsername}${counter}`;
+            counter++;
+          }
+
+          const password = generatePassword();
+
+          // Determine validity from plan (if configured) or booking dates
+          const validFrom = new Date();
+          let validUntil = new Date(booking.checkOut);
+          if (booking.checkOut <= validFrom) {
+            validUntil.setDate(validUntil.getDate() + 1);
+          }
+
+          if (config.planId) {
+            const plan = await tx.wiFiPlan.findUnique({
+              where: { id: config.planId },
+              select: { validityMinutes: true },
+            });
+            if (plan?.validityMinutes) {
+              validUntil = new Date(validFrom.getTime() + plan.validityMinutes * 60 * 1000);
+            }
+          }
+
+          await tx.wiFiUser.create({
+            data: {
+              tenantId: config.tenantId,
+              propertyId: config.propertyId,
+              username: finalUsername,
+              password,
+              guestId: guest.id,
+              bookingId: booking.id,
+              userType: 'guest',
+              planId: config.planId,
+              validFrom,
+              validUntil,
+              status: 'active',
+            },
+          });
+
+          result.credentialsGenerated++;
+          console.log(
+            `[PreArrivalScheduler] Generated WiFi credentials for booking ${booking.id}: ` +
+            `username=${finalUsername}`,
+          );
+        } else {
+          console.log(
+            `[PreArrivalScheduler] WiFi user already exists for booking ${booking.id} (${existingUser.username}) — skipping credential generation.`,
+          );
+        }
+      });
     } catch (credError) {
       console.error(
         `[PreArrivalScheduler] Failed to generate credentials for booking ${booking.id}:`,
@@ -283,9 +306,6 @@ async function processBooking(
       // Don't abort — still queue notifications if possible
     }
   }
-
-  // Track whether at least one channel succeeded
-  let anyChannelSucceeded = false;
 
   // ── 4b: Send REAL email notification ─────────────────────────────
   if (config.sendEmail && guest.email) {
