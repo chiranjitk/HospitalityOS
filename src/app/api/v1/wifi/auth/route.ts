@@ -1037,8 +1037,9 @@ export async function POST(request: NextRequest) {
         }
 
         const bookingWhere: any = { room: { number: roomNumber.trim().toUpperCase() }, status: 'checked_in' };
-        if (resolvedTenantId || portal?.tenantId) {
-          bookingWhere.tenantId = resolvedTenantId || portal?.tenantId;
+        const effectiveTenantId = portal?.tenantId;
+        if (effectiveTenantId) {
+          bookingWhere.tenantId = effectiveTenantId;
         }
         const bookings = await db.booking.findMany({
           where: bookingWhere,
@@ -1378,7 +1379,23 @@ export async function POST(request: NextRequest) {
           return errorResponse('INVALID_CREDENTIALS', 'Invalid username or password');
         }
 
-        if (wifiUser.password !== password.trim()) {
+        // Password check: primary = WiFiUser.password, fallback = radcheck Cleartext-Password
+        // (handles cases where WiFiUser.password was seeded with a placeholder)
+        let passwordValid = wifiUser.password === password.trim();
+        if (!passwordValid) {
+          const radCheck = await db.radCheck.findFirst({
+            where: { username: wifiUser.username, attribute: 'Cleartext-Password' },
+          });
+          if (radCheck && radCheck.value === password.trim()) {
+            passwordValid = true;
+            // Auto-fix: sync the actual password back to WiFiUser for future checks
+            await db.wiFiUser.update({
+              where: { id: wifiUser.id },
+              data: { password: password.trim() },
+            });
+          }
+        }
+        if (!passwordValid) {
           await logAuthAttempt(username.trim(), 'Access-Reject', request, 'INVALID_CREDENTIALS');
           return errorResponse('INVALID_CREDENTIALS', 'Invalid username or password');
         }
@@ -1924,7 +1941,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('[Guest Auth API] Error:', error);
-    recordFailedAttempt(clientRateLimitIp);
+    try { recordFailedAttempt(clientRateLimitIp); } catch { /* ignore if clientRateLimitIp not yet defined */ }
     return errorResponse('INTERNAL_ERROR', 'An unexpected error occurred. Please try again or contact front desk.');
   }
 }
