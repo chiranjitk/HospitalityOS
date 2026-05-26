@@ -166,11 +166,18 @@ const otpStore = new Map<
   string,
   { code: string; expiresAt: number; phone: string; attempts: number }
 >();
+const MAX_OTP_STORE_ENTRIES = 10000; // Prevent unbounded growth
 
 setInterval(() => {
   const now = Date.now();
   for (const [key, val] of otpStore.entries()) {
     if (now > val.expiresAt) otpStore.delete(key);
+  }
+  // Evict oldest entries if map exceeds max size (burst protection)
+  if (otpStore.size > MAX_OTP_STORE_ENTRIES) {
+    const entries = [...otpStore.entries()].sort((a, b) => a[1].expiresAt - b[1].expiresAt);
+    const toRemove = entries.slice(0, entries.length - MAX_OTP_STORE_ENTRIES);
+    for (const [key] of toRemove) otpStore.delete(key);
   }
 }, 5 * 60_000).unref();
 
@@ -186,11 +193,18 @@ function generateOtp(): string {
 // OTP Rate Limiter (per-phone, prevents SMS spam / OTP bombing)
 // ────────────────────────────────────────────────────────────
 const otpRateLimits = new Map<string, { count: number; resetAt: number }>();
+const MAX_OTP_RATE_LIMIT_ENTRIES = 10000; // Prevent unbounded growth
 
 setInterval(() => {
   const now = Date.now();
   for (const [key, val] of otpRateLimits.entries()) {
     if (now > val.resetAt) otpRateLimits.delete(key);
+  }
+  // Evict oldest entries if map exceeds max size (burst protection)
+  if (otpRateLimits.size > MAX_OTP_RATE_LIMIT_ENTRIES) {
+    const entries = [...otpRateLimits.entries()].sort((a, b) => a[1].resetAt - b[1].resetAt);
+    const toRemove = entries.slice(0, entries.length - MAX_OTP_RATE_LIMIT_ENTRIES);
+    for (const [key] of toRemove) otpRateLimits.delete(key);
   }
 }, 60_000).unref();
 
@@ -670,11 +684,18 @@ async function resolveMacAddress(
 // Per-IP Rate Limiter (in-memory — use Redis for production)
 // ────────────────────────────────────────────────────────────
 const authAttempts = new Map<string, { count: number; resetAt: number }>();
+const MAX_AUTH_ATTEMPTS_ENTRIES = 10000; // Prevent unbounded growth
 
 setInterval(() => {
   const now = Date.now();
   for (const [key, val] of authAttempts.entries()) {
     if (now > val.resetAt) authAttempts.delete(key);
+  }
+  // Evict oldest entries if map exceeds max size (burst protection)
+  if (authAttempts.size > MAX_AUTH_ATTEMPTS_ENTRIES) {
+    const entries = [...authAttempts.entries()].sort((a, b) => a[1].resetAt - b[1].resetAt);
+    const toRemove = entries.slice(0, entries.length - MAX_AUTH_ATTEMPTS_ENTRIES);
+    for (const [key] of toRemove) authAttempts.delete(key);
   }
 }, 60_000).unref();
 
