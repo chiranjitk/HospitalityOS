@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    console.log(`[AAA Save] propertyId=${body.propertyId}, tenantId=${body.tenantId}, usernameFormat=${JSON.stringify(body.usernameFormat)}, passwordFormat=${JSON.stringify(body.passwordFormat)}, credentialSeparator=${JSON.stringify(body.credentialSeparator)}`);
+    console.log(`[AAA Save] propertyId=${body.propertyId}, tenantId=${body.tenantId}, usernameFormat=<redacted>, passwordFormat=<redacted>, credentialSeparator=<redacted>`);
     const propertyId = await resolvePropertyId(user, body.propertyId);
     if (!propertyId) {
       return NextResponse.json({ success: false, error: 'No property found. Please create a property first.' }, { status: 400 });
@@ -204,14 +204,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log(`[AAA Save] ✓ Config persisted for propertyId=${propertyId} — id=${config.id}, usernameFormat=${JSON.stringify(config.usernameFormat)}, passwordFormat=${JSON.stringify(config.passwordFormat)}, defaultPlanId=${config.defaultPlanId || 'none'}, bandwidth=${config.defaultDownloadSpeed}M/${config.defaultUploadSpeed}M, autoProvision=${config.autoProvisionOnCheckin}`);
+    console.log(`[AAA Save] ✓ Config persisted for propertyId=${propertyId} — id=${config.id}, defaultPlanId=${config.defaultPlanId || 'none'}, bandwidth=${config.defaultDownloadSpeed}M/${config.defaultUploadSpeed}M, autoProvision=${config.autoProvisionOnCheckin}`);
 
     // Verify the save: read back from DB to confirm
     const verify = await db.wiFiAAAConfig.findUnique({
       where: { propertyId },
       select: { id: true, usernameFormat: true, passwordFormat: true },
     });
-    console.log(`[AAA Save] Verify read-back: id=${verify?.id}, usernameFormat=${JSON.stringify(verify?.usernameFormat)}, passwordFormat=${JSON.stringify(verify?.passwordFormat)}`);
+    console.log(`[AAA Save] Verify read-back: id=${verify?.id}, usernameFormat=<redacted>, passwordFormat=<redacted>`);
     if (verify?.usernameFormat !== (usernameFormat || 'room_random')) {
       console.error(`[AAA Save] ⚠ MISMATCH! Sent usernameFormat=${JSON.stringify(usernameFormat)} but DB has ${JSON.stringify(verify?.usernameFormat)}. Possible DB issue!`);
     }

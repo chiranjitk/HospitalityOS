@@ -2088,8 +2088,9 @@ function successResponse(
 }
 
 function errorResponse(code: string, message: string, status = 400) {
+  const correlationId = `err_${Date.now().toString(36)}_${randomInt(1000, 9999)}`;
   return NextResponse.json(
-    { success: false, error: { code, message } },
+    { success: false, error: { code, message, correlationId } },
     { status }
   );
 }

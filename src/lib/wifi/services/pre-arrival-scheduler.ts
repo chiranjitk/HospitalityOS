@@ -324,6 +324,7 @@ async function processBooking(
       const emailOpts: EmailOptions = {
         to: guest.email,
         subject: `Your WiFi Credentials for ${property.name}`,
+        recipientId: guest.id,
         text: emailText,
         html: `<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:20px"><h2 style="color:#0d9488">${property.name}</h2><p>Dear ${guest.firstName},</p>${wifiUser ? `<div style="background:#f0fdfa;border:1px solid #ccfbf1;border-radius:8px;padding:16px;margin:16px 0"><p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:#0f766e;font-weight:600">WiFi Access Details</p><p style="margin:4px 0">Network: <strong>${ssid}</strong></p><p style="margin:4px 0">Username: <strong>${wifiUser.username}</strong></p><p style="margin:4px 0">Password: <strong>${wifiUser.password}</strong></p></div>` : ''}<p style="color:#6b7280;font-size:13px">Check-in: ${new Date(booking.checkIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} | Check-out: ${new Date(booking.checkOut).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p><p style="color:#6b7280;font-size:13px">Confirmation: ${booking.confirmationCode}</p></body></html>`,
       };
@@ -378,6 +379,7 @@ async function processBooking(
       const smsOpts: SMSOptions = {
         to: guest.phone,
         message: smsMessage,
+        recipientId: guest.id,
       };
 
       const smsResult = await sendSMSForTenant(config.tenantId, smsOpts);

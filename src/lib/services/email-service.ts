@@ -53,6 +53,8 @@ export interface TemplatedEmailOptions {
   tags?: Record<string, string>;
   campaignId?: string;
   tenantId?: string;
+  /** Optional recipient guest/user ID for notification log linking (LOW-28) */
+  recipientId?: string;
 }
 
 export interface QueuedEmail {
@@ -501,7 +503,7 @@ export class EmailService {
         data: {
           tenantId: logTenantId,
           recipientType: 'guest',
-          recipientId: NIL_UUID,
+          recipientId: isValidUUID(options.recipientId) ? options.recipientId : NIL_UUID,
           recipientEmail: to,
           channel: 'email',
           subject: options.subject || '',

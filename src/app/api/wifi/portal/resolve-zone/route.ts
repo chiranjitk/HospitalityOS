@@ -212,7 +212,12 @@ async function buildPortalConfig(portalId: string, language?: string | null) {
       translations: (designSettings.translations as Record<string, Record<string, string>>) || {},
 
       // ── Feature 2: Guest Marketing Opt-In ──
-      marketingOptIn: (designSettings.marketingOptIn as { enabled: boolean; emailConsent: boolean; phoneConsent: boolean; consentText: string }) || { enabled: false, emailConsent: false, phoneConsent: false, consentText: '' },
+      marketingOptIn: {
+        enabled: Boolean(designSettings.marketingOptIn?.enabled),
+        emailConsent: Boolean(designSettings.marketingOptIn?.emailConsent),
+        phoneConsent: Boolean(designSettings.marketingOptIn?.phoneConsent),
+        consentText: String(designSettings.marketingOptIn?.consentText || ''),
+      },
 
       // ── Feature 3: Multi-Slide Promotion Carousel ──
       customAmenities: (designSettings.customAmenities as Array<{ name: string; icon: string }>) || [],
