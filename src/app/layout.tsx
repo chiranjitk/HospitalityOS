@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster as ShadcnToaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
@@ -20,15 +19,8 @@ import { PwaRegister } from '@/components/common/pwa-register';
 import { PwaInstallPrompt } from '@/components/common/pwa-install-prompt';
 import { FoucGuard } from '@/components/common/fouc-guard';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+// System fonts (Google Fonts unreachable in sandbox)
+// Restore Geist/Geist_Mono from next/font/google when network available
 
 export const metadata: Metadata = {
   title: "StaySuite HospitalityOS - Multi-Tenant SaaS Platform",
@@ -78,7 +70,7 @@ export default async function RootLayout({
   return (
     <html lang={locale} suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        className={"antialiased bg-background text-foreground"}
       >
         {/* FOUC Guard — runs in useLayoutEffect before browser paint */}
         <FoucGuard />
