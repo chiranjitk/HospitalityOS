@@ -284,6 +284,9 @@ async function processBooking(
     }
   }
 
+  // Track whether at least one channel succeeded
+  let anyChannelSucceeded = false;
+
   // ── 4b: Send REAL email notification ─────────────────────────────
   if (config.sendEmail && guest.email) {
     try {
@@ -325,6 +328,7 @@ async function processBooking(
       });
 
       result.notificationsQueued++;
+      if (emailResult.success) anyChannelSucceeded = true;
       console.log(
         `[PreArrivalScheduler] Email ${emailStatus} to ${guest.email} for booking ${booking.id}` +
         (emailResult.messageId ? ` (${emailResult.messageId})` : '') +
@@ -376,6 +380,7 @@ async function processBooking(
       });
 
       result.notificationsQueued++;
+      if (smsResult.success) anyChannelSucceeded = true;
       console.log(
         `[PreArrivalScheduler] SMS ${smsStatus} to ${guest.phone} for booking ${booking.id}` +
         (smsResult.messageId ? ` (${smsResult.messageId})` : '') +
@@ -389,16 +394,21 @@ async function processBooking(
     }
   }
 
-  // ── 4d: Mark booking as sent ──────────────────────────────────────
-  await db.booking.update({
-    where: { id: booking.id },
-    data: { preArrivalSent: true },
-  });
-
+  // ── 4d: Mark booking as sent (only if at least one channel succeeded) ──
   result.processed++;
-  console.log(
-    `[PreArrivalScheduler] ✓ Booking ${booking.id} (${booking.confirmationCode}) processed and marked as preArrivalSent.`,
-  );
+  if (anyChannelSucceeded) {
+    await db.booking.update({
+      where: { id: booking.id },
+      data: { preArrivalSent: true },
+    });
+    console.log(
+      `[PreArrivalScheduler] ✓ Booking ${booking.id} (${booking.confirmationCode}) processed and marked as preArrivalSent.`,
+    );
+  } else {
+    console.warn(
+      `[PreArrivalScheduler] ✗ Booking ${booking.id} (${booking.confirmationCode}): all notification channels failed — NOT marked as preArrivalSent.`,
+    );
+  }
 }
 
 // ─── Preview / Count Helpers ────────────────────────────────────────
