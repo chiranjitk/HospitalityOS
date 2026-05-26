@@ -880,11 +880,12 @@ export async function POST(request: NextRequest) {
     const portalSessionTimeoutMin = portal?.sessionTimeout
       ? Math.round(portal.sessionTimeout / 60)
       : 1440; // default 24h in minutes
+    // Portal maxBandwidthDown/Up are in bytes/sec → convert to Mbps (*8/1,000,000)
     const bwDown = portal
-      ? Math.round((portal.maxBandwidthDown || 5242880) / 1000000)
+      ? Math.round((portal.maxBandwidthDown || 5242880) * 8 / 1000000)
       : 5;
     const bwUp = portal
-      ? Math.round((portal.maxBandwidthUp || 1048576) / 1000000)
+      ? Math.round((portal.maxBandwidthUp || 1048576) * 8 / 1000000)
       : 1;
 
     // ════════════════════════════════════════════════════════════
