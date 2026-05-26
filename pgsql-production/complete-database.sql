@@ -73,6 +73,18 @@
 --       radgroupcheck (was only on conference_plan).
 --       Fixes: live-sessions-list API crashed on "property_id" IN (SELECT ...)
 --       Also added guest_phone to v_user_usage for consistency with v_wifi_users
+--   [20] Portal authMethod desync — voucher login showed "Please enter your username"
+--       BUG: Portal Designer saves authFlow to PortalPage but resolve-zone API
+--       reads authMethod from CaptivePortal (separate table). When admin set
+--       auth flow to "voucher" in designer, CaptivePortal.authMethod stayed
+--       "pms_credentials". The connect portal then sent voucherCode as
+--       pms_credentials payload → API rejected with "Please enter your username".
+--       FIX 1: resolve-zone now prefers PortalPage.authFlow over CaptivePortal.authMethod
+--       FIX 2: portal/pages POST + PUT now sync authFlow to CaptivePortal.authMethod
+--       FIX 3: Live DB updated — Royal Stay Guest Portal authMethod set to 'voucher'
+--       Files: src/app/api/wifi/portal/resolve-zone/route.ts
+--              src/app/api/wifi/portal/pages/route.ts
+--              src/app/api/wifi/portal/pages/[id]/route.ts
 -- ============================================================================
 
 SET client_encoding = 'UTF8';

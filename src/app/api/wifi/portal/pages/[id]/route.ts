@@ -55,6 +55,15 @@ export async function PUT(
       data: updatePayload,
     });
 
+    // Sync authFlow back to CaptivePortal.authMethod so the Portal
+    // Instances tab stays in sync with the Portal Designer setting.
+    if (updatePayload.authFlow && existing.portalId) {
+      await db.captivePortal.update({
+        where: { id: existing.portalId },
+        data: { authMethod: updatePayload.authFlow },
+      }).catch(() => { /* best-effort sync */ });
+    }
+
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {
     console.error('Error updating portal page:', error);

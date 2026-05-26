@@ -114,6 +114,15 @@ export async function POST(request: NextRequest) {
       designSettings: typeof pageData.designSettings === 'string' ? pageData.designSettings : JSON.stringify(pageData.designSettings || {}),
     };
 
+    // Sync authFlow back to CaptivePortal.authMethod so the Portal
+    // Instances tab stays in sync with the Portal Designer setting.
+    if (pageData.authFlow) {
+      await db.captivePortal.update({
+        where: { id: portalId },
+        data: { authMethod: pageData.authFlow },
+      }).catch(() => { /* best-effort sync */ });
+    }
+
     if (existing) {
       // Update existing
       const updated = await db.portalPage.update({

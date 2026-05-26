@@ -137,7 +137,10 @@ async function buildPortalConfig(portalId: string) {
     slug: portal.slug,
     tenantId: portal.tenantId,
     propertyId: portal.propertyId,
-    authMethod: portal.authMethod,
+    // Prefer PortalPage.authFlow (set via Portal Designer) over
+    // CaptivePortal.authMethod (set via Portal Instances tab) so that
+    // the auth flow the admin configured in the designer always wins.
+    authMethod: portalPage?.authFlow || portal.authMethod,
     sessionTimeout: portal.sessionTimeout,
     autoAuthEnabled: portal.autoAuthEnabled ?? true,
     // Convert bytes/sec to Mbps for guest-friendly display
