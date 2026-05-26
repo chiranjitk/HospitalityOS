@@ -1057,8 +1057,17 @@ post-auth {
         }
 
         #  StaySuite: Concurrent login check via PostgreSQL function
-        update request {
-                &control:Simultaneous-Use := "%{sql:SELECT fn_check_login_limit('%{User-Name}')}"
+        #  IMPORTANT: fn_check_login_limit queries radacct (populated by Accounting-Start
+        #  AFTER Access-Accept). For the FIRST login of a user, radacct is always empty
+        #  so this returns 0 (allowed). We do NOT override Simultaneous-Use with this
+        #  value because that would disable the static Simultaneous-Use from radgroupcheck.
+        #  Instead, we only REJECT here when the function returns 1 (limit exceeded),
+        #  which catches cases where accounting is running and sessions are already active.
+        #
+        #  The primary enforcement is the static Simultaneous-Use from radgroupcheck/radcheck
+        #  (loaded in authorize{} and checked in session{} via simul_count_query).
+        if ("%{sql:SELECT fn_check_login_limit('%{User-Name}')}" == "1") {
+                reject
         }
 
         #

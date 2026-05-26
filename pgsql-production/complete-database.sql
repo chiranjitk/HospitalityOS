@@ -63,6 +63,14 @@
 --       fn_get_pool_attr updated: prefers highest-priority pool from junction
 --   [18] v_session_history + v_active_sessions: added property_id column
 --       Derived from COALESCE(wu."propertyId", b."propertyId") for tenant filtering
+--   [19] Max device limit (Simultaneous-Use) enforcement fix — CRITICAL
+--       BUG: post-auth{} in sites-enabled/default was setting
+--       &control:Simultaneous-Use := fn_check_login_limit(...) which OVERRIDES
+--       the static Simultaneous-Use from radgroupcheck with 0 (unlimited).
+--       FIX: Changed to explicit reject when fn_check_login_limit() returns 1,
+--       preserving static Simultaneous-Use from radgroupcheck/radcheck.
+--       Also fixed wifi-seed.ts: all 6 plans now have Simultaneous-Use in
+--       radgroupcheck (was only on conference_plan).
 --       Fixes: live-sessions-list API crashed on "property_id" IN (SELECT ...)
 --       Also added guest_phone to v_user_usage for consistency with v_wifi_users
 -- ============================================================================

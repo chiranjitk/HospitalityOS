@@ -563,34 +563,39 @@ export async function seedWiFiData() {
   // Uses Cryptsk VSA attributes (Vendor ID 64179) — device IS the NAS gateway.
   await prisma.radGroupCheck.createMany({
     data: [
-      // free_plan group: 5M/2M
+      // free_plan group: 5M/2M, 1 session
       { groupname: 'free_plan', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '5M/2M', priority: 0 },
       { groupname: 'free_plan', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '5000000', priority: 1 },
       { groupname: 'free_plan', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '2000000', priority: 2 },
       { groupname: 'free_plan', attribute: 'Session-Timeout', op: ':=', value: '86400', priority: 3 },
-      // basic_plan group: 10M/5M, 2GB data limit
+      { groupname: 'free_plan', attribute: 'Simultaneous-Use', op: ':=', value: '1', priority: 4 },
+      // basic_plan group: 10M/5M, 2GB data limit, 2 sessions
       { groupname: 'basic_plan', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '10M/5M', priority: 0 },
       { groupname: 'basic_plan', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '10000000', priority: 1 },
       { groupname: 'basic_plan', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '5000000', priority: 2 },
       { groupname: 'basic_plan', attribute: 'Cryptsk-Total-Limit', op: ':=', value: '2147483648', priority: 3 },
       { groupname: 'basic_plan', attribute: 'Session-Timeout', op: ':=', value: '86400', priority: 4 },
-      // standard_plan group: 25M/10M, 5GB data limit
+      { groupname: 'basic_plan', attribute: 'Simultaneous-Use', op: ':=', value: '2', priority: 5 },
+      // standard_plan group: 25M/10M, 5GB data limit, 3 sessions
       { groupname: 'standard_plan', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '25M/10M', priority: 0 },
       { groupname: 'standard_plan', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '25000000', priority: 1 },
       { groupname: 'standard_plan', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '10000000', priority: 2 },
       { groupname: 'standard_plan', attribute: 'Cryptsk-Total-Limit', op: ':=', value: '5368709120', priority: 3 },
       { groupname: 'standard_plan', attribute: 'Session-Timeout', op: ':=', value: '259200', priority: 4 },
-      // premium_plan group: 50M/25M, 15GB data limit
+      { groupname: 'standard_plan', attribute: 'Simultaneous-Use', op: ':=', value: '3', priority: 5 },
+      // premium_plan group: 50M/25M, 15GB data limit, 5 sessions
       { groupname: 'premium_plan', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '50M/25M', priority: 0 },
       { groupname: 'premium_plan', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '50000000', priority: 1 },
       { groupname: 'premium_plan', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '25000000', priority: 2 },
       { groupname: 'premium_plan', attribute: 'Cryptsk-Total-Limit', op: ':=', value: '16106127360', priority: 3 },
       { groupname: 'premium_plan', attribute: 'Session-Timeout', op: ':=', value: '432000', priority: 4 },
-      // vip_suite_plan group: 100M/50M, unlimited data
+      { groupname: 'premium_plan', attribute: 'Simultaneous-Use', op: ':=', value: '5', priority: 5 },
+      // vip_suite_plan group: 100M/50M, unlimited data, 10 sessions
       { groupname: 'vip_suite_plan', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '100M/50M', priority: 0 },
       { groupname: 'vip_suite_plan', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '100000000', priority: 1 },
       { groupname: 'vip_suite_plan', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '50000000', priority: 2 },
       { groupname: 'vip_suite_plan', attribute: 'Session-Timeout', op: ':=', value: '604800', priority: 3 },
+      { groupname: 'vip_suite_plan', attribute: 'Simultaneous-Use', op: ':=', value: '10', priority: 4 },
       // conference_plan group: 30M/15M, 10GB data limit, 25 sessions
       { groupname: 'conference_plan', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '30M/15M', priority: 0 },
       { groupname: 'conference_plan', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '30000000', priority: 1 },
