@@ -290,10 +290,6 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
         SELog.info('No active sessions found');
         lastActivityMap.clear();
       } else {
-        const counters = loadCounterMap();
-        const authIPs = loadAuthenticatedIPs();
-        const policies = await bulkLoadUserPolicies(extractUsernames(sessions));
-
         SELog.info(
           `Processing ${sessions.length} sessions, ` +
           `${counters.size} counters, ` +
