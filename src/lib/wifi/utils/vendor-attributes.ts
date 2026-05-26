@@ -285,16 +285,16 @@ export function generateSessionAttributes(
   }
 
   // RFC 2865 — Termination-Action: RADIUS-Request (default)
-  // Lets user re-authenticate after being disconnected by timeout/data-limit.
-  // Value 0 = Default, Value 1 = RADIUS-Request
-  attrs.push({ attribute: 'Termination-Action', value: 'RADIUS-Request' });
+  // Only include when setting a session timeout (not for data-limit-only updates)
+  if (timeoutMinutes > 0) {
+    attrs.push({ attribute: 'Termination-Action', value: 'RADIUS-Request' });
 
-  // RFC 2869 — Acct-Interim-Interval: default 60 seconds
-  // Controls how often the NAS sends Interim-Update accounting packets.
-  // Essential for accurate idle timeout and data tracking on external NAS.
-  // Configurable per-property via RadiusServerConfig.interimUpdateInterval.
-  const interimInterval = interimIntervalSeconds || 60;
-  attrs.push({ attribute: 'Acct-Interim-Interval', value: String(interimInterval) });
+    // RFC 2869 — Acct-Interim-Interval: default 60 seconds
+    // Only include when setting a session timeout to avoid resetting
+    // a custom interim interval when updating only the data limit.
+    const interimInterval = interimIntervalSeconds || 60;
+    attrs.push({ attribute: 'Acct-Interim-Interval', value: String(interimInterval) });
+  }
 
   // ── Vendor-specific data cap attributes (deduplicated) ──
   if (dataLimitMB && dataLimitMB > 0) {
