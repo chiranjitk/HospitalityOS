@@ -744,7 +744,7 @@ async function checkRadiusStatus(): Promise<{
   error?: string;
 }> {
   try {
-    // Check sandbox binary first
+    // On production, prefer system binary. On sandbox, prefer sandbox binary.
     const sandboxInstalled = fsSync.existsSync(SANDBOX_RADIUSD);
     const { stdout: whichOutput } = await execAsync('which radiusd 2>/dev/null || echo "not_found"');
     const systemInstalled = whichOutput.trim() !== 'not_found';
@@ -759,9 +759,11 @@ async function checkRadiusStatus(): Promise<{
 
     let version = '';
     try {
-      const radiusdBin = sandboxInstalled ? SANDBOX_RADIUSD : 'radiusd';
+      // In production (IS_PRODUCTION), use system radiusd. In sandbox, use sandbox binary.
+      const radiusdBin = IS_PRODUCTION ? (systemInstalled ? 'radiusd' : '/usr/sbin/radiusd')
+        : (sandboxInstalled ? SANDBOX_RADIUSD : 'radiusd');
       const { stdout } = await execAsync(`${radiusdBin} -v 2>&1 | head -1`, {
-        env: sandboxInstalled ? getSandboxRadiusEnv() : undefined,
+        env: (sandboxInstalled && !IS_PRODUCTION) ? getSandboxRadiusEnv() : undefined,
       });
       version = stdout.trim();
     } catch {
@@ -912,27 +914,68 @@ async function writeRadiusFile(filePath: string, content: string): Promise<void>
 }
 
 /**
- * Sandbox-safe FreeRADIUS reload.
- * In sandbox: sends SIGHUP to the PM2-managed radiusd process.
- * In production: uses systemctl restart radiusd.
+ * Production or sandbox FreeRADIUS reload.
+ *
+ * Production (Rocky 10 / RHEL): radiusd is installed via RPM and managed by
+ * systemd.  We try systemctl restart; if that fails we try SIGHUP to the
+ * existing radiusd process (pid from /run/radiusd/radiusd.pid or pgrep).
+ *
+ * Sandbox: radiusd is compiled from source.  PM2 manages the lifecycle.
+ * We restart the binary directly with the sandbox OpenSSL compat env.
+ *
+ * CRITICAL: When IS_PRODUCTION is true we must NEVER fall through to sandbox
+ * paths — the sandbox binaries don't exist on production servers.
  */
 async function reloadRadius(): Promise<boolean> {
   if (IS_PRODUCTION) {
-    const commands = [
+    // ── Production: systemd restart ──────────────────────────────────
+    const systemctlCmds = [
       'systemctl restart radiusd',
       'systemctl restart radiusd.service',
       '/usr/bin/systemctl restart radiusd',
-      'sudo systemctl restart radiusd',
     ];
-    for (const cmd of commands) {
+    let lastError = '';
+    for (const cmd of systemctlCmds) {
       try {
-        await execAsync(`${cmd} 2>&1`, { timeout: 10000 });
+        await execAsync(`${cmd} 2>&1`, { timeout: 15000 });
         log.info(`RADIUS server RESTARTED via: ${cmd}`);
         return true;
-      } catch { /* try next */ }
+      } catch (err) {
+        lastError = String(err);
+        // Log the failure so we can diagnose, then try next command
+        log.debug(`systemctl command failed: ${cmd} → ${lastError}`);
+      }
     }
+
+    // ── Production fallback: SIGHUP to existing process ──────────────
+    // Try reading the PID file first (most reliable)
+    const pidFile = process.env.RADIUSD_PID_FILE || '/run/radiusd/radiusd.pid';
+    try {
+      const pid = (await fs.readFile(pidFile, 'utf-8')).trim();
+      if (pid) {
+        process.kill(Number(pid), 'SIGHUP');
+        log.info(`RADIUS server SIGHUP sent to PID ${pid} (from pid file)`);
+        return true;
+      }
+    } catch {
+      // PID file not readable or process dead — try pgrep
+    }
+
+    try {
+      const { stdout } = await execAsync("pgrep -x radiusd | head -1");
+      const pid = stdout.trim();
+      if (pid) {
+        process.kill(Number(pid), 'SIGHUP');
+        log.info(`RADIUS server SIGHUP sent to PID ${pid} (from pgrep)`);
+        return true;
+      }
+    } catch { /* pgrep failed */ }
+
+    log.error(`All production RADIUS reload methods failed. Last error: ${lastError}`);
+    return false;
   }
-  // Sandbox: stop existing radiusd, then restart with correct OpenSSL env
+
+  // ── Sandbox: direct binary restart with OpenSSL compat env ────────────
   try {
     await execAsync('pkill -f radiusd 2>/dev/null; sleep 1', { timeout: 5000 });
   } catch { /* ignore */ }
