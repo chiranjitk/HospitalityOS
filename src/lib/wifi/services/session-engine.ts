@@ -575,9 +575,6 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
             // Batch update session time only
             const noCounterValues = noCounterSessions.map(s => {
               const sessionTime = Math.floor((Date.now() - safeGetTime(s.acctstarttime)) / 1000);
-              if (nftablesAvailable) {
-                return `('${s.radacctid}', ${sessionTime})`;
-              }
               return `('${s.radacctid}', ${sessionTime})`;
             });
             if (noCounterValues.length > 0) {
