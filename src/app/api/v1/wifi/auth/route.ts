@@ -2312,10 +2312,13 @@ async function provisionOrResumeUser(
     dataLimit?: number;
   }
 ) {
+  let provisionErr: Error | null = null;
   try {
     await wifiUserService.provisionUser({ ...params, validFrom: now, validUntil });
-  } catch (provisionErr) {
+  } catch (err) {
+    provisionErr = err instanceof Error ? err : new Error(String(err));
     console.error('[Guest Auth] RADIUS provisioning failed:', provisionErr);
+    // Attempt recovery: reactivate existing user if one exists
     try {
       const existingUser = await db.wiFiUser.findUnique({ where: { username: wifiUsername } });
       if (existingUser) {
@@ -2329,10 +2332,16 @@ async function provisionOrResumeUser(
             radiusSyncedAt: now,
           },
         });
+        console.log('[Guest Auth] Recovered by reactivating existing user:', wifiUsername);
+        provisionErr = null; // Recovery succeeded
       }
-    } catch {
-      // Best effort
+    } catch (recoveryErr) {
+      console.error('[Guest Auth] Recovery also failed:', recoveryErr);
     }
+  }
+  // Re-throw if both provisioning and recovery failed
+  if (provisionErr) {
+    throw provisionErr;
   }
 }
 
