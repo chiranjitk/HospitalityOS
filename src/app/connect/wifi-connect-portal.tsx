@@ -287,16 +287,15 @@ function WeatherWidget({ design }: { design: PortalDesignConfig }) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-    fetch(`https://wttr.in/${encodeURIComponent(location)}?format=%t+%C`, {
+    // Fetch via server-side proxy — captive portal blocks direct external access
+    fetch(`/api/wifi/portal/weather?location=${encodeURIComponent(location)}`, {
       signal: controller.signal,
     })
-      .then((res) => res.text())
-      .then((text) => {
-        const trimmed = text.trim();
-        const parts = trimmed.split(/\s+/);
-        const data = { temp: parts[0] || '', condition: parts.slice(1).join(' ') || 'Clear' };
-        weatherCache.set(location, data);
-        setWeather(data);
+      .then((res) => res.json())
+      .then((data) => {
+        const parsed = { temp: data.temp || '--°', condition: data.condition || 'Clear' };
+        weatherCache.set(location, parsed);
+        setWeather(parsed);
       })
       .catch(() => {
         const fallback = { temp: '--°', condition: location };
