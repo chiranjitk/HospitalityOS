@@ -367,12 +367,39 @@ function resolveAllowedPoolIds(
 }
 
 /**
- * Check if a user has reached their concurrent session limit.
- * Counts active (non-stopped) radacct sessions for the username.
- * Returns true if the limit is reached (should reject login).
+ * Acquire a per-user advisory lock to prevent concurrent session creation (TOCTOU).
+ * Uses pg_advisory_lock which is automatically released when the DB connection returns.
+ * Falls back gracefully if advisory locks are unavailable.
  */
-async function isSessionLimitReached(username: string, maxSessions: number): Promise<boolean> {
-  if (maxSessions <= 0) return false; // 0 or negative = unlimited
+async function acquireUserSessionLock(username: string): Promise<(() => Promise<void>) | null> {
+  try {
+    // Hash username to an integer for advisory lock key
+    const lockId = await db.$queryRawUnsafe<Array<{ id: bigint }>>(`
+      SELECT abs(hashtext($1))::bigint as id
+    `, username);
+    const key = Number(lockId[0]?.id ?? 0);
+    if (key === 0) return null;
+
+    await db.$executeRawUnsafe(`SELECT pg_advisory_lock($1)`, key);
+    return async () => {
+      try { await db.$executeRawUnsafe(`SELECT pg_advisory_unlock($1)`, key); } catch {}
+    };
+  } catch {
+    return null; // Graceful fallback — advisory lock unavailable
+  }
+}
+
+/**
+ * Check if a user has reached their concurrent session limit.
+ * Acquires a PostgreSQL advisory lock per-user to prevent TOCTOU race conditions.
+ * Returns { limitReached, releaseLock } — caller MUST call releaseLock() after session creation.
+ */
+async function isSessionLimitReached(username: string, maxSessions: number): Promise<{ limitReached: boolean; releaseLock: () => Promise<void> }> {
+  const noop = async () => {};
+  if (maxSessions <= 0) return { limitReached: false, releaseLock: noop }; // 0 or negative = unlimited
+
+  // Acquire per-user advisory lock
+  const unlockFn = await acquireUserSessionLock(username);
 
   try {
     // Only count real active sessions — exclude interim-update audit rows
@@ -388,10 +415,17 @@ async function isSessionLimitReached(username: string, maxSessions: number): Pro
     `, username);
 
     const activeCount = Number(result[0]?.count ?? 0);
-    return activeCount >= maxSessions;
+    const limitReached = activeCount >= maxSessions;
+    // If limit reached, release lock immediately (no session will be created)
+    if (limitReached) {
+      await unlockFn?.();
+      return { limitReached: true, releaseLock: noop };
+    }
+    return { limitReached: false, releaseLock: unlockFn || noop };
   } catch (err) {
     console.error('[Session Limit] Failed to count active sessions:', err);
-    return true; // Fail closed — deny access on error
+    await unlockFn?.();
+    return { limitReached: true, releaseLock: noop }; // Fail closed — deny access on error
   }
 }
 
@@ -918,7 +952,8 @@ export async function POST(request: NextRequest) {
 
         // Check concurrent session limit BEFORE provisioning (prevents orphan WiFiUser)
         const maxSessions = voucher.plan?.maxDevices || 1;
-        if (await isSessionLimitReached(wifiUsername, maxSessions)) {
+        const sessionCheck = await isSessionLimitReached(wifiUsername, maxSessions);
+        if (sessionCheck.limitReached) {
           await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
           return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
         }
@@ -1011,6 +1046,7 @@ export async function POST(request: NextRequest) {
         } catch { /* best effort */ }
 
         resetRateLimit(clientRateLimitIp);
+        await sessionCheck.releaseLock();
         return successResponse(
           {
             authenticated: true, method: 'voucher', username: wifiUsername,
@@ -1147,7 +1183,8 @@ export async function POST(request: NextRequest) {
 
           // Check concurrent session limit
           const pmsMaxSessions = pmsUser.maxSessions || pmsUser.plan?.maxDevices || 1;
-          if (await isSessionLimitReached(pmsUser.username, pmsMaxSessions)) {
+          const pmsSessionCheck = await isSessionLimitReached(pmsUser.username, pmsMaxSessions);
+          if (pmsSessionCheck.limitReached) {
             await logAuthAttempt(pmsUser.username, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
             return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
           }
@@ -1233,6 +1270,7 @@ export async function POST(request: NextRequest) {
           }).catch(() => {});
 
           resetRateLimit(clientRateLimitIp);
+          await pmsSessionCheck.releaseLock();
           return successResponse(
             {
               authenticated: true, method: 'room_number', username: pmsUser.username,
@@ -1284,7 +1322,8 @@ export async function POST(request: NextRequest) {
         }
 
         // Check concurrent session limit BEFORE provisioning to avoid orphaned users (M-04)
-        if (await isSessionLimitReached(wifiUsername, roomMaxDevices)) {
+        const roomSessionCheck = await isSessionLimitReached(wifiUsername, roomMaxDevices);
+        if (roomSessionCheck.limitReached) {
           await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
           return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
         }
@@ -1352,6 +1391,7 @@ export async function POST(request: NextRequest) {
         } catch { /* best effort */ }
 
         resetRateLimit(clientRateLimitIp);
+        await roomSessionCheck.releaseLock();
         return successResponse(
           {
             authenticated: true, method: 'room_number', username: wifiUsername,
@@ -1442,7 +1482,8 @@ export async function POST(request: NextRequest) {
 
         // Check concurrent session limit
         const pmsMaxSessions = wifiUser.maxSessions || wifiUser.plan?.maxDevices || 1;
-        if (await isSessionLimitReached(username.trim(), pmsMaxSessions)) {
+        const pmsCredSessionCheck = await isSessionLimitReached(username.trim(), pmsMaxSessions);
+        if (pmsCredSessionCheck.limitReached) {
           await logAuthAttempt(username.trim(), 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
           return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
         }
@@ -1551,6 +1592,7 @@ export async function POST(request: NextRequest) {
           }).catch(() => {});
 
         resetRateLimit(clientRateLimitIp);
+        await pmsCredSessionCheck.releaseLock();
         return successResponse(
           {
             authenticated: true, method: 'pms_credentials', username: wifiUser.username,
@@ -1671,7 +1713,8 @@ export async function POST(request: NextRequest) {
             }
 
             // Check concurrent session limit BEFORE provisioning to avoid orphaned users (M-04)
-            if (await isSessionLimitReached(wifiUsername, smsMaxDevices)) {
+            const smsSessionCheck = await isSessionLimitReached(wifiUsername, smsMaxDevices);
+            if (smsSessionCheck.limitReached) {
               await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
               return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
             }
@@ -1760,6 +1803,7 @@ export async function POST(request: NextRequest) {
           // Fall back to portal defaults (bwDown/bwUp) when property is not resolved.
           const smsBwDown = typeof smsPlanDnKbps !== 'undefined' ? smsPlanDnKbps / 1000 : bwDown;
           const smsBwUp = typeof smsPlanUpKbps !== 'undefined' ? smsPlanUpKbps / 1000 : bwUp;
+          await smsSessionCheck.releaseLock();
           return successResponse(
             {
               authenticated: true, method: 'sms_otp', username: wifiUsername,
@@ -1867,6 +1911,8 @@ export async function POST(request: NextRequest) {
         let openPassword: string | null = null;
         let openAccessSessionId: string | null = null;
 
+        let openSessionCheck: { limitReached: boolean; releaseLock: () => Promise<void> } | null = null;
+
         if (portal) {
           const openTimestamp = Date.now();
           wifiUsername = `open-${openTimestamp}`;
@@ -1898,7 +1944,8 @@ export async function POST(request: NextRequest) {
               }
 
               // Check concurrent session limit BEFORE provisioning to avoid orphaned users (M-04)
-              if (await isSessionLimitReached(wifiUsername, 1)) {
+              openSessionCheck = await isSessionLimitReached(wifiUsername!, 1);
+              if (openSessionCheck.limitReached) {
                 await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
                 return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
               }
@@ -1958,6 +2005,7 @@ export async function POST(request: NextRequest) {
         }
 
         resetRateLimit(clientRateLimitIp);
+        await openSessionCheck?.releaseLock?.();
         return successResponse(
           {
             authenticated: true, method: 'open_access', username: wifiUsername,
