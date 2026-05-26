@@ -1,6 +1,54 @@
 import { execFileSync } from 'child_process';
+import { existsSync } from 'fs';
 import { RADDB_PATH, RADCLIENT_BIN, RADIUS_DICT_DIR, RADIUS_LIB_DIR } from '@/lib/wifi/paths';
 import { db } from '@/lib/db';
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+/**
+ * OpenSSL paths for radclient.
+ *
+ * Sandbox: radclient is compiled from source and linked against a compat OpenSSL
+ *   that requires the legacy provider.  Custom OPENSSL_CONF + OPENSSL_MODULES
+ *   must point to the sandbox-built libraries.
+ *
+ * Production (Rocky 10 / RHEL): radclient comes from the RPM and links against
+ *   the system OpenSSL 3.x.  Rocky 10 ships the legacy provider at
+ *   /usr/lib64/ossl-modules/legacy.so and the system openssl.cnf already enables
+ *   it.  We only set OPENSSL_MODULES to the correct RHEL path and let the system
+ *   OPENSSL_CONF be used automatically.
+ */
+const SANDBOX_OPENSSL_CONF = '/home/z/my-project/freeradius-install/openssl-with-legacy.cnf';
+const SANDBOX_OPENSSL_MODULES = '/home/z/my-project/openssl-compat/lib64/ossl-modules';
+const PRODUCTION_OPENSSL_MODULES = '/usr/lib64/ossl-modules';
+const PRODUCTION_OPENSSL_CONF = '/opt/staysuite/config/openssl-with-legacy.cnf';
+
+/** Build OpenSSL env vars for radclient child process. */
+function getOpenSSLEnv(): Record<string, string> {
+  // 1) Explicit env overrides always win
+  const envConf = process.env.OPENSSL_CONF;
+  const envModules = process.env.OPENSSL_MODULES;
+  if (envConf || envModules) {
+    const result: Record<string, string> = {};
+    if (envConf) result.OPENSSL_CONF = envConf;
+    if (envModules) result.OPENSSL_MODULES = envModules;
+    return result;
+  }
+
+  if (isProduction) {
+    // Production: use /opt/staysuite config if deployed, otherwise system default
+    const result: Record<string, string> = {};
+    if (existsSync(PRODUCTION_OPENSSL_CONF)) result.OPENSSL_CONF = PRODUCTION_OPENSSL_CONF;
+    result.OPENSSL_MODULES = PRODUCTION_OPENSSL_MODULES;
+    return result;
+  }
+
+  // Sandbox: use custom-built OpenSSL compat paths
+  const result: Record<string, string> = {};
+  if (existsSync(SANDBOX_OPENSSL_CONF)) result.OPENSSL_CONF = SANDBOX_OPENSSL_CONF;
+  if (existsSync(SANDBOX_OPENSSL_MODULES)) result.OPENSSL_MODULES = SANDBOX_OPENSSL_MODULES;
+  return result;
+}
 
 /**
  * Send a RADIUS Access-Request via radclient to FreeRADIUS on localhost.
@@ -33,6 +81,8 @@ export async function radiusAuth(username: string, password: string): Promise<{
 
     const radclientInput = `User-Name = '${username}', User-Password = '${password}', NAS-IP-Address = 127.0.0.1, NAS-Port = 0, NAS-Port-Type = Wireless-802.11, Called-Station-Id = '${calledStationId}', NAS-Identifier = '${nasIdentifier}'\n`;
 
+    const sslEnv = getOpenSSLEnv();
+
     const output = execFileSync(radclientBin, ['-D', dictDir, '-x', '127.0.0.1', 'auth', nasSecret, '3'], {
       input: radclientInput,
       encoding: 'utf-8',
@@ -41,11 +91,7 @@ export async function radiusAuth(username: string, password: string): Promise<{
       env: {
         ...process.env,
         LD_LIBRARY_PATH: `${libDir}:${process.env.LD_LIBRARY_PATH || ''}`,
-        // Sandbox: radclient is linked against OpenSSL 3.0.x compat which needs
-        // the legacy provider for EAP/TLS. Without these, radclient shows
-        // "(TLS) Failed loading legacy provider" and may hang.
-        OPENSSL_CONF: process.env.OPENSSL_CONF || '/home/z/my-project/freeradius-install/openssl-with-legacy.cnf',
-        OPENSSL_MODULES: process.env.OPENSSL_MODULES || '/usr/lib/x86_64-linux-gnu/ossl-modules',
+        ...sslEnv,
       },
     });
 

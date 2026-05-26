@@ -854,6 +854,31 @@ TimeoutStartSec=120
 EOF
 systemctl daemon-reload
 
+# ── 5h2: Deploy OpenSSL legacy-provider config for radclient ───────────────
+# Rocky 10 ships OpenSSL 3.x.  radclient tries to load the legacy TLS provider
+# on startup; if OPENSSL_CONF points to a missing file the load fails and
+# radclient hangs until timeout (ETIMEDOUT).  Deploy a minimal config that
+# activates the legacy provider so radclient starts cleanly.
+info "Deploying OpenSSL legacy-provider config for radclient..."
+mkdir -p "${APP_DIR}/config"
+cat > "${APP_DIR}/config/openssl-with-legacy.cnf" <<'EOF'
+openssl_conf = openssl_init
+
+[openssl_init]
+providers = provider_sect
+
+[provider_sect]
+default = default_sect
+legacy = legacy_sect
+
+[default_sect]
+activate = 1
+
+[legacy_sect]
+activate = 1
+EOF
+info "OpenSSL config deployed to ${APP_DIR}/config/openssl-with-legacy.cnf"
+
 # ── 5i: Create RADIUS nas table early (needed before FreeRADIUS config test) ─
 # FreeRADIUS config check (-XC) connects to PostgreSQL and reads the 'nas' table
 # (read_clients = yes). The nas table is normally created by complete-database.sql
@@ -1136,7 +1161,14 @@ step 11 "Schema" "Applying complete-database.sql (tables, views, functions)"
 # This creates: nas, nasreload, data_usage_by_period, fup_switch_log,
 # 6 reporting views, 8 database functions, ALTER TABLE columns
 if [[ -f "${APP_DIR}/pgsql-production/complete-database.sql" ]]; then
-  psql -h 127.0.0.1 -U staysuite -d staysuite -f "${APP_DIR}/pgsql-production/complete-database.sql" 2>&1 | tail -5
+  psql_output=$(psql -h 127.0.0.1 -U staysuite -d staysuite -f "${APP_DIR}/pgsql-production/complete-database.sql" 2>&1 | tail -20)
+  echo "$psql_output" | grep -v NOTICE
+  if echo "$psql_output" | grep -qiE 'ERROR|ROLLBACK'; then
+    error "complete-database.sql had errors — check output above"
+    echo "$psql_output" | grep -iE 'ERROR'
+    # Don't abort — some views may already exist (idempotent re-run)
+    warn "Continuing despite errors (may be pre-existing objects)"
+  fi
   success "complete-database.sql applied (4 tables, 6 views, 8 functions)"
 else
   warn "complete-database.sql not found, skipping advanced schema"
@@ -1145,7 +1177,14 @@ fi
 # Apply live DB updates (idempotent — safe to re-run on existing deployments)
 if [[ -f "${APP_DIR}/pgsql-production/update-live-db.sql" ]]; then
   step 11b "Schema" "Applying update-live-db.sql (incremental migrations)"
-  psql -h 127.0.0.1 -U staysuite -d staysuite -f "${APP_DIR}/pgsql-production/update-live-db.sql" 2>&1 | grep -v NOTICE
+  update_output=$(psql -h 127.0.0.1 -U staysuite -d staysuite -f "${APP_DIR}/pgsql-production/update-live-db.sql" 2>&1)
+  echo "$update_output" | grep -v NOTICE | tail -20
+  if echo "$update_output" | grep -qiE 'ERROR|ROLLBACK'; then
+    error "update-live-db.sql had errors — check output above"
+    echo "$update_output" | grep -iE 'ERROR'
+    # Continue — some updates may be pre-existing
+    warn "Continuing despite errors (may be pre-existing objects)"
+  fi
   success "update-live-db.sql applied (incremental schema fixes)"
 fi
 
