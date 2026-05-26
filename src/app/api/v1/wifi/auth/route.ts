@@ -763,6 +763,13 @@ export async function POST(request: NextRequest) {
     } catch {
       return errorResponse('INVALID_REQUEST', 'Invalid request body. Please send valid JSON.', 400);
     }
+
+    // Runtime validation: body must be an object with a valid method
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return errorResponse('INVALID_REQUEST', 'Request body must be a JSON object.', 400);
+    }
+
+    const VALID_METHODS = ['voucher', 'room_number', 'pms_credentials', 'sms_otp', 'open_access'];
     const {
       method,
       portalSlug,
@@ -917,6 +924,11 @@ export async function POST(request: NextRequest) {
     // If invalid, we log and return immediately — NO IP check yet.
     // ════════════════════════════════════════════════════════════
     switch (method) {
+      default:
+        if (!VALID_METHODS.includes(method)) {
+          return errorResponse('INVALID_METHOD', `Unsupported auth method: ${method || '(empty)'}`, 400);
+        }
+        break;
       // ─── Voucher ──────────────────────────────────────────
       case 'voucher': {
         if (!voucherCode?.trim()) {
