@@ -1853,6 +1853,9 @@ export async function POST(request: NextRequest) {
           wifiUsername = `open-${openTimestamp}`;
           openPassword = `open-${openTimestamp}`;
           let resolvedPropertyId: string | undefined;
+          // Declared outside try/if blocks so they remain in scope for the response
+          let openPlanDnKbps = bwDown * 1000;  // kbps
+          let openPlanUpKbps = bwUp * 1000;    // kbps
 
           try {
             resolvedPropertyId = portal.propertyId
@@ -1860,8 +1863,6 @@ export async function POST(request: NextRequest) {
 
             if (resolvedPropertyId) {
               // Resolve plan bandwidth for open access users (AAA default plan if configured)
-              let openPlanDnKbps = bwDown * 1000;  // kbps
-              let openPlanUpKbps = bwUp * 1000;    // kbps
               const aaaConfig = await db.wiFiAAAConfig.findUnique({
                 where: { propertyId: resolvedPropertyId },
                 select: { defaultPlanId: true },
