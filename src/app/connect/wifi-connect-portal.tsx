@@ -1236,6 +1236,8 @@ function UnifiedDesignerForm({
   termsRequired,
   termsAccepted,
   setTermsAccepted,
+  debugOtp: debugOtpProp,
+  onClearDebugOtp,
 }: {
   design: PortalDesignConfig;
   formFields: FormFieldsConfig;
@@ -1243,6 +1245,8 @@ function UnifiedDesignerForm({
   codeParam: string;
   authenticate: (method: string, payload: Record<string, string>) => void;
   loading: boolean;
+  debugOtp?: string | null;
+  onClearDebugOtp?: () => void;
   termsRequired: boolean;
   termsAccepted: boolean;
   setTermsAccepted: (v: boolean) => void;
@@ -1260,7 +1264,10 @@ function UnifiedDesignerForm({
   const [otpStep, setOtpStep] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpCountdown, setOtpCountdown] = useState(0);
-  const [debugOtp, setDebugOtp] = useState<string | null>(null);
+  // Use prop-based debugOtp when available (from parent), fall back to local state
+  const [localDebugOtp, setLocalDebugOtp] = useState<string | null>(null);
+  const debugOtp = debugOtpProp ?? localDebugOtp;
+  const clearDebugOtp = onClearDebugOtp ?? (() => setLocalDebugOtp(null));
   const [termsModalOpen, setTermsModalOpen] = useState(false);
   const [emailConsent, setEmailConsent] = useState(false);
   const [phoneConsent, setPhoneConsent] = useState(false);
@@ -1420,7 +1427,7 @@ function UnifiedDesignerForm({
     if (otpCountdown > 0) return;
     setOtpCode('');
     setError('');
-    setDebugOtp(null);
+    clearDebugOtp();
     authenticate('sms_otp', { phoneNumber: formData.phone?.trim() || '' });
     setOtpCountdown(60);
   };
@@ -1510,7 +1517,7 @@ function UnifiedDesignerForm({
         </DynamicButton>
         <div className="flex items-center justify-between text-sm">
           <button
-            onClick={() => { setOtpStep(false); setOtpCode(''); setError(''); setDebugOtp(null); }}
+            onClick={() => { setOtpStep(false); setOtpCode(''); setError(''); clearDebugOtp(); }}
             className="hover:underline flex items-center gap-1"
             style={{ color: mutedColor }}
           >
@@ -2628,6 +2635,8 @@ function PortalContent() {
             termsRequired={portalConfig?.termsRequired ?? false}
             termsAccepted={termsAccepted}
             setTermsAccepted={setTermsAccepted}
+            debugOtp={debugOtp}
+            onClearDebugOtp={() => setDebugOtp(null)}
           />
         </>
       );
