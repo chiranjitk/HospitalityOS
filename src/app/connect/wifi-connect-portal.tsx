@@ -1832,7 +1832,7 @@ function SuccessScreen({
         }}
       >
         <LogOut className="w-4 h-4" />
-        Disconnect & Logout
+        {getUIString(lang, 'disconnectLogout')}
       </button>
 
       {/* Post-Connect Guest Survey — rendered via SurveyWidget when enabled in Portal Designer */}

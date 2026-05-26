@@ -25,6 +25,22 @@ export interface LocalNasConfig {
   nasIdentifier?: string | null;
 }
 
+// ─── TTL Cache ─────────────────────────────────────────────────────────────
+// NAS config rarely changes. Cache for 60 seconds to avoid per-session DB lookups.
+const NAS_CONFIG_CACHE_TTL = 60_000;
+const nasConfigCache = new Map<string, { config: LocalNasConfig; fetchedAt: number }>();
+
+function cacheNasConfig(propertyId: string, config: LocalNasConfig) {
+  nasConfigCache.set(propertyId, { config, fetchedAt: Date.now() });
+  // Evict stale entries if cache grows too large
+  if (nasConfigCache.size > 100) {
+    const now = Date.now();
+    for (const [key, val] of nasConfigCache.entries()) {
+      if (now - val.fetchedAt > NAS_CONFIG_CACHE_TTL) nasConfigCache.delete(key);
+    }
+  }
+}
+
 /**
  * Get local NAS configuration for a property.
  *
@@ -36,6 +52,12 @@ export interface LocalNasConfig {
  * @returns LocalNasConfig with calledStationId and nasIpAddress
  */
 export async function getLocalNasConfig(propertyId: string): Promise<LocalNasConfig> {
+  // TTL cache to avoid DB lookup on every session creation (LOW-02)
+  const cached = nasConfigCache.get(propertyId);
+  if (cached && Date.now() - cached.fetchedAt < NAS_CONFIG_CACHE_TTL) {
+    return cached.config;
+  }
+
   try {
     // Try property-specific NAS first (most precise match)
     const localNas = await db.radiusNAS.findFirst({
@@ -52,11 +74,13 @@ export async function getLocalNasConfig(propertyId: string): Promise<LocalNasCon
     });
 
     if (localNas) {
-      return {
+      const config = {
         calledStationId: localNas.calledStationId || '00:00:00:00:00:01',
         nasIpAddress: localNas.ipAddress || '127.0.0.1',
         nasIdentifier: localNas.nasIdentifier,
       };
+      cacheNasConfig(propertyId, config);
+      return config;
     }
 
     // Fallback: look up ANY active system NAS on 127.0.0.1
@@ -76,20 +100,24 @@ export async function getLocalNasConfig(propertyId: string): Promise<LocalNasCon
     });
 
     if (anyLocalNas) {
-      return {
+      const config = {
         calledStationId: anyLocalNas.calledStationId || '00:00:00:00:00:01',
         nasIpAddress: anyLocalNas.ipAddress || '127.0.0.1',
         nasIdentifier: anyLocalNas.nasIdentifier,
       };
+      cacheNasConfig(propertyId, config);
+      return config;
     }
   } catch (err) {
     console.warn('[LocalNAS] Failed to look up local NAS config:', err instanceof Error ? err.message : err);
   }
 
   // Fallback defaults
-  return {
+  const defaultConfig: LocalNasConfig = {
     calledStationId: '00:00:00:00:00:01',
     nasIpAddress: '127.0.0.1',
     nasIdentifier: 'cryptsk-gateway',
   };
+  cacheNasConfig(propertyId, defaultConfig);
+  return defaultConfig;
 }
