@@ -297,11 +297,19 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Fetch all enabled PortalMappings that have a subnet configured,
-    //    sorted by priority descending (higher priority checked first)
+    //    sorted by priority descending (higher priority checked first).
+    //    Include related portal and tenant to validate they are active,
+    //    preventing cross-tenant portal leakage in multi-tenant deployments.
     const mappings = await db.portalMapping.findMany({
       where: {
         enabled: true,
         subnet: { not: null },
+        captivePortal: { enabled: true },
+        tenant: { isActive: true },
+      },
+      include: {
+        captivePortal: { select: { enabled: true } },
+        tenant: { select: { isActive: true } },
       },
       orderBy: { priority: 'desc' },
     });
