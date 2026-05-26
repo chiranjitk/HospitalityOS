@@ -2554,6 +2554,6 @@ async function createAccountingSession(
   } catch (err) {
     // Non-fatal — accounting failure should not block authentication
     console.error('[Guest Auth] Failed to create accounting session:', err);
-    return '';
+    return null;
   }
 }
