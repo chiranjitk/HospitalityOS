@@ -64,6 +64,7 @@ async function validateClientIpInPool(
 function resolveAllowedPoolIds(
   planIpPoolId?: string | null,
   userIpPoolId?: string | null,
+  hasPlan?: boolean,
   planPoolIds?: string[],
 ): string[] | 'ANY' | null {
   if (userIpPoolId) return [userIpPoolId];
@@ -559,6 +560,7 @@ export async function POST(request: NextRequest) {
       const allowedPools = resolveAllowedPoolIds(
         wifiUser.plan?.ipPoolId,
         wifiUser.ipPoolId as string | null | undefined,
+        !!wifiUser.planId,
         autoAuthPlanPoolIds
       );
       const poolMatch = await validateClientIpInPool(autoAuthClientIp, allowedPools);

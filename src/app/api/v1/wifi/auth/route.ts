@@ -962,7 +962,7 @@ export async function POST(request: NextRequest) {
           await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request, 'VOUCHER_NOT_YET_VALID');
           return errorResponse('VOUCHER_NOT_YET_VALID', 'This voucher is not yet valid. It becomes active at a later date.');
         }
-        if (voucher.validUntil < now) {
+        if (voucher.validUntil && voucher.validUntil < now) {
           await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request, 'VOUCHER_EXPIRED');
           return errorResponse('VOUCHER_EXPIRED', 'This voucher has expired. Please contact front desk for a new one.');
         }

@@ -2249,7 +2249,7 @@ function PortalContent() {
           if (result.data?._debugOtp) {
             setDebugOtp(result.data._debugOtp);
           }
-          setState('idle');
+          setState('auth_form');
           return true;
         }
 

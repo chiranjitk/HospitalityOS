@@ -89,7 +89,6 @@ export async function syncRadiusGroup(plan: {
   const idleTimeoutSec = plan.idleTimeoutSec || 0;
   const dataLimitMB = plan.dataLimit || 0;
   const sessionLimit = plan.sessionLimit || 0;
-  const sessionTimeoutMin = sessionTimeoutSec > 0 ? Math.floor(sessionTimeoutSec / 60) : 0;
 
   const runInTx = parentTx
     ? parentTx // Reuse parent transaction (no nesting)
