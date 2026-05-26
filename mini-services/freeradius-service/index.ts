@@ -50,6 +50,22 @@ const RADIUS_CLIENTS_PATH = path.join(RADIUS_CONFIG_PATH, 'clients.conf');
 const STAYSUITE_CLIENT_BEGIN = '### STAYSUITE_MANAGED_CLIENTS_BEGIN ###';
 const STAYSUITE_CLIENT_END = '### STAYSUITE_MANAGED_CLIENTS_END ###';
 
+/**
+ * All known markers from previous StaySuite clients.conf management versions.
+ * These must be stripped to avoid stale/duplicate client definitions that
+ * conflict with SQL-loaded entries (read_clients = yes).
+ */
+const LEGACY_MARKER_PATTERNS = [
+  // Old v1: # >>>>>> StaySuite managed NAS clients <<<<<<
+  /# >>>>>>\s*StaySuite managed NAS clients[^#]*# <<<<<<\n*[\s\S]*?(?=\n#|\nclient\s|\n### STAYSUITE|$)/g,
+  // Old v2: # >>> StaySuite Managed NAS Clients BEGIN <<<
+  /# >>> StaySuite Managed NAS Clients BEGIN <<<\n*[\s\S]*?# >>> StaySuite Managed NAS Clients END <<<\n*/g,
+  // Old v2 variant: # >>> StaySuite Managed NAS Clients BEGIN <<<
+  /# >>> StaySuite Managed NAS Clients BEGIN <<<\n*[\s\S]*?# <<< StaySuite Managed NAS Clients END <<<\n*/g,
+  // Old standalone client blocks written by previous versions
+  /client\s+cryptsk-local\s*\{[^}]*\}\s*/g,
+];
+
 // Database connection (sandbox uses local PG, production uses system PG)
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite';
 
@@ -1034,21 +1050,31 @@ async function writeAllNASClientsToConf(): Promise<boolean> {
       // File doesn't exist yet — that's OK
     }
 
-    let newContent: string;
-    const beginIdx = existingContent.indexOf(STAYSUITE_CLIENT_BEGIN);
-    const endIdx = existingContent.indexOf(STAYSUITE_CLIENT_END);
-
-    if (beginIdx !== -1 && endIdx !== -1 && endIdx > beginIdx) {
-      // Replace existing managed section
-      newContent = existingContent.slice(0, beginIdx) + managedSection + existingContent.slice(endIdx + STAYSUITE_CLIENT_END.length);
-    } else {
-      // Append managed section
-      newContent = existingContent + (existingContent.length > 0 ? '\n' : '') + managedSection + '\n';
+    // ── CRITICAL: Strip ALL legacy managed sections first ──────────────────
+    // Previous versions used different markers and wrote actual client blocks
+    // with stale secrets. These conflict with SQL-loaded entries and cause
+    // "Shared secret is incorrect" errors. Strip them all.
+    let cleanedContent = existingContent;
+    for (const pattern of LEGACY_MARKER_PATTERNS) {
+      cleanedContent = cleanedContent.replace(pattern, '');
     }
+
+    // Also remove the old current-section markers if present (will be replaced)
+    const beginIdx = cleanedContent.indexOf(STAYSUITE_CLIENT_BEGIN);
+    const endIdx = cleanedContent.indexOf(STAYSUITE_CLIENT_END);
+    let newContent: string;
+    if (beginIdx !== -1 && endIdx !== -1 && endIdx > beginIdx) {
+      newContent = cleanedContent.slice(0, beginIdx) + managedSection + cleanedContent.slice(endIdx + STAYSUITE_CLIENT_END.length);
+    } else {
+      newContent = cleanedContent + (cleanedContent.length > 0 ? '\n' : '') + managedSection + '\n';
+    }
+
+    // Clean up excessive blank lines (more than 2 consecutive)
+    newContent = newContent.replace(/\n{3,}/g, '\n\n');
 
     // Write clients.conf — only comments, no actual client blocks
     await writeRadiusFile(RADIUS_CLIENTS_PATH, newContent);
-    log.info('Updated clients.conf (SQL-managed, no duplicates)', { count: clients.length, path: RADIUS_CLIENTS_PATH });
+    log.info('Updated clients.conf (stripped legacy sections, SQL-managed only)', { count: clients.length, path: RADIUS_CLIENTS_PATH });
 
     // Trigger RADIUS reload (sandbox-safe: SIGHUP instead of systemctl)
     await reloadRadius();
