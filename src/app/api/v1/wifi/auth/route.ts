@@ -253,18 +253,6 @@ interface MatchedPool {
   isDefault: boolean;
 }
 
-/** Extract client IP from request headers (same logic as resolve-zone) */
-function extractClientIp(request: NextRequest): string | null {
-  const xff = request.headers.get('x-forwarded-for');
-  if (xff) {
-    const firstIp = xff.split(',')[0].trim();
-    if (firstIp) return firstIp;
-  }
-  const xRealIp = request.headers.get('x-real-ip');
-  if (xRealIp) return xRealIp.trim();
-  return null;
-}
-
 /** Strip IPv6-mapped prefix and normalize to plain IPv4 */
 function normalizeIp(raw: string | null): string | null {
   if (!raw) return null;
@@ -279,16 +267,30 @@ function normalizeIp(raw: string | null): string | null {
 }
 
 /**
+ * Canonical client IP extraction — single source of truth.
+ * Priority: X-Forwarded-For (first entry) → X-Real-IP → connection remote address.
+ * Returns normalized IPv4 or '0.0.0.0' as fallback.
+ */
+function extractClientIp(request: NextRequest): string | null {
+  const xff = request.headers.get('x-forwarded-for');
+  if (xff) {
+    const firstIp = xff.split(',')[0].trim();
+    if (firstIp) return firstIp;
+  }
+  const xRealIp = request.headers.get('x-real-ip');
+  if (xRealIp) return xRealIp.trim();
+  return null;
+}
+
+/** Get normalized client IP string for logging/accounting */
+function getClientIpString(request: NextRequest): string {
+  return normalizeIp(extractClientIp(request)) || '0.0.0.0';
+}
+
+/**
  * Validate that the client IP belongs to an allocated IP pool.
  * Uses PostgreSQL inet range comparison for accurate matching.
  * Returns the matched pool info or null if no pool found.
- *
- * Conditions checked:
- * 1. IP must fall within an IpPoolRange (startIp–endIp)
- * 2. The pool must be enabled
- * 3. The pool must have captivePortal = true (managed network)
- * 4. If allowedPoolIds is provided, the matched pool must be in that list
- *    (enforces plan→pool binding so users can't login from wrong VLANs)
  */
 async function validateClientIpInPool(
   clientIp: string,
