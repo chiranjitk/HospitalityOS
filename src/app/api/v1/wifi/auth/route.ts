@@ -2319,8 +2319,10 @@ async function logAuthAttempt(
   try {
     const clientIp = getClientIp(request) || '';
 
-    // Record failed auth attempt for rate limiting (only on actual rejections)
-    if (reply === 'Access-Reject') {
+    // Record failed auth attempt for rate limiting — only for credential-related
+    // rejections (OTP_INVALID, INVALID_CREDENTIALS, AUTH_FAILED). Policy rejections
+    // (IP_NOT_IN_POOL, MAX_SESSIONS, ACCOUNT_EXPIRED) should NOT trigger rate limiting.
+    if (reply === 'Access-Reject' && extraInfo && /^(OTP_|INVALID_|AUTH_FAILED|CREDENTIAL)/.test(extraInfo)) {
       recordFailedAttempt(extractClientIp(request) || 'unknown');
     }
 
