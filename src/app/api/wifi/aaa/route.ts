@@ -140,46 +140,29 @@ export async function POST(request: NextRequest) {
     // Always prefer the authenticated user's tenantId from context
     const resolvedTenantId = user.tenantId;
 
+    // Build update data — filter out null/undefined values to prevent accidentally
+    // clearing configured fields when the frontend sends a partial update
+    const rawData = {
+      tenantId: resolvedTenantId,
+      defaultPlanId, defaultDownloadSpeed, defaultUploadSpeed,
+      defaultSessionLimit, defaultDataLimit,
+      autoProvisionOnCheckin, autoDeprovisionOnCheckout, autoDeprovisionDelay,
+      authMethods, allowMacAuth, accountingSyncInterval, maxConcurrentSessions,
+      sessionTimeoutPolicy, portalEnabled, portalTitle, portalLogo, portalTerms,
+      portalRedirectUrl, portalBrandColor,
+      usernameFormat, usernamePrefix, usernameCase, usernameMinLength, usernameMaxLength,
+      passwordFormat, passwordFixedValue, passwordLength, passwordIncludeUppercase,
+      passwordIncludeNumbers, passwordIncludeSymbols, credentialSeparator,
+      credentialPrintOnVoucher, credentialShowInPortal, duplicateUsernameAction,
+    };
+    const updateData: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(rawData)) {
+      if (val !== null && val !== undefined) updateData[key] = val;
+    }
+
     const config = await db.wiFiAAAConfig.upsert({
       where: { propertyId },
-      update: {
-        tenantId: resolvedTenantId,
-        defaultPlanId,
-        defaultDownloadSpeed,
-        defaultUploadSpeed,
-        defaultSessionLimit,
-        defaultDataLimit,
-        autoProvisionOnCheckin,
-        autoDeprovisionOnCheckout,
-        autoDeprovisionDelay,
-        authMethods,
-        allowMacAuth,
-        accountingSyncInterval,
-        maxConcurrentSessions,
-        sessionTimeoutPolicy,
-        portalEnabled,
-        portalTitle,
-        portalLogo,
-        portalTerms,
-        portalRedirectUrl,
-        portalBrandColor,
-        // Credential policy
-        usernameFormat,
-        usernamePrefix,
-        usernameCase,
-        usernameMinLength,
-        usernameMaxLength,
-        passwordFormat,
-        passwordFixedValue,
-        passwordLength,
-        passwordIncludeUppercase,
-        passwordIncludeNumbers,
-        passwordIncludeSymbols,
-        credentialSeparator,
-        credentialPrintOnVoucher,
-        credentialShowInPortal,
-        duplicateUsernameAction,
-      },
+      update: updateData,
       create: {
         tenantId: resolvedTenantId,
         propertyId,
