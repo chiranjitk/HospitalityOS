@@ -996,35 +996,35 @@ export class WiFiUserService {
    */
   async enforceSimultaneousUse(username: string, maxSessions: number): Promise<{ success: boolean; error?: string }> {
     try {
-      // Check if Simultaneous-Use already exists for this user
-      const existing = await db.radCheck.findFirst({
-        where: {
-          username,
-          attribute: 'Simultaneous-Use',
-          isActive: true,
-        },
-      });
-
-      if (existing) {
-        // Update existing
-        await db.radCheck.update({
-          where: { id: existing.id },
-          data: { value: String(maxSessions) },
-        });
-      } else {
-        // Create new
-        const wifiUser = await db.wiFiUser.findUnique({ where: { username } });
-        await db.radCheck.create({
-          data: {
-            wifiUserId: wifiUser?.id,
+      await db.$transaction(async (tx) => {
+        // Lock the row to prevent concurrent duplicate creation
+        const existing = await tx.radCheck.findFirst({
+          where: {
             username,
             attribute: 'Simultaneous-Use',
-            op: ':=',
-            value: String(maxSessions),
             isActive: true,
           },
         });
-      }
+
+        if (existing) {
+          await tx.radCheck.update({
+            where: { id: existing.id },
+            data: { value: String(maxSessions) },
+          });
+        } else {
+          const wifiUser = await tx.wiFiUser.findUnique({ where: { username } });
+          await tx.radCheck.create({
+            data: {
+              wifiUserId: wifiUser?.id,
+              username,
+              attribute: 'Simultaneous-Use',
+              op: ':=',
+              value: String(maxSessions),
+              isActive: true,
+            },
+          });
+        }
+      });
 
       return { success: true };
     } catch (error) {
