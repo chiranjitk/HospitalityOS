@@ -1670,6 +1670,17 @@ export async function POST(request: NextRequest) {
               dataLimit: smsDataLimit,
             });
 
+            // SMS OTP uses the OTP code as the RADIUS password. Each login
+            // generates a new OTP, so we must update radcheck to match.
+            // provisionUser() may skip the password update when the user
+            // already exists (unique constraint → fallback resume), so we
+            // explicitly update the Cleartext-Password here.
+            const radcheckUpdate = await db.radCheck.updateMany({
+              where: { username: wifiUsername, attribute: 'Cleartext-Password' },
+              data: { value: smsOtpPassword, isActive: true },
+            });
+            console.log(`[SMS OTP] Updated radcheck password for ${wifiUsername}: ${smsOtpPassword} (matched ${radcheckUpdate.count} rows)`);
+
             const radiusResult = await radiusAuth(wifiUsername, smsOtpPassword);
             if (!radiusResult.accepted) {
               await logAuthAttempt(wifiUsername, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
@@ -1723,10 +1734,14 @@ export async function POST(request: NextRequest) {
           }
 
           resetRateLimit(clientRateLimitIp);
+          // smsPlanDnKbps / smsPlanUpKbps are defined inside if (fallbackPropertyId).
+          // Fall back to portal defaults (bwDown/bwUp) when property is not resolved.
+          const smsBwDown = typeof smsPlanDnKbps !== 'undefined' ? smsPlanDnKbps / 1000 : bwDown;
+          const smsBwUp = typeof smsPlanUpKbps !== 'undefined' ? smsPlanUpKbps / 1000 : bwUp;
           return successResponse(
             {
               authenticated: true, method: 'sms_otp', username: wifiUsername,
-              sessionTimeout: portalSessionTimeoutMin, bandwidthDown: smsPlanDnKbps / 1000, bandwidthUp: smsPlanUpKbps / 1000,
+              sessionTimeout: portalSessionTimeoutMin, bandwidthDown: smsBwDown, bandwidthUp: smsBwUp,
               poolName: smsPool.poolName, message: 'Connected successfully!',
               sessionId: smsSessionId,
               guestId: smsGuestId,
