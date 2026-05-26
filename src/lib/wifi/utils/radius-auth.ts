@@ -79,7 +79,10 @@ export async function radiusAuth(username: string, password: string): Promise<{
     // Look up the shared secret for the local system NAS (Cryptsk Gateway)
     const { calledStationId, nasSecret, nasIdentifier } = await getSystemNasConfig();
 
-    const radclientInput = `User-Name = '${username}', User-Password = '${password}', NAS-IP-Address = 127.0.0.1, NAS-Port = 0, NAS-Port-Type = Wireless-802.11, Called-Station-Id = '${calledStationId}', NAS-Identifier = '${nasIdentifier}'\n`;
+    // Sanitize username/password to prevent RADIUS attribute injection
+    const sanitizeRadius = (val: string) => val.replace(/'/g, '').replace(/,/g, '').replace(/\n/g, '').replace(/\r/g, '');
+
+    const radclientInput = `User-Name = '${sanitizeRadius(username)}', User-Password = '${sanitizeRadius(password)}', NAS-IP-Address = 127.0.0.1, NAS-Port = 0, NAS-Port-Type = Wireless-802.11, Called-Station-Id = '${sanitizeRadius(calledStationId)}', NAS-Identifier = '${sanitizeRadius(nasIdentifier)}'\n`;
 
     const sslEnv = getOpenSSLEnv();
 
