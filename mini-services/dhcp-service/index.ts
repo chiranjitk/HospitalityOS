@@ -939,7 +939,9 @@ async function parseLeasesFile(): Promise<any[]> {
 (globalThis as Record<string, unknown>).__authWarningLogged = false;
 
 app.use('*', async (c, next) => {
-  if (c.req.path === '/health') return next();
+  // No auth needed for health checks and status endpoints
+  const noAuthPaths = ['/health', '/api/status'];
+  if (noAuthPaths.includes(c.req.path)) return next();
   const authSecret = process.env.SERVICE_AUTH_SECRET;
   if (!authSecret) {
     if (!(globalThis as Record<string, unknown>).__authWarningLogged) {

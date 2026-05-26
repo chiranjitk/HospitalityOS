@@ -24,6 +24,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
 import { DNSMASQ_DHCP_CONF, DNSMASQ_LEASES_FILE } from '@/lib/wifi/paths';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { execFile } = /*turbopackIgnore: true*/ require('child_process');
+import { promisify } from 'util';
+const execFileAsync = promisify(execFile);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -182,11 +186,53 @@ function parsePathSegments(path: string): string[] {
 
 const DHCP_SERVICE_URL = process.env.DHCP_SERVICE_URL || 'http://localhost:3011';
 
+/**
+ * Check dnsmasq process status directly via systemctl/pgrep.
+ * No auth needed — this is a simple daemon check.
+ */
+async function checkDnsmasqProcess(): Promise<{ running: boolean; pid?: number; version?: string }> {
+  try {
+    // Try systemctl is-active first
+    const { stdout } = await execFileAsync('systemctl', ['is-active', 'dnsmasq'], { timeout: 3000 });
+    if (stdout.trim() === 'active') {
+      let pid: number | undefined;
+      try {
+        const { stdout: pidOut } = await execFileAsync('systemctl', ['show', 'dnsmasq', '--property=MainPID'], { timeout: 3000 });
+        const m = pidOut.match(/MainPID=(\d+)/);
+        if (m && parseInt(m[1], 10) > 0) pid = parseInt(m[1], 10);
+      } catch { /* ignore */ }
+      return { running: true, pid };
+    }
+  } catch {
+    // systemctl not available or dnsmasq not a systemd service — check via pgrep
+    try {
+      const { stdout } = await execFileAsync('pgrep', ['-x', 'dnsmasq'], { timeout: 2000 });
+      const pids = stdout.trim().split('\n').filter(Boolean);
+      if (pids.length > 0) {
+        return { running: true, pid: parseInt(pids[0], 10) };
+      }
+    } catch { /* not running */ }
+  }
+  // Try to get version
+  let version = '';
+  try {
+    const { stdout: verOut } = await execFileAsync('dnsmasq', ['--version'], { timeout: 2000 });
+    version = verOut.trim();
+  } catch { /* dnsmasq not installed */ }
+  return { running: false, version };
+}
+
 /** Proxy a request to the real dhcp-service mini-service on port 3011 */
 async function proxyToDhcpService(path: string, method: string, body?: Record<string, unknown> | null): Promise<Response | null> {
   try {
     const url = `${DHCP_SERVICE_URL}${path}`;
-    const opts: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    // Forward SERVICE_AUTH_SECRET if set — avoids 401 from mini-service
+    const authSecret = process.env.SERVICE_AUTH_SECRET;
+    if (authSecret) {
+      headers['Authorization'] = `Bearer ${authSecret}`;
+    }
+    const opts: RequestInit = { method, headers };
     if (body && ['POST', 'PUT', 'PATCH'].includes(method)) {
       opts.body = JSON.stringify(body);
     }
@@ -194,7 +240,7 @@ async function proxyToDhcpService(path: string, method: string, body?: Record<st
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch {
-    // Mini-service not reachable — caller should fall back to stub
+    // Mini-service not reachable — caller should fall back to direct check
     return null;
   }
 }
@@ -282,13 +328,14 @@ async function handleRequest(request: NextRequest, method: string) {
 
     const propertyId = await getDefaultPropertyId(tenantId);
 
-    // ─── Status — proxy to real dhcp-service, fall back to DB-only stub ───
+    // ─── Status — proxy to real dhcp-service, fall back to direct process check ───
     if (segments[0] === 'status' && method === 'GET') {
       // Try real mini-service first (has actual dnsmasq process status)
       const proxied = await proxyToDhcpService('/api/status', 'GET');
       if (proxied) return proxied;
 
-      // Fallback: DB-only counts (mini-service not running)
+      // Fallback: check dnsmasq process directly (no auth needed for daemon check)
+      const processInfo = await checkDnsmasqProcess();
       const [subnetCount, leaseCount, activeLeases, reservationCount] = await Promise.all([
         db.dhcpSubnet.count({ where: { tenantId } }),
         db.dhcpLease.count({ where: { tenantId } }),
@@ -298,13 +345,13 @@ async function handleRequest(request: NextRequest, method: string) {
       return NextResponse.json({
         success: true,
         data: {
-          installed: true, running: false, processRunning: false,
-          version: '', mode: 'standalone', backend: 'dnsmasq',
+          installed: !!processInfo.version, running: processInfo.running, processRunning: processInfo.running,
+          version: processInfo.version || '', mode: 'standalone', backend: 'dnsmasq',
           subnetCount, leaseCount, activeLeases, reservationCount,
           currentInterfaces: [], systemInterfaces: [],
           configFile: DNSMASQ_DHCP_CONF,
           leasesFile: DNSMASQ_LEASES_FILE,
-          _warning: 'dhcp-service mini-service not reachable — showing DB-only status',
+          _note: processInfo.running ? `dnsmasq running (PID ${processInfo.pid})` : 'dnsmasq not running',
         },
       });
     }
