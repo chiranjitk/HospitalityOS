@@ -360,10 +360,10 @@ function resolveAllowedPoolIds(
   if (planPoolIds && planPoolIds.length > 0) return planPoolIds;
   // Legacy single pool from WiFiPlan.ipPoolId
   if (planIpPoolId) return [planIpPoolId];
-  // Plan exists but has no pool → check all pools
+  // Plan exists but has no pool → check all managed pools (security: must be on managed network)
   if (hasPlan) return 'ANY';
-  // No plan at all → no restriction
-  return null;
+  // No plan at all → still check all managed pools (prevent unauthorized network access)
+  return 'ANY';
 }
 
 /**
