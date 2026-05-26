@@ -2900,8 +2900,9 @@ function PortalContent() {
 
                   {renderCardContent()}
 
-                  {/* Marketing Consent (Feature 2) — inside the form card, after form content */}
-                  {state !== 'success' && design.marketingOptIn?.enabled && (
+                  {/* Marketing Consent (Feature 2) — inside the form card, after form content.
+                      Only rendered in fallback mode; unified form handles consent internally. */}
+                  {!useUnifiedForm && state !== 'success' && design.marketingOptIn?.enabled && (
                     <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}` }}>
                       <MarketingConsentPlaceholder design={design} />
                     </div>
