@@ -46,7 +46,7 @@ listen {
 #  Make *sure* that 'preprocess' comes before any realm if you
 #  need to setup hints for the remote radius server
 authorize {
-	sql
+        sql
         #
         #  Take a User-Name, and perform some checks on it, for spaces and other
         #  invalid characters.  If the User-Name appears invalid, reject the
@@ -129,9 +129,10 @@ authorize {
         #  for the many packets that go back and forth to set up TTLS
         #  or PEAP.  The load on those servers will therefore be reduced.
         #
-        eap {
-                ok = return
-        }
+        # eap (disabled - no certs in sandbox)
+        # {
+        #         ok = return
+        # }
 
         #
         #  Look in an SQL database.  The schema of the database
@@ -275,7 +276,7 @@ authenticate {
 
         #
         #  Allow EAP authentication.
-        eap
+        # eap (disabled - no certs in sandbox)
 }
 
 ######################################################################
@@ -290,7 +291,7 @@ authenticate {
 #  or rlm_sql module can handle this.
 #  The rlm_sql module is *much* faster
 session {
-	sql
+        sql
 #       radutmp
 
         #
@@ -313,7 +314,7 @@ session {
 #  the ONLY safe way is to set "use_tunneled_reply = yes", and
 #  then update the inner-tunnel reply.
 post-auth {
-	sql
+        sql
         #  If you want privacy to remain, see the
         #  Chargeable-User-Identity attribute from RFC 4372.
         #  If you want to use it just uncomment the line below.
@@ -482,7 +483,7 @@ post-proxy {
         #  hidden inside of the EAP packet, and the end server will
         #  reject the EAP request.
         #
-        eap
+        # eap (disabled - no certs in sandbox)
 }
 
 } # inner-tunnel server block
