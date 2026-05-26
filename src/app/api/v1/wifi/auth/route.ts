@@ -999,7 +999,7 @@ export async function POST(request: NextRequest) {
               guestId: voucherUser.guestId,
               bookingId: voucher.bookingId,
               guestInfo: normalizedGuestInfo,
-              marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
+              marketingConsent: { emailConsent: marketingEmailConsent === 'true' || marketingEmailConsent === true, smsConsent: marketingSmsConsent === 'true' || marketingSmsConsent === true },
             });
           }
         } catch { /* best effort */ }
@@ -1338,7 +1338,7 @@ export async function POST(request: NextRequest) {
               guestId: roomUser.guestId,
               bookingId: match.id,
               guestInfo: normalizedGuestInfo,
-              marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
+              marketingConsent: { emailConsent: marketingEmailConsent === 'true' || marketingEmailConsent === true, smsConsent: marketingSmsConsent === 'true' || marketingSmsConsent === true },
             });
           }
         } catch { /* best effort */ }
@@ -1737,7 +1737,7 @@ export async function POST(request: NextRequest) {
                   wifiUserId: smsUser.id,
                   propertyId: fallbackPropertyId,
                   guestInfo: normalizedGuestInfo,
-                  marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
+                  marketingConsent: { emailConsent: marketingEmailConsent === 'true' || marketingEmailConsent === true, smsConsent: marketingSmsConsent === 'true' || marketingSmsConsent === true },
                 });
               }
             } catch { /* best effort */ }
@@ -2111,14 +2111,11 @@ async function saveGuestInfoAfterAuth(params: {
     }
 
     if (marketingConsent) {
-      if (marketingConsent.emailConsent) {
-        updates.emailOptIn = true;
-        createData.emailOptIn = true;
-      }
-      if (marketingConsent.smsConsent) {
-        updates.smsOptIn = true;
-        createData.smsOptIn = true;
-      }
+      // Explicitly set both true and false — GDPR requires consent withdrawal to work
+      updates.emailOptIn = !!marketingConsent.emailConsent;
+      createData.emailOptIn = !!marketingConsent.emailConsent;
+      updates.smsOptIn = !!marketingConsent.smsConsent;
+      createData.smsOptIn = !!marketingConsent.smsConsent;
     }
 
     // Skip if nothing to save
