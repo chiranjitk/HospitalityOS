@@ -410,35 +410,28 @@ async function syncConfigToDisk(): Promise<{ success: boolean; lines: number }> 
 # Last updated: ${new Date().toISOString()}
 # DO NOT EDIT MANUALLY - Changes will be overwritten
 #
-# Architecture:
-#   1. Listen on ALL interfaces (gateway + DNS for LAN clients)
-#   2. Authoritative for local zones (staysuite.local, *.staysuite.local)
-#   3. Forward external queries to upstream DNS (Google/Cloudflare)
-#   4. Local domains resolve WITHOUT internet — always authoritative first
-#
 
 # ═══════════════════════════════════════════════════════════════════════
-# 1. GENERAL SETTINGS (must be first)
+# 1. GENERAL SETTINGS
 # ═══════════════════════════════════════════════════════════════════════
 `;
 
-  // bind-dynamic alone listens on ALL available interfaces (no listen-address needed)
-  config += `# Listen on all interfaces automatically
-bind-dynamic
+  config += `# Listen on all interfaces
+bind-interfaces
+listen-address=0.0.0.0
 
 # DNS behavior
-domain-needed          # Don't forward bare hostnames (no dots) to upstream
-bogus-priv             # Never forward private IP ranges to upstream
-no-resolv              # Don't read /etc/resolv.conf — we control upstream servers
-expand-hosts           # Expand simple hostnames from /etc/hosts
-stop-dns-rebind        # Protect against DNS rebinding attacks
-local-ttl=300          # TTL for local/authoritative responses (5 min)
+domain-needed
+bogus-priv
+no-resolv
+expand-hosts
+stop-dns-rebind
+local-ttl=300
 
 # Cache & performance
 cache-size=10000
 dns-forward-max=1000
-min-port=1024          # Use high ports for upstream queries (firewall friendly)
-edns-packet-max=4096   # Support large DNS responses (DNSSEC, large TXT)
+strict-order
 
 `;
 
@@ -560,15 +553,13 @@ edns-packet-max=4096   # Support large DNS responses (DNSSEC, large TXT)
     const subnetResult = await pool.query('SELECT "subnet" FROM "DhcpSubnet" WHERE "enabled" = true');
     if (subnetResult.rows.length > 0) {
       config += '# Reverse DNS — resolve local IPs from DHCP subnets\n';
-      // dnsmasq requires auth-server when auth-zone is defined
-      config += 'auth-server=0.0.0.0\n';
       for (const sub of subnetResult.rows) {
         const cidr = sub.subnet;
         if (cidr && cidr.includes('/')) {
           const network = cidr.split('/')[0];
           // rev-zone: 192.168.1.0/24 → 1.168.192.in-addr.arpa
           const octets = network.split('.').reverse().join('.');
-          config += `auth-zone=${octets}.in-addr.arpa\n`;
+          config += `local=/${octets}.in-addr.arpa/\n`;
         }
       }
       config += '\n';
@@ -1328,16 +1319,28 @@ function validateDnsmasqConfig(content: string): { valid: boolean; reason?: stri
 
   const lines = content.split('\n');
   const validDirectives = [
+    // DNS core
     'server=', 'address=', 'cname=', 'mx-host=', 'txt-record=',
-    'srv-host=', 'ptr-record=', 'domain-needed', 'bogus-priv',
-    'no-resolv', 'expand-hosts', 'local-ttl=', 'cache-size=',
-    'dns-forward-max=', 'min-port=', 'listen-address=', 'port=',
-    'bind-interfaces', 'no-hosts', 'addn-hosts=', 'resolv-file=',
-    'strict-order', 'all-servers', 'no-negcache', 'neg-ttl=',
-    'conf-dir=', 'user=', 'group=', 'pid-file=', 'log-queries',
-    'log-facility=', 'no-daemon', 'keep-in-foreground',
+    'srv-host=', 'ptr-record=', 'host-record=', 'local=/', 'local=',
+    // General settings
+    'domain-needed', 'bogus-priv', 'no-resolv', 'expand-hosts',
+    'stop-dns-rebind', 'local-ttl=', 'no-negcache', 'neg-ttl=',
+    'no-hosts', 'addn-hosts=', 'resolv-file=', 'conf-dir=',
+    // Listen / bind
+    'bind-interfaces', 'bind-dynamic', 'listen-address=', 'port=',
+    // Upstream behavior
+    'strict-order', 'all-servers', 'dns-forward-max=', 'cache-size=',
+    'min-port=', 'max-cache-ttl=', 'max-ns-lookups=', 'edns-packet-max=',
+    // Logging
+    'log-queries', 'log-facility=', 'log-async=',
+    // Process
+    'no-daemon', 'keep-in-foreground', 'user=', 'group=', 'pid-file=',
+    // DHCP
     'dhcp-range=', 'dhcp-host=', 'dhcp-option=', 'dhcp-leasefile=',
-    'dhcp-authoritative', 'dhcp-script=', 'read-ethers',
+    'dhcp-authoritative', 'dhcp-script=', 'read-ethers', 'dhcp-optsfile=',
+    'dhcp-boot=', 'dhcp-match=',
+    // DNSSEC
+    'dnssec', 'dnssec-check-unsigned', 'trust-anchor=',
   ];
 
   const injectionPatterns = [
