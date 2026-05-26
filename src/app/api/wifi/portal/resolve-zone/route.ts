@@ -77,12 +77,14 @@ function normalizeIp(raw: string | null): string | null {
 // Portal config builder (mirrors /api/v1/wifi/portal response structure)
 // ---------------------------------------------------------------------------
 
-async function buildPortalConfig(portalId: string) {
+async function buildPortalConfig(portalId: string, language?: string | null) {
+  // Normalize language: accept query param, default to 'en', validate against common codes
+  const lang = (language?.trim() || 'en').substring(0, 10);
   const portal = await db.captivePortal.findFirst({
     where: { id: portalId, enabled: true },
     include: {
       portalPages: {
-        where: { language: 'en' },
+        where: { language: lang },
         take: 1,
       },
       portalMappings: {
@@ -98,7 +100,15 @@ async function buildPortalConfig(portalId: string) {
   if (!portal) return null;
 
   // Parse design settings from the portal page
-  const portalPage = portal.portalPages[0];
+  let portalPage = portal.portalPages[0];
+
+  // Fallback to 'en' if no page found for the requested language
+  if (!portalPage && lang !== 'en') {
+    const fallbackPage = await db.portalPage.findFirst({
+      where: { portalId, language: 'en', active: true },
+    });
+    if (fallbackPage) portalPage = fallbackPage;
+  }
   let designSettings: Record<string, unknown> = {};
   if (portalPage) {
     try {
@@ -265,6 +275,9 @@ async function buildPortalConfig(portalId: string) {
 
 export async function GET(request: NextRequest) {
   try {
+    // 0. Extract optional language parameter (defaults to 'en')
+    const lang = request.nextUrl.searchParams.get('lang');
+
     // 1. Extract & normalize client IP
     const rawIp = extractClientIp(request);
     const clientIp = normalizeIp(rawIp);
@@ -275,7 +288,7 @@ export async function GET(request: NextRequest) {
         where: { isDefault: true, enabled: true },
       });
       if (defaultPortal) {
-        const config = await buildPortalConfig(defaultPortal.id);
+        const config = await buildPortalConfig(defaultPortal.id, lang);
         return NextResponse.json({
           success: true,
           data: {
@@ -331,7 +344,7 @@ export async function GET(request: NextRequest) {
         where: { isDefault: true, enabled: true },
       });
       if (defaultPortal) {
-        const config = await buildPortalConfig(defaultPortal.id);
+        const config = await buildPortalConfig(defaultPortal.id, lang);
         return NextResponse.json({
           success: true,
           data: {
@@ -354,11 +367,11 @@ export async function GET(request: NextRequest) {
     }
 
     // 5. Match found — build the full portal config
-    const config = await buildPortalConfig(matchedMapping.portalId);
+    const config = await buildPortalConfig(matchedMapping.portalId, lang);
 
     // If the matched portal is disabled or deleted, fall back to fallbackPortalId
     if (!config && matchedMapping.fallbackPortalId) {
-      const fallbackConfig = await buildPortalConfig(matchedMapping.fallbackPortalId);
+      const fallbackConfig = await buildPortalConfig(matchedMapping.fallbackPortalId, lang);
       return NextResponse.json({
         success: true,
         data: {
