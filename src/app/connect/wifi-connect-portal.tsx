@@ -494,10 +494,23 @@ function MarketingConsent({ design, emailConsent, setEmailConsent, phoneConsent,
 // Marketing Consent Placeholder (for block-based layouts)
 // ────────────────────────────────────────────────────────────
 
-function MarketingConsentPlaceholder({ design }: { design: PortalDesignConfig }) {
+function MarketingConsentPlaceholder({ design, onConsentChange }: { design: PortalDesignConfig; onConsentChange?: (consent: { emailConsent: boolean; smsConsent: boolean }) => void }) {
   const lang = usePortalLang();
   const optIn = design.marketingOptIn;
+  const [emailChecked, setEmailChecked] = useState(false);
+  const [smsChecked, setSmsChecked] = useState(false);
   if (!optIn?.enabled) return null;
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.checked;
+    setEmailChecked(val);
+    onConsentChange?.({ emailConsent: val, smsConsent: smsChecked });
+  };
+  const handleSmsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.checked;
+    setSmsChecked(val);
+    onConsentChange?.({ emailConsent: emailChecked, smsConsent: val });
+  };
 
   const mutedColor = getMutedTextColor(design);
   const accent = design.accentColor;
@@ -512,13 +525,13 @@ function MarketingConsentPlaceholder({ design }: { design: PortalDesignConfig })
       <div className="flex flex-wrap gap-3">
         {optIn.emailConsent && (
           <label className="flex items-center gap-2 text-xs cursor-pointer">
-            <input type="checkbox" className="rounded" style={{ accentColor: accent }} defaultChecked={false} />
+            <input type="checkbox" className="rounded" style={{ accentColor: accent }} checked={emailChecked} onChange={handleEmailChange} />
             <span style={{ color: mutedColor }}>{getUIString(lang, 'emailMarketing')}</span>
           </label>
         )}
         {optIn.phoneConsent && (
           <label className="flex items-center gap-2 text-xs cursor-pointer">
-            <input type="checkbox" className="rounded" style={{ accentColor: accent }} defaultChecked={false} />
+            <input type="checkbox" className="rounded" style={{ accentColor: accent }} checked={smsChecked} onChange={handleSmsChange} />
             <span style={{ color: mutedColor }}>{getUIString(lang, 'smsMarketing')}</span>
           </label>
         )}
