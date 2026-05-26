@@ -933,6 +933,16 @@ export async function POST(request: NextRequest) {
         const planDnKbps = (voucher.plan?.downloadSpeed || bwDown) * 1000;
         const planUpKbps = (voucher.plan?.uploadSpeed || bwUp) * 1000;
 
+        // Atomically claim voucher FIRST (prevents double-provision race condition)
+        const updatedVoucher = await db.wiFiVoucher.updateMany({
+          where: { id: voucher.id, isUsed: false },
+          data: { isUsed: true, usedAt: new Date(), status: 'used' },
+        });
+        if (updatedVoucher.count === 0) {
+          await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'VOUCHER_ALREADY_CLAIMED');
+          return NextResponse.json({ success: false, error: 'Voucher already used' }, { status: 409 });
+        }
+
         await provisionOrResumeUser(wifiUsername, now, validUntil, {
           tenantId: voucher.tenantId,
           propertyId: resolvedPropertyId,
@@ -954,15 +964,6 @@ export async function POST(request: NextRequest) {
         if (!radiusResult.accepted) {
           await logAuthAttempt(wifiUsername, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
           return errorResponse(radiusResult.rejectReason || 'AUTH_FAILED', getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED'));
-        }
-
-        // Atomically mark voucher as used (prevents double-use race condition)
-        const updatedVoucher = await db.wiFiVoucher.updateMany({
-          where: { id: voucher.id, isUsed: false },
-          data: { isUsed: true, usedAt: new Date(), status: 'used' },
-        });
-        if (updatedVoucher.count === 0) {
-          return NextResponse.json({ success: false, error: 'Voucher already used' }, { status: 409 });
         }
 
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
