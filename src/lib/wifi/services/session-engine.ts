@@ -494,11 +494,16 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
                   'PAP', v.framedipaddress, 'interim-update',
                   v.input_octets, v.output_octets, v.session_time,
                   '${localNasForInterim.calledStationId}', v.callingstationid, '${localNasForInterim.nasIdentifier}',
-                  'session-engine', NOW(), NOW()
+                  COALESCE(r0."loginType", 'portal'), NOW(), NOW()
                 FROM (VALUES ${interimValues.join(',')}) AS v(
                   acctsessionid, username, framedipaddress, callingstationid,
                   acctstarttime, input_octets, output_octets, session_time
                 )
+                LEFT JOIN LATERAL (
+                  SELECT "loginType" FROM radacct r0
+                  WHERE r0.acctsessionid = v.acctsessionid AND r0.acctstatus = 'start'
+                  ORDER BY r0.radacctid ASC LIMIT 1
+                ) r0 ON true
               `);
 
               // ── Batch UPDATE WiFiUser cumulative totals (1 query) ──
@@ -1006,14 +1011,19 @@ async function disconnectSession(
         acctinputoctets, acctoutputoctets, acctsessiontime, acctterminatecause,
         calledstationid, callingstationid, nasidentifier,
         "loginType", createdat, updatedat
-      ) VALUES (
+      ) SELECT
         gen_random_uuid(), $1, $2,
         '127.0.0.1', 'Wireless-802.11', $3, NOW(), NOW(),
         'PAP', $4, 'stop',
         $5, $6, $7, $8,
         $10, $9, $11,
-        'session-engine', NOW(), NOW()
-      )
+        COALESCE(r0."loginType", 'portal'), NOW(), NOW()
+      FROM (SELECT 1) AS dummy
+      LEFT JOIN LATERAL (
+        SELECT "loginType" FROM radacct r0
+        WHERE r0.acctsessionid = $1 AND r0.acctstatus = 'start'
+        ORDER BY r0.radacctid ASC LIMIT 1
+      ) r0 ON true
     `, session.acctsessionid, session.username, session.acctstarttime, ip,
        uploadBytes, downloadBytes, sessionTime, reason, session.callingstationid,
        localNasForStop.calledStationId, localNasForStop.nasIdentifier);
