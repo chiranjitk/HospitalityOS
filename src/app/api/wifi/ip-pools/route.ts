@@ -415,9 +415,17 @@ export async function DELETE(request: NextRequest) {
     `, id) as any[];
 
     if (assignments[0].plan_count > 0 || assignments[0].user_count > 0) {
-      // Clear assignments instead of deleting
-      await db.$executeRawUnsafe(`UPDATE "WiFiPlan" SET "ipPoolId" = NULL WHERE "ipPoolId" = $1::uuid`, id);
-      await db.$executeRawUnsafe(`UPDATE "WiFiUser" SET "ipPoolId" = NULL WHERE "ipPoolId" = $1::uuid`, id);
+      // Return 409 Conflict — pool is in use, don't silently clear assignments
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'POOL_IN_USE',
+            message: `Cannot delete: pool is assigned to ${assignments[0].plan_count} plan(s) and ${assignments[0].user_count} user(s). Remove assignments first.`,
+          },
+        },
+        { status: 409 },
+      );
     }
 
     // Delete pool (ranges cascade)
