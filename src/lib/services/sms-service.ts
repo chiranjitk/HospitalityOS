@@ -14,6 +14,14 @@ import { sendSMS as sendSMSAdapter, sendSMSForTenant, normalizePhoneNumber, SMSO
 import { getConfig } from '@/lib/config/env';
 import crypto from 'crypto';
 
+/** Nil UUID used as fallback for NotificationLog columns that require @db.Uuid */
+const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+
+function isValidUUID(value: string | undefined | null): boolean {
+  if (!value) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 // Types
 export interface SMSTemplate {
   id: string;
@@ -553,11 +561,12 @@ export class SMSService {
    */
   private async logDelivery(options: TemplatedSMSOptions, result: SMSResult): Promise<void> {
     try {
+      const logTenantId = isValidUUID(options.tenantId) ? options.tenantId : NIL_UUID;
       await db.notificationLog.create({
         data: {
-          tenantId: options.tenantId || 'system',
+          tenantId: logTenantId,
           recipientType: 'guest',
-          recipientId: '',
+          recipientId: NIL_UUID,
           recipientPhone: options.to,
           channel: 'sms',
           subject: '',

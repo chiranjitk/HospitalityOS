@@ -983,7 +983,7 @@ export class NotificationService {
             tenantId: data.tenantId,
             templateId: data.templateId,
             recipientType: data.userId ? 'user' : 'guest',
-            recipientId: data.userId || data.guestId || '',
+            recipientId: data.userId || data.guestId || '00000000-0000-0000-0000-000000000000',
             recipientEmail: email,
             recipientPhone: phone,
             channel,

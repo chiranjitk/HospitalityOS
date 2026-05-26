@@ -189,7 +189,7 @@ async function dispatchWhatsApp(payload: DispatchPayload): Promise<DispatchResul
       data: {
         tenantId: payload.tenantId,
         recipientType: 'guest',
-        recipientId: payload.guestId || '',
+        recipientId: payload.guestId || '00000000-0000-0000-0000-000000000000',
         recipientPhone: payload.recipientPhone,
         channel: 'whatsapp',
         subject: 'Outbound WhatsApp message',
