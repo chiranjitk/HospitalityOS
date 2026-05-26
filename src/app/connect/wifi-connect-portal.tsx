@@ -1041,7 +1041,7 @@ function SmsOtpForm({
   onClearDebugOtp,
 }: {
   design: PortalDesignConfig;
-  onAuthenticate: (method: string, payload: Record<string, string>) => void;
+  onAuthenticate: (method: string, payload: Record<string, string>) => void | Promise<boolean>;
   loading: boolean;
   debugOtp?: string | null;
   onClearDebugOtp?: () => void;
@@ -1064,7 +1064,9 @@ function SmsOtpForm({
     if (!phone.trim()) { setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'phoneNumber').toLowerCase()); return; }
     setError('');
     onClearDebugOtp?.();
-    onAuthenticate('sms_otp', { phoneNumber: phone.trim() });
+    const result = await onAuthenticate('sms_otp', { phoneNumber: phone.trim() });
+    // Only advance to OTP step if the server accepted the request
+    if (result === false) return;
     setStep('otp');
     setCountdown(60);
   };
@@ -2214,7 +2216,7 @@ function PortalContent() {
   // ── Authentication handler ──
   const portalSlug = portalConfig?.slug || 'default';
   const authenticate = useCallback(
-    async (method: string, payload: Record<string, string>) => {
+    async (method: string, payload: Record<string, string>): Promise<boolean> => {
 
       setState('authenticating');
       setErrorMessage('');
@@ -2245,7 +2247,7 @@ function PortalContent() {
             setDebugOtp(result.data._debugOtp);
           }
           setState('idle');
-          return;
+          return true;
         }
 
         if (result.success && result.data?.authenticated) {
@@ -2274,13 +2276,16 @@ function PortalContent() {
 
           setAuthResult(result.data);
           setState('success');
+          return true;
         } else {
           setState('error');
           setErrorMessage(result.error?.message || 'Authentication failed');
+          return false;
         }
       } catch {
         setState('error');
         setErrorMessage('Network error. Please ensure you are connected to the hotel WiFi and try again.');
+        return false;
       }
     },
     [portalSlug, preGeneratedFingerprint]
@@ -2480,9 +2485,9 @@ function PortalContent() {
         return (
           <SmsOtpForm
             design={design}
-            onAuthenticate={(method, payload) => {
+            onAuthenticate={async (method, payload) => {
               const gi = buildGuestInfoPayload();
-              authenticate(method, gi ? { ...payload, guestInfo: gi } : payload);
+              return authenticate(method, gi ? { ...payload, guestInfo: gi } : payload);
             }}
             loading={state === 'authenticating'}
             debugOtp={debugOtp}
