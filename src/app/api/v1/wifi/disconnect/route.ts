@@ -41,12 +41,24 @@ function getClientIpFromRequest(request: NextRequest): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { username, clientIp: bodyIp, source } = body as { username?: string; clientIp?: string; source?: string };
+    const { username, clientIp: bodyIp, source, _sessionToken } = body as { username?: string; clientIp?: string; source?: string; _sessionToken?: string };
 
     if (!username) {
       return NextResponse.json(
         { success: false, error: { code: 'MISSING_USERNAME', message: 'Username is required' } },
         { status: 400 }
+      );
+    }
+
+    // Security: Require either admin auth (via session cookie) or a valid
+    // _sessionToken (passed from the portal frontend after successful auth).
+    // This prevents anonymous callers from disconnecting arbitrary users.
+    const isAdminRequest = request.headers.get('cookie')?.includes('next-auth.session-token') || false;
+    const hasPortalToken = typeof _sessionToken === 'string' && _sessionToken.length > 0;
+    if (!isAdminRequest && !hasPortalToken) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Authentication required' } },
+        { status: 403 }
       );
     }
 

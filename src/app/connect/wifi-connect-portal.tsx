@@ -2289,6 +2289,7 @@ function PortalContent() {
           body: JSON.stringify({
             username: authResult.username,
             source: 'portal', // Keep DeviceProfile active for future auto-auth
+            _sessionToken: saveStorageToken(),
           }),
         }).catch(() => {});
       }
