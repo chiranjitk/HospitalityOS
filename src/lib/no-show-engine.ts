@@ -658,7 +658,7 @@ async function saveLastExecutionStatusToDB(status: LastExecutionStatus): Promise
         tenantId: '00000000-0000-0000-0000-000000000000', // system-level entry
         recipientType: 'user',
         recipientId: '00000000-0000-0000-0000-000000000000',
-        channel: 'system_no_show_engine',
+        channel: 'system' as const,
         subject: 'No-show engine execution',
         body: JSON.stringify(status),
         status: 'delivered',

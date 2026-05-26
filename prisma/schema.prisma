@@ -132,6 +132,7 @@ enum NotificationChannel {
   whatsapp
   push
   in_app
+  system
 }
 
 enum CommunicationChannelType {
