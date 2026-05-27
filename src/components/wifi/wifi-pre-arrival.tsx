@@ -695,7 +695,7 @@ export default function WifiPreArrival() {
                 <SelectTrigger className="w-32 h-8 text-xs">
                   <SelectValue placeholder="Channel" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" sideOffset={4}>
                   <SelectItem value="all">All Channels</SelectItem>
                   <SelectItem value="email">Email</SelectItem>
                   <SelectItem value="sms">SMS / OTP</SelectItem>
@@ -705,7 +705,7 @@ export default function WifiPreArrival() {
                 <SelectTrigger className="w-28 h-8 text-xs">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" sideOffset={4}>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="sent">Sent</SelectItem>
                   <SelectItem value="failed">Failed</SelectItem>
@@ -1260,7 +1260,7 @@ function PropertyConfigCard({
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" sideOffset={4}>
                   {HOUR_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={String(opt.value)}>
                       {opt.label}
@@ -1283,7 +1283,7 @@ function PropertyConfigCard({
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue placeholder="Select plan" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" sideOffset={4}>
                   <SelectItem value="none">Use guest default</SelectItem>
                   {plans.map((plan) => (
                     <SelectItem key={plan.id} value={plan.id}>
