@@ -15,11 +15,12 @@
  *  - 15-second auto-poll for live alert state
  *
  * API endpoints:
- *  - GET  /api/wifi/health?action=alerts          — rules, active, history, properties
- *  - GET  /api/wifi/health?action=metrics          — system metrics (interface list)
- *  - POST /api/wifi/health?action=set-alert-rules  — save/toggle rules
- *  - POST /api/wifi/health?action=delete-alert-rule — delete rule
- *  - POST /api/wifi/health?action=acknowledge-alert — acknowledge alert
+ *  - GET  /api/wifi/health?action=alerts            — rules, active, history, properties
+ *  - GET  /api/wifi/health?action=metrics            — system metrics (interface list)
+ *  - POST /api/wifi/health?action=set-alert-rules    — save/toggle rules
+ *  - POST /api/wifi/health?action=update-alert-rule  — update single rule by ID
+ *  - POST /api/wifi/health?action=delete-alert-rule  — delete rule
+ *  - POST /api/wifi/health?action=acknowledge-alert  — acknowledge alert
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -66,6 +67,7 @@ import {
   Loader2,
   Mail,
   MessageSquare,
+  Pencil,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -181,8 +183,9 @@ export default function WiFiHealthAlerts() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Add Rule dialog
-  const [showAddRule, setShowAddRule] = useState(false);
+  // Add/Edit Rule dialog
+  const [showRuleDialog, setShowRuleDialog] = useState(false);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [newRule, setNewRule] = useState<NewRuleForm>(DEFAULT_NEW_RULE);
 
   // ─── Fetch alerts (rules + active + history + properties) ─────────────────
@@ -251,7 +254,7 @@ export default function WiFiHealthAlerts() {
     }
   };
 
-  // ─── Save new rule ────────────────────────────────────────────────────────
+  // ─── Save new rule or update existing ──────────────────────────────────────
 
   const handleSaveRule = async () => {
     if (!newRule.threshold || isNaN(parseFloat(newRule.threshold))) {
@@ -260,54 +263,100 @@ export default function WiFiHealthAlerts() {
     }
 
     const cooldownSec = Math.max(30, newRule.cooldownSec || 300);
+    const isEdit = !!editingRuleId;
 
     setIsSaving(true);
     try {
-      const rulePayload: Record<string, unknown> = {
-        metric: newRule.metric,
-        operator: newRule.operator,
-        threshold: parseFloat(newRule.threshold),
-        label: newRule.label || undefined,
-        cooldownSec,
-        enabled: true,
-        notifyEmail: newRule.notifyEmail,
-        notifySms: newRule.notifySms,
-      };
+      if (isEdit) {
+        // ── UPDATE existing rule via update-alert-rule action ──
+        const updatePayload: Record<string, unknown> = {
+          ruleId: editingRuleId,
+          metric: newRule.metric,
+          operator: newRule.operator,
+          threshold: parseFloat(newRule.threshold),
+          label: newRule.label || '',
+          cooldownSec,
+          notifyEmail: newRule.notifyEmail,
+          notifySms: newRule.notifySms,
+        };
 
-      // Attach property if selected
-      if (selectedProperty) rulePayload.propertyId = selectedProperty;
+        if (
+          (newRule.metric === 'interface_rx' || newRule.metric === 'interface_tx') &&
+          newRule.interfaceName
+        ) {
+          updatePayload.interfaceName = newRule.interfaceName;
+        } else {
+          updatePayload.interfaceName = null;
+        }
 
-      // Only include interface name for interface metrics
-      if (
-        (newRule.metric === 'interface_rx' || newRule.metric === 'interface_tx') &&
-        newRule.interfaceName
-      ) {
-        rulePayload.interfaceName = newRule.interfaceName;
-      }
-
-      const res = await fetch('/api/wifi/health?action=set-alert-rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rules: [...alertRules, rulePayload] }),
-      });
-      const result = await res.json();
-
-      if (result.success) {
-        toast({ title: 'Rule Created', description: 'Alert rule has been saved successfully' });
-        setShowAddRule(false);
-        setNewRule(DEFAULT_NEW_RULE);
-        fetchAlerts();
-      } else {
-        toast({
-          title: 'Error',
-          description: result.error || 'Failed to save rule',
-          variant: 'destructive',
+        const res = await fetch('/api/wifi/health?action=update-alert-rule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatePayload),
         });
+        const result = await res.json();
+
+        if (result.success) {
+          toast({ title: 'Rule Updated', description: 'Alert rule has been updated successfully' });
+          setShowRuleDialog(false);
+          setEditingRuleId(null);
+          setNewRule(DEFAULT_NEW_RULE);
+          fetchAlerts();
+        } else {
+          toast({
+            title: 'Error',
+            description: result.error || 'Failed to update rule',
+            variant: 'destructive',
+          });
+        }
+      } else {
+        // ── CREATE new rule via set-alert-rules action ──
+        const rulePayload: Record<string, unknown> = {
+          metric: newRule.metric,
+          operator: newRule.operator,
+          threshold: parseFloat(newRule.threshold),
+          label: newRule.label || undefined,
+          cooldownSec,
+          enabled: true,
+          notifyEmail: newRule.notifyEmail,
+          notifySms: newRule.notifySms,
+        };
+
+        // Attach property if selected
+        if (selectedProperty) rulePayload.propertyId = selectedProperty;
+
+        // Only include interface name for interface metrics
+        if (
+          (newRule.metric === 'interface_rx' || newRule.metric === 'interface_tx') &&
+          newRule.interfaceName
+        ) {
+          rulePayload.interfaceName = newRule.interfaceName;
+        }
+
+        const res = await fetch('/api/wifi/health?action=set-alert-rules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rules: [...alertRules, rulePayload] }),
+        });
+        const result = await res.json();
+
+        if (result.success) {
+          toast({ title: 'Rule Created', description: 'Alert rule has been saved successfully' });
+          setShowRuleDialog(false);
+          setNewRule(DEFAULT_NEW_RULE);
+          fetchAlerts();
+        } else {
+          toast({
+            title: 'Error',
+            description: result.error || 'Failed to save rule',
+            variant: 'destructive',
+          });
+        }
       }
     } catch {
       toast({
         title: 'Error',
-        description: 'Failed to save rule',
+        description: isEdit ? 'Failed to update rule' : 'Failed to save rule',
         variant: 'destructive',
       });
     } finally {
@@ -371,6 +420,7 @@ export default function WiFiHealthAlerts() {
   // ─── Open Add Rule dialog (fetch interfaces for metric select) ────────────
 
   const handleOpenAddRule = async () => {
+    setEditingRuleId(null);
     setNewRule(DEFAULT_NEW_RULE);
 
     // Fetch metrics to get interface list
@@ -388,7 +438,40 @@ export default function WiFiHealthAlerts() {
       // silent — interfaces will remain empty
     }
 
-    setShowAddRule(true);
+    setShowRuleDialog(true);
+  };
+
+  // ─── Open Edit Rule dialog (populate form with existing rule) ──────────────
+
+  const handleEditRule = async (rule: AlertRule) => {
+    setEditingRuleId(rule.id);
+    setNewRule({
+      metric: rule.metric,
+      operator: rule.operator,
+      threshold: String(rule.threshold),
+      label: rule.label || '',
+      cooldownSec: rule.cooldownSec,
+      interfaceName: rule.interfaceName || '',
+      notifyEmail: rule.notifyEmail,
+      notifySms: rule.notifySms,
+    });
+
+    // Fetch metrics to get interface list
+    try {
+      const res = await fetch('/api/wifi/health?action=metrics');
+      const result = await res.json();
+      if (result.success && result.data?.interfaces) {
+        setAvailableInterfaces(
+          (result.data.interfaces as Array<{ name: string }>)
+            .map(i => i.name)
+            .filter(n => n !== 'lo'),
+        );
+      }
+    } catch {
+      // silent
+    }
+
+    setShowRuleDialog(true);
   };
 
   // ─── Render helpers ───────────────────────────────────────────────────────
@@ -613,14 +696,26 @@ export default function WiFiHealthAlerts() {
 
                           {/* Actions */}
                           <TableCell className="text-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                              onClick={() => handleDeleteRule(rule.id)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            <div className="flex items-center justify-center gap-0.5">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+                                onClick={() => handleEditRule(rule)}
+                                title="Edit rule"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                                onClick={() => handleDeleteRule(rule.id)}
+                                title="Delete rule"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
@@ -786,23 +881,36 @@ export default function WiFiHealthAlerts() {
         </>
       )}
 
-      {/* ─── Add Rule Dialog ─── */}
+      {/* ─── Add/Edit Rule Dialog ─── */}
       <Dialog
-        open={showAddRule}
+        open={showRuleDialog}
         onOpenChange={(open) => {
-          setShowAddRule(open);
-          if (!open) setNewRule(DEFAULT_NEW_RULE);
+          setShowRuleDialog(open);
+          if (!open) {
+            setNewRule(DEFAULT_NEW_RULE);
+            setEditingRuleId(null);
+          }
         }}
       >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Add Alert Rule
+              {editingRuleId ? (
+                <>
+                  <Pencil className="h-4 w-4" />
+                  Edit Alert Rule
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" />
+                  Add Alert Rule
+                </>
+              )}
             </DialogTitle>
             <DialogDescription>
-              Configure a new alert threshold for system monitoring. Alerts fire when
-              the metric crosses the threshold and cooldown has elapsed.
+              {editingRuleId
+                ? 'Modify this alert rule. Changes take effect immediately.'
+                : 'Configure a new alert threshold for system monitoring. Alerts fire when the metric crosses the threshold and cooldown has elapsed.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -999,8 +1107,9 @@ export default function WiFiHealthAlerts() {
             <Button
               variant="outline"
               onClick={() => {
-                setShowAddRule(false);
+                setShowRuleDialog(false);
                 setNewRule(DEFAULT_NEW_RULE);
+                setEditingRuleId(null);
               }}
             >
               Cancel
@@ -1013,6 +1122,11 @@ export default function WiFiHealthAlerts() {
                 <>
                   <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                   Saving&hellip;
+                </>
+              ) : editingRuleId ? (
+                <>
+                  <Check className="h-3.5 w-3.5 mr-1.5" />
+                  Update Rule
                 </>
               ) : (
                 <>

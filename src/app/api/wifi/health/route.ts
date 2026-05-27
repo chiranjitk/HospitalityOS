@@ -278,6 +278,8 @@ export async function POST(request: NextRequest) {
     switch (action) {
       case 'set-alert-rules':
         return handleSetAlertRules(request, user.tenantId);
+      case 'update-alert-rule':
+        return handleUpdateAlertRule(request, user.tenantId);
       case 'acknowledge-alert':
         return handleAcknowledgeAlert(request, user);
       case 'delete-alert-rule':
@@ -919,6 +921,8 @@ async function handleSetAlertRules(request: NextRequest, tenantId: string) {
       cooldownSec?: number;
       propertyId?: string;
       interfaceName?: string;
+      notifyEmail?: boolean;
+      notifySms?: boolean;
     }> };
 
     if (!Array.isArray(rules)) {
@@ -961,6 +965,9 @@ async function handleSetAlertRules(request: NextRequest, tenantId: string) {
       const propertyId = rule.propertyId || null;
       const interfaceName = (metric === 'interface_rx' || metric === 'interface_tx') ? (rule.interfaceName || null) : null;
 
+      const notifyEmail = rule.notifyEmail !== false;
+      const notifySms = rule.notifySms === true;
+
       const upserted = await db.systemAlertRule.upsert({
         where: {
           tenantId_metric_operator_threshold_interfaceName: {
@@ -971,8 +978,8 @@ async function handleSetAlertRules(request: NextRequest, tenantId: string) {
             interfaceName,
           },
         },
-        create: { tenantId, propertyId, metric, operator, threshold, interfaceName, enabled, label, cooldownSec },
-        update: { propertyId, enabled, label, cooldownSec, interfaceName },
+        create: { tenantId, propertyId, metric, operator, threshold, interfaceName, enabled, label, cooldownSec, notifyEmail, notifySms },
+        update: { propertyId, enabled, label, cooldownSec, interfaceName, notifyEmail, notifySms },
       });
       upsertedRules.push(upserted);
     }
@@ -983,6 +990,99 @@ async function handleSetAlertRules(request: NextRequest, tenantId: string) {
     return NextResponse.json(
       { success: false, error: 'Invalid request body' },
       { status: 400 }
+    );
+  }
+}
+
+/**
+ * action=update-alert-rule (POST) — Update a single existing rule by ID
+ * Supports changing metric, operator, threshold, label, cooldown, interfaceName,
+ * propertyId, enabled, notifyEmail, and notifySms.
+ */
+async function handleUpdateAlertRule(request: NextRequest, tenantId: string) {
+  try {
+    const body = await request.json();
+    const { ruleId, metric, operator, threshold, label, cooldownSec, propertyId, interfaceName, enabled, notifyEmail, notifySms } = body as {
+      ruleId?: string;
+      metric?: string;
+      operator?: string;
+      threshold?: number;
+      label?: string;
+      cooldownSec?: number;
+      propertyId?: string | null;
+      interfaceName?: string | null;
+      enabled?: boolean;
+      notifyEmail?: boolean;
+      notifySms?: boolean;
+    };
+
+    if (!ruleId) {
+      return NextResponse.json(
+        { success: false, error: 'Missing ruleId' },
+        { status: 400 }
+      );
+    }
+
+    // Verify the rule belongs to this tenant
+    const existing = await db.systemAlertRule.findFirst({
+      where: { id: ruleId, tenantId },
+    });
+    if (!existing) {
+      return NextResponse.json(
+        { success: false, error: 'Rule not found' },
+        { status: 404 }
+      );
+    }
+
+    // Validate metric if provided
+    if (metric && !VALID_ALERT_METRICS.includes(metric)) {
+      return NextResponse.json(
+        { success: false, error: `Invalid metric: ${metric}` },
+        { status: 400 }
+      );
+    }
+
+    // Validate operator if provided
+    if (operator && !VALID_ALERT_OPERATORS.includes(operator)) {
+      return NextResponse.json(
+        { success: false, error: `Invalid operator: ${operator}` },
+        { status: 400 }
+      );
+    }
+
+    // Build update payload with only provided fields
+    const updateData: Record<string, unknown> = {};
+    if (metric !== undefined) updateData.metric = metric;
+    if (operator !== undefined) updateData.operator = operator;
+    if (threshold !== undefined) updateData.threshold = Math.max(0, Math.min(999999, threshold));
+    if (label !== undefined) updateData.label = label;
+    if (cooldownSec !== undefined) updateData.cooldownSec = Math.max(30, cooldownSec);
+    if (enabled !== undefined) updateData.enabled = enabled;
+    if (notifyEmail !== undefined) updateData.notifyEmail = notifyEmail;
+    if (notifySms !== undefined) updateData.notifySms = notifySms;
+    if (propertyId !== undefined) updateData.propertyId = propertyId || null;
+    if (interfaceName !== undefined) {
+      updateData.interfaceName = interfaceName || null;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'No fields to update' },
+        { status: 400 }
+      );
+    }
+
+    const updated = await db.systemAlertRule.update({
+      where: { id: ruleId },
+      data: updateData,
+    });
+
+    return NextResponse.json({ success: true, data: { rule: updated } });
+  } catch (error) {
+    console.error('[Health API] Update alert rule error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to update rule' },
+      { status: 500 }
     );
   }
 }
