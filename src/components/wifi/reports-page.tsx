@@ -2097,13 +2097,19 @@ function SystemHealthTab() {
   // --- Acknowledge alert ---
   const handleAckAlert = async (alertId: string) => {
     try {
-      await fetch('/api/wifi/health?action=acknowledge-alert', {
+      const res = await fetch('/api/wifi/health?action=acknowledge-alert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ alertId }),
       });
-      setActiveAlerts(prev => prev.filter(a => a.id !== alertId));
-      toast({ title: 'Alert Acknowledged' });
+      const result = await res.json();
+      if (result.success) {
+        // Update local state: mark as acknowledged (not remove)
+        setActiveAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status: 'acknowledged' } : a));
+        toast({ title: 'Alert Acknowledged' });
+      } else {
+        toast({ title: 'Error', description: result.error || 'Failed to acknowledge alert', variant: 'destructive' });
+      }
     } catch {
       toast({ title: 'Error', description: 'Failed to acknowledge alert', variant: 'destructive' });
     }
@@ -2471,7 +2477,7 @@ function SystemHealthTab() {
                       <p className="text-sm font-medium">{alert.label || `${alert.metric} ${alert.operator} ${alert.threshold}`}</p>
                       <p className="text-xs text-muted-foreground">Value: <span className="font-mono tabular-nums">{alert.value}</span> · Triggered {alert.triggeredAt ? new Date(alert.triggeredAt).toLocaleString() : 'recently'}</p>
                     </div>
-                    {!alert.acknowledged && (
+                    {alert.status !== 'acknowledged' && (
                       <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => handleAckAlert(alert.id)}>Acknowledge</Button>
                     )}
                   </div>
@@ -3389,7 +3395,7 @@ function SystemHealthTab() {
                         {alert.triggeredAt && <span className="ml-2">{new Date(alert.triggeredAt).toLocaleString()}</span>}
                       </p>
                     </div>
-                    {!alert.acknowledged && (
+                    {alert.status !== 'acknowledged' && (
                       <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => handleAckAlert(alert.id)}>
                         <Check className="h-3 w-3 mr-1" /> Ack
                       </Button>

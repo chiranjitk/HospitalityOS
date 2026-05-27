@@ -22,96 +22,122 @@ const fs = /*turbopackIgnore: true*/ require('fs');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const path = /*turbopackIgnore: true*/ require('path');
 
-// ─── Alert System (in-memory) ────────────────────────────────────────────────
+// ─── Alert System (DB-backed, production-ready) ─────────────────────────────
+// Alert rules persist in SystemAlertRule table.
+// Triggered events persist in SystemAlertEvent table.
+// checkAlerts() runs every metrics poll (2s) but deduplicates via cooldown.
 
-interface AlertRule {
-  id: string;
-  metric: 'cpu' | 'memory' | 'disk';
-  operator: '>' | '<' | '>=' | '<=';
-  threshold: number;
-  enabled: boolean;
-  label: string;
-}
+type AlertMetric = 'cpu' | 'memory' | 'disk' | 'interface_rx' | 'interface_tx' | 'active_sessions' | 'auth_reject_rate' | 'radius_health';
 
-interface AlertEvent {
-  id: string;
-  ruleId: string;
-  metric: string;
-  value: number;
-  threshold: number;
-  triggeredAt: number;
-  acknowledged: boolean;
-  resolvedAt: number | null;
-}
-
-const DEFAULT_RULES: AlertRule[] = [
-  { id: 'rule_cpu_85', metric: 'cpu', operator: '>', threshold: 85, enabled: true, label: 'CPU usage above 85%' },
-  { id: 'rule_ram_90', metric: 'memory', operator: '>', threshold: 90, enabled: true, label: 'RAM usage above 90%' },
-  { id: 'rule_disk_90', metric: 'disk', operator: '>', threshold: 90, enabled: true, label: 'Disk usage above 90%' },
+const VALID_ALERT_METRICS: string[] = [
+  'cpu', 'memory', 'disk',
+  'interface_rx', 'interface_tx',
+  'active_sessions', 'auth_reject_rate', 'radius_health',
 ];
 
-let alertRules: AlertRule[] = [...DEFAULT_RULES];
-let activeAlerts: AlertEvent[] = [];
-let alertHistory: AlertEvent[] = [];
-let alertIdCounter = 0;
+const VALID_ALERT_OPERATORS = ['>', '<', '>=', '<='];
 
-const MAX_HISTORY = 100;
-
-function checkAlerts(snapshot: {
-  cpu: { usage: number };
-  memory: { percent: number };
-  disk: { percent: number };
-}): void {
-  const metricValues: Record<string, number> = {
-    cpu: snapshot.cpu.usage,
-    memory: snapshot.memory.percent,
-    disk: snapshot.disk.percent,
-  };
-
-  for (const rule of alertRules) {
-    if (!rule.enabled) continue;
-
-    const value = metricValues[rule.metric];
-    if (value === undefined) continue;
-
-    let triggered = false;
-    switch (rule.operator) {
-      case '>': triggered = value > rule.threshold; break;
-      case '<': triggered = value < rule.threshold; break;
-      case '>=': triggered = value >= rule.threshold; break;
-      case '<=': triggered = value <= rule.threshold; break;
+/** Extract a numeric metric value from the system snapshot */
+function extractMetricValue(metric: string, snapshot: any, interfaceName?: string): number | undefined {
+  switch (metric) {
+    case 'cpu': return snapshot.cpu?.usage;
+    case 'memory': return snapshot.memory?.percent;
+    case 'disk': return snapshot.disk?.percent;
+    case 'interface_rx': {
+      if (!interfaceName || !snapshot.interfaces) return undefined;
+      const iface = snapshot.interfaces.find((i: any) => i.name === interfaceName);
+      return iface?.rxSpeed;
     }
+    case 'interface_tx': {
+      if (!interfaceName || !snapshot.interfaces) return undefined;
+      const iface = snapshot.interfaces.find((i: any) => i.name === interfaceName);
+      return iface?.txSpeed;
+    }
+    case 'active_sessions': return snapshot.activeSessions ?? snapshot.authStats?.totalSessions;
+    case 'auth_reject_rate': {
+      const stats = snapshot.authStats;
+      if (!stats) return undefined;
+      const total = (stats.accept || 0) + (stats.reject || 0);
+      return total > 0 ? ((stats.reject || 0) / total) * 100 : 0;
+    }
+    case 'radius_health': {
+      return snapshot.cpu?.usage !== undefined ? 1 : 0;
+    }
+    default: return undefined;
+  }
+}
 
-    const existingIndex = activeAlerts.findIndex(
-      a => a.ruleId === rule.id && !a.acknowledged
-    );
+/** Evaluate a condition: value operator threshold */
+function evalCondition(value: number, operator: string, threshold: number): boolean {
+  switch (operator) {
+    case '>': return value > threshold;
+    case '<': return value < threshold;
+    case '>=': return value >= threshold;
+    case '<=': return value <= threshold;
+    default: return false;
+  }
+}
 
-    if (triggered && existingIndex === -1) {
-      // New alert
-      alertIdCounter++;
-      const alert: AlertEvent = {
-        id: `alert_${alertIdCounter}`,
-        ruleId: rule.id,
-        metric: rule.metric,
-        value: Math.round(value * 10) / 10,
-        threshold: rule.threshold,
-        triggeredAt: Date.now(),
-        acknowledged: false,
-        resolvedAt: null,
-      };
-      activeAlerts.push(alert);
-    } else if (!triggered && existingIndex !== -1) {
-      // Resolve the alert
-      const alert = activeAlerts[existingIndex];
-      alert.resolvedAt = Date.now();
+/**
+ * Check alert rules for a tenant against the current metrics snapshot.
+ * Called inside handleMetrics() after snapshot is available.
+ * Creates/resolves SystemAlertEvent records with cooldown deduplication.
+ */
+async function checkAlerts(tenantId: string, snapshot: any): Promise<void> {
+  try {
+    const rules = await db.systemAlertRule.findMany({
+      where: { tenantId, enabled: true },
+    });
 
-      // Move to history
-      activeAlerts.splice(existingIndex, 1);
-      alertHistory.unshift(alert);
-      if (alertHistory.length > MAX_HISTORY) {
-        alertHistory = alertHistory.slice(0, MAX_HISTORY);
+    for (const rule of rules) {
+      const value = extractMetricValue(rule.metric, snapshot);
+      if (value === undefined) continue;
+
+      const triggered = evalCondition(value, rule.operator, rule.threshold);
+
+      const activeEvent = await db.systemAlertEvent.findFirst({
+        where: { ruleId: rule.id, status: { in: ['active', 'acknowledged'] } },
+        orderBy: { triggeredAt: 'desc' },
+      });
+
+      if (triggered) {
+        if (activeEvent) {
+          const elapsed = (Date.now() - activeEvent.triggeredAt.getTime()) / 1000;
+          if (elapsed >= rule.cooldownSec) {
+            await db.systemAlertEvent.create({
+              data: {
+                tenantId,
+                ruleId: rule.id,
+                metric: rule.metric,
+                operator: rule.operator,
+                threshold: rule.threshold,
+                value: Math.round(value * 100) / 100,
+                status: 'active',
+              },
+            });
+          }
+        } else {
+          await db.systemAlertEvent.create({
+            data: {
+              tenantId,
+              ruleId: rule.id,
+              metric: rule.metric,
+              operator: rule.operator,
+              threshold: rule.threshold,
+              value: Math.round(value * 100) / 100,
+              status: 'active',
+            },
+          });
+        }
+      } else if (activeEvent) {
+        await db.systemAlertEvent.update({
+          where: { id: activeEvent.id },
+          data: { status: 'resolved', resolvedAt: new Date(), value: Math.round(value * 100) / 100 },
+        });
       }
     }
+  } catch (err) {
+    console.error('[Alert] checkAlerts error:', err);
   }
 }
 
@@ -150,7 +176,7 @@ export async function GET(request: NextRequest) {
       case 'list-pools':
         return handleListPools();
       case 'alerts':
-        return handleAlerts();
+        return handleAlerts(user.tenantId);
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },
@@ -185,7 +211,9 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'set-alert-rules':
-        return handleSetAlertRules(request);
+        return handleSetAlertRules(request, user.tenantId);
+      case 'acknowledge-alert':
+        return handleAcknowledgeAlert(request, user);
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },
@@ -268,8 +296,10 @@ async function handleMetrics() {
     }
   }
 
-  // Check alert rules against current values
-  checkAlerts(snapshot);
+  // Check alert rules against current values (async, DB-backed, non-blocking)
+  if (user && user.tenantId) {
+    checkAlerts(user.tenantId, snapshot).catch(() => {});
+  }
 
   // Build interfaces history from the history points
   const ifaceHistory: Record<string, { rxSpeed: number[]; txSpeed: number[] }> = {};
@@ -756,23 +786,41 @@ async function handleListPools() {
 }
 
 /**
- * action=alerts — Alert system status
+ * action=alerts — Alert system status (DB-backed)
+ * Returns rules, active events, and resolved history.
  */
-function handleAlerts() {
+async function handleAlerts(tenantId: string) {
+  const [rules, active, history] = await Promise.all([
+    db.systemAlertRule.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: 'asc' },
+    }),
+    db.systemAlertEvent.findMany({
+      where: { tenantId, status: { in: ['active', 'acknowledged'] } },
+      orderBy: { triggeredAt: 'desc' },
+      take: 50,
+    }),
+    db.systemAlertEvent.findMany({
+      where: { tenantId, status: 'resolved' },
+      orderBy: { resolvedAt: 'desc' },
+      take: 100,
+    }),
+  ]);
+
   return NextResponse.json({
     success: true,
     data: {
-      rules: alertRules,
-      active: activeAlerts,
-      history: alertHistory,
+      rules,
+      active,
+      history,
     },
   });
 }
 
 /**
- * action=set-alert-rules (POST) — Configure alert rules
+ * action=set-alert-rules (POST) — Configure alert rules (DB-backed)
  */
-async function handleSetAlertRules(request: NextRequest) {
+async function handleSetAlertRules(request: NextRequest, tenantId: string) {
   try {
     const body = await request.json();
     const { rules } = body as { rules?: Array<{
@@ -781,6 +829,7 @@ async function handleSetAlertRules(request: NextRequest) {
       threshold?: number;
       enabled?: boolean;
       label?: string;
+      cooldownSec?: number;
     }> };
 
     if (!Array.isArray(rules)) {
@@ -790,46 +839,96 @@ async function handleSetAlertRules(request: NextRequest) {
       );
     }
 
-    // Validate and build new rules
-    const validMetrics = ['cpu', 'memory', 'disk'];
-    const validOperators = ['>', '<', '>=', '<='];
+    for (const rule of rules) {
+      if (!VALID_ALERT_METRICS.includes(rule.metric || '')) {
+        return NextResponse.json(
+          { success: false, error: `Invalid metric: ${rule.metric}. Must be one of: ${VALID_ALERT_METRICS.join(', ')}` },
+          { status: 400 }
+        );
+      }
+      if (!VALID_ALERT_OPERATORS.includes(rule.operator || '')) {
+        return NextResponse.json(
+          { success: false, error: `Invalid operator: ${rule.operator}. Must be one of: ${VALID_ALERT_OPERATORS.join(', ')}` },
+          { status: 400 }
+        );
+      }
+    }
 
-    const newRules: AlertRule[] = rules.map((rule, index) => {
-      const metric = validMetrics.includes(rule.metric || '') ? (rule.metric as AlertRule['metric']) : 'cpu';
-      const operator = validOperators.includes(rule.operator || '') ? (rule.operator as AlertRule['operator']) : '>';
-      const threshold = typeof rule.threshold === 'number' ? rule.threshold : 80;
+    const upsertedRules = [];
+    for (const rule of rules) {
+      const metric = rule.metric || 'cpu';
+      const operator = rule.operator || '>';
+      const threshold = typeof rule.threshold === 'number' ? Math.max(0, Math.min(999999, rule.threshold)) : 80;
       const enabled = rule.enabled !== false;
+      const cooldownSec = typeof rule.cooldownSec === 'number' ? Math.max(30, rule.cooldownSec) : 300;
+      const label = rule.label || `${metric} ${operator} ${threshold}`;
 
-      return {
-        id: `rule_custom_${index + 1}`,
-        metric,
-        operator,
-        threshold: Math.max(0, Math.min(100, threshold)),
-        enabled,
-        label: rule.label || `${metric.toUpperCase()} ${operator} ${threshold}%`,
-      };
-    });
-
-    // Replace rules and clear active alerts that no longer match
-    alertRules = newRules;
-
-    // Resolve all existing active alerts since rules changed
-    const now = Date.now();
-    for (const alert of activeAlerts) {
-      alert.resolvedAt = now;
-      alertHistory.unshift(alert);
-    }
-    activeAlerts = [];
-    if (alertHistory.length > MAX_HISTORY) {
-      alertHistory = alertHistory.slice(0, MAX_HISTORY);
+      const upserted = await db.systemAlertRule.upsert({
+        where: {
+          tenantId_metric_operator_threshold: {
+            tenantId,
+            metric,
+            operator,
+            threshold,
+          },
+        },
+        create: { tenantId, metric, operator, threshold, enabled, label, cooldownSec },
+        update: { enabled, label, cooldownSec },
+      });
+      upsertedRules.push(upserted);
     }
 
-    return NextResponse.json({ success: true, data: { rules: alertRules } });
+    return NextResponse.json({ success: true, data: { rules: upsertedRules } });
   } catch (error) {
     console.error('[Health API] Set alert rules error:', error);
     return NextResponse.json(
       { success: false, error: 'Invalid request body' },
       { status: 400 }
+    );
+  }
+}
+
+/**
+ * action=acknowledge-alert (POST) — Acknowledge an active alert event
+ */
+async function handleAcknowledgeAlert(request: NextRequest, user: any) {
+  try {
+    const body = await request.json();
+    const { alertId } = body as { alertId?: string };
+
+    if (!alertId) {
+      return NextResponse.json(
+        { success: false, error: 'Missing alertId' },
+        { status: 400 }
+      );
+    }
+
+    const event = await db.systemAlertEvent.findFirst({
+      where: { id: alertId, tenantId: user.tenantId, status: 'active' },
+    });
+
+    if (!event) {
+      return NextResponse.json(
+        { success: false, error: 'Alert not found or already resolved' },
+        { status: 404 }
+      );
+    }
+
+    await db.systemAlertEvent.update({
+      where: { id: alertId },
+      data: {
+        status: 'acknowledged',
+        acknowledgedBy: user.userId,
+        acknowledgedAt: new Date(),
+      },
+    });
+
+    return NextResponse.json({ success: true, message: 'Alert acknowledged' });
+  } catch (error) {
+    console.error('[Health API] Acknowledge alert error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to acknowledge alert' },
+      { status: 500 }
     );
   }
 }

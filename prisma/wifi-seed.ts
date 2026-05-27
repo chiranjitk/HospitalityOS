@@ -3362,5 +3362,18 @@ export async function seedWiFiData() {
   });
   console.log('✓ 5 Notification Logs seeded (Pre-Arrival: 3 sent, 1 failed, 1 pending)');
 
-  console.log('\n📡 WiFi module seed data completed! All 58 categories seeded.');
+  // ─── System Alert Rules ──────────────────────────────────────────────────
+  await prisma.systemAlertRule.createMany({
+    data: [
+      { id: uuid('alert-cpu-85'), tenantId: TENANT_ID, metric: 'cpu', operator: '>', threshold: 85, enabled: true, label: 'CPU usage above 85%', cooldownSec: 300 },
+      { id: uuid('alert-ram-90'), tenantId: TENANT_ID, metric: 'memory', operator: '>', threshold: 90, enabled: true, label: 'RAM usage above 90%', cooldownSec: 300 },
+      { id: uuid('alert-disk-90'), tenantId: TENANT_ID, metric: 'disk', operator: '>', threshold: 90, enabled: true, label: 'Disk usage above 90%', cooldownSec: 600 },
+      { id: uuid('alert-sessions-500'), tenantId: TENANT_ID, metric: 'active_sessions', operator: '>', threshold: 500, enabled: true, label: 'Active WiFi sessions above 500', cooldownSec: 120 },
+      { id: uuid('alert-auth-reject-50'), tenantId: TENANT_ID, metric: 'auth_reject_rate', operator: '>', threshold: 50, enabled: true, label: 'Auth reject rate above 50%', cooldownSec: 300 },
+      { id: uuid('alert-radius-down'), tenantId: TENANT_ID, metric: 'radius_health', operator: '<', threshold: 1, enabled: true, label: 'RADIUS service down', cooldownSec: 60 },
+    ],
+  });
+  console.log('✓ 6 System Alert Rules seeded');
+
+  console.log('\n📡 WiFi module seed data completed! All 59 categories seeded.');
 }

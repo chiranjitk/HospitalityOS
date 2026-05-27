@@ -7136,6 +7136,8 @@ model Tenant {
   otpRecords                WiFiOTP[]
   heatmapReadings           WiFiHeatmapReading[]
   wifiFloorPlans             WiFiFloorPlan[]
+  systemAlertRules           SystemAlertRule[]
+  systemAlertEvents          SystemAlertEvent[]
 }
 
 // ============================================================
@@ -8360,6 +8362,49 @@ model WiFiFloorPlan {
   @@unique([propertyId, floorNumber])
   @@index([tenantId])
   @@index([propertyId])
+}
+
+/// System Alert Rules — Threshold-based monitoring rules for system/WiFi metrics
+/// Persists alert configuration across restarts. Checked every 2s via the health metrics poll.
+model SystemAlertRule {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  metric      String    // cpu, memory, disk, interface_rx, interface_tx, active_sessions, auth_reject_rate, radius_health
+  operator    String    // >, <, >=, <=
+  threshold   Float
+  enabled     Boolean   @default(true)
+  label       String
+  cooldownSec Int       @default(300) // seconds between re-alerting for the same rule
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+  events      SystemAlertEvent[]
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, metric, operator, threshold])
+  @@index([tenantId])
+  @@index([enabled])
+}
+
+/// System Alert Events — Triggered alert instances with lifecycle (active → acknowledged → resolved)
+model SystemAlertEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  ruleId          String    @db.Uuid
+  metric          String
+  operator        String
+  threshold       Float
+  value           Float
+  status          String    @default("active") // active, acknowledged, resolved
+  triggeredAt     DateTime  @default(now()) @db.Timestamptz
+  resolvedAt      DateTime? @db.Timestamptz
+  acknowledgedBy  String?   @db.Uuid
+  acknowledgedAt  DateTime? @db.Timestamptz
+  rule            SystemAlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([ruleId])
+  @@index([triggeredAt])
 }
 
 /// Bandwidth Upgrade Purchase (F1) — Guest upsell transactions
