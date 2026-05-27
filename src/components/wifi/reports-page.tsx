@@ -1930,12 +1930,17 @@ function SystemHealthTab() {
     (async () => {
       try {
         const res = await fetch(`/api/wifi/health?action=pool-graph&poolId=${encodeURIComponent(selectedPool.id)}&range=${poolBwRange}`);
+        if (!res.ok) {
+          console.error('[Pool BW] HTTP error:', res.status, res.statusText);
+          if (!cancelled) setPoolBwData(null);
+          return;
+        }
         const result = await res.json();
         if (!cancelled && result.success) {
           setPoolBwData(result.data);
-        } else {
-          console.error('[Pool BW] API error:', result.error);
-          if (!cancelled) setPoolBwData(null);
+        } else if (!cancelled) {
+          console.error('[Pool BW] API error:', result.error ?? `Unexpected response: ${JSON.stringify(result).slice(0, 200)}`);
+          setPoolBwData(null);
         }
       } catch (err) {
         console.error('[Pool BW] Fetch error:', err);
