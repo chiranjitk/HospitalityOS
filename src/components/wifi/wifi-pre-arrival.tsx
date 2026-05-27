@@ -678,7 +678,7 @@ export default function WifiPreArrival() {
       </div>
 
       {/* ── Delivery Logs ──────────────────────────────────────────── */}
-      <Card className="overflow-hidden">
+      <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row justify-between gap-3">
             <div>
@@ -715,7 +715,7 @@ export default function WifiPreArrival() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-0 overflow-hidden">
+        <CardContent className="p-0">
           {logsLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -730,74 +730,72 @@ export default function WifiPreArrival() {
             </div>
           ) : (
             <>
-              <ScrollArea className="max-h-96">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Guest</TableHead>
-                        <TableHead>Channel</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Sent At</TableHead>
-                        <TableHead>Error</TableHead>
+              <div className="max-h-[400px] overflow-y-auto overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky top-0 bg-card z-10">Guest</TableHead>
+                      <TableHead className="sticky top-0 bg-card z-10">Channel</TableHead>
+                      <TableHead className="sticky top-0 bg-card z-10">Status</TableHead>
+                      <TableHead className="sticky top-0 bg-card z-10">Sent At</TableHead>
+                      <TableHead className="sticky top-0 bg-card z-10">Error</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {logs.map((log) => (
+                      <TableRow key={log.id} className="transition-colors hover:bg-muted/60">
+                        <TableCell>
+                          <div>
+                            <p className="text-sm font-medium">{log.guestName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {log.channel === 'email' ? log.recipientEmail : log.recipientPhone}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            {log.channel === 'email' ? (
+                              <Mail className="h-3.5 w-3.5 text-blue-500" />
+                            ) : (
+                              <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                            )}
+                            <span className="text-sm capitalize">{log.channel}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={log.status} />
+                        </TableCell>
+                        <TableCell>
+                          {log.sentAt ? (
+                            <span className="text-sm text-muted-foreground">
+                              {format(new Date(log.sentAt), 'MMM d, HH:mm')}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground/50">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {log.errorMessage ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center gap-1 text-red-500 dark:text-red-400 cursor-default">
+                                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                  <span className="text-xs truncate max-w-[180px]">{log.errorMessage}</span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="max-w-[300px]">
+                                <p className="text-xs">{log.errorMessage}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span className="text-muted-foreground/50 text-xs">—</span>
+                          )}
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {logs.map((log) => (
-                        <TableRow key={log.id} className="transition-colors hover:bg-muted/60">
-                          <TableCell>
-                            <div>
-                              <p className="text-sm font-medium">{log.guestName}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {log.channel === 'email' ? log.recipientEmail : log.recipientPhone}
-                              </p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1.5">
-                              {log.channel === 'email' ? (
-                                <Mail className="h-3.5 w-3.5 text-blue-500" />
-                              ) : (
-                                <MessageSquare className="h-3.5 w-3.5 text-primary" />
-                              )}
-                              <span className="text-sm capitalize">{log.channel}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge status={log.status} />
-                          </TableCell>
-                          <TableCell>
-                            {log.sentAt ? (
-                              <span className="text-sm text-muted-foreground">
-                                {format(new Date(log.sentAt), 'MMM d, HH:mm')}
-                              </span>
-                            ) : (
-                              <span className="text-sm text-muted-foreground/50">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {log.errorMessage ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="flex items-center gap-1 text-red-500 dark:text-red-400 cursor-default">
-                                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                                    <span className="text-xs truncate max-w-[180px]">{log.errorMessage}</span>
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom" className="max-w-[300px]">
-                                  <p className="text-xs">{log.errorMessage}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            ) : (
-                              <span className="text-muted-foreground/50 text-xs">—</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </ScrollArea>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
               {logsTotalPages > 1 && (
                 <div className="flex items-center justify-between border-t px-4 py-3">
                   <p className="text-xs text-muted-foreground">
