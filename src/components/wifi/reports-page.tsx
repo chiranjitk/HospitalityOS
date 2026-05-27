@@ -1862,6 +1862,10 @@ function SystemHealthTab() {
   });
   const [availableInterfaces, setAvailableInterfaces] = useState<string[]>([]);
 
+  // Active users state
+  const [activeUsers, setActiveUsers] = useState<any[]>([]);
+  const [userBwRange, setUserBwRange] = useState('24h');
+
   // Interfaces tab
   const [selectedIface, setSelectedIface] = useState<string>('');
   const [ifaceHistRange, setIfaceHistRange] = useState('24h');
