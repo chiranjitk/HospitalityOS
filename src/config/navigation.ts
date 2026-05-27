@@ -400,6 +400,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'wifi-device-management', title: 'Multi-Device Registration', href: '#wifi-device-management', icon: Smartphone },
       { id: 'wifi-identity-verification', title: 'Identity Verification', href: '#wifi-identity-verification', icon: ShieldCheck },
       { id: 'wifi-consent-management', title: 'GDPR Consent', href: '#wifi-consent-management', icon: FileCheck2 },
+      { id: 'wifi-billing', title: 'WiFi Billing', href: '#wifi-billing', icon: DollarSign },
       { id: 'wifi-bandwidth-upsell', title: 'Bandwidth Upsell', href: '#wifi-bandwidth-upsell', icon: TrendingUp },
       { id: 'wifi-ad-campaigns', title: 'Ad Campaigns', href: '#wifi-ad-campaigns', icon: Megaphone },
       { id: 'wifi-partners', title: 'Partner WiFi', href: '#wifi-partners', icon: Handshake },

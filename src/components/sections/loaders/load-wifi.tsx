@@ -138,6 +138,8 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/wifi/wifi-identity-verification');
     case 'wifi-consent-management':
       return import('@/components/wifi/wifi-consent-management');
+    case 'wifi-billing':
+      return import('@/components/wifi/wifi-billing');
     case 'wifi-bandwidth-upsell':
       return import('@/components/wifi/wifi-bandwidth-upsell');
     case 'wifi-ad-campaigns':

@@ -2605,7 +2605,7 @@ export async function POST(request: NextRequest) {
       case 'create-user': {
         // ─── Direct DB creation — does NOT depend on freeradius-service ────
         try {
-          const { username, password, userType, planId, ipPoolId, group, downloadSpeed, uploadSpeed, sessionTimeout, dataLimit, validUntil } = data;
+          const { username, password, userType, planId, ipPoolId, group, downloadSpeed, uploadSpeed, sessionTimeout, dataLimit, validUntil, firstName, lastName, email, phone, roomNumber } = data;
 
           if (!username || !username.trim()) {
             return NextResponse.json({ success: false, error: 'Username is required' }, { status: 400 });
@@ -2757,6 +2757,65 @@ export async function POST(request: NextRequest) {
             return user;
           }, { timeout: 15000 });
 
+          // ─── Guest linking (outside transaction) ───
+          let linkedGuestId: string | null = null;
+          const trimmedFirstName = firstName?.trim();
+          const trimmedLastName = lastName?.trim();
+          const trimmedEmail = email?.trim() || null;
+          const trimmedPhone = phone?.trim() || null;
+          const trimmedRoom = roomNumber?.trim() || null;
+
+          if (trimmedFirstName && trimmedLastName) {
+            try {
+              // 1. Try to find an existing Guest by email or phone
+              const existingGuest = await db.guest.findFirst({
+                where: {
+                  OR: [
+                    ...(trimmedEmail ? [{ email: trimmedEmail }] : []),
+                    ...(trimmedPhone ? [{ phone: trimmedPhone }] : []),
+                  ],
+                  tenantId: context.tenantId,
+                },
+              });
+
+              if (existingGuest) {
+                // Link to existing guest
+                await db.wiFiUser.update({
+                  where: { id: wifiUser.id },
+                  data: { guestId: existingGuest.id },
+                });
+                linkedGuestId = existingGuest.id;
+              } else {
+                // 2. Create a minimal Guest record
+                const guestNotes = [
+                  ...(trimmedRoom ? [`Room: ${trimmedRoom}`] : []),
+                  `Source: WiFi manual user creation`,
+                ].join('\n');
+
+                const newGuest = await db.guest.create({
+                  data: {
+                    tenantId: context.tenantId,
+                    firstName: trimmedFirstName,
+                    lastName: trimmedLastName,
+                    email: trimmedEmail,
+                    phone: trimmedPhone,
+                    status: 'active',
+                    source: 'wifi_manual',
+                    notes: guestNotes,
+                  },
+                });
+                await db.wiFiUser.update({
+                  where: { id: wifiUser.id },
+                  data: { guestId: newGuest.id },
+                });
+                linkedGuestId = newGuest.id;
+              }
+            } catch (guestErr) {
+              // Guest linking is best-effort — don't fail the whole user creation
+              console.warn('[create-user] Guest linking failed (non-critical):', guestErr);
+            }
+          }
+
           return NextResponse.json({
             success: true,
             data: {
@@ -2764,6 +2823,8 @@ export async function POST(request: NextRequest) {
               username: wifiUser.username,
               password: wifiUser.password,
               group: effectiveGroup || 'none',
+              guestId: linkedGuestId || null,
+              guestName: trimmedFirstName && trimmedLastName ? `${trimmedFirstName} ${trimmedLastName}` : null,
             },
             message: `User "${username}" created successfully`,
           });

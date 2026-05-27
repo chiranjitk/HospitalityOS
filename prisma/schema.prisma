@@ -783,6 +783,7 @@ model Booking {
   folios              Folio[]
   guestStays          GuestStay[]
   feedback            GuestFeedback[]
+  wifiInvoiceLines    WiFiInvoiceLine[]
   waitlist               WaitlistEntry?
   scheduledCharges        ScheduledCharge[]
   cancellationPenalties   CancellationPenalty[]
@@ -2727,8 +2728,9 @@ model FolioLineItem {
   createdAt     DateTime  @default(now()) @db.Timestamptz
   updatedAt     DateTime  @updatedAt @db.Timestamptz
   discountId    String?   @db.Uuid
-  discount      Discount? @relation(fields: [discountId], references: [id])
-  folio         Folio     @relation(fields: [folioId], references: [id], onDelete: Cascade)
+  discount         Discount?          @relation(fields: [discountId], references: [id])
+  folio            Folio              @relation(fields: [folioId], references: [id], onDelete: Cascade)
+  wifiInvoiceLine  WiFiInvoiceLine?
 
   @@index([folioId])
   @@index([discountId])
@@ -2929,6 +2931,7 @@ model Guest {
   wifiDevices         WiFiDevice[]
   wifiSatisfactionSurveys WiFiSatisfactionSurvey[]
   wifiPartnerAuths    WiFiPartnerAuth[]
+  wifiInvoiceLines    WiFiInvoiceLine[]
   spaAppointments     SpaAppointment[]
 
   @@index([tenantId])
@@ -4987,6 +4990,7 @@ model Property {
   wifiConsentLogs           WiFiConsentLog[]
   wifiIdentityLogs          WiFiIdentityLog[]
   wifiBandwidthUpgrades     WiFiBandwidthUpgrade[]
+  wifiInvoiceLines          WiFiInvoiceLine[]
   wifiSatisfactionSurveys   WiFiSatisfactionSurvey[]
   wifiPreArrivalConfigs     WiFiPreArrivalConfig[]
   wifiSLAConfigs            WiFiSLAConfig[]
@@ -5452,7 +5456,7 @@ model RadiusLDAPConfig {
   // Auto-provisioning from AD/LDAP groups → WiFi plans
   autoSyncGroups     Boolean  @default(false)
   syncIntervalMin    Int      @default(60)
-  defaultPlanId      String?
+  defaultPlanId      String?   @db.Uuid
   autoAssignPlan     Boolean  @default(false)
 
   // Status tracking
@@ -6935,6 +6939,7 @@ model Tenant {
   wifiPlans                 WiFiPlan[]
   wifiSessions              WiFiSession[]
   wifiUsers                 WiFiUser[]
+  wifiInvoiceLines          WiFiInvoiceLine[]
   vouchers                  WiFiVoucher[]
   wifiAlerts                WiFiAlert[]
   wifiAlertConfigs           WiFiAlertConfig[]
@@ -8098,6 +8103,9 @@ model WiFiPlan {
   ipPoolId      String?           @db.Uuid
   price         Float             @default(0)
   currency      String            @default("USD")
+  billingModel  String            @default("flat")    // flat, usage, tiered, hybrid
+  includedDataMb Int              @default(0)          // Included data in flat/hybrid plans
+  pricePerMb    Float             @default(0)          // Per-MB overage rate (for usage/tiered/hybrid)
   priority      Int               @default(0)
   validityDays   Int               @default(1)
   validityMinutes Int              @default(1440) // Fine-grained validity (minutes). Used when set; validityDays kept for backward compat.
@@ -8111,9 +8119,10 @@ model WiFiPlan {
   roomTypes     RoomType[]        @relation("RoomTypeWiFiPlan")
   tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   sessions      WiFiSession[]
-  wifiUsers     WiFiUser[]
-  vouchers      WiFiVoucher[]
-  ldapConfigs   RadiusLDAPConfig[]
+  wifiUsers          WiFiUser[]
+  wifiInvoiceLines   WiFiInvoiceLine[]
+  vouchers           WiFiVoucher[]
+  ldapConfigs        RadiusLDAPConfig[]
 
   @@index([tenantId])
   @@index([ipPoolId])
@@ -8177,8 +8186,9 @@ model WiFiUser {
   deviceProfiles   DeviceProfile[]
   plan             WiFiPlan?  @relation(fields: [planId], references: [id])
   ipPool           IpPool?    @relation("UserIpPoolOverride", fields: [ipPoolId], references: [id])
-  property         Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  tenant           Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property           Property            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  wifiInvoiceLines   WiFiInvoiceLine[]
 
   @@index([tenantId])
   @@index([propertyId])
@@ -8187,6 +8197,50 @@ model WiFiUser {
   @@index([bookingId])
   @@index([status])
   @@index([ipPoolId])
+}
+
+/// WiFiInvoiceLine — Granular billing line items for WiFi charges
+/// Tracks plan fees, data overage, bandwidth upgrades, and topups.
+/// Auto-posted to guest folios during the daily billing run.
+model WiFiInvoiceLine {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String?   @db.Uuid
+  guestId         String?   @db.Uuid
+  bookingId       String?   @db.Uuid
+  folioLineItemId String?   @unique @db.Uuid
+  wifiUserId      String?   @db.Uuid
+  sessionId       String?
+  periodStart     DateTime  @db.Timestamptz
+  periodEnd       DateTime  @db.Timestamptz
+  chargeType      String                          // plan_fee, data_overage, bandwidth_upgrade, topup
+  description     String
+  quantity        Float     @default(1)
+  unitPrice       Float
+  totalAmount     Float
+  currency        String    @default("USD")
+  dataUsedMb      Float     @default(0)
+  planId          String?   @db.Uuid
+  status          String    @default("pending")  // pending, posted, invoiced, voided
+  postedToFolioAt DateTime? @db.Timestamptz
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property       Property?        @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  guest          Guest?           @relation(fields: [guestId], references: [id], onDelete: SetNull)
+  booking        Booking?         @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  wifiUser       WiFiUser?        @relation(fields: [wifiUserId], references: [id], onDelete: SetNull)
+  plan           WiFiPlan?        @relation(fields: [planId], references: [id], onDelete: SetNull)
+  folioLineItem  FolioLineItem?   @relation(fields: [folioLineItemId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([guestId])
+  @@index([bookingId])
+  @@index([wifiUserId])
+  @@index([status])
+  @@index([chargeType])
+  @@index([periodStart, periodEnd])
 }
 
 /// WiFiUserStatusHistory - User status change audit trail (Accsium tbluserstatushistory)

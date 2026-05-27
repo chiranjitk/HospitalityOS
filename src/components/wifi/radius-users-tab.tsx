@@ -30,6 +30,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { Separator } from '@/components/ui/separator';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -78,6 +84,8 @@ import {
   CheckSquare,
   Square,
   X,
+  ChevronDown,
+  UserCog,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { TwoFactorSetupModal } from '@/components/auth/two-factor-setup-modal';
@@ -265,6 +273,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
   const [resetQuotaChanging, setResetQuotaChanging] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const originalSessionTimeout = useRef<number | undefined>(undefined);
+  const [guestInfoOpen, setGuestInfoOpen] = useState(false);
   const [form, setForm] = useState({
     username: '',
     password: '',
@@ -276,6 +285,11 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
     uploadSpeed: 5,
     sessionTimeout: 1440,
     dataLimit: 0, // 0 = unlimited
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    roomNumber: '',
   });
 
   // ─── Fetch Users & Plans ────────────────────────────────────────────────
@@ -329,8 +343,9 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
   // ─── Form Helpers ──────────────────────────────────────────────────────────
 
   const resetForm = () => {
-    setForm({ username: '', password: '', userType: 'guest', planId: '', ipPoolId: 'none', group: '', downloadSpeed: 10, uploadSpeed: 5, sessionTimeout: 1440, dataLimit: 0 });
+    setForm({ username: '', password: '', userType: 'guest', planId: '', ipPoolId: 'none', group: '', downloadSpeed: 10, uploadSpeed: 5, sessionTimeout: 1440, dataLimit: 0, firstName: '', lastName: '', email: '', phone: '', roomNumber: '' });
     setEditingUser(null);
+    setGuestInfoOpen(false);
   };
 
   // When a plan is selected, auto-fill bandwidth, timeout, and data limit
@@ -393,7 +408,13 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
       dataLimit: dataLimitVal,
       planId: matchedPlan?.id || '',
       ipPoolId: user.ipPoolId || 'none',
+      firstName: user.guestName || '',
+      lastName: '',
+      email: '',
+      phone: '',
+      roomNumber: '',
     });
+    setGuestInfoOpen(!!user.guestName);
     setDialogOpen(true);
   };
 
@@ -1383,7 +1404,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
 
       {/* Add/Edit User Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingUser ? 'Edit RADIUS User' : 'Add RADIUS User'}</DialogTitle>
             <DialogDescription>
@@ -1530,6 +1551,80 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                 />
               </div>
             </div>
+
+            {/* ─── Guest Information (optional, collapsible) ─── */}
+            <Collapsible open={guestInfoOpen} onOpenChange={setGuestInfoOpen}>
+              <Separator className="my-1" />
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between py-3 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <UserCog className="h-4 w-4" />
+                    Guest Information <span className="font-normal">(optional)</span>
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      'h-4 w-4 shrink-0 transition-transform duration-200',
+                      guestInfoOpen && 'rotate-180'
+                    )}
+                  />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-1">
+                  <div className="space-y-2">
+                    <Label>First Name</Label>
+                    <Input
+                      value={form.firstName}
+                      onChange={(e) => setForm(prev => ({ ...prev, firstName: e.target.value }))}
+                      placeholder="John"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Last Name</Label>
+                    <Input
+                      value={form.lastName}
+                      onChange={(e) => setForm(prev => ({ ...prev, lastName: e.target.value }))}
+                      placeholder="Smith"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <Input
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => setForm(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="guest@example.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone</Label>
+                    <Input
+                      type="tel"
+                      value={form.phone}
+                      onChange={(e) => setForm(prev => ({ ...prev, phone: e.target.value }))}
+                      placeholder="+1 555 123 4567"
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>Room Number</Label>
+                    <Input
+                      value={form.roomNumber}
+                      onChange={(e) => setForm(prev => ({ ...prev, roomNumber: e.target.value }))}
+                      placeholder="301"
+                      className="sm:max-w-[200px]"
+                    />
+                  </div>
+                </div>
+                {form.firstName && form.lastName && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Consent logs &amp; GDPR pages will show &quot;{form.firstName} {form.lastName}&quot; instead of &quot;Anonymous&quot;.
+                  </p>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
           </div>
 
           <DialogFooter>
