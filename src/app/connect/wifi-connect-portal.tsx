@@ -176,6 +176,7 @@ const METHOD_ICONS: Record<string, React.ReactNode> = {
   pms_credentials: <Key className="w-4 h-4" />,
   sms_otp: <Smartphone className="w-4 h-4" />,
   open_access: <Globe className="w-4 h-4" />,
+  ldap: <Shield className="w-4 h-4" />,
 };
 
 // ────────────────────────────────────────────────────────────
@@ -1394,6 +1395,10 @@ function UnifiedDesignerForm({
       case 'open_access':
         // No payload needed
         break;
+      case 'ldap':
+        payload.username = formData.username?.trim() || '';
+        payload.password = formData.password?.trim() || '';
+        break;
       default:
         // Generic: include all form data
         Object.entries(formData).forEach(([k, v]) => {
@@ -1546,6 +1551,7 @@ function UnifiedDesignerForm({
     : authMethod === 'voucher' ? getUIString(lang, 'enterVoucher')
     : authMethod === 'sms_otp' ? getUIString(lang, 'otpLogin')
     : authMethod === 'open_access' ? getUIString(lang, 'freeAccess')
+    : authMethod === 'ldap' ? 'Corporate Login'
     : getUIString(lang, 'signIn');
 
   return (
@@ -2509,6 +2515,14 @@ function PortalContent() {
           <OpenAccessForm
             design={design}
             onConnect={() => authenticate('open_access', { ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })}
+            loading={state === 'authenticating'}
+          />
+        );
+      case 'ldap':
+        return (
+          <PmsCredentialsForm
+            design={design}
+            onSubmit={(u, p) => authenticate('ldap', { username: u, password: p })}
             loading={state === 'authenticating'}
           />
         );

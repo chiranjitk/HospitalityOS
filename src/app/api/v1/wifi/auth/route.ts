@@ -17,6 +17,15 @@ import { getExternalGatewayConfig, buildGatewayAuthResponse, type ExternalGatewa
 import { getLocalNasConfig } from '@/lib/wifi/local-nas-config';
 import { getWifiSettings } from '@/lib/wifi-settings';
 
+/** Lazy-import ldapjs for LDAP auth (avoids issues when package not installed). */
+async function getLdapjs() {
+  try {
+    return await import('ldapjs');
+  } catch {
+    throw new Error('ldapjs package is not installed');
+  }
+}
+
 // ────────────────────────────────────────────────────────────
 // Device Info Helpers
 // ────────────────────────────────────────────────────────────
@@ -915,6 +924,127 @@ function resetRateLimit(ip: string): void {
 //   Wrong password → "Rejected — invalid credentials"
 //   Wrong network  → "Rejected — IP not in managed pool"
 // ────────────────────────────────────────────────────────────
+/**
+ * Authenticate a user against an LDAP/AD directory.
+ * Flow: service account bind → user search → user bind verification.
+ * Returns { userDn, userAttributes } on success, throws on failure.
+ */
+async function authenticateViaLdap(params: {
+  serverUrl: string;
+  baseDn: string;
+  bindDn: string;
+  bindPassword: string;
+  usernameAttr: string;
+  username: string;
+  password: string;
+  useTls: boolean;
+  timeout: number;
+  filterGroup?: string | null;
+}): Promise<{ userDn: string; userAttributes: Record<string, string | string[]> }> {
+  const ldapjs = await getLdapjs();
+  let client: InstanceType<typeof ldapjs.Client> | null = null;
+  let userClient: InstanceType<typeof ldapjs.Client> | null = null;
+
+  try {
+    // Step 1: Bind with service account
+    client = ldapjs.createClient({
+      url: params.serverUrl,
+      connectTimeout: params.timeout * 1000,
+      timeout: params.timeout * 1000,
+      tlsOptions: params.useTls ? { rejectUnauthorized: false } : undefined,
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`LDAP connection timeout after ${params.timeout}s`)), params.timeout * 1000);
+      client!.on('connectError', (err: Error) => { clearTimeout(timer); reject(err); });
+      client!.on('error', (err: Error) => { clearTimeout(timer); reject(err); });
+      client!.on('connect', () => {
+        client!.bind(params.bindDn, params.bindPassword, (bindErr) => {
+          clearTimeout(timer);
+          if (bindErr) reject(new Error(`Service account bind failed: ${bindErr.message}`));
+          else resolve();
+        });
+      });
+    });
+
+    // Step 2: Search for user by usernameAttr
+    const safeUsername = params.username.replace(/[()\\*]/g, (c) => `\\${c}`);
+    const filter = params.filterGroup
+      ? `(&(${params.usernameAttr}=${safeUsername})(memberOf=${params.filterGroup}))`
+      : `(${params.usernameAttr}=${safeUsername})`;
+
+    const searchEntries: InstanceType<typeof ldapjs.SearchEntry>[] = [];
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`LDAP search timeout after ${params.timeout}s`)), params.timeout * 1000);
+      client!.search(
+        params.baseDn,
+        { filter, scope: 'sub', attributes: ['dn', params.usernameAttr, 'cn', 'mail', 'memberOf'], sizeLimit: 1 },
+        (err, res) => {
+          if (err) { clearTimeout(timer); reject(new Error(`LDAP search failed: ${err.message}`)); return; }
+          res.on('searchEntry', (entry) => searchEntries.push(entry));
+          res.on('error', (searchErr) => { clearTimeout(timer); reject(new Error(`LDAP search error: ${searchErr.message}`)); });
+          res.on('end', () => { clearTimeout(timer); resolve(); });
+        },
+      );
+    });
+
+    if (searchEntries.length === 0) {
+      throw new Error('User not found in LDAP directory');
+    }
+
+    const userDn = searchEntries[0].dn.toString();
+    const userAttributes: Record<string, string | string[]> = {};
+    for (const attr of searchEntries[0].attributes) {
+      const vals = attr.vals as Buffer[];
+      if (vals.length === 1) userAttributes[attr.type] = vals[0].toString('utf8');
+      else if (vals.length > 1) userAttributes[attr.type] = vals.map((v) => v.toString('utf8'));
+    }
+
+    // Step 3: Cleanup service account client
+    try { await new Promise<void>((r) => client!.unbind(() => r())); } catch { /* ignore */ }
+    try { client!.destroy(); } catch { /* ignore */ }
+    client = null;
+
+    // Step 4: Bind as the user to verify password
+    userClient = ldapjs.createClient({
+      url: params.serverUrl,
+      connectTimeout: params.timeout * 1000,
+      timeout: params.timeout * 1000,
+      tlsOptions: params.useTls ? { rejectUnauthorized: false } : undefined,
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`User bind timeout after ${params.timeout}s`)), params.timeout * 1000);
+      userClient!.bind(userDn, params.password, (bindErr) => {
+        clearTimeout(timer);
+        if (bindErr) {
+          const ldapErr = bindErr as Error & { name?: string };
+          if (ldapErr.name === 'InvalidCredentialsError' || bindErr.message.includes('invalid credentials')) {
+            reject(new Error('Invalid credentials'));
+          } else {
+            reject(new Error(`User bind failed: ${bindErr.message}`));
+          }
+        } else resolve();
+      });
+    });
+
+    // Cleanup
+    try { await new Promise<void>((r) => userClient!.unbind(() => r())); } catch { /* ignore */ }
+    try { userClient!.destroy(); } catch { /* ignore */ }
+    userClient = null;
+
+    return { userDn, userAttributes };
+  } finally {
+    const close = async (c: InstanceType<typeof ldapjs.Client> | null) => {
+      if (!c) return;
+      try { await new Promise<void>((r) => c.unbind(() => r())); } catch { /* ignore */ }
+      try { c.destroy(); } catch { /* ignore */ }
+    };
+    await close(client);
+    await close(userClient);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     // ════════════════════════════════════════════════════════════
@@ -940,7 +1070,7 @@ export async function POST(request: NextRequest) {
       return errorResponse('INVALID_REQUEST', 'Request body must be a JSON object.', 400);
     }
 
-    const VALID_METHODS = ['voucher', 'room_number', 'pms_credentials', 'sms_otp', 'open_access'];
+    const VALID_METHODS = ['voucher', 'room_number', 'pms_credentials', 'sms_otp', 'open_access', 'ldap'];
     const {
       method,
       portalSlug,
@@ -1056,6 +1186,7 @@ export async function POST(request: NextRequest) {
       'pms_credentials',
       'sms_otp',
       'open_access',
+      'ldap',
     ];
 
     if (!validMethods.includes(method)) {
@@ -2375,6 +2506,145 @@ export async function POST(request: NextRequest) {
           },
           wifiUsername && openPassword ? { username: wifiUsername, password: openPassword } : undefined,
           externalGateway
+        );
+      }
+
+      // ─── LDAP / Active Directory ────────────────────────
+      // Authenticate against external LDAP/AD directory.
+      // Creates WiFiUser record on success.
+      // Falls through to standard success response.
+      case 'ldap': {
+        if (!username?.trim()) {
+          return errorResponse('MISSING_USERNAME', 'Please enter your username');
+        }
+        if (!password) {
+          return errorResponse('MISSING_PASSWORD', 'Please enter your password');
+        }
+
+        // Look up LDAP config — by propertyId from portal, or first active config
+        let ldapConfig = portal?.propertyId
+          ? await db.radiusLDAPConfig.findUnique({ where: { propertyId: portal.propertyId } })
+          : await db.radiusLDAPConfig.findFirst({ where: { enabled: true } });
+
+        if (!ldapConfig || !ldapConfig.enabled) {
+          if (portal?.propertyId) {
+            ldapConfig = await db.radiusLDAPConfig.findFirst({ where: { enabled: true } });
+          }
+          if (!ldapConfig) {
+            return errorResponse('LDAP_NOT_CONFIGURED', 'LDAP authentication is not configured. Please contact your administrator.');
+          }
+        }
+
+        // Authenticate against LDAP
+        let ldapResult: { userDn: string; userAttributes: Record<string, string | string[]> };
+        try {
+          ldapResult = await authenticateViaLdap({
+            serverUrl: ldapConfig.serverUrl,
+            baseDn: ldapConfig.baseDn,
+            bindDn: ldapConfig.bindDn,
+            bindPassword: ldapConfig.bindPassword,
+            usernameAttr: ldapConfig.usernameAttr || 'uid',
+            username: username.trim(),
+            password,
+            useTls: ldapConfig.useTls,
+            timeout: ldapConfig.timeout || 30,
+            filterGroup: ldapConfig.filterGroup,
+          });
+        } catch (ldapErr) {
+          const errMsg = ldapErr instanceof Error ? ldapErr.message : 'LDAP authentication failed';
+          const ldapUsername = username.trim();
+          await logAuthAttempt(ldapUsername, 'Access-Reject', request, `LDAP:${errMsg}`);
+          logIdentityVerification({
+            tenantId: ldapConfig.tenantId,
+            propertyId: ldapConfig.propertyId,
+            sessionId: null,
+            username: ldapUsername,
+            verificationMethod: 'ldap',
+            verifiedIdentity: ldapUsername,
+            verificationStatus: 'failed',
+            ipAddress: getClientIpString(request),
+            macAddress: effectiveMac,
+            failureReason: errMsg,
+          });
+          recordFailedAttempt(clientRateLimitIp);
+          return errorResponse('LDAP_AUTH_FAILED', errMsg, 401);
+        }
+
+        const ldapUsername = username.trim();
+        const now = new Date();
+        const ldapValidUntil = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+
+        // Create or update WiFiUser record
+        try {
+          await db.wiFiUser.upsert({
+            where: { username: ldapUsername },
+            update: {
+              status: 'active',
+              userType: 'ldap',
+              validFrom: now,
+              validUntil: ldapValidUntil,
+              radiusSynced: true,
+              radiusSyncedAt: now,
+            },
+            create: {
+              tenantId: ldapConfig.tenantId,
+              propertyId: ldapConfig.propertyId,
+              username: ldapUsername,
+              password: `__ldap__${Date.now()}`,
+              status: 'active',
+              userType: 'ldap',
+              validFrom: now,
+              validUntil: ldapValidUntil,
+              radiusSynced: true,
+              radiusSyncedAt: now,
+            },
+          });
+        } catch (dbErr) {
+          console.error('[Auth:LDAP] WiFiUser upsert failed:', dbErr);
+        }
+
+        // Log successful auth
+        await logAuthAttempt(ldapUsername, 'Access-Accept', request, 'LDAP_AUTH_OK');
+        logIdentityVerification({
+          tenantId: ldapConfig.tenantId,
+          propertyId: ldapConfig.propertyId,
+          sessionId: null,
+          username: ldapUsername,
+          verificationMethod: 'ldap',
+          verifiedIdentity: ldapResult.userDn,
+          verificationStatus: 'verified',
+          ipAddress: getClientIpString(request),
+          macAddress: effectiveMac,
+        });
+
+        // Create RadiusAuthLog entry
+        try {
+          await db.radiusAuthLog.create({
+            data: {
+              propertyId: ldapConfig.propertyId,
+              username: ldapUsername,
+              authResult: 'Access-Accept',
+              authType: 'PAP',
+              replyMessage: 'LDAP authentication successful',
+              timestamp: now,
+            },
+          });
+        } catch { /* best effort */ }
+
+        resetRateLimit(clientRateLimitIp);
+        return successResponse(
+          {
+            authenticated: true,
+            method: 'ldap',
+            username: ldapUsername,
+            sessionTimeout: 1440, // 24 hours in minutes
+            bandwidthDown: bwDown,
+            bandwidthUp: bwUp,
+            message: 'LDAP authentication successful',
+            sessionId: `ldap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          },
+          { username: ldapUsername, password },
+          externalGateway,
         );
       }
     }
