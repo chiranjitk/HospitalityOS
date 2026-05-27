@@ -4886,6 +4886,7 @@ model Property {
   wifiUsers              WiFiUser[]
   radiusNAS              RadiusNAS[]
   radiusServerConfig     RadiusServerConfig?
+  radiusLDAPConfig       RadiusLDAPConfig?
   maintenanceBlocks      MaintenanceBlock[]
   roomMoveLogs           RoomMoveLog[]
   registrationCards      RegistrationCard[]
@@ -5411,6 +5412,66 @@ model RadiusServerConfig {
   concurrentSessionAction String   @default("reject") // reject, disconnect_oldest
 
   @@index([tenantId])
+}
+
+model RadiusLDAPConfig {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String    @unique @db.Uuid
+
+  // Feature flag — off by default, never affects existing FR flow
+  enabled         Boolean   @default(false)
+
+  // Connection settings
+  serverUrl       String                                     // "ldaps://ad.corp.com:636" or "ldap://10.0.0.1:389"
+  baseDn          String                                     // "DC=corp,DC=com"
+  bindDn          String                                     // "CN=readonly,OU=ServiceAccounts,DC=corp,DC=com"
+  bindPassword    String                                     // stored via AES-256-GCM at rest
+  searchFilter    String    @default("(sAMAccountName=%{User-Name})")
+  useTls          Boolean   @default(true)                   // LDAPS (port 636)
+  useStartTls     Boolean   @default(false)                  // StartTLS upgrade on plain LDAP
+  timeout         Int       @default(30)                     // connection timeout seconds
+  poolMin         Int       @default(5)
+  poolMax         Int       @default(20)
+  networkTimeout  Int       @default(5)
+
+  // Authentication methods (can combine)
+  ldapBindAuth    Boolean   @default(true)                   // PAP via bind-as-user (OpenLDAP, 389DS, cloud LDAP)
+  mschapAuth      Boolean   @default(false)                  // MS-CHAPv2 via ntlm_auth (Active Directory)
+  eapTtlsAuth     Boolean   @default(false)                  // EAP-TTLS + LDAP inner (802.1X / WPA2-Enterprise)
+
+  // ntlm_auth specific (MS-CHAPv2 for AD)
+  ntlmAuthPath    String    @default("/usr/bin/ntlm_auth")
+  winbindDomain   String?                                   // "CORP" — NetBIOS domain name
+
+  // Attribute mapping
+  usernameAttr    String    @default("sAMAccountName")
+  groupAttr       String    @default("memberOf")
+  filterGroup     String?                                   // restrict to specific AD group DN
+
+  // Auto-provisioning from AD/LDAP groups → WiFi plans
+  autoSyncGroups     Boolean  @default(false)
+  syncIntervalMin    Int      @default(60)
+  defaultPlanId      String?
+  autoAssignPlan     Boolean  @default(false)
+
+  // Status tracking
+  lastTestAt       DateTime? @db.Timestamptz
+  lastTestOk       Boolean?
+  lastTestLatencyMs Int?
+  lastSyncAt       DateTime? @db.Timestamptz
+  usersSynced      Int       @default(0)
+  status           String    @default("inactive")           // inactive, active, error
+
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+
+  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  defaultPlan     WiFiPlan?  @relation(fields: [defaultPlanId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, propertyId])
 }
 
 model RadPostAuth {
@@ -6891,6 +6952,7 @@ model Tenant {
   wifiSettings              WiFiSettings[]
   radiusNAS                 RadiusNAS[]
   radiusServerConfigs       RadiusServerConfig[]
+  radiusLDAPConfigs         RadiusLDAPConfig[]
   amenities                 Amenity[]
   aiConversations           AiConversation[]
   adCampaigns               AdCampaign[]
@@ -8051,6 +8113,7 @@ model WiFiPlan {
   sessions      WiFiSession[]
   wifiUsers     WiFiUser[]
   vouchers      WiFiVoucher[]
+  ldapConfigs   RadiusLDAPConfig[]
 
   @@index([tenantId])
   @@index([ipPoolId])

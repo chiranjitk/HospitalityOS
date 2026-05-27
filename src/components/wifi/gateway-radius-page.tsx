@@ -2,7 +2,7 @@
 
 import React, { lazy, useState, Suspense } from 'react';
 import dynamic from 'next/dynamic';
-import { Server, Shield, ScrollText, HeartPulse } from 'lucide-react';
+import { Server, Shield, ScrollText, HeartPulse, Network } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ─── Loading Skeleton ─────────────────────────────────────────────────────────
@@ -30,16 +30,18 @@ const AAAConfig = dynamic(
 );
 const ProvisioningLogs = lazy(() => import('@/components/wifi/provisioning-logs'));
 const NasHealth = lazy(() => import('@/components/wifi/nas-health'));
+const LDAPRadiusConfig = lazy(() => import('@/components/wifi/ldap-radius-config'));
 
 // ─── Tab Config ──────────────────────────────────────────────────────────────
 
-type TabId = 'aaa' | 'gateway' | 'provisioning' | 'nas-health';
+type TabId = 'aaa' | 'gateway' | 'provisioning' | 'nas-health' | 'ldap';
 
 const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'aaa', label: 'AAA Configuration', icon: <Shield className="h-4 w-4" /> },
   { id: 'gateway', label: 'WiFi Controller', icon: <Server className="h-4 w-4" /> },
   { id: 'provisioning', label: 'Provisioning Logs', icon: <ScrollText className="h-4 w-4" /> },
   { id: 'nas-health', label: 'NAS Health', icon: <HeartPulse className="h-4 w-4" /> },
+  { id: 'ldap', label: 'AD / LDAP', icon: <Network className="h-4 w-4" /> },
 ];
 
 // ─── Main Component ─────────────────────────────────────────────────────────
@@ -90,6 +92,7 @@ export function GatewayRadiusPage() {
           {activeTab === 'aaa' && <AAAConfig />}
           {activeTab === 'provisioning' && <ProvisioningLogs />}
           {activeTab === 'nas-health' && <NasHealth />}
+          {activeTab === 'ldap' && <LDAPRadiusConfig />}
         </Suspense>
       </div>
     </div>
