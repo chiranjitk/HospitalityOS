@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     // Query compliance data from the database
     const [gdprConsentRecords, recentAuditLogs, totalAuditLogs, gdprExports, ipWhitelistRuleCount] = await Promise.all([
       // Count GDPR consent records
-      db.gdprConsent.count({
+      db.consentRecord.count({
         where: { tenantId },
       }),
       // Recent audit logs (last 5)
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
         where: { tenantId },
       }),
       // Data export requests
-      db.gdprDataRequest.count({
+      db.gDPRRequest.count({
         where: { tenantId, type: 'export', status: { in: ['pending', 'processing'] } },
       }),
       // Check if IP whitelist is configured

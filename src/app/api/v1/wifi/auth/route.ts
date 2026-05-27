@@ -992,6 +992,37 @@ export async function POST(request: NextRequest) {
       normalizedGuestInfo = guestInfo as GuestInfoPayload;
     }
 
+    // ════════════════════════════════════════════════════════════
+    // STEP 0.5: Server-side consent enforcement (GDPR)
+    // Check if the portal requires terms acceptance before allowing auth.
+    // This prevents bypassing the client-side terms checkbox.
+    // ════════════════════════════════════════════════════════════
+    const { termsAccepted } = body as { termsAccepted?: string | boolean };
+    try {
+      // Look up the portal by slug to check consent requirements
+      if (portalSlug) {
+        const portalConfig = await db.wiFiPortal.findUnique({
+          where: { slug: portalSlug },
+          select: { id: true, propertyId: true, tenantId: true, settings: true },
+        });
+        if (portalConfig?.settings) {
+          const settings = typeof portalConfig.settings === 'string'
+            ? JSON.parse(portalConfig.settings)
+            : portalConfig.settings;
+          // Check if terms are required (design.marketingOptIn or termsRequired flag)
+          const termsRequired = settings?.termsRequired === true
+            || settings?.design?.termsRequired === true
+            || settings?.design?.marketingOptIn?.enabled === true;
+          if (termsRequired && termsAccepted !== true && termsAccepted !== 'true') {
+            return errorResponse('CONSENT_REQUIRED', 'You must accept the terms and conditions to connect.', 403);
+          }
+        }
+      }
+    } catch {
+      // Non-fatal: if portal lookup fails, proceed with auth (backward compatible)
+      console.warn('[Auth] Could not verify consent requirements — proceeding with auth');
+    }
+
 
     if (!method) {
       return errorResponse('MISSING_METHOD', 'Authentication method is required');
@@ -1259,6 +1290,7 @@ export async function POST(request: NextRequest) {
               bookingId: voucher.bookingId,
               guestInfo: normalizedGuestInfo,
               marketingConsent: { emailConsent: marketingEmailConsent === 'true' || marketingEmailConsent === true, smsConsent: marketingSmsConsent === 'true' || marketingSmsConsent === true },
+              request,
             });
           }
         } catch { /* best effort */ }
@@ -1510,6 +1542,7 @@ export async function POST(request: NextRequest) {
             bookingId: match.id,
             guestInfo: normalizedGuestInfo,
             marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
+            request,
           }).catch(() => {});
 
           resetRateLimit(clientRateLimitIp);
@@ -1642,6 +1675,7 @@ export async function POST(request: NextRequest) {
               bookingId: match.id,
               guestInfo: normalizedGuestInfo,
               marketingConsent: { emailConsent: marketingEmailConsent === 'true' || marketingEmailConsent === true, smsConsent: marketingSmsConsent === 'true' || marketingSmsConsent === true },
+              request,
             });
           }
         } catch { /* best effort */ }
@@ -1856,6 +1890,7 @@ export async function POST(request: NextRequest) {
             bookingId: wifiUser.bookingId,
             guestInfo: normalizedGuestInfo,
             marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
+            request,
           }).catch(() => {});
 
         resetRateLimit(clientRateLimitIp);
@@ -2083,6 +2118,7 @@ export async function POST(request: NextRequest) {
                   propertyId: fallbackPropertyId,
                   guestInfo: normalizedGuestInfo,
                   marketingConsent: { emailConsent: marketingEmailConsent === 'true' || marketingEmailConsent === true, smsConsent: marketingSmsConsent === 'true' || marketingSmsConsent === true },
+                  request,
                 });
               }
             } catch { /* best effort */ }
@@ -2300,6 +2336,7 @@ export async function POST(request: NextRequest) {
             propertyId: resolvedPropertyId,
             guestInfo: normalizedGuestInfo,
             marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
+            request,
           }).catch(() => {});
         }
 
@@ -2396,8 +2433,9 @@ async function saveGuestInfoAfterAuth(params: {
   bookingId?: string | null;
   guestInfo?: GuestInfoPayload;
   marketingConsent?: MarketingConsent;
+  request?: NextRequest;
 }): Promise<void> {
-  const { wifiUserId, wifiUsername, tenantId, propertyId, guestId: existingGuestId, bookingId: existingBookingId, guestInfo, marketingConsent } = params;
+  const { wifiUserId, wifiUsername, tenantId, propertyId, guestId: existingGuestId, bookingId: existingBookingId, guestInfo, marketingConsent, request } = params;
 
   if (!guestInfo && !marketingConsent) return;
 
@@ -2538,9 +2576,93 @@ async function saveGuestInfoAfterAuth(params: {
         console.warn(`[GuestInfo] Booking not found for ref: ${bookingRef}`);
       }
     }
+
+    // ── Record WiFi consent log for GDPR compliance ──
+    if (resolvedTenantId && request) {
+      recordWiFiConsentLog({
+        tenantId: resolvedTenantId,
+        propertyId: resolvedPropertyId,
+        guestId: resolvedGuestId,
+        ipAddress: getClientIp(request) || 'unknown',
+        userAgent: request.headers.get('user-agent') || undefined,
+        emailConsent: !!marketingConsent?.emailConsent,
+        smsConsent: !!marketingConsent?.smsConsent,
+      }).catch(() => {}); // Non-fatal, fire-and-forget
+    }
   } catch (err) {
     // Non-fatal — guest info persistence should never block authentication
     console.error('[GuestInfo] Failed to save guest info:', err instanceof Error ? err.message : err);
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// WiFi Consent Log (GDPR)
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Record a WiFiConsentLog entry when a guest authenticates.
+ * Called after successful auth to maintain a GDPR-compliant audit trail
+ * of what consent the guest gave (WiFi access + marketing opt-in).
+ *
+ * This is non-fatal — failures are logged but never block authentication.
+ */
+async function recordWiFiConsentLog(params: {
+  tenantId: string;
+  propertyId?: string | null;
+  guestId?: string | null;
+  sessionId?: string | null;
+  ipAddress: string;
+  macAddress?: string | null;
+  userAgent?: string | null;
+  emailConsent: boolean;
+  smsConsent: boolean;
+}): Promise<void> {
+  const { tenantId, propertyId, guestId, sessionId, ipAddress, macAddress, userAgent, emailConsent, smsConsent } = params;
+
+  try {
+    // Fetch consent settings to get consent text and retention days
+    let consentText = 'WiFi access consent';
+    let retentionDays = 90;
+
+    try {
+      const settings = await getWifiSettings(tenantId, 'consent_management');
+      if (settings?.consentText) consentText = settings.consentText;
+      if (settings?.retentionDays && settings.retentionDays > 0) retentionDays = settings.retentionDays;
+    } catch {
+      // Use defaults if settings fetch fails
+    }
+
+    // Hash the consent text for tamper-proof audit trail
+    const consentTextHash = createHash('sha256').update(consentText).digest('hex');
+
+    // Calculate expiry date
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + retentionDays);
+
+    const optInMarketing = emailConsent || smsConsent;
+
+    // Create the WiFi access consent log
+    await db.wiFiConsentLog.create({
+      data: {
+        tenantId,
+        propertyId: propertyId || null,
+        guestId: guestId || null,
+        sessionId: sessionId || null,
+        consentType: 'wifi_access',
+        consentTextHash,
+        ipAddress,
+        macAddress: macAddress || null,
+        userAgent: userAgent || null,
+        optInMarketing,
+        dataRetentionDays: retentionDays,
+        expiresAt,
+      },
+    });
+
+    console.log(`[WiFiConsent] Recorded consent log for guest ${guestId || 'anonymous'} (marketing: ${optInMarketing})`);
+  } catch (err) {
+    // Non-fatal — consent logging should never block authentication
+    console.error('[WiFiConsent] Failed to record consent log:', err instanceof Error ? err.message : err);
   }
 }
 
