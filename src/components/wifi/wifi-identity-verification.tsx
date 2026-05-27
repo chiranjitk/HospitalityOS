@@ -416,6 +416,22 @@ export default function WiFiIdentityVerification() {
       const json = await res.json();
       if (json.success) {
         const d = json.data;
+        // Fetch risk sessions (failed/skipped) from the API for the report's date range
+        const riskParams = new URLSearchParams();
+        riskParams.append('startDate', startDate);
+        riskParams.append('endDate', endDate);
+        riskParams.append('verificationStatus', 'failed');
+        riskParams.append('limit', '5');
+        riskParams.append('offset', '0');
+        const [riskRes1, riskRes2] = await Promise.all([
+          fetch(`/api/wifi/identity-logs?${riskParams}`).then(r => r.json()),
+          fetch(`/api/wifi/identity-logs?${new URLSearchParams({ ...Object.fromEntries(riskParams), verificationStatus: 'skipped' })}`).then(r => r.json()),
+        ]);
+        const riskLogs = [
+          ...(riskRes1.success ? (riskRes1.data || []) : []),
+          ...(riskRes2.success ? (riskRes2.data || []) : []),
+        ].slice(0, 10);
+
         const report: ComplianceReport = {
           period: `${startDate} to ${endDate}`,
           totalSessions: d.totalVerifications,
@@ -428,7 +444,7 @@ export default function WiFiIdentityVerification() {
             percentage: d.totalVerifications > 0 ? (m.count / d.totalVerifications) * 100 : 0,
           })),
           countryDistribution: d.countryDistribution || [],
-          riskSessions: logs.filter(l => l.verificationStatus === 'failed' || l.verificationStatus === 'skipped').slice(0, 10),
+          riskSessions: riskLogs,
         };
         setComplianceReport(report);
         setShowComplianceReport(true);
@@ -982,9 +998,16 @@ export default function WiFiIdentityVerification() {
                     </div>
                     <Switch
                       checked={enabled}
-                      onCheckedChange={checked =>
-                        setSettings(s => ({ ...s, requiredMethods: { ...s.requiredMethods, [method]: checked } }))
-                      }
+                      onCheckedChange={checked => {
+                        if (checked === false) {
+                          const enabledCount = Object.values(settings.requiredMethods).filter(Boolean).length;
+                          if (enabledCount <= 1) {
+                            toast({ title: 'Cannot disable', description: 'At least one verification method must be enabled.', variant: 'destructive' });
+                            return;
+                          }
+                        }
+                        setSettings(s => ({ ...s, requiredMethods: { ...s.requiredMethods, [method]: checked } }));
+                      }}
                     />
                   </div>
                 ))}

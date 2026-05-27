@@ -15,6 +15,7 @@ import {
 } from '@/lib/network/script-runner';
 import { getExternalGatewayConfig, buildGatewayAuthResponse, type ExternalGatewayConfig } from '@/lib/wifi/utils/external-gateway';
 import { getLocalNasConfig } from '@/lib/wifi/local-nas-config';
+import { getWifiSettings } from '@/lib/wifi-settings';
 
 // ────────────────────────────────────────────────────────────
 // Device Info Helpers
@@ -371,6 +372,46 @@ function isValidPhoneNumber(phone: string): boolean {
 function normalizePhoneNumberLocal(phone: string): string {
   // Use the shared normalizer with configurable default country code
   return normalizePhoneNumber(phone, process.env.SMS_DEFAULT_COUNTRY_CODE || process.env.DEFAULT_COUNTRY_CODE || undefined);
+}
+
+// ────────────────────────────────────────────────────────────
+// Identity Verification Logging (F14)
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Create a WiFiIdentityLog entry after authentication.
+ * Maps auth method to verification method for regulatory compliance tracking.
+ * Fire-and-forget — failures are logged but don't block the auth response.
+ */
+function logIdentityVerification(params: {
+  tenantId: string;
+  propertyId?: string | null;
+  sessionId?: string | null;
+  username: string;
+  verificationMethod: string;
+  verifiedIdentity?: string | null;
+  verificationStatus: 'verified' | 'failed' | 'skipped';
+  ipAddress: string;
+  macAddress?: string | null;
+  failureReason?: string | null;
+}): void {
+  db.wiFiIdentityLog.create({
+    data: {
+      tenantId: params.tenantId,
+      propertyId: params.propertyId || null,
+      sessionId: params.sessionId || null,
+      username: params.username,
+      verificationMethod: params.verificationMethod,
+      verifiedIdentity: params.verifiedIdentity || null,
+      verificationStatus: params.verificationStatus,
+      ipAddress: params.ipAddress,
+      macAddress: params.macAddress || null,
+      failureReason: params.failureReason || null,
+      verifiedAt: params.verificationStatus === 'verified' ? new Date() : null,
+    },
+  }).catch(err => {
+    console.warn('[IdentityLog] Failed to create identity log:', err instanceof Error ? err.message : err);
+  });
 }
 
 // ────────────────────────────────────────────────────────────
@@ -1168,6 +1209,17 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
+        logIdentityVerification({
+          tenantId: voucher.tenantId,
+          propertyId: resolvedPropertyId,
+          sessionId: voucherSessionId,
+          username: wifiUsername,
+          verificationMethod: 'none',
+          verifiedIdentity: voucher.code.length > 4 ? `****${voucher.code.slice(-4)}` : '****',
+          verificationStatus: 'verified',
+          ipAddress: getClientIpString(request),
+          macAddress: effectiveMac,
+        });
         let voucherSessionId: string | null = null;
         voucherSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, resolvedPropertyId);
 
@@ -1261,6 +1313,18 @@ export async function POST(request: NextRequest) {
 
         if (!match) {
           await logAuthAttempt(`room-${roomNumber.trim().toLowerCase()}`, 'Access-Reject', request, 'INVALID_CREDENTIALS');
+          logIdentityVerification({
+            tenantId: effectiveTenantId || '',
+            propertyId: null,
+            sessionId: null,
+            username: `room-${roomNumber.trim().toLowerCase()}`,
+            verificationMethod: 'room_number',
+            verifiedIdentity: roomNumber.trim(),
+            verificationStatus: 'failed',
+            ipAddress: getClientIpString(request),
+            macAddress: effectiveMac,
+            failureReason: 'Room number not found in PMS',
+          });
           return errorResponse('ROOM_NOT_FOUND', 'No active guest found for this room number and last name. Please verify and try again.');
         }
 
@@ -1393,6 +1457,19 @@ export async function POST(request: NextRequest) {
           const pmsBwUp = pmsBwUpBps ? Math.round(Number(pmsBwUpBps) / 1000000) : (pmsUser.plan?.uploadSpeed || bwUp);
 
           await logAuthAttempt(pmsUser.username, 'Access-Accept', request, `pool:${pool.poolName} reuse:pms plan:${pmsUser.plan?.name || 'none'}`);
+          logIdentityVerification({
+            tenantId: pmsUser.tenantId,
+            propertyId: match.propertyId,
+            sessionId: pmsReuseSessionId,
+            username: pmsUser.username,
+            verificationMethod: 'room_number',
+            verifiedIdentity: match.room?.number
+              ? (match.room.number.length > 1 ? `Room ${'*'.repeat(match.room.number.length - 1)}${match.room.number.slice(-1)}` : 'Room ****')
+              : 'Room ****',
+            verificationStatus: 'verified',
+            ipAddress: getClientIpString(request),
+            macAddress: effectiveMac,
+          });
           pmsReuseSessionId = await createAccountingSession(pmsUser.username, request, 'portal', effectiveMac, pool, match.propertyId);
 
           // Activate firewall (internal NAS) or skip (external gateway handles firewall)
@@ -1517,6 +1594,19 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName} fallback:room_user`);
+        logIdentityVerification({
+          tenantId: match.tenantId,
+          propertyId: match.propertyId,
+          sessionId: roomSessionId,
+          username: wifiUsername,
+          verificationMethod: 'room_number',
+          verifiedIdentity: match.room?.number
+            ? (match.room.number.length > 1 ? `Room ${'*'.repeat(match.room.number.length - 1)}${match.room.number.slice(-1)}` : 'Room ****')
+            : 'Room ****',
+          verificationStatus: 'verified',
+          ipAddress: getClientIpString(request),
+          macAddress: effectiveMac,
+        });
         let roomSessionId: string | null = null;
         roomSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, match.propertyId);
 
@@ -1661,6 +1751,17 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(username.trim(), 'Access-Accept', request, `pool:${pool.poolName}`);
+        logIdentityVerification({
+          tenantId: wifiUser.tenantId,
+          propertyId: wifiUser.propertyId,
+          sessionId: pmsCredSessionId,
+          username: wifiUser.username,
+          verificationMethod: 'room_number',
+          verifiedIdentity: wifiUser.username.length > 4 ? `${'*'.repeat(wifiUser.username.length - 4)}${wifiUser.username.slice(-4)}` : '****',
+          verificationStatus: 'verified',
+          ipAddress: getClientIpString(request),
+          macAddress: effectiveMac,
+        });
         let pmsCredSessionId: string | null = null;
         pmsCredSessionId = await createAccountingSession(username.trim(), request, 'portal', effectiveMac, pool, wifiUser.propertyId);
 
@@ -1783,6 +1884,16 @@ export async function POST(request: NextRequest) {
       //   - 5-minute OTP expiry
       //   - Phone number format validation
       case 'sms_otp': {
+        // Check if SMS OTP is enabled for this tenant (identity verification settings)
+        if (portal?.tenantId) {
+          try {
+            const ivSettings = await getWifiSettings(portal.tenantId, 'identity_verification');
+            if (!ivSettings.enableSmsOtp) {
+              return errorResponse('SMS_OTP_DISABLED', 'SMS OTP verification is disabled for this property. Please use another authentication method.');
+            }
+          } catch { /* best effort — allow if settings can't be read */ }
+        }
+
         if (otpCode) {
           // ── Step 2: Verify OTP (credential check) ──
           if (!phoneNumber?.trim()) {
@@ -1919,6 +2030,17 @@ export async function POST(request: NextRequest) {
             }
 
             await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${smsPool.poolName}${smsPlanId ? ' plan:aaa' : ''}`);
+            logIdentityVerification({
+              tenantId: portal?.tenantId || '',
+              propertyId: fallbackPropertyId,
+              sessionId: smsSessionId,
+              username: wifiUsername,
+              verificationMethod: 'otp_sms',
+              verifiedIdentity: normalizedPhone.length > 3 ? `${normalizedPhone[0]}${'*'.repeat(normalizedPhone.length - 3)}${normalizedPhone.slice(-2)}` : '****',
+              verificationStatus: 'verified',
+              ipAddress: getClientIpString(request),
+              macAddress: effectiveMac,
+            });
             smsSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, smsPool, fallbackPropertyId);
 
             // Activate firewall (internal NAS) or skip (external gateway handles firewall)
@@ -2138,6 +2260,16 @@ export async function POST(request: NextRequest) {
               }
 
               await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
+              logIdentityVerification({
+                tenantId: portal?.tenantId || '',
+                propertyId: resolvedPropertyId,
+                sessionId: openAccessSessionId,
+                username: wifiUsername || 'open-access',
+                verificationMethod: 'none',
+                verificationStatus: 'skipped',
+                ipAddress: getClientIpString(request),
+                macAddress: effectiveMac,
+              });
               openAccessSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, resolvedPropertyId);
 
               // Activate firewall (internal NAS) or skip (external gateway handles firewall)
