@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getWifiSettings } from '@/lib/wifi-settings';
 
 // ---------------------------------------------------------------------------
 // IPv4 CIDR matching helpers (no external packages required)
@@ -272,6 +273,39 @@ async function buildPortalConfig(portalId: string, language?: string | null) {
         })()
       : null,
   };
+
+  // ── GDPR Consent Management sync (Feature 13) ──
+  // Merge WiFiSettings.consent_management into the portal config so the
+  // guest-facing portal and the admin GDPR dashboard stay in sync.
+  // The GDPR settings act as a global override for marketing opt-in visibility.
+  try {
+    if (portal.tenantId) {
+      const gdprSettings = await getWifiSettings(portal.tenantId, 'consent_management');
+      if (gdprSettings) {
+        // If GDPR consent management explicitly enables/disables marketing opt-in,
+        // override the portal designer's local marketingOptIn.enabled setting.
+        // This ensures a single source of truth: GDPR Consent Management page.
+        if (typeof gdprSettings.showMarketingOptIn === 'boolean') {
+          config.design.marketingOptIn.enabled = gdprSettings.showMarketingOptIn;
+        }
+        // Use GDPR consent text as fallback if portal designer's consent text is empty
+        if (!config.design.marketingOptIn.consentText && gdprSettings.consentText) {
+          config.design.marketingOptIn.consentText = gdprSettings.consentText;
+        }
+        // Expose GDPR retention info for the consent log (not shown to guest)
+        (config as Record<string, unknown>).gdprConsentConfig = {
+          retentionDays: gdprSettings.retentionDays || 90,
+          requiredTypes: gdprSettings.requiredTypes || ['wifi_access'],
+          cookiePolicyUrl: gdprSettings.cookiePolicyUrl || '',
+        };
+      }
+    }
+  } catch (err) {
+    // Non-fatal: GDPR settings fetch failure should not break the portal
+    console.warn('[Resolve Zone] GDPR consent settings fetch failed:', err instanceof Error ? err.message : err);
+  }
+
+  return config;
 }
 
 // ---------------------------------------------------------------------------

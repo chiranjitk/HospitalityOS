@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { getWifiSettings, setWifiSettings, type ConsentManagementSettings } from '@/lib/wifi-settings';
 import sanitizeHtml from 'sanitize-html';
 
 /** Sanitize HTML — same logic as POST handler in pages/route.ts */
@@ -103,6 +104,26 @@ export async function PUT(
         where: { id: existing.portalId },
         data: { authMethod: updatePayload.authFlow },
       }).catch(() => { /* best-effort sync */ });
+    }
+
+    // Sync marketingOptIn changes back to WiFiSettings.consent_management
+    // so the Portal Designer and GDPR Consent Management page stay in sync.
+    if (updatePayload.designSettings) {
+      try {
+        const ds = JSON.parse(updatePayload.designSettings as string);
+        if (ds?.marketingOptIn && typeof ds.marketingOptIn.enabled === 'boolean') {
+          const currentGdpr = await getWifiSettings(existing.tenantId, 'consent_management');
+          await setWifiSettings(existing.tenantId, 'consent_management', {
+            ...(currentGdpr as ConsentManagementSettings),
+            showMarketingOptIn: ds.marketingOptIn.enabled,
+            // Sync consent text if portal designer has custom text
+            consentText: ds.marketingOptIn.consentText || (currentGdpr as ConsentManagementSettings).consentText || '',
+          });
+          console.log(`[Portal Designer] Synced marketingOptIn.enabled=${ds.marketingOptIn.enabled} to WiFiSettings`);
+        }
+      } catch {
+        // Non-fatal: GDPR sync failure should not block the portal page save
+      }
     }
 
     return NextResponse.json({ success: true, data: updated });
