@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'staysuite-freeradius',
       script: '/home/z/my-project/freeradius-install/sbin/radiusd',
-      args: '-d /home/z/my-project/freeradius-install/etc/raddb -f',
+      args: '-d /home/z/my-project/freeradius-install/etc/raddb -D /home/z/my-project/freeradius-install/share/freeradius -f',
       cwd: '/home/z/my-project',
       interpreter: 'none',
       watch: false,
