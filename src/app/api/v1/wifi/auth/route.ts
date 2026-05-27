@@ -263,6 +263,8 @@ function normalizeIp(raw: string | null): string | null {
   const v4Match = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
   if (v4Match) return v4Match[1];
   if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) return ip;
+  // Reject loopback addresses — never valid client IPs for captive portal auth
+  if (ip === '::1' || ip === '127.0.0.1') return null;
   return null;
 }
 
@@ -2292,12 +2294,24 @@ async function getValidatedPool(request: NextRequest, allowedPoolIds?: string[] 
   const rawIp = extractClientIp(request);
   const clientIp = normalizeIp(rawIp);
 
-  if (!clientIp || clientIp === '127.0.0.1' || clientIp === '::1') {
-    // Cannot determine real client IP — happens in sandbox/dev/proxy environments
-    // where the reverse proxy doesn't forward the original client IP.
-    // Fall through to pool validation with the raw IP (will likely not match any pool).
-    // If no pool match, allow auth anyway (sandbox-safe behavior).
-    console.warn(`[Guest Auth] IP pool check: client IP is ${clientIp || 'null'} (sandbox/proxy env) — skipping pool validation`);
+  // clientIp is null when normalizeIp rejects loopback (::1, 127.0.0.1) or non-IPv4
+  if (!clientIp) {
+    // Cannot determine real client IP — happens when:
+    //   1. Dev/sandbox: no reverse proxy forwarding X-Forwarded-For
+    //   2. Misconfigured proxy: not setting X-Real-IP / X-Forwarded-For
+    //   3. Direct access: bypassing the network (security concern in production)
+    //
+    // In PRODUCTION: always REJECT — a real captive portal client must come
+    // through the managed network (DHCP → proxy → portal), so a missing IP
+    // means something is wrong (proxy misconfig, direct access attempt, etc.)
+    //
+    // In DEVELOPMENT: allow with a sandbox pool so devs can test auth flows
+    // without needing a full network stack.
+    if (process.env.NODE_ENV === 'production') {
+      console.warn(`[Guest Auth] IP pool check REJECTED: client IP is ${rawIp || 'null'} (normalized to null) — in production, all auth requires a valid managed network IP`);
+      return null; // Will trigger IP_NOT_IN_POOL error
+    }
+    console.warn(`[Guest Auth] IP pool check: client IP is ${rawIp || 'null'} (dev/sandbox env) — allowing with sandbox pool`);
     return {
       poolId: 'sandbox',
       poolName: 'Sandbox',

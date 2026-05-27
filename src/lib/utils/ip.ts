@@ -31,6 +31,9 @@ export function normalizeIPv4(ip: string | null | undefined): string {
   // Strip IPv6-mapped IPv4 prefix
   const v4Match = clean.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
   if (v4Match) return v4Match[1];
+  // Reject loopback and non-routable IPv6 addresses — these are never valid client IPs
+  // from a real WiFi captive portal (they indicate missing proxy headers or direct local access)
+  if (clean === '::1' || clean === '::ffff:127.0.0.1' || clean === '127.0.0.1') return '';
   return clean;
 }
 
