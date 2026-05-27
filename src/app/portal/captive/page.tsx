@@ -23,6 +23,9 @@ import {
   DoorOpen,
   ArrowRight,
   Sparkles,
+  Network,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────
@@ -161,6 +164,9 @@ function CaptivePortalContent() {
   const [voucherCode, setVoucherCode] = useState('')
   const [roomNumber, setRoomNumber] = useState('')
   const [lastName, setLastName] = useState('')
+  const [ldapUsername, setLdapUsername] = useState('')
+  const [ldapPassword, setLdapPassword] = useState('')
+  const [showLdapPassword, setShowLdapPassword] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
   // Debug: log MAC detection for troubleshooting
@@ -177,10 +183,17 @@ function CaptivePortalContent() {
     setAuthState('loading')
 
     // Determine payload based on tab — include MAC if available
-    const payload =
-      authTab === 'voucher'
-        ? { method: 'voucher', code: voucherCode }
-        : { method: 'room', roomNumber, lastName }
+    let payload:
+      | { method: 'voucher'; code: string }
+      | { method: 'room'; roomNumber: string; lastName: string }
+      | { method: 'ldap'; username: string; password: string }
+    if (authTab === 'voucher') {
+      payload = { method: 'voucher', code: voucherCode }
+    } else if (authTab === 'room') {
+      payload = { method: 'room', roomNumber, lastName }
+    } else {
+      payload = { method: 'ldap', username: ldapUsername, password: ldapPassword }
+    }
 
     // Add MAC address to request body (from URL params or empty for server-side lookup)
     const bodyPayload = {
@@ -225,7 +238,7 @@ function CaptivePortalContent() {
       setErrorMsg('Unable to connect to the authentication service. Please check your connection and try again.')
       setAuthState('error')
     }
-  }, [authTab, voucherCode, roomNumber, lastName, clientMac])
+  }, [authTab, voucherCode, roomNumber, lastName, ldapUsername, ldapPassword, clientMac])
 
   const handleRetry = useCallback(() => {
     setErrorMsg('')
@@ -236,7 +249,9 @@ function CaptivePortalContent() {
     authState === 'idle' &&
     (authTab === 'voucher'
       ? voucherCode.trim().length >= 4
-      : roomNumber.trim().length >= 1 && lastName.trim().length >= 1)
+      : authTab === 'room'
+        ? roomNumber.trim().length >= 1 && lastName.trim().length >= 1
+        : ldapUsername.trim().length >= 1 && ldapPassword.trim().length >= 1)
 
   // ── Success View ────────────────────────────────────
   if (authState === 'success') {
@@ -444,6 +459,13 @@ function CaptivePortalContent() {
                     <DoorOpen className="w-3.5 h-3.5" />
                     Room Number
                   </TabsTrigger>
+                  <TabsTrigger
+                    value="ldap"
+                    className="flex-1 h-9 rounded-lg text-sm font-medium data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-teal-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-emerald-500/25 dark:data-[state=active]:shadow-primary/15 data-[state=active]:border-0 text-emerald-200/50 dark:text-muted-foreground/70 transition-all duration-300"
+                  >
+                    <Network className="w-3.5 h-3.5" />
+                    Corporate
+                  </TabsTrigger>
                 </TabsList>
 
                 {/* Voucher Tab */}
@@ -510,6 +532,116 @@ function CaptivePortalContent() {
                                 >
                                   <Shield className="w-4 h-4" />
                                   Connect
+                                  <ChevronRight className="w-4 h-4" />
+                                </motion.span>
+                              )}
+                            </AnimatePresence>
+                          </Button>
+                        </motion.div>
+                      </motion.div>
+                    </TabsContent>
+                  )}
+
+                  {/* LDAP / Corporate Login Tab */}
+                  {authTab === 'ldap' && (
+                    <TabsContent value="ldap" className="mt-5">
+                      <motion.div
+                        key="ldap-form"
+                        initial={{ opacity: 0, x: 12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -12 }}
+                        transition={{ duration: 0.25 }}
+                        className="space-y-4"
+                      >
+                        <div className="space-y-1.5">
+                          <p className="text-xs text-emerald-200/40 dark:text-muted-foreground/60">
+                            Sign in with your corporate directory credentials
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label
+                            htmlFor="ldap-username"
+                            className="text-sm font-medium text-emerald-200/60 dark:text-muted-foreground"
+                          >
+                            Username
+                          </label>
+                          <div className="relative">
+                            <Network className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500/50 dark:text-muted-foreground/50" />
+                            <Input
+                              id="ldap-username"
+                              type="text"
+                              placeholder="e.g. jsmith"
+                              value={ldapUsername}
+                              onChange={(e) => setLdapUsername(e.target.value)}
+                              disabled={authState === 'loading'}
+                              className="h-12 bg-white/[0.04] dark:bg-muted/30 border-white/[0.1] dark:border-border/30 text-white dark:text-foreground placeholder:text-emerald-200/25 dark:placeholder:text-muted-foreground/40 focus-visible:border-emerald-500/50 dark:focus-visible:border-primary/50 focus-visible:ring-emerald-500/20 dark:focus-visible:ring-primary/15 pl-10 text-base rounded-xl"
+                              autoComplete="username"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label
+                            htmlFor="ldap-password"
+                            className="text-sm font-medium text-emerald-200/60 dark:text-muted-foreground"
+                          >
+                            Password
+                          </label>
+                          <div className="relative">
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500/50 dark:text-muted-foreground/50" />
+                            <Input
+                              id="ldap-password"
+                              type={showLdapPassword ? 'text' : 'password'}
+                              placeholder="Enter your password"
+                              value={ldapPassword}
+                              onChange={(e) => setLdapPassword(e.target.value)}
+                              disabled={authState === 'loading'}
+                              className="h-12 bg-white/[0.04] dark:bg-muted/30 border-white/[0.1] dark:border-border/30 text-white dark:text-foreground placeholder:text-emerald-200/25 dark:placeholder:text-muted-foreground/40 focus-visible:border-emerald-500/50 dark:focus-visible:border-primary/50 focus-visible:ring-emerald-500/20 dark:focus-visible:ring-primary/15 pl-10 pr-10 text-base rounded-xl"
+                              autoComplete="current-password"
+                              onKeyDown={(e) =>
+                                e.key === 'Enter' && canConnect && handleConnect()
+                              }
+                            />
+                            <button
+                              type="button"
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500/50 hover:text-emerald-400 dark:text-muted-foreground/50 dark:hover:text-muted-foreground transition-colors"
+                              onClick={() => setShowLdapPassword(!showLdapPassword)}
+                              tabIndex={-1}
+                            >
+                              {showLdapPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <motion.div whileTap={{ scale: 0.98 }}>
+                          <Button
+                            onClick={handleConnect}
+                            disabled={!canConnect || authState === 'loading'}
+                            className="w-full h-12 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white dark:text-primary-foreground font-semibold text-sm rounded-xl shadow-lg shadow-emerald-500/20 dark:shadow-primary/10 hover:shadow-emerald-500/40 dark:hover:shadow-primary/20 hover:scale-[1.02] transition-all duration-300 disabled:opacity-40 disabled:hover:scale-100 cursor-pointer"
+                          >
+                            <AnimatePresence mode="wait">
+                              {authState === 'loading' ? (
+                                <motion.span
+                                  key="loading"
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  exit={{ opacity: 0 }}
+                                  className="flex items-center gap-2"
+                                >
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Authenticating...
+                                </motion.span>
+                              ) : (
+                                <motion.span
+                                  key="connect"
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  exit={{ opacity: 0 }}
+                                  className="flex items-center gap-2"
+                                >
+                                  <Shield className="w-4 h-4" />
+                                  Sign In via LDAP
                                   <ChevronRight className="w-4 h-4" />
                                 </motion.span>
                               )}

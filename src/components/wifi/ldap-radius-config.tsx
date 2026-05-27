@@ -184,6 +184,77 @@ const DEFAULT_CONFIG: LDAPConfig = {
   syncInterval: 60,
 };
 
+// ─── Field Mapping (UI ↔ DB/API) ─────────────────────────────────────────────
+
+// Convert DB/API fields to UI fields
+function dbToUiConfig(db: Record<string, unknown>): Partial<LDAPConfig> {
+  const useTls = db.useTls as boolean;
+  const useStartTls = db.useStartTls as boolean;
+  let security: LDAPConfig['security'] = 'plain';
+  if (useTls && !useStartTls) security = 'ldaps';
+  else if (!useTls && useStartTls) security = 'starttls';
+
+  return {
+    enabled: db.enabled as boolean ?? false,
+    serverUrl: (db.serverUrl as string) ?? '',
+    baseDn: (db.baseDn as string) ?? '',
+    bindDn: (db.bindDn as string) ?? '',
+    bindPassword: (db.bindPassword as string) ?? '',
+    searchFilter: (db.searchFilter as string) ?? '(sAMAccountName=%{User-Name})',
+    security,
+    connectionTimeout: (db.timeout as number) ?? 30,
+    poolMin: (db.poolMin as number) ?? 5,
+    poolMax: (db.poolMax as number) ?? 20,
+    authLdapBind: (db.ldapBindAuth as boolean) ?? false,
+    authMsChapv2: (db.mschapAuth as boolean) ?? false,
+    authEapTtls: (db.eapTtlsAuth as boolean) ?? false,
+    ntlmAuthPath: (db.ntlmAuthPath as string) ?? '/usr/bin/ntlm_auth',
+    winbindDomain: (db.winbindDomain as string) ?? '',
+    usernameAttribute: (db.usernameAttr as string) ?? 'sAMAccountName',
+    groupAttribute: (db.groupAttr as string) ?? 'memberOf',
+    filterGroup: (db.filterGroup as string) ?? '',
+    autoSyncGroups: (db.autoSyncGroups as boolean) ?? false,
+    autoAssignPlan: (db.autoAssignPlan as boolean) ?? false,
+    defaultPlanId: (db.defaultPlanId as string) ?? '',
+    syncInterval: (db.syncIntervalMin as number) ?? 60,
+    status: (db.status as LDAPConfig['status']) ?? undefined,
+    lastTestAt: db.lastTestAt ? new Date(db.lastTestAt as string).toISOString() : undefined,
+    lastTestLatency: (db.lastTestLatencyMs as number) ?? undefined,
+    usersSyncedCount: (db.usersSynced as number) ?? undefined,
+  };
+}
+
+// Convert UI fields to DB/API fields for save
+function uiToDbConfig(cfg: LDAPConfig, propertyId: string): Record<string, unknown> {
+  return {
+    propertyId,
+    action: 'save',
+    enabled: cfg.enabled,
+    serverUrl: cfg.serverUrl,
+    baseDn: cfg.baseDn,
+    bindDn: cfg.bindDn,
+    bindPassword: cfg.bindPassword,
+    searchFilter: cfg.searchFilter,
+    useTls: cfg.security === 'ldaps',
+    useStartTls: cfg.security === 'starttls',
+    timeout: cfg.connectionTimeout,
+    poolMin: cfg.poolMin,
+    poolMax: cfg.poolMax,
+    ldapBindAuth: cfg.authLdapBind,
+    mschapAuth: cfg.authMsChapv2,
+    eapTtlsAuth: cfg.authEapTtls,
+    ntlmAuthPath: cfg.ntlmAuthPath,
+    winbindDomain: cfg.winbindDomain || null,
+    usernameAttr: cfg.usernameAttribute,
+    groupAttr: cfg.groupAttribute,
+    filterGroup: cfg.filterGroup || null,
+    autoSyncGroups: cfg.autoSyncGroups,
+    autoAssignPlan: cfg.autoAssignPlan,
+    defaultPlanId: cfg.defaultPlanId || null,
+    syncIntervalMin: cfg.syncInterval,
+  };
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function LDAPRadiusConfig() {
@@ -228,7 +299,7 @@ export default function LDAPRadiusConfig() {
       const res = await fetch(`/api/wifi/radius-ldap?propertyId=${propertyId}`);
       const data = await res.json();
       if (data.success && data.data) {
-        setConfig(prev => ({ ...prev, ...data.data }));
+        setConfig(prev => ({ ...prev, ...dbToUiConfig(data.data) }));
         setDiagnostics(data.diagnostics ?? null);
       }
       // Even if no config exists, we show the setup form with defaults
@@ -360,11 +431,7 @@ export default function LDAPRadiusConfig() {
       const res = await fetch('/api/wifi/radius-ldap', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          propertyId,
-          action: 'save',
-          ...config,
-        }),
+        body: JSON.stringify(uiToDbConfig(config, propertyId)),
       });
       const data = await res.json();
       if (data.success) {
@@ -414,22 +481,35 @@ export default function LDAPRadiusConfig() {
           baseDn: config.baseDn,
           bindDn: config.bindDn,
           bindPassword: config.bindPassword,
-          security: config.security,
-          connectionTimeout: config.connectionTimeout,
+          useTls: config.security === 'ldaps',
+          useStartTls: config.security === 'starttls',
+          timeout: config.connectionTimeout,
         }),
       });
       const data = await res.json();
       if (data.success) {
-        const latency = data.latency ?? 0;
-        toast({
-          title: 'Connection Successful',
-          description: `Successfully connected to LDAP server. Latency: ${latency}ms`,
-        });
-        updateConfig({
-          connectionStatus: 'connected',
-          lastTestAt: new Date().toISOString(),
-          lastTestLatency: latency,
-        });
+        const result = data.data;
+        const connected = result?.connected ?? true;
+        const latency = result?.latencyMs ?? 0;
+        if (!connected) {
+          toast({
+            title: 'Connection Failed',
+            description: data.error || 'Could not connect to the LDAP server. Check your settings and try again.',
+            variant: 'destructive',
+          });
+          updateConfig({ connectionStatus: 'error', errorMessage: data.error });
+        } else {
+          toast({
+            title: 'Connection Successful',
+            description: `Successfully connected to LDAP server. Latency: ${latency}ms`,
+          });
+          updateConfig({
+            connectionStatus: 'connected',
+            lastTestAt: new Date().toISOString(),
+            lastTestLatency: latency,
+          });
+        }
+        return;
       } else {
         toast({
           title: 'Connection Failed',
@@ -504,8 +584,8 @@ export default function LDAPRadiusConfig() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           propertyId,
-          action: 'search',
-          query: searchQuery,
+          action: 'search-users',
+          searchTerm: searchQuery,
         }),
       });
       const data = await res.json();
@@ -543,7 +623,7 @@ export default function LDAPRadiusConfig() {
       const res = await fetch('/api/wifi/radius-ldap', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ propertyId, action: 'sync' }),
+        body: JSON.stringify({ propertyId, action: 'sync-groups' }),
       });
       const data = await res.json();
       if (data.success) {
@@ -915,7 +995,7 @@ export default function LDAPRadiusConfig() {
                       <Label className="text-xs">ntlm_auth Path</Label>
                       <Input
                         className="h-8 text-xs"
-                        defaultValue="/usr/bin/ntlm_auth"
+                        placeholder="/usr/bin/ntlm_auth"
                         value={config.ntlmAuthPath}
                         onChange={(e) => updateConfig({ ntlmAuthPath: e.target.value })}
                       />
@@ -1006,7 +1086,7 @@ export default function LDAPRadiusConfig() {
               </Label>
               <Input
                 id="ldap-username-attr"
-                defaultValue="sAMAccountName"
+                placeholder="sAMAccountName"
                 value={config.usernameAttribute}
                 onChange={(e) => updateConfig({ usernameAttribute: e.target.value })}
               />
@@ -1027,7 +1107,7 @@ export default function LDAPRadiusConfig() {
               </Label>
               <Input
                 id="ldap-group-attr"
-                defaultValue="memberOf"
+                placeholder="memberOf"
                 value={config.groupAttribute}
                 onChange={(e) => updateConfig({ groupAttribute: e.target.value })}
               />

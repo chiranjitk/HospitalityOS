@@ -5473,6 +5473,7 @@ model RadiusLDAPConfig {
 
   @@index([tenantId])
   @@index([tenantId, propertyId])
+  @@map("radiusldapconfig")
 }
 
 model RadPostAuth {
