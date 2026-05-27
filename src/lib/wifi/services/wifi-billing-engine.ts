@@ -203,10 +203,17 @@ export async function runDailyWiFiBilling(tenantId?: string): Promise<BillingRes
           continue;
         }
 
-        // Calculate usage
+        // Calculate usage DELTA (not cumulative) — only bill data consumed since last billing run
         const totalBytesIn = Number(user.totalBytesIn || 0n);
         const totalBytesOut = Number(user.totalBytesOut || 0);
-        const usageMb = round2((totalBytesIn + totalBytesOut) / (1024 * 1024));
+        const lastBilledIn = Number(user.lastBilledBytesIn || 0n);
+        const lastBilledOut = Number(user.lastBilledBytesOut || 0n);
+        const deltaBytesIn = Math.max(0, totalBytesIn - lastBilledIn);
+        const deltaBytesOut = Math.max(0, totalBytesOut - lastBilledOut);
+        const usageMb = round2((deltaBytesIn + deltaBytesOut) / (1024 * 1024));
+
+        // Use lastBilledAt for period start (or createdAt for first run)
+        const periodStart = user.lastBilledAt || user.createdAt;
 
         // Apply billing model pricing
         const billingModel = plan.billingModel || 'flat';
@@ -237,7 +244,7 @@ export async function runDailyWiFiBilling(tenantId?: string): Promise<BillingRes
             guestId: user.guestId,
             bookingId: user.bookingId,
             wifiUserId: user.id,
-            periodStart: yesterday,
+            periodStart,
             periodEnd: now,
             chargeType,
             description,
@@ -248,6 +255,16 @@ export async function runDailyWiFiBilling(tenantId?: string): Promise<BillingRes
             dataUsedMb: usageMb,
             planId: plan.id,
             status: 'pending',
+          },
+        });
+
+        // Snapshot current usage counters (prevent re-billing same data)
+        await db.wiFiUser.update({
+          where: { id: user.id },
+          data: {
+            lastBilledBytesIn: user.totalBytesIn,
+            lastBilledBytesOut: user.totalBytesOut,
+            lastBilledAt: now,
           },
         });
 

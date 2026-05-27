@@ -417,20 +417,22 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
 
           const wifiPlan = await tx.wiFiPlan.findUnique({
             where: { id: wifiUser.planId },
-            select: { dataLimit: true, overageRatePerMB: true, name: true },
+            select: { dataLimit: true, pricePerMb: true, name: true, billingModel: true },
           });
 
-          if (!wifiPlan || !wifiPlan.dataLimit || !wifiPlan.overageRatePerMB) continue;
+          if (!wifiPlan || !wifiPlan.dataLimit || !wifiPlan.pricePerMb) continue;
 
-          // Calculate total usage in MB
+          // Calculate total usage in MB (delta-based — only bill data since last night audit)
           const totalBytesIn = Number(wifiUser.totalBytesIn || BigInt(0));
           const totalBytesOut = Number(wifiUser.totalBytesOut || BigInt(0));
-          const totalUsageMB = Math.floor((totalBytesIn + totalBytesOut) / (1024 * 1024));
+          const lastBilledIn = Number(wifiUser.lastBilledBytesIn || BigInt(0));
+          const lastBilledOut = Number(wifiUser.lastBilledBytesOut || BigInt(0));
+          const deltaUsageMB = Math.floor((Math.max(0, totalBytesIn - lastBilledIn) + Math.max(0, totalBytesOut - lastBilledOut)) / (1024 * 1024));
           const dataLimitMB = wifiPlan.dataLimit;
 
-          if (totalUsageMB > dataLimitMB) {
-            const overageMB = totalUsageMB - dataLimitMB;
-            const overageCharge = Math.round(overageMB * wifiPlan.overageRatePerMB * 100) / 100;
+          if (deltaUsageMB > dataLimitMB) {
+            const overageMB = deltaUsageMB - dataLimitMB;
+            const overageCharge = Math.round(overageMB * wifiPlan.pricePerMb * 100) / 100;
 
             if (overageCharge > 0) {
               await tx.folioLineItem.create({
@@ -439,7 +441,7 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
                   description: `WiFi overage - ${overageMB}MB over ${dataLimitMB}MB limit (${wifiPlan.name})`,
                   category: 'wifi',
                   quantity: overageMB,
-                  unitPrice: wifiPlan.overageRatePerMB,
+                  unitPrice: wifiPlan.pricePerMb,
                   totalAmount: overageCharge,
                   serviceDate: audit.businessDayDate,
                   referenceType: 'NightAudit',
@@ -454,6 +456,16 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
               });
 
               summary.otherRevenue += overageCharge;
+
+              // Snapshot usage counters (prevent re-billing same data)
+              await tx.wiFiUser.update({
+                where: { id: wifiUser.id },
+                data: {
+                  lastBilledBytesIn: wifiUser.totalBytesIn,
+                  lastBilledBytesOut: wifiUser.totalBytesOut,
+                  lastBilledAt: new Date(),
+                },
+              });
             }
           }
         }

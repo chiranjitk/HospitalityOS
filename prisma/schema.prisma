@@ -4884,6 +4884,7 @@ model Property {
   wifiAAAConfig          WiFiAAAConfig?
   wifiGateways           WiFiGateway[]
   wifiUsers              WiFiUser[]
+  wiFiInvoiceLines       WiFiInvoiceLine[]
   radiusNAS              RadiusNAS[]
   radiusServerConfig     RadiusServerConfig?
   radiusLDAPConfig       RadiusLDAPConfig?
@@ -6935,6 +6936,7 @@ model Tenant {
   wifiPlans                 WiFiPlan[]
   wifiSessions              WiFiSession[]
   wifiUsers                 WiFiUser[]
+  wiFiInvoiceLines          WiFiInvoiceLine[]
   vouchers                  WiFiVoucher[]
   wifiAlerts                WiFiAlert[]
   wifiAlertConfigs           WiFiAlertConfig[]
@@ -8101,6 +8103,9 @@ model WiFiPlan {
   priority      Int               @default(0)
   validityDays   Int               @default(1)
   validityMinutes Int              @default(1440) // Fine-grained validity (minutes). Used when set; validityDays kept for backward compat.
+  billingModel  String            @default("flat")  // flat | usage | tiered | hybrid
+  includedDataMb Int              @default(0)       // Data included in base plan before overage (MB)
+  pricePerMb    Float             @default(0)       // Per-MB rate for usage/overage billing
   status        String            @default("active")
   createdAt     DateTime          @default(now()) @db.Timestamptz
   updatedAt     DateTime          @updatedAt @db.Timestamptz
@@ -8166,6 +8171,9 @@ model WiFiUser {
   sessionCount     Int        @default(0)
   totalBytesIn     BigInt     @default(0)
   totalBytesOut    BigInt     @default(0)
+  lastBilledBytesIn  BigInt     @default(0)  // Snapshot at last billing run (for delta calculation)
+  lastBilledBytesOut BigInt     @default(0)  // Snapshot at last billing run (for delta calculation)
+  lastBilledAt     DateTime?  @db.Timestamptz  // Timestamp of last billing run
   status           String     @default("active")
   radiusSynced     Boolean    @default(false)
   radiusSyncedAt   DateTime?  @db.Timestamptz
@@ -8174,6 +8182,7 @@ model WiFiUser {
   updatedAt        DateTime   @updatedAt @db.Timestamptz
   radCheck         RadCheck[]
   radReply         RadReply[]
+  wifiInvoiceLines WiFiInvoiceLine[]
   deviceProfiles   DeviceProfile[]
   plan             WiFiPlan?  @relation(fields: [planId], references: [id])
   ipPool           IpPool?    @relation("UserIpPoolOverride", fields: [ipPoolId], references: [id])
@@ -8209,6 +8218,45 @@ model WiFiUserStatusHistory {
   @@index([tenantId])
   @@index([username])
   @@index([userId])
+  @@index([createdAt])
+}
+
+/// WiFiInvoiceLine — Individual WiFi billing charge records.
+/// Created by the daily billing engine and posted to guest folios.
+model WiFiInvoiceLine {
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @db.Uuid
+  propertyId        String?   @db.Uuid
+  guestId           String?   @db.Uuid
+  bookingId         String?   @db.Uuid
+  wifiUserId        String    @db.Uuid
+  periodStart       DateTime  @db.Timestamptz
+  periodEnd         DateTime  @db.Timestamptz
+  chargeType        String                          // plan_fee | data_overage | bandwidth_upgrade
+  description       String
+  quantity          Int       @default(1)
+  unitPrice         Float
+  totalAmount       Float
+  currency          String    @default("USD")
+  dataUsedMb        Float?                          // Actual data consumed in the billing period
+  planId            String?   @db.Uuid
+  status            String    @default("pending")   // pending | posted | invoiced | voided
+  postedToFolioAt   DateTime? @db.Timestamptz
+  folioLineItemId   String?   @db.Uuid
+  voidReason        String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+
+  wifiUser          WiFiUser  @relation(fields: [wifiUserId], references: [id], onDelete: Cascade)
+  property          Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([guestId])
+  @@index([bookingId])
+  @@index([wifiUserId])
+  @@index([status])
+  @@index([periodStart])
   @@index([createdAt])
 }
 
