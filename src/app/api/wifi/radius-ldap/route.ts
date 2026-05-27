@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission, resolvePropertyId } from '@/lib/auth/tenant-context';
-import { n as logAudit } from '@/lib/audit';
+import { logAudit } from '@/lib/audit';
 
 // FreeRADIUS mini-service port
 const FREERADIUS_SERVICE_PORT = 3010;
