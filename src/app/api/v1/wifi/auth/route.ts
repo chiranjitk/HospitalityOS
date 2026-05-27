@@ -1712,6 +1712,8 @@ export async function POST(request: NextRequest) {
               ? db.property.findFirst({ where: { tenantId: portal.tenantId }, select: { id: true } }).then(p => p?.id)
               : Promise.resolve(undefined));
 
+          let smsSessionCheck: { limitReached: boolean; releaseLock: () => Promise<void> } | null = null;
+
           if (fallbackPropertyId) {
             // ── Resolve plan for proper bandwidth, device limit + data cap ──
             let smsPlanId: string | null = null;
@@ -1744,7 +1746,7 @@ export async function POST(request: NextRequest) {
             }
 
             // Check concurrent session limit BEFORE provisioning to avoid orphaned users (M-04)
-            const smsSessionCheck = await isSessionLimitReached(wifiUsername, smsMaxDevices);
+            smsSessionCheck = await isSessionLimitReached(wifiUsername, smsMaxDevices);
             if (smsSessionCheck.limitReached) {
               await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
               return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
@@ -1834,7 +1836,7 @@ export async function POST(request: NextRequest) {
           // Fall back to portal defaults (bwDown/bwUp) when property is not resolved.
           const smsBwDown = typeof smsPlanDnKbps !== 'undefined' ? smsPlanDnKbps / 1000 : bwDown;
           const smsBwUp = typeof smsPlanUpKbps !== 'undefined' ? smsPlanUpKbps / 1000 : bwUp;
-          await smsSessionCheck.releaseLock();
+          await smsSessionCheck?.releaseLock?.();
           return successResponse(
             {
               authenticated: true, method: 'sms_otp', username: wifiUsername,
@@ -1943,15 +1945,14 @@ export async function POST(request: NextRequest) {
         let openAccessSessionId: string | null = null;
 
         let openSessionCheck: { limitReached: boolean; releaseLock: () => Promise<void> } | null = null;
+        let openPlanDnKbps = bwDown * 1000;  // kbps — declared outside if(portal) so accessible in response
+        let openPlanUpKbps = bwUp * 1000;    // kbps
 
         if (portal) {
           const openTimestamp = Date.now();
           wifiUsername = `open-${openTimestamp}`;
           openPassword = `open-${openTimestamp}`;
           let resolvedPropertyId: string | undefined;
-          // Declared outside try/if blocks so they remain in scope for the response
-          let openPlanDnKbps = bwDown * 1000;  // kbps
-          let openPlanUpKbps = bwUp * 1000;    // kbps
 
           try {
             resolvedPropertyId = portal.propertyId
@@ -2241,14 +2242,21 @@ async function saveGuestInfoAfterAuth(params: {
     // If guestInfo.bookingId provided and no booking linked to WiFiUser, try to link
     if (guestInfo?.bookingId?.trim() && resolvedWifiUserId) {
       const bookingRef = guestInfo.bookingId.trim();
-      // Try matching by confirmationCode first, then by ID
+      // Build OR conditions — only include { id: bookingRef } if it looks like a UUID
+      // (confirmation codes like "RS-2024-004" are not UUIDs and would cause Prisma cast errors)
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const orConditions: any[] = [
+        { confirmationCode: bookingRef },
+      ];
+      if (uuidRegex.test(bookingRef)) {
+        orConditions.push({ id: bookingRef });
+      }
+      orConditions.push({ externalRef: bookingRef });
+
+      // Try matching by confirmationCode, then by ID (if UUID), then by externalRef
       const booking = await db.booking.findFirst({
         where: {
-          OR: [
-            { confirmationCode: bookingRef },
-            { id: bookingRef },
-            { externalRef: bookingRef },
-          ],
+          OR: orConditions,
           propertyId: resolvedPropertyId,
         },
         select: { id: true },

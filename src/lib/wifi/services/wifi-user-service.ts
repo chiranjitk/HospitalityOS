@@ -91,7 +91,7 @@ export async function syncRadiusGroup(plan: {
   const sessionLimit = plan.sessionLimit || 0;
 
   const runInTx = parentTx
-    ? parentTx // Reuse parent transaction (no nesting)
+    ? async (fn: (tx: any) => Promise<void>) => fn(parentTx) // Reuse parent transaction (no nesting)
     : async (fn: (tx: any) => Promise<void>) => db.$transaction(fn);
 
   await runInTx(async (tx) => {
