@@ -82,15 +82,17 @@ function evalCondition(value: number, operator: string, threshold: number): bool
  * Check alert rules for a tenant against the current metrics snapshot.
  * Called inside handleMetrics() after snapshot is available.
  * Creates/resolves SystemAlertEvent records with cooldown deduplication.
+ *
+ * FIX: Pass interfaceName from rule for interface_rx/tx metrics.
  */
-async function checkAlerts(tenantId: string, snapshot: any): Promise<void> {
+async function checkAlerts(tenantId: string, snapshot: any, propertyId?: string): Promise<void> {
   try {
     const rules = await db.systemAlertRule.findMany({
       where: { tenantId, enabled: true },
     });
 
     for (const rule of rules) {
-      const value = extractMetricValue(rule.metric, snapshot);
+      const value = extractMetricValue(rule.metric, snapshot, rule.interfaceName || undefined);
       if (value === undefined) continue;
 
       const triggered = evalCondition(value, rule.operator, rule.threshold);
@@ -107,10 +109,12 @@ async function checkAlerts(tenantId: string, snapshot: any): Promise<void> {
             await db.systemAlertEvent.create({
               data: {
                 tenantId,
+                propertyId: rule.propertyId || propertyId || null,
                 ruleId: rule.id,
                 metric: rule.metric,
                 operator: rule.operator,
                 threshold: rule.threshold,
+                interfaceName: rule.interfaceName || null,
                 value: Math.round(value * 100) / 100,
                 status: 'active',
               },
@@ -120,10 +124,12 @@ async function checkAlerts(tenantId: string, snapshot: any): Promise<void> {
           await db.systemAlertEvent.create({
             data: {
               tenantId,
+              propertyId: rule.propertyId || propertyId || null,
               ruleId: rule.id,
               metric: rule.metric,
               operator: rule.operator,
               threshold: rule.threshold,
+              interfaceName: rule.interfaceName || null,
               value: Math.round(value * 100) / 100,
               status: 'active',
             },
@@ -160,7 +166,7 @@ export async function GET(request: NextRequest) {
 
     switch (action) {
       case 'metrics':
-        return handleMetrics();
+        return handleMetrics(user.tenantId);
       case 'interfaces':
         return handleInterfaces();
       case 'rrd-graph':
@@ -176,7 +182,7 @@ export async function GET(request: NextRequest) {
       case 'list-pools':
         return handleListPools();
       case 'alerts':
-        return handleAlerts(user.tenantId);
+        return handleAlerts(user.tenantId, request);
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },
@@ -214,6 +220,8 @@ export async function POST(request: NextRequest) {
         return handleSetAlertRules(request, user.tenantId);
       case 'acknowledge-alert':
         return handleAcknowledgeAlert(request, user);
+      case 'delete-alert-rule':
+        return handleDeleteAlertRule(request, user.tenantId);
       default:
         return NextResponse.json(
           { success: false, error: `Unknown action: ${action}` },
@@ -233,8 +241,9 @@ export async function POST(request: NextRequest) {
 
 /**
  * action=metrics — Real-time system metrics + history
+ * FIX: tenantId passed in so checkAlerts() can run (was referencing out-of-scope `user`)
  */
-async function handleMetrics() {
+async function handleMetrics(tenantId: string) {
   let snapshot: Awaited<ReturnType<typeof getMetricsHistory>>['snapshot'];
   let history: Awaited<ReturnType<typeof getMetricsHistory>>['history'];
 
@@ -297,8 +306,9 @@ async function handleMetrics() {
   }
 
   // Check alert rules against current values (async, DB-backed, non-blocking)
-  if (user && user.tenantId) {
-    checkAlerts(user.tenantId, snapshot).catch(() => {});
+  // FIX: tenantId is now passed in from the GET handler (was referencing out-of-scope `user`)
+  if (tenantId) {
+    checkAlerts(tenantId, snapshot).catch(() => {});
   }
 
   // Build interfaces history from the history points
@@ -787,23 +797,38 @@ async function handleListPools() {
 
 /**
  * action=alerts — Alert system status (DB-backed)
- * Returns rules, active events, and resolved history.
+ * Returns rules, active events, resolved history, and available properties.
+ * Supports optional propertyId filter to scope alerts to a specific hardware box location.
  */
-async function handleAlerts(tenantId: string) {
-  const [rules, active, history] = await Promise.all([
+async function handleAlerts(tenantId: string, request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const propertyIdFilter = searchParams.get('propertyId') || undefined;
+
+  const ruleWhere: Record<string, unknown> = { tenantId };
+  if (propertyIdFilter) ruleWhere.propertyId = propertyIdFilter;
+
+  const eventWhere: Record<string, unknown> = { tenantId };
+  if (propertyIdFilter) eventWhere.propertyId = propertyIdFilter;
+
+  const [rules, active, history, properties] = await Promise.all([
     db.systemAlertRule.findMany({
-      where: { tenantId },
+      where: ruleWhere,
       orderBy: { createdAt: 'asc' },
     }),
     db.systemAlertEvent.findMany({
-      where: { tenantId, status: { in: ['active', 'acknowledged'] } },
+      where: { ...eventWhere, status: { in: ['active', 'acknowledged'] } },
       orderBy: { triggeredAt: 'desc' },
       take: 50,
     }),
     db.systemAlertEvent.findMany({
-      where: { tenantId, status: 'resolved' },
+      where: { ...eventWhere, status: 'resolved' },
       orderBy: { resolvedAt: 'desc' },
       take: 100,
+    }),
+    db.property.findMany({
+      where: { tenantId, deletedAt: null, status: 'active' },
+      select: { id: true, name: true, slug: true, city: true },
+      orderBy: { name: 'asc' },
     }),
   ]);
 
@@ -813,12 +838,14 @@ async function handleAlerts(tenantId: string) {
       rules,
       active,
       history,
+      properties,
     },
   });
 }
 
 /**
  * action=set-alert-rules (POST) — Configure alert rules (DB-backed)
+ * Supports propertyId (hardware box location) and interfaceName (for interface metrics).
  */
 async function handleSetAlertRules(request: NextRequest, tenantId: string) {
   try {
@@ -830,6 +857,8 @@ async function handleSetAlertRules(request: NextRequest, tenantId: string) {
       enabled?: boolean;
       label?: string;
       cooldownSec?: number;
+      propertyId?: string;
+      interfaceName?: string;
     }> };
 
     if (!Array.isArray(rules)) {
@@ -852,6 +881,13 @@ async function handleSetAlertRules(request: NextRequest, tenantId: string) {
           { status: 400 }
         );
       }
+      // interfaceName is required for interface metrics
+      if ((rule.metric === 'interface_rx' || rule.metric === 'interface_tx') && !rule.interfaceName) {
+        return NextResponse.json(
+          { success: false, error: `interfaceName is required for metric: ${rule.metric}` },
+          { status: 400 }
+        );
+      }
     }
 
     const upsertedRules = [];
@@ -862,18 +898,21 @@ async function handleSetAlertRules(request: NextRequest, tenantId: string) {
       const enabled = rule.enabled !== false;
       const cooldownSec = typeof rule.cooldownSec === 'number' ? Math.max(30, rule.cooldownSec) : 300;
       const label = rule.label || `${metric} ${operator} ${threshold}`;
+      const propertyId = rule.propertyId || null;
+      const interfaceName = (metric === 'interface_rx' || metric === 'interface_tx') ? (rule.interfaceName || null) : null;
 
       const upserted = await db.systemAlertRule.upsert({
         where: {
-          tenantId_metric_operator_threshold: {
+          tenantId_metric_operator_threshold_interfaceName: {
             tenantId,
             metric,
             operator,
             threshold,
+            interfaceName,
           },
         },
-        create: { tenantId, metric, operator, threshold, enabled, label, cooldownSec },
-        update: { enabled, label, cooldownSec },
+        create: { tenantId, propertyId, metric, operator, threshold, interfaceName, enabled, label, cooldownSec },
+        update: { propertyId, enabled, label, cooldownSec, interfaceName },
       });
       upsertedRules.push(upserted);
     }
@@ -928,6 +967,45 @@ async function handleAcknowledgeAlert(request: NextRequest, user: any) {
     console.error('[Health API] Acknowledge alert error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to acknowledge alert' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * action=delete-alert-rule (POST) — Delete an alert rule and all its events
+ */
+async function handleDeleteAlertRule(request: NextRequest, tenantId: string) {
+  try {
+    const body = await request.json();
+    const { ruleId } = body as { ruleId?: string };
+
+    if (!ruleId) {
+      return NextResponse.json(
+        { success: false, error: 'Missing ruleId' },
+        { status: 400 }
+      );
+    }
+
+    const rule = await db.systemAlertRule.findFirst({
+      where: { id: ruleId, tenantId },
+    });
+
+    if (!rule) {
+      return NextResponse.json(
+        { success: false, error: 'Rule not found' },
+        { status: 404 }
+      );
+    }
+
+    // Delete rule — cascade will remove all associated events
+    await db.systemAlertRule.delete({ where: { id: ruleId } });
+
+    return NextResponse.json({ success: true, message: 'Rule deleted' });
+  } catch (error) {
+    console.error('[Health API] Delete alert rule error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to delete rule' },
       { status: 500 }
     );
   }

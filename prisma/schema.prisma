@@ -8366,22 +8366,26 @@ model WiFiFloorPlan {
 
 /// System Alert Rules — Threshold-based monitoring rules for system/WiFi metrics
 /// Persists alert configuration across restarts. Checked every 2s via the health metrics poll.
+/// Bound to a property so operators know which physical hardware box the alert applies to.
 model SystemAlertRule {
-  id          String    @id @default(uuid()) @db.Uuid
-  tenantId    String    @db.Uuid
-  metric      String    // cpu, memory, disk, interface_rx, interface_tx, active_sessions, auth_reject_rate, radius_health
-  operator    String    // >, <, >=, <=
-  threshold   Float
-  enabled     Boolean   @default(true)
-  label       String
-  cooldownSec Int       @default(300) // seconds between re-alerting for the same rule
-  createdAt   DateTime  @default(now()) @db.Timestamptz
-  updatedAt   DateTime  @updatedAt @db.Timestamptz
-  events      SystemAlertEvent[]
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @db.Uuid
+  propertyId    String?   @db.Uuid // Property where the hardware box is installed (null = tenant-level)
+  metric        String    // cpu, memory, disk, interface_rx, interface_tx, active_sessions, auth_reject_rate, radius_health
+  operator      String    // >, <, >=, <=
+  threshold     Float
+  interfaceName String?   // Required when metric = interface_rx or interface_tx
+  enabled       Boolean   @default(true)
+  label         String
+  cooldownSec   Int       @default(300) // seconds between re-alerting for the same rule
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @db.Timestamptz
+  events        SystemAlertEvent[]
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@unique([tenantId, metric, operator, threshold])
+  @@unique([tenantId, metric, operator, threshold, interfaceName])
   @@index([tenantId])
+  @@index([propertyId])
   @@index([enabled])
 }
 
@@ -8389,10 +8393,12 @@ model SystemAlertRule {
 model SystemAlertEvent {
   id              String    @id @default(uuid()) @db.Uuid
   tenantId        String    @db.Uuid
+  propertyId      String?   @db.Uuid // Copied from rule — which property's hardware triggered this
   ruleId          String    @db.Uuid
   metric          String
   operator        String
   threshold       Float
+  interfaceName   String?   // Copied from rule — which network interface
   value           Float
   status          String    @default("active") // active, acknowledged, resolved
   triggeredAt     DateTime  @default(now()) @db.Timestamptz
@@ -8403,6 +8409,7 @@ model SystemAlertEvent {
   tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, status])
+  @@index([propertyId])
   @@index([ruleId])
   @@index([triggeredAt])
 }
