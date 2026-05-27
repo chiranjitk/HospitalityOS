@@ -14,11 +14,12 @@ module.exports = {
     },
     {
       name: 'staysuite-nextjs',
-      script: 'bun',
-      args: 'run dev',
+      script: 'npx',
+      args: 'next dev -p 3000',
       cwd: '/home/z/my-project',
       watch: false,
       autorestart: true,
+      max_memory_restart: '2G',
       env: {
         PORT: 3000,
         DATABASE_URL: 'postgresql://staysuite:Staysuite2025@localhost:5432/staysuite',
