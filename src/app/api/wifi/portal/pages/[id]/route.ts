@@ -4,8 +4,8 @@ import { requirePermission } from '@/lib/auth/tenant-context';
 import sanitizeHtml from 'sanitize-html';
 
 /** Sanitize HTML — same logic as POST handler in pages/route.ts */
-function sanitizePortalHtml(html: string | null | undefined): string | null {
-  if (!html) return null;
+function sanitizePortalHtml(html: string | null | undefined): string {
+  if (!html) return '';
   const result = sanitizeHtml(html, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat([
       'img', 'hr', 'br', 'p', 'div', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -24,12 +24,12 @@ function sanitizePortalHtml(html: string | null | undefined): string | null {
     allowedSchemes: ['http', 'https', 'mailto'],
     allowProtocolRelative: false,
   });
-  return result.trim() || null;
+  return result.trim() || '';
 }
 
 /** Sanitize CSS — same logic as POST handler */
-function sanitizePortalCss(css: string | null | undefined): string | null {
-  if (!css) return null;
+function sanitizePortalCss(css: string | null | undefined): string {
+  if (!css) return '';
   const sanitized = css
     .replace(/expression\s*\([^)]*\)/gi, '')
     .replace(/javascript\s*:/gi, '')
@@ -40,7 +40,7 @@ function sanitizePortalCss(css: string | null | undefined): string | null {
     .replace(/expr\65ssion\s*\([^)]*\)/gi, '')
     .replace(/expre\s*\/\*.*?\*\/ssion\s*\([^)]*\)/gi, '')
     .trim();
-  return sanitized || null;
+  return sanitized || '';
 }
 
 // PUT /api/wifi/portal/pages/[id] - Update portal page design

@@ -7,8 +7,8 @@ import sanitizeHtml from 'sanitize-html';
  * Sanitize HTML content to prevent XSS in captive portal pages.
  * Uses sanitize-html library for comprehensive protection.
  */
-function sanitizePortalHtml(html: string | null | undefined): string | null {
-  if (!html) return null;
+function sanitizePortalHtml(html: string | null | undefined): string {
+  if (!html) return '';
   const result = sanitizeHtml(html, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat([
       'img', 'hr', 'br', 'p', 'div', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -27,12 +27,12 @@ function sanitizePortalHtml(html: string | null | undefined): string | null {
     allowedSchemes: ['http', 'https', 'mailto'],
     allowProtocolRelative: false,
   });
-  return result.trim() || null;
+  return result.trim() || '';
 }
 
 /** Strip dangerous CSS to prevent CSS-based attacks. */
-function sanitizePortalCss(css: string | null | undefined): string | null {
-  if (!css) return null;
+function sanitizePortalCss(css: string | null | undefined): string {
+  if (!css) return '';
   const sanitized = css
     .replace(/expression\s*\([^)]*\)/gi, '')
     .replace(/javascript\s*:/gi, '')
@@ -43,7 +43,7 @@ function sanitizePortalCss(css: string | null | undefined): string | null {
     .replace(/expr\65ssion\s*\([^)]*\)/gi, '')
     .replace(/expre\s*\/\*.*?\*\/ssion\s*\([^)]*\)/gi, '')
     .trim();
-  return sanitized || null;
+  return sanitized || '';
 }
 
 // GET /api/wifi/portal/pages - List portal pages or get by portalId
