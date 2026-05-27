@@ -344,7 +344,8 @@ export default function WiFiDeviceManagement() {
         }
       } catch (error: unknown) {
         if (cancelled) return;
-        if (error instanceof DOMException && error.name === 'AbortError') return;
+        // AbortError is expected on cleanup — silently ignore it
+        if (error instanceof Error && (error.name === 'AbortError' || error.message.includes('aborted'))) return;
         console.error('Failed to fetch devices:', error);
         toast({ title: 'Error', description: 'Failed to fetch devices', variant: 'destructive' });
       } finally {
