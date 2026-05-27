@@ -64,6 +64,8 @@ import {
   Check,
   Building2,
   Loader2,
+  Mail,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -78,6 +80,8 @@ interface AlertRule {
   label: string;
   cooldownSec: number;
   enabled: boolean;
+  notifyEmail: boolean;
+  notifySms: boolean;
   propertyId?: string;
   interfaceName?: string;
 }
@@ -121,6 +125,8 @@ interface NewRuleForm {
   label: string;
   cooldownSec: number;
   interfaceName: string;
+  notifyEmail: boolean;
+  notifySms: boolean;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
@@ -150,6 +156,8 @@ const DEFAULT_NEW_RULE: NewRuleForm = {
   label: '',
   cooldownSec: 300,
   interfaceName: '',
+  notifyEmail: true,
+  notifySms: false,
 };
 
 const POLL_INTERVAL_MS = 15_000;
@@ -262,6 +270,8 @@ export default function WiFiHealthAlerts() {
         label: newRule.label || undefined,
         cooldownSec,
         enabled: true,
+        notifyEmail: newRule.notifyEmail,
+        notifySms: newRule.notifySms,
       };
 
       // Attach property if selected
@@ -492,6 +502,7 @@ export default function WiFiHealthAlerts() {
                       <TableHead className="text-xs whitespace-nowrap">Condition</TableHead>
                       <TableHead className="text-xs whitespace-nowrap text-right">Threshold</TableHead>
                       <TableHead className="text-xs whitespace-nowrap">Label</TableHead>
+                      <TableHead className="text-xs whitespace-nowrap text-center">Notify</TableHead>
                       <TableHead className="text-xs whitespace-nowrap text-center">Cooldown</TableHead>
                       <TableHead className="text-xs whitespace-nowrap text-center">Enabled</TableHead>
                       <TableHead className="text-xs whitespace-nowrap text-center">Actions</TableHead>
@@ -500,7 +511,7 @@ export default function WiFiHealthAlerts() {
                   <TableBody>
                     {alertRules.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                           <div className="flex flex-col items-center gap-2">
                             <Settings className="h-6 w-6 text-muted-foreground/40" />
                             <span>
@@ -555,6 +566,34 @@ export default function WiFiHealthAlerts() {
                           {/* Label */}
                           <TableCell className="text-sm max-w-[200px] truncate">
                             {rule.label || '—'}
+                          </TableCell>
+
+                          {/* Notification channels */}
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <div title={rule.notifyEmail ? 'Email enabled' : 'Email disabled'}>
+                                <Badge
+                                  variant={rule.notifyEmail ? 'default' : 'outline'}
+                                  className={cn(
+                                    'text-[10px] px-1.5 py-0 gap-0.5 cursor-default',
+                                    !rule.notifyEmail && 'opacity-30',
+                                  )}
+                                >
+                                  <Mail className="h-2.5 w-2.5" />
+                                </Badge>
+                              </div>
+                              <div title={rule.notifySms ? 'SMS enabled' : 'SMS disabled'}>
+                                <Badge
+                                  variant={rule.notifySms ? 'default' : 'outline'}
+                                  className={cn(
+                                    'text-[10px] px-1.5 py-0 gap-0.5 cursor-default',
+                                    !rule.notifySms && 'opacity-30',
+                                  )}
+                                >
+                                  <MessageSquare className="h-2.5 w-2.5" />
+                                </Badge>
+                              </div>
+                            </div>
                           </TableCell>
 
                           {/* Cooldown */}
@@ -919,6 +958,40 @@ export default function WiFiHealthAlerts() {
               <p className="text-xs text-muted-foreground">
                 A human-readable description for this alert rule.
               </p>
+            </div>
+
+            {/* Notification Channels */}
+            <div className="rounded-lg border p-3 space-y-3">
+              <Label className="text-sm font-medium">Notification Channels</Label>
+              <p className="text-xs text-muted-foreground -mt-2">
+                Choose how to be notified when this alert fires. Requires email/SMS configured in Settings.
+              </p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">Email</span>
+                  <Badge variant="secondary" className="text-[10px]">Recommended</Badge>
+                </div>
+                <Switch
+                  checked={newRule.notifyEmail}
+                  onCheckedChange={(checked) =>
+                    setNewRule(prev => ({ ...prev, notifyEmail: checked }))
+                  }
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">SMS</span>
+                  <Badge variant="secondary" className="text-[10px]">For critical alerts</Badge>
+                </div>
+                <Switch
+                  checked={newRule.notifySms}
+                  onCheckedChange={(checked) =>
+                    setNewRule(prev => ({ ...prev, notifySms: checked }))
+                  }
+                />
+              </div>
             </div>
           </div>
 

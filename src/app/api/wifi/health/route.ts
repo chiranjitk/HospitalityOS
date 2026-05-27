@@ -16,6 +16,7 @@ import { db } from '@/lib/db';
 import { getSystemMetrics, getMetricsHistory } from '@/lib/system-metrics';
 import { fetchSystemGraph, fetchPoolGraph } from '@/lib/rrd/system-rrd';
 import { fetchRRD, userRRDPath, getRRDBasePath } from '@/lib/rrd';
+import { notificationService } from '@/lib/services/notification-service';
 // Node.js-only modules — loaded via require() to avoid Turbopack Edge Runtime analysis.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const fs = /*turbopackIgnore: true*/ require('fs');
@@ -103,6 +104,7 @@ async function checkAlerts(tenantId: string, snapshot: any, propertyId?: string)
       });
 
       if (triggered) {
+        let shouldNotify = false;
         if (activeEvent) {
           const elapsed = (Date.now() - activeEvent.triggeredAt.getTime()) / 1000;
           if (elapsed >= rule.cooldownSec) {
@@ -119,6 +121,7 @@ async function checkAlerts(tenantId: string, snapshot: any, propertyId?: string)
                 status: 'active',
               },
             });
+            shouldNotify = true;
           }
         } else {
           await db.systemAlertEvent.create({
@@ -134,6 +137,14 @@ async function checkAlerts(tenantId: string, snapshot: any, propertyId?: string)
               status: 'active',
             },
           });
+          shouldNotify = true;
+        }
+
+        // Dispatch notifications if rule has channels enabled
+        if (shouldNotify && (rule.notifyEmail || rule.notifySms)) {
+          dispatchAlertNotification(tenantId, rule, value).catch(err =>
+            console.error('[Alert] Notification dispatch error:', err)
+          );
         }
       } else if (activeEvent) {
         await db.systemAlertEvent.update({
@@ -144,6 +155,55 @@ async function checkAlerts(tenantId: string, snapshot: any, propertyId?: string)
     }
   } catch (err) {
     console.error('[Alert] checkAlerts error:', err);
+  }
+}
+
+/**
+ * Send alert notification to all admin users of the tenant.
+ * Respects per-rule channel preferences (notifyEmail / notifySms).
+ */
+async function dispatchAlertNotification(
+  tenantId: string,
+  rule: { id: string; metric: string; operator: string; threshold: number; interfaceName: string | null; label: string; notifyEmail: boolean; notifySms: boolean; propertyId: string | null },
+  value: number,
+): Promise<void> {
+  // Build channels array from rule settings
+  const channels: string[] = [];
+  if (rule.notifyEmail) channels.push('email');
+  if (rule.notifySms) channels.push('sms');
+  if (channels.length === 0) return;
+
+  // Get admin users for this tenant to notify
+  const admins = await db.user.findMany({
+    where: { tenantId, role: { in: ['admin', 'owner', 'super_admin'] }, isActive: true },
+    select: { id: true, email: true, phone: true, name: true },
+  });
+  if (admins.length === 0) return;
+
+  const metricLabel = rule.metric.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const ifaceNote = rule.interfaceName ? ` [${rule.interfaceName}]` : '';
+  const ruleLabel = rule.label || `${metricLabel}${ifaceNote} ${rule.operator} ${rule.threshold}`;
+  const title = `System Alert: ${ruleLabel}`;
+  const message = `${metricLabel}${ifaceNote} is ${rule.operator} ${rule.threshold}. Current value: ${value}. Checked at ${new Date().toLocaleString()}.`;
+
+  // Send to each admin individually (so per-user channel preferences + email/phone resolve)
+  for (const admin of admins) {
+    try {
+      await notificationService.send({
+        tenantId,
+        userId: admin.id,
+        type: 'health_alert',
+        category: rule.metric === 'radius_health' || value > 90 ? 'critical' : 'warning',
+        title,
+        message,
+        channels: channels as any,
+        link: '/wifi-health-alerts',
+        icon: 'AlertTriangle',
+        priority: rule.metric === 'radius_health' ? 'urgent' : 'high',
+      });
+    } catch (err) {
+      console.error(`[Alert] Failed to notify admin ${admin.id}:`, err);
+    }
   }
 }
 

@@ -8399,6 +8399,8 @@ model SystemAlertRule {
   enabled       Boolean   @default(true)
   label         String
   cooldownSec   Int       @default(300) // seconds between re-alerting for the same rule
+  notifyEmail   Boolean   @default(true)  // send email when this rule fires
+  notifySms     Boolean   @default(false) // send SMS when this rule fires (opt-in for critical alerts)
   createdAt     DateTime  @default(now()) @db.Timestamptz
   updatedAt     DateTime  @updatedAt @db.Timestamptz
   events        SystemAlertEvent[]
