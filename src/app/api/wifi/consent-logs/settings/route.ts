@@ -54,8 +54,9 @@ export async function PUT(request: NextRequest) {
 
     await setWifiSettings(auth.tenantId, 'consent_management', settings);
 
-    // ── Sync to Portal Designer: update marketingOptIn in all portal pages ──
-    // This ensures the Portal Designer reflects the GDPR Consent Management toggle.
+    // ── Sync to Portal Designer: update termsText + marketingOptIn in all portal pages ──
+    // This ensures the Portal Designer reflects the GDPR Consent Management settings.
+    // Sync direction: GDPR settings → Portal Designer (termsText, marketingOptIn.enabled, termsUrl)
     try {
       const portalPages = await db.portalPage.findMany({
         where: { tenantId: auth.tenantId },
@@ -77,14 +78,28 @@ export async function PUT(request: NextRequest) {
           // Sync the enabled flag from GDPR settings → portal designer
           (ds.marketingOptIn as Record<string, unknown>).enabled = settings.showMarketingOptIn;
 
-          // Sync consent text as fallback if portal designer has no custom text
-          if (!ds.marketingOptIn.consentText && settings.consentText) {
-            (ds.marketingOptIn as Record<string, unknown>).consentText = settings.consentText;
+          // Sync consent text: GDPR consentText → portal termsText + marketingOptIn.consentText
+          if (settings.consentText) {
+            // Update the main termsText in designSettings (what guests see in Terms modal)
+            ds.termsText = settings.consentText;
+            // Also update marketingOptIn.consentText as fallback
+            if (!(ds.marketingOptIn as Record<string, unknown>).consentText) {
+              (ds.marketingOptIn as Record<string, unknown>).consentText = settings.consentText;
+            }
+          }
+
+          // Sync cookiePolicyUrl → termsUrl if portal has no custom termsUrl
+          if (settings.cookiePolicyUrl && !ds.termsUrl) {
+            ds.termsUrl = settings.cookiePolicyUrl;
           }
 
           await db.portalPage.update({
             where: { id: page.id },
-            data: { designSettings: JSON.stringify(ds) },
+            data: {
+              designSettings: JSON.stringify(ds),
+              // Also sync termsText to the dedicated PortalPage column
+              ...(settings.consentText ? { termsText: settings.consentText } : {}),
+            },
           });
         } catch {
           // Skip individual page sync failures — don't block the settings save
@@ -92,7 +107,7 @@ export async function PUT(request: NextRequest) {
       }
 
       if (portalPages.length > 0) {
-        console.log(`[F13] Synced marketingOptIn to ${portalPages.length} portal page(s)`);
+        console.log(`[F13] Synced termsText + marketingOptIn to ${portalPages.length} portal page(s)`);
       }
     } catch (err) {
       // Non-fatal: portal sync failure should not block the settings save

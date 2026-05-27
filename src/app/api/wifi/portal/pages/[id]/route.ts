@@ -106,20 +106,60 @@ export async function PUT(
       }).catch(() => { /* best-effort sync */ });
     }
 
-    // Sync marketingOptIn changes back to WiFiSettings.consent_management
+    // Sync marketingOptIn + termsText changes back to WiFiSettings.consent_management
     // so the Portal Designer and GDPR Consent Management page stay in sync.
-    if (updatePayload.designSettings) {
+    if (updatePayload.designSettings || updatePayload.termsText || updatePayload.termsUrl) {
       try {
-        const ds = JSON.parse(updatePayload.designSettings as string);
-        if (ds?.marketingOptIn && typeof ds.marketingOptIn.enabled === 'boolean') {
-          const currentGdpr = await getWifiSettings(existing.tenantId, 'consent_management');
+        // Get the latest termsText from both the dedicated column and designSettings
+        let termsText = existing.termsText || '';
+        let termsUrl = existing.termsUrl || '';
+        if (updatePayload.termsText) termsText = updatePayload.termsText as string;
+        if (updatePayload.termsUrl) termsUrl = updatePayload.termsUrl as string;
+
+        // Also check designSettings for termsText/termsUrl
+        let dsTermsText = '';
+        let dsMarketingOptIn: Record<string, unknown> | null = null;
+        if (updatePayload.designSettings) {
+          const ds = JSON.parse(updatePayload.designSettings as string);
+          dsTermsText = ds.termsText || '';
+          dsMarketingOptIn = ds.marketingOptIn || null;
+        }
+        // designSettings termsText takes priority over column
+        const effectiveTermsText = dsTermsText || termsText;
+        const effectiveTermsUrl = (() => {
+          try {
+            const ds = updatePayload.designSettings
+              ? JSON.parse(updatePayload.designSettings as string)
+              : null;
+            return ds?.termsUrl || termsUrl;
+          } catch { return termsUrl; }
+        })();
+
+        const currentGdpr = await getWifiSettings(existing.tenantId, 'consent_management');
+        const gdprUpdate: Partial<ConsentManagementSettings> = {};
+
+        // Sync marketingOptIn.enabled
+        if (dsMarketingOptIn && typeof dsMarketingOptIn.enabled === 'boolean') {
+          gdprUpdate.showMarketingOptIn = dsMarketingOptIn.enabled;
+          // Sync marketing consent text
+          gdprUpdate.consentText = String(dsMarketingOptIn.consentText || '') || (currentGdpr as ConsentManagementSettings).consentText || '';
+        }
+
+        // Sync termsText to GDPR consentText if portal has terms
+        if (effectiveTermsText) {
+          gdprUpdate.consentText = effectiveTermsText;
+        }
+        // Sync termsUrl to cookiePolicyUrl as fallback
+        if (effectiveTermsUrl) {
+          gdprUpdate.cookiePolicyUrl = effectiveTermsUrl;
+        }
+
+        if (Object.keys(gdprUpdate).length > 0) {
           await setWifiSettings(existing.tenantId, 'consent_management', {
             ...(currentGdpr as ConsentManagementSettings),
-            showMarketingOptIn: ds.marketingOptIn.enabled,
-            // Sync consent text if portal designer has custom text
-            consentText: ds.marketingOptIn.consentText || (currentGdpr as ConsentManagementSettings).consentText || '',
+            ...gdprUpdate,
           });
-          console.log(`[Portal Designer] Synced marketingOptIn.enabled=${ds.marketingOptIn.enabled} to WiFiSettings`);
+          console.log(`[Portal Designer] Synced termsText + marketingOptIn to WiFiSettings consent_management`);
         }
       } catch {
         // Non-fatal: GDPR sync failure should not block the portal page save

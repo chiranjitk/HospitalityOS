@@ -1401,6 +1401,11 @@ function UnifiedDesignerForm({
         });
     }
 
+    // Include terms acceptance for server-side consent enforcement (GDPR)
+    if (termsRequired && termsAccepted) {
+      payload.termsAccepted = 'true';
+    }
+
     // Include marketing consent data in payload
     if (design.marketingOptIn?.enabled) {
       if (emailConsent) payload.marketingEmailConsent = 'true';

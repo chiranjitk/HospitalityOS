@@ -996,23 +996,32 @@ export async function POST(request: NextRequest) {
     // STEP 0.5: Server-side consent enforcement (GDPR)
     // Check if the portal requires terms acceptance before allowing auth.
     // This prevents bypassing the client-side terms checkbox.
+    // Looks up PortalPage.termsText/termsUrl — the same source used by
+    // the resolve-zone API to compute termsRequired for the guest portal.
     // ════════════════════════════════════════════════════════════
     const { termsAccepted } = body as { termsAccepted?: string | boolean };
     try {
-      // Look up the portal by slug to check consent requirements
       if (portalSlug) {
-        const portalConfig = await db.wiFiPortal.findUnique({
+        // Look up the portal page via CaptivePortal slug to get actual terms config
+        const portalConfig = await db.captivePortal.findFirst({
           where: { slug: portalSlug },
-          select: { id: true, propertyId: true, tenantId: true, settings: true },
+          select: { id: true, propertyId: true, tenantId: true },
         });
-        if (portalConfig?.settings) {
-          const settings = typeof portalConfig.settings === 'string'
-            ? JSON.parse(portalConfig.settings)
-            : portalConfig.settings;
-          // Check if terms are required (design.marketingOptIn or termsRequired flag)
-          const termsRequired = settings?.termsRequired === true
-            || settings?.design?.termsRequired === true
-            || settings?.design?.marketingOptIn?.enabled === true;
+        if (portalConfig) {
+          const portalPage = await db.portalPage.findFirst({
+            where: { portalId: portalConfig.id, language: 'en' },
+            select: { termsText: true, termsUrl: true, designSettings: true },
+          });
+          // termsRequired matches resolve-zone logic: !!termsText || !!termsUrl
+          const hasTermsText = !!(portalPage?.termsText || (() => {
+            try {
+              const ds = typeof portalPage?.designSettings === 'string'
+                ? JSON.parse(portalPage.designSettings) : portalPage?.designSettings || {};
+              return ds.termsText;
+            } catch { return null; }
+          })());
+          const hasTermsUrl = !!portalPage?.termsUrl;
+          const termsRequired = hasTermsText || hasTermsUrl;
           if (termsRequired && termsAccepted !== true && termsAccepted !== 'true') {
             return errorResponse('CONSENT_REQUIRED', 'You must accept the terms and conditions to connect.', 403);
           }
@@ -1290,6 +1299,7 @@ export async function POST(request: NextRequest) {
               bookingId: voucher.bookingId,
               guestInfo: normalizedGuestInfo,
               marketingConsent: { emailConsent: marketingEmailConsent === 'true' || marketingEmailConsent === true, smsConsent: marketingSmsConsent === 'true' || marketingSmsConsent === true },
+              portalSlug,
               request,
             });
           }
@@ -1542,6 +1552,7 @@ export async function POST(request: NextRequest) {
             bookingId: match.id,
             guestInfo: normalizedGuestInfo,
             marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
+            portalSlug,
             request,
           }).catch(() => {});
 
@@ -1675,6 +1686,7 @@ export async function POST(request: NextRequest) {
               bookingId: match.id,
               guestInfo: normalizedGuestInfo,
               marketingConsent: { emailConsent: marketingEmailConsent === 'true' || marketingEmailConsent === true, smsConsent: marketingSmsConsent === 'true' || marketingSmsConsent === true },
+              portalSlug,
               request,
             });
           }
@@ -1890,6 +1902,7 @@ export async function POST(request: NextRequest) {
             bookingId: wifiUser.bookingId,
             guestInfo: normalizedGuestInfo,
             marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
+            portalSlug,
             request,
           }).catch(() => {});
 
@@ -2118,6 +2131,7 @@ export async function POST(request: NextRequest) {
                   propertyId: fallbackPropertyId,
                   guestInfo: normalizedGuestInfo,
                   marketingConsent: { emailConsent: marketingEmailConsent === 'true' || marketingEmailConsent === true, smsConsent: marketingSmsConsent === 'true' || marketingSmsConsent === true },
+                  portalSlug,
                   request,
                 });
               }
@@ -2336,6 +2350,7 @@ export async function POST(request: NextRequest) {
             propertyId: resolvedPropertyId,
             guestInfo: normalizedGuestInfo,
             marketingConsent: { emailConsent: marketingEmailConsent === 'true', smsConsent: marketingSmsConsent === 'true' },
+            portalSlug,
             request,
           }).catch(() => {});
         }
@@ -2433,9 +2448,10 @@ async function saveGuestInfoAfterAuth(params: {
   bookingId?: string | null;
   guestInfo?: GuestInfoPayload;
   marketingConsent?: MarketingConsent;
+  portalSlug?: string | null;
   request?: NextRequest;
 }): Promise<void> {
-  const { wifiUserId, wifiUsername, tenantId, propertyId, guestId: existingGuestId, bookingId: existingBookingId, guestInfo, marketingConsent, request } = params;
+  const { wifiUserId, wifiUsername, tenantId, propertyId, guestId: existingGuestId, bookingId: existingBookingId, guestInfo, marketingConsent, portalSlug, request } = params;
 
   if (!guestInfo && !marketingConsent) return;
 
@@ -2587,6 +2603,7 @@ async function saveGuestInfoAfterAuth(params: {
         userAgent: request.headers.get('user-agent') || undefined,
         emailConsent: !!marketingConsent?.emailConsent,
         smsConsent: !!marketingConsent?.smsConsent,
+        portalSlug: portalSlug || null,
       }).catch(() => {}); // Non-fatal, fire-and-forget
     }
   } catch (err) {
@@ -2604,6 +2621,11 @@ async function saveGuestInfoAfterAuth(params: {
  * Called after successful auth to maintain a GDPR-compliant audit trail
  * of what consent the guest gave (WiFi access + marketing opt-in).
  *
+ * Consent text priority:
+ *   1. PortalPage.termsText / designSettings.termsText (what guest actually saw)
+ *   2. WiFiSettings.consent_management.consentText (GDPR fallback)
+ *   3. Hardcoded default 'WiFi access consent'
+ *
  * This is non-fatal — failures are logged but never block authentication.
  */
 async function recordWiFiConsentLog(params: {
@@ -2616,17 +2638,47 @@ async function recordWiFiConsentLog(params: {
   userAgent?: string | null;
   emailConsent: boolean;
   smsConsent: boolean;
+  portalSlug?: string | null;
 }): Promise<void> {
-  const { tenantId, propertyId, guestId, sessionId, ipAddress, macAddress, userAgent, emailConsent, smsConsent } = params;
+  const { tenantId, propertyId, guestId, sessionId, ipAddress, macAddress, userAgent, emailConsent, smsConsent, portalSlug } = params;
 
   try {
-    // Fetch consent settings to get consent text and retention days
+    // Fetch consent text — prefer actual portal terms the guest saw
     let consentText = 'WiFi access consent';
     let retentionDays = 90;
 
     try {
+      // Step 1: Try to get the actual terms text from the portal page
+      if (portalSlug) {
+        const portal = await db.captivePortal.findFirst({
+          where: { slug: portalSlug },
+          select: { id: true },
+        });
+        if (portal) {
+          const page = await db.portalPage.findFirst({
+            where: { portalId: portal.id, language: 'en' },
+            select: { termsText: true, designSettings: true },
+          });
+          if (page) {
+            // Priority: PortalPage.termsText → designSettings.termsText
+            const portalTerms = page.termsText || (() => {
+              try {
+                const ds = typeof page.designSettings === 'string'
+                  ? JSON.parse(page.designSettings) : page.designSettings || {};
+                return ds.termsText || '';
+              } catch { return ''; }
+            })();
+            if (portalTerms) consentText = portalTerms;
+          }
+        }
+      }
+
+      // Step 2: Get retention days from GDPR consent management settings
       const settings = await getWifiSettings(tenantId, 'consent_management');
-      if (settings?.consentText) consentText = settings.consentText;
+      if (!portalSlug || consentText === 'WiFi access consent') {
+        // Use GDPR consentText as fallback if no portal terms found
+        if (settings?.consentText) consentText = settings.consentText;
+      }
       if (settings?.retentionDays && settings.retentionDays > 0) retentionDays = settings.retentionDays;
     } catch {
       // Use defaults if settings fetch fails
