@@ -323,11 +323,11 @@ export async function GET(request: NextRequest) {
         enabled: true,
         subnet: { not: null },
         captivePortal: { enabled: true },
-        tenant: { isActive: true },
+        tenant: { deletedAt: null },
       },
       include: {
         captivePortal: { select: { enabled: true } },
-        tenant: { select: { isActive: true } },
+        tenant: { select: { deletedAt: true } },
       },
       orderBy: { priority: 'desc' },
     });

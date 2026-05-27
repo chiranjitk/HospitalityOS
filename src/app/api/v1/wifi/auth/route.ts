@@ -344,11 +344,6 @@ async function validateClientIpInPool(
   }
 }
 
-/** Get client IP string for logging/accounting */
-function getClientIpString(request: NextRequest): string {
-  return extractClientIp(request) || request.headers.get('x-real-ip') || '0.0.0.0';
-}
-
 /**
  * Resolve allowed IP pool IDs for a user based on their plan binding.
  *
@@ -2058,10 +2053,6 @@ export async function POST(request: NextRequest) {
           wifiUsername && openPassword ? { username: wifiUsername, password: openPassword } : undefined,
           externalGateway
         );
-      }
-
-      default: {
-        return errorResponse('INVALID_METHOD', 'Unsupported authentication method');
       }
     }
   } catch (error) {
