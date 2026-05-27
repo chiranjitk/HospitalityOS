@@ -99,7 +99,7 @@ db/pgdata/
 # FreeRADIUS dependencies and runtime
 freeradius-deps/
 freeradius/
-freeradius-install/sbin/
+
 
 # E2E test files
 src/lib/wifi/services/test-e2e-credentials.ts
