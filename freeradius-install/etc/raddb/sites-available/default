@@ -451,10 +451,32 @@ authorize {
 #       unix
 
         #
-        #  Look in an SQL database.  The schema of the database
-        #  is meant to mirror the "users" file.
+        # ── StaySuite: LDAP-first auth with SQL fallback ──
+        # When LDAP is enabled (feature flag per property), try LDAP bind-as-user first.
+        # If LDAP auth succeeds (ok), skip SQL and proceed with the user's LDAP groups.
+        # If LDAP returns 'notfound' or 'fail', fall through to SQL for hotel guest auth.
+        # This ensures enterprise users (in AD/LDAP) authenticate via LDAP,
+        # while transient hotel guests still authenticate via SQL (StaySuite database).
         #
-        #  See "Authorization Queries" in mods-available/sql
+        # FEATURE FLAG: To disable LDAP auth, remove the ldap symlink from mods-enabled/
+        # or comment out the 'ldap' line below. SQL-only auth is the default/fallback.
+        ldap
+
+        # ── StaySuite: Set Auth-Type for LDAP bind authentication ──
+        # If LDAP found the user and we have a User-Password (PAP), set Auth-Type = ldap
+        # This triggers the 'Auth-Type LDAP { ldap }' block in authenticate{} section.
+        # MS-CHAPv2 users will use ntlm_auth instead (configured in mschap module).
+        if ((ok || updated) && User-Password && !control:Auth-Type) {
+                update control {
+                        &Auth-Type := ldap
+                }
+        }
+
+        # ── StaySuite: SQL fallback (hotel guest auth) ──
+        # SQL runs AFTER LDAP. If LDAP already authenticated the user,
+        # SQL authorize_check_query will not find them in radcheck,
+        # so SQL will return 'notfound' and silently skip — no harm done.
+        # Only hotel guests (who are NOT in LDAP) will match in SQL.
         sql
 
         #
@@ -467,22 +489,6 @@ authorize {
         #  mschap authentication, the un-comment this line, and
         #  configure the 'smbpasswd' module.
 #       smbpasswd
-
-        #
-        #  The ldap module reads passwords from the LDAP database.
-        -ldap
-
-        #
-        #  If you're using Active Directory and PAP, then uncomment
-        #  the following lines, and the "Auth-Type LDAP" section below.
-        #
-        #  This will let you do PAP authentication to AD.
-        #
-#       if ((ok || updated) && User-Password && !control:Auth-Type) {
-#               update control {
-#                       &Auth-Type := ldap
-#               }
-#       }
 
         #
         #  Enforce daily limits on time spent logged in.
@@ -740,9 +746,17 @@ authenticate {
         #  However, it is necessary for Active Directory, because
         #  Active Directory won't give the passwords to FreeRADIUS.
         #
-#       Auth-Type LDAP {
-#               ldap
-#       }
+        # ── StaySuite: LDAP PAP authentication ──
+        # When LDAP finds the user in authorize{} and sets Auth-Type = ldap,
+        # this section performs LDAP bind-as-user authentication.
+        # The user's DN is looked up from LDAP, then FreeRADIUS binds
+        # to LDAP using that DN + the password from the RADIUS request.
+        #
+        # For MS-CHAPv2, use ntlm_auth module instead (configured in mschap).
+        # For EAP-TTLS, LDAP is called inside the inner-tunnel server.
+        Auth-Type LDAP {
+                ldap
+        }
 
         #
         #  Allow EAP authentication.

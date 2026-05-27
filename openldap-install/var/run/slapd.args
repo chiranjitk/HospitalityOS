@@ -1,0 +1,1 @@
+/home/z/my-project/openldap-install/sbin/slapd -f /home/z/my-project/openldap-install/etc/openldap/slapd.conf -h ldap://127.0.0.1:3890 -d 256 
