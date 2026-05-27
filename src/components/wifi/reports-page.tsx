@@ -1842,25 +1842,9 @@ function SystemHealthTab() {
   const [metrics, setMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Alerts state
-  const [alertRules, setAlertRules] = useState<any[]>([]);
+  // Active alerts state (minimal — for overview card count only)
+  // Full alert management is in WiFi → Health Alerts page
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
-  const [alertHistory, setAlertHistory] = useState<any[]>([]);
-  const [alertProperties, setAlertProperties] = useState<any[]>([]);
-  const [selectedAlertProperty, setSelectedAlertProperty] = useState<string>('');
-
-  // Add rule dialog
-  const [showAddRule, setShowAddRule] = useState(false);
-  const [newRule, setNewRule] = useState({
-    metric: 'cpu',
-    operator: '>',
-    threshold: '',
-    label: '',
-    cooldownSec: 300,
-    propertyId: '',
-    interfaceName: '',
-  });
-  const [availableInterfaces, setAvailableInterfaces] = useState<string[]>([]);
 
   // Active users state
   const [activeUsers, setActiveUsers] = useState<any[]>([]);
@@ -1997,30 +1981,24 @@ function SystemHealthTab() {
     return () => clearInterval(interval);
   }, [fetchMetrics]);
 
-  // --- Fetch alerts ---
-  const fetchAlerts = useCallback(async () => {
+  // --- Fetch active alerts (count only for overview card) ---
+  const fetchActiveAlerts = useCallback(async () => {
     try {
-      const params = new URLSearchParams({ action: 'alerts' });
-      if (selectedAlertProperty) params.set('propertyId', selectedAlertProperty);
-      const res = await fetch(`/api/wifi/health?${params.toString()}`);
+      const res = await fetch('/api/wifi/health?action=alerts');
       const result = await res.json();
       if (result.success) {
-        const d = result.data;
-        setAlertRules(d?.rules || []);
-        setActiveAlerts(d?.active || []);
-        setAlertHistory(d?.history || []);
-        setAlertProperties(d?.properties || []);
+        setActiveAlerts(result.data?.active || []);
       }
     } catch {
       // silent
     }
-  }, [selectedAlertProperty]);
+  }, []);
 
   useEffect(() => {
-    fetchAlerts();
-    const interval = setInterval(fetchAlerts, 15000);
+    fetchActiveAlerts();
+    const interval = setInterval(fetchActiveAlerts, 30000);
     return () => clearInterval(interval);
-  }, [fetchAlerts]);
+  }, [fetchActiveAlerts]);
 
   // --- Fetch active users + RRD usernames ---
   const fetchUsers = useCallback(async () => {
@@ -2110,97 +2088,7 @@ function SystemHealthTab() {
     return () => { cancelled = true; };
   }, [sessionHistRange, authHistRange]);
 
-  // --- Acknowledge alert ---
-  const handleAckAlert = async (alertId: string) => {
-    try {
-      const res = await fetch('/api/wifi/health?action=acknowledge-alert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alertId }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        // Update local state: mark as acknowledged (not remove)
-        setActiveAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status: 'acknowledged' } : a));
-        toast({ title: 'Alert Acknowledged' });
-      } else {
-        toast({ title: 'Error', description: result.error || 'Failed to acknowledge alert', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Error', description: 'Failed to acknowledge alert', variant: 'destructive' });
-    }
-  };
 
-  // --- Save alert rules ---
-  const handleSaveRule = async () => {
-    if (!newRule.threshold) return;
-    try {
-      const rulePayload: any = {
-        ...newRule,
-        threshold: parseFloat(newRule.threshold),
-        enabled: true,
-      };
-      // Only send propertyId if selected
-      if (selectedAlertProperty) rulePayload.propertyId = selectedAlertProperty;
-      // Clear interfaceName for non-interface metrics
-      if (newRule.metric !== 'interface_rx' && newRule.metric !== 'interface_tx') {
-        rulePayload.interfaceName = undefined;
-      }
-      const res = await fetch('/api/wifi/health?action=set-alert-rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rules: [...alertRules, rulePayload] }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        toast({ title: 'Rule Saved' });
-        setShowAddRule(false);
-        setNewRule({ metric: 'cpu', operator: '>', threshold: '', label: '', cooldownSec: 300, propertyId: '', interfaceName: '' });
-        fetchAlerts();
-      } else {
-        toast({ title: 'Error', description: result.error || 'Failed to save rule', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Error', description: 'Failed to save rule', variant: 'destructive' });
-    }
-  };
-
-  // --- Toggle rule ---
-  const handleToggleRule = async (ruleId: string, enabled: boolean) => {
-    try {
-      const res = await fetch('/api/wifi/health?action=set-alert-rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rules: alertRules.map(r => r.id === ruleId ? { ...r, enabled } : r),
-        }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        setAlertRules(prev => prev.map(r => r.id === ruleId ? { ...r, enabled } : r));
-      }
-    } catch { /* silent */ }
-  };
-
-  // --- Delete rule ---
-  const handleDeleteRule = async (ruleId: string) => {
-    try {
-      const res = await fetch('/api/wifi/health?action=delete-alert-rule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ruleId }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        toast({ title: 'Rule Deleted' });
-        fetchAlerts();
-      } else {
-        toast({ title: 'Error', description: result.error || 'Failed to delete rule', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Error', description: 'Failed to delete rule', variant: 'destructive' });
-    }
-  };
 
   // --- Derived values ---
   const cpuPct = metrics?.cpu?.usage ?? 0;
@@ -2404,13 +2292,12 @@ function SystemHealthTab() {
 
   return (
     <Tabs defaultValue="overview" className="space-y-4">
-      <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:w-auto lg:inline-grid">
+      <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:w-auto lg:inline-grid">
         <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
         <TabsTrigger value="interfaces" className="text-xs sm:text-sm">Interfaces</TabsTrigger>
         <TabsTrigger value="resources" className="text-xs sm:text-sm">Resources</TabsTrigger>
         <TabsTrigger value="users" className="text-xs sm:text-sm">Active Users</TabsTrigger>
         <TabsTrigger value="pool-bw" className="text-xs sm:text-sm">Pool BW</TabsTrigger>
-        <TabsTrigger value="alerts" className="text-xs sm:text-sm">Alerts</TabsTrigger>
       </TabsList>
 
       {/* ==================== SUB-TAB 1: OVERVIEW ==================== */}
@@ -2503,41 +2390,6 @@ function SystemHealthTab() {
           </CardContent>
         </Card>
 
-        {/* Bottom: Active alerts panel */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Active Alerts
-              {activeAlerts.length > 0 && (
-                <Badge variant="destructive" className="ml-1">{activeAlerts.length}</Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {activeAlerts.length === 0 ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-                <CheckCircle2 className="h-4 w-4 text-primary" />
-                No active alerts — everything looks good!
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {activeAlerts.map((alert: any) => (
-                  <div key={alert.id} className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700 p-3">
-                    <AlertTriangle className="h-4 w-4 text-amber-500 dark:text-amber-400 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{alert.label || `${alert.metric} ${alert.operator} ${alert.threshold}`}</p>
-                      <p className="text-xs text-muted-foreground">Value: <span className="font-mono tabular-nums">{alert.value}</span> · Triggered {alert.triggeredAt ? new Date(alert.triggeredAt).toLocaleString() : 'recently'}</p>
-                    </div>
-                    {alert.status !== 'acknowledged' && (
-                      <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => handleAckAlert(alert.id)}>Acknowledge</Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </TabsContent>
 
       {/* ==================== SUB-TAB 2: INTERFACES ==================== */}
@@ -3367,334 +3219,6 @@ function SystemHealthTab() {
         </Card>
       </TabsContent>
 
-      {/* ==================== SUB-TAB 5: ALERTS ==================== */}
-      <TabsContent value="alerts" className="space-y-4">
-        {/* Property selector — bind alerts to the hardware box's property location */}
-        {alertProperties.length > 0 && (
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-sm font-medium whitespace-nowrap">Hardware Box Location</Label>
-                <Select
-                  value={selectedAlertProperty}
-                  onValueChange={v => setSelectedAlertProperty(v === 'all' ? '' : v)}
-                >
-                  <SelectTrigger className="w-full max-w-xs">
-                    <SelectValue placeholder="All Properties" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Properties</SelectItem>
-                    {alertProperties.map((p: any) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}{p.city ? ` — ${p.city}` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <span className="text-xs text-muted-foreground">
-                  {selectedAlertProperty
-                    ? 'Showing alerts for selected property'
-                    : 'Showing alerts across all properties'}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Alert Rules Configuration */}
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Settings className="h-4 w-4 text-muted-foreground" /> Alert Rules
-                <span className="text-xs text-muted-foreground font-normal">
-                  ({alertRules.length} rule{alertRules.length !== 1 ? 's' : ''})
-                </span>
-              </CardTitle>
-              <Button size="sm" onClick={() => {
-                // Pre-populate interface list from current metrics when opening dialog
-                if (metrics?.interfaces) {
-                  setAvailableInterfaces(
-                    (metrics.interfaces as any[])
-                      .map((i: any) => i.name)
-                      .filter((n: string) => n !== 'lo')
-                  );
-                }
-                setShowAddRule(true);
-              }}>
-                <Plus className="h-3 w-3 mr-1.5" /> Add Rule
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 overflow-hidden">
-            <div className="max-h-72 overflow-x-auto overflow-y-auto">
-              <Table className="min-w-max">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs whitespace-nowrap">Metric</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap">Condition</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap text-right">Threshold</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap">Label</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap text-center">Cooldown</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap text-center">Enabled</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap text-center">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {alertRules.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
-                        No alert rules configured for this {selectedAlertProperty ? 'property' : 'scope'}
-                      </TableCell>
-                    </TableRow>
-                  ) : alertRules.map((rule: any) => (
-                    <TableRow key={rule.id} className={!rule.enabled ? 'opacity-50' : ''}>
-                      <TableCell className="font-medium text-sm">
-                        <div className="flex items-center gap-1.5">
-                          <span className="capitalize">{rule.metric.replace(/_/g, ' ')}</span>
-                          {rule.interfaceName && (
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 font-mono">{rule.interfaceName}</Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">{rule.operator}</TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">{rule.threshold}</TableCell>
-                      <TableCell className="text-sm max-w-[200px] truncate">{rule.label || '—'}</TableCell>
-                      <TableCell className="text-center text-xs text-muted-foreground tabular-nums">
-                        {rule.cooldownSec >= 60
-                          ? `${Math.floor(rule.cooldownSec / 60)}m`
-                          : `${rule.cooldownSec}s`}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Switch checked={rule.enabled} onCheckedChange={(checked) => handleToggleRule(rule.id, checked)} />
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                          onClick={() => handleDeleteRule(rule.id)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Active Alerts */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-              Active Alerts
-              {activeAlerts.length > 0 && <Badge variant="destructive" className="ml-1">{activeAlerts.length}</Badge>}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {activeAlerts.length === 0 ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-                <CheckCircle2 className="h-4 w-4 text-primary" />
-                All clear — no active alerts
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-72 overflow-y-auto">
-                {activeAlerts.map((alert: any) => (
-                  <div key={alert.id} className={cn(
-                    'flex items-center gap-3 rounded-lg border p-3',
-                    alert.status === 'acknowledged'
-                      ? 'border-slate-200 bg-slate-50 dark:bg-slate-900/20 dark:border-slate-700'
-                      : 'border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700'
-                  )}>
-                    <AlertTriangle className={cn('h-4 w-4 shrink-0', alert.status === 'acknowledged' ? 'text-muted-foreground' : 'text-amber-500 dark:text-amber-400')} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">
-                        {alert.label || `${alert.metric} ${alert.operator} ${alert.threshold}`}
-                        {alert.interfaceName && (
-                          <span className="ml-1.5 font-mono text-xs text-muted-foreground">[{alert.interfaceName}]</span>
-                        )}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Current: <span className="font-mono tabular-nums">{alert.value}</span>
-                        {' '}· Threshold: <span className="font-mono">{alert.threshold}</span>
-                        {alert.triggeredAt && <span className="ml-2">{new Date(alert.triggeredAt).toLocaleString()}</span>}
-                      </p>
-                    </div>
-                    {alert.status !== 'acknowledged' && (
-                      <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => handleAckAlert(alert.id)}>
-                        <Check className="h-3 w-3 mr-1" /> Ack
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Alert History */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <History className="h-4 w-4 text-muted-foreground" /> Alert History
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {alertHistory.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">No resolved alerts in history</p>
-            ) : (
-              <ScrollArea className="max-h-64">
-                <div className="space-y-1.5">
-                  {alertHistory.map((item: any, idx: number) => (
-                    <div key={idx} className="flex items-center gap-3 rounded-md border border-border/50 px-3 py-2 text-sm">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="truncate">
-                          {item.label || `${item.metric} ${item.operator} ${item.threshold}`}
-                          {item.interfaceName && (
-                            <span className="ml-1.5 font-mono text-xs text-muted-foreground">[{item.interfaceName}]</span>
-                          )}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Triggered: {item.triggeredAt ? new Date(item.triggeredAt).toLocaleString() : '—'}
-                          {item.resolvedAt && <span> · Resolved: {new Date(item.resolvedAt).toLocaleString()}</span>}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Add Rule Dialog */}
-        <Dialog open={showAddRule} onOpenChange={(open) => {
-          setShowAddRule(open);
-          if (!open) setNewRule({ metric: 'cpu', operator: '>', threshold: '', label: '', cooldownSec: 300, propertyId: '', interfaceName: '' });
-        }}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Add Alert Rule</DialogTitle>
-              <DialogDescription>
-                Configure a new alert threshold for system monitoring.
-                {selectedAlertProperty && (
-                  <span className="block mt-1 text-xs">
-                    Bound to property: <span className="font-medium">{alertProperties.find((p: any) => p.id === selectedAlertProperty)?.name || selectedAlertProperty}</span>
-                  </span>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="space-y-2">
-                <Label>Metric</Label>
-                <Select value={newRule.metric} onValueChange={v => setNewRule(p => ({ ...p, metric: v, interfaceName: '' }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cpu">CPU Usage (%)</SelectItem>
-                    <SelectItem value="memory">RAM Usage (%)</SelectItem>
-                    <SelectItem value="disk">Disk Usage (%)</SelectItem>
-                    <SelectItem value="interface_rx">Interface RX Speed (bytes/s)</SelectItem>
-                    <SelectItem value="interface_tx">Interface TX Speed (bytes/s)</SelectItem>
-                    <SelectItem value="active_sessions">Active WiFi Sessions</SelectItem>
-                    <SelectItem value="auth_reject_rate">Auth Reject Rate (%)</SelectItem>
-                    <SelectItem value="radius_health">RADIUS Health (1=up, 0=down)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Interface selector — shown only for interface metrics */}
-              {(newRule.metric === 'interface_rx' || newRule.metric === 'interface_tx') && (
-                <div className="space-y-2">
-                  <Label>Network Interface</Label>
-                  <Select value={newRule.interfaceName} onValueChange={v => setNewRule(p => ({ ...p, interfaceName: v }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select interface..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableInterfaces.length === 0 ? (
-                        <SelectItem value="__none" disabled>No interfaces detected</SelectItem>
-                      ) : (
-                        availableInterfaces.map(name => (
-                          <SelectItem key={name} value={name}>{name}</SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                  {availableInterfaces.length === 0 && (
-                    <p className="text-xs text-muted-foreground">Interfaces will appear once system metrics are available.</p>
-                  )}
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Operator</Label>
-                  <Select value={newRule.operator} onValueChange={v => setNewRule(p => ({ ...p, operator: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value=">">&gt; Greater than</SelectItem>
-                      <SelectItem value=">=">&ge; Greater or equal</SelectItem>
-                      <SelectItem value="<">&lt; Less than</SelectItem>
-                      <SelectItem value="<=">&le; Less or equal</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Threshold</Label>
-                  <Input
-                    type="number"
-                    value={newRule.threshold}
-                    onChange={e => setNewRule(p => ({ ...p, threshold: e.target.value }))}
-                    placeholder="e.g. 85"
-                    className="tabular-nums"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Cooldown (seconds)</Label>
-                  <Input
-                    type="number"
-                    min={30}
-                    value={newRule.cooldownSec}
-                    onChange={e => setNewRule(p => ({ ...p, cooldownSec: parseInt(e.target.value) || 300 }))}
-                    placeholder="300"
-                    className="tabular-nums"
-                  />
-                  <p className="text-xs text-muted-foreground">Min 30s. Time before re-alerting.</p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Label (optional)</Label>
-                  <Input
-                    value={newRule.label}
-                    onChange={e => setNewRule(p => ({ ...p, label: e.target.value }))}
-                    placeholder="e.g. High CPU warning"
-                  />
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowAddRule(false)}>Cancel</Button>
-              <Button
-                onClick={handleSaveRule}
-                disabled={
-                  !newRule.threshold ||
-                  ((newRule.metric === 'interface_rx' || newRule.metric === 'interface_tx') && !newRule.interfaceName)
-                }
-              >
-                Save Rule
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </TabsContent>
     </Tabs>
   );
 }
