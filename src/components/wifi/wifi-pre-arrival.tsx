@@ -678,8 +678,8 @@ export default function WifiPreArrival() {
       </div>
 
       {/* ── Delivery Logs ──────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3">
+      <Card className="max-h-[70vh] overflow-hidden flex flex-col">
+        <CardHeader className="pb-3 shrink-0">
           <div className="flex flex-col sm:flex-row justify-between gap-3">
             <div>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -715,7 +715,7 @@ export default function WifiPreArrival() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 flex-1 overflow-y-auto min-h-0">
           {logsLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -730,15 +730,14 @@ export default function WifiPreArrival() {
             </div>
           ) : (
             <>
-              <div className="max-h-[400px] overflow-y-auto overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="sticky top-0 bg-card z-10">Guest</TableHead>
-                      <TableHead className="sticky top-0 bg-card z-10">Channel</TableHead>
-                      <TableHead className="sticky top-0 bg-card z-10">Status</TableHead>
-                      <TableHead className="sticky top-0 bg-card z-10">Sent At</TableHead>
-                      <TableHead className="sticky top-0 bg-card z-10">Error</TableHead>
+                      <TableHead>Guest</TableHead>
+                      <TableHead>Channel</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Sent At</TableHead>
+                      <TableHead>Error</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -795,7 +794,6 @@ export default function WifiPreArrival() {
                     ))}
                   </TableBody>
                 </Table>
-              </div>
               {logsTotalPages > 1 && (
                 <div className="flex items-center justify-between border-t px-4 py-3">
                   <p className="text-xs text-muted-foreground">
