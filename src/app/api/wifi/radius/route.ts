@@ -2654,6 +2654,8 @@ export async function POST(request: NextRequest) {
           const validUntilDate = new Date(Date.now() + planValidityMinutes * 60 * 1000);
 
           // Create WiFiUser + RADIUS records in transaction
+          // Pre-declare effectiveGroup so it's accessible outside the transaction
+          let effectiveGroup: string | null = null;
           const wifiUser = await db.$transaction(async (tx) => {
             // 1. Create WiFiUser
             const user = await tx.wiFiUser.create({
@@ -2739,7 +2741,7 @@ export async function POST(request: NextRequest) {
             }
 
             // 6. Create radusergroup — group/plan assignment (must come from real WiFiPlan)
-            const effectiveGroup = group || (effectivePlan
+            effectiveGroup = group || (effectivePlan
               ? planNameToGroupName(effectivePlan.name, effectivePlan.id)
               : null);
             if (effectiveGroup) {

@@ -93,10 +93,10 @@ export async function GET(request: NextRequest) {
 
       // Daily auth trend (last N days)
       db.$queryRaw<Array<{ date: string; auths: number; revenue: number }>>`
-        SELECT DATE(createdAt) as date, COUNT(*) as auths, SUM(costToPartner) as revenue
+        SELECT DATE("createdAt") as date, COUNT(*) as auths, SUM("costToPartner") as revenue
         FROM "WiFiPartnerAuth"
-        WHERE "tenantId" = ${tenantId}::uuid AND "createdAt" >= ${since.toISOString()}
-        GROUP BY DATE(createdAt)
+        WHERE "tenantId" = ${tenantId}::uuid AND "createdAt" >= ${since}::timestamptz
+        GROUP BY DATE("createdAt")
         ORDER BY date ASC
       `,
     ]);

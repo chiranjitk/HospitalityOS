@@ -1797,6 +1797,11 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(username.trim(), 'Access-Accept', request, `pool:${pool.poolName}`);
+
+        // Create accounting session BEFORE using sessionId in logIdentityVerification
+        let pmsCredSessionId: string | null = null;
+        pmsCredSessionId = await createAccountingSession(username.trim(), request, 'portal', effectiveMac, pool, wifiUser.propertyId);
+
         logIdentityVerification({
           tenantId: wifiUser.tenantId,
           propertyId: wifiUser.propertyId,
@@ -1808,8 +1813,6 @@ export async function POST(request: NextRequest) {
           ipAddress: getClientIpString(request),
           macAddress: effectiveMac,
         });
-        let pmsCredSessionId: string | null = null;
-        pmsCredSessionId = await createAccountingSession(username.trim(), request, 'portal', effectiveMac, pool, wifiUser.propertyId);
 
         // ── Calculate plan validity for session timeout & display ──
         // validUntil is NOT reset here — it was set ONCE at user creation.
