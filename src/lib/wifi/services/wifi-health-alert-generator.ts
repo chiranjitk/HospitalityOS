@@ -11,11 +11,14 @@
  *   4. Dedup: skip if an active alert already exists for the same NAS IP + type
  *   5. Auto-resolve: if a previously-offline NAS is back online, resolve its alert
  *
- * Alert rules:
+ * Alert rules (configurable per-property via WiFiAlertConfig):
  *   - NAS went offline        → type: nas_offline, severity: critical
- *   - NAS latency > 200ms    → type: latency,     severity: warning
- *   - NAS latency > 500ms    → type: latency,     severity: critical
+ *   - NAS latency > warning  → type: latency,     severity: warning
+ *   - NAS latency > critical → type: latency,     severity: critical
  *   - NAS came back online   → auto-resolve active nas_offline alert
+ *
+ * Thresholds are read from WiFiAlertConfig table (global or per-property override).
+ * Falls back to defaults: warning=200ms, critical=500ms.
  */
 
 import { db } from '@/lib/db';
@@ -31,11 +34,77 @@ import { dispatchAlertNotifications } from './wifi-alert-notifier';
 /** How far back to look for NasHealthLog offline entries (seconds) */
 const OFFLINE_TRANSITION_WINDOW_SEC = 120;
 
-/** Latency threshold for warning alerts (ms) */
-const LATENCY_WARNING_MS = 200;
+/** Default latency thresholds (used when no DB config exists) */
+const DEFAULT_LATENCY_WARNING_MS = 200;
+const DEFAULT_LATENCY_CRITICAL_MS = 500;
 
-/** Latency threshold for critical alerts (ms) */
-const LATENCY_CRITICAL_MS = 500;
+// ─── Config cache (in-memory, refreshed each cycle) ──────────────────────────
+interface AlertThresholds {
+  latencyWarningMs: number;
+  latencyCriticalMs: number;
+  enabled: boolean;
+}
+
+let configCache: Map<string, AlertThresholds> | null = null;
+let configCacheTime = 0;
+const CONFIG_CACHE_TTL_MS = 30_000; // 30 seconds
+
+/**
+ * Load alert configs from DB, grouped by (tenantId, propertyId).
+ * Returns a Map where key = propertyId or '__global__' for tenant-level defaults.
+ */
+async function loadConfigs(): Promise<Map<string, AlertThresholds>> {
+  const now = Date.now();
+  if (configCache && (now - configCacheTime) < CONFIG_CACHE_TTL_MS) {
+    return configCache;
+  }
+
+  const configs = await db.wiFiAlertConfig.findMany({
+    where: { enabled: true },
+  });
+
+  const map = new Map<string, AlertThresholds>();
+  for (const c of configs) {
+    const key = c.propertyId || `__global_${c.tenantId}`;
+    map.set(key, {
+      latencyWarningMs: c.latencyWarningMs,
+      latencyCriticalMs: c.latencyCriticalMs,
+      enabled: c.enabled,
+    });
+  }
+
+  configCache = map;
+  configCacheTime = now;
+  return map;
+}
+
+/**
+ * Get thresholds for a specific tenant + property.
+ * Falls back to global config, then to defaults.
+ */
+async function getThresholds(
+  tenantId: string,
+  propertyId: string | null,
+): Promise<AlertThresholds> {
+  const configs = await loadConfigs();
+
+  // Try property-specific first
+  if (propertyId) {
+    const propConfig = configs.get(propertyId);
+    if (propConfig) return propConfig;
+  }
+
+  // Fall back to tenant global
+  const globalConfig = configs.get(`__global_${tenantId}`);
+  if (globalConfig) return globalConfig;
+
+  // Hardcoded defaults
+  return {
+    latencyWarningMs: DEFAULT_LATENCY_WARNING_MS,
+    latencyCriticalMs: DEFAULT_LATENCY_CRITICAL_MS,
+    enabled: true,
+  };
+}
 
 // ────────────────────────────────────────────────────────────
 // Main Function

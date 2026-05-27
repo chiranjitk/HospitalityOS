@@ -4981,6 +4981,7 @@ model Property {
   tcsRecords                TcsRecord[]
   tdsRecords                TdsRecord[]
   wifiAlerts                WiFiAlert[]
+  wifiAlertConfigs           WiFiAlertConfig[]
   wifiDevices               WiFiDevice[]
   wifiConsentLogs           WiFiConsentLog[]
   wifiIdentityLogs          WiFiIdentityLog[]
@@ -6875,6 +6876,7 @@ model Tenant {
   wifiUsers                 WiFiUser[]
   vouchers                  WiFiVoucher[]
   wifiAlerts                WiFiAlert[]
+  wifiAlertConfigs           WiFiAlertConfig[]
   wifiDevices               WiFiDevice[]
   wifiConsentLogs           WiFiConsentLog[]
   wifiIdentityLogs          WiFiIdentityLog[]
@@ -8202,6 +8204,25 @@ model WiFiAlert {
   @@index([severity])
   @@index([type])
   @@index([createdAt])
+}
+
+/// WiFi Health Alert Configuration — Thresholds and settings for alert generation
+/// One config per tenant (global), with optional per-property overrides.
+model WiFiAlertConfig {
+  id                  String    @id @default(uuid()) @db.Uuid
+  tenantId            String    @db.Uuid
+  propertyId          String?   @db.Uuid // null = tenant-level defaults
+  latencyWarningMs    Int       @default(200) // Latency threshold for warning (ms)
+  latencyCriticalMs   Int       @default(500) // Latency threshold for critical (ms)
+  enabled             Boolean   @default(true) // Master switch for this config
+  createdAt           DateTime  @default(now()) @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @db.Timestamptz
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property            Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, propertyId])
+  @@index([tenantId])
+  @@index([propertyId])
 }
 
 /// Multi-Device Registration (F9) — Track guest devices for auto-authentication
