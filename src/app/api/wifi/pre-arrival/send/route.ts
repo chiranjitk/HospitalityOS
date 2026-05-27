@@ -366,14 +366,17 @@ export async function POST(request: NextRequest) {
       results.push({ channel: 'sms', status: 'skipped', error: 'Guest phone not available' });
     }
 
-    // 6. Mark booking pre-arrival sent (even if partial failure — at least we attempted)
-    await db.booking.update({
-      where: { id: bookingId },
-      data: { preArrivalSent: true },
-    });
-
+    // 6. Mark booking pre-arrival sent ONLY if at least one channel succeeded
+    // This matches the cron scheduler behavior — allows retry on full failure
     const delivered = results.filter((r) => r.status === 'sent').length;
     const overallSuccess = delivered > 0;
+
+    if (overallSuccess) {
+      await db.booking.update({
+        where: { id: bookingId },
+        data: { preArrivalSent: true },
+      });
+    }
 
     return NextResponse.json({
       success: overallSuccess,

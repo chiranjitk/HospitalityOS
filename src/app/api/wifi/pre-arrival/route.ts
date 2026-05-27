@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/tenant-context';
 
-// GET /api/wifi/pre-arrival — List all pre-arrival configs
+// GET /api/wifi/pre-arrival — List ALL properties with their pre-arrival configs
+// Returns every property in the tenant, even those without a config yet.
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
@@ -11,22 +12,30 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const propertyId = searchParams.get('propertyId');
 
-    const where: Record<string, unknown> = { tenantId: auth.tenantId };
+    const propertyWhere: Record<string, unknown> = { tenantId: auth.tenantId, status: 'active' };
     if (propertyId) {
-      where.propertyId = propertyId;
+      propertyWhere.id = propertyId;
+    }
+
+    // Fetch all active properties for the tenant
+    const properties = await db.property.findMany({
+      where: propertyWhere,
+      select: { id: true, name: true, logo: true, city: true, country: true },
+      orderBy: { name: 'asc' },
+    });
+
+    // Fetch all existing configs for this tenant
+    const configWhere: Record<string, unknown> = { tenantId: auth.tenantId };
+    if (propertyId) {
+      configWhere.propertyId = propertyId;
     }
 
     const configs = await db.wiFiPreArrivalConfig.findMany({
-      where,
-      include: {
-        property: {
-          select: { id: true, name: true, logo: true },
-        },
-      },
+      where: configWhere,
       orderBy: { createdAt: 'desc' },
     });
 
-    // Enrich with plan data (no relation in schema, lookup separately)
+    // Enrich configs with property + plan data
     const planIds = [...new Set(configs.map((c) => c.planId).filter(Boolean))] as string[];
     let planMap: Record<string, { id: string; name: string; downloadSpeed: number; uploadSpeed: number }> = {};
     if (planIds.length > 0) {
@@ -37,20 +46,31 @@ export async function GET(request: NextRequest) {
       planMap = Object.fromEntries(plans.map((p) => [p.id, p]));
     }
 
-    const enrichedConfigs = configs.map((c) => ({
-      ...c,
-      plan: c.planId ? (planMap[c.planId] ?? null) : null,
+    const configByPropertyId = Object.fromEntries(
+      configs.map((c) => [
+        c.propertyId,
+        {
+          ...c,
+          property: properties.find((p) => p.id === c.propertyId) || { id: c.propertyId, name: 'Unknown', logo: null },
+          plan: c.planId ? (planMap[c.planId] ?? null) : null,
+        },
+      ]),
+    );
+
+    // Build response: every property, with config if it exists
+    const data = properties.map((property) => ({
+      property,
+      config: configByPropertyId[property.id] ?? null,
     }));
 
-    // Count enabled properties for summary
     const enabledCount = configs.filter((c) => c.enabled).length;
-    const totalProperties = configs.length;
 
     return NextResponse.json({
       success: true,
-      data: enrichedConfigs,
+      data,
       summary: {
-        totalProperties,
+        totalProperties: properties.length,
+        configuredProperties: configs.length,
         enabledProperties: enabledCount,
       },
     });

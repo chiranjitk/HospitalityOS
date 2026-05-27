@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -9,7 +9,6 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -52,13 +51,11 @@ import {
   QrCode,
   Settings,
   Send,
-  CheckCircle,
   AlertCircle,
   Loader2,
   Building2,
   RefreshCw,
   Eye,
-  EyeOff,
   BarChart3,
   TrendingUp,
   Power,
@@ -67,10 +64,13 @@ import {
   CheckCircle2,
   AlertTriangle,
   Smartphone,
+  Plus,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -80,6 +80,14 @@ interface WiFiPlan {
   name: string;
   downloadSpeed: number;
   uploadSpeed: number;
+}
+
+interface PropertyInfo {
+  id: string;
+  name: string;
+  logo: string | null;
+  city?: string | null;
+  country?: string | null;
 }
 
 interface PreArrivalConfig {
@@ -97,12 +105,13 @@ interface PreArrivalConfig {
   planId: string | null;
   createdAt: string;
   updatedAt: string;
-  property: {
-    id: string;
-    name: string;
-    logo: string | null;
-  };
+  property: PropertyInfo;
   plan: WiFiPlan | null;
+}
+
+interface PropertyWithConfig {
+  property: PropertyInfo;
+  config: PreArrivalConfig | null;
 }
 
 interface DeliveryLog {
@@ -162,11 +171,12 @@ const TEMPLATE_VARIABLES = [
 export default function WifiPreArrival() {
   const { toast } = useToast();
 
-  // Data state
-  const [configs, setConfigs] = useState<PreArrivalConfig[]>([]);
+  // Data state — now property-centric
+  const [properties, setProperties] = useState<PropertyWithConfig[]>([]);
   const [plans, setPlans] = useState<WiFiPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState<string | null>(null); // config id being saved
+  const [isSaving, setIsSaving] = useState<string | null>(null);
+  const [creatingFor, setCreatingFor] = useState<string | null>(null); // propertyId being created
 
   // Adapter status state
   const [adapterStatus, setAdapterStatus] = useState<AdapterStatus | null>(null);
@@ -184,6 +194,12 @@ export default function WifiPreArrival() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewConfig, setPreviewConfig] = useState<PreArrivalConfig | null>(null);
 
+  // ─── Derived Stats ────────────────────────────────────────────────────
+
+  const configuredProperties = properties.filter((p) => p.config !== null);
+  const enabledProperties = properties.filter((p) => p.config?.enabled);
+  const unconfiguredProperties = properties.filter((p) => p.config === null);
+
   // ─── Fetch Data ───────────────────────────────────────────────────────
 
   const fetchConfigs = useCallback(async () => {
@@ -192,7 +208,7 @@ export default function WifiPreArrival() {
       const res = await fetch('/api/wifi/pre-arrival');
       const result = await res.json();
       if (result.success) {
-        setConfigs(result.data);
+        setProperties(result.data);
       }
     } catch (error) {
       console.error('Error fetching configs:', error);
@@ -269,6 +285,36 @@ export default function WifiPreArrival() {
 
   // ─── Handlers ─────────────────────────────────────────────────────────
 
+  const handleCreateConfig = async (propertyId: string) => {
+    setCreatingFor(propertyId);
+    try {
+      const res = await fetch('/api/wifi/pre-arrival', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          propertyId,
+          enabled: true,
+          hoursBeforeArrival: 24,
+          sendEmail: true,
+          sendSms: true,
+          includeQrCode: true,
+          autoGenerateCreds: true,
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast({ title: 'Config Created', description: 'Pre-arrival delivery enabled for this property' });
+        await fetchConfigs(); // refresh
+      } else {
+        toast({ title: 'Error', description: result.error?.message || 'Failed to create config', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Error', description: 'Failed to create config', variant: 'destructive' });
+    } finally {
+      setCreatingFor(null);
+    }
+  };
+
   const handleToggleEnabled = async (config: PreArrivalConfig) => {
     setIsSaving(config.id);
     try {
@@ -279,8 +325,13 @@ export default function WifiPreArrival() {
       });
       const result = await res.json();
       if (result.success) {
-        setConfigs((prev) =>
-          prev.map((c) => (c.id === config.id ? { ...c, enabled: !config.enabled } : c)),
+        // Update the nested property config
+        setProperties((prev) =>
+          prev.map((p) =>
+            p.config?.id === config.id
+              ? { ...p, config: { ...p.config!, enabled: !config.enabled } }
+              : p,
+          ),
         );
         toast({
           title: config.enabled ? 'Feature Disabled' : 'Feature Enabled',
@@ -306,8 +357,12 @@ export default function WifiPreArrival() {
       });
       const result = await res.json();
       if (result.success) {
-        setConfigs((prev) =>
-          prev.map((c) => (c.id === config.id ? { ...c, ...updates } : c)),
+        setProperties((prev) =>
+          prev.map((p) =>
+            p.config?.id === config.id
+              ? { ...p, config: { ...p.config!, ...updates } }
+              : p,
+          ),
         );
         toast({ title: 'Saved', description: `Settings updated for ${config.property.name}` });
       } else {
@@ -345,10 +400,7 @@ export default function WifiPreArrival() {
     return result;
   };
 
-  // ─── Stats ────────────────────────────────────────────────────────────
-
-  const totalEnabled = configs.filter((c) => c.enabled).length;
-  const totalConfigs = configs.length;
+  // ─── Render ────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
@@ -414,9 +466,9 @@ export default function WifiPreArrival() {
             </div>
             <div>
               <div className="text-2xl font-bold text-cyan-700 dark:text-cyan-300">
-                {totalEnabled}
+                {enabledProperties.length}
                 <span className="text-sm font-normal text-cyan-500/70 dark:text-cyan-400/60">
-                  /{totalConfigs}
+                  /{configuredProperties.length}
                 </span>
               </div>
               <div className="text-xs text-cyan-600/70 dark:text-cyan-400/70 font-medium">
@@ -444,12 +496,12 @@ export default function WifiPreArrival() {
                   'flex items-center gap-3 rounded-lg border p-3',
                   adapterStatus.email.configured
                     ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30'
-                    : 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30',
+                    : 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30',
                 )}>
                   {adapterStatus.email.configured ? (
                     <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
                   ) : (
-                    <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400 shrink-0" />
+                    <Info className="h-5 w-5 text-amber-500 dark:text-amber-400 shrink-0" />
                   )}
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
@@ -461,8 +513,8 @@ export default function WifiPreArrival() {
                         {adapterStatus.email.name || adapterStatus.email.provider}
                       </span>
                     ) : (
-                      <span className="text-xs text-red-600 dark:text-red-400 truncate block">
-                        Not configured
+                      <span className="text-xs text-amber-600 dark:text-amber-400 truncate block">
+                        Using mock (dev) — emails logged to console
                       </span>
                     )}
                   </div>
@@ -473,12 +525,12 @@ export default function WifiPreArrival() {
                   'flex items-center gap-3 rounded-lg border p-3',
                   adapterStatus.sms.configured
                     ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30'
-                    : 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30',
+                    : 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30',
                 )}>
                   {adapterStatus.sms.configured ? (
                     <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
                   ) : (
-                    <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400 shrink-0" />
+                    <Info className="h-5 w-5 text-amber-500 dark:text-amber-400 shrink-0" />
                   )}
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
@@ -490,8 +542,8 @@ export default function WifiPreArrival() {
                         {adapterStatus.sms.name || adapterStatus.sms.provider}
                       </span>
                     ) : (
-                      <span className="text-xs text-red-600 dark:text-red-400 truncate block">
-                        Not configured
+                      <span className="text-xs text-amber-600 dark:text-amber-400 truncate block">
+                        Using mock (dev) — SMS logged to console
                       </span>
                     )}
                   </div>
@@ -499,59 +551,47 @@ export default function WifiPreArrival() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Warning banner for unconfigured providers */}
-          {!adapterStatus.email.configured || !adapterStatus.sms.configured ? (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Communication Provider Missing</AlertTitle>
-              <AlertDescription>
-                {!adapterStatus.email.configured && !adapterStatus.sms.configured
-                  ? 'Email and SMS delivery require configured providers. Configure them in Settings > Integrations.'
-                  : !adapterStatus.email.configured
-                    ? 'Email delivery requires a configured provider. Configure it in Settings > Integrations.'
-                    : 'SMS delivery requires a configured provider. Configure it in Settings > Integrations.'}
-              </AlertDescription>
-            </Alert>
-          ) : null}
         </div>
       )}
 
-      {/* ── Configuration Cards ────────────────────────────────────── */}
-      {isLoading ? (
-        <Card className="p-8">
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        </Card>
-      ) : configs.length === 0 ? (
-        <Card className="p-8">
-          <div className="flex flex-col items-center justify-center text-center py-8">
-            <div className="rounded-full bg-muted/50 p-4 mb-4">
-              <Settings className="h-8 w-8 text-muted-foreground/40" />
+      {/* ── Property Configuration Cards ────────────────────────────── */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium text-muted-foreground">
+          Properties ({properties.length})
+        </h3>
+
+        {isLoading ? (
+          <Card className="p-8">
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-medium text-muted-foreground">No Pre-Arrival Configs Found</h3>
-            <p className="text-sm text-muted-foreground/60 mt-1 max-w-md">
-              Configure pre-arrival WiFi credential delivery for each property. Guests will receive their WiFi credentials before check-in.
-            </p>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {properties.map((item) =>
+              item.config ? (
+                <PropertyConfigCard
+                  key={item.property.id}
+                  config={item.config}
+                  plans={plans}
+                  isSaving={isSaving === item.config.id}
+                  adapterStatus={adapterStatus}
+                  onToggleEnabled={() => handleToggleEnabled(item.config!)}
+                  onSave={(updates) => handleSaveConfig(item.config!, updates)}
+                  onPreview={() => handlePreview(item.config!)}
+                />
+              ) : (
+                <UnconfiguredPropertyCard
+                  key={item.property.id}
+                  property={item.property}
+                  isCreating={creatingFor === item.property.id}
+                  onCreate={() => handleCreateConfig(item.property.id)}
+                />
+              ),
+            )}
           </div>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {configs.map((config) => (
-            <PropertyConfigCard
-              key={config.id}
-              config={config}
-              plans={plans}
-              isSaving={isSaving === config.id}
-              adapterStatus={adapterStatus}
-              onToggleEnabled={() => handleToggleEnabled(config)}
-              onSave={(updates) => handleSaveConfig(config, updates)}
-              onPreview={() => handlePreview(config)}
-            />
-          ))}
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── Delivery Logs ──────────────────────────────────────────── */}
       <Card>
@@ -608,70 +648,70 @@ export default function WifiPreArrival() {
             <>
               <ScrollArea className="max-h-96">
                 <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Guest</TableHead>
-                      <TableHead>Channel</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Sent At</TableHead>
-                      <TableHead>Error</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {logs.map((log) => (
-                      <TableRow key={log.id} className="transition-colors hover:bg-muted/60">
-                        <TableCell>
-                          <div>
-                            <p className="text-sm font-medium">{log.guestName}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {log.channel === 'email' ? log.recipientEmail : log.recipientPhone}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            {log.channel === 'email' ? (
-                              <Mail className="h-3.5 w-3.5 text-blue-500" />
-                            ) : (
-                              <MessageSquare className="h-3.5 w-3.5 text-primary" />
-                            )}
-                            <span className="text-sm capitalize">{log.channel}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={log.status} />
-                        </TableCell>
-                        <TableCell>
-                          {log.sentAt ? (
-                            <span className="text-sm text-muted-foreground">
-                              {format(new Date(log.sentAt), 'MMM d, HH:mm')}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground/50">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {log.errorMessage ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex items-center gap-1 text-red-500 dark:text-red-400 cursor-default">
-                                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                                  <span className="text-xs truncate max-w-[180px]">{log.errorMessage}</span>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom" className="max-w-[300px]">
-                                <p className="text-xs">{log.errorMessage}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          ) : (
-                            <span className="text-muted-foreground/50 text-xs">—</span>
-                          )}
-                        </TableCell>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Guest</TableHead>
+                        <TableHead>Channel</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Sent At</TableHead>
+                        <TableHead>Error</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {logs.map((log) => (
+                        <TableRow key={log.id} className="transition-colors hover:bg-muted/60">
+                          <TableCell>
+                            <div>
+                              <p className="text-sm font-medium">{log.guestName}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {log.channel === 'email' ? log.recipientEmail : log.recipientPhone}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5">
+                              {log.channel === 'email' ? (
+                                <Mail className="h-3.5 w-3.5 text-blue-500" />
+                              ) : (
+                                <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                              )}
+                              <span className="text-sm capitalize">{log.channel}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={log.status} />
+                          </TableCell>
+                          <TableCell>
+                            {log.sentAt ? (
+                              <span className="text-sm text-muted-foreground">
+                                {format(new Date(log.sentAt), 'MMM d, HH:mm')}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-muted-foreground/50">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {log.errorMessage ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center gap-1 text-red-500 dark:text-red-400 cursor-default">
+                                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                    <span className="text-xs truncate max-w-[180px]">{log.errorMessage}</span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="max-w-[300px]">
+                                  <p className="text-xs">{log.errorMessage}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <span className="text-muted-foreground/50 text-xs">—</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               </ScrollArea>
               {/* Pagination */}
@@ -731,9 +771,7 @@ export default function WifiPreArrival() {
                   <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
                     <p className="text-xs text-muted-foreground">Subject: Your WiFi Credentials for {previewConfig.property.name}</p>
                     <Separator />
-                    <p className="text-sm whitespace-pre-wrap">
-                      Dear John,
-                    </p>
+                    <p className="text-sm whitespace-pre-wrap">Dear John,</p>
                     <p className="text-sm whitespace-pre-wrap">
                       {renderPreviewText(previewConfig.smsTemplate || DEFAULT_SMS_TEMPLATE)}
                     </p>
@@ -786,6 +824,53 @@ export default function WifiPreArrival() {
   );
 }
 
+// ─── Unconfigured Property Card ─────────────────────────────────────────
+
+function UnconfiguredPropertyCard({
+  property,
+  isCreating,
+  onCreate,
+}: {
+  property: PropertyInfo;
+  isCreating: boolean;
+  onCreate: () => void;
+}) {
+  return (
+    <Card className="border-dashed border-2 border-muted-foreground/20 hover:border-primary/30 transition-colors">
+      <CardContent className="py-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-muted">
+              <Building2 className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">{property.name}</p>
+              {property.city && (
+                <p className="text-xs text-muted-foreground">{property.city}{property.country ? `, ${property.country}` : ''}</p>
+              )}
+            </div>
+            <Badge variant="outline" className="text-[10px] ml-2">Not Configured</Badge>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onCreate}
+            disabled={isCreating}
+            className="h-8"
+          >
+            {isCreating ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4 mr-2" />
+            )}
+            Enable
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Property Config Card ──────────────────────────────────────────────────
 
 interface PropertyConfigCardProps {
@@ -808,17 +893,15 @@ function PropertyConfigCard({
   onPreview,
 }: PropertyConfigCardProps) {
   const [localConfig, setLocalConfig] = useState({ ...config });
-  const [hasChanges, setHasChanges] = useState(false);
+  const [expanded, setExpanded] = useState(config.enabled);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: sync local state from prop
     setLocalConfig({ ...config });
-    setHasChanges(false);
+    setExpanded(config.enabled);
   }, [config]);
 
   const handleChange = (key: string, value: unknown) => {
     setLocalConfig((prev) => ({ ...prev, [key]: value }));
-    setHasChanges(true);
   };
 
   const handleSave = () => {
@@ -830,11 +913,20 @@ function PropertyConfigCard({
     if (localConfig.autoGenerateCreds !== config.autoGenerateCreds) updates.autoGenerateCreds = localConfig.autoGenerateCreds;
     if (localConfig.planId !== config.planId) updates.planId = localConfig.planId;
     if (localConfig.smsTemplate !== config.smsTemplate) updates.smsTemplate = localConfig.smsTemplate;
-    onSave(updates);
-    setHasChanges(false);
+    if (Object.keys(updates).length > 0) {
+      onSave(updates);
+    }
   };
 
-  const hourOption = HOUR_OPTIONS.find((o) => o.value === localConfig.hoursBeforeArrival);
+  const hasChanges = Object.keys({
+    hoursBeforeArrival: localConfig.hoursBeforeArrival !== config.hoursBeforeArrival,
+    sendEmail: localConfig.sendEmail !== config.sendEmail,
+    sendSms: localConfig.sendSms !== config.sendSms,
+    includeQrCode: localConfig.includeQrCode !== config.includeQrCode,
+    autoGenerateCreds: localConfig.autoGenerateCreds !== config.autoGenerateCreds,
+    planId: localConfig.planId !== config.planId,
+    smsTemplate: localConfig.smsTemplate !== config.smsTemplate,
+  }).some((v) => v);
 
   return (
     <Card className={cn(
@@ -845,26 +937,32 @@ function PropertyConfigCard({
     )}>
       <CardHeader className="pb-3">
         <div className="flex flex-col sm:flex-row justify-between gap-3">
-          <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="flex items-center gap-3 text-left flex-1 min-w-0"
+            onClick={() => setExpanded(!expanded)}
+          >
             <div className={cn(
-              'w-10 h-10 rounded-lg flex items-center justify-center',
+              'w-10 h-10 rounded-lg flex items-center justify-center shrink-0',
               config.enabled
                 ? 'bg-gradient-to-br from-primary to-primary/70'
                 : 'bg-muted',
             )}>
               <Building2 className={cn('h-5 w-5', config.enabled ? 'text-white' : 'text-muted-foreground')} />
             </div>
-            <div>
+            <div className="min-w-0">
               <CardTitle className="text-base flex items-center gap-2">
                 {config.property.name}
                 <StatusBadge status={config.enabled ? 'enabled' : 'disabled'} />
               </CardTitle>
               <CardDescription className="text-xs">
-                Created {format(new Date(config.createdAt), 'MMM d, yyyy')}
+                {config.enabled
+                  ? `${localConfig.hoursBeforeArrival}h before arrival · ${localConfig.sendEmail ? 'Email' : ''}${localConfig.sendEmail && localConfig.sendSms ? ' + ' : ''}${localConfig.sendSms ? 'SMS' : ''}`
+                  : 'Click to expand'}
               </CardDescription>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
+          </button>
+          <div className="flex items-center gap-3 shrink-0">
             <Label htmlFor={`enabled-${config.id}`} className="text-sm font-medium cursor-pointer">
               {config.enabled ? 'Enabled' : 'Disabled'}
             </Label>
@@ -874,11 +972,22 @@ function PropertyConfigCard({
               onCheckedChange={onToggleEnabled}
               disabled={isSaving}
             />
+            {config.enabled && (
+              <button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="p-1 h-8 w-8"
+                onClick={() => setExpanded(!expanded)}
+              >
+                {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+            )}
           </div>
         </div>
       </CardHeader>
 
-      {config.enabled && (
+      {expanded && config.enabled && (
         <CardContent className="pt-0 space-y-4">
           <Separator />
 
@@ -939,14 +1048,14 @@ function PropertyConfigCard({
               label="Email"
               checked={localConfig.sendEmail}
               onChange={(v) => handleChange('sendEmail', v)}
-              disabled={isSaving || !adapterStatus?.email.configured}
+              disabled={isSaving}
             />
             <ToggleSetting
               icon={<MessageSquare className="h-4 w-4 text-primary" />}
               label="SMS"
               checked={localConfig.sendSms}
               onChange={(v) => handleChange('sendSms', v)}
-              disabled={isSaving || !adapterStatus?.sms.configured}
+              disabled={isSaving}
             />
             <ToggleSetting
               icon={<QrCode className="h-4 w-4 text-purple-500" />}
@@ -1009,18 +1118,20 @@ function PropertyConfigCard({
               variant="ghost"
               size="sm"
               onClick={onPreview}
-              className="text-primary hover:text-primary/80 gap-1.5"
+              className="text-xs"
             >
-              <Eye className="h-3.5 w-3.5" />
-              Preview Message
+              <Eye className="h-3.5 w-3.5 mr-1.5" />
+              Preview
             </Button>
             <Button
               size="sm"
               onClick={handleSave}
-              disabled={!hasChanges || isSaving}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+              disabled={isSaving || !hasChanges}
+              className="text-xs"
             >
-              {isSaving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+              {isSaving ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : null}
               Save Changes
             </Button>
           </div>
@@ -1030,14 +1141,34 @@ function PropertyConfigCard({
   );
 }
 
-// ─── Toggle Setting ───────────────────────────────────────────────────────
+// ─── Status Badge ──────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const config: Record<string, { label: string; className: string }> = {
+    enabled: { label: 'Enabled', className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800' },
+    disabled: { label: 'Disabled', className: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border-gray-200 dark:border-gray-700' },
+    sent: { label: 'Sent', className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800' },
+    failed: { label: 'Failed', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800' },
+    pending: { label: 'Pending', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800' },
+  };
+
+  const c = config[status] || config.disabled;
+
+  return (
+    <Badge variant="outline" className={cn('text-[10px] font-medium px-2 py-0', c.className)}>
+      {c.label}
+    </Badge>
+  );
+}
+
+// ─── Toggle Setting ────────────────────────────────────────────────────────
 
 function ToggleSetting({
   icon,
   label,
   checked,
   onChange,
-  disabled = false,
+  disabled,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -1046,49 +1177,18 @@ function ToggleSetting({
   disabled?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2.5">
+    <div className={cn(
+      'flex items-center justify-between rounded-lg border p-3 transition-colors',
+      checked
+        ? 'border-primary/20 bg-primary/5'
+        : 'border-border',
+      disabled && 'opacity-50',
+    )}>
       <div className="flex items-center gap-2">
         {icon}
         <span className="text-sm font-medium">{label}</span>
       </div>
       <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
     </div>
-  );
-}
-
-// ─── Status Badge ─────────────────────────────────────────────────────────
-
-function StatusBadge({ status }: { status: string }) {
-  const variants: Record<string, { color: string; icon: React.ReactNode }> = {
-    sent: {
-      color: 'bg-gradient-to-r from-primary to-primary/70 text-primary-foreground',
-      icon: <CheckCircle className="h-3 w-3 mr-1" />,
-    },
-    enabled: {
-      color: 'bg-primary text-primary-foreground',
-      icon: <CheckCircle className="h-3 w-3 mr-1" />,
-    },
-    failed: {
-      color: 'bg-gradient-to-r from-red-500 to-rose-500 text-white',
-      icon: <AlertCircle className="h-3 w-3 mr-1" />,
-    },
-    pending: {
-      color: 'bg-gradient-to-r from-amber-400 to-yellow-500 text-white',
-      icon: <Clock className="h-3 w-3 mr-1" />,
-    },
-    disabled: {
-      color: 'bg-gradient-to-r from-gray-400 to-gray-500 text-white',
-      icon: <EyeOff className="h-3 w-3 mr-1" />,
-    },
-  };
-
-  const variant = variants[status] || variants.pending;
-  const label = status.charAt(0).toUpperCase() + status.slice(1);
-
-  return (
-    <Badge variant="secondary" className={cn('text-[11px] gap-0.5 px-2 py-0.5', variant.color)}>
-      {variant.icon}
-      {label}
-    </Badge>
   );
 }
