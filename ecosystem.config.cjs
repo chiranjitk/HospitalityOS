@@ -3,15 +3,13 @@ module.exports = {
     {
       name: 'staysuite-freeradius',
       script: '/home/z/my-project/freeradius-install/sbin/radiusd',
-      args: '-d /home/z/my-project/freeradius-install/etc/raddb -f -D /home/z/my-project/freeradius-install/share/freeradius -l /home/z/my-project/freeradius-install/var/log/radiusd/radius.log',
+      args: '-d /home/z/my-project/freeradius-install/etc/raddb -f',
       cwd: '/home/z/my-project',
       interpreter: 'none',
       watch: false,
       autorestart: true,
       env: {
-        LD_LIBRARY_PATH: '/home/z/my-project/freeradius-install/lib:/home/z/my-project/openssl-compat/lib64',
-        OPENSSL_CONF: '/tmp/openssl-radius.cnf',
-        OPENSSL_MODULES: '/home/z/my-project/openssl-compat/lib64/ossl-modules',
+        LD_LIBRARY_PATH: '/home/z/my-project/freeradius-install/lib',
       },
     },
     {
