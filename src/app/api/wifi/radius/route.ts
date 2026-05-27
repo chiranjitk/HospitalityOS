@@ -17,7 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, requirePermission, hasPermission } from '@/lib/auth/tenant-context';
 import { db } from '@/lib/db';
-import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
+import { wifiUserService, planNameToGroupName } from '@/lib/wifi/services/wifi-user-service';
 import { updateUserBandwidthLive } from '@/lib/network/tc-bw-update';
 import { inferDeviceInfo } from '@/lib/mac-vendor-lookup';
 import { RADCLIENT_BIN } from '@/lib/wifi/paths';
@@ -1914,18 +1914,20 @@ export async function POST(request: NextRequest) {
 
               // Get plan
               const plan = user.planId ? plansMap.get(user.planId) : null;
-              const groupName = plan ? `plan_${plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}` : 'default';
+              const groupName = plan ? planNameToGroupName(plan.name, plan.id) : null;
               const op = ':=';
 
-              // Delete+Insert radusergroup
+              // Delete+Insert radusergroup (only if plan resolves to a real group)
               await db.radUserGroup.deleteMany({ where: { username: user.username } });
-              await db.radUserGroup.create({
-                data: {
-                  username: user.username,
-                  groupname: groupName,
-                  priority: 0,
-                },
-              });
+              if (groupName) {
+                await db.radUserGroup.create({
+                  data: {
+                    username: user.username,
+                    groupname: groupName,
+                    priority: 0,
+                  },
+                });
+              }
 
               // Sync plan attributes into radreply
               if (plan) {
@@ -2283,11 +2285,9 @@ export async function POST(request: NextRequest) {
             ]);
           } else if (newStatus === 'active') {
             // Re-enable RADIUS credentials — PRESERVE existing plan/group/attributes
-            // Group name uses same format as sync-users: "plan_" prefix
+            // Group name uses planNameToGroupName() — no arbitrary prefix
             const plan = user.planId ? await db.wiFiPlan.findUnique({ where: { id: user.planId } }) : null;
-            const groupName = plan
-              ? `plan_${plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}` || 'default'
-              : 'default';
+            const groupName = plan ? planNameToGroupName(plan.name, plan.id) : null;
 
             await db.$transaction(async (tx) => {
               // Re-enable existing radcheck entries
@@ -2297,12 +2297,12 @@ export async function POST(request: NextRequest) {
 
               // Preserve existing group — only create/recreate if missing or plan changed
               const existingGroup = await tx.radUserGroup.findFirst({ where: { username: user.username } });
-              if (!existingGroup) {
+              if (!existingGroup && groupName) {
                 await tx.radUserGroup.create({
                   data: { username: user.username, groupname: groupName, priority: 0 },
                 });
-              } else if (plan && !existingGroup.groupname.startsWith('plan_')) {
-                // Fix legacy group names (before plan_ prefix was standardized)
+              } else if (plan && existingGroup && existingGroup.groupname !== groupName) {
+                // Plan changed — update group to match new plan
                 await tx.radUserGroup.updateMany({
                   where: { username: user.username },
                   data: { groupname: groupName },
@@ -2530,16 +2530,16 @@ export async function POST(request: NextRequest) {
             await tx.radCheck.updateMany({ where: { username: user.username }, data: { isActive: true } });
             await tx.radReply.updateMany({ where: { username: user.username }, data: { isActive: true } });
 
-            // 3. Ensure RADIUS group exists
+            // 3. Ensure RADIUS group exists — must come from a real WiFiPlan
             const existingGroup = await tx.radUserGroup.findFirst({ where: { username: user.username } });
             if (!existingGroup) {
               const plan = user.planId ? await tx.wiFiPlan.findUnique({ where: { id: user.planId } }) : null;
-              const groupName = plan
-                ? `plan_${plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}` || 'default'
-                : 'default';
-              await tx.radUserGroup.create({
-                data: { username: user.username, groupname: groupName, priority: 0 },
-              });
+              const groupName = plan ? planNameToGroupName(plan.name, plan.id) : null;
+              if (groupName) {
+                await tx.radUserGroup.create({
+                  data: { username: user.username, groupname: groupName, priority: 0 },
+                });
+              }
             }
 
             // 4. Ensure password check exists
@@ -2738,17 +2738,19 @@ export async function POST(request: NextRequest) {
               });
             }
 
-            // 6. Create radusergroup — group/plan assignment
+            // 6. Create radusergroup — group/plan assignment (must come from real WiFiPlan)
             const effectiveGroup = group || (effectivePlan
-              ? `plan_${effectivePlan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}` || 'default'
-              : 'standard-guests');
-            await tx.radUserGroup.create({
-              data: {
-                username: user.username,
-                groupname: effectiveGroup,
-                priority: 0,
-              },
-            });
+              ? planNameToGroupName(effectivePlan.name, effectivePlan.id)
+              : null);
+            if (effectiveGroup) {
+              await tx.radUserGroup.create({
+                data: {
+                  username: user.username,
+                  groupname: effectiveGroup,
+                  priority: 0,
+                },
+              });
+            }
 
             return user;
           }, { timeout: 15000 });
@@ -2759,9 +2761,7 @@ export async function POST(request: NextRequest) {
               id: wifiUser.id,
               username: wifiUser.username,
               password: wifiUser.password,
-              group: group || (effectivePlan
-                ? `plan_${effectivePlan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}` || 'default'
-                : 'standard-guests'),
+              group: effectiveGroup || 'none',
             },
             message: `User "${username}" created successfully`,
           });
@@ -2840,10 +2840,10 @@ export async function POST(request: NextRequest) {
             });
           }
 
-          // 4. Handle group/plan name change — use same format as sync-users: "plan_" prefix
+          // 4. Handle group/plan name change — use planNameToGroupName() (no arbitrary prefix)
           const effectiveGroup = group || (effectivePlan
-            ? `plan_${effectivePlan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}` || 'default'
-            : undefined);
+            ? planNameToGroupName(effectivePlan.name, effectivePlan.id)
+            : null);
 
           if (effectiveGroup) {
             await db.radUserGroup.deleteMany({ where: { username: existingUser.username } });

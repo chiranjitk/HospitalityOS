@@ -48,7 +48,8 @@ const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3
  * "Free WiFi" → "free_wifi"
  */
 export function planNameToGroupName(planName: string, planId?: string): string {
-  const base = planName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard_guests';
+  const base = planName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  if (!base) throw new Error(`Cannot generate group name from empty plan name: "${planName}"`);
   // Include plan ID suffix to prevent collision between similar plan names
   if (planId) {
     const shortId = planId.replace(/-/g, '').substring(0, 8);
@@ -322,7 +323,7 @@ export class WiFiUserService {
 
         return await db.$transaction(async (tx) => {
           // Resolve plan group name (radusergroup maps username → groupname)
-          let groupName = 'standard-guests'; // default fallback
+          let groupName: string | null = null;
           let planIdleTimeoutSec = 0;
           if (input.planId) {
             const plan = await tx.wiFiPlan.findUnique({
@@ -331,7 +332,7 @@ export class WiFiUserService {
             });
             if (plan) {
               // Convert plan name to a RADIUS-safe group name (lowercase, underscores)
-              groupName = plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard-guests';
+              groupName = planNameToGroupName(plan.name, input.planId);
               // Auto-read idle timeout from plan if not explicitly provided
               if (!input.idleTimeoutSeconds && plan.idleTimeoutSec) {
                 planIdleTimeoutSec = plan.idleTimeoutSec;
@@ -380,8 +381,10 @@ export class WiFiUserService {
             });
             if (planFull) {
               // Check if group already has entries (avoid re-sync on every provision)
-              const existingGroupEntries = await tx.radGroupCheck.count({ where: { groupname: groupName } });
-              if (existingGroupEntries === 0) {
+              const existingGroupEntries = groupName
+                ? await tx.radGroupCheck.count({ where: { groupname: groupName } })
+                : 0;
+              if (existingGroupEntries === 0 && groupName) {
                 // Sync group attributes within the SAME transaction (no nesting)
                 await syncRadiusGroup({
                   id: planFull.id,
@@ -423,7 +426,7 @@ export class WiFiUserService {
           }
 
           // Cryptsk per-user identity VSAs (always at user level — identifies THIS user)
-          if (vendors.includes('cryptsk')) {
+          if (vendors.includes('cryptsk') && groupName) {
             // Cryptsk-User-Profile: plan group name (for policy matching)
             userReplies.push({ attribute: 'Cryptsk-User-Profile', value: groupName });
             // Cryptsk-Plan-Name: human-readable plan name (for display/audit)
@@ -447,13 +450,16 @@ export class WiFiUserService {
           // 5. Create RadUserGroup — maps username to plan group
           //    FreeRADIUS reads group-level attrs via this mapping.
           //    radusergroup → radgroupcheck (access checks) + radgroupreply (authorization)
-          await tx.radUserGroup.create({
-            data: {
-              username,
-              groupname: groupName,
-              priority: 0,
-            },
-          });
+          //    Only create if a real plan group was resolved (no hardcoded fallbacks)
+          if (groupName) {
+            await tx.radUserGroup.create({
+              data: {
+                username,
+                groupname: groupName,
+                priority: 0,
+              },
+            });
+          }
 
           // 6. Per-user Simultaneous-Use override in radcheck (if different from group)
           //    Group already has Simultaneous-Use. This user-level override takes precedence.
@@ -891,8 +897,8 @@ export class WiFiUserService {
         const vendors = await getActiveNASVendors(wifiUser.propertyId);
 
         // Resolve plan group name
-        let groupName = 'standard-guests';
-        let planName = groupName;
+        let groupName: string | null = null;
+        let planName = 'unknown';
 
         if (wifiUser.plan) {
           groupName = planNameToGroupName(wifiUser.plan.name);
@@ -919,7 +925,7 @@ export class WiFiUserService {
 
         // Only write per-user identity VSAs (not plan attributes — those are in the group)
         const replies: Array<{ attribute: string; value: string }> = [];
-        if (vendors.includes('cryptsk')) {
+        if (vendors.includes('cryptsk') && groupName) {
           replies.push(
             { attribute: 'Cryptsk-User-Profile', value: groupName },
             { attribute: 'Cryptsk-Plan-Name', value: planName },
@@ -943,17 +949,19 @@ export class WiFiUserService {
         // Simultaneous-Use is handled at group level (radgroupcheck) — no user-level needed
       }
 
-      // Re-create RadUserGroup if not exists
+      // Re-create RadUserGroup if not exists — only if a real plan group can be resolved
       const existingGroup = await tx.radUserGroup.findFirst({
         where: { username: wifiUser.username },
       });
       if (!existingGroup) {
-        const groupName = wifiUser.plan
+        const resumeGroupName = wifiUser.plan
           ? planNameToGroupName(wifiUser.plan.name)
-          : 'standard-guests';
-        await tx.radUserGroup.create({
-          data: { username: wifiUser.username, groupname: groupName, priority: 0 },
-        });
+          : null;
+        if (resumeGroupName) {
+          await tx.radUserGroup.create({
+            data: { username: wifiUser.username, groupname: resumeGroupName, priority: 0 },
+          });
+        }
       }
 
       return { success: true };

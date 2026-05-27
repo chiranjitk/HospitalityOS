@@ -271,7 +271,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
     userType: 'guest' as 'guest' | 'staff' | 'admin' | 'service',
     planId: '',
     ipPoolId: 'none',
-    group: 'standard-guests',
+    group: '',
     downloadSpeed: 10,
     uploadSpeed: 5,
     sessionTimeout: 1440,
@@ -329,7 +329,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
   // ─── Form Helpers ──────────────────────────────────────────────────────────
 
   const resetForm = () => {
-    setForm({ username: '', password: '', userType: 'guest', planId: '', ipPoolId: 'none', group: 'standard-guests', downloadSpeed: 10, uploadSpeed: 5, sessionTimeout: 1440, dataLimit: 0 });
+    setForm({ username: '', password: '', userType: 'guest', planId: '', ipPoolId: 'none', group: '', downloadSpeed: 10, uploadSpeed: 5, sessionTimeout: 1440, dataLimit: 0 });
     setEditingUser(null);
   };
 
@@ -337,7 +337,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
   const handlePlanSelect = (planId: string) => {
     const plan = wifiPlans.find(p => p.id === planId);
     if (plan) {
-      const groupName = plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard-guests';
+      const groupName = plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || '';
       setForm(prev => ({
         ...prev,
         planId: plan.id,
@@ -386,7 +386,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
       username: user.username,
       password: user.password || '',
       userType: (user.userType as 'guest' | 'staff' | 'admin' | 'service') || 'guest',
-      group: user.group || 'standard-guests',
+      group: user.group || '',
       downloadSpeed: downSpeed,
       uploadSpeed: upSpeed,
       sessionTimeout: sessionMins,
@@ -888,7 +888,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
         continue;
       }
       const userType = (row['User Type'] || row['user_type'] || row['userType'] || 'guest').trim().toLowerCase();
-      const group = (row['Group'] || row['group'] || 'standard-guests').trim();
+      const group = (row['Group'] || row['group'] || '').trim();
       const downloadSpeed = parseInt(row['Download (Mbps)'] || row['download_speed'] || row['downloadSpeed'] || '10') || 10;
       const uploadSpeed = parseInt(row['Upload (Mbps)'] || row['upload_speed'] || row['uploadSpeed'] || '5') || 5;
       const sessionTimeout = parseInt(row['Session Timeout (min)'] || row['session_timeout'] || row['sessionTimeout'] || '1440') || 1440;
@@ -1130,7 +1130,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
               <SelectContent>
                 <SelectItem value="all">All Plans</SelectItem>
                 {wifiPlans.filter(p => p.status === 'active').map(plan => {
-                  const groupName = plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'standard-guests';
+                  const groupName = plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || '';
                   return (
                     <SelectItem key={groupName} value={groupName}>{plan.name}</SelectItem>
                   );
@@ -1270,7 +1270,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                         <TableCell>
                           {getUserStatusBadge(user) || <span className="text-xs text-muted-foreground">—</span>}
                         </TableCell>
-                        <TableCell>{getGroupBadge(user.group || 'standard-guests')}</TableCell>
+                        <TableCell>{getGroupBadge(user.group || 'none')}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <span className="font-mono text-xs">
@@ -1877,7 +1877,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                     <TableCell className="text-xs font-mono">{row['Username'] || row['username'] || '—'}</TableCell>
                     <TableCell className="text-xs font-mono text-muted-foreground">••••••</TableCell>
                     <TableCell className="text-xs">{row['User Type'] || row['user_type'] || row['userType'] || 'guest'}</TableCell>
-                    <TableCell className="text-xs">{row['Group'] || row['group'] || 'standard-guests'}</TableCell>
+                    <TableCell className="text-xs">{row['Group'] || row['group'] || 'none'}</TableCell>
                     <TableCell className="text-xs">{row['Download (Mbps)'] || row['download_speed'] || '10'}</TableCell>
                     <TableCell className="text-xs">{row['Upload (Mbps)'] || row['upload_speed'] || '5'}</TableCell>
                     <TableCell className="text-xs">{row['Session Timeout (min)'] || row['session_timeout'] || '1440'}</TableCell>

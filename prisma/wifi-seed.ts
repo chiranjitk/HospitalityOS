@@ -563,12 +563,12 @@ export async function seedWiFiData() {
   // Uses Cryptsk VSA attributes (Vendor ID 64179) — device IS the NAS gateway.
   await prisma.radGroupCheck.createMany({
     data: [
-      // free_plan group: 5M/2M, 1 session
-      { groupname: 'free_plan', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '5M/2M', priority: 0 },
-      { groupname: 'free_plan', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '5000000', priority: 1 },
-      { groupname: 'free_plan', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '2000000', priority: 2 },
-      { groupname: 'free_plan', attribute: 'Session-Timeout', op: ':=', value: '86400', priority: 3 },
-      { groupname: 'free_plan', attribute: 'Simultaneous-Use', op: ':=', value: '1', priority: 4 },
+      // free_wifi group: 5M/2M, 1 session
+      { groupname: 'free_wifi', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '5M/2M', priority: 0 },
+      { groupname: 'free_wifi', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '5000000', priority: 1 },
+      { groupname: 'free_wifi', attribute: 'Cryptsk-Bandwidth-Max-Up', op: ':=', value: '2000000', priority: 2 },
+      { groupname: 'free_wifi', attribute: 'Session-Timeout', op: ':=', value: '86400', priority: 3 },
+      { groupname: 'free_wifi', attribute: 'Simultaneous-Use', op: ':=', value: '1', priority: 4 },
       // basic_plan group: 10M/5M, 2GB data limit, 2 sessions
       { groupname: 'basic_plan', attribute: 'Cryptsk-Rate-Limit', op: ':=', value: '10M/5M', priority: 0 },
       { groupname: 'basic_plan', attribute: 'Cryptsk-Bandwidth-Max-Down', op: ':=', value: '10000000', priority: 1 },
@@ -610,9 +610,9 @@ export async function seedWiFiData() {
   // WISPr attrs kept for cross-platform compatibility; values in bps per RFC spec.
   await prisma.radGroupReply.createMany({
     data: [
-      // free_plan: 5Mbps/2Mbps
-      { groupname: 'free_plan', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '5000000', priority: 0 },
-      { groupname: 'free_plan', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '2000000', priority: 1 },
+      // free_wifi: 5Mbps/2Mbps
+      { groupname: 'free_wifi', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '5000000', priority: 0 },
+      { groupname: 'free_wifi', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '2000000', priority: 1 },
       // basic_plan: 10Mbps/5Mbps
       { groupname: 'basic_plan', attribute: 'WISPr-Bandwidth-Max-Down', op: ':=', value: '10000000', priority: 0 },
       { groupname: 'basic_plan', attribute: 'WISPr-Bandwidth-Max-Up', op: ':=', value: '5000000', priority: 1 },
