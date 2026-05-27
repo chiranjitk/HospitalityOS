@@ -300,6 +300,35 @@ export async function POST(request: NextRequest) {
               },
             });
             console.log(`[AutoAuth] DeviceProfile upserted for ${_wifiUsername}`);
+
+            // Issue #3: Also sync WiFiDevice registry so admin dashboard stays populated
+            if (formattedMac) {
+              try {
+                const existing = await db.wiFiDevice.findUnique({
+                  where: { tenantId_macAddress: { tenantId: wifiUser.tenantId, macAddress: formattedMac } },
+                  select: { id: true },
+                });
+                if (existing) {
+                  await db.wiFiDevice.update({
+                    where: { id: existing.id },
+                    data: { lastSeen: new Date(), ipAddress: clientIp, userAgent: userAgent?.substring(0, 500), propertyId: wifiUser.propertyId },
+                  });
+                } else if (wifiUser.guestId) {
+                  await db.wiFiDevice.create({
+                    data: {
+                      tenantId: wifiUser.tenantId, guestId: wifiUser.guestId, propertyId: wifiUser.propertyId,
+                      macAddress: formattedMac, deviceName: parseDeviceName(userAgent || ''),
+                      deviceType: parseDeviceType(userAgent || ''), ipAddress: clientIp,
+                      userAgent: userAgent?.substring(0, 500), isApproved: true, autoAuth: true,
+                      firstSeen: new Date(), lastSeen: new Date(),
+                    },
+                  });
+                  console.log(`[AutoAuth] WiFiDevice registry created: ${formattedMac}`);
+                }
+              } catch (deviceErr) {
+                console.warn('[AutoAuth] WiFiDevice registry upsert failed (non-critical):', deviceErr);
+              }
+            }
           }
         } catch (createErr) {
           console.warn('[AutoAuth] Profile creation failed (non-critical):', createErr);

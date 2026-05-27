@@ -9,8 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 import { requireAuth } from '@/lib/auth/tenant-context';
-
-const DEFAULT_MAX_DEVICES = 5;
+import { getWifiSettings } from '@/lib/wifi-settings';
 
 // GET /api/wifi/devices — List registered devices
 export async function GET(request: NextRequest) {
@@ -142,6 +141,37 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Read configurable max devices from WiFiSettings (not hardcoded)
+    const deviceSettings = await getWifiSettings(auth.tenantId, 'device_management');
+    const effectiveMaxDevices = deviceSettings.maxDevicesPerGuest || 5;
+
+    // Also check guest's active WiFi plan for a per-plan device limit (Issue #5)
+    let planMaxDevices: number | null = null;
+    try {
+      const guest = await db.guest.findUnique({
+        where: { id: guestId as string },
+        select: { id: true },
+      });
+      if (guest) {
+        // Look for an active WiFiUser for this guest to find their plan
+        const activeUser = await db.wiFiUser.findFirst({
+          where: { guestId: guest.id, status: 'active' },
+          include: { plan: { select: { maxDevices: true } } },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (activeUser?.plan?.maxDevices) {
+          planMaxDevices = activeUser.plan.maxDevices;
+        }
+      }
+    } catch {
+      // Non-critical — fall back to global limit only
+    }
+
+    // Use the MORE restrictive limit: global setting vs plan-specific
+    const finalLimit = planMaxDevices && planMaxDevices < effectiveMaxDevices
+      ? planMaxDevices
+      : effectiveMaxDevices;
+
     // Count existing devices for this guest
     const deviceCount = await db.wiFiDevice.count({
       where: {
@@ -150,11 +180,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (deviceCount >= DEFAULT_MAX_DEVICES) {
+    if (deviceCount >= finalLimit) {
       return NextResponse.json(
         {
           success: false,
-          error: `Maximum device limit reached (${DEFAULT_MAX_DEVICES} devices per guest)`,
+          error: `Maximum device limit reached (${finalLimit} devices per guest${planMaxDevices && planMaxDevices < effectiveMaxDevices ? ' (limited by WiFi plan)' : ''})`,
         },
         { status: 400 }
       );
@@ -172,7 +202,7 @@ export async function POST(request: NextRequest) {
         ipAddress: (ipAddress as string) || null,
         userAgent: (data.userAgent as string) || null,
         isApproved: true,
-        autoAuth: true,
+        autoAuth: deviceSettings.defaultAutoAuth ?? true,
         firstSeen: new Date(),
         lastSeen: new Date(),
       },

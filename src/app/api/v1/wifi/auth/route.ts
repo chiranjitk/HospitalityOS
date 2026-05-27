@@ -95,7 +95,36 @@ async function upsertDeviceProfileWithFingerprint(params: {
 
   if (!effectiveFingerprint) {
     console.log(`[Auth] No client fingerprint or MAC address — skipping DeviceProfile creation (deferred to auto-auth) [fp=${fingerprintHash || 'null'} mac=${macAddress || 'null'}]`);
+    // Still sync WiFiDevice registry even without fingerprint (Issue #3)
+    if (formattedMac) {
+      await upsertWiFiDeviceRegistry({
+        tenantId, guestId, propertyId, macAddress: formattedMac,
+        deviceName: parseDeviceNameFromUA(request.headers.get('user-agent') || ''),
+        deviceType: parseDeviceTypeFromUA(request.headers.get('user-agent') || ''),
+        ipAddress: getClientIp(request) || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+      });
+    }
     return;
+  }
+
+  // Issue #4: Check if admin has disabled auto-auth for this specific device.
+  // If autoAuth=false in WiFiDevice registry, skip DeviceProfile creation.
+  // The user can still manually authenticate — they just won't auto-authenticate next time.
+  if (formattedMac) {
+    const autoAuthDisabled = await isDeviceAutoAuthDisabled(tenantId, formattedMac);
+    if (autoAuthDisabled) {
+      console.log(`[Auth] Device ${formattedMac} has autoAuth=DISABLED — skipping DeviceProfile creation (manual auth still allowed)`);
+      // Still sync WiFiDevice registry
+      await upsertWiFiDeviceRegistry({
+        tenantId, guestId, propertyId, macAddress: formattedMac,
+        deviceName: parseDeviceNameFromUA(request.headers.get('user-agent') || ''),
+        deviceType: parseDeviceTypeFromUA(request.headers.get('user-agent') || ''),
+        ipAddress: getClientIp(request) || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+      });
+      return;
+    }
   }
 
   console.log(`[Auth] DeviceProfile upsert for ${username}: fp=${effectiveFingerprint ? effectiveFingerprint.substring(0, 16) + '...' : 'none'} mac=${formattedMac || 'none'} synthetic=${isSynthetic}`);
@@ -154,8 +183,112 @@ async function upsertDeviceProfileWithFingerprint(params: {
     } else {
       console.log(`[Auth] DeviceProfile upserted for ${username} (fingerprint: ${fingerprintHash!.substring(0, 12)}...)`);
     }
+
+    // Issue #3: Also sync WiFiDevice registry so admin dashboard stays populated
+    if (formattedMac) {
+      await upsertWiFiDeviceRegistry({
+        tenantId, guestId, propertyId, macAddress: formattedMac,
+        deviceName, deviceType,
+        ipAddress: clientIp,
+        userAgent: userAgent.substring(0, 500),
+      });
+    }
   } catch (err) {
     console.warn('[Auth] DeviceProfile upsert failed (non-critical):', err instanceof Error ? err.message : err);
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// WiFiDevice Registry Sync (Issue #3: keep Device Registry populated)
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Create or update a WiFiDevice record in the admin-facing Device Registry.
+ * Called alongside DeviceProfile creation so the admin dashboard always shows
+ * connected devices — even when registered via captive portal (not manually).
+ *
+ * Uses upsert on (tenantId, macAddress) unique constraint.
+ * Only creates when a MAC address is available.
+ */
+async function upsertWiFiDeviceRegistry(params: {
+  tenantId: string;
+  guestId?: string | null;
+  propertyId: string;
+  macAddress?: string | null;
+  deviceName?: string;
+  deviceType?: string;
+  ipAddress?: string;
+  userAgent?: string;
+}): Promise<void> {
+  if (!params.macAddress) return; // Need MAC to register a device
+
+  const normalizedMac = params.macAddress.replace(/[:\-\.\s]/g, '').toUpperCase();
+  if (!/^[0-9A-F]{12}$/.test(normalizedMac)) return;
+  const formattedMac = normalizedMac.match(/.{2}/g)?.join(':') || null;
+  if (!formattedMac) return;
+
+  try {
+    // Check if device already exists
+    const existing = await db.wiFiDevice.findUnique({
+      where: { tenantId_macAddress: { tenantId: params.tenantId, macAddress: formattedMac } },
+      select: { id: true },
+    });
+
+    if (existing) {
+      await db.wiFiDevice.update({
+        where: { id: existing.id },
+        data: {
+          lastSeen: new Date(),
+          ipAddress: params.ipAddress || undefined,
+          userAgent: params.userAgent?.substring(0, 500),
+          deviceName: params.deviceName || undefined,
+          deviceType: params.deviceType || undefined,
+          propertyId: params.propertyId,
+        },
+      });
+      console.log(`[Auth] WiFiDevice registry updated: ${formattedMac}`);
+    } else if (params.guestId) {
+      await db.wiFiDevice.create({
+        data: {
+          tenantId: params.tenantId,
+          guestId: params.guestId,
+          propertyId: params.propertyId,
+          macAddress: formattedMac,
+          deviceName: params.deviceName || null,
+          deviceType: params.deviceType || 'unknown',
+          ipAddress: params.ipAddress || null,
+          userAgent: params.userAgent?.substring(0, 500),
+          isApproved: true,
+          autoAuth: true,
+          firstSeen: new Date(),
+          lastSeen: new Date(),
+        },
+      });
+      console.log(`[Auth] WiFiDevice registry created: ${formattedMac}`);
+    }
+  } catch (err) {
+    console.warn('[Auth] WiFiDevice registry upsert failed (non-critical):', err instanceof Error ? err.message : err);
+  }
+}
+
+/**
+ * Check if a device has auto-auth DISABLED in the WiFiDevice registry.
+ * Returns true if the device should be BLOCKED from auto-auth DeviceProfile creation.
+ */
+async function isDeviceAutoAuthDisabled(tenantId: string, macAddress: string | null | undefined): Promise<boolean> {
+  if (!macAddress) return false;
+  const normalized = macAddress.replace(/[:\-\.\s]/g, '').toUpperCase();
+  const formatted = /^[0-9A-F]{12}$/.test(normalized) ? normalized.match(/.{2}/g)?.join(':') : null;
+  if (!formatted) return false;
+
+  try {
+    const device = await db.wiFiDevice.findUnique({
+      where: { tenantId_macAddress: { tenantId, macAddress: formatted } },
+      select: { autoAuth: true },
+    });
+    return device ? !device.autoAuth : false;
+  } catch {
+    return false;
   }
 }
 

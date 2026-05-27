@@ -177,6 +177,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Unify maxDevices and sessionLimit: if sessionLimit not explicitly provided,
+    // use maxDevices as the RADIUS Simultaneous-Use value.
+    const effectiveSessionLimit = sessionLimit
+      ? parseInt(sessionLimit, 10)
+      : parseInt(maxDevices, 10);
+
     const plan = await db.wiFiPlan.create({
       data: {
         tenantId,
@@ -187,7 +193,7 @@ export async function POST(request: NextRequest) {
         burstDownloadSpeed: burstDownloadSpeed ? parseInt(burstDownloadSpeed, 10) : null,
         burstUploadSpeed: burstUploadSpeed ? parseInt(burstUploadSpeed, 10) : null,
         dataLimit: dataLimit ? parseInt(dataLimit, 10) : null,
-        sessionLimit: sessionLimit ? parseInt(sessionLimit, 10) : null,
+        sessionLimit: effectiveSessionLimit,
         maxDevices: parseInt(maxDevices, 10),
         ...(fupPolicyId && { fupPolicyId }),
         ...(ipPoolId && { ipPoolId }),
@@ -221,7 +227,8 @@ export async function POST(request: NextRequest) {
     });
 
     // Sync RADIUS group attributes (radgroupcheck/radgroupreply) for this plan
-    await syncRadiusGroup(plan).catch(err => {
+    // sessionLimit (mapped from maxDevices) controls Simultaneous-Use in FreeRADIUS
+    await syncRadiusGroup({ ...plan, sessionLimit: effectiveSessionLimit }).catch(err => {
       console.error('[plans] Failed to sync RADIUS group:', err);
     });
 
@@ -309,6 +316,9 @@ export async function PUT(request: NextRequest) {
         ...(updateData.dataLimit !== undefined && { dataLimit: updateData.dataLimit ? parseInt(updateData.dataLimit, 10) : null }),
         ...(updateData.sessionLimit !== undefined && { sessionLimit: updateData.sessionLimit ? parseInt(updateData.sessionLimit, 10) : null }),
         ...(updateData.maxDevices !== undefined && { maxDevices: parseInt(updateData.maxDevices, 10) }),
+        // Auto-sync: if maxDevices changed but sessionLimit wasn't explicitly provided,
+        // update sessionLimit to match maxDevices (keeps app-level and RADIUS in sync)
+        ...(updateData.maxDevices !== undefined && updateData.sessionLimit === undefined && { sessionLimit: parseInt(updateData.maxDevices, 10) }),
         ...(updateData.fupPolicyId !== undefined && { fupPolicyId: updateData.fupPolicyId || null }),
         ...(updateData.ipPoolId !== undefined && { ipPoolId: updateData.ipPoolId || null }),
         ...(updateData.price !== undefined && { price: parseFloat(updateData.price) }),
@@ -352,10 +362,12 @@ export async function PUT(request: NextRequest) {
     });
 
     // Sync RADIUS group attributes if plan settings changed
+    // maxDevices change also triggers sync since it maps to Simultaneous-Use
     const bandwidthChanged = updateData.downloadSpeed !== undefined || updateData.uploadSpeed !== undefined
       || updateData.burstDownloadSpeed !== undefined || updateData.burstUploadSpeed !== undefined;
     if (updateData.name || bandwidthChanged ||
         updateData.dataLimit !== undefined || updateData.sessionLimit !== undefined ||
+        updateData.maxDevices !== undefined ||
         updateData.sessionTimeoutSec !== undefined || updateData.idleTimeoutSec !== undefined) {
       await syncRadiusGroup(plan).catch(err => {
         console.error('[plans] Failed to sync RADIUS group on update:', err);
