@@ -10833,6 +10833,7 @@ model RoomTypeChange {
   oldRoomTypeId   String   @db.Uuid
   newRoomTypeId   String   @db.Uuid
   reason          String?
+  notes           String?
   rateDifference  Float    @default(0)
   chargeApplied   Boolean  @default(false)
   chargeAmount    Float    @default(0)
