@@ -14,8 +14,8 @@ module.exports = {
     },
     {
       name: 'staysuite-nextjs',
-      script: 'npx',
-      args: 'next dev -p 3000',
+      script: 'bun',
+      args: 'run dev',
       cwd: '/home/z/my-project',
       watch: false,
       autorestart: true,
