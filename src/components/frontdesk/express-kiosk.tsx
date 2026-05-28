@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import {
   Search,
   ChevronRight,
@@ -24,13 +25,15 @@ import {
   RefreshCw,
   Hourglass,
   XCircle,
+  CreditCard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 
-type KioskStep = 'enter_code' | 'verify_details' | 'id_terms' | 'success' | 'error';
+type KioskMode = 'checkin' | 'checkout';
+type KioskStep = 'enter_code' | 'verify_details' | 'id_terms' | 'review_folio' | 'make_payment' | 'success' | 'error';
 
 interface KioskBookingData {
   bookingId: string;
@@ -89,11 +92,20 @@ interface CheckInResult {
   } | null;
 }
 
-const STEP_CONFIG = {
+const STEP_CONFIG_CHECKIN = {
   enter_code: { step: 1, title: 'Find Your Booking' },
   verify_details: { step: 2, title: 'Verify Your Details' },
   id_terms: { step: 3, title: 'Confirm & Check In' },
   success: { step: 4, title: 'Welcome!' },
+  error: { step: 0, title: 'Something Went Wrong' },
+};
+
+const STEP_CONFIG_CHECKOUT = {
+  enter_code: { step: 1, title: 'Find Your Booking' },
+  verify_details: { step: 2, title: 'Review Stay' },
+  review_folio: { step: 3, title: 'Review Folio' },
+  make_payment: { step: 4, title: 'Make Payment' },
+  success: { step: 5, title: 'Thank You!' },
   error: { step: 0, title: 'Something Went Wrong' },
 };
 
@@ -102,7 +114,11 @@ const TIMEOUT_SECONDS = 120;
 export default function ExpressKiosk() {
   const { toast } = useToast();
   const t = useTranslations('frontdesk');
+  const [mode, setMode] = useState<KioskMode>('checkin');
   const [step, setStep] = useState<KioskStep>('enter_code');
+  const [folioData, setFolioData] = useState<any>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | 'qr_code'>('card');
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState('');
   const [bookingData, setBookingData] = useState<KioskBookingData | null>(null);
   const [checkInResult, setCheckInResult] = useState<CheckInResult | null>(null);
@@ -231,8 +247,84 @@ export default function ExpressKiosk() {
     }
   };
 
-  const currentStepConfig = STEP_CONFIG[step];
-  const progressPercent = step === 'error' ? 0 : step === 'success' ? 100 : (currentStepConfig.step / 4) * 100;
+  // H-12 FIX: Fetch folio data for checkout review
+  const fetchFolio = async () => {
+    if (!bookingData) return;
+    try {
+      const res = await fetch(`/api/folios?bookingId=${bookingData.bookingId}`);
+      const result = await res.json();
+      if (result.success && result.data?.length > 0) {
+        setFolioData(result.data[0]);
+      }
+    } catch { /* ignore */ }
+  };
+
+  // H-12 FIX: Process kiosk payment
+  const processPayment = async () => {
+    if (!bookingData || !folioData) return;
+    setIsCheckingOut(true);
+    try {
+      const balance = folioData.balance || 0;
+      if (balance <= 0) {
+        // No balance to pay, proceed directly to checkout
+        await processCheckout();
+        return;
+      }
+      const res = await fetch('/api/frontdesk/kiosk-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: bookingData.bookingId,
+          amount: balance,
+          method: paymentMethod,
+          currency: bookingData.currency,
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast({ title: 'Payment Successful' });
+        await processCheckout();
+      } else {
+        setErrorMsg(result.error?.message || 'Payment failed');
+        setStep('error');
+      }
+    } catch {
+      setErrorMsg('Payment processing error');
+      setStep('error');
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
+  // H-12 FIX: Process express check-out
+  const processCheckout = async () => {
+    if (!bookingData) return;
+    setIsCheckingOut(true);
+    try {
+      const res = await fetch('/api/frontdesk/kiosk-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: bookingData.bookingId }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setStep('success');
+      } else {
+        setErrorMsg(result.error?.message || 'Checkout failed');
+        setStep('error');
+      }
+    } catch {
+      setErrorMsg('Unable to process checkout');
+      setStep('error');
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
+  const stepConfig = mode === 'checkin' ? STEP_CONFIG_CHECKIN : STEP_CONFIG_CHECKOUT;
+  const currentStepConfig = stepConfig[step] || stepConfig.enter_code;
+  const totalSteps = mode === 'checkin' ? 4 : 5;
+  const progressPercent = step === 'error' ? 0 : step === 'success' ? 100 : (currentStepConfig.step / totalSteps) * 100;
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -258,10 +350,26 @@ export default function ExpressKiosk() {
       <div className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-3">
           <Building2 className="h-6 w-6 text-primary" />
-          <h1 className="text-lg font-semibold">Express Check-In</h1>
+          <h1 className="text-lg font-semibold">Express Kiosk</h1>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* H-12 FIX: Mode toggle for check-in/check-out */}
+          <div className="flex bg-muted rounded-lg p-0.5">
+            <button
+              onClick={() => { setMode('checkin'); handleReset(); }}
+              className={cn('px-4 py-1.5 text-sm rounded-md transition-all', mode === 'checkin' ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground')}
+            >
+              Check-In
+            </button>
+            <button
+              onClick={() => { setMode('checkout'); handleReset(); }}
+              className={cn('px-4 py-1.5 text-sm rounded-md transition-all', mode === 'checkout' ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground')}
+            >
+              Check-Out
+            </button>
+          </div>
+
           {/* Auto-timeout indicator */}
           {step !== 'success' && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -282,7 +390,7 @@ export default function ExpressKiosk() {
       {/* Step Indicator */}
       {step !== 'error' && step !== 'success' && (
         <div className="flex items-center justify-center gap-2 pb-6">
-          {[1, 2, 3, 4].map((s) => (
+          {Array.from({ length: totalSteps }, (_, i) => i + 1).map((s) => (
             <div key={s} className="flex items-center gap-2">
               <div className={cn(
                 "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
@@ -296,7 +404,7 @@ export default function ExpressKiosk() {
                   s
                 )}
               </div>
-              {s < 4 && <div className={cn("w-12 h-0.5", s < currentStepConfig.step ? "bg-primary" : "bg-muted")} />}
+              {s < totalSteps && <div className={cn("w-12 h-0.5", s < currentStepConfig.step ? "bg-primary" : "bg-muted")} />}
             </div>
           ))}
         </div>
@@ -450,8 +558,18 @@ export default function ExpressKiosk() {
                       <ChevronLeft className="h-5 w-5 mr-1" />
                       Back
                     </Button>
-                    <Button className="flex-1 h-14 text-lg" onClick={() => setStep('id_terms')}>
-                      Details Correct
+                    <Button
+                      className="flex-1 h-14 text-lg"
+                      onClick={async () => {
+                        if (mode === 'checkout') {
+                          await fetchFolio();
+                          setStep('review_folio');
+                        } else {
+                          setStep('id_terms');
+                        }
+                      }}
+                    >
+                      {mode === 'checkout' ? 'Review Folio' : 'Details Correct'}
                       <ChevronRight className="h-5 w-5 ml-1" />
                     </Button>
                   </div>
@@ -581,8 +699,168 @@ export default function ExpressKiosk() {
             </motion.div>
           )}
 
-          {/* Step 4: Success */}
-          {step === 'success' && checkInResult && (
+          {/* H-12 FIX: Step 3 (Checkout): Review Folio */}
+          {step === 'review_folio' && bookingData && (
+            <motion.div
+              key="review_folio"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              className="w-full max-w-lg"
+            >
+              <Card className="p-8 border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <h2 className="text-2xl font-bold">Review Your Folio</h2>
+                    <p className="text-muted-foreground mt-1">Review charges before check-out</p>
+                  </div>
+
+                  {folioData ? (
+                    <div className="space-y-3">
+                      <div className="p-4 bg-muted/50 rounded-xl space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Room Charges</span>
+                          <span className="font-medium">${folioData.subtotal?.toFixed(2) || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Taxes</span>
+                          <span className="font-medium">${folioData.taxes?.toFixed(2) || '0.00'}</span>
+                        </div>
+                        {folioData.serviceCharge > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Service Charge</span>
+                            <span className="font-medium">${folioData.serviceCharge.toFixed(2)}</span>
+                          </div>
+                        )}
+                        {folioData.discount > 0 && (
+                          <div className="flex justify-between text-sm text-green-600">
+                            <span>Discount</span>
+                            <span>-${folioData.discount.toFixed(2)}</span>
+                          </div>
+                        )}
+                        <Separator />
+                        <div className="flex justify-between text-lg font-bold">
+                          <span>Balance Due</span>
+                          <span className={folioData.balance > 0 ? 'text-red-600' : 'text-green-600'}>
+                            ${folioData.balance?.toFixed(2) || '0.00'}
+                          </span>
+                        </div>
+                        {folioData.paidAmount > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Already Paid</span>
+                            <span className="font-medium text-green-600">${folioData.paidAmount.toFixed(2)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
+                      <span className="text-muted-foreground">Loading folio...</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <Button variant="outline" className="flex-1 h-14 text-lg" onClick={() => setStep('verify_details')}>
+                      <ChevronLeft className="h-5 w-5 mr-1" />
+                      Back
+                    </Button>
+                    <Button
+                      className="flex-1 h-14 text-lg"
+                      onClick={() => {
+                        fetchFolio();
+                        setStep('make_payment');
+                      }}
+                      disabled={!folioData}
+                    >
+                      {folioData?.balance > 0 ? 'Proceed to Payment' : 'Complete Check-Out'}
+                      <ChevronRight className="h-5 w-5 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* H-12 FIX: Step 4 (Checkout): Make Payment */}
+          {step === 'make_payment' && bookingData && folioData && (
+            <motion.div
+              key="make_payment"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              className="w-full max-w-lg"
+            >
+              <Card className="p-8 border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <h2 className="text-2xl font-bold">Settle Balance</h2>
+                    <p className="text-muted-foreground mt-1">
+                      {folioData.balance > 0 ? `Amount due: $${folioData.balance.toFixed(2)}` : 'No outstanding balance'}
+                    </p>
+                  </div>
+
+                  {folioData.balance > 0 && (
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">Payment Method</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {([
+                          { value: 'card', label: 'Credit/Debit Card', icon: '💳' },
+                          { value: 'cash', label: 'Cash', icon: '💵' },
+                          { value: 'upi', label: 'UPI', icon: '📱' },
+                          { value: 'qr_code', label: 'QR Code', icon: '📷' },
+                        ] as const).map((method) => (
+                          <button
+                            key={method.value}
+                            onClick={() => setPaymentMethod(method.value)}
+                            className={cn(
+                              'p-4 rounded-xl border-2 text-left transition-all',
+                              paymentMethod === method.value
+                                ? 'border-primary bg-primary/5'
+                                : 'border-muted hover:border-primary/50'
+                            )}
+                          >
+                            <span className="text-2xl">{method.icon}</span>
+                            <p className="text-sm font-medium mt-1">{method.label}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {folioData.balance <= 0 && (
+                    <div className="p-4 bg-green-50 dark:bg-green-950/30 rounded-xl text-center">
+                      <p className="text-green-700 dark:text-green-300 font-medium">All charges are settled!</p>
+                      <p className="text-sm text-green-600 dark:text-green-400">You can proceed to check out.</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <Button variant="outline" className="flex-1 h-14 text-lg" onClick={() => setStep('review_folio')}>
+                      <ChevronLeft className="h-5 w-5 mr-1" />
+                      Back
+                    </Button>
+                    <Button
+                      className="flex-1 h-14 text-lg"
+                      onClick={processPayment}
+                      disabled={isCheckingOut}
+                    >
+                      {isCheckingOut ? (
+                        <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Processing...</>
+                      ) : folioData.balance > 0 ? (
+                        <><CreditCard className="h-5 w-5 mr-2" /> Pay & Check Out</>
+                      ) : (
+                        <><CheckCircle2 className="h-5 w-5 mr-2" /> Check Out</>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Step 4 (Check-In) / Step 5 (Check-Out): Success */}
+          {step === 'success' && (checkInResult || mode === 'checkout') && (
             <motion.div
               key="success"
               initial={{ opacity: 0, scale: 0.95 }}
