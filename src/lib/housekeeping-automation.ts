@@ -136,35 +136,43 @@ export async function completeCleaningAndInspect(roomId: string, taskId: string,
  */
 export async function inspectAndReleaseRoom(roomId: string, userId: string, qualityScore?: number) {
   try {
-    // Safety guard: Check for active checked-in bookings before releasing room
-    const activeBookings = await db.booking.findFirst({
-      where: {
-        roomId,
-        status: { in: ['confirmed', 'checked_in'] },
-        actualCheckOut: null,
-        deletedAt: null,
-      },
-    });
+    // M-60: Wrap the safety check and room release in a transaction to prevent
+    // race conditions where a new booking could be assigned between the check
+    // and the update.
+    await db.$transaction(async (tx) => {
+      // Safety guard: Check for active checked-in bookings before releasing room
+      const activeBookings = await tx.booking.findFirst({
+        where: {
+          roomId,
+          status: { in: ['confirmed', 'checked_in'] },
+          actualCheckOut: null,
+          deletedAt: null,
+        },
+      });
 
-    if (activeBookings) {
-      console.warn(`[HK Automation] Room ${roomId} has active booking(s) — refusing to release room. Booking: ${activeBookings.id}`);
-      return false;
-    }
+      if (activeBookings) {
+        throw new Error(`ACTIVE_BOOKING:${activeBookings.id}`);
+      }
 
-    await db.room.update({
-      where: { id: roomId },
-      data: {
-        housekeepingStatus: 'clean',
-        lastInspectedAt: new Date(),
-        inspectedBy: userId,
-        status: 'available',
-        currentTaskId: null,
-      },
+      await tx.room.update({
+        where: { id: roomId },
+        data: {
+          housekeepingStatus: 'clean',
+          lastInspectedAt: new Date(),
+          inspectedBy: userId,
+          status: 'available',
+          currentTaskId: null,
+        },
+      });
     });
 
     console.log(`[HK Automation] Room ${roomId} inspected and released by ${userId}, score: ${qualityScore ?? 'N/A'}`);
     return true;
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith('ACTIVE_BOOKING:')) {
+      console.warn(`[HK Automation] Room ${roomId} has active booking(s) — refusing to release room. Booking: ${error.message.split(':')[1]}`);
+      return false;
+    }
     console.error('[HK Automation] Failed to inspect and release room:', error);
     return false;
   }
