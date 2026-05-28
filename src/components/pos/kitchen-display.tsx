@@ -187,7 +187,14 @@ const t = useTranslations('pos');
     }
   }, [propertyId]);
 
-  // WebSocket connection for real-time updates
+  // M-57: WebSocket connection for real-time updates
+  // NOTE: fetchOrders is intentionally NOT in the dependency array here.
+  // The fetchOrders callback only depends on `propertyId` (see useCallback below),
+  // and propertyId IS in the dep array. Adding fetchOrders would cause the socket
+  // to disconnect and reconnect on every re-render that creates a new fetchOrders
+  // closure, which is undesirable for maintaining a persistent socket connection.
+  // The stale closure concern is mitigated because fetchOrders is stable as long
+  // as propertyId doesn't change.
   useEffect(() => {
     if (!propertyId) return;
 
