@@ -153,21 +153,24 @@ export async function POST(request: NextRequest) {
 
     const totalAmount = subtotal + resolvedTaxAmount;
 
-    // Generate credit note number
-    const today = new Date();
-    const dateStr = formatGenerateDate(today);
-    const count = await db.creditNote.count({
-      where: {
-        tenantId,
-        createdAt: {
-          gte: new Date(today.getFullYear(), today.getMonth(), today.getDate()),
-        },
-      },
-    });
-    const seq = String(count + 1).padStart(4, '0');
-    const creditNoteNumber = `CN-${dateStr}-${seq}`;
-
+    // H-18 FIX: Credit note sequence number generation is now inside the
+    // transaction to prevent race conditions. Previously, the count was
+    // performed outside the transaction, so two concurrent requests could
+    // read the same count and produce duplicate credit note numbers.
     const creditNote = await db.$transaction(async (tx) => {
+      // Generate credit note number inside the transaction
+      const today = new Date();
+      const dateStr = formatGenerateDate(today);
+      const count = await tx.creditNote.count({
+        where: {
+          tenantId,
+          createdAt: {
+            gte: new Date(today.getFullYear(), today.getMonth(), today.getDate()),
+          },
+        },
+      });
+      const seq = String(count + 1).padStart(4, '0');
+      const creditNoteNumber = `CN-${dateStr}-${seq}`;
       // SECURITY FIX (A-03): Credit notes must have immediate financial effect.
       // Previously appliedAmount was permanently 0, meaning credit notes had
       // zero impact on folio balance. Now we: (1) set appliedAmount = totalAmount,
