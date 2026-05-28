@@ -428,6 +428,9 @@ export default function CheckIn() {
       }
 
       // Step 1: Update booking status (only after deposit succeeded)
+      // TODO(M-10): Integrate registration card component for guest details capture during check-in
+      // TODO(M-11): Integrate signature pad component for terms acceptance signature
+      // TODO(M-09): Integrate key card issuance component for physical key card generation
       const response = await fetch(`/api/bookings/${selectedBooking.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
