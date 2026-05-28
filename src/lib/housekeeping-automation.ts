@@ -83,6 +83,8 @@ export async function markRoomDirtyAfterCheckout(roomId: string, tenantId: strin
 /**
  * Complete a cleaning task and move room to inspected status.
  * Runs in a transaction to ensure consistency.
+ * H-43: After marking task complete, the room transitions through 'cleaning' to 'inspected'.
+ * This ensures the lifecycle is: dirty → cleaning → inspected → clean/available.
  */
 export async function completeCleaningAndInspect(roomId: string, taskId: string, userId: string) {
   try {
@@ -93,6 +95,17 @@ export async function completeCleaningAndInspect(roomId: string, taskId: string,
         data: {
           status: 'completed',
           completedAt: new Date(),
+        },
+      });
+
+      // H-43: Transition room through 'cleaning' status before 'inspected'
+      // to maintain the proper cleaning lifecycle. Set the room to 'cleaning' first,
+      // then immediately to 'inspected' (since the task completion IS the transition).
+      // This ensures any watchers/subscribers on the 'cleaning' status are triggered.
+      await tx.room.update({
+        where: { id: roomId },
+        data: {
+          housekeepingStatus: 'cleaning',
         },
       });
 
