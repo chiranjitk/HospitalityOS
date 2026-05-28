@@ -54,9 +54,15 @@ export async function POST(request: NextRequest) {
       requesterName: requesterName || (userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'System Admin'),
     });
 
-    // NOTE: This export runs synchronously within the request. In production,
-    // consider queuing this work (e.g., via BullMQ, SQS, etc.) for large exports
-    // to avoid HTTP timeout. A reasonable data limit is enforced below.
+    // WARNING(M-40): This export runs synchronously within the HTTP request.
+    // For tenants with large datasets (thousands of bookings, payments, etc.),
+    // this WILL exceed typical serverless function timeouts (10-60s).
+    // The MAX_EXPORT_RECORDS limit below mitigates this somewhat, but for
+    // production use, this should be refactored to an async job queue
+    // (e.g., BullMQ, SQS, Google Tasks) that streams results to a file
+    // and notifies the user via email when ready.
+    // Risk: GDPR compliance requires timely data export (30 days under GDPR Art. 20),
+    // so this is a business-critical improvement.
     const MAX_EXPORT_RECORDS = 10000;
 
     // Immediately process the export (in production, this might be queued)
