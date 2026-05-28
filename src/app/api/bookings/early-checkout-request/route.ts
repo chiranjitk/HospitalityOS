@@ -104,6 +104,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // H-03: Auto-process approved early checkout requests that are past their requested date.
+    // If a previous request exists and is approved but the booking hasn't been updated yet,
+    // automatically trigger the checkout process.
+    const existingApproved = await db.earlyCheckoutRequest.findFirst({
+      where: {
+        bookingId,
+        status: 'approved',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (existingApproved && existingApproved.requestedDate <= new Date()) {
+      try {
+        // Auto-trigger checkout: update booking's checkOut to the approved early date
+        await db.$transaction(async (tx) => {
+          await tx.booking.update({
+            where: { id: bookingId },
+            data: { checkOut: existingApproved.requestedDate },
+          });
+          await tx.earlyCheckoutRequest.update({
+            where: { id: existingApproved.id },
+            data: { status: 'completed' },
+          });
+          await tx.bookingAuditLog.create({
+            data: {
+              bookingId,
+              action: 'early_checkout_auto_processed',
+              notes: `Auto-processed approved early checkout to ${existingApproved.requestedDate.toISOString()}. Original checkout: ${booking.checkOut.toISOString()}`,
+              performedBy: 'system',
+            },
+          });
+        });
+        console.log(`[EarlyCheckout] Auto-processed approved early checkout for booking ${bookingId}`);
+      } catch (autoProcessError) {
+        console.error('[EarlyCheckout] Auto-process failed:', autoProcessError);
+        // Don't block the new request creation
+      }
+    }
+
     // Check for existing pending request on this booking
     const existingRequest = await db.earlyCheckoutRequest.findFirst({
       where: {
