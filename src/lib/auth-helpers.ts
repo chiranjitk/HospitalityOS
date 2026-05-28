@@ -9,6 +9,13 @@
  * to the canonical implementation so behaviour stays consistent.
  *
  * @deprecated Import from `@/lib/auth/tenant-context` instead.
+ *
+ * TODO(M-25): Inconsistent RBAC naming across the codebase. Some routes use
+ * dot-notation (e.g., 'bookings.manage', 'admin.*') while others use
+ * module.* patterns (e.g., 'wifi.manage', 'guests.view'). Additionally,
+ * roleName checks ('admin') are mixed with permission checks. Consider
+ * standardizing to a single naming convention and removing roleName checks
+ * in favor of permission-based checks only. See also: src/config/permissions.ts
  */
 
 if (process.env.NODE_ENV !== 'production') {
