@@ -130,9 +130,26 @@ const EMPTY_FORM: MappingForm = {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
+/** Display-only: strips /32 for cleaner table rendering */
 function formatInet(val: string | null | undefined): string {
   if (!val) return '';
   return val.replace(/\/32$/, '');
+}
+
+/**
+ * Ensure a subnet value is valid CIDR (always includes /bits).
+ * PostgreSQL inet columns return values like "10.0.0.0/24" or "10.0.0.5/32".
+ * This must be preserved as-is for the resolve-zone API's CIDR matching.
+ */
+function ensureCidr(val: string | null | undefined): string | null {
+  if (!val) return null;
+  const trimmed = val.trim();
+  if (!trimmed) return null;
+  // Already has CIDR notation (e.g. 10.0.0.0/24)
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/.test(trimmed)) return trimmed;
+  // Plain IPv4 (e.g. 10.0.0.0) → treat as /32
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(trimmed)) return `${trimmed}/32`;
+  return null;
 }
 
 function countTotalIps(ranges: Array<{ startIp: string; endIp: string }>): number {
@@ -285,7 +302,7 @@ export default function PortalMappingsTab() {
         portalId: form.portalId,
         vlanId: form.vlanId ? parseInt(form.vlanId, 10) : null,
         ssid: form.ssid || null,
-        subnet: editingPool?.subnet ? formatInet(editingPool.subnet) : null,
+        subnet: ensureCidr(editingPool?.subnet),
         priority: form.priority,
         enabled: form.enabled,
       };

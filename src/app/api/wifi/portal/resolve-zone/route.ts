@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 import { getWifiSettings } from '@/lib/wifi-settings';
 
 // ---------------------------------------------------------------------------
-// IPv4 CIDR matching helpers (no external packages required)
+// IPv4 CIDR matching helpers (fallback only — primary matching uses PostgreSQL inet)
 // ---------------------------------------------------------------------------
 
 function ipToInt(ip: string): number {
@@ -12,12 +12,15 @@ function ipToInt(ip: string): number {
     .reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
 }
 
+/**
+ * matchesCIDR — handles both CIDR (10.0.0.0/24) and plain IP (10.0.0.5) formats.
+ * Plain IPs are treated as /32 host routes.
+ */
 function matchesCIDR(ip: string, cidr: string): boolean {
   const parts = cidr.split('/');
-  if (parts.length !== 2) return false;
-
+  // If no CIDR bits, treat as /32 (single host)
   const range = parts[0];
-  const bits = parseInt(parts[1], 10);
+  const bits = parts.length === 2 ? parseInt(parts[1], 10) : 32;
   if (isNaN(bits) || bits < 0 || bits > 32) return false;
 
   const mask = ~((1 << (32 - bits)) - 1);
@@ -312,6 +315,41 @@ async function buildPortalConfig(portalId: string, language?: string | null) {
 // GET handler — PUBLIC endpoint (no auth)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Default portal resolution helper
+// ---------------------------------------------------------------------------
+
+async function resolveDefaultPortal(lang: string | null) {
+  const defaultPortal = await db.captivePortal.findFirst({
+    where: { isDefault: true, enabled: true },
+  });
+  if (!defaultPortal) {
+    return NextResponse.json({
+      success: true,
+      data: { zone: null, portalId: null, matchedSubnet: null, config: null },
+    });
+  }
+  const config = await buildPortalConfig(defaultPortal.id, lang);
+  return NextResponse.json({
+    success: true,
+    data: {
+      zone: config?.slug ?? defaultPortal.slug,
+      portalId: defaultPortal.id,
+      matchedSubnet: null,
+      isDefault: true,
+      matchedBy: 'default',
+      roamingMode: config?.roamingMode ?? 'auth_origin',
+      allowsRoamingFrom: config?.allowsRoamingFrom ?? [],
+      bandwidthPolicy: config?.bandwidthPolicy ?? 'zone',
+      config,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// GET handler — PUBLIC endpoint (no auth)
+// ---------------------------------------------------------------------------
+
 export async function GET(request: NextRequest) {
   try {
     // 0. Extract optional language parameter (defaults to 'en')
@@ -322,121 +360,166 @@ export async function GET(request: NextRequest) {
     const clientIp = normalizeIp(rawIp);
 
     if (!clientIp) {
-      // Cannot determine client IP — fall back to the default portal
-      const defaultPortal = await db.captivePortal.findFirst({
-        where: { isDefault: true, enabled: true },
-      });
-      if (defaultPortal) {
-        const config = await buildPortalConfig(defaultPortal.id, lang);
-        return NextResponse.json({
-          success: true,
-          data: {
-            zone: config?.slug ?? defaultPortal.slug,
-            portalId: defaultPortal.id,
-            matchedSubnet: null,
-            isDefault: true,
-            roamingMode: config?.roamingMode ?? 'auth_origin',
-            allowsRoamingFrom: config?.allowsRoamingFrom ?? [],
-            bandwidthPolicy: config?.bandwidthPolicy ?? 'zone',
-            config,
-          },
-        });
+      console.warn('[Resolve Zone] Cannot determine client IP — falling back to default portal');
+      return resolveDefaultPortal(lang);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Step 1: CIDR subnet match via PostgreSQL native inet <<= operator
+    // ══════════════════════════════════════════════════════════════════════════
+    // Uses PostgreSQL's native inet comparison which is more accurate than
+    // JS-based CIDR matching. Handles both CIDR (10.0.0.0/24) and plain IP
+    // (10.0.0.5) formats stored in PortalMapping.subnet.
+    try {
+      const cidrMatches = await db.$queryRawUnsafe(`
+        SELECT pm.id, pm."portalId", pm.subnet, pm."fallbackPortalId", pm.priority
+        FROM "PortalMapping" pm
+        JOIN "CaptivePortal" cp ON cp.id = pm."portalId"
+        JOIN "Tenant" t ON t.id = pm."tenantId"
+        WHERE pm.enabled = true
+          AND pm.subnet IS NOT NULL
+          AND cp.enabled = true
+          AND (t."deletedAt" IS NULL)
+          AND pm.subnet ~ '^\\d+\\.\\d+\\.\\d+\\.\\d+(/\\d+)?$'
+          AND $1::inet <<= CASE
+            WHEN pm.subnet ~ '/' THEN pm.subnet::inet
+            ELSE (pm.subnet || '/32')::inet
+          END
+        ORDER BY pm.priority DESC
+        LIMIT 1
+      `, clientIp) as Array<{ id: string; portalId: string; subnet: string; fallbackPortalId: string | null; priority: number }>;
+
+      if (cidrMatches.length > 0) {
+        const matched = cidrMatches[0];
+        console.log(`[Resolve Zone] CIDR match: client ${clientIp} → portal ${matched.portalId} via subnet ${matched.subnet}`);
+        const config = await buildPortalConfig(matched.portalId, lang);
+
+        if (config) {
+          return NextResponse.json({
+            success: true,
+            data: {
+              zone: config.slug,
+              portalId: matched.portalId,
+              matchedSubnet: matched.subnet,
+              isDefault: false,
+              matchedBy: 'subnet',
+              roamingMode: config.roamingMode,
+              allowsRoamingFrom: config.allowsRoamingFrom,
+              bandwidthPolicy: config.bandwidthPolicy,
+              config,
+            },
+          });
+        }
+
+        // Matched portal disabled → try fallback portal
+        if (matched.fallbackPortalId) {
+          const fallbackConfig = await buildPortalConfig(matched.fallbackPortalId, lang);
+          return NextResponse.json({
+            success: true,
+            data: {
+              zone: fallbackConfig?.slug ?? null,
+              portalId: matched.fallbackPortalId,
+              matchedSubnet: matched.subnet,
+              isDefault: false,
+              matchedBy: 'subnet-fallback',
+              roamingMode: fallbackConfig?.roamingMode ?? 'auth_origin',
+              allowsRoamingFrom: fallbackConfig?.allowsRoamingFrom ?? [],
+              bandwidthPolicy: fallbackConfig?.bandwidthPolicy ?? 'zone',
+              config: fallbackConfig,
+            },
+          });
+        }
       }
-      return NextResponse.json({
-        success: true,
-        data: { zone: null, portalId: null, matchedSubnet: null, config: null },
-      });
+    } catch (err) {
+      console.error('[Resolve Zone] CIDR lookup error (falling through to range check):', err);
     }
 
-    // 2. Fetch all enabled PortalMappings that have a subnet configured,
-    //    sorted by priority descending (higher priority checked first).
-    //    Include related portal and tenant to validate they are active,
-    //    preventing cross-tenant portal leakage in multi-tenant deployments.
-    const mappings = await db.portalMapping.findMany({
-      where: {
-        enabled: true,
-        subnet: { not: null },
-        captivePortal: { enabled: true },
-        tenant: { deletedAt: null },
-      },
-      include: {
-        captivePortal: { select: { enabled: true } },
-        tenant: { select: { deletedAt: true } },
-      },
-      orderBy: { priority: 'desc' },
-    });
+    // ══════════════════════════════════════════════════════════════════════════
+    // Step 2: IP Range fallback — match via IpPoolRange (startIp..endIp)
+    // ══════════════════════════════════════════════════════════════════════════
+    // This catches cases where:
+    //   - PortalMapping.subnet is null (pool created without subnet, only ranges)
+    //   - Client IP falls within a pool's IP ranges but not the subnet CIDR
+    //   - Legacy mappings with broken subnet (missing /32 from formatInet bug)
+    try {
+      const rangeMatches = await db.$queryRawUnsafe(`
+        SELECT pm.id, pm."portalId", pm.subnet, pm."fallbackPortalId", pm.priority,
+               ipr."startIp"::text AS "rangeStart", ipr."endIp"::text AS "rangeEnd"
+        FROM "PortalMapping" pm
+        JOIN "CaptivePortal" cp ON cp.id = pm."portalId"
+        JOIN "Tenant" t ON t.id = pm."tenantId"
+        JOIN "IpPool" ip ON (
+          -- Exact subnet match (CIDR format)
+          ip.subnet::text = pm.subnet
+          -- Handle legacy /32 stripped: IpPool 10.0.0.5/32 ↔ PortalMapping 10.0.0.5
+          OR (ip.subnet IS NOT NULL AND pm.subnet IS NOT NULL
+              AND replace(ip.subnet::text, '/32', '') = pm.subnet)
+          -- Handle PortalMapping 10.0.0.5/32 ↔ IpPool 10.0.0.5
+          OR (ip.subnet IS NOT NULL AND pm.subnet IS NOT NULL
+              AND ip.subnet::text = replace(pm.subnet, '/32', ''))
+          -- Handle PortalMapping with subnet but IpPool has no subnet (null match)
+          OR (pm.subnet IS NULL AND ip.subnet IS NULL)
+        )
+        JOIN "IpPoolRange" ipr ON ipr."poolId" = ip.id
+        WHERE pm.enabled = true
+          AND cp.enabled = true
+          AND (t."deletedAt" IS NULL)
+          AND ip.enabled = true
+          AND $1::inet BETWEEN ipr."startIp" AND ipr."endIp"
+        ORDER BY pm.priority DESC
+        LIMIT 1
+      `, clientIp) as Array<{ id: string; portalId: string; subnet: string | null; fallbackPortalId: string | null; priority: number; rangeStart: string; rangeEnd: string }>;
 
-    // 3. Match client IP against each mapping's subnet CIDR
-    let matchedMapping: (typeof mappings)[number] | null = null;
+      if (rangeMatches.length > 0) {
+        const matched = rangeMatches[0];
+        console.log(`[Resolve Zone] Range match: client ${clientIp} → portal ${matched.portalId} via range ${matched.rangeStart}–${matched.rangeEnd}`);
+        const config = await buildPortalConfig(matched.portalId, lang);
 
-    for (const mapping of mappings) {
-      if (!mapping.subnet) continue;
-      if (matchesCIDR(clientIp, mapping.subnet)) {
-        matchedMapping = mapping;
-        break;
+        if (config) {
+          return NextResponse.json({
+            success: true,
+            data: {
+              zone: config.slug,
+              portalId: matched.portalId,
+              matchedSubnet: matched.subnet || `${matched.rangeStart}-${matched.rangeEnd}`,
+              isDefault: false,
+              matchedBy: 'range',
+              roamingMode: config.roamingMode,
+              allowsRoamingFrom: config.allowsRoamingFrom,
+              bandwidthPolicy: config.bandwidthPolicy,
+              config,
+            },
+          });
+        }
+
+        // Matched portal disabled → try fallback
+        if (matched.fallbackPortalId) {
+          const fallbackConfig = await buildPortalConfig(matched.fallbackPortalId, lang);
+          return NextResponse.json({
+            success: true,
+            data: {
+              zone: fallbackConfig?.slug ?? null,
+              portalId: matched.fallbackPortalId,
+              matchedSubnet: matched.subnet,
+              isDefault: false,
+              matchedBy: 'range-fallback',
+              roamingMode: fallbackConfig?.roamingMode ?? 'auth_origin',
+              allowsRoamingFrom: fallbackConfig?.allowsRoamingFrom ?? [],
+              bandwidthPolicy: fallbackConfig?.bandwidthPolicy ?? 'zone',
+              config: fallbackConfig,
+            },
+          });
+        }
       }
+    } catch (err) {
+      console.error('[Resolve Zone] Range lookup error:', err);
     }
 
-    // 4. No subnet match → fall back to the default portal (isDefault=true)
-    if (!matchedMapping) {
-      const defaultPortal = await db.captivePortal.findFirst({
-        where: { isDefault: true, enabled: true },
-      });
-      if (defaultPortal) {
-        const config = await buildPortalConfig(defaultPortal.id, lang);
-        return NextResponse.json({
-          success: true,
-          data: {
-            zone: config?.slug ?? defaultPortal.slug,
-            portalId: defaultPortal.id,
-            matchedSubnet: null,
-            isDefault: true,
-            roamingMode: config?.roamingMode ?? 'auth_origin',
-            allowsRoamingFrom: config?.allowsRoamingFrom ?? [],
-            bandwidthPolicy: config?.bandwidthPolicy ?? 'zone',
-            config,
-          },
-        });
-      }
-      // No default portal configured → return null
-      return NextResponse.json({
-        success: true,
-        data: { zone: null, portalId: null, matchedSubnet: null, config: null },
-      });
-    }
-
-    // 5. Match found — build the full portal config
-    const config = await buildPortalConfig(matchedMapping.portalId, lang);
-
-    // If the matched portal is disabled or deleted, fall back to fallbackPortalId
-    if (!config && matchedMapping.fallbackPortalId) {
-      const fallbackConfig = await buildPortalConfig(matchedMapping.fallbackPortalId, lang);
-      return NextResponse.json({
-        success: true,
-        data: {
-          zone: fallbackConfig?.slug ?? null,
-          portalId: matchedMapping.fallbackPortalId,
-          matchedSubnet: matchedMapping.subnet,
-          roamingMode: fallbackConfig?.roamingMode ?? 'auth_origin',
-          allowsRoamingFrom: fallbackConfig?.allowsRoamingFrom ?? [],
-          bandwidthPolicy: fallbackConfig?.bandwidthPolicy ?? 'zone',
-          config: fallbackConfig,
-        },
-      });
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        zone: config?.slug ?? null,
-        portalId: matchedMapping.portalId,
-        matchedSubnet: matchedMapping.subnet,
-        roamingMode: config?.roamingMode ?? 'auth_origin',
-        allowsRoamingFrom: config?.allowsRoamingFrom ?? [],
-        bandwidthPolicy: config?.bandwidthPolicy ?? 'zone',
-        config,
-      },
-    });
+    // ══════════════════════════════════════════════════════════════════════════
+    // Step 3: No match at all → fall back to the default portal (isDefault=true)
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log(`[Resolve Zone] No match for client ${clientIp} — falling back to default portal`);
+    return resolveDefaultPortal(lang);
   } catch (error) {
     console.error('[Resolve Zone API] Error:', error);
     return NextResponse.json(
