@@ -105,7 +105,22 @@ export async function POST(request: NextRequest) {
         openingBalance: openingBalance ?? 0,
         closingBalance: closingBalance ?? 0,
         preparedBy: user.id,
+        transactions: Array.isArray(transactions)
+          ? {
+              create: transactions.map((t: Record<string, unknown>, idx: number) => ({
+                time: t.time || String(idx).padStart(2, '0') + ':00',
+                description: t.description || 'Cash transaction',
+                category: t.category || t.type || 'receipt',
+                amount: Number(t.amount) || 0,
+                reference: t.reference || t.folioId || null,
+                paymentMethod: t.paymentMethod || 'cash',
+                createdBy: user.id,
+                approved: false,
+              })),
+            }
+          : undefined,
       },
+      include: { transactions: true },
     });
 
     return NextResponse.json({ success: true, data: entry }, { status: 201 });
