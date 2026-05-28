@@ -145,7 +145,8 @@ export async function GET(request: NextRequest) {
       .filter(Boolean)
       .sort((a, b) => a!.valueScore - b!.valueScore);
 
-    // Cross-sell offers: spa, restaurant, experiences
+    // H-08 FIX: Fetch real cross-sell offers from Experience catalog instead of hardcoded static data.
+    // Falls back to empty array if no experiences are configured for the property.
     const crossSellOffers: Array<{
       type: string;
       id: string;
@@ -156,59 +157,34 @@ export async function GET(request: NextRequest) {
       image?: string;
     }> = [];
 
-    // Fetch experience products (spa, dining, activities)
-    const experienceBookings = await db.experienceBooking.findMany({
+    const experiences = await db.experience.findMany({
       where: {
         propertyId: booking.propertyId,
         status: 'active',
       },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        category: true,
+        basePrice: true,
+        imageUrl: true,
+      },
       take: 20,
+      orderBy: { totalBookings: 'desc' },
     });
 
-    // If we have experience records, add as cross-sell
-    // Otherwise generate sensible defaults based on property
-    crossSellOffers.push(
-      {
-        type: 'spa',
-        id: 'spa-package-1',
-        name: 'Signature Spa Package',
-        description: '90-minute massage + facial treatment',
-        price: 189.0,
-        category: 'spa',
-      },
-      {
-        type: 'dining',
-        id: 'dining-package-1',
-        name: 'Fine Dining Experience',
-        description: '3-course dinner for two at our rooftop restaurant',
-        price: 250.0,
-        category: 'dining',
-      },
-      {
-        type: 'activity',
-        id: 'activity-tour-1',
-        name: 'Guided City Tour',
-        description: 'Half-day guided tour with pickup from hotel',
-        price: 120.0,
-        category: 'experiences',
-      },
-      {
-        type: 'spa',
-        id: 'spa-package-2',
-        name: 'Couples Retreat',
-        description: 'Private couples suite with hot springs access',
-        price: 320.0,
-        category: 'spa',
-      },
-      {
-        type: 'dining',
-        id: 'dining-package-2',
-        name: 'Breakfast Buffet Upgrade',
-        description: 'Full premium breakfast buffet for duration of stay',
-        price: 45.0 * nights,
-        category: 'dining',
-      }
-    );
+    for (const exp of experiences) {
+      crossSellOffers.push({
+        type: exp.category || 'experience',
+        id: exp.id,
+        name: exp.name,
+        description: exp.description,
+        price: exp.basePrice,
+        category: exp.category || 'experiences',
+        image: exp.imageUrl || undefined,
+      });
+    }
 
     // Personalize: apply loyalty discount for Gold+ members
     const loyaltyTier = booking.primaryGuest.loyaltyTier || 'bronze';
