@@ -158,6 +158,8 @@ export async function POST(request: NextRequest) {    const user = await getUser
       overbookingPercentage = 0,
       overbookingLimit = 0,
       wifiPlanId,
+      bedType = 'standard',
+      bedCount = 1,
     } = body;
     
     // Validate required fields
@@ -226,6 +228,8 @@ export async function POST(request: NextRequest) {    const user = await getUser
         overbookingPercentage: parseFloat(overbookingPercentage),
         overbookingLimit: parseInt(overbookingLimit, 10),
         ...(wifiPlanId && { wifiPlanId }),
+        bedType: bedType || 'standard',
+        bedCount: parseInt(String(bedCount), 10) || 1,
       },
       include: {
         property: {

@@ -172,6 +172,8 @@ interface RoomType {
   overbookingEnabled?: boolean;
   overbookingPercentage?: number;
   overbookingLimit?: number;
+  bedType?: string;
+  bedCount?: number;
 }
 
 interface FormData {
@@ -191,6 +193,8 @@ interface FormData {
   overbookingEnabled?: boolean;
   overbookingPercentage?: string;
   overbookingLimit?: string;
+  bedType?: string;
+  bedCount?: string;
 }
 
 const defaultFormData: FormData = {
@@ -210,6 +214,8 @@ const defaultFormData: FormData = {
   overbookingEnabled: false,
   overbookingPercentage: '',
   overbookingLimit: '',
+  bedType: 'standard',
+  bedCount: '1',
 };
 
 export default function RoomTypesManager() {
@@ -722,6 +728,8 @@ export default function RoomTypesManager() {
       overbookingEnabled: roomType.overbookingEnabled || false,
       overbookingPercentage: roomType.overbookingPercentage?.toString() || '',
       overbookingLimit: roomType.overbookingLimit?.toString() || '',
+      bedType: roomType.bedType || 'standard',
+      bedCount: roomType.bedCount?.toString() || '1',
     });
     setIsEditOpen(true);
   };
@@ -1443,6 +1451,42 @@ function RoomTypeForm({ formData, setFormData, properties, amenities, wifiPlans,
         <div className="space-y-2">
           <Label>Size (m²)</Label>
           <Input type="number" min="0" value={formData.sizeSqMeters} onChange={(e) => setFormData(prev => ({ ...prev, sizeSqMeters: e.target.value }))} placeholder="30" />
+        </div>
+      </div>
+
+      {/* Bed Configuration */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Bed Type</Label>
+          <Select
+            value={formData.bedType || 'standard'}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, bedType: value }))}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="single">Single</SelectItem>
+              <SelectItem value="standard">Standard (Double)</SelectItem>
+              <SelectItem value="queen">Queen</SelectItem>
+              <SelectItem value="king">King</SelectItem>
+              <SelectItem value="twin">Twin (2 Single)</SelectItem>
+              <SelectItem value="sofa_bed">Sofa Bed</SelectItem>
+              <SelectItem value="bunk">Bunk Bed</SelectItem>
+              <SelectItem value="daybed">Daybed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Bed Count</Label>
+          <Input
+            type="number"
+            min="1"
+            max="10"
+            value={formData.bedCount || '1'}
+            onChange={(e) => setFormData(prev => ({ ...prev, bedCount: e.target.value }))}
+            placeholder="1"
+          />
         </div>
       </div>
       

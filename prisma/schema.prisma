@@ -5936,6 +5936,8 @@ model RoomType {
   overbookingPercentage Float                @default(0)
   overbookingLimit      Int                  @default(0)
   wifiPlanId            String?              @db.Uuid
+  bedType               String               @default("standard")
+  bedCount              Int                  @default(1)
   status                String               @default("active")
   createdAt             DateTime             @default(now()) @db.Timestamptz
   updatedAt             DateTime             @updatedAt @db.Timestamptz

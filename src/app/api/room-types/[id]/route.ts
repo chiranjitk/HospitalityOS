@@ -163,6 +163,8 @@ export async function PUT(
       overbookingPercentage,
       overbookingLimit,
       wifiPlanId,
+      bedType,
+      bedCount,
     } = body;
     
     // Validate basePrice if provided
@@ -225,6 +227,8 @@ export async function PUT(
         ...(overbookingLimit !== undefined && { overbookingLimit: parseInt(overbookingLimit, 10) }),
         // wifiPlanId: explicitly allow null (unset) or string (set)
         ...(wifiPlanId !== undefined && { wifiPlanId: wifiPlanId || null }),
+        ...(bedType !== undefined && { bedType }),
+        ...(bedCount !== undefined && { bedCount: parseInt(String(bedCount), 10) || 1 }),
       },
       include: {
         property: {
