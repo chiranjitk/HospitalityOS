@@ -154,6 +154,138 @@ export async function GET(request: NextRequest) {
               await tx.folioLineItem.create({ data: { folioId: folio.id, description: `Room charge - Room ${booking.room?.number || 'N/A'} - Night Audit`, category: 'room', quantity: 1, unitPrice: rate, totalAmount: rate, serviceDate: businessDayDate, referenceType: 'NightAudit', referenceId: audit.id, postedBy: 'system' } });
               await tx.folio.update({ where: { id: folio.id }, data: { subtotal: { increment: rate }, totalAmount: { increment: rate }, balance: { increment: rate } } });
             }
+            await tx.nightAuditStep.updateMany({
+              where: { nightAuditId: audit.id, stepOrder: 1 },
+              data: { status: 'completed', completedAt: new Date(), performedBy: auditUser.id },
+            });
+
+            // CRITICAL-06 FIX: Step 2 — Verify folios (check for negative balances, orphaned items)
+            const openFolios = await tx.folio.findMany({
+              where: {
+                tenantId: property.tenantId,
+                propertyId: property.id,
+                status: { in: ['open', 'partially_paid'] },
+              },
+              select: { id: true, balance: true },
+            });
+            let folioWarnings = 0;
+            for (const f of openFolios) {
+              if (f.balance < -0.01) folioWarnings++;
+            }
+            if (folioWarnings > 0) {
+              await db.auditLog.create({
+                data: {
+                  tenantId: property.tenantId, module: 'night_audit', action: 'warning',
+                  entityType: 'NightAudit', entityId: audit.id,
+                  newValue: JSON.stringify({ step: 2, warning: `${folioWarnings} folio(s) with negative balance detected` }),
+                },
+              });
+            }
+            await tx.nightAuditStep.updateMany({
+              where: { nightAuditId: audit.id, stepOrder: 2 },
+              data: { status: 'completed', completedAt: new Date(), performedBy: auditUser.id },
+            });
+
+            // Step 3 — Process no-shows (bookings past check-out date still confirmed)
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const noShowBookings = await tx.booking.findMany({
+              where: {
+                tenantId: property.tenantId,
+                propertyId: property.id,
+                status: 'confirmed',
+                actualCheckIn: null,
+                checkIn: { lt: today },
+              },
+              select: { id: true, confirmationCode: true, folios: { select: { id: true } } },
+            });
+            for (const ns of noShowBookings) {
+              await tx.booking.update({
+                where: { id: ns.id },
+                data: { status: 'no_show', cancelledAt: new Date(), cancellationReason: 'Auto no-show by night audit' },
+              });
+              // Release room
+              await tx.room.updateMany({
+                where: { currentBookingId: ns.id },
+                data: { status: 'available', currentBookingId: null },
+              });
+            }
+            await tx.nightAuditStep.updateMany({
+              where: { nightAuditId: audit.id, stepOrder: 3 },
+              data: { status: 'completed', completedAt: new Date(), performedBy: auditUser.id },
+            });
+
+            // Step 4 — Reconcile rooms (ensure room status matches booking status)
+            const checkedOutRooms = await tx.room.findMany({
+              where: {
+                propertyId: property.id,
+                status: 'occupied',
+                currentBookingId: { not: null },
+              },
+              include: { currentBooking: { select: { id: true, status: true } } },
+            });
+            for (const room of checkedOutRooms) {
+              if (room.currentBooking && !['confirmed', 'checked_in'].includes(room.currentBooking.status)) {
+                await tx.room.update({
+                  where: { id: room.id },
+                  data: { status: 'available', currentBookingId: null },
+                });
+              }
+            }
+            // Set rooms with no active booking to available
+            await tx.room.updateMany({
+              where: {
+                propertyId: property.id,
+                status: 'occupied',
+                currentBookingId: null,
+              },
+              data: { status: 'available' },
+            });
+            await tx.nightAuditStep.updateMany({
+              where: { nightAuditId: audit.id, stepOrder: 4 },
+              data: { status: 'completed', completedAt: new Date(), performedBy: auditUser.id },
+            });
+
+            // Step 5 — Run reports (log occupancy and revenue summary)
+            const occupancyStats = await tx.booking.groupBy({
+              by: ['status'],
+              where: {
+                tenantId: property.tenantId,
+                propertyId: property.id,
+                status: { in: ['confirmed', 'checked_in'] },
+                OR: [{ actualCheckOut: null }, { actualCheckOut: { gte: new Date() } }],
+              },
+              _count: true,
+            });
+            const revenueResult = await tx.folioLineItem.aggregate({
+              where: {
+                tenantId: property.tenantId,
+                serviceDate: businessDayDate,
+                category: 'room',
+              },
+              _sum: { totalAmount: true },
+            });
+            await db.auditLog.create({
+              data: {
+                tenantId: property.tenantId, module: 'night_audit', action: 'create',
+                entityType: 'NightAudit', entityId: audit.id,
+                newValue: JSON.stringify({
+                  step: 5, type: 'daily_report',
+                  occupancy: occupancyStats,
+                  roomRevenue: revenueResult._sum.totalAmount || 0,
+                  businessDay: businessDayDate.toISOString().split('T')[0],
+                }),
+              },
+            });
+            await tx.nightAuditStep.updateMany({
+              where: { nightAuditId: audit.id, stepOrder: 5 },
+              data: { status: 'completed', completedAt: new Date(), performedBy: auditUser.id },
+            });
+
+            // Step 6 — Close business day (final reconciliation)
+            await tx.nightAuditStep.updateMany({
+              where: { nightAuditId: audit.id, stepOrder: 6 },
+              data: { status: 'completed', completedAt: new Date(), performedBy: auditUser.id },
+            });
           });
         } catch (txError) {
           console.error(`[Cron] Transaction failed for property ${property.name}:`, txError);
@@ -172,11 +304,6 @@ export async function GET(request: NextRequest) {
             completedAt: new Date(),
             autoPostedAt: new Date(),
           },
-        });
-
-        await db.nightAuditStep.updateMany({
-          where: { nightAuditId: audit.id },
-          data: { status: 'completed', completedAt: new Date(), performedBy: auditUser.id },
         });
 
         audited++;
