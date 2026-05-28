@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {    const user = await require
     }
 
     // Validate type
-    const validTypes = ['markup', 'markdown', 'dynamic', 'seasonal', 'discount_percentage', 'discount_fixed', 'surcharge_percentage', 'surcharge_fixed', 'early_bird', 'last_minute', 'long_stay', 'weekend', 'occupancy', 'promo_code'];
+    const validTypes = ['markup', 'markdown', 'dynamic', 'seasonal', 'discount_percentage', 'discount_fixed', 'surcharge_percentage', 'surcharge_fixed', 'early_bird', 'last_minute', 'long_stay', 'weekend', 'occupancy', 'promo_code', 'advance_booking', 'channel'];
     if (!validTypes.includes(type)) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid rule type' } },
