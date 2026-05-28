@@ -328,6 +328,8 @@ export async function POST(request: NextRequest) {
           receiptNumber,
           folioBalance: updatedFolio?.balance ?? 0,
           currency: payment.currency,
+          // H-15: Clearly indicate when payment was processed in demo mode
+          isDemo: resolvedGateway === 'kiosk-demo',
         },
       },
       { status: 201 }
