@@ -278,7 +278,7 @@ export default function WiFiConsentManagement() {
       }
     })();
 
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
   }, [searchQuery, consentTypeFilter, optInFilter, propertyFilter, dateRange, fetchKey]);
 
   // ─── Fetch Stats ────────────────────────────────────────────────────────────
@@ -308,7 +308,7 @@ export default function WiFiConsentManagement() {
       }
     })();
 
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
   }, [dateRange, fetchKey]);
 
   // ─── Refresh ────────────────────────────────────────────────────────────────

@@ -265,7 +265,7 @@ export default function WifiPartners() {
       }
     })();
 
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
   }, [statusFilter, typeFilter, searchQuery, fetchKey]);
 
   // ─── Fetch Stats ─────────────────────────────────────────────────────────
@@ -295,7 +295,7 @@ export default function WifiPartners() {
       }
     })();
 
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
   }, [dateRange, fetchKey]);
 
   // ─── Fetch Auth Sessions ─────────────────────────────────────────────────
@@ -365,7 +365,7 @@ export default function WifiPartners() {
       }
     })();
 
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
   }, [authPartnerFilter, dateRange, fetchKey]);
 
   // ─── Expand partner to show recent auths ─────────────────────────────────

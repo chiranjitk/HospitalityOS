@@ -158,7 +158,7 @@ export default function WiFiRevenueDashboard() {
       }
     })();
 
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
   }, [fetchKey, toast]);
 
   const refresh = () => setFetchKey(k => k + 1);

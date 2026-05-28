@@ -237,7 +237,7 @@ export default function WiFiBandwidthUpsell() {
       }
     })();
 
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
   }, []);
 
   // ─── Fetch Upgrades ────────────────────────────────────────────────────────
@@ -274,7 +274,7 @@ export default function WiFiBandwidthUpsell() {
       }
     })();
 
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
   }, [statusFilter, dateRange, fetchKey]);
 
   // ─── Fetch Stats ────────────────────────────────────────────────────────────
@@ -304,7 +304,7 @@ export default function WiFiBandwidthUpsell() {
       }
     })();
 
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
   }, [dateRange, fetchKey]);
 
   // ─── Refresh ────────────────────────────────────────────────────────────────

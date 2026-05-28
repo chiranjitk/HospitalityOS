@@ -250,7 +250,7 @@ export default function WifiAdCampaigns() {
       }
     })();
 
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
   }, [statusFilter, slotFilter, searchQuery, fetchKey]);
 
   // ─── Fetch Stats ──────────────────────────────────────────────────────────────
@@ -278,7 +278,7 @@ export default function WifiAdCampaigns() {
       }
     })();
 
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
   }, [fetchKey]);
 
   // ─── Refresh ──────────────────────────────────────────────────────────────────

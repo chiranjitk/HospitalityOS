@@ -270,7 +270,7 @@ export default function WiFiSLAMonitoring() {
       }
     })();
 
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
   }, [fetchKey, toast]);
 
   // ─── Latest metrics for overall compliance cards ──────────────────

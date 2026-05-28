@@ -219,7 +219,7 @@ export default function WiFiSatisfactionSurveys() {
       }
     })();
 
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
   }, [fetchKey, toast]);
 
   // ─── Filter surveys ───────────────────────────────────────────────
