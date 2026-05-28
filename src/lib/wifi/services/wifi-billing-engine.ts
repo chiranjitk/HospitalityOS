@@ -180,25 +180,32 @@ export async function runDailyWiFiBilling(tenantId?: string): Promise<BillingRes
     const now = new Date();
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    for (const user of users) {
-      try {
-        result.processed++;
-        const plan = user.plan;
+    // H-35 FIX: Process users in parallel batches instead of sequentially.
+    // Process 10 users at a time to balance parallelism with DB connection limits.
+    const BATCH_SIZE = 10;
 
-        // Skip free plans
-        if (!plan || plan.price <= 0) {
-          result.skipped++;
-          continue;
-        }
+    for (let i = 0; i < users.length; i += BATCH_SIZE) {
+      const batch = users.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.allSettled(
+        batch.map(async (user) => {
+          try {
+            result.processed++;
+            const plan = user.plan;
 
-        // Calculate usage DELTA (not cumulative) — only bill data consumed since last billing run
-        const totalBytesIn = Number(user.totalBytesIn || 0n);
-        const totalBytesOut = Number(user.totalBytesOut || 0);
-        const lastBilledIn = Number(user.lastBilledBytesIn || 0n);
-        const lastBilledOut = Number(user.lastBilledBytesOut || 0n);
-        const deltaBytesIn = Math.max(0, totalBytesIn - lastBilledIn);
-        const deltaBytesOut = Math.max(0, totalBytesOut - lastBilledOut);
-        const usageMb = round2((deltaBytesIn + deltaBytesOut) / (1024 * 1024));
+            // Skip free plans
+            if (!plan || plan.price <= 0) {
+              result.skipped++;
+              return;
+            }
+
+            // Calculate usage DELTA (not cumulative) — only bill data consumed since last billing run
+            const totalBytesIn = Number(user.totalBytesIn || 0n);
+            const totalBytesOut = Number(user.totalBytesOut || 0);
+            const lastBilledIn = Number(user.lastBilledBytesIn || 0n);
+            const lastBilledOut = Number(user.lastBilledBytesOut || 0n);
+            const deltaBytesIn = Math.max(0, totalBytesIn - lastBilledIn);
+            const deltaBytesOut = Math.max(0, totalBytesOut - lastBilledOut);
+            const usageMb = round2((deltaBytesIn + deltaBytesOut) / (1024 * 1024));
 
         // Use lastBilledAt for period start (or createdAt for first run)
         const periodStart = user.lastBilledAt || user.createdAt;
@@ -219,7 +226,7 @@ export async function runDailyWiFiBilling(tenantId?: string): Promise<BillingRes
 
         if (amount <= 0) {
           result.skipped++;
-          continue;
+          return;
         }
 
         result.totalCharged = round2(result.totalCharged + amount);
@@ -349,6 +356,14 @@ export async function runDailyWiFiBilling(tenantId?: string): Promise<BillingRes
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         result.errors.push(`User ${user.username}: ${message}`);
+      }
+
+      // Process batch results - count failures from settled promises
+      for (const r of batchResults) {
+        if (r.status === 'rejected') {
+          result.failed++;
+          result.errors.push(`Unexpected error: ${r.reason}`);
+        }
       }
     }
   } catch (err: unknown) {
