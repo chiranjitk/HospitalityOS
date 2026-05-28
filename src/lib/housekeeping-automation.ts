@@ -213,7 +213,10 @@ export async function autoAssignTask(taskId: string) {
       where: { id: taskId },
       data: {
         assignedTo: bestFit.userId,
-        status: 'assigned',
+        // H-44: Changed from 'assigned' to 'in_progress' because 'assigned' is not in
+        // the VALID_STATUSES for tasks. 'in_progress' correctly reflects that work has
+        // been assigned and is actively being tracked.
+        status: 'in_progress',
       },
     });
 
