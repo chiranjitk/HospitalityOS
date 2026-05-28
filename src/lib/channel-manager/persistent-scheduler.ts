@@ -182,7 +182,7 @@ export class PersistentScheduler {
       });
 
       // Create sync log entry
-      await db.channelSyncLog.create({
+      const syncLog = await db.channelSyncLog.create({
         data: {
           connectionId,
           syncType: 'scheduled',
@@ -196,6 +196,21 @@ export class PersistentScheduler {
           }),
         },
       });
+
+      // H-33 FIX: Immediately process the created sync log instead of leaving it 'pending'
+      // Previously sync logs were created but never consumed, causing stale data on OTAs
+      try {
+        const { processSyncMessage } = await import('./realtime-sync');
+        await processSyncMessage(syncLog.id, {
+          tenantId: String(conn.tenantId),
+          propertyId: String(conn.propertyId),
+          type: 'scheduled_sync',
+          priority: 'low',
+          data: { connectionId, channel: conn.channel },
+        });
+      } catch (procErr) {
+        console.warn(`[PersistentScheduler] Failed to process sync log ${syncLog.id}:`, procErr);
+      }
 
       const duration = Date.now() - startTime;
       console.log(`[PersistentScheduler] Sync completed for ${conn.channel} in ${duration}ms`);
