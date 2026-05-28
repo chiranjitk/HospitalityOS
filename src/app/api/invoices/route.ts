@@ -70,9 +70,12 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate stats
+    // H-20: Limit the stats query to prevent unbounded fetch on tenants with many invoices.
+    // We only need aggregated counts/totals, not individual invoice data.
     const allInvoices = await db.invoice.findMany({
       where: { tenantId: user.tenantId },
       select: { status: true, totalAmount: true, taxes: true, subtotal: true },
+      take: 10000,
     });
 
     const stats = {
