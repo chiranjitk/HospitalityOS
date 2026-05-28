@@ -274,8 +274,10 @@ export default function RoomAssignment() {
     }
   };
 
-  // Smart Assign algorithm
-  const computeSmartAssignments = () => {
+  // H-13 FIX: Smart Assign now calls backend server-side engine instead of client-side scoring.
+  // The backend has the full smart-room-assigner.ts with 10+ scoring factors including
+  // real booking overlap detection, housekeeping status, maintenance proximity, etc.
+  const computeSmartAssignments = async () => {
     if (unassignedBookings.length === 0) {
       toast({
         title: 'No Unassigned Bookings',
@@ -286,138 +288,59 @@ export default function RoomAssignment() {
     }
 
     setIsComputingSuggestions(true);
-    // Simulate brief computation for UX
-    setTimeout(() => {
-      const computedSuggestions: Array<{
-        booking: Booking;
-        room: Room;
-        score: number;
-        reasons: string[];
-        accepted: false;
-      }> = [];
+    const computedSuggestions: Array<{
+      booking: Booking;
+      room: Room;
+      score: number;
+      reasons: string[];
+      accepted: false;
+    }> = [];
 
-      const assignedRoomIds = new Set<string>();
+    const assignedRoomIds = new Set<string>();
 
-      // Sort bookings by priority: arriving today > VIP > check-in date
-      const sortedBookings = [...unassignedBookings].sort((a, b) => {
-    const aArrivingToday = new Date(a.checkIn).toDateString() === new Date().toDateString() ? 0 : 1;
-    const bArrivingToday = new Date(b.checkIn).toDateString() === new Date().toDateString() ? 0 : 1;
-    if (aArrivingToday !== bArrivingToday) return aArrivingToday - bArrivingToday;
-    const aVip = a.primaryGuest.isVip ? 0 : 1;
-    const bVip = b.primaryGuest.isVip ? 0 : 1;
-    if (aVip !== bVip) return aVip - bVip;
-    return new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime();
-      });
-
-      // Group bookings by property to prefer same-floor assignments
-      const bookingsByProperty = new Map<string, Booking[]>();
-      for (const b of sortedBookings) {
-        const propId = b.property.id;
-        if (!bookingsByProperty.has(propId)) bookingsByProperty.set(propId, []);
-        bookingsByProperty.get(propId)!.push(b);
-      }
-
-      // Track floor usage per property for group preference
-      const floorUsage = new Map<string, Map<number, number>>();
-
-      for (const [propId, propertyBookings] of bookingsByProperty) {
-        if (!floorUsage.has(propId)) floorUsage.set(propId, new Map());
-        const propFloorUsage = floorUsage.get(propId)!;
-
-        for (const booking of propertyBookings) {
-          const compatibleRooms = availableRooms.filter(r =>
-            r.roomType.id === booking.roomType.id &&
-            r.property.id === booking.property.id &&
-            !assignedRoomIds.has(r.id)
-          );
-
-          if (compatibleRooms.length === 0) continue;
-
-          // Score each compatible room
-          let bestRoom = compatibleRooms[0];
-          let bestScore = -1;
-          let bestReasons: string[] = [];
-
-          for (const room of compatibleRooms) {
-            let score = 0;
-            const reasons: string[] = [];
-
-            // Room type match (essential, but give points for confirmation)
-            score += 40;
-            reasons.push('Room type match');
-
-            // Prefer same floor as other already-suggested bookings (group preference)
-            const currentFloorCount = propFloorUsage.get(room.floor) || 0;
-            if (currentFloorCount > 0) {
-              score += 20;
-              reasons.push(`${currentFloorCount} other booking(s) on floor ${room.floor}`);
-            }
-
-            // VIP guest gets premium features
-            if (booking.primaryGuest.isVip) {
-              if (room.hasSeaView) { score += 15; reasons.push('Sea view (VIP)'); }
-              if (room.hasMountainView) { score += 10; reasons.push('Mountain view (VIP)'); }
-              if (room.hasBalcony) { score += 10; reasons.push('Balcony (VIP)'); }
-              // Higher floor preference for VIP
-              if (room.floor >= 3) { score += 5; reasons.push('Premium floor'); }
-            }
-
-            // Accessibility for guests who need it
-            if (booking.specialRequests?.toLowerCase().includes('accessib') && room.isAccessible) {
-              score += 30;
-              reasons.push('Accessible room');
-            }
-
-            // Loyalty tier bonus
-            if (booking.primaryGuest.loyaltyTier === 'platinum') {
-              if (room.hasSeaView) { score += 8; reasons.push('Sea view (Platinum)'); }
-              if (room.floor >= 2) { score += 3; reasons.push('Higher floor (Platinum)'); }
-            } else if (booking.primaryGuest.loyaltyTier === 'gold') {
-              if (room.hasSeaView) { score += 5; reasons.push('Sea view (Gold)'); }
-            }
-
-            // Lower floor for families with children
-            if (booking.children > 0 && room.floor <= 2) {
-              score += 5;
-              reasons.push('Lower floor (family)');
-            }
-
-            // Non-smoking by default preference
-            if (!room.isSmoking) { score += 3; reasons.push('Non-smoking'); }
-
-            if (score > bestScore) {
-              bestScore = score;
-              bestRoom = room;
-              bestReasons = reasons;
-            }
-          }
-
-          computedSuggestions.push({
-            booking,
-            room: bestRoom,
-            score: bestScore,
-            reasons: bestReasons,
-            accepted: false,
-          });
-
-          assignedRoomIds.add(bestRoom.id);
-          propFloorUsage.set(bestRoom.floor, (propFloorUsage.get(bestRoom.floor) || 0) + 1);
-        }
-      }
-
-      setSuggestions(computedSuggestions);
-      setIsComputingSuggestions(false);
-
-      if (computedSuggestions.length === 0) {
-        toast({
-          title: 'No Suggestions',
-          description: 'Could not find compatible rooms for any booking',
-          variant: 'destructive',
+    for (const booking of unassignedBookings) {
+      try {
+        const response = await fetch('/api/frontdesk/auto-assign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bookingId: booking.id,
+            propertyId: booking.property.id,
+            auto: false,
+          }),
         });
-      } else {
-        setIsSmartAssignOpen(true);
+
+        const result = await response.json();
+        if (result.success && result.data?.suggestedRoom) {
+          const room = result.data.suggestedRoom;
+          if (!assignedRoomIds.has(room.id)) {
+            computedSuggestions.push({
+              booking,
+              room,
+              score: result.data.score || 0,
+              reasons: result.data.reasons || ['Server-side scoring'],
+              accepted: false,
+            });
+            assignedRoomIds.add(room.id);
+          }
+        }
+      } catch {
+        // Skip failed assignments, continue with next booking
       }
-    }, 400);
+    }
+
+    setSuggestions(computedSuggestions);
+    setIsComputingSuggestions(false);
+
+    if (computedSuggestions.length === 0) {
+      toast({
+        title: 'No Suggestions',
+        description: 'Could not find compatible rooms for any booking',
+        variant: 'destructive',
+      });
+    } else {
+      setIsSmartAssignOpen(true);
+    }
   };
 
   // Accept a single suggestion
