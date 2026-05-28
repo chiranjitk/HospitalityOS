@@ -36,6 +36,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 import BookingStatusTimeline from '@/components/bookings/booking-status-timeline';
+import BookingActions from '@/components/bookings/booking-actions';
 import { 
   CalendarDays, 
   Plus, 
@@ -819,41 +820,45 @@ export default function BookingsList() {
                             </Select>
                           </TableCell>
                           <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setExpandedBookingId(isExpanded ? null : booking.id)}
-                                className={cn(
-                                  'text-muted-foreground hover:text-foreground',
-                                  isExpanded && 'text-primary bg-primary/5',
+                            <div className="flex flex-col items-end gap-1.5">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setExpandedBookingId(isExpanded ? null : booking.id)}
+                                  className={cn(
+                                    'text-muted-foreground hover:text-foreground',
+                                    isExpanded && 'text-primary bg-primary/5',
+                                  )}
+                                >
+                                  <Activity className="h-3.5 w-3.5 mr-1" />
+                                  <span className="hidden sm:inline">Timeline</span>
+                                </Button>
+                                {isArrivingToday && booking.status === 'confirmed' && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => updateBookingStatus(booking.id, 'checked_in')}
+                                    className="text-emerald-600 dark:text-emerald-400"
+                                  >
+                                    <LogIn className="h-3 w-3 mr-1" />
+                                    Check In
+                                  </Button>
                                 )}
-                              >
-                                <Activity className="h-3.5 w-3.5 mr-1" />
-                                <span className="hidden sm:inline">Timeline</span>
-                              </Button>
-                              {isArrivingToday && booking.status === 'confirmed' && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => updateBookingStatus(booking.id, 'checked_in')}
-                                  className="text-emerald-600 dark:text-emerald-400"
-                                >
-                                  <LogIn className="h-3 w-3 mr-1" />
-                                  Check In
-                                </Button>
-                              )}
-                              {isDepartingToday && booking.status === 'checked_in' && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => updateBookingStatus(booking.id, 'checked_out')}
-                                  className="text-amber-600 dark:text-amber-400"
-                                >
-                                  <LogOut className="h-3 w-3 mr-1" />
-                                  Check Out
-                                </Button>
-                              )}
+                                {isDepartingToday && booking.status === 'checked_in' && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => updateBookingStatus(booking.id, 'checked_out')}
+                                    className="text-amber-600 dark:text-amber-400"
+                                  >
+                                    <LogOut className="h-3 w-3 mr-1" />
+                                    Check Out
+                                  </Button>
+                                )}
+                              </div>
+                              {/* H-06 FIX: Action buttons for backend-only endpoints */}
+                              <BookingActions booking={booking} onActionComplete={fetchBookings} />
                             </div>
                           </TableCell>
                         </TableRow>
