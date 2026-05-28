@@ -54,6 +54,7 @@ import {
   Package,
   X,
   ChevronRight,
+  Pencil,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -147,6 +148,7 @@ export default function PackagePlansPage() {
 
   // Dialogs
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isRateOpen, setIsRateOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -374,6 +376,75 @@ export default function PackagePlansPage() {
     setFormComponents([{ componentType: 'meal', name: '', includedQty: '1', unitCost: '0', isIncluded: true }]);
   };
 
+  const populateFormFromPackage = (pkg: PackagePlan) => {
+    setPkgForm({
+      name: pkg.name,
+      description: pkg.description || '',
+      baseRoomTypeId: pkg.baseRoomTypeId,
+      roomRateInclusive: pkg.roomRateInclusive,
+      startDate: pkg.startDate ? pkg.startDate.split('T')[0] : '',
+      endDate: pkg.endDate ? pkg.endDate.split('T')[0] : '',
+      minNights: String(pkg.minNights),
+      maxNights: pkg.maxNights ? String(pkg.maxNights) : '',
+      status: pkg.status,
+    });
+    if (pkg.components && pkg.components.length > 0) {
+      setFormComponents(pkg.components.map(c => ({
+        componentType: c.componentType,
+        name: c.referenceName || '',
+        includedQty: String(c.includedQty),
+        unitCost: String(c.unitCost),
+        isIncluded: c.isIncluded,
+      })));
+    } else {
+      setFormComponents([{ componentType: 'meal', name: '', includedQty: '1', unitCost: '0', isIncluded: true }]);
+    }
+  };
+
+  const handleEdit = (pkg: PackagePlan) => {
+    setSelectedPackage(pkg);
+    populateFormFromPackage(pkg);
+    setIsEditOpen(true);
+  };
+
+  const handleUpdate = async () => {
+    if (!selectedPackage || !pkgForm.name.trim() || !pkgForm.baseRoomTypeId || !pkgForm.startDate || !pkgForm.endDate) {
+      toast({ title: 'Validation', description: 'Name, room type, and dates are required', variant: 'destructive' });
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/packages/${selectedPackage.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: pkgForm.name,
+          description: pkgForm.description || undefined,
+          baseRoomTypeId: pkgForm.baseRoomTypeId,
+          roomRateInclusive: pkgForm.roomRateInclusive,
+          startDate: pkgForm.startDate,
+          endDate: pkgForm.endDate,
+          minNights: parseInt(pkgForm.minNights) || 1,
+          maxNights: pkgForm.maxNights ? parseInt(pkgForm.maxNights) : undefined,
+          status: pkgForm.status,
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast({ title: 'Success', description: 'Package updated' });
+        setIsEditOpen(false);
+        resetForm();
+        fetchPackages();
+      } else {
+        toast({ title: 'Error', description: result.error || 'Failed to update package', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to update package', variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const resetRateForm = () => setRateForm({ roomTypeId: '', startDate: '', endDate: '', price: '', minStay: '1', maxStay: '', status: 'active' });
 
   const formatCurrency = (amount: number) => `$${(amount || 0).toFixed(2)}`;
@@ -484,6 +555,9 @@ export default function PackagePlansPage() {
                               <DropdownMenuContent align="end" className="w-48">
                                 <DropdownMenuItem onClick={() => { setSelectedPackage(pkg); setIsDetailOpen(true); }}>
                                   <Eye className="h-4 w-4 mr-2" />View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleEdit(pkg)}>
+                                  <Pencil className="h-4 w-4 mr-2" />Edit Package
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => { setSelectedPackage(pkg); resetRateForm(); setIsRateOpen(true); }}>
                                   <DollarSign className="h-4 w-4 mr-2" />Add Rate
@@ -616,6 +690,56 @@ export default function PackagePlansPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
             <Button onClick={handleCreate} disabled={isSaving}>{isSaving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Gift className="h-4 w-4 mr-1.5" />}Create Package</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========== EDIT PACKAGE DIALOG ========== */}
+      <Dialog open={isEditOpen} onOpenChange={open => { if (!open) { resetForm(); setSelectedPackage(null); } setIsEditOpen(open); }}>
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Package Plan</DialogTitle>
+            <DialogDescription>Update package details, dates, and configuration</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5"><Label>Package Name *</Label><Input value={pkgForm.name} onChange={e => setPkgForm(p => ({ ...p, name: e.target.value }))} /></div>
+              <div className="space-y-1.5">
+                <Label>Base Room Type *</Label>
+                <Select value={pkgForm.baseRoomTypeId} onValueChange={v => setPkgForm(p => ({ ...p, baseRoomTypeId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select room type..." /></SelectTrigger>
+                  <SelectContent>{roomTypes.map(rt => <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5"><Label>Description</Label><Textarea value={pkgForm.description} onChange={e => setPkgForm(p => ({ ...p, description: e.target.value }))} rows={2} /></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5"><Label>Start Date *</Label><Input type="date" value={pkgForm.startDate} onChange={e => setPkgForm(p => ({ ...p, startDate: e.target.value }))} /></div>
+              <div className="space-y-1.5"><Label>End Date *</Label><Input type="date" value={pkgForm.endDate} onChange={e => setPkgForm(p => ({ ...p, endDate: e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="space-y-1.5"><Label>Min Nights</Label><Input type="number" min="1" value={pkgForm.minNights} onChange={e => setPkgForm(p => ({ ...p, minNights: e.target.value }))} /></div>
+              <div className="space-y-1.5"><Label>Max Nights</Label><Input type="number" value={pkgForm.maxNights} onChange={e => setPkgForm(p => ({ ...p, maxNights: e.target.value }))} placeholder="No max" /></div>
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <Select value={pkgForm.status} onValueChange={v => setPkgForm(p => ({ ...p, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between pt-5">
+                <Label>Room Rate Inclusive</Label>
+                <Switch checked={pkgForm.roomRateInclusive} onCheckedChange={v => setPkgForm(p => ({ ...p, roomRateInclusive: v }))} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
+            <Button onClick={handleUpdate} disabled={isSaving}>{isSaving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Pencil className="h-4 w-4 mr-1.5" />}Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
