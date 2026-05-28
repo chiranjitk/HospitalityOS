@@ -292,6 +292,11 @@ const t = useTranslations('pos');
     } catch {
       setTaxRate(0);
     }
+    // H-41 NOTE: This fetches a single defaultTaxRate from property settings.
+    // Properties with multiple tax components (e.g., CGST + SGST + cess) should use
+    // the taxComponents array from property settings instead of a flat defaultTaxRate.
+    // Update fetchPropertyTaxRate to parse taxComponents and calculate the effective
+    // composite rate when available.
   };
 
   useEffect(() => {
