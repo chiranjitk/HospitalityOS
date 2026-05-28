@@ -39,6 +39,9 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 
 /**
  * Get current metrics for a property over a date range.
+ * H-47: Optimized to use a single aggregate query instead of per-day N+1 queries.
+ * Previously this iterated day-by-day, running 3 separate queries per day (checkins, inHouse, revenue).
+ * Now it fetches all overlapping bookings once and processes them in memory.
  */
 export async function getCurrentMetrics(
   tenantId: string,
@@ -53,49 +56,53 @@ export async function getCurrentMetrics(
   const totalRooms = property?.totalRooms || 100;
   const metrics: RevPARMetrics[] = [];
 
-  // Iterate day by day
+  // H-47: Fetch all bookings that overlap the date range in a single query,
+  // then compute per-day metrics in memory to avoid N+1 database queries.
+  const allBookings = await db.booking.findMany({
+    where: {
+      tenantId,
+      propertyId,
+      status: { in: ['checked_in', 'checked_out', 'confirmed'] },
+      deletedAt: null,
+      checkIn: { lte: dateRange.end },
+      checkOut: { gt: dateRange.start },
+    },
+    select: {
+      totalAmount: true,
+      checkIn: true,
+      checkOut: true,
+      actualCheckIn: true,
+    },
+  });
+
+  // Also get check-in events for the date range
+  const checkinEvents = allBookings.filter(b =>
+    b.actualCheckIn &&
+    b.actualCheckIn >= dateRange.start &&
+    b.actualCheckIn <= dateRange.end
+  );
+
+  // Iterate day by day and compute metrics from the pre-fetched data
   for (let d = new Date(dateRange.start); d <= dateRange.end; d.setDate(d.getDate() + 1)) {
     const dayStart = new Date(d);
     dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(d);
     dayEnd.setHours(23, 59, 59, 999);
 
-    // Get check-ins for this day
-    const checkins = await db.booking.count({
-      where: {
-        tenantId,
-        propertyId,
-        actualCheckIn: { gte: dayStart, lte: dayEnd },
-        status: { in: ['checked_in', 'checked_out'] },
-        deletedAt: null,
-      },
-    });
+    // Count check-ins for this day
+    const checkins = checkinEvents.filter(b =>
+      b.actualCheckIn && b.actualCheckIn >= dayStart && b.actualCheckIn <= dayEnd
+    ).length;
 
-    // Get guests in-house (occupancy) for this day
-    // Those who checked in before or on this day, and haven't checked out yet
-    const inHouse = await db.booking.count({
-      where: {
-        tenantId,
-        propertyId,
-        checkIn: { lte: dayEnd },
-        checkOut: { gt: dayStart },
-        status: { in: ['checked_in', 'confirmed', 'reserved'] },
-        deletedAt: null,
-      },
-    });
+    // Count guests in-house (occupancy) for this day
+    const inHouse = allBookings.filter(b =>
+      b.checkIn <= dayEnd && b.checkOut > dayStart
+    ).length;
 
-    // Get revenue for this day (from bookings that overlap this day)
-    const overlappingBookings = await db.booking.findMany({
-      where: {
-        tenantId,
-        propertyId,
-        checkIn: { lte: dayEnd },
-        checkOut: { gt: dayStart },
-        status: { in: ['checked_in', 'checked_out', 'confirmed'] },
-        deletedAt: null,
-      },
-      select: { totalAmount: true, checkIn: true, checkOut: true },
-    });
+    // Calculate revenue for this day from overlapping bookings
+    const overlappingBookings = allBookings.filter(b =>
+      b.checkIn <= dayEnd && b.checkOut > dayStart
+    );
 
     let dayRevenue = 0;
     for (const b of overlappingBookings) {
@@ -110,7 +117,7 @@ export async function getCurrentMetrics(
       dayRevenue += (b.totalAmount / totalNights) * nights;
     }
 
-    const availableRooms = totalRooms; // Simplified: all rooms are available
+    const availableRooms = totalRooms;
     const occupiedRooms = Math.min(inHouse, totalRooms);
     const occupancy = availableRooms > 0 ? (occupiedRooms / availableRooms) * 100 : 0;
     const adr = occupiedRooms > 0 ? dayRevenue / occupiedRooms : 0;
