@@ -184,6 +184,7 @@ enum AuditAction {
   integration_connect
   integration_disconnect
   access_denied
+  admin_permission_bypass
   suspicious_activity
   data_export
   api_key_create
