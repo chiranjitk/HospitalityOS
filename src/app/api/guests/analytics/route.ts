@@ -2,6 +2,45 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
+// H-29: Helper to calculate real age distribution from guest dateOfBirth data
+async function getRealAgeDistribution(tenantId: string): Promise<Array<{ range: string; count: number; estimated?: boolean }>> {
+  const now = new Date();
+  const guestsWithDob = await db.guest.findMany({
+    where: {
+      tenantId,
+      deletedAt: null,
+      dateOfBirth: { not: null },
+    },
+    select: { dateOfBirth: true },
+  });
+
+  const ranges = [
+    { range: '18-25', min: 18, max: 25 },
+    { range: '26-35', min: 26, max: 35 },
+    { range: '36-45', min: 36, max: 45 },
+    { range: '46-55', min: 46, max: 55 },
+    { range: '56+', min: 56, max: 150 },
+  ];
+
+  const distribution = ranges.map(r => ({
+    range: r.range,
+    count: 0,
+  }));
+
+  for (const guest of guestsWithDob) {
+    if (!guest.dateOfBirth) continue;
+    const age = Math.floor((now.getTime() - new Date(guest.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    for (const r of ranges) {
+      if (age >= r.min && age <= r.max) {
+        distribution.find(d => d.range === r.range)!.count++;
+        break;
+      }
+    }
+  }
+
+  return distribution;
+}
+
 // GET /api/guests/analytics - Get guest analytics
 export async function GET(request: NextRequest) {
     const user = await getUserFromRequest(request);
@@ -140,14 +179,9 @@ export async function GET(request: NextRequest) {
           country: n.nationality || 'Unknown',
           count: n._count.id,
         })),
-        // Estimated distribution based on hospitality industry averages
-        ageDistribution: [
-          { range: '18-25', count: Math.floor(totalGuests * 0.1), estimated: true },
-          { range: '26-35', count: Math.floor(totalGuests * 0.28), estimated: true },
-          { range: '36-45', count: Math.floor(totalGuests * 0.24), estimated: true },
-          { range: '46-55', count: Math.floor(totalGuests * 0.21), estimated: true },
-          { range: '56+', count: Math.floor(totalGuests * 0.17), estimated: true },
-        ],
+        // H-29: Real age distribution based on guest dateOfBirth data from the database.
+        // Count guests by age group. Guests without a dateOfBirth are excluded from counts.
+        ageDistribution: await getRealAgeDistribution(tenantId),
         recentGuests: guestsWithSpend,
       },
     });
