@@ -107,6 +107,14 @@ export async function queueSyncMessage(message: SyncMessage): Promise<string> {
       await processSyncMessage(syncLog.id, message);
     }
 
+    // H-23 FIX: Also process medium priority messages immediately.
+    // Low priority messages are batched by the channel-sync cron job.
+    if (message.priority === 'medium') {
+      await processSyncMessage(syncLog.id, message).catch(err => {
+        console.warn(`[RealtimeSync] Failed to process medium-priority message ${syncLog.id}:`, err);
+      });
+    }
+
     return syncLog.id;
   } catch (error) {
     console.error('Error queuing sync message:', error);
