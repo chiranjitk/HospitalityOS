@@ -192,9 +192,10 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (!hasAnyPermission(user, ['crm.view', 'crm.manage'])) {
+    // H-31 FIX: PUT requires crm.manage, not crm.view. View-only users must not modify data.
+    if (!hasAnyPermission(user, ['crm.manage'])) {
       return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions — crm.manage required' } },
         { status: 403 }
       );
     }
