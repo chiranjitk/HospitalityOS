@@ -66,6 +66,14 @@ function getOpenSSLEnv(): Record<string, string> {
  */
 const RADIUS_AUTH_TIMEOUT_MS = 15000; // 15 second total timeout including DB lookup + radclient
 
+// TODO(M-50): Add a circuit breaker for the FreeRADIUS proxy. Currently, if
+// FreeRADIUS is down or slow, every RADIUS auth call will block for up to
+// RADIUS_AUTH_TIMEOUT_MS. A circuit breaker would track consecutive failures
+// and short-circuit after N failures, returning RADIUS_UNREACHABLE immediately
+// without attempting the radclient call. This prevents request pile-up when
+// FreeRADIUS is unavailable. Consider using a library like opossum or
+// implementing a simple state machine (closed → open → half-open).
+
 /**
  * Wraps a promise with a timeout.
  */
