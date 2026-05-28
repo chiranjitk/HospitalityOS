@@ -187,6 +187,15 @@ export async function POST(request: NextRequest) {
       (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)
     );
 
+    // M-01: Enforce maximum stay duration (configurable, default 90 days)
+    const MAX_STAY_NIGHTS = parseInt(process.env.MAX_STAY_NIGHTS || '90', 10);
+    if (nights > MAX_STAY_NIGHTS) {
+      return NextResponse.json(
+        { error: `Maximum stay duration is ${MAX_STAY_NIGHTS} nights. Please contact the property directly for extended stays.` },
+        { status: 400 }
+      );
+    }
+
     // Calculate pricing using the pricing engine
     let roomRate: number;
     let taxes: number;
