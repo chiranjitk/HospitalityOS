@@ -500,6 +500,13 @@ export async function POST(request: NextRequest) {    const user = await require
 
         case 'split_stay': {
           // Split a stay into two bookings
+          // TODO (H-05): When splitting a stay, the following data should be copied to the new bookings:
+          // - Folio line items (FolioLineItem) from the original booking's folio should be proportionally
+          //   distributed between the first and second booking based on nights.
+          // - Loyalty data (LoyaltyRedemption, LoyaltyPointTransaction) linked to the original booking.
+          // - Guest preferences (dietary, pillow, room preferences) are already copied via the preferences
+          //   field on the booking, but verify that any dynamic preference records are transferred too.
+          // - NPS responses (NpsResponse) associated with the original booking.
           const bookingId = bookingIds[0];
           if (!bookingId) {
             throw new Error('BOOKING_ID_REQUIRED');
