@@ -128,6 +128,88 @@ export default function RoomRateCalendar() {
   const [bulkEndDate, setBulkEndDate] = useState<string>('');
   const [bulkReason, setBulkReason] = useState<string>('');
 
+  // Drag-to-select state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartDate, setDragStartDate] = useState<string | null>(null);
+  const [dragEndDate, setDragEndDate] = useState<string | null>(null);
+  const [dragRateDialogOpen, setDragRateDialogOpen] = useState(false);
+  const [dragRateValue, setDragRateValue] = useState<string>('');
+
+  // Compute drag selection range
+  const dragSelectedDates = useMemo(() => {
+    if (!dragStartDate || !dragEndDate) return [];
+    const start = new Date(dragStartDate + 'T00:00:00');
+    const end = new Date(dragEndDate + 'T00:00:00');
+    const dates: string[] = [];
+    const [lo, hi] = start <= end ? [start, end] : [end, start];
+    for (let d = new Date(lo); d <= hi; d.setDate(d.getDate() + 1)) {
+    dates.push(toLocalDateString(d));
+  }
+    return dates;
+  }, [dragStartDate, dragEndDate]);
+
+  const isDateInDragSelection = (date: string) => dragSelectedDates.includes(date);
+
+  const handleDragStart = (date: string) => {
+    setIsDragging(true);
+    setDragStartDate(date);
+    setDragEndDate(date);
+  };
+
+  const handleDragEnter = (date: string) => {
+    if (isDragging) setDragEndDate(date);
+  };
+
+  const handleDragEnd = () => {
+    if (isDragging && dragStartDate && dragEndDate && dragSelectedDates.length > 0) {
+      const plan = ratePlans.find(p => p.id === selectedRatePlan);
+      setDragRateValue(plan?.basePrice?.toString() || '');
+      setDragRateDialogOpen(true);
+    }
+    setIsDragging(false);
+  };
+
+  const handleDragRateApply = async () => {
+    if (!dragRateValue || dragSelectedDates.length === 0 || !selectedRatePlan || !selectedRoomType) return;
+    const price = parseFloat(dragRateValue);
+    if (isNaN(price) || price < 0) {
+      toast({ title: 'Error', description: 'Invalid rate', variant: 'destructive' });
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const ratesMap: Record<string, number> = {};
+      dragSelectedDates.forEach(d => { ratesMap[d] = price; });
+      const sorted = [...dragSelectedDates].sort();
+      const response = await fetch('/api/rate-plans/bulk-rates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomTypeId: selectedRoomType,
+          ratePlanId: selectedRatePlan,
+          startDate: sorted[0],
+          endDate: sorted[sorted.length - 1],
+          rates: ratesMap,
+          reason: 'Drag-select rate update',
+        }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        toast({ title: 'Rates Updated', description: `Updated ${dragSelectedDates.length} dates` });
+        setDragRateDialogOpen(false);
+        setDragStartDate(null);
+        setDragEndDate(null);
+        fetchRates();
+      } else {
+        toast({ title: 'Error', description: result.error?.message || 'Failed to update', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to update rates', variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Generate calendar days for the current month view
   const calendarDays = useMemo<CalendarDay[]>(() => {
     const year = currentDate.getFullYear();
@@ -673,13 +755,18 @@ export default function RoomRateCalendar() {
                                 ) : (
                                   <div
                                     className={cn(
-                                      'cursor-pointer py-2 px-1 text-sm font-medium transition-colors hover:bg-muted/50 min-h-[40px] flex items-center justify-center',
+                                      'py-2 px-1 text-sm font-medium transition-colors hover:bg-muted/50 min-h-[40px] flex items-center justify-center select-none',
+                                      isDateInDragSelection(day.date) && 'bg-primary/15 ring-1 ring-primary/40',
                                       cellStatus === 'soldout' && 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300',
                                       cellStatus === 'restricted' && 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300',
-                                      cellStatus === 'available' && 'text-foreground',
+                                      cellStatus === 'available' && !isDateInDragSelection(day.date) && 'text-foreground',
+                                      isDragging && 'cursor-crosshair'
                                     )}
+                                    onMouseDown={(e) => { if (isSelectedPlan) { e.preventDefault(); handleDragStart(day.date); } }}
+                                    onMouseEnter={() => handleDragEnter(day.date)}
+                                    onMouseUp={() => handleDragEnd()}
                                     onClick={() => isSelectedPlan && handleCellClick(day.date, rp.id)}
-                                    title={!isSelectedPlan ? 'Switch to this rate plan to edit rates' : 'Click to edit rate'}
+                                    title={!isSelectedPlan ? 'Switch to this rate plan to edit rates' : 'Click to edit or drag to select range'}
                                   >
                                     <div className="flex flex-col items-center">
                                       <span>{formatCurrency(effectiveRate)}</span>
@@ -797,6 +884,50 @@ export default function RoomRateCalendar() {
             <Button onClick={handleBulkUpdate} disabled={isSaving || !bulkRate || !bulkStartDate || !bulkEndDate}>
               {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               Apply Bulk Update
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Drag-to-Select Rate Dialog */}
+      <Dialog open={dragRateDialogOpen} onOpenChange={(open) => { setDragRateDialogOpen(open); if (!open) { setDragStartDate(null); setDragEndDate(null); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" />
+              Set Rate for Selected Dates
+            </DialogTitle>
+            <DialogDescription>
+              {dragSelectedDates.length} date{dragSelectedDates.length > 1 ? 's' : ''} selected
+              ({dragSelectedDates[0]}{dragSelectedDates.length > 1 ? ` to ${dragSelectedDates[dragSelectedDates.length - 1]}` : ''})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-3 bg-muted rounded-lg">
+              <p className="text-sm font-medium">
+                {dragSelectedDates.length} date{dragSelectedDates.length > 1 ? 's' : ''}: {dragSelectedDates[0]}
+                {dragSelectedDates.length > 1 ? ` → ${dragSelectedDates[dragSelectedDates.length - 1]}`}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>New Rate</Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={dragRateValue}
+                onChange={(e) => setDragRateValue(e.target.value)}
+                placeholder="Enter rate amount"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') handleDragRateApply(); }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDragRateDialogOpen(false); setDragStartDate(null); setDragEndDate(null); }}>Cancel</Button>
+            <Button onClick={handleDragRateApply} disabled={isSaving || !dragRateValue}>
+              {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+              Apply to {dragSelectedDates.length} Date{dragSelectedDates.length > 1 ? 's' : ''}
             </Button>
           </DialogFooter>
         </DialogContent>
