@@ -339,65 +339,9 @@ export default function BookingsList() {
           description: `Booking ${newStatus === 'checked_in' ? 'checked in' : newStatus === 'checked_out' ? 'checked out' : 'updated'}`,
         });
 
-        // Auto-provision/deprovision RADIUS user for WiFi access
-        if (booking?.primaryGuest && (newStatus === 'checked_in' || newStatus === 'checked_out')) {
-          const guest = booking.primaryGuest;
-          // Build RADIUS username: lastname_firstname (lowercase)
-          const baseUsername = `${(guest.lastName || 'guest').toLowerCase()}_${(guest.firstName || '').toLowerCase()}`;
-          const roomSuffix = booking.room?.number ? `_${booking.room.number}` : '';
-          const username = baseUsername + roomSuffix;
-
-          if (newStatus === 'checked_in') {
-            // Provision RADIUS user on check-in
-            try {
-              const provisionRes = await fetch('/api/wifi/radius', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  action: 'provision',
-                  username,
-                  password: guest.phone || `stay${Date.now().toString(36)}`,
-                  group: guest.isVip ? 'premium-guests' : 'standard-guests',
-                  guestId: guest.id,
-                  bookingId: booking.id,
-                }),
-              });
-              const provisionResult = await provisionRes.json();
-              if (provisionResult.success) {
-                toast({
-                  title: 'WiFi Access Created',
-                  description: `RADIUS user "${username}" provisioned. Guest can now log in to WiFi.`,
-                });
-              } else if (provisionResult.error?.includes('already exists')) {
-                toast({
-                  title: 'WiFi User Exists',
-                  description: `RADIUS user "${username}" already active. Guest already has WiFi access.`,
-                });
-              } else {
-                console.warn('RADIUS provision failed (non-blocking):', provisionResult.error);
-                toast({
-                  title: 'WiFi Provisioning Skipped',
-                  description: `Could not auto-create WiFi user: ${provisionResult.error || 'RADIUS service unavailable'}`,
-                  variant: 'destructive',
-                });
-              }
-            } catch (radiusErr) {
-              console.warn('RADIUS provision error (non-blocking):', radiusErr);
-              // Don't block the check-in flow if RADIUS fails
-            }
-          } else if (newStatus === 'checked_out') {
-            // Deprovision RADIUS user on check-out
-            try {
-              await fetch('/api/wifi/radius', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'deprovision', username }),
-              });
-            } catch {
-              // Non-blocking - check-out should succeed regardless
-            }
-          }
-        }
+        // CRITICAL-08 FIX: Removed frontend WiFi provisioning/deprovisioning.
+        // WiFi is now handled solely by the backend booking status transition handler
+        // (see src/app/api/bookings/[id]/route.ts check-in/check-out logic).
 
         fetchBookings();
       } else {
