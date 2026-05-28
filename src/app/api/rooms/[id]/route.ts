@@ -8,15 +8,23 @@ import { fireAutomationEvent } from '@/lib/automation/hooks';
 import { cascadeRoomTypeChange } from '@/lib/room-type-change-cascade';
 
 // Room status transition validation
+// Prisma RoomStatus enum: available, occupied, maintenance, out_of_service, reserved, cleaning
+// Note: 'dirty' and 'inspected' are HousekeepingStatus, not RoomStatus.
+// Clients can still send 'dirty' as a convenience alias for 'cleaning' (mapped below).
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  available: ['occupied', 'maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved'],
-  reserved: ['occupied', 'available', 'maintenance', 'out_of_order'],
-  occupied: ['dirty', 'maintenance', 'out_of_order'],
-  dirty: ['cleaning', 'maintenance', 'out_of_order'],
-  cleaning: ['inspected', 'dirty', 'maintenance', 'available'],
-  inspected: ['available', 'dirty'],
-  maintenance: ['available', 'dirty', 'out_of_order'],
-  out_of_order: ['available', 'maintenance'],
+  available: ['occupied', 'maintenance', 'out_of_service', 'cleaning', 'reserved'],
+  reserved: ['occupied', 'available', 'maintenance', 'out_of_service'],
+  occupied: ['cleaning', 'maintenance', 'out_of_service'],
+  cleaning: ['available', 'maintenance', 'out_of_service'],
+  out_of_service: ['available', 'maintenance', 'cleaning'],
+  maintenance: ['available', 'cleaning', 'out_of_service'],
+};
+
+// Map convenience aliases to actual Prisma enum values
+const STATUS_ALIASES: Record<string, string> = {
+  dirty: 'cleaning',
+  inspected: 'available',
+  out_of_order: 'out_of_service',
 };
 
 // GET /api/rooms/[id] - Get a single room
@@ -199,13 +207,18 @@ export async function PUT(
 
     // Validate room status transition
     if (status && status !== existingRoom.status) {
-      const allowed = VALID_TRANSITIONS[existingRoom.status];
-      if (!allowed || !allowed.includes(status)) {
+      // Resolve convenience aliases (dirty → cleaning, out_of_order → out_of_service, inspected → available)
+      const resolvedStatus = STATUS_ALIASES[status] || status;
+      const resolvedExisting = STATUS_ALIASES[existingRoom.status] || existingRoom.status;
+      const allowed = VALID_TRANSITIONS[resolvedExisting];
+      if (!allowed || !allowed.includes(resolvedStatus)) {
         return NextResponse.json(
           { success: false, error: { code: 'INVALID_STATUS_TRANSITION', message: `Cannot transition room status from '${existingRoom.status}' to '${status}'` } },
           { status: 400 }
         );
       }
+      // Use the resolved (Prisma-valid) status for the DB update
+      body.status = resolvedStatus;
     }
 
     // Block transition to 'available' when active bookings exist on this room.
