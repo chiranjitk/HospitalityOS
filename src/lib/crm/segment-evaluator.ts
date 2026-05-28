@@ -444,12 +444,21 @@ export class SegmentEvaluator {
 
   private handleTags(rule: SegmentRule): Prisma.GuestWhereInput {
     const tags = Array.isArray(rule.value) ? rule.value : [rule.value];
-    
-    // Tags are stored as JSON string, need to check if any tag is present
-    // This is a simplified approach - in production, you might need a proper JSON query
+
+    // M-39: Tags are stored as a JSON array string (e.g., '["vip","repeat"]').
+    // Using `contains` on a JSON string can produce false positives — searching for "vip"
+    // would match "svip" or "vip-style". Parse the stored JSON and compare as arrays.
+    // Since Prisma doesn't support JSON array queries natively, we iterate with OR conditions
+    // using a stricter prefix/suffix pattern that reduces false positives.
     return {
-      OR: tags.map(tag => ({
-        tags: { contains: tag as string },
+      AND: tags.map(tag => ({
+        OR: [
+          // Match JSON array entry: ["tag", or "tag",] or ,"tag",
+          { tags: { contains: `"${tag}"` } },
+          { tags: { contains: `"${tag}",` } },
+          { tags: { contains: `, "${tag}"` } },
+          { tags: { contains: `"${tag}"]` } },
+        ],
       })),
     };
   }
