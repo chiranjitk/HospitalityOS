@@ -242,7 +242,7 @@ function CalendarViewTab() {
     const controller = new AbortController();
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties', { signal: controller.signal });
+        const response = await fetch('/api/properties?myProperties=true&limit=100', { signal: controller.signal });
         if (!response.ok) {
           const errorText = await response.text().catch(() => 'Unknown error');
           throw new Error(`API error ${response.status}: ${errorText}`);
@@ -326,9 +326,7 @@ function CalendarViewTab() {
 
   // Fetch bookings and availability
   const fetchData = useCallback(async () => {
-    if (propertyFilter === 'all') return;
-    
-    setIsLoading(true);
+    if (propertyFilter === 'all') { setIsLoading(false); return; }
     try {
       const startDate = startOfMonth(currentMonth);
       const endDate = endOfMonth(currentMonth);

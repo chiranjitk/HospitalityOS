@@ -217,7 +217,7 @@ export function BookingCalendar() {
   useEffect(() => {
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        const response = await fetch('/api/properties?myProperties=true&limit=100');
         const result = await response.json();
         if (result.success) {
           setProperties(result.data);
