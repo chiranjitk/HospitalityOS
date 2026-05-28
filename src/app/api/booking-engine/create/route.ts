@@ -567,6 +567,18 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // CRITICAL-02 FIX: Sync inventory to OTAs after direct booking to prevent overselling
+    try {
+      const { OTASyncService } = await import('@/lib/ota/sync-service');
+      const syncService = new OTASyncService();
+      // Trigger async inventory sync (fire-and-forget to not block response)
+      syncService.syncInventory(booking.tenantId, booking.propertyId, []).catch((err) => {
+        console.warn('[Booking Create] OTA inventory sync failed (non-blocking):', err);
+      });
+    } catch {
+      // Non-blocking: OTA sync failure should not break booking creation
+    }
+
     return NextResponse.json({
       success: true,
       booking: {

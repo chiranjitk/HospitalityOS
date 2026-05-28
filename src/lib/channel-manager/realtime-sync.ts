@@ -518,19 +518,59 @@ export async function triggerInventorySync(
 }
 
 /**
- * Calculate availability for dates
+ * CRITICAL-10 FIX: Calculate AVAILABLE rooms (total minus booked) for dates.
+ * Previously returned total room count regardless of bookings, causing
+ * OTA overselling.
  */
 async function calculateAvailability(
   propertyId: string,
   roomTypeId: string,
   dates: Date[]
 ): Promise<number> {
-  const rooms = await db.room.count({
+  // Total rooms of this type
+  const totalRooms = await db.room.count({
     where: { propertyId, roomTypeId },
   });
 
-  if (rooms === 0) return 0;
-  return rooms;
+  if (totalRooms === 0) return 0;
+
+  // Count rooms that are occupied on any of the requested dates
+  const bookedRoomIds = new Set<string>();
+  const dateRange = [new Date(Math.min(...dates.map(d => d.getTime()))), new Date(Math.max(...dates.map(d => d.getTime())))];
+
+  const overlappingBookings = await db.booking.findMany({
+    where: {
+      propertyId,
+      roomTypeId,
+      status: { in: ['confirmed', 'checked_in'] },
+      // Booking overlaps with our date range
+      AND: [
+        { checkIn: { lt: dateRange[1] } },
+        { OR: [
+          { checkOut: null },
+          { checkOut: { gt: dateRange[0] } },
+        ] },
+      ],
+      cancelledAt: null,
+    },
+    select: { roomId: true },
+    distinct: ['roomId'],
+  });
+
+  for (const b of overlappingBookings) {
+    if (b.roomId) bookedRoomIds.add(b.roomId);
+  }
+
+  // Also count rooms currently marked as occupied
+  const occupiedRooms = await db.room.count({
+    where: {
+      propertyId,
+      roomTypeId,
+      status: { in: ['occupied', 'maintenance', 'out_of_service'] },
+    },
+  });
+
+  return Math.max(0, totalRooms - Math.max(bookedRoomIds.size, occupiedRooms));
 }
 
 /**
