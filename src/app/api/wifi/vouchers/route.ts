@@ -5,6 +5,28 @@ import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import crypto from 'crypto';
 
+// M-49: In-memory rate limiter for voucher creation (max 20 per user per 15 minutes)
+const voucherRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of voucherRateLimitMap.entries()) {
+    if (now > val.resetAt) voucherRateLimitMap.delete(key);
+  }
+}, 60_000).unref();
+
+function checkVoucherRateLimit(userId: string, maxAttempts: number, windowMs: number): boolean {
+  const now = Date.now();
+  const entry = voucherRateLimitMap.get(userId);
+  if (!entry || now > entry.resetAt) {
+    voucherRateLimitMap.set(userId, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  if (entry.count >= maxAttempts) return false;
+  entry.count++;
+  return true;
+}
+
 function formatPlanDuration(plan: { validityMinutes?: number | null; validityDays?: number | null }): string {
   const minutes = plan.validityMinutes || (plan.validityDays || 1) * 1440;
   if (minutes >= 1440 && minutes % 1440 === 0) return `${minutes / 1440} day${minutes / 1440 > 1 ? 's' : ''}`;
@@ -152,6 +174,14 @@ export async function POST(request: NextRequest) {    const user = await require
     if (user instanceof NextResponse) return user;
 
       try {
+    // M-49: Rate limit check (max 20 voucher creations per user per 15 minutes)
+    if (!checkVoucherRateLimit(user.userId, 20, 15 * 60 * 1000)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'RATE_LIMITED', message: 'Too many voucher creation requests. Please try again later.' } },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const tenantId = user.tenantId;
 
