@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
-import crypto from 'crypto';
-
-// Helper function to generate folio number
-function generateFolioNumber(): string {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = crypto.randomBytes(2).toString('hex').toUpperCase();
-  return `FOL-${timestamp}-${random}`;
-}
+import { generateFolioNumber } from '@/lib/billing/number-generation';
 
 // POST /api/folios/[id]/split - Split a folio into two
 export async function POST(

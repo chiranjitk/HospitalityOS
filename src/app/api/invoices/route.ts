@@ -2,17 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { logBillingEvent } from '@/lib/services/audit-service';
-import crypto from 'crypto';
+import { generateInvoiceNumber } from '@/lib/billing/number-generation';
 
-// Generate invoice number with UUID prefix to ensure collision safety (M-16)
-function generateInvoiceNumber(): string {
-  const date = new Date();
-  const year = date.getFullYear().toString().slice(-2);
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const uuid = crypto.randomUUID().slice(0, 8);
-  const random = crypto.randomBytes(2).toString('hex').slice(0, 4);
-  return `INV-${year}${month}-${uuid}${random}`;
-}
+// generateInvoiceNumber is now imported from shared utility (M-20/M-21)
 
 // GET /api/invoices - List invoices
 export async function GET(request: NextRequest) {

@@ -2,14 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { logBillingEvent } from '@/lib/services/audit-service';
-import crypto from 'crypto';
-
-// Helper function to generate folio number
-function generateFolioNumber(): string {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = crypto.randomBytes(2).toString('hex').toUpperCase();
-  return `FOL-${timestamp}-${random}`;
-}
+import { generateFolioNumber } from '@/lib/billing/number-generation';
 
 // GET /api/folios - List all folios with filtering and pagination
 export async function GET(request: NextRequest) {

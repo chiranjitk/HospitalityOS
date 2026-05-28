@@ -15,7 +15,7 @@
 
 import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
-import { randomBytes } from 'crypto';
+import { generateFolioNumber, generateInvoiceNumber } from '@/lib/billing/number-generation';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -53,18 +53,6 @@ export interface GuestChargeInput {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
-}
-
-/** Generate a folio number in the format FOL-WIFI-{timestamp}-{random} */
-function generateFolioNumber(): string {
-  return `FOL-WIFI-${Date.now().toString(36).toUpperCase()}-${randomBytes(2).toString('hex').toUpperCase()}`;
-}
-
-/** Generate an invoice number in the format INV-WIFI-{YYYYMM}-{random} */
-function generateInvoiceNumber(): string {
-  const now = new Date();
-  const yymm = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-  return `INV-WIFI-${yymm}-${randomBytes(4).toString('hex').toUpperCase()}`;
 }
 
 /** Get the start of the current month */
@@ -293,7 +281,7 @@ export async function runDailyWiFiBilling(tenantId?: string): Promise<BillingRes
                   propertyId: booking.propertyId,
                   bookingId: user.bookingId,
                   guestId: booking.primaryGuestId,
-                  folioNumber: generateFolioNumber(),
+                  folioNumber: generateFolioNumber('WIFI'),
                   status: 'open',
                 },
               });
@@ -415,7 +403,7 @@ export async function generateWiFiInvoice(bookingId: string, tenantId: string) {
   const invoice = await db.invoice.create({
     data: {
       tenantId,
-      invoiceNumber: generateInvoiceNumber(),
+      invoiceNumber: generateInvoiceNumber('WIFI'),
       folioId: folio.id,
       customerName: guest ? `${guest.firstName} ${guest.lastName}` : 'Guest',
       customerEmail: guest?.email,
