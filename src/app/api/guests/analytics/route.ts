@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getTenantIdFromSession } from '@/lib/auth/tenant-context';
+import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 // GET /api/guests/analytics - Get guest analytics
 export async function GET(request: NextRequest) {
-    const tenantId = await getTenantIdFromSession(request);
-    if (!tenantId) {
+    const user = await getUserFromRequest(request);
+    if (!user) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
     }
+
+    // H-28: Add RBAC permission check (consistent with other analytics/reports routes)
+    if (!hasPermission(user, 'guests.view') && !hasPermission(user, 'reports.view') && !hasPermission(user, 'admin.*')) {
+      return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const tenantId = user.tenantId;
 
 
   try {
