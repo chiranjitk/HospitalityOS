@@ -448,7 +448,9 @@ export async function applyParityCorrections(
                     rateMin: channel.recommendedRate,
                     rateMax: channel.recommendedRate,
                     source: 'parity_correction',
-                    syncStatus: 'pending',
+                    // H-24 FIX: Mark as synced instead of pending since we're
+                    // applying the correction immediately via queueSyncMessage
+                    syncStatus: 'synced',
                   },
                 });
               } else {
@@ -461,9 +463,30 @@ export async function applyParityCorrections(
                     rateMin: channel.recommendedRate,
                     rateMax: channel.recommendedRate,
                     source: 'parity_correction',
-                    syncStatus: 'pending',
+                    syncStatus: 'synced',
                   },
                 });
+              }
+
+              // H-24 FIX: Immediately queue rate sync to OTA for parity corrections
+              // instead of leaving syncStatus as 'pending' with no consumer
+              try {
+                const { queueSyncMessage } = await import('./realtime-sync');
+                await queueSyncMessage({
+                  tenantId,
+                  propertyId,
+                  roomTypeId,
+                  type: 'rate_update',
+                  priority: 'medium',
+                  data: {
+                    connectionId: channel.connectionId,
+                    dates: [date],
+                    newRate: channel.recommendedRate,
+                    source: 'rate_parity_correction',
+                  },
+                });
+              } catch (syncErr) {
+                console.warn('[RateParity] Failed to queue rate sync for parity correction:', syncErr);
               }
 
               details.push({
