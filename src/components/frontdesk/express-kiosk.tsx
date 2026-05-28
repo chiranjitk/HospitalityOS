@@ -234,6 +234,10 @@ export default function ExpressKiosk() {
       if (result.success) {
         setCheckInResult(result.data);
         setStep('success');
+        // H-16 FIX: Show warning if WiFi provisioning failed
+        if (result.data.wifiWarning) {
+          toast({ title: 'WiFi Notice', description: result.data.wifiWarning, variant: 'destructive' });
+        }
       } else {
         setErrorMsg(result.error?.message || 'Check-in failed. Please visit the front desk.');
         setStep('error');

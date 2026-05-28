@@ -111,9 +111,11 @@ export async function POST(request: NextRequest) {
       return updated;
     });
 
-    // WiFi provisioning — OUTSIDE the transaction (same pattern as main check-in route)
-    // Uses the provisioning service which reads AAA default plan properly
+    // H-16 FIX: WiFi provisioning — return wifiProvisioned flag in response so
+    // frontend can warn the guest if WiFi credentials were not provisioned.
+    // Still doesn't fail the check-in (WiFi is non-critical), but surfaces the issue.
     let wifiCredentials: { username: string; password: string; validUntil: Date } | null = null;
+    let wifiProvisioned = false;
 
     try {
       // Check autoProvisionOnCheckin flag
@@ -141,6 +143,7 @@ export async function POST(request: NextRequest) {
 
         if (provisionResult.success) {
           console.log(`[Kiosk Check-in] WiFi provisioned: ${provisionResult.username} for booking ${booking.id}`);
+          wifiProvisioned = true;
           wifiCredentials = {
             username: provisionResult.username!,
             password: provisionResult.password!,
@@ -211,6 +214,8 @@ export async function POST(request: NextRequest) {
           password: wifiCredentials.password,
           validUntil: wifiCredentials.validUntil.toISOString(),
         } : null,
+        wifiProvisioned,
+        wifiWarning: !wifiProvisioned ? 'WiFi credentials could not be provisioned. Please visit the front desk for assistance.' : undefined,
       },
     });
   } catch (error) {
