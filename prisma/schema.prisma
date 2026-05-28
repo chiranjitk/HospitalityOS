@@ -71,6 +71,7 @@ enum FolioLineType {
   miscellaneous
   late_checkout
   parking
+  room_type_change
 }
 
 enum GuestType {

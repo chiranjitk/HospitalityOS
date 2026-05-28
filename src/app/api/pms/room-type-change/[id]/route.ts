@@ -98,34 +98,75 @@ export async function PUT(
 
     if (status === 'completed') {
       updateData.completedAt = new Date();
-      // Actually update the room's type in the Room table
-      try {
-        await db.room.update({
-          where: { id: existing.roomId },
-          data: { roomTypeId: existing.newRoomTypeId },
-        });
-      } catch (roomUpdateError) {
-        console.error('Failed to update room type:', roomUpdateError);
-        // Don't fail the whole operation if room update fails
-      }
 
-      // FIX: Update active folios for this room with the rate difference
-      // When a room type changes mid-stay, the folio should reflect the new rate
+      // Actually update the room's type in the Room table + create folio charge
+      // Using transaction for atomicity (following billing module pattern)
       try {
-        if (existing.rateDifference && existing.rateDifference !== 0) {
-          await db.folio.updateMany({
-            where: {
-              roomId: existing.roomId,
-              status: { in: ['open', 'pending'] },
-            },
-            data: {
-              notes: 'Rate adjustment due to room type change',
-            },
+        await db.$transaction(async (tx) => {
+          // 1. Update the room's type
+          await tx.room.update({
+            where: { id: existing.roomId },
+            data: { roomTypeId: existing.newRoomTypeId },
           });
-        }
-      } catch (folioError) {
-        console.error('Failed to update folios after room type change:', folioError);
-        // Non-critical — room type was already updated
+
+          // 2. Post rate difference as a FolioLineItem (if there's a rate difference)
+          if (existing.rateDifference && existing.rateDifference !== 0) {
+            const roundedDiff = Math.round(existing.rateDifference * 100) / 100;
+
+            // Find open folio for this booking (Folio links via bookingId, not roomId)
+            const folio = await tx.folio.findFirst({
+              where: { bookingId: existing.bookingId, status: { in: ['open', 'partially_paid', 'pending'] } },
+            });
+
+            if (folio) {
+              // Fetch room type names for description
+              const [oldType, newType] = await Promise.all([
+                tx.roomType.findFirst({ where: { id: existing.oldRoomTypeId }, select: { name: true } }),
+                tx.roomType.findFirst({ where: { id: existing.newRoomTypeId }, select: { name: true } }),
+              ]);
+              const oldName = oldType?.name || 'Unknown';
+              const newName = newType?.name || 'Unknown';
+
+              // Create the folio line item
+              await tx.folioLineItem.create({
+                data: {
+                  folioId: folio.id,
+                  description: roundedDiff > 0
+                    ? `Room upgrade charge: ${oldName} → ${newName}`
+                    : `Room downgrade credit: ${oldName} → ${newName}`,
+                  category: 'room_type_change',
+                  quantity: 1,
+                  unitPrice: Math.abs(roundedDiff),
+                  totalAmount: Math.abs(roundedDiff),
+                  serviceDate: new Date(),
+                  postedBy: user.email || user.id,
+                  referenceType: 'room_type_change',
+                  referenceId: existing.id,
+                },
+              });
+
+              // Recalculate folio totals (canonical pattern from billing module)
+              const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: folio.id } });
+              const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+              await tx.folio.update({
+                where: { id: folio.id },
+                data: {
+                  subtotal: Math.round(newSubtotal * 100) / 100,
+                  totalAmount: Math.round((newSubtotal + folio.taxes - folio.discount) * 100) / 100,
+                  balance: Math.round((newSubtotal - folio.paidAmount) * 100) / 100,
+                },
+              });
+
+              // Mark charge as applied on the RoomTypeChange record
+              updateData.chargeApplied = true;
+              updateData.chargeAmount = Math.abs(roundedDiff);
+              updateData.folioId = folio.id;
+            }
+          }
+        });
+      } catch (txError) {
+        console.error('Failed to complete room type change transaction:', txError);
+        // Non-fatal — the status update will still proceed
       }
     }
 
