@@ -238,6 +238,32 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
     invoicesGenerated: 0,
   };
 
+  // H-17 FIX: Canonical folio recalculation helper. Instead of using Prisma's
+  // { increment } operator (which can drift from actual line-item totals due
+  // to race conditions or concurrent mutations), we sum ALL line items for
+  // the folio and recalculate subtotal, taxes, totalAmount, and balance.
+  async function recalcFolio(tx: typeof db, folioId: string) {
+    const allItems = await tx.folioLineItem.findMany({ where: { folioId } });
+    const folio = await tx.folio.findUnique({ where: { id: folioId } });
+    if (!folio) return;
+
+    const subtotal = Math.round(allItems.reduce((s, li) => s + li.totalAmount, 0) * 100) / 100;
+    const taxes = Math.round(allItems.reduce((s, li) => s + (li.taxAmount || 0), 0) * 100) / 100;
+    const totalAmount = Math.round((subtotal + taxes - (folio.discount || 0)) * 100) / 100;
+
+    const completedPayments = await tx.payment.findMany({
+      where: { folioId, status: 'completed' },
+      select: { amount: true },
+    });
+    const paidAmount = Math.round(completedPayments.reduce((s, p) => s + p.amount, 0) * 100) / 100;
+    const balance = Math.round((totalAmount - paidAmount) * 100) / 100;
+
+    await tx.folio.update({
+      where: { id: folioId },
+      data: { subtotal, taxes, totalAmount, paidAmount, balance },
+    });
+  }
+
   await db.$transaction(async (tx) => {
     const businessDay = new Date(audit.businessDayDate);
     const startOfDay = new Date(businessDay);
@@ -303,10 +329,8 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
         },
       });
 
-      await tx.folio.update({
-        where: { id: folio.id },
-        data: { subtotal: { increment: roomRate }, taxes: { increment: taxAmount }, totalAmount: { increment: roomRate + taxAmount }, balance: { increment: roomRate + taxAmount } },
-      });
+      // H-17 FIX: Recalculate folio from all line items instead of incrementing
+      await recalcFolio(tx, folio.id);
 
       summary.roomChargesPosted++;
       summary.roomChargeTotal += roomRate + taxAmount;
@@ -355,10 +379,8 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
         },
       });
 
-      await tx.folio.update({
-        where: { id: folio.id },
-        data: { subtotal: { increment: sc.amount }, totalAmount: { increment: sc.amount }, balance: { increment: sc.amount } },
-      });
+      // H-17 FIX: Recalculate folio from all line items instead of incrementing
+      await recalcFolio(tx, folio.id);
 
       // Update next due date
       if (sc.frequency === 'daily') {
@@ -450,10 +472,8 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
                 },
               });
 
-              await tx.folio.update({
-                where: { id: booking.folios[0].id },
-                data: { subtotal: { increment: overageCharge }, totalAmount: { increment: overageCharge }, balance: { increment: overageCharge } },
-              });
+              // H-17 FIX: Recalculate folio from all line items instead of incrementing
+              await recalcFolio(tx, booking.folios[0].id);
 
               summary.otherRevenue += overageCharge;
 
@@ -569,10 +589,8 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
               postedBy: 'system',
             },
           });
-          await tx.folio.update({
-            where: { id: booking.folios[0].id },
-            data: { subtotal: { increment: penaltyAmount }, totalAmount: { increment: penaltyAmount }, balance: { increment: penaltyAmount } },
-          });
+          // H-17 FIX: Recalculate folio from all line items instead of incrementing
+          await recalcFolio(tx, booking.folios[0].id);
           summary.noShowRevenue += penaltyAmount;
         }
 
