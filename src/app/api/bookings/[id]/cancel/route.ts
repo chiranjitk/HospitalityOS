@@ -117,9 +117,86 @@ export async function POST(
     const penaltyAmount = evaluation.penaltyAmount;
     const refundAmount = Math.max(0, totalPaid - penaltyAmount);
 
-    // TODO: Execute the actual refund to the guest's payment method (e.g., via gateway refund API).
-    // Currently refundAmount is calculated but never processed. This should integrate with the
-    // payment gateway to issue a refund for the applicable amount when totalPaid > 0.
+    // CRITICAL-01 FIX: Execute actual refund via payment gateway
+    let refundResult: { success: boolean; gatewayRef?: string; error?: string } | null = null;
+    if (refundAmount > 0 && folio) {
+      try {
+        // Find the last successful payment for this folio to refund through
+        const lastPayment = await db.payment.findFirst({
+          where: {
+            folioId: folio.id,
+            status: 'completed',
+            gateway: { not: 'kiosk-demo' },
+            gatewayRef: { not: null },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        if (lastPayment?.gateway && lastPayment.gatewayRef) {
+          try {
+            const { createStripeGateway } = await import('@/lib/payments/gateways/stripe');
+            const gatewayConfig = await db.paymentGateway.findFirst({
+              where: { tenantId: booking.tenantId, provider: lastPayment.gateway, status: 'active' },
+            });
+
+            if (gatewayConfig) {
+              const gateway = createStripeGateway({
+                id: gatewayConfig.id,
+                apiKey: gatewayConfig.apiKey || '',
+                webhookSecret: gatewayConfig.webhookSecret ?? undefined,
+                feePercentage: gatewayConfig.feePercentage,
+                feeFixed: gatewayConfig.feeFixed,
+              });
+
+              const result = await gateway.refund({
+                amount: refundAmount,
+                currency: folio.currency || 'INR',
+                originalTransactionId: lastPayment.gatewayRef,
+                reason: `Cancellation refund for booking ${booking.confirmationCode}`,
+              });
+
+              refundResult = {
+                success: !!result.success,
+                gatewayRef: result.gatewayRef || undefined,
+                error: result.errorMessage || undefined,
+              };
+            } else {
+              console.warn('[Cancel] No active gateway config found for refund. Recording manual refund.');
+              refundResult = { success: true, error: 'No gateway configured — manual refund recorded' };
+            }
+          } catch (gwErr) {
+            console.error('[Cancel] Refund via gateway failed:', gwErr);
+            refundResult = { success: false, error: `Gateway refund failed: ${gwErr instanceof Error ? gwErr.message : 'Unknown error'}` };
+          }
+        } else {
+          // No gateway payment to refund through — record manual refund
+          refundResult = { success: true, error: 'No gateway payment found — manual refund recorded' };
+        }
+
+        // Record the refund as a negative payment on the folio
+        if (refundResult.success) {
+          await db.payment.create({
+            data: {
+              tenantId: booking.tenantId,
+              folioId: folio.id,
+              amount: -refundAmount,
+              currency: folio.currency || 'INR',
+              method: 'refund',
+              gateway: lastPayment?.gateway || 'manual',
+              gatewayRef: refundResult.gatewayRef || `REFUND-${Date.now()}`,
+              gatewayStatus: 'completed',
+              guestId: booking.primaryGuestId,
+              status: 'completed',
+              processedAt: new Date(),
+              reference: `REFUND-${booking.confirmationCode}`,
+            },
+          });
+        }
+      } catch (refundErr) {
+        console.error('[Cancel] Refund processing error:', refundErr);
+        refundResult = { success: false, error: 'Refund processing failed' };
+      }
+    }
 
     // 5. Apply penalty and cancel in a transaction
     let penaltyResult;
@@ -247,6 +324,9 @@ export async function POST(
           totalPaid,
           penaltyDeducted: penaltyAmount,
           refundAmount,
+          refundProcessed: refundResult?.success ?? false,
+          refundGatewayRef: refundResult?.gatewayRef || null,
+          refundError: refundResult?.error || null,
           remainingBalance: Math.max(0, (folio?.balance || 0) + penaltyAmount),
         },
         cancelledAt: new Date().toISOString(),
