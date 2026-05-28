@@ -83,6 +83,10 @@ interface RatePlan {
   status: string;
   roomType?: RoomType;
   overridesCount?: number;
+  // Category & versioning
+  category?: string;
+  version?: number;
+  approvalStatus?: string;
   // Promo fields
   promoCode?: string | null;
   discountPercent?: number | null;
@@ -100,6 +104,18 @@ interface RatePlan {
     basePrice: number;
   } | null;
 }
+
+const ratePlanCategories = [
+  { value: 'BAR', label: 'BAR' },
+  { value: 'corporate', label: 'Corporate' },
+  { value: 'OTA', label: 'OTA' },
+  { value: 'package', label: 'Package' },
+  { value: 'promo', label: 'Promo' },
+  { value: 'group', label: 'Group' },
+  { value: 'wholesale', label: 'Wholesale' },
+  { value: 'negotiated', label: 'Negotiated' },
+  { value: 'standard', label: 'Standard' },
+];
 
 const mealPlans = [
   { value: 'room_only', label: 'Room Only', icon: Tag },
@@ -157,6 +173,8 @@ export function RatePlansManager() {
     derivedFromId: '',
     derivationType: 'percentage' as 'percentage' | 'fixed',
     derivationValue: '',
+    // Category
+    category: 'standard',
   });
 
   // Fetch properties
@@ -457,6 +475,8 @@ export function RatePlansManager() {
       derivedFromId: plan.derivedFromId || '',
       derivationType: (plan.derivationType as 'percentage' | 'fixed') || 'percentage',
       derivationValue: plan.derivationValue?.toString() || '',
+      // Category
+      category: plan.category || 'standard',
     });
     setIsEditOpen(true);
   };
@@ -488,6 +508,8 @@ export function RatePlansManager() {
       derivedFromId: '',
       derivationType: 'percentage',
       derivationValue: '',
+      // Category
+      category: 'standard',
     });
   };
 
@@ -642,6 +664,7 @@ export function RatePlansManager() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
+                  <TableHead>Category</TableHead>
                   <TableHead>Room Type</TableHead>
                   <TableHead>Meal Plan</TableHead>
                   <TableHead>Base Price</TableHead>
@@ -675,6 +698,14 @@ export function RatePlansManager() {
                             <GitBranch className="h-3 w-3" />
                             <span>{getDerivationLabel(plan)}</span>
                           </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="outline" className="text-xs w-fit capitalize">{plan.category || 'standard'}</Badge>
+                        {plan.version && plan.version > 1 && (
+                          <span className="text-xs text-muted-foreground">v{plan.version}</span>
                         )}
                       </div>
                     </TableCell>
@@ -836,6 +867,8 @@ interface RatePlanFormData {
   derivedFromId: string;
   derivationType: 'percentage' | 'fixed';
   derivationValue: string;
+  // Category
+  category: string;
 }
 
 interface RatePlanFormProps {
@@ -961,8 +994,8 @@ function RatePlanForm({ formData, setFormData, roomTypes, ratePlans, onNameChang
         </Select>
       </div>
 
-      {/* Name and Code */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Name, Code, and Category */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label htmlFor="name">Name *</Label>
           <Input
@@ -981,6 +1014,22 @@ function RatePlanForm({ formData, setFormData, roomTypes, ratePlans, onNameChang
             placeholder="STD"
             maxLength={10}
           />
+        </div>
+        <div className="space-y-2">
+          <Label>Category</Label>
+          <Select
+            value={formData.category as string}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ratePlanCategories.map(cat => (
+                <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

@@ -5568,6 +5568,11 @@ model RatePlan {
   promoStart         DateTime?        @db.Timestamptz
   promoEnd           DateTime?        @db.Timestamptz
   status             String           @default("active")
+  category           String           @default("standard") // BAR, corporate, OTA, package, promo, group, wholesale, negotiated, standard
+  version            Int              @default(1)
+  approvalStatus     String           @default("active") // draft, pending_review, approved, active, rejected
+  approvedBy         String?          @db.Uuid
+  approvedAt         DateTime?        @db.Timestamptz
   // Derivation chain fields
   derivedFromId      String?          @db.Uuid
   derivationType     String?                           // 'percentage' | 'fixed'

@@ -110,6 +110,7 @@ export async function PUT(
       promoStart,
       promoEnd,
       status,
+      category,
     } = body;
     
     // Validate basePrice > 0 if provided
@@ -175,6 +176,7 @@ export async function PUT(
         promoStart: promoStart ? new Date(promoStart) : null,
         promoEnd: promoEnd ? new Date(promoEnd) : null,
         status,
+        category: category || undefined,
       },
       include: {
         roomType: {
@@ -297,6 +299,72 @@ export async function DELETE(
     console.error('Error deleting rate plan:', error);
     return NextResponse.json(
       { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete rate plan' } },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH /api/rate-plans/[id] - Approval workflow actions
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const user = await requirePermission(request, 'pricing.manage');
+  if (user instanceof NextResponse) return user;
+
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    const { action } = body; // submit_for_review, approve, reject
+
+    const existing = await db.ratePlan.findFirst({
+      where: { id, tenantId: user.tenantId, deletedAt: null },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Rate plan not found' } },
+        { status: 404 }
+      );
+    }
+
+    let approvalStatus = existing.approvalStatus;
+    let approvedBy: string | null = existing.approvedBy;
+    let approvedAt: Date | null = existing.approvedAt;
+    let version = existing.version;
+
+    switch (action) {
+      case 'submit_for_review':
+        approvalStatus = 'pending_review';
+        version += 1;
+        break;
+      case 'approve':
+        approvalStatus = 'approved';
+        approvedBy = user.id;
+        approvedAt = new Date();
+        break;
+      case 'reject':
+        approvalStatus = 'rejected';
+        approvedBy = user.id;
+        approvedAt = new Date();
+        break;
+      default:
+        return NextResponse.json(
+          { success: false, error: { message: 'Invalid action. Use submit_for_review, approve, or reject.' } },
+          { status: 400 }
+        );
+    }
+
+    const ratePlan = await db.ratePlan.update({
+      where: { id },
+      data: { approvalStatus, approvedBy, approvedAt, version },
+    });
+
+    return NextResponse.json({ success: true, data: ratePlan });
+  } catch (error) {
+    console.error('Error updating rate plan approval:', error);
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update rate plan' } },
       { status: 500 }
     );
   }

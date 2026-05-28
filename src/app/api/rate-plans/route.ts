@@ -174,6 +174,7 @@ export async function POST(request: NextRequest) {    const user = await require
       derivedFromId,
       derivationType,
       derivationValue,
+      category,
     } = body;
 
     // Allow reassignment for auto-calculation from parent plan
@@ -317,6 +318,7 @@ export async function POST(request: NextRequest) {    const user = await require
         derivedFromId: derivedFromId || null,
         derivationType: derivationType || null,
         derivationValue: derivationValue !== undefined ? derivationValue : null,
+        category: category || 'standard',
       },
       include: {
         roomType: {
