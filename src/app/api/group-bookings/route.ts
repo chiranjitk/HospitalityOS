@@ -6,6 +6,12 @@ import crypto from 'crypto';
 
 // Group Bookings API - Updated 2024
 // Version: 3.0
+//
+// NOTE (H-02): Group bookings currently create separate folios per room/booking.
+// A consolidated GroupFolio (single bill for the entire group) is NOT yet supported.
+// Consolidated folio support requires a dedicated GroupFolio table with group-level
+// billing, shared line items, and split-payment rules. This is deferred to a future version.
+// Until then, group organizers must reconcile individual room folios manually.
 
 const MAX_LIMIT = 100;
 
