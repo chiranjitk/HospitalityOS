@@ -69,11 +69,14 @@ export default function HousekeepingAutomation() {
       if (res.ok) {
         const data = await res.json();
         if (data.data) {
+          // H-42: Fixed field name mismatch — the dashboard API returns
+          // roomsToClean, maintenanceRequests, taskBreakdown.checkout, etc.
+          // (not nested under a "stats" key). Map to the component's expected names.
           setStats({
-            recurringTasks: data.data.stats?.recurringPending ?? 0,
-            pmOverdue: data.data.stats?.pmOverdue ?? 0,
-            checkoutTasksToday: data.data.stats?.checkoutTasks ?? 0,
-            autoAssigned: data.data.stats?.autoAssigned ?? 0,
+            recurringTasks: data.data.roomsToClean ?? 0,
+            pmOverdue: data.data.maintenanceRequests ?? 0,
+            checkoutTasksToday: data.data.taskBreakdown?.checkout ?? 0,
+            autoAssigned: data.data.roomsInProgress ?? 0,
           });
         }
       }
