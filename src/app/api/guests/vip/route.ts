@@ -268,6 +268,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'firstName and lastName are required' }, { status: 400 });
     }
 
+    // H-30: Check email uniqueness before creating a new VIP guest.
+    // If email is provided and already exists, reject to prevent duplicate profiles.
+    if (email) {
+      const emailExists = await db.guest.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          email,
+          deletedAt: null,
+          status: { not: 'merged' },
+        },
+      });
+      if (emailExists) {
+        return NextResponse.json(
+          { success: false, error: 'A guest with this email already exists. Use guestId to update the existing profile.' },
+          { status: 409 }
+        );
+      }
+    }
+
     const newGuest = await db.guest.create({
       data: {
         tenantId: user.tenantId,
