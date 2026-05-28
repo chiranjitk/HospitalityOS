@@ -76,7 +76,7 @@ export async function routeCharge(
   for (const rule of rules) {
     const conditions: RoutingRuleConditions =
       typeof rule.conditions === 'string'
-        ? JSON.parse(rule.conditions)
+        ? (() => { try { return JSON.parse(rule.conditions); } catch { return {}; } })()
         : rule.conditions;
 
     if (!evaluateConditions(conditions, charge.amount, bookingSource, booking?.roomTypeId, booking?.channelId ?? undefined)) {
