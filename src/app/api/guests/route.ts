@@ -93,7 +93,8 @@ export async function GET(request: NextRequest) {
       orderBy: {
         createdAt: 'desc',
       },
-      ...(limit && { take: Math.min(Math.max(parseInt(limit, 10), 1), 100) }),
+      // M-37: Default limit of 50 to prevent unbounded fetches when no limit specified
+      take: limit ? Math.min(Math.max(parseInt(limit, 10), 1), 100) : 50,
       ...(offset && { skip: Math.max(parseInt(offset, 10), 0) }),
     });
 
@@ -131,7 +132,7 @@ export async function GET(request: NextRequest) {
       }),
       pagination: {
         total,
-        limit: limit ? Math.min(Math.max(parseInt(limit, 10), 1), 100) : null,
+        limit: limit ? Math.min(Math.max(parseInt(limit, 10), 1), 100) : 50,
         offset: offset ? Math.max(parseInt(offset, 10), 0) : null,
       },
     });
