@@ -64,6 +64,8 @@ import {
   Sparkles,
   X,
   Check,
+  AlertTriangle,
+  Percent,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -167,6 +169,9 @@ interface RoomType {
   status: string;
   property?: Property;
   wifiPlanId?: string;
+  overbookingEnabled?: boolean;
+  overbookingPercentage?: number;
+  overbookingLimit?: number;
 }
 
 interface FormData {
@@ -182,6 +187,10 @@ interface FormData {
   amenities: string[];
   status: string;
   wifiPlanId?: string;
+  // Overbooking fields
+  overbookingEnabled?: boolean;
+  overbookingPercentage?: string;
+  overbookingLimit?: string;
 }
 
 const defaultFormData: FormData = {
@@ -197,6 +206,10 @@ const defaultFormData: FormData = {
   amenities: [],
   status: 'active',
   wifiPlanId: '',
+  // Overbooking fields
+  overbookingEnabled: false,
+  overbookingPercentage: '',
+  overbookingLimit: '',
 };
 
 export default function RoomTypesManager() {
@@ -385,6 +398,10 @@ export default function RoomTypesManager() {
           sizeSqMeters: formData.sizeSqMeters ? parseFloat(formData.sizeSqMeters) : null,
           wifiPlanId: formData.wifiPlanId || null,
           currency: properties.find(p => p.id === formData.propertyId)?.currency || 'INR',
+          // Overbooking fields
+          overbookingEnabled: formData.overbookingEnabled || false,
+          overbookingPercentage: formData.overbookingPercentage ? parseFloat(formData.overbookingPercentage) : 0,
+          overbookingLimit: formData.overbookingLimit ? parseInt(formData.overbookingLimit) : 0,
         }),
       });
       
@@ -435,6 +452,10 @@ export default function RoomTypesManager() {
           sizeSqMeters: formData.sizeSqMeters ? parseFloat(formData.sizeSqMeters) : null,
           wifiPlanId: formData.wifiPlanId || null,
           currency: properties.find(p => p.id === formData.propertyId)?.currency || 'INR',
+          // Overbooking fields
+          overbookingEnabled: formData.overbookingEnabled || false,
+          overbookingPercentage: formData.overbookingPercentage ? parseFloat(formData.overbookingPercentage) : 0,
+          overbookingLimit: formData.overbookingLimit ? parseInt(formData.overbookingLimit) : 0,
         }),
       });
       
@@ -697,6 +718,10 @@ export default function RoomTypesManager() {
       amenities: roomType.amenities || [],
       status: roomType.status,
       wifiPlanId: roomType.wifiPlanId || '',
+      // Overbooking fields
+      overbookingEnabled: roomType.overbookingEnabled || false,
+      overbookingPercentage: roomType.overbookingPercentage?.toString() || '',
+      overbookingLimit: roomType.overbookingLimit?.toString() || '',
     });
     setIsEditOpen(true);
   };
@@ -1445,6 +1470,70 @@ function RoomTypeForm({ formData, setFormData, properties, amenities, wifiPlans,
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">WiFi plan automatically assigned when a guest checks into this room type</p>
+      </div>
+
+      {/* Overbooking Controls */}
+      <div className={cn(
+        'rounded-lg border p-4 space-y-3',
+        formData.overbookingEnabled
+          ? 'border-orange-300 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/30'
+          : 'border-dashed'
+      )}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 font-medium text-sm">
+            <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+            Overbooking Controls
+          </div>
+          <Switch
+            checked={formData.overbookingEnabled || false}
+            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, overbookingEnabled: checked }))}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Allow bookings beyond room capacity to maximize occupancy. Configure percentage or hard limit.
+        </p>
+        {formData.overbookingEnabled && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Overbooking Percentage (%)</Label>
+                <div className="relative">
+                  <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    className="pl-9"
+                    value={formData.overbookingPercentage as string}
+                    onChange={(e) => setFormData(prev => ({ ...prev, overbookingPercentage: e.target.value }))}
+                    placeholder="10"
+                    min="0"
+                    max="100"
+                    step="1"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">e.g. 10% on 100 rooms = up to 110 bookings</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Hard Limit (max extra rooms)</Label>
+                <Input
+                  type="number"
+                  value={formData.overbookingLimit as string}
+                  onChange={(e) => setFormData(prev => ({ ...prev, overbookingLimit: e.target.value }))}
+                  placeholder="5"
+                  min="0"
+                  step="1"
+                />
+                <p className="text-xs text-muted-foreground">Absolute cap on additional bookings</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 text-xs text-orange-700 dark:text-orange-400 bg-orange-100/50 dark:bg-orange-900/20 rounded-md px-3 py-2">
+              <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                Overbooking can lead to walk situations. Ensure you have a relocation plan for overflow guests.
+                Effective capacity = total rooms + min(percentage-based, hard limit).
+              </span>
+            </div>
+          </>
+        )}
       </div>
       
       <div className="space-y-2">
