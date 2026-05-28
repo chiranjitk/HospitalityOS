@@ -64,6 +64,11 @@ import { cn } from '@/lib/utils';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+interface PropertyInfo {
+  id: string;
+  name: string;
+}
+
 interface RoomInfo {
   id: string;
   number: string;
@@ -127,6 +132,8 @@ export default function RoomTypeChange() {
   const [changes, setChanges] = useState<RoomTypeChangeRecord[]>([]);
   const [rooms, setRooms] = useState<RoomInfo[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomTypeInfo[]>([]);
+  const [properties, setProperties] = useState<PropertyInfo[]>([]);
+  const [selectedProperty, setSelectedProperty] = useState('all');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
@@ -156,12 +163,34 @@ export default function RoomTypeChange() {
   };
 
   // ─── Fetch Data ───────────────────────────────────────────────────────
+
+  // Fetch properties
+  useEffect(() => {
+    const controller = new AbortController();
+    const fetchProperties = async () => {
+      try {
+        const response = await fetch('/api/properties');
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            setProperties(result.data || []);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching properties:', error);
+      }
+    };
+    fetchProperties();
+    return () => controller.abort();
+  }, []);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (search) params.append('search', search);
+      if (selectedProperty !== 'all') params.append('propertyId', selectedProperty);
 
       const response = await fetch(`/api/pms/room-type-change?${params.toString()}`);
       const data = await response.json();
@@ -179,7 +208,7 @@ export default function RoomTypeChange() {
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter]);
+  }, [search, statusFilter, selectedProperty]);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -458,6 +487,21 @@ export default function RoomTypeChange() {
               className="pl-10 w-full sm:w-56"
             />
           </div>
+          {properties.length > 1 && (
+            <Select value={selectedProperty} onValueChange={setSelectedProperty}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="All Properties" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Properties</SelectItem>
+                {properties.map((property) => (
+                  <SelectItem key={property.id} value={property.id}>
+                    {property.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-40">
               <Filter className="h-4 w-4 mr-2" />

@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     const sp = request.nextUrl.searchParams;
     const status = sp.get('status');
     const roomId = sp.get('roomId');
+    const propertyId = sp.get('propertyId');
     const dateFrom = sp.get('dateFrom');
     const dateTo = sp.get('dateTo');
     const search = sp.get('search');
@@ -22,6 +23,11 @@ export async function GET(request: NextRequest) {
 
     if (status) where.status = status;
     if (roomId) where.roomId = roomId;
+
+    // Filter by property via room relation
+    if (propertyId) {
+      where.room = { propertyId };
+    }
 
     if (dateFrom || dateTo) {
       const createdAt: Record<string, unknown> = {};
