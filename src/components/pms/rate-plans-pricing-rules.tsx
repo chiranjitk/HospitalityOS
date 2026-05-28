@@ -33,6 +33,8 @@ import {
   ChevronRight,
   Grid3X3,
   Sparkles,
+  Palette,
+  Save,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -159,17 +161,19 @@ const ruleTypeColors: Record<string, string> = {
 
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// Helper function to get price color based on deviation from base
-const getPriceColor = (basePrice: number, currentPrice: number): string => {
-  if (!basePrice || basePrice === 0) return 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200';
-  const deviation = ((currentPrice - basePrice) / basePrice) * 100;
-  if (deviation > 20) return 'bg-red-500 text-white';
-  if (deviation > 10) return 'bg-orange-400 text-white';
-  if (deviation > 0) return 'bg-amber-300 text-amber-900 dark:bg-amber-800 dark:text-amber-200';
-  if (deviation < -20) return 'bg-emerald-500 text-white';
-  if (deviation < -10) return 'bg-emerald-400 text-white';
-  if (deviation < 0) return 'bg-emerald-300 text-emerald-900 dark:bg-emerald-800 dark:text-emerald-200';
-  return 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200';
+// Calendar deviation settings type
+interface DeviationSettings {
+  discountAlert: number;   // e.g. 20 → below -20% is "deep discount"
+  discountWarning: number; // e.g. 10 → between -20% and -10% is "good discount"
+  markupWarning: number;   // e.g. 10 → between +10% and +20% is "high markup"
+  markupAlert: number;     // e.g. 20 → above +20% is "premium markup"
+}
+
+const DEFAULT_DEVIATION: DeviationSettings = {
+  discountAlert: 20,
+  discountWarning: 10,
+  markupWarning: 10,
+  markupAlert: 20,
 };
 
 export default function RatePlansPricingRules() {
@@ -202,6 +206,12 @@ export default function RatePlansPricingRules() {
   const [editingRatePlan, setEditingRatePlan] = useState<RatePlan | null>(null);
   const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
 
+  // Calendar deviation display settings
+  const [deviationSettings, setDeviationSettings] = useState<DeviationSettings>(DEFAULT_DEVIATION);
+  const [deviationDraft, setDeviationDraft] = useState<DeviationSettings>(DEFAULT_DEVIATION);
+  const [isSavingDeviation, setIsSavingDeviation] = useState(false);
+  const [isEditingDeviation, setIsEditingDeviation] = useState(false);
+
   // Form states
   const [newRatePlan, setNewRatePlan] = useState<Partial<RatePlan>>({
     name: '',
@@ -229,10 +239,11 @@ export default function RatePlansPricingRules() {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [ratePlansRes, rulesRes, roomTypesRes] = await Promise.all([
+      const [ratePlansRes, rulesRes, roomTypesRes, configRes] = await Promise.all([
         fetch('/api/rate-plans'),
         fetch('/api/revenue/pricing-rules'),
         fetch('/api/room-types'),
+        fetch('/api/settings/system-config?key=calendar_deviation_settings'),
       ]);
 
       if (!ratePlansRes.ok) {
@@ -274,6 +285,27 @@ export default function RatePlansPricingRules() {
       if (roomTypesData.success) {
         setRoomTypes(roomTypesData.data || []);
       }
+
+      // Calendar deviation settings
+      try {
+        if (configRes.ok) {
+          const configData = await configRes.json();
+          if (configData.success && configData.data?.value) {
+            const v = configData.data.value as DeviationSettings;
+            const merged: DeviationSettings = {
+              discountAlert: v.discountAlert ?? DEFAULT_DEVIATION.discountAlert,
+              discountWarning: v.discountWarning ?? DEFAULT_DEVIATION.discountWarning,
+              markupWarning: v.markupWarning ?? DEFAULT_DEVIATION.markupWarning,
+              markupAlert: v.markupAlert ?? DEFAULT_DEVIATION.markupAlert,
+            };
+            setDeviationSettings(merged);
+            setDeviationDraft(merged);
+          }
+        }
+      } catch (e) {
+        // Non-critical, use defaults
+        console.warn('Failed to load deviation settings:', e);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({ title: 'Error', description: 'Failed to load pricing data', variant: 'destructive' });
@@ -286,6 +318,46 @@ export default function RatePlansPricingRules() {
     const controller = new AbortController();
     fetchData();
     return () => controller.abort();
+  // Dynamic deviation color calculator
+  const getPriceColor = useCallback((basePrice: number, currentPrice: number): string => {
+    if (!basePrice || basePrice === 0) return 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200';
+    const deviation = ((currentPrice - basePrice) / basePrice) * 100;
+    const { discountAlert, discountWarning, markupWarning, markupAlert } = deviationSettings;
+    if (deviation > markupAlert) return 'bg-red-500 text-white';
+    if (deviation > markupWarning) return 'bg-orange-400 text-white';
+    if (deviation > 0) return 'bg-amber-300 text-amber-900 dark:bg-amber-800 dark:text-amber-200';
+    if (deviation < -discountAlert) return 'bg-emerald-500 text-white';
+    if (deviation < -discountWarning) return 'bg-emerald-400 text-white';
+    if (deviation < 0) return 'bg-emerald-300 text-emerald-900 dark:bg-emerald-800 dark:text-emerald-200';
+    return 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200';
+  }, [deviationSettings]);
+
+  // Save deviation settings
+  const saveDeviationSettings = async () => {
+    setIsSavingDeviation(true);
+    try {
+      const res = await fetch('/api/settings/system-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'calendar_deviation_settings', value: deviationDraft }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setDeviationSettings(deviationDraft);
+          setIsEditingDeviation(false);
+          toast({ title: 'Settings Saved', description: 'Calendar deviation thresholds updated' });
+        }
+      } else {
+        toast({ title: 'Error', description: 'Failed to save settings', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to save settings', variant: 'destructive' });
+    } finally {
+      setIsSavingDeviation(false);
+    }
+  };
+
   }, [fetchData]);
 
   // Calendar helpers
@@ -788,12 +860,20 @@ export default function RatePlansPricingRules() {
               </div>
             </CardHeader>
             <CardContent>
-              {/* Legend */}
+              {/* Legend — Dynamic from saved settings */}
               <div className="flex flex-wrap items-center gap-4 mb-4 text-sm">
                 <span className="text-muted-foreground">Price deviation:</span>
                 <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded bg-emerald-500" />
+                  <span>&lt;{deviationSettings.discountAlert}%</span>
+                </div>
+                <div className="flex items-center gap-1">
                   <div className="w-4 h-4 rounded bg-emerald-400" />
-                  <span>-20%</span>
+                  <span>-{deviationSettings.discountAlert}% to -{deviationSettings.discountWarning}%</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded bg-emerald-300" />
+                  <span>-{deviationSettings.discountWarning}% to 0%</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-4 h-4 rounded bg-slate-200" />
@@ -801,11 +881,15 @@ export default function RatePlansPricingRules() {
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-4 h-4 rounded bg-amber-300" />
-                  <span>+10%</span>
+                  <span>0% to +{deviationSettings.markupWarning}%</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded bg-orange-400" />
+                  <span>+{deviationSettings.markupWarning}% to +{deviationSettings.markupAlert}%</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-4 h-4 rounded bg-red-500" />
-                  <span>+20%</span>
+                  <span>&gt;+{deviationSettings.markupAlert}%</span>
                 </div>
               </div>
 
@@ -1167,6 +1251,157 @@ export default function RatePlansPricingRules() {
 
         {/* Pricing Rules Tab */}
         <TabsContent value="rules" className="mt-6 space-y-4">
+
+          {/* Calendar Display Settings Card */}
+          <Card className="border border-dashed">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Palette className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                  <CardTitle className="text-base">Calendar Display Settings</CardTitle>
+                </div>
+                {!isEditingDeviation && (
+                  <Button variant="ghost" size="sm" onClick={() => { setDeviationDraft(deviationSettings); setIsEditingDeviation(true); }} className="gap-1.5 text-xs">
+                    <Edit className="h-3.5 w-3.5" />
+                    Edit
+                  </Button>
+                )}
+              </div>
+              <CardDescription>Configure deviation thresholds for calendar color bands</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isEditingDeviation ? (
+                <div className="space-y-4">
+                  {/* 7-band visual preview + editable inputs */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {/* Discount Alert */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium flex items-center gap-1.5">
+                        <span className="inline-block w-3 h-3 rounded bg-emerald-500" />
+                        Deep Discount
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground">Below this %</p>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          min={1}
+                          max={99}
+                          value={deviationDraft.discountAlert}
+                          onChange={e => setDeviationDraft(d => ({ ...d, discountAlert: Math.max(1, Math.min(99, parseInt(e.target.value) || 1)) }))}
+                          className="pr-7"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                      </div>
+                    </div>
+                    {/* Discount Warning */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium flex items-center gap-1.5">
+                        <span className="inline-block w-3 h-3 rounded bg-emerald-400" />
+                        Good Discount
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground">Mid-threshold</p>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          min={1}
+                          max={99}
+                          value={deviationDraft.discountWarning}
+                          onChange={e => setDeviationDraft(d => ({ ...d, discountWarning: Math.max(1, Math.min(99, parseInt(e.target.value) || 1)) }))}
+                          className="pr-7"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                      </div>
+                    </div>
+                    {/* Markup Warning */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium flex items-center gap-1.5">
+                        <span className="inline-block w-3 h-3 rounded bg-orange-400" />
+                        High Markup
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground">Above this %</p>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          min={1}
+                          max={99}
+                          value={deviationDraft.markupWarning}
+                          onChange={e => setDeviationDraft(d => ({ ...d, markupWarning: Math.max(1, Math.min(99, parseInt(e.target.value) || 1)) }))}
+                          className="pr-7"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                      </div>
+                    </div>
+                    {/* Markup Alert */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium flex items-center gap-1.5">
+                        <span className="inline-block w-3 h-3 rounded bg-red-500" />
+                        Premium Markup
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground">Above this %</p>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          min={1}
+                          max={99}
+                          value={deviationDraft.markupAlert}
+                          onChange={e => setDeviationDraft(d => ({ ...d, markupAlert: Math.max(1, Math.min(99, parseInt(e.target.value) || 1)) }))}
+                          className="pr-7"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Live preview bar */}
+                  <div className="flex items-center gap-0.5 h-7 rounded overflow-hidden">
+                    <div className="flex-[1] bg-emerald-500 flex items-center justify-center text-[10px] text-white font-medium">&lt;-{deviationDraft.discountAlert}%</div>
+                    <div className="flex-[1] bg-emerald-400 flex items-center justify-center text-[10px] text-white font-medium">-{deviationDraft.discountAlert}%</div>
+                    <div className="flex-[1] bg-emerald-300 flex items-center justify-center text-[10px] text-emerald-900 font-medium">-{deviationDraft.discountWarning}%</div>
+                    <div className="flex-[0.5] bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-medium">0</div>
+                    <div className="flex-[1] bg-amber-300 flex items-center justify-center text-[10px] text-amber-900 font-medium">+{deviationDraft.markupWarning}%</div>
+                    <div className="flex-[1] bg-orange-400 flex items-center justify-center text-[10px] text-white font-medium">+{deviationDraft.markupAlert}%</div>
+                    <div className="flex-[1] bg-red-500 flex items-center justify-center text-[10px] text-white font-medium">&gt;+{deviationDraft.markupAlert}%</div>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="outline" size="sm" onClick={() => { setDeviationDraft(deviationSettings); setIsEditingDeviation(false); }}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={saveDeviationSettings} disabled={isSavingDeviation} className="gap-1.5 bg-violet-600 hover:bg-violet-700">
+                      <Save className="h-3.5 w-3.5" />
+                      {isSavingDeviation ? 'Saving...' : 'Save Settings'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <span className="inline-block w-3 h-3 rounded bg-emerald-500" />
+                    <span className="text-muted-foreground">Deep discount &lt;{deviationSettings.discountAlert}%</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <span className="inline-block w-3 h-3 rounded bg-emerald-400" />
+                    <span className="text-muted-foreground">Good discount -{deviationSettings.discountAlert}% to -{deviationSettings.discountWarning}%</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <span className="inline-block w-3 h-3 rounded bg-emerald-300" />
+                    <span className="text-muted-foreground">Slight discount -{deviationSettings.discountWarning}% to 0%</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <span className="inline-block w-3 h-3 rounded bg-amber-300" />
+                    <span className="text-muted-foreground">Slight markup 0% to +{deviationSettings.markupWarning}%</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <span className="inline-block w-3 h-3 rounded bg-orange-400" />
+                    <span className="text-muted-foreground">High markup +{deviationSettings.markupWarning}% to +{deviationSettings.markupAlert}%</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <span className="inline-block w-3 h-3 rounded bg-red-500" />
+                    <span className="text-muted-foreground">Premium markup &gt;+{deviationSettings.markupAlert}%</span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="flex justify-between items-center">
             <CardDescription>Dynamic adjustments (weekday, demand, events)</CardDescription>
             <Dialog open={isCreateRuleOpen} onOpenChange={setIsCreateRuleOpen}>

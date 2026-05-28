@@ -7077,6 +7077,7 @@ model Tenant {
   cancellationPenalties     CancellationPenalty[]
   keyCards                   KeyCard[]
   surveillanceConfigs        SurveillanceConfig[]
+  systemConfigs              SystemConfig[]
   parkingPasses             ParkingPass[]
   inventoryTransfers        InventoryTransfer[]
   campaignAbTests           CampaignAbTest[]
@@ -12993,4 +12994,21 @@ model ZtnaAuditLog {
   @@index([action])
   @@index([entityType])
   @@index([createdAt])
+}
+
+// ============================================================
+// System Configuration — tenant-scoped key-value settings
+// ============================================================
+model SystemConfig {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  key       String   // e.g., "calendar_deviation_settings"
+  value     Json     // arbitrary JSON payload
+  updatedAt DateTime @updatedAt @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+  @@index([key])
 }
