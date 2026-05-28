@@ -80,6 +80,44 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           })),
         });
 
+        // H-36: Copy the original order's folio line items to each child order.
+        // This ensures that any charges already posted to the folio (e.g., room service surcharge)
+        // are preserved after the split.
+        if (originalOrder.folioId) {
+          const originalFolioItems = await tx.folioLineItem.findMany({
+            where: { folioId: originalOrder.folioId, reference: `order-${id}` },
+          });
+          if (originalFolioItems.length > 0) {
+            for (const folioItem of originalFolioItems) {
+              // Proportionally assign line items to child orders
+              const itemBelongsToSplit = splitItems.find((si: any) => folioItem.referenceId === si.id);
+              if (itemBelongsToSplit) {
+                const proportion = itemBelongsToSplit.totalAmount / (originalOrder.subtotal || 1);
+                const proportionedAmount = Math.round(folioItem.totalAmount * proportion * 100) / 100;
+                const proportionedTax = Math.round((folioItem.taxAmount || 0) * proportion * 100) / 100;
+                await tx.folioLineItem.create({
+                  data: {
+                    folioId: originalOrder.folioId,
+                    description: `${folioItem.description} (split)`,
+                    category: folioItem.category,
+                    subcategory: folioItem.subcategory,
+                    quantity: itemBelongsToSplit.quantity,
+                    unitPrice: proportion > 0 ? Math.round(proportionedAmount / itemBelongsToSplit.quantity * 100) / 100 : folioItem.unitPrice,
+                    totalAmount: proportionedAmount,
+                    taxRate: folioItem.taxRate,
+                    taxAmount: proportionedTax,
+                    reference: `order-${newOrder.id}`,
+                    referenceType: folioItem.referenceType,
+                    referenceId: itemBelongsToSplit.id,
+                    serviceDate: folioItem.serviceDate || new Date(),
+                    postedBy: folioItem.postedBy,
+                  },
+                });
+              }
+            }
+          }
+        }
+
         created.push(newOrder);
       }
 
