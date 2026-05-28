@@ -906,7 +906,7 @@ export default function RoomRateCalendar() {
             <div className="p-3 bg-muted rounded-lg">
               <p className="text-sm font-medium">
                 {dragSelectedDates.length} date{dragSelectedDates.length > 1 ? 's' : ''}: {dragSelectedDates[0]}
-                {dragSelectedDates.length > 1 ? ` → ${dragSelectedDates[dragSelectedDates.length - 1]}`}
+                {dragSelectedDates.length > 1 ? ` → ${dragSelectedDates[dragSelectedDates.length - 1]}` : ''}
               </p>
             </div>
             <div className="space-y-2">
