@@ -256,6 +256,30 @@ export async function POST(request: NextRequest) {
       success: true,
       data: { ...creditNote, items },
     }, { status: 201 });
+
+    // M-22: Audit log for credit note creation (best-effort)
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'create',
+          entityType: 'credit_note',
+          entityId: creditNote.id,
+          newValue: JSON.stringify({
+            creditNoteNumber,
+            reason,
+            subtotal,
+            totalAmount,
+            folioId,
+          }),
+          description: `Created credit note ${creditNote.creditNoteNumber}: ${reason}`,
+        },
+      });
+    } catch (auditError) {
+      console.error('[CreditNotes POST] Audit log failed:', auditError);
+    }
   } catch (error) {
     console.error('Error creating credit note:', error);
     return NextResponse.json(

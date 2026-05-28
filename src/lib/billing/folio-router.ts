@@ -91,6 +91,9 @@ export async function routeCharge(
       charge.propertyId
     );
 
+    // M-22: Audit log the routing decision for compliance tracking.
+    // TODO: Create a FolioRoutingDecision audit entry with charge details, matched rule, and target folio.
+    // Consider adding to the folio-router API route that invokes routeCharge().
     if (targetFolioId) {
       // Track routing stat for this rule
       recordRoutingStat(rule.id, charge.amount);
