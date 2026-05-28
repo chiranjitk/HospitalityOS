@@ -196,9 +196,30 @@ export async function GET(request: NextRequest) {
                 actualCheckIn: null,
                 checkIn: { lt: today },
               },
-              select: { id: true, confirmationCode: true, folios: { select: { id: true } } },
+              select: { id: true, confirmationCode: true, primaryGuestId: true, folios: { select: { id: true } } },
             });
             for (const ns of noShowBookings) {
+              // H-48: Send guest notification before marking no-show.
+              // Log a notification record so the guest (or staff) can see the notification
+              // about the auto no-show status change.
+              try {
+                await tx.notification.create({
+                  data: {
+                    tenantId: property.tenantId,
+                    type: 'email',
+                    channel: 'no_show',
+                    guestId: ns.primaryGuestId,
+                    title: 'Booking Auto-Cancelled: No-Show',
+                    message: `Your booking ${ns.confirmationCode} has been automatically marked as no-show by the night audit because you did not check in by ${new Date(ns.checkIn).toLocaleDateString()}. Please contact the front desk if you believe this is an error.`,
+                    status: 'pending',
+                    priority: 'high',
+                  },
+                });
+              } catch (notifError) {
+                // Notification creation is best-effort; don't block no-show processing
+                console.error(`[NightAudit] Failed to create no-show notification for booking ${ns.id}:`, notifError);
+              }
+
               await tx.booking.update({
                 where: { id: ns.id },
                 data: { status: 'no_show', cancelledAt: new Date(), cancellationReason: 'Auto no-show by night audit' },
