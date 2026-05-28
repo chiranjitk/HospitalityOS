@@ -3333,24 +3333,26 @@ model InterfaceRole {
 }
 
 model InventoryLock {
-  id         String    @id @default(uuid()) @db.Uuid
-  tenantId   String    @db.Uuid
-  propertyId String    @db.Uuid
-  roomId     String?   @db.Uuid
-  roomTypeId String?   @db.Uuid
-  startDate  DateTime  @db.Timestamptz
-  endDate    DateTime  @db.Timestamptz
-  reason     String
-  lockType   String    @default("maintenance")
-  sessionId  String?   @db.Uuid
-  expiresAt  DateTime? @db.Timestamptz
-  createdBy  String?   @db.Uuid
-  createdAt  DateTime  @default(now()) @db.Timestamptz
-  updatedAt  DateTime  @updatedAt @db.Timestamptz
-  roomType   RoomType? @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
-  room       Room?     @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  property   Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                 String            @id @default(uuid()) @db.Uuid
+  tenantId           String            @db.Uuid
+  propertyId         String            @db.Uuid
+  roomId             String?           @db.Uuid
+  roomTypeId         String?           @db.Uuid
+  startDate          DateTime          @db.Timestamptz
+  endDate            DateTime          @db.Timestamptz
+  reason             String
+  lockType           String            @default("maintenance")
+  sessionId          String?           @db.Uuid
+  expiresAt          DateTime?         @db.Timestamptz
+  createdBy          String?           @db.Uuid
+  maintenanceBlockId String?           @db.Uuid
+  createdAt          DateTime          @default(now()) @db.Timestamptz
+  updatedAt          DateTime          @updatedAt @db.Timestamptz
+  roomType           RoomType?         @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  room               Room?             @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  property           Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant             Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  maintenanceBlock   MaintenanceBlock? @relation(fields: [maintenanceBlockId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@index([propertyId])
@@ -3358,6 +3360,7 @@ model InventoryLock {
   @@index([roomTypeId])
   @@index([sessionId])
   @@index([expiresAt])
+  @@index([maintenanceBlockId])
 }
 
 model Invoice {
@@ -3777,27 +3780,28 @@ model MacFilter {
 
 /// MaintenanceBlock - Room out-of-order / out-of-service scheduling
 model MaintenanceBlock {
-  id            String    @id @default(uuid()) @db.Uuid
-  tenantId      String    @db.Uuid
-  propertyId    String    @db.Uuid
-  roomId        String    @db.Uuid
+  id            String           @id @default(uuid()) @db.Uuid
+  tenantId      String           @db.Uuid
+  propertyId    String           @db.Uuid
+  roomId        String           @db.Uuid
   roomNumber    String
   reason        String // maintenance, renovation, deep_cleaning, inspection, quarantine
   description   String?
-  startDate     DateTime  @db.Timestamptz
-  endDate       DateTime? @db.Timestamptz
-  blockedBy     String? // user who created the block
-  status        String    @default("scheduled") // scheduled, active, completed, cancelled
-  priority      String    @default("normal") // normal, high, urgent
-  vendorId      String?   @db.Uuid
+  startDate     DateTime         @db.Timestamptz
+  endDate       DateTime?        @db.Timestamptz
+  blockedBy     String?          // user who created the block
+  status        String           @default("scheduled") // scheduled, active, completed, cancelled
+  priority      String           @default("normal") // normal, high, urgent
+  vendorId      String?          @db.Uuid
   estimatedCost Float?
   actualCost    Float?
   notes         String?
-  createdAt     DateTime  @default(now()) @db.Timestamptz
-  updatedAt     DateTime  @updatedAt @db.Timestamptz
-  room          Room      @relation(fields: [roomId], references: [id])
-  property      Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt     DateTime         @default(now()) @db.Timestamptz
+  updatedAt     DateTime         @updatedAt @db.Timestamptz
+  room           Room            @relation(fields: [roomId], references: [id])
+  property       Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inventoryLocks InventoryLock[]
 
   @@index([tenantId])
   @@index([propertyId])

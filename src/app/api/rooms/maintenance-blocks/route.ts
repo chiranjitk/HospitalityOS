@@ -183,7 +183,8 @@ export async function POST(request: NextRequest) {
 
       // Sync: Create a corresponding InventoryLock for the same room/period
       // This ensures availability engines also see the blocked room
-      await tx.inventoryLock.create({
+      // Uses maintenanceBlockId for reliable bidirectional linking
+      const syncedLock = await tx.inventoryLock.create({
         data: {
           tenantId,
           propertyId: room.propertyId,
@@ -193,11 +194,15 @@ export async function POST(request: NextRequest) {
           reason: `Maintenance: ${reason}`,
           lockType: 'maintenance',
           createdBy: user.id,
+          maintenanceBlockId: maintenanceBlock.id,
         },
-      }).catch(() => {
-        // If lock creation fails (e.g. overlapping lock), log but don't fail the block
-        console.warn('Could not create synced InventoryLock for MaintenanceBlock');
       });
+
+      // If lock creation fails, roll back the entire transaction
+      // to keep MaintenanceBlock and InventoryLock in sync
+      if (!syncedLock) {
+        throw new Error('SYNC_ERROR:Failed to create synced InventoryLock');
+      }
 
       return maintenanceBlock;
     });

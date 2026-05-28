@@ -64,16 +64,26 @@ export async function POST(
         });
       }
 
-      // Sync: Remove corresponding InventoryLock created by MaintenanceBlock
-      await tx.inventoryLock.deleteMany({
+      // Sync: Remove the corresponding InventoryLock using maintenanceBlockId
+      // This is precise — only deletes the lock linked to THIS specific block
+      const deleteResult = await tx.inventoryLock.deleteMany({
         where: {
-          roomId: block.roomId,
-          lockType: 'maintenance',
-          reason: { startsWith: 'Maintenance:' },
+          maintenanceBlockId: id,
         },
-      }).catch(() => {
-        console.warn('Could not clean up synced InventoryLock on block completion');
       });
+
+      if (deleteResult.count === 0) {
+        // Fallback: try to find by roomId + lockType for legacy locks created
+        // before the maintenanceBlockId field was added
+        await tx.inventoryLock.deleteMany({
+          where: {
+            roomId: block.roomId,
+            lockType: 'maintenance',
+            reason: { startsWith: 'Maintenance:' },
+            maintenanceBlockId: null,
+          },
+        });
+      }
 
       return updatedBlock;
     });

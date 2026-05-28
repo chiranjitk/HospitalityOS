@@ -112,6 +112,14 @@ export async function GET(request: NextRequest) {
             },
           },
         },
+        maintenanceBlock: {
+          select: {
+            id: true,
+            reason: true,
+            status: true,
+            priority: true,
+          },
+        },
       },
       orderBy: [
         { startDate: 'asc' },
@@ -450,7 +458,7 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json();
     // Destructure out protected fields that must not be overwritten
-    const { id, tenantId, createdAt, createdBy, updatedAt, ...updates } = body;
+    const { id, tenantId, createdAt, createdBy, updatedAt, maintenanceBlockId, ...updates } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -634,11 +642,69 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Maximum 100 items per operation' }, { status: 400 });
     }
 
-    const results = await db.inventoryLock.deleteMany({
+    // Reverse sync: Find any MaintenanceBlocks linked to these locks before deleting
+    const locksToSync = await db.inventoryLock.findMany({
       where: {
         id: { in: ids },
         tenantId: user.tenantId,
+        maintenanceBlockId: { not: null },
       },
+      select: { id: true, maintenanceBlockId: true },
+    });
+
+    const results = await db.$transaction(async (tx) => {
+      // Delete the inventory locks
+      const deleted = await tx.inventoryLock.deleteMany({
+        where: {
+          id: { in: ids },
+          tenantId: user.tenantId,
+        },
+      });
+
+      // Reverse sync: Cancel any linked MaintenanceBlocks
+      // Only cancel blocks that are still active/scheduled (not already completed/cancelled)
+      for (const lock of locksToSync) {
+        if (lock.maintenanceBlockId) {
+          const block = await tx.maintenanceBlock.findFirst({
+            where: {
+              id: lock.maintenanceBlockId,
+              status: { in: ['scheduled', 'active'] },
+            },
+          });
+
+          if (block) {
+            await tx.maintenanceBlock.update({
+              where: { id: block.id },
+              data: { status: 'cancelled' },
+            });
+
+            // Restore room status if no other active blocks remain
+            const otherActiveBlocks = await tx.maintenanceBlock.count({
+              where: {
+                roomId: block.roomId,
+                status: { in: ['scheduled', 'active'] },
+                id: { not: block.id },
+              },
+            });
+
+            if (otherActiveBlocks === 0) {
+              const roomInfo = await tx.room.findUnique({
+                where: { id: block.roomId },
+                select: { status: true },
+              });
+              const newStatus = (roomInfo && ['occupied', 'checked_in'].includes(roomInfo.status))
+                ? roomInfo.status
+                : 'available';
+              await tx.room.update({
+                where: { id: block.roomId },
+                data: { status: newStatus },
+              });
+            }
+          }
+        }
+      }
+
+      return deleted;
     });
 
     if (results.count === 0) {
@@ -648,9 +714,12 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    const syncedBlockCount = locksToSync.length;
     return NextResponse.json({
       success: true,
-      message: `Deleted ${results.count} inventory locks`,
+      message: syncedBlockCount > 0
+        ? `Deleted ${results.count} inventory locks and cancelled ${syncedBlockCount} linked maintenance block(s)`
+        : `Deleted ${results.count} inventory locks`,
     });
   } catch (error) {
     console.error('Error deleting inventory locks:', error);
