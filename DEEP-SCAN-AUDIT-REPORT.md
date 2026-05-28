@@ -4,7 +4,7 @@
 >
 > **Scope**: 979 API routes, 611 components, 301 lib files, 464 DB models, 6 SQL views, 8 DB functions
 >
-> **Date**: July 2025  
+> **Date**: 29 May 2026  
 > **Product Version**: Current `main` branch
 
 ---
