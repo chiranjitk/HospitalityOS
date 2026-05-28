@@ -316,6 +316,9 @@ export async function POST(request: NextRequest) {
       }
 
       // Use menuItem price if available, otherwise fall back to item's price/unitPrice
+      // M-53: IMPORTANT — unitPrice is snapshot at order time from the current menuItem.price.
+      // This ensures historical orders are not affected by future menu price changes.
+      // If menuItem is null (manual order), the client-supplied unitPrice is used.
       let unitPrice = menuItem?.price || item.unitPrice || item.price || 0;
 
       // CRITICAL-14 FIX: Apply modifier pricing adjustments
