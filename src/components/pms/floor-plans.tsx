@@ -59,6 +59,8 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslations } from 'next-intl';
+import { useRealtime, RoomStatusEvent } from '@/hooks/use-realtime';
+import { useAuth } from '@/contexts/AuthContext';
 
 const LazyFloorPlanEditor = React.lazy(() => import('./floor-plan-editor').then(m => ({ default: m.FloorPlanEditor })));
 const LazyFloorPlanViewer = React.lazy(() => import('./floor-plan-viewer').then(m => ({ default: m.FloorPlanViewer })));
@@ -149,6 +151,31 @@ function safeJsonParse(str: string | null | undefined, fallback: any = []): any 
 export default function FloorPlans() {
   const { toast } = useToast();
   const t = useTranslations('pms');
+  const { user } = useAuth();
+
+  // Real-time room status updates for floor plan
+  const handleRoomStatusChange = useCallback((event: RoomStatusEvent) => {
+    // Update the rooms state when a room status changes via WebSocket
+    setRooms(prev => prev.map(room =>
+      room.id === event.roomId
+        ? { ...room, status: event.status }
+        : room
+    ));
+  }, []);
+
+  const { connectionStatus, subscribeToProperty, unsubscribeFromProperty } = useRealtime({
+    showToasts: false, // Don't show toasts for every room status change on floor plan
+    onRoomStatusChange: handleRoomStatusChange,
+  });
+
+  // Subscribe to property when in editor/viewer mode
+  useEffect(() => {
+    if (selectedFloorPlan && (viewMode === 'editor' || viewMode === 'viewer' || viewMode === 'advanced-editor' || viewMode === 'floor-viewer')) {
+      subscribeToProperty(selectedFloorPlan.propertyId);
+      return () => unsubscribeFromProperty(selectedFloorPlan.propertyId);
+    }
+  }, [selectedFloorPlan, viewMode, subscribeToProperty, unsubscribeFromProperty]);
+
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
