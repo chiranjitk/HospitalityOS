@@ -1018,8 +1018,15 @@ async function recordPriceHistory(
 
 /**
  * Get the linear pricing configuration for a property.
- * Stores config in PricingSchedulerLog with a special type marker,
- * or falls back to defaults.
+ * TODO (H-46): Configuration is currently stored in the AuditLog table (using a special
+ * entityType='Property' and action='linear_pricing_config' marker). This is a pragmatic
+ * approach that avoids schema migrations, but has significant risks:
+ * - AuditLog tables are append-only and grow unbounded; config lookups require findFirst
+ *   ordered by createdAt desc, which degrades over time.
+ * - AuditLog retention policies or purges could delete pricing configs.
+ * - The newValue column stores JSON as text, so complex config schemas have no validation.
+ * RECOMMENDATION: Create a dedicated PricingConfig table (id, tenantId, propertyId, config JSONB,
+ * updatedAt) in a future migration. Until then, this works but should be monitored.
  */
 export async function getLinearPricingConfig(
   tenantId: string,
