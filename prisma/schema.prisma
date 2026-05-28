@@ -4294,6 +4294,7 @@ model Order {
   orderType           String           @default("dine_in")
   subtotal            Float            @default(0)
   taxes               Float            @default(0)
+  serviceCharge       Float            @default(0)
   discount            Float            @default(0)
   totalAmount         Float            @default(0)
   currency            String           @default("USD")

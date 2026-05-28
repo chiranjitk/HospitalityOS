@@ -279,6 +279,13 @@ export async function POST(request: NextRequest) {
         })
       : [];
 
+    // CRITICAL-14: Pre-fetch all modifier options for this property to apply pricing
+    const allModifierOptions = await db.menuModifierOption.findMany({
+      where: { propertyId, isAvailable: true },
+      select: { id: true, priceAdjustment: true },
+    });
+    const modifierOptionsMap = new Map(allModifierOptions.map(o => [o.id, o]));
+
     // Validate menu items that have a menuItemId (skip custom items without one)
     for (const item of items) {
       if (!item.menuItemId) continue; // Custom item — no menu validation needed
@@ -299,7 +306,7 @@ export async function POST(request: NextRequest) {
 
     // Calculate subtotal and build order items data
     let subtotal = 0;
-    const orderItemsData = items.map((item: { menuItemId?: string; quantity?: number; unitPrice?: number; price?: number; name?: string; notes?: string; options?: string }) => {
+    const orderItemsData = items.map((item: { menuItemId?: string; quantity?: number; unitPrice?: number; price?: number; name?: string; notes?: string; options?: string; modifiers?: unknown[] }) => {
       const menuItem = item.menuItemId ? menuItems.find(m => m.id === item.menuItemId) : null;
       const quantity = item.quantity || 1;
 
@@ -309,7 +316,32 @@ export async function POST(request: NextRequest) {
       }
 
       // Use menuItem price if available, otherwise fall back to item's price/unitPrice
-      const unitPrice = menuItem?.price || item.unitPrice || item.price || 0;
+      let unitPrice = menuItem?.price || item.unitPrice || item.price || 0;
+
+      // CRITICAL-14 FIX: Apply modifier pricing adjustments
+      // Parse options/modifiers and add priceAdjustment from MenuModifierOption
+      let modifierPriceAdjustment = 0;
+      const rawOptions = item.options || item.modifiers;
+      const modifierIds: string[] = [];
+      if (rawOptions) {
+        try {
+          const parsed = typeof rawOptions === 'string' ? JSON.parse(rawOptions) : rawOptions;
+          if (Array.isArray(parsed)) {
+            for (const opt of parsed) {
+              if (opt?.optionId || opt?.id) modifierIds.push(opt.optionId || opt.id);
+            }
+          }
+        } catch { /* options not parseable, skip modifier pricing */ }
+      }
+      // Batch-lookup modifier option prices
+      if (modifierIds.length > 0) {
+        for (const optId of modifierIds) {
+          const modOption = modifierOptionsMap.get(optId);
+          if (modOption) modifierPriceAdjustment += modOption.priceAdjustment || 0;
+        }
+      }
+      unitPrice = Math.round((unitPrice + modifierPriceAdjustment) * 100) / 100;
+
       const totalAmount = Math.round(unitPrice * quantity * 100) / 100;
       subtotal += totalAmount;
 
@@ -377,6 +409,7 @@ export async function POST(request: NextRequest) {
           orderNumber,
           subtotal,
           taxes,
+          serviceCharge,
           totalAmount,
           notes,
           specialInstructions,
