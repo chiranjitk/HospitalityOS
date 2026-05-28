@@ -12,6 +12,12 @@ export async function GET(request: NextRequest) {    const user = await requireP
     const channel = searchParams.get('channel');
     const region = searchParams.get('region');
     const priority = searchParams.get('priority');
+    const limitParam = searchParams.get('limit');
+    const offsetParam = searchParams.get('offset');
+
+    // M-29: Add pagination support
+    const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 50;
+    const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
 
     const where: Record<string, unknown> = {
       tenantId,
@@ -35,6 +41,8 @@ export async function GET(request: NextRequest) {    const user = await requireP
       orderBy: [
         { createdAt: 'desc' },
       ],
+      take: limit,
+      skip: offset,
     });
 
     // Get sync stats for each connection
@@ -153,6 +161,8 @@ export async function GET(request: NextRequest) {    const user = await requireP
       allChannels: ALL_OTAS,
       pagination: {
         total,
+        limit,
+        offset,
       },
       stats: {
         totalConnections: total,
