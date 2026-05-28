@@ -191,19 +191,40 @@ function safeGetTime(date: Date | unknown): number {
 }
 
 /**
- * Sanitize a string for safe inclusion in SQL VALUES clauses.
- * Escapes single quotes and removes null bytes, backslashes, and newlines
- * that could break the SQL statement or enable injection.
+ * CRITICAL-04 FIX: Strict SQL escape for ALL user-controlled values.
+ * Defense-in-depth: removes semicolons, double-dashes, block comments.
  */
 function sqlEscape(val: string | null | undefined): string {
   if (val == null) return '';
-  return String(val)
+  const s = String(val);
+  // Reject obviously malicious patterns and sanitize
+  return s
     .replace(/\\/g, '\\\\')
     .replace(/'/g, "''")
+    .replace(/;/g, '')
+    .replace(/--/g, '')
+    .replace(/\/\*/g, '')
+    .replace(/\*\//g, '')
     .replace(/\0/g, '')
     .replace(/\n/g, ' ')
     .replace(/\r/g, ' ')
     .trim();
+}
+
+/**
+ * Safely convert a numeric value for raw SQL. Returns '0' for invalid numbers.
+ */
+function sqlNum(val: number | null | undefined): string {
+  const n = Number(val);
+  return Number.isFinite(n) ? String(n) : '0';
+}
+
+/**
+ * Safely escape a timestamp for raw SQL.
+ */
+function sqlTimestamp(ms: number | null | undefined): string {
+  if (!ms || !Number.isFinite(ms)) return "TO_TIMESTAMP(0)";
+  return `TO_TIMESTAMP(${Math.floor(ms / 1000)})`;
 }
 
 /**
@@ -488,7 +509,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
 
             // Update radacct for normal sessions
             if (toUpdate.length > 0) {
-              const values = toUpdate.map(u => `('${u.session.radacctid}', ${u.newUl}, ${u.newDl}, ${u.sessionTime})`);
+              const values = toUpdate.map(u => `(${sqlNum(u.session.radacctid)}, ${sqlNum(u.newUl)}, ${sqlNum(u.newDl)}, ${sqlNum(u.sessionTime)})`);
               await db.$executeRawUnsafe(`
                 UPDATE radacct r SET
                   acctinputoctets = v.input_octets,
@@ -520,7 +541,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
               const localNasForInterim = await getLocalNasConfigFromFirstProperty();
               const interimValues = toUpdate.map(u =>
                 `('${sqlEscape(u.session.acctsessionid)}', '${sqlEscape(u.session.username)}', '${sqlEscape(u.session.framedipaddress)}', '${sqlEscape(u.session.callingstationid)}', ` +
-                `TO_TIMESTAMP('${safeGetTime(u.session.acctstarttime) / 1000}'), ${u.newUl}, ${u.newDl}, ${u.sessionTime})`
+                `${sqlTimestamp(safeGetTime(u.session.acctstarttime))}, ${sqlNum(u.newUl)}, ${sqlNum(u.newDl)}, ${sqlNum(u.sessionTime)})`
               );
               await db.$executeRawUnsafe(`
                 INSERT INTO radacct (
@@ -552,7 +573,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
               const usersWithDeltas = toUpdate.filter(u => u.downloadDelta > 0 || u.uploadDelta > 0);
               if (usersWithDeltas.length > 0) {
                 const userValues = usersWithDeltas.map(u =>
-                  `('${sqlEscape(u.session.username)}', ${u.uploadDelta}, ${u.downloadDelta})`
+                  `('${sqlEscape(u.session.username)}', ${sqlNum(u.uploadDelta)}, ${sqlNum(u.downloadDelta)})`
                 );
                 await db.$executeRawUnsafe(`
                   UPDATE "WiFiUser" w SET
@@ -570,7 +591,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
                 const chunk = toUpdate.slice(i, i + CHUNK_SIZE);
             const sessionValues = chunk.map(u => {
               const dataUsedMB = Math.floor((u.newDl + u.newUl) / (1024 * 1024));
-              return `('${sqlEscape(u.session.username)}', '${sqlEscape(u.session.callingstationid)}', ${u.newDl}, ${u.newUl}, ${u.sessionTime}, ${dataUsedMB})`;
+              return `('${sqlEscape(u.session.username)}', '${sqlEscape(u.session.callingstationid)}', ${sqlNum(u.newDl)}, ${sqlNum(u.newUl)}, ${sqlNum(u.sessionTime)}, ${sqlNum(dataUsedMB)})`;
             });
             await db.$executeRawUnsafe(`
               UPDATE "WiFiSession" s SET
@@ -623,7 +644,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
                 const ncValues = chunk.map(s => {
                   const sessionTime = Math.floor((Date.now() - safeGetTime(s.acctstarttime)) / 1000);
                   const dataUsedMB = Math.floor((Number(s.acctoutputoctets) + Number(s.acctinputoctets)) / (1024 * 1024));
-                  return `('${sqlEscape(s.username)}', '${sqlEscape(s.callingstationid)}', ${sessionTime}, ${dataUsedMB})`;
+                  return `('${sqlEscape(s.username)}', '${sqlEscape(s.callingstationid)}', ${sqlNum(sessionTime)}, ${sqlNum(dataUsedMB)})`;
                 });
                 await db.$executeRawUnsafe(`
                   UPDATE "WiFiSession" s SET
