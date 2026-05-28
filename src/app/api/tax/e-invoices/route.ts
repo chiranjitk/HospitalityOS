@@ -123,6 +123,27 @@ export async function POST(request: NextRequest) {
 
     const data = parsed.data;
 
+    // H-22: Idempotency check — if an e-invoice already exists for the given invoice,
+    // return it instead of generating a duplicate. This prevents double-IRN generation
+    // from network retries or client resubmissions.
+    if (data.invoiceId) {
+      const existingEInvoice = await db.gstEInvoice.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          invoiceId: data.invoiceId,
+          status: { in: ['active', 'pending', 'generated'] },
+        },
+      });
+
+      if (existingEInvoice) {
+        return NextResponse.json({
+          success: true,
+          data: existingEInvoice,
+          message: 'E-invoice already exists for this invoice (idempotent)',
+        }, { status: 200 });
+      }
+    }
+
     // FIX (M-8): Added GSTN API integration architecture
     // Fetch GST settings to obtain the seller GSTIN for IRN generation
     let sellerGstin: string | null = null;
