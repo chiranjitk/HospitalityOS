@@ -78,10 +78,14 @@ export async function POST(request: NextRequest) {
     const channel = payload.data.channel;
 
     // Get channel connection to verify signature
+    // H-26: Include propertyId filter from the webhook payload to ensure we find the
+    // correct connection when multiple tenants use the same channel (e.g., Booking.com).
+    // Without this, findFirst could return the wrong tenant's connection.
     const connection = await db.channelConnection.findFirst({
       where: {
         channel,
         status: 'active',
+        ...(payload.data.property_id ? { propertyId: payload.data.property_id } : {}),
       },
     });
 
