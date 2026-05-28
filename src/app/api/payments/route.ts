@@ -185,6 +185,7 @@ export async function POST(request: NextRequest) {
     const data = nullifyEmptyStrings(body);
     const tenantId = user.tenantId;
 
+    let idempotencyKey: string | undefined;
     const {
       folioId,
       guestId,
@@ -198,10 +199,10 @@ export async function POST(request: NextRequest) {
       cardLast4: inputCardLast4,
       cardExpiry,
       reference,
-      idempotencyKey,
       description,
       status: requestedStatus,
     } = data;
+    idempotencyKey = data.idempotencyKey;
 
     // Validate required fields
     if (!folioId || !amount || !method) {
