@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
         data: {
           paidAmount: Math.max(0, newPaidAmount),
           balance: Math.max(0, newBalance),
-          status: newBalance <= 0.005 ? 'settled' : folio.status,
+          status: newBalance <= 0.005 ? 'paid' : folio.status,
           closedAt: newBalance <= 0.005 ? new Date() : folio.closedAt,
         },
       });
