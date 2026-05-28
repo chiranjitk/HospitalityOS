@@ -318,6 +318,8 @@ export default function RatePlansPricingRules() {
     const controller = new AbortController();
     fetchData();
     return () => controller.abort();
+  }, [fetchData]);
+
   // Dynamic deviation color calculator
   const getPriceColor = useCallback((basePrice: number, currentPrice: number): string => {
     if (!basePrice || basePrice === 0) return 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200';
@@ -357,8 +359,6 @@ export default function RatePlansPricingRules() {
       setIsSavingDeviation(false);
     }
   };
-
-  }, [fetchData]);
 
   // Calendar helpers
   const calendarDays = useMemo(() => {
