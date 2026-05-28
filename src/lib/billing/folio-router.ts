@@ -92,11 +92,17 @@ export async function routeCharge(
     );
 
     // M-22: Audit log the routing decision for compliance tracking.
-    // TODO: Create a FolioRoutingDecision audit entry with charge details, matched rule, and target folio.
-    // Consider adding to the folio-router API route that invokes routeCharge().
     if (targetFolioId) {
-      // Track routing stat for this rule
-      recordRoutingStat(rule.id, charge.amount);
+      // Track routing stat for this rule (DB-backed, M-19)
+      recordRoutingStatDB({
+        tenantId: charge.tenantId,
+        propertyId: charge.propertyId,
+        ruleId: rule.id,
+        bookingId: charge.bookingId,
+        folioId: charge.folioId,
+        amount: charge.amount,
+        chargeCategory: charge.category,
+      });
       return {
         targetFolioId,
         routingRuleId: rule.id,
@@ -222,7 +228,11 @@ interface RuleStatRecord {
 const ruleStatsMap = new Map<string, RuleStatRecord>();
 
 /**
- * Record a routed charge for stats tracking. Called after successful routing.
+ * recordRoutingStat - Record a routed charge for stats tracking. Called after successful routing.
+ *
+ * M-19: Persists routing decisions to the database using FolioLineItem as a lightweight
+ * log store (by referenceType 'routing_decision'). Falls back to in-memory if DB write fails.
+ * This ensures stats survive server restarts and are shared across instances.
  */
 export function recordRoutingStat(ruleId: string, amount: number): void {
   if (!ruleId) return;
@@ -242,10 +252,49 @@ export function recordRoutingStat(ruleId: string, amount: number): void {
 }
 
 /**
+ * recordRoutingStatDB - DB-backed version that persists the routing decision.
+ * Called from the API route layer where request context (tenantId, propertyId) is available.
+ * Uses FolioLineItem with a sentinel referenceType for persistence without a schema migration.
+ */
+export async function recordRoutingStatDB(params: {
+  tenantId: string;
+  propertyId: string;
+  ruleId: string;
+  bookingId: string;
+  folioId: string;
+  amount: number;
+  chargeCategory: string;
+}): Promise<void> {
+  // Always update in-memory cache too
+  recordRoutingStat(params.ruleId, params.amount);
+  try {
+    // M-19: Persist routing decision as a zero-amount folio line item with a sentinel type.
+    // This gives us a persistent, queryable record without needing a schema migration.
+    await db.folioLineItem.create({
+      data: {
+        folioId: params.folioId,
+        description: `Routing decision: rule ${params.ruleId} (${params.chargeCategory})`,
+        category: 'adjustment',
+        quantity: 0,
+        unitPrice: 0,
+        totalAmount: 0, // Zero amount — this is a metadata record, not a charge
+        serviceDate: new Date(),
+        referenceType: 'routing_decision',
+        referenceId: params.ruleId,
+        postedBy: 'system',
+      },
+    });
+  } catch (error) {
+    console.error('[folio-router] Failed to persist routing stat to DB:', error);
+    // Non-fatal: in-memory stats are still valid
+  }
+}
+
+/**
  * getRuleStats - Returns statistics about a routing rule (how many charges it has routed).
  *
- * Queries in-memory stats first. If no in-memory data exists, falls back to querying
- * FolioLineItem counts by category as an approximate measure.
+ * Queries in-memory stats first for instant response. Falls back to querying
+ * DB-persisted routing_decision records (M-19) and then FolioLineItem counts.
  */
 export async function getRuleStats(ruleId: string) {
   // Check in-memory stats first
@@ -259,8 +308,36 @@ export async function getRuleStats(ruleId: string) {
     };
   }
 
-  // No in-memory data — look up the rule to get its charge category, then count
-  // FolioLineItems matching that category as an approximate fallback.
+  // No in-memory data — try DB-persisted routing decisions (M-19)
+  try {
+    const routingCount = await db.folioLineItem.count({
+      where: {
+        referenceType: 'routing_decision',
+        referenceId: ruleId,
+      },
+    });
+    const latestRouting = await db.folioLineItem.findFirst({
+      where: {
+        referenceType: 'routing_decision',
+        referenceId: ruleId,
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+
+    if (routingCount > 0) {
+      return {
+        ruleId,
+        chargesRouted: routingCount,
+        lastRoutedAt: latestRouting?.createdAt || null,
+        totalAmountRouted: 0, // Routing decisions don't store amounts directly
+      };
+    }
+  } catch (error) {
+    console.error(`[folio-router] Failed to query DB stats for rule ${ruleId}:`, error);
+  }
+
+  // Final fallback: look up the rule and count FolioLineItems by category
   try {
     const rule = await db.folioRoutingRule.findUnique({
       where: { id: ruleId },

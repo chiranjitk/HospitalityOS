@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
+import { generateInvoiceNumber as sharedGenerateInvoiceNumber } from '@/lib/billing/number-generation';
+
+// M-20/M-21: Invoice number generation consolidated to shared utility.
+// The local generateInvoiceNumber below has been replaced with the shared version.
 
 // GET /api/billing/auto-invoice — Get auto-invoicing status and next scheduled run
 export async function GET(request: NextRequest) {
@@ -300,14 +304,10 @@ function calculateDueDate(invoiceDate: Date, billingTerms: string): Date {
 }
 
 /**
- * generateInvoiceNumber — Generates a sequential invoice number.
+ * generateInvoiceNumber — Delegates to shared utility (M-20/M-21).
  */
 function generateInvoiceNumber(accountType: string): string {
-  const prefix = accountType === 'travel_agent' ? 'TA' : accountType === 'government' ? 'GOV' : 'CL';
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-  const extra = Math.random().toString(36).substring(2, 4).toUpperCase();
-  return `${prefix}-${timestamp}-${random}-${extra}`;
+  return sharedGenerateInvoiceNumber(accountType);
 }
 
 /**

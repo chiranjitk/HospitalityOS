@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { z } from 'zod';
 import crypto from 'crypto';
 import { requireAuth } from '@/lib/auth/tenant-context';
+import { generateFolioNumber } from '@/lib/billing/number-generation';
 
 // =============================================================================
 // KIOSK PAYMENT: Attempts real payment gateway first (Stripe), falls back to
@@ -47,10 +48,10 @@ function generateQrRef(): string {
   return `QR-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 }
 
-/** Generate a unique folio number */
-function generateFolioNumber(bookingId: string): string {
+/** Generate a unique folio number — delegates to shared utility (M-20/M-21) */
+function kioskGenerateFolioNumber(bookingId: string): string {
   const short = bookingId.slice(0, 8).toUpperCase();
-  return `FOLIO-${short}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+  return generateFolioNumber(`KIOSK-${short}`);
 }
 
 // --- POST: Process a kiosk payment ---
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
           tenantId: booking.tenantId,
           propertyId: booking.propertyId,
           bookingId,
-          folioNumber: generateFolioNumber(bookingId),
+          folioNumber: kioskGenerateFolioNumber(bookingId),
           guestId: booking.primaryGuestId,
           subtotal: booking.totalAmount,
           totalAmount: booking.totalAmount,

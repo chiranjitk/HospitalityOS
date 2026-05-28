@@ -664,6 +664,9 @@ export default function RoomGrid() {
               ) : null}
 
               {/* Quick Actions */}
+              {/* M-12: Mark Clean button directly sets room to 'available'. Consider adding
+                  intermediate 'inspected' status step and creating an audit log entry
+                  when a room is marked clean via the grid for housekeeping accountability. */}
               <div className="space-y-2">
                 <div className="text-sm font-medium">Quick Actions</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

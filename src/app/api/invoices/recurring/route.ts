@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
-import crypto from 'crypto';
+import { generateInvoiceNumber } from '@/lib/billing/number-generation';
 
-// Generate invoice number
-function generateInvoiceNumber(): string {
-  const date = new Date();
-  const year = date.getFullYear().toString().slice(-2);
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const random = crypto.randomBytes(4).toString('hex').slice(0, 4);
-  return `INV-${year}${month}-${random}`;
-}
+// M-20/M-21: generateInvoiceNumber is now imported from the shared utility
+// instead of a local duplicate. This ensures consistent UUID-prefixed format
+// and collision safety across all invoice generation paths.
 
 // Valid recurring frequencies
 const VALID_FREQUENCIES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'annually'];

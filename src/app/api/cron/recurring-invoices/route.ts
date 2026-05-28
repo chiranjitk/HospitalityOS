@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import crypto from 'crypto';
+import { generateInvoiceNumber } from '@/lib/billing/number-generation';
 
 // ─── Cron Secret ──────────────────────────────────────────────────────────────
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -13,14 +14,7 @@ const CRON_SECRET_VALUE = CRON_SECRET;
 let lastProcessedAt: Date | null = null;
 const IDEMPOTENCY_WINDOW_MS = 60_000; // 1 minute
 
-// Generate invoice number
-function generateInvoiceNumber(): string {
-  const date = new Date();
-  const year = date.getFullYear().toString().slice(-2);
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const random = crypto.randomBytes(4).toString('hex').slice(0, 4);
-  return `INV-${year}${month}-${random}`;
-}
+// M-20/M-21: generateInvoiceNumber imported from shared utility for consistent format
 
 // Calculate next recurring date based on frequency
 function calculateNextDate(currentDate: Date, frequency: string): Date {

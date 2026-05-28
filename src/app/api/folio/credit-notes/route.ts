@@ -252,12 +252,7 @@ export async function POST(request: NextRequest) {
       return note;
     });
 
-    return NextResponse.json({
-      success: true,
-      data: { ...creditNote, items },
-    }, { status: 201 });
-
-    // M-22: Audit log for credit note creation (best-effort)
+    // M-22: Audit log for credit note creation (moved before return — was dead code)
     try {
       await db.auditLog.create({
         data: {
@@ -280,6 +275,11 @@ export async function POST(request: NextRequest) {
     } catch (auditError) {
       console.error('[CreditNotes POST] Audit log failed:', auditError);
     }
+
+    return NextResponse.json({
+      success: true,
+      data: { ...creditNote, items },
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating credit note:', error);
     return NextResponse.json(

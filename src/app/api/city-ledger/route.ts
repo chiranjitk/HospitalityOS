@@ -215,9 +215,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, data: invoice }, { status: 201 });
-
-    // M-22: Create audit log for city-ledger invoice creation (best-effort)
+    // M-22: Audit log for city-ledger invoice creation (moved before return — was dead code)
     try {
       await db.auditLog.create({
         data: {
@@ -240,6 +238,8 @@ export async function POST(request: NextRequest) {
     } catch (auditError) {
       console.error('[CityLedger POST] Audit log failed:', auditError);
     }
+
+    return NextResponse.json({ success: true, data: invoice }, { status: 201 });
   } catch (error) {
     console.error('[POST /api/city-ledger]', error);
     return NextResponse.json({ success: false, error: 'Failed to create city ledger invoice' }, { status: 500 });

@@ -477,7 +477,9 @@ export default function NpsSurveys() {
               <Select value={newSurvey.propertyId} onValueChange={(v) => setNewSurvey(p => ({ ...p, propertyId: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select a property" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Select a property...</SelectItem>
+                  {properties.map((prop) => (
+                    <SelectItem key={prop.id} value={prop.id}>{prop.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
