@@ -41,6 +41,8 @@ interface KYCDocumentUploadProps {
   documents: KYCDocument[];
   onDocumentsChange: (documents: KYCDocument[]) => void;
   disabled?: boolean;
+  /** H-14 FIX: When provided, documents are persisted to the database via the KYC API. */
+  guestId?: string;
 }
 
 const DOCUMENT_TYPES = [
@@ -67,6 +69,7 @@ export function KYCDocumentUpload({
   documents,
   onDocumentsChange,
   disabled = false,
+  guestId,
 }: KYCDocumentUploadProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -112,6 +115,48 @@ export function KYCDocumentUpload({
           title: 'Document Added',
           description: `${file.name} uploaded as ${getDocumentTypeLabel(selectedType)}`,
         });
+
+        // H-14 FIX: Persist the document to the backend if guestId is provided.
+        // Documents stored only in local state are lost on navigation/reload.
+        if (guestId) {
+          fetch('/api/frontdesk/kyc-documents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              guestId,
+              type: selectedType,
+              name: file.name,
+              fileData: base64Data,
+              fileName: file.name,
+              fileSize: file.size,
+              mimeType: file.type,
+            }),
+          })
+            .then(res => res.json())
+            .then(result => {
+              if (result.success) {
+                toast({
+                  title: 'Document Saved',
+                  description: 'KYC document persisted to guest profile.',
+                });
+              } else {
+                console.error('[KYC Upload] Failed to persist document:', result.error);
+                toast({
+                  title: 'Save Warning',
+                  description: 'Document added locally but failed to save to server.',
+                  variant: 'destructive',
+                });
+              }
+            })
+            .catch(err => {
+              console.error('[KYC Upload] Network error:', err);
+              toast({
+                title: 'Save Warning',
+                description: 'Document added locally but failed to reach server.',
+                variant: 'destructive',
+              });
+            });
+        }
       };
       reader.readAsDataURL(file);
     },
