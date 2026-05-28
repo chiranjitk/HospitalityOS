@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
       }
     } catch (handlerError) {
       // Push to dead letter queue on processing failure
-      await db.channelDeadLetterQueue.create({
+      const dlqEntry = await db.channelDeadLetterQueue.create({
         data: {
           tenantId,
           propertyId: connection.propertyId || undefined,
@@ -161,8 +161,47 @@ export async function POST(request: NextRequest) {
           operation: 'webhook_unified',
           payload: rawPayload,
           error: handlerError instanceof Error ? handlerError.message : 'Unknown error',
+          retryCount: 0,
         },
       });
+
+      // H-27 FIX: Attempt immediate retry for transient failures.
+      // Retry once after a short delay for errors that may be transient
+      // (DB lock, temporary unavailability). After retry, if still fails,
+      // the entry remains in DLQ for manual inspection.
+      if (dlqEntry) {
+        setTimeout(async () => {
+          try {
+            let retryPayload: OTAWebhookPayload;
+            try {
+              retryPayload = JSON.parse(rawPayload);
+            } catch { return; }
+
+            switch (retryPayload.event_type) {
+              case 'reservation_created':
+                await handleReservationCreated(tenantId, connection, retryPayload);
+                break;
+              case 'reservation_modified':
+                await handleReservationModified(tenantId, connection, retryPayload);
+                break;
+              case 'reservation_cancelled':
+                await handleReservationCancelled(tenantId, connection, retryPayload);
+                break;
+            }
+
+            // Retry succeeded - remove from DLQ
+            await db.channelDeadLetterQueue.delete({ where: { id: dlqEntry.id } });
+            console.log(`[OTA DLQ] Auto-retry succeeded for entry ${dlqEntry.id}`);
+          } catch (retryError) {
+            console.warn(`[OTA DLQ] Auto-retry failed for entry ${dlqEntry.id}:`, retryError);
+            await db.channelDeadLetterQueue.update({
+              where: { id: dlqEntry.id },
+              data: { retryCount: { increment: 1 } },
+            });
+          }
+        }, 2000);
+      }
+
       throw handlerError;
     }
 
