@@ -130,12 +130,13 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    // Recent tasks with room and assignee info
+    // M-59: Recent tasks scoped to today only to avoid showing stale tasks
     const recentTasks = await db.task.findMany({
       where: {
         propertyId: { in: propertyIds },
         category: { in: ['cleaning', 'housekeeping'] },
         deletedAt: null,
+        createdAt: { gte: today },
       },
       include: {
         room: { select: { number: true } },
