@@ -575,8 +575,10 @@ export async function PUT(request: NextRequest) {
       confirmed: ['preparing', 'cancelled'],
       preparing: ['ready', 'cancelled'],
       ready: ['served', 'cancelled'],
-      served: ['paid', 'cancelled'],
+      served: ['paid', 'completed', 'cancelled'],
+      completed: ['paid', 'cancelled'],
       cancelled: [],
+      paid: [],
     };
 
     if (status && !validStatusTransitions[existingOrder.status]?.includes(status)) {
@@ -638,6 +640,42 @@ export async function PUT(request: NextRequest) {
           },
         },
       });
+
+      // M-52: Auto-advance parent order status to 'completed' when all child items
+      // are in a terminal state (served or completed). This ensures the order
+      // lifecycle accurately reflects that all work is done.
+      if (updated.items && updated.items.length > 0) {
+        const allItemsTerminal = updated.items.every(
+          (item: { status: string }) => item.status === 'served' || item.status === 'completed'
+        );
+        if (allItemsTerminal && updated.status !== 'completed' && updated.status !== 'cancelled' && updated.status !== 'paid') {
+          const autoAdvanced = await tx.order.update({
+            where: { id },
+            data: {
+              status: 'completed',
+              completedAt: updated.completedAt || new Date(),
+            },
+            include: updated.items ? {
+              table: true,
+              items: {
+                include: {
+                  menuItem: {
+                    select: { id: true, name: true, price: true },
+                  },
+                },
+              },
+            } : undefined,
+          });
+          // If order is completed, update table status
+          if (autoAdvanced.tableId) {
+            await tx.restaurantTable.update({
+              where: { id: autoAdvanced.tableId },
+              data: { status: 'cleaning' },
+            });
+          }
+          return autoAdvanced;
+        }
+      }
 
       // If order is served or cancelled, update table status within same transaction
       if ((status === 'served' || status === 'cancelled') && updated.tableId) {

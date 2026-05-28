@@ -73,6 +73,7 @@ export default function NpsSurveys() {
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [newSurvey, setNewSurvey] = useState({ name: '', propertyId: '', triggerEvent: 'post_checkout', subject: '', message: '' });
   const [sendDays, setSendDays] = useState(7);
+  const [properties, setProperties] = useState<{ id: string; name: string }[]>([]);
 
   const fetchSurveys = useCallback(async () => {
     try {
@@ -92,7 +93,21 @@ export default function NpsSurveys() {
     }
   }, []);
 
+  // M-44: Fetch properties for the create dialog dropdown
+  const fetchProperties = useCallback(async () => {
+    try {
+      const res = await fetch('/api/properties');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) {
+          setProperties(json.data || []);
+        }
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => { fetchSurveys(); }, [fetchSurveys]);
+  useEffect(() => { fetchProperties(); }, [fetchProperties]);
 
   const handleSelectSurvey = async (survey: NpsSurvey) => {
     try {
@@ -456,16 +471,26 @@ export default function NpsSurveys() {
               <label className="text-sm font-medium">Survey Name</label>
               <Input value={newSurvey.name} onChange={(e) => setNewSurvey(p => ({ ...p, name: e.target.value }))} placeholder="e.g., Post-Stay Guest Survey" />
             </div>
+            {/* M-44: Property selector — NPS surveys are per-property */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Property</label>
+              <Select value={newSurvey.propertyId} onValueChange={(v) => setNewSurvey(p => ({ ...p, propertyId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select a property" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Select a property...</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Trigger Event</label>
               <Select value={newSurvey.triggerEvent} onValueChange={(v) => setNewSurvey(p => ({ ...p, triggerEvent: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="post_checkout">Post Checkout</SelectItem>
-                  <SelectItem value="post_stay">Post Stay (1 day after)</SelectItem>
-                  <SelectItem value="on_departure">On Departure</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
-                </SelectContent>
+                <SelectItem value="post_checkout">Post Checkout</SelectItem>
+                <SelectItem value="post_stay">Post Stay (1 day after)</SelectItem>
+                <SelectItem value="on_departure">On Departure</SelectItem>
+                <SelectItem value="custom">Custom</SelectItem>
+              </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
