@@ -237,9 +237,18 @@ export async function POST(request: NextRequest) {
     }
 
     const invoiceNumber = generateInvoiceNumber();
-    const calculatedSubtotal = lineItems.reduce((sum: number, item: { totalAmount: number }) => sum + item.totalAmount, 0);
-    const calculatedTaxes = lineItems.reduce((sum: number, item: { taxAmount: number }) => sum + (item.taxAmount || 0), 0);
-    const calculatedTotal = subtotal ?? (calculatedSubtotal + calculatedTaxes - (discount || 0));
+
+    // H-21 FIX: ALWAYS use server-calculated financial values from line items.
+    // Client-supplied subtotal/taxes/totalAmount are ignored to prevent
+    // tampering (e.g., sending totalAmount: 0 to create a free invoice).
+    const calculatedSubtotal = Math.round(
+      lineItems.reduce((sum: number, item: { totalAmount: number }) => sum + (Number(item.totalAmount) || 0), 0) * 100
+    ) / 100;
+    const calculatedTaxes = Math.round(
+      lineItems.reduce((sum: number, item: { taxAmount: number }) => sum + (Number(item.taxAmount) || 0), 0) * 100
+    ) / 100;
+    const calculatedDiscount = Math.round((discount || 0) * 100) / 100;
+    const calculatedTotal = Math.round((calculatedSubtotal + calculatedTaxes - calculatedDiscount) * 100) / 100;
 
     const invoice = await db.invoice.create({
       data: {
@@ -249,10 +258,10 @@ export async function POST(request: NextRequest) {
         customerEmail: customerEmail || null,
         customerAddress: customerAddress || null,
         customerPhone: customerPhone || null,
-        subtotal: subtotal ?? calculatedSubtotal,
-        taxes: taxes ?? calculatedTaxes,
-        discount: discount || 0,
-        totalAmount: totalAmount ?? calculatedTotal,
+        subtotal: calculatedSubtotal,
+        taxes: calculatedTaxes,
+        discount: calculatedDiscount,
+        totalAmount: calculatedTotal,
         currency: currency || 'USD',
         issuedAt: status === 'issued' || status === 'sent' ? new Date() : undefined,
         dueAt: dueAt ? new Date(dueAt) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
