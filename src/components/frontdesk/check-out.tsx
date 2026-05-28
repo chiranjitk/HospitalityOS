@@ -435,6 +435,15 @@ export default function CheckOut() {
   };
 
   // Process check-out
+  // NOTE (H-11): The backend PUT handler at /api/bookings/[id] already handles:
+  //   1. Closing the open folio (autoCloseFolioAndGenerateInvoice)
+  //   2. Generating an invoice for the folio
+  //   3. Posting WiFi usage fees to the folio
+  //   4. Awarding loyalty points
+  //   5. Updating room status to dirty
+  //   6. Emitting booking events
+  // This mirrors the kiosk-checkout flow (see /api/frontdesk/kiosk-checkout/route.ts).
+  // If additional side-effects are needed here, ensure they don't duplicate backend logic.
   const processCheckOut = async () => {
     if (!selectedBooking) return;
 
