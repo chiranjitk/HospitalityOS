@@ -823,22 +823,26 @@ export function Sidebar({ className, mobileOpen = false, onMobileClose }: Sideba
   const { canAccessMenu, permissions, isAdmin } = usePermissions();
   const { isLoading: authLoading, isAuthenticated } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [expandedSections, setExpandedSections] = useState<string[]>(() => {
-    // Expand all sections by default so no menus appear "missing" on first load
-    return [
-      'dashboard', 'pms', 'bookings', 'frontDesk', 'guests', 'housekeeping',
-      'billing', 'experience', 'pos', 'inventory', 'facilities', 'wifi',
-      'revenue', 'channels', 'crmMarketing', 'ads', 'reports', 'staffManagement',
-      'surveillanceCctv', 'iotSmartBuilding', 'integrations', 'automationAi',
-      'notifications', 'platformAdmin', 'userRoleManagement', 'settings', 'helpSupport',
-    ];
-  });
+  const [expandedSections, setExpandedSections] = useState<string[]>(['dashboard']);
   
   // Show skeleton while auth is loading OR feature flags are loading OR user not authenticated yet
   // This prevents rendering menus with empty permissions on first login before session restores
   const isLoading = authLoading || featureFlagsLoading || !isAuthenticated;
   
   const translatedNavigation = useTranslatedNavigation();
+
+  // Auto-expand the section containing the active page
+  useEffect(() => {
+    if (!activeSection || translatedNavigation.length === 0) return;
+    const section = translatedNavigation.find((s) =>
+      s.items.some((item) => item.href.replace('#', '') === activeSection)
+    );
+    if (section) {
+      setExpandedSections((prev) =>
+        prev.includes(section.id) ? prev : [...prev, section.id]
+      );
+    }
+  }, [activeSection, translatedNavigation]);
 
   // Escape key handler for mobile
   useEffect(() => {
