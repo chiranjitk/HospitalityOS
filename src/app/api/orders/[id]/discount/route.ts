@@ -57,7 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const taxRate = order.subtotal > 0 ? order.taxes / order.subtotal : 0;
       const recalculatedTaxes = Math.round(taxableSubtotal * taxRate * 100) / 100;
 
-      finalTotalAmount = Math.max(taxableSubtotal + recalculatedTaxes, 0);
+      finalTotalAmount = Math.max(taxableSubtotal + recalculatedTaxes + (order.serviceCharge || 0), 0);
       await tx.order.update({
         where: { id },
         data: { discount: totalDiscount, taxes: recalculatedTaxes, totalAmount: finalTotalAmount },
