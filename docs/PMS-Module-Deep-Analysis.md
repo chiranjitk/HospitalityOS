@@ -608,15 +608,18 @@ No optimistic locking (version column), no last-write-wins protection. Concurren
 | 5 | Fix Room Out-of-Order status value (`out_of_order` → `out_of_service`) | Room Out-of-Order | 1h |
 
 ### P1 — High-Impact Feature Gaps
-| # | Feature | Pages Affected | Effort |
+
+> **Verification date: 2026-05-28** — All 7 items below were re-verified against the actual codebase. 6 of 7 were found to be **false positives** (features already fully implemented). Only #10 had a real issue, which has been **fixed** (commit `54da1bc9`).
+
+| # | Feature | Pages Affected | Status |
 |---|---------|---------------|--------|
-| 6 | Wire up `PricingRule` model (DB exists, zero UI/API) | Rate Plans, Availability | 8h |
-| 7 | Add promo fields to rate plan form (5 DB fields unused) | Rate Plans | 2h |
-| 8 | Add overbooking controls to room type form | Room Types, Availability | 3h |
-| 9 | Add bed configuration to Room model | Room Types, Rooms | 4h |
-| 10 | Unify MaintenanceBlock + InventoryLock | Rooms, OOO, Inventory Locking | 6h |
-| 11 | Add property filter to all PMS pages | Room Type Change, Overbooking | 2h |
-| 12 | Make timezone/currency lists comprehensive | Properties | 2h |
+| 6 | ~~Wire up `PricingRule` model~~ | Rate Plans, Availability | **ALREADY IMPLEMENTED** — Full CRUD API at `/api/revenue/pricing-rules`, 1800+ line UI in `rate-plans-pricing-rules.tsx`, 940-line pricing engine |
+| 7 | ~~Add promo fields to rate plan form~~ | Rate Plans | **ALREADY IMPLEMENTED** — All 5 fields in form UI + API create/update with validation |
+| 8 | ~~Add overbooking controls to room type form~~ | Room Types, Availability | **ALREADY IMPLEMENTED** — Full controls in room type form + dedicated `overbooking-settings.tsx` page |
+| 9 | ~~Add bed configuration to Room model~~ | Room Types, Rooms | **ALREADY IMPLEMENTED** — `bedType` + `bedCount` on RoomType with 8 bed type options in form |
+| 10 | Unify MaintenanceBlock + InventoryLock | Rooms, OOO, Inventory Locking | **FIXED** — Added `maintenanceBlockId` FK, bidirectional sync, reverse sync on delete, E2E tests (commit `54da1bc9`) |
+| 11 | ~~Add property filter to all PMS pages~~ | Room Type Change, Overbooking | **ALREADY IMPLEMENTED** — Both pages have property selector dropdowns |
+| 12 | ~~Make timezone/currency lists comprehensive~~ | Properties | **ALREADY IMPLEMENTED** — 115 timezone options, 67 currency options (report incorrectly stated 10/8) |
 
 ### P2 — Enterprise Feature Parity
 | # | Feature | Effort |
@@ -666,7 +669,7 @@ No optimistic locking (version column), no last-write-wins protection. Concurren
 
 | Model | Purpose | API Exists | UI Exists |
 |-------|---------|:----------:|:---------:|
-| `PricingRule` | Dynamic pricing rules | ❌ | ❌ |
+| `PricingRule` | Dynamic pricing rules | ✅ `/api/revenue/pricing-rules` | ✅ `rate-plans-pricing-rules.tsx` |
 | `CompetitorPrice` | Competitor rate shopping | ❌ | ❌ |
 | `DemandForecast` | Demand prediction | ❌ | ❌ |
 | `ChannelBookingLimit` | Per-channel allocation | ❌ | ❌ |
@@ -677,7 +680,7 @@ No optimistic locking (version column), no last-write-wins protection. Concurren
 | `RoomMoveLog` | Room move history | ❌ | ❌ |
 | `RoomVlan` | Room VLAN assignment | ❌ | ❌ |
 
-> **10 database models have been created but are completely unreachable** from the UI — representing significant wasted development effort.
+> **9 database models** have been created but are completely unreachable from the UI — `PricingRule` was the 10th but now has full API + UI (as of 2026-05-28).
 
 ---
 
