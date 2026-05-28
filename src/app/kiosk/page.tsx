@@ -30,6 +30,8 @@ import {
   Receipt,
   ArrowRight,
   Info,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 /* ────────────────────────────────────────────────
@@ -371,6 +373,7 @@ export default function KioskPage() {
   const [lang, setLang] = useState<Lang>('en');
 
   // Check-in state
+  const [showWifiPassword, setShowWifiPassword] = useState(false);
   const [ciStep, setCiStep] = useState<CheckInStep>('enter_code');
   const [ciCode, setCiCode] = useState('');
   const [ciBooking, setCiBooking] = useState<KioskBookingData | null>(null);
@@ -1163,7 +1166,7 @@ export default function KioskPage() {
                           </div>
                         </div>
 
-                        {/* WiFi */}
+                        {/* WiFi - M-13: Password masked by default with reveal toggle and copy button */}
                         {ciResult.wifiCredentials && (
                           <div className="p-4 sm:p-5 bg-cyan-500/5 border border-cyan-500/15 rounded-xl text-left space-y-3">
                             <div className="flex items-center gap-2">
@@ -1173,11 +1176,36 @@ export default function KioskPage() {
                             <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <p className="text-xs text-slate-500">{t.username}</p>
-                                <p className="font-mono font-medium text-sm">{ciResult.wifiCredentials.username}</p>
+                                <div className="flex items-center gap-1">
+                                  <p className="font-mono font-medium text-sm flex-1">{ciResult.wifiCredentials.username}</p>
+                                  <button
+                                    onClick={() => { navigator.clipboard.writeText(ciResult.wifiCredentials!.username); }}
+                                    className="p-1.5 rounded-md bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 text-xs transition-colors"
+                                    title="Copy username"
+                                  >
+                                    <FileText className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               </div>
                               <div>
                                 <p className="text-xs text-slate-500">{t.password}</p>
-                                <p className="font-mono font-medium text-sm">{ciResult.wifiCredentials.password}</p>
+                                <div className="flex items-center gap-1">
+                                  <p className="font-mono font-medium text-sm flex-1" id="wifi-password-display">{showWifiPassword ? ciResult.wifiCredentials.password : '••••••••'}</p>
+                                  <button
+                                    onClick={() => setShowWifiPassword(prev => !prev)}
+                                    className="p-1.5 rounded-md bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 text-xs transition-colors"
+                                    title={showWifiPassword ? 'Hide password' : 'Show password'}
+                                  >
+                                    {showWifiPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                  </button>
+                                  <button
+                                    onClick={() => { navigator.clipboard.writeText(ciResult.wifiCredentials!.password); }}
+                                    className="p-1.5 rounded-md bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 text-xs transition-colors"
+                                    title="Copy password"
+                                  >
+                                    <FileText className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               </div>
                             </div>
                             <p className="text-xs text-cyan-400/80">
