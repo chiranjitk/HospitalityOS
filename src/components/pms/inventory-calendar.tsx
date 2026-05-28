@@ -132,7 +132,7 @@ export default function InventoryCalendar() {
   useEffect(() => {
     let cancelled = false;
     const fetchInventory = async () => {
-      if (!selectedProperty) return;
+      if (!selectedProperty || selectedProperty === 'all') return;
       setIsLoading(true);
 
       // Calculate date range for current month view
@@ -142,15 +142,14 @@ export default function InventoryCalendar() {
       const endDate = new Date(year, month + 2, 0); // Get 2 months of data for navigation
 
       try {
+        // Use /api/availability for room availability data (not /api/inventory which is hotel supplies)
         const params = new URLSearchParams({
           startDate: toLocalDateString(startDate),
           endDate: toLocalDateString(endDate),
+          propertyId: selectedProperty,
         });
-        if (selectedProperty !== 'all') {
-          params.set('propertyId', selectedProperty);
-        }
 
-        const response = await fetch(`/api/inventory?${params.toString()}`);
+        const response = await fetch(`/api/availability?${params.toString()}`);
         if (!response.ok) {
           const errorText = await response.text().catch(() => 'Unknown error');
           throw new Error(`API error ${response.status}: ${errorText}`);
@@ -158,8 +157,33 @@ export default function InventoryCalendar() {
         const result = await response.json();
 
         if (!cancelled && result.success) {
-          setInventoryData(result.data);
-          setRoomTypes(result.roomTypes || []);
+          // Transform /api/availability response into calendar-friendly flat data
+          const availData = result.data;
+          const calendarData: InventoryData[] = [];
+          const rtList: RoomType[] = [];
+
+          for (const rt of availData.availabilityByRoomType || []) {
+            rtList.push({
+              id: rt.roomTypeId,
+              name: rt.roomTypeName,
+              code: rt.roomTypeCode,
+              basePrice: rt.basePrice,
+              totalRooms: rt.totalRooms,
+            });
+
+            for (const day of rt.dailyAvailability || []) {
+              calendarData.push({
+                date: day.date,
+                roomTypeId: rt.roomTypeId,
+                available: day.available,
+                total: rt.totalRooms,
+                price: rt.basePrice,
+              });
+            }
+          }
+
+          setInventoryData(calendarData);
+          setRoomTypes(rtList);
         }
       } catch (error) {
         if (cancelled) return;
@@ -308,15 +332,17 @@ export default function InventoryCalendar() {
     setIsSaving(true);
 
     try {
-      // Handle close availability action (P4-07)
+      // Handle close availability — create an inventory lock (soldout type)
       if (editData.available === 0) {
-        const closeResponse = await fetch('/api/inventory', {
-          method: 'PATCH',
+        const closeResponse = await fetch('/api/inventory-locks', {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            date: editData.date,
             roomTypeId: editData.roomTypeId,
-            action: 'close',
+            lockType: 'soldout',
+            reason: 'Closed from Inventory Calendar',
+            startDate: editData.date,
+            endDate: editData.date,
           }),
         });
         if (!closeResponse.ok) {
@@ -341,33 +367,14 @@ export default function InventoryCalendar() {
         }
       }
 
-      // Handle available rooms update (P4-08)
+      // Handle available rooms change — inventory is computed from bookings + locks,
+      // so we only update via price overrides below. Show info toast for availability changes.
       const currentInv = inventoryData.find(inv => inv.date === editData.date && inv.roomTypeId === editData.roomTypeId);
       if (currentInv && editData.available !== currentInv.available) {
-        const availResponse = await fetch('/api/inventory', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            date: editData.date,
-            roomTypeId: editData.roomTypeId,
-            available: editData.available,
-            action: 'open',
-          }),
+        toast({
+          title: 'Info',
+          description: 'Availability is automatically calculated from bookings and inventory locks. Use Inventory Locking to manage availability.',
         });
-        if (!availResponse.ok) {
-          const errorText = await availResponse.text().catch(() => 'Unknown error');
-          throw new Error(`API error ${availResponse.status}: ${errorText}`);
-        }
-        const availResult = await availResponse.json();
-        if (availResult.success) {
-          setInventoryData(prev =>
-            prev.map(inv =>
-              inv.date === editData.date && inv.roomTypeId === editData.roomTypeId
-                ? { ...inv, available: editData.available }
-                : inv
-            )
-          );
-        }
       }
 
       // Handle price update (P4-04: fallback to room type base price if no rate plan)
