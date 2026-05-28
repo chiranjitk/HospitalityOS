@@ -299,8 +299,24 @@ export async function POST(request: NextRequest) {
       });
 
       if (!guest) {
-        // M-02: Check for blacklisted guests by email before creating a new guest
-        const blacklistedGuest = await tx.guest.findFirst({
+        // M-17: For walk-in bookings, also check by name+phone to prevent duplicate guest records.
+        // Front desk agents may create walk-in bookings without email, so matching on
+        // firstName + lastName + phone provides better duplicate detection.
+        if (walkIn && firstName && lastName && phone) {
+          guest = await tx.guest.findFirst({
+            where: {
+              tenantId: property.tenantId,
+              firstName,
+              lastName,
+              phone,
+              deletedAt: null,
+            },
+          });
+        }
+
+        if (!guest) {
+          // M-02: Check for blacklisted guests by email before creating a new guest
+          const blacklistedGuest = await tx.guest.findFirst({
           where: {
             email: email.toLowerCase(),
             tenantId: property.tenantId,
