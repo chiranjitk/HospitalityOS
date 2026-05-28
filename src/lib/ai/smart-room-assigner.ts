@@ -83,7 +83,7 @@ export async function suggestRoomAssignment(bookingId: string): Promise<{
     where: {
       propertyId: booking.propertyId,
       roomTypeId: booking.roomTypeId,
-      status: { in: ['available', 'clean'], notIn: ['out_of_order', 'outOfOrder'] },
+      status: { in: ['available', 'clean'], notIn: ['out_of_service'] },
       housekeepingStatus: { in: ['clean', 'inspected'] },
       deletedAt: null,
     },

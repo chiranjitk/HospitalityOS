@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
       include: {
         rooms: {
           where: {
-            status: { notIn: ['out_of_order', 'maintenance'] }
+            status: { notIn: ['out_of_service', 'maintenance'] }
           }
         },
         ratePlans: {
