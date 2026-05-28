@@ -179,18 +179,64 @@ export async function POST(request: NextRequest) {    const user = await require
       );
     }
 
-    // Check if there's an active session for this MAC address
-    // Use transaction for session limit check + creation to prevent race conditions
+    // H-34 FIX: Wrap session existence check + creation in a transaction
+    // to prevent TOCTOU race condition where two concurrent requests
+    // with the same MAC address both pass the findFirst check.
     let session;
-    const existingActiveSession = await db.wiFiSession.findFirst({
-      where: {
-        macAddress,
-        status: 'active',
-        tenantId,
-      },
-    });
+    try {
+      session = await db.$transaction(async (tx) => {
+        // Check if there's an active session for this MAC address (inside transaction)
+        const existingActiveSession = await tx.wiFiSession.findFirst({
+          where: {
+            macAddress,
+            status: 'active',
+            tenantId,
+          },
+        });
 
-    if (existingActiveSession) {
+        if (existingActiveSession) {
+          return null; // Signal that session already exists
+        }
+
+        // Create new session within the same transaction
+        const newSession = await tx.wiFiSession.create({
+          data: {
+            tenantId,
+            propertyId: targetPropertyId || null,
+            guestId: guestId || null,
+            bookingId: bookingId || null,
+            macAddress,
+            ipAddress,
+            nasIpAddress: nasIp,
+            nasPortId: nasPortId || null,
+            calledStationId: calledStation || null,
+            callingStationId: callingStation || null,
+            username: sessionUsername || null,
+            planId: effectivePlanId || null,
+            planName: plan?.name || null,
+            status: 'active',
+            sessionTimeout: plan?.sessionTimeout || 3600,
+            idleTimeout: plan?.idleTimeout || 300,
+            bandwidthLimitDown: plan?.bandwidthLimitDown || 0,
+            bandwidthLimitUp: plan?.bandwidthLimitUp || 0,
+            dataLimitBytes: plan?.dataLimitBytes || 0,
+            authMethod: authMethod || 'pap',
+          },
+        });
+        return newSession;
+      });
+    } catch (txError) {
+      // Unique constraint violation = concurrent session creation
+      if (txError instanceof Error && txError.message.includes('Unique constraint')) {
+        return NextResponse.json(
+          { success: false, error: { code: 'SESSION_EXISTS', message: 'An active session already exists for this device' } },
+          { status: 400 }
+        );
+      }
+      throw txError;
+    }
+
+    if (!session) {
       return NextResponse.json(
         { success: false, error: { code: 'SESSION_EXISTS', message: 'An active session already exists for this device' } },
         { status: 400 }
@@ -259,20 +305,19 @@ export async function POST(request: NextRequest) {    const user = await require
       }
     }
 
-    session = await db.wiFiSession.create({
-      data: {
-        tenantId,
-        planId: planId || null,
-        guestId: guestId || null,
-        bookingId: bookingId || null,
-        macAddress,
-        ipAddress,
-        deviceName,
-        deviceType,
-        authMethod,
-        status: 'active',
-        startTime: new Date(),
-      },
+    // H-34 FIX: Session was already created inside the transaction above.
+    // The transaction handles existence check + creation atomically.
+    // Reload with plan relation for the response.
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: { code: 'SESSION_EXISTS', message: 'An active session already exists for this device' } },
+        { status: 400 }
+      );
+    }
+
+    // Reload session with plan relation for response
+    const sessionWithPlan = await db.wiFiSession.findUnique({
+      where: { id: session.id },
       include: {
         plan: {
           select: {
@@ -285,7 +330,7 @@ export async function POST(request: NextRequest) {    const user = await require
       },
     });
 
-    return NextResponse.json({ success: true, data: session }, { status: 201 });
+    return NextResponse.json({ success: true, data: sessionWithPlan }, { status: 201 });
   } catch (error) {
     console.error('Error creating WiFi session:', error);
     return NextResponse.json(
