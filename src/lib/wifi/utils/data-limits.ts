@@ -220,6 +220,25 @@ export async function enforceDataLimit(sessionId: string): Promise<{
           status: 'suspended',
         },
       });
+
+      // CRITICAL-15 FIX: Immediately close all active sessions for this user
+      // Don't wait for the next session engine cycle or Session-Timeout expiry
+      await tx.wiFiSession.updateMany({
+        where: {
+          username: wifiUser.username,
+          status: 'active',
+        },
+        data: {
+          status: 'completed',
+          endTime: new Date(),
+        },
+      });
+
+      // Also close radacct sessions so accounting reflects the disconnect
+      const closedRadacct = await tx.$executeRaw`
+        UPDATE radacct SET acctstoptime = NOW(), acctterminatecause = 'Data-Limit-Exceeded'
+        WHERE username = ${wifiUser.username} AND acctstoptime IS NULL
+      `;
     }
   });
 
