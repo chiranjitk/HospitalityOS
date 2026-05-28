@@ -7,7 +7,7 @@
  */
 
 import { db } from '@/lib/db';
-import { queueSyncMessage, SyncMessage } from './realtime-sync';
+import { queueSyncMessage, triggerInventorySync, SyncMessage } from './realtime-sync';
 
 // ============================================
 // TYPES
@@ -130,30 +130,29 @@ export async function triggerARIUpdate(
 /**
  * Queue an inventory (availability) sync for booking events.
  * Determines affected dates from the booking's date range.
+ *
+ * H-25 FIX: Uses triggerInventorySync from realtime-sync.ts to calculate
+ * the CORRECT available room count (total rooms minus booked/occupied)
+ * instead of hardcoding availability: 0, which was incorrectly telling
+ * all channel partners that zero rooms were available.
  */
 async function queueAvailabilitySync(data: ARIEventData): Promise<ARITriggerResult> {
   // Build the date list from the date range, or default to today + 1 day
   const dates = buildDateList(data.dateRange);
 
-  // Determine the priority: booking events are high priority
-  const priority: SyncMessage['priority'] = 'high';
-
-  const message: SyncMessage = {
-    type: 'inventory_update',
-    tenantId: data.tenantId,
-    propertyId: data.propertyId,
-    roomTypeId: data.roomTypeId,
-    data: {
-      dates,
-      // Availability will be recalculated by the sync processor
-      availability: 0,
-    },
-    timestamp: new Date(),
-    priority,
-  };
-
   try {
-    const syncId = await queueSyncMessage(message);
+    // Convert date strings to Date objects for calculateAvailability
+    const dateObjects = dates.map(d => new Date(d + 'T00:00:00'));
+
+    // Use the canonical availability calculator which counts total rooms
+    // minus booked/occupied rooms for the given room type and dates.
+    const syncId = await triggerInventorySync(
+      data.tenantId,
+      data.propertyId,
+      data.roomTypeId,
+      dateObjects,
+      'high',
+    );
 
     // Count active connections for this property
     const connectionCount = await db.channelConnection.count({
