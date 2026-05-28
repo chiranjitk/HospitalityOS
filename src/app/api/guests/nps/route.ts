@@ -113,14 +113,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { propertyId, name, triggerEvent, subject, message, customQuestion, minScore, maxScore } = body;
 
-    if (!propertyId || !name) {
-      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'propertyId and name are required' } }, { status: 400 });
+    if (!name) {
+      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'name is required' } }, { status: 400 });
+    }
+
+    // M-44 FIX: Default to user's first property if no propertyId provided
+    const resolvedPropertyId = propertyId || (await db.property.findFirst({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    }))?.id;
+
+    if (!resolvedPropertyId) {
+      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'No property found. Please select a property.' } }, { status: 400 });
     }
 
     const survey = await db.npsSurvey.create({
       data: {
         tenantId: user.tenantId,
-        propertyId,
+        propertyId: resolvedPropertyId,
         name,
         triggerEvent: triggerEvent || 'post_checkout',
         subject: subject || undefined,
