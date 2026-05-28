@@ -298,6 +298,22 @@ export async function POST(request: NextRequest) {
       });
 
       if (!guest) {
+        // M-02: Check for blacklisted guests by email before creating a new guest
+        const blacklistedGuest = await tx.guest.findFirst({
+          where: {
+            email: email.toLowerCase(),
+            tenantId: property.tenantId,
+            OR: [
+              { tags: { contains: 'blacklisted' } },
+              { tags: { contains: '"blacklisted"' } },
+              { status: 'blacklisted' },
+            ],
+          },
+        });
+        if (blacklistedGuest) {
+          throw new Error('GUEST_BLACKLISTED');
+        }
+
         guest = await tx.guest.create({
           data: {
             tenantId: property.tenantId,
@@ -311,6 +327,13 @@ export async function POST(request: NextRequest) {
           },
         });
       } else {
+        // M-02: Check if existing guest is blacklisted
+        const guestTags: string[] = [];
+        try { guestTags.push(...JSON.parse(guest.tags || '[]')); } catch {}
+        if (guestTags.includes('blacklisted') || guest.status === 'blacklisted') {
+          throw new Error('GUEST_BLACKLISTED');
+        }
+
         // Update guest info
         await tx.guest.update({
           where: { id: guest.id },
@@ -633,6 +656,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'No rooms available for the selected dates' },
         { status: 400 }
+      );
+    }
+
+    // M-02: Guest is blacklisted
+    if (error instanceof Error && error.message === 'GUEST_BLACKLISTED') {
+      return NextResponse.json(
+        { error: 'This guest is not permitted to make bookings. Please contact the property for assistance.' },
+        { status: 403 }
       );
     }
 
