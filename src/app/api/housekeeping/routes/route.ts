@@ -246,25 +246,31 @@ async function reorderRouteTasks(
       return; // No reordering needed
   }
 
-  // Update task scheduled times based on new order
+  // M-64: Batch task updates into a single transaction to avoid N individual DB round-trips.
+  // Build an array of { id, scheduledAt } pairs, then execute all updates in parallel
+  // inside one transaction for atomicity and performance.
   const now = new Date();
   let currentTime = now;
 
+  const taskUpdates: Array<{ id: string; scheduledAt: Date }> = [];
   for (let i = 0; i < sortedTaskIds.length; i++) {
     const taskId = sortedTaskIds[i];
     const routeTask = route.tasks.find(t => t.id === taskId);
     
     if (routeTask) {
-      // Schedule tasks sequentially
-      await db.task.update({
-        where: { id: taskId },
-        data: {
-          scheduledAt: currentTime,
-        },
-      });
-
-      // Add estimated duration for next task
+      taskUpdates.push({ id: taskId, scheduledAt: currentTime });
       currentTime = new Date(currentTime.getTime() + routeTask.estimatedMinutes * 60000);
     }
+  }
+
+  if (taskUpdates.length > 0) {
+    await db.$transaction(
+      taskUpdates.map(({ id, scheduledAt }) =>
+        db.task.update({
+          where: { id },
+          data: { scheduledAt },
+        })
+      )
+    );
   }
 }
