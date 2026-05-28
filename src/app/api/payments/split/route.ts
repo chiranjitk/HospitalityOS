@@ -105,6 +105,13 @@ export async function POST(request: NextRequest) {
     // methods can be used to circumvent per-method limits. Consider calling
     // evaluateTransaction() from @/lib/fraud-detection before processing, similar to
     // the single payment flow in /api/payments.
+    // H-19: Fraud detection is intentionally skipped here — this is a known gap.
+    // Split payments across multiple methods can be used to circumvent per-method limits
+    // and should be evaluated before processing.
+    console.warn(
+      `[Split Payment] H-19: Fraud detection not implemented for split payments. ` +
+      `folioId=${folioId}, splitCount=${splitPayments.length}, totalAmount=${totalSplitAmount}`
+    );
 
     // Process all payments in a transaction
     const createdPayments = await db.$transaction(async (tx) => {
