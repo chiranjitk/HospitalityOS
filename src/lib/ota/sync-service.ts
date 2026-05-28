@@ -527,6 +527,46 @@ export class OTASyncService {
     }
   }
 
+  /**
+   * Notify all active OTA channels about a booking cancellation.
+   * Uses fire-and-forget semantics — errors are logged but do not propagate.
+   */
+  static async notifyCancellation(
+    tenantId: string,
+    propertyId: string,
+    externalRef: string | null,
+    reason?: string
+  ): Promise<void> {
+    if (!externalRef) {
+      console.info('[OTASyncService] No externalRef on booking — skipping OTA cancellation notification.');
+      return;
+    }
+
+    const connections = await this.getActiveConnections(tenantId, propertyId, 'bookings');
+
+    await Promise.allSettled(
+      connections.map(async (connection) => {
+        try {
+          const client = OTAClientFactory.createClient(connection.channel);
+          if (!client) return;
+
+          await client.connect({
+            apiKey: connection.apiKey || undefined,
+            apiSecret: connection.apiSecret || undefined,
+            hotelId: connection.hotelId || undefined,
+          });
+
+          const success = await client.cancelBooking(externalRef, reason || 'Cancelled by property');
+          console.info(
+            `[OTASyncService] Cancellation notification to ${connection.channel}: ${success ? 'OK' : 'FAILED'} (ref=${externalRef})`
+          );
+        } catch (error) {
+          console.error(`[OTASyncService] Failed to notify ${connection.channel} about cancellation:`, error);
+        }
+      })
+    );
+  }
+
   // ============================================
   // HELPER METHODS
   // ============================================

@@ -294,7 +294,22 @@ export async function POST(
       console.error('Cancellation notification failed (non-blocking):', notifyError);
     }
 
-    // 8. Return comprehensive result
+    // 8. Notify OTA channel partners about the cancellation (fire-and-forget)
+    try {
+      const { OTASyncService } = await import('@/lib/ota/sync-service');
+      OTASyncService.notifyCancellation(
+        booking.tenantId,
+        booking.propertyId,
+        booking.externalRef,
+        reason || undefined
+      ).catch((otaErr: unknown) => {
+        console.error('OTA cancellation notification failed (non-blocking):', otaErr);
+      });
+    } catch (otaImportErr) {
+      console.error('Failed to load OTASyncService for cancellation notification (non-blocking):', otaImportErr);
+    }
+
+    // 9. Return comprehensive result
     return NextResponse.json({
       success: true,
       data: {
