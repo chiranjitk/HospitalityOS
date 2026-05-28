@@ -78,17 +78,18 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Get returning guests (guests with more than 1 booking)
-    const guestsWithBookings = await db.guest.findMany({
-      where: { tenantId, deletedAt: null },
-      include: {
-        _count: {
-          select: { bookings: true },
-        },
+    // M-42: Use count-only query for returning guests instead of fetching all guests
+    // Returning guests are those with more than 1 booking. Use a HAVING clause
+    // equivalent via groupBy + filter instead of loading all guest records.
+    const returningGuestBookings = await db.booking.groupBy({
+      by: ['primaryGuestId'],
+      where: { tenantId, status: { notIn: ['cancelled', 'no_show'] } },
+      _count: { id: true },
+      having: {
+        primaryGuestId: { _count: { gt: 1 } },
       },
     });
-
-    const returningGuests = guestsWithBookings.filter(g => g._count.bookings > 1).length;
+    const returningGuests = returningGuestBookings.length;
     const vipGuests = await db.guest.count({
       where: { tenantId, deletedAt: null, isVip: true },
     });
