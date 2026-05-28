@@ -43,6 +43,9 @@ import {
   Utensils,
   GitBranch,
   ArrowRight,
+  Percent,
+  CalendarDays,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -80,6 +83,12 @@ interface RatePlan {
   status: string;
   roomType?: RoomType;
   overridesCount?: number;
+  // Promo fields
+  promoCode?: string | null;
+  discountPercent?: number | null;
+  discountAmount?: number | null;
+  promoStart?: string | null;
+  promoEnd?: string | null;
   // Derivation fields
   derivedFromId?: string | null;
   derivationType?: 'percentage' | 'fixed' | null;
@@ -138,6 +147,12 @@ export function RatePlansManager() {
     maxStay: '',
     cancellationPolicy: 'moderate',
     status: 'active',
+    // Promo fields
+    promoCode: '',
+    discountPercent: '',
+    discountAmount: '',
+    promoStart: '',
+    promoEnd: '',
     // Derivation fields
     derivedFromId: '',
     derivationType: 'percentage' as 'percentage' | 'fixed',
@@ -269,6 +284,12 @@ export function RatePlansManager() {
         basePrice: parseFloat(formData.basePrice) || 0,
         maxStay: formData.maxStay ? parseInt(formData.maxStay) : null,
         cancellationHours: cancellationPolicies.find(p => p.value === formData.cancellationPolicy)?.hours,
+        // Promo fields — only send if at least one promo field is filled
+        promoCode: formData.promoCode || null,
+        discountPercent: formData.discountPercent ? parseFloat(formData.discountPercent) : null,
+        discountAmount: formData.discountAmount ? parseFloat(formData.discountAmount) : null,
+        promoStart: formData.promoStart || null,
+        promoEnd: formData.promoEnd || null,
       };
 
       // Include derivation fields if deriving from another plan
@@ -330,6 +351,12 @@ export function RatePlansManager() {
           basePrice: parseFloat(formData.basePrice),
           maxStay: formData.maxStay ? parseInt(formData.maxStay) : null,
           cancellationHours: cancellationPolicies.find(p => p.value === formData.cancellationPolicy)?.hours,
+          // Promo fields
+          promoCode: formData.promoCode || null,
+          discountPercent: formData.discountPercent ? parseFloat(formData.discountPercent) : null,
+          discountAmount: formData.discountAmount ? parseFloat(formData.discountAmount) : null,
+          promoStart: formData.promoStart || null,
+          promoEnd: formData.promoEnd || null,
         }),
       });
 
@@ -420,6 +447,12 @@ export function RatePlansManager() {
       maxStay: plan.maxStay?.toString() || '',
       cancellationPolicy: plan.cancellationPolicy || 'moderate',
       status: plan.status,
+      // Promo fields
+      promoCode: plan.promoCode || '',
+      discountPercent: plan.discountPercent?.toString() || '',
+      discountAmount: plan.discountAmount?.toString() || '',
+      promoStart: plan.promoStart ? plan.promoStart.split('T')[0] : '',
+      promoEnd: plan.promoEnd ? plan.promoEnd.split('T')[0] : '',
       // Derivation fields (read-only in edit)
       derivedFromId: plan.derivedFromId || '',
       derivationType: (plan.derivationType as 'percentage' | 'fixed') || 'percentage',
@@ -445,6 +478,12 @@ export function RatePlansManager() {
       maxStay: '',
       cancellationPolicy: 'moderate',
       status: 'active',
+      // Promo fields
+      promoCode: '',
+      discountPercent: '',
+      discountAmount: '',
+      promoStart: '',
+      promoEnd: '',
       // Derivation fields
       derivedFromId: '',
       derivationType: 'percentage',
@@ -619,6 +658,18 @@ export function RatePlansManager() {
                       <div>
                         <p className="font-medium">{plan.name}</p>
                         <p className="text-xs text-muted-foreground">{plan.code}</p>
+                        {plan.promoCode && (
+                          <div className="flex items-center gap-1 mt-0.5 text-xs text-amber-600 dark:text-amber-400">
+                            <Sparkles className="h-3 w-3" />
+                            <span>Promo: {plan.promoCode}</span>
+                            {plan.discountPercent != null && plan.discountPercent > 0 && (
+                              <span className="ml-1">-{plan.discountPercent}%</span>
+                            )}
+                            {plan.discountAmount != null && plan.discountAmount > 0 && (
+                              <span className="ml-1">-{formatCurrency(plan.discountAmount)}</span>
+                            )}
+                          </div>
+                        )}
                         {getDerivationLabel(plan) && (
                           <div className="flex items-center gap-1 mt-0.5 text-xs text-violet-600 dark:text-violet-400">
                             <GitBranch className="h-3 w-3" />
@@ -775,6 +826,12 @@ interface RatePlanFormData {
   maxStay: string;
   cancellationPolicy: string;
   status: string;
+  // Promo fields
+  promoCode: string;
+  discountPercent: string;
+  discountAmount: string;
+  promoStart: string;
+  promoEnd: string;
   // Derivation fields
   derivedFromId: string;
   derivationType: 'percentage' | 'fixed';
@@ -1049,6 +1106,121 @@ function RatePlanForm({ formData, setFormData, roomTypes, ratePlans, onNameChang
             <SelectItem value="inactive">Inactive</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      {/* Promotion Settings (collapsible) */}
+      <div className={cn(
+        'rounded-lg border p-4 space-y-3',
+        (formData.promoCode || formData.discountPercent || formData.discountAmount || formData.promoStart || formData.promoEnd)
+          ? 'border-amber-300 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/30'
+          : 'border-dashed'
+      )}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 font-medium text-sm">
+            <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            Promotion Settings (Optional)
+          </div>
+          {(formData.promoCode || formData.discountPercent || formData.discountAmount) && (
+            <Badge variant="outline" className="text-amber-700 border-amber-300 dark:text-amber-400 dark:border-amber-700">
+              Active
+            </Badge>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Configure promotional pricing with an optional promo code, discount, and validity period.
+        </p>
+
+        {/* Promo Code */}
+        <div className="space-y-1.5">
+          <Label className="text-xs">Promo Code</Label>
+          <Input
+            value={formData.promoCode as string}
+            onChange={(e) => setFormData(prev => ({ ...prev, promoCode: e.target.value.toUpperCase() }))}
+            placeholder="e.g. SUMMER2026"
+            maxLength={20}
+          />
+        </div>
+
+        {/* Discount */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Discount Percentage (%)</Label>
+            <div className="relative">
+              <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="number"
+                className="pl-9"
+                value={formData.discountPercent as string}
+                onChange={(e) => setFormData(prev => ({ ...prev, discountPercent: e.target.value }))}
+                placeholder="10"
+                min="0"
+                max="100"
+                step="0.1"
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Discount Amount</Label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="number"
+                className="pl-9"
+                value={formData.discountAmount as string}
+                onChange={(e) => setFormData(prev => ({ ...prev, discountAmount: e.target.value }))}
+                placeholder="25.00"
+                min="0"
+                step="0.01"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Promo Date Range */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs flex items-center gap-1">
+              <CalendarDays className="h-3 w-3" /> Promo Start Date
+            </Label>
+            <Input
+              type="date"
+              value={formData.promoStart as string}
+              onChange={(e) => setFormData(prev => ({ ...prev, promoStart: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs flex items-center gap-1">
+              <CalendarDays className="h-3 w-3" /> Promo End Date
+            </Label>
+            <Input
+              type="date"
+              value={formData.promoEnd as string}
+              onChange={(e) => setFormData(prev => ({ ...prev, promoEnd: e.target.value }))}
+              min={formData.promoStart || undefined}
+            />
+          </div>
+        </div>
+
+        {/* Effective price preview */}
+        {formData.basePrice && (formData.discountPercent || formData.discountAmount) && (
+          <div className="flex items-center gap-2 text-sm bg-background rounded-md px-3 py-2 border">
+            <ArrowRight className="h-4 w-4 text-amber-500" />
+            <span className="text-muted-foreground">Effective price:</span>
+            <span className="font-semibold">
+              {formatCurrency(
+                (() => {
+                  const base = parseFloat(formData.basePrice) || 0;
+                  const pctDiscount = parseFloat(formData.discountPercent) || 0;
+                  const amtDiscount = parseFloat(formData.discountAmount) || 0;
+                  return Math.max(0, base * (1 - pctDiscount / 100) - amtDiscount);
+                })()
+              )}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              (from {formatCurrency(parseFloat(formData.basePrice) || 0)})
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
