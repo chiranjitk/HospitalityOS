@@ -131,7 +131,11 @@ export async function POST(request: NextRequest) {
       }
 
       // 4. Calculate rate difference
-      const previousRate = fromRoom.roomType.basePrice;
+      // H-10: Use the original booking's actual roomRate (negotiated/promo rate) instead of
+      // RoomType.basePrice (rack rate). The guest may have booked at a discounted rate, and
+      // the rate difference should be based on what they're actually paying vs. what the new
+      // room type's base price is.
+      const previousRate = booking.roomRate || fromRoom.roomType.basePrice;
       const newRate = toRoom.roomType.basePrice;
       const rateDifference = newRate - previousRate;
 
