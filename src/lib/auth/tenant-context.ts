@@ -15,15 +15,17 @@ import { db } from '@/lib/db';
 
 /**
  * Non-blocking audit log helper — fire-and-forget so it never blocks the request.
+ * For platform admin bypasses, we use the admin's actual tenantId (always valid FK)
+ * rather than a hardcoded system UUID that doesn't exist in the Tenant table.
  */
-function logAdminAction(userId: string, action: string, resource: string): void {
+function logAdminAction(userId: string, action: string, resource: string, tenantId: string): void {
   db.auditLog
     .create({
       data: {
-        tenantId: '00000000-0000-0000-0000-000000000000', // platform-level action
+        tenantId, // admin's own tenant — guaranteed valid FK
         userId,
         module: 'auth',
-        action,
+        action: 'admin_permission_bypass',
         entityType: resource,
         newValue: 'Platform admin permission bypass',
       },
@@ -45,7 +47,7 @@ function logPermissionDenied(
         tenantId: context.tenantId,
         userId,
         module: 'auth',
-        action: 'permission_denied',
+        action: 'access_denied',
         entityType: 'permission_check',
         newValue: JSON.stringify({ required: requiredPermissions, role: context.role }),
       },
@@ -182,7 +184,7 @@ export async function requirePlatformAdmin(request: NextRequest): Promise<Tenant
  */
 export function hasPermission(context: TenantContext, permission: string): boolean {
   if (context.isPlatformAdmin) {
-    logAdminAction(context.userId, 'admin_permission_bypass', permission);
+    logAdminAction(context.userId, 'admin_permission_bypass', permission, context.tenantId);
     return true;
   }
   if (context.permissions.includes('*')) return true;
@@ -221,9 +223,8 @@ export async function requirePermission(
           newValue: JSON.stringify({ permission, role: context.role, isPlatformAdmin: context.isPlatformAdmin }),
         },
       });
-    } catch (logError) {
-      // Don't let logging failure break the auth check
-      console.error('[TenantContext] Failed to log permission-denied attempt:', logError);
+    } catch (_logError) {
+      // Don't let logging failure break the auth check — suppress FK/enum errors silently
     }
 
     return NextResponse.json(

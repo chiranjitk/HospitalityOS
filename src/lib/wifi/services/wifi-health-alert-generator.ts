@@ -225,11 +225,13 @@ export async function generateHealthAlerts(): Promise<{
 
       // ── 3c. High latency check (only for online NAS) ──
       if (probe.isOnline && probe.avgLatencyMs !== null) {
+        // Load dynamic thresholds per-tenant/property (falls back to DEFAULT_* constants)
+        const thresholds = await getThresholds(probe.tenantId, probe.propertyId);
         let severity: 'warning' | 'critical' | null = null;
 
-        if (probe.avgLatencyMs > LATENCY_CRITICAL_MS) {
+        if (probe.avgLatencyMs > thresholds.latencyCriticalMs) {
           severity = 'critical';
-        } else if (probe.avgLatencyMs > LATENCY_WARNING_MS) {
+        } else if (probe.avgLatencyMs > thresholds.latencyWarningMs) {
           severity = 'warning';
         }
 
@@ -245,7 +247,7 @@ export async function generateHealthAlerts(): Promise<{
                 data: {
                   severity: 'critical',
                   title: `Critical Latency: ${probe.nasName} (${probe.nasIp}) — ${Math.round(probe.avgLatencyMs)}ms`,
-                  message: `NAS "${probe.nasName}" (${probe.nasIp}) has critically high latency of ${Math.round(probe.avgLatencyMs)}ms (threshold: ${LATENCY_CRITICAL_MS}ms). ` +
+                  message: `NAS "${probe.nasName}" (${probe.nasIp}) has critically high latency of ${Math.round(probe.avgLatencyMs)}ms (threshold: ${thresholds.latencyCriticalMs}ms). ` +
                     `Users may experience severe connectivity issues.`,
                 },
               });
@@ -263,7 +265,7 @@ export async function generateHealthAlerts(): Promise<{
               severity,
               title: `${severity === 'critical' ? 'Critical' : 'High'} Latency: ${probe.nasName} (${probe.nasIp}) — ${Math.round(probe.avgLatencyMs)}ms`,
               message: `NAS "${probe.nasName}" (${probe.nasIp}) has ${severity === 'critical' ? 'critically ' : ''}high latency of ${Math.round(probe.avgLatencyMs)}ms ` +
-                `(threshold: ${severity === 'critical' ? LATENCY_CRITICAL_MS : LATENCY_WARNING_MS}ms). ` +
+                `(threshold: ${severity === 'critical' ? thresholds.latencyCriticalMs : thresholds.latencyWarningMs}ms). ` +
                 (severity === 'critical'
                   ? 'Users may experience severe connectivity issues.'
                   : 'Users may notice degraded WiFi performance.'),

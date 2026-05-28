@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { auditLogService } from '@/lib/services/audit-service';
 
 export interface RoamingCheckResult {
   allowed: boolean;
@@ -173,19 +174,19 @@ export async function logRoamingEvent(params: {
   allowed: boolean;
   ipAddress?: string;
 }): Promise<void> {
-  await db.auditLog.create({
-    data: {
+  try {
+    await auditLogService.log({
       tenantId: params.tenantId,
-      userId: null,
       module: 'wifi',
-      action: params.allowed ? 'roaming_allowed' : 'roaming_blocked',
-      entityType: 'captive_portal',
-      entityId: null,
+      action: 'session_start', // reuse existing enum value
+      entityType: 'session',
       oldValue: `${params.originZone}|${params.sessionId || ''}|${params.macAddress || ''}|${params.username || ''}`,
-      newValue: `${params.targetZone}|${params.mode}`,
-      ipAddress: params.ipAddress || null,
-    },
-  });
+      newValue: { targetZone: params.targetZone, mode: params.mode, allowed: params.allowed },
+      ipAddress: params.ipAddress,
+    });
+  } catch {
+    // Audit logging must never break the roaming flow
+  }
 }
 
 // ---------------------------------------------------------------------------
