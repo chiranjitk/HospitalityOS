@@ -5944,6 +5944,14 @@ model RoomType {
   wifiPlanId            String?              @db.Uuid
   bedType               String               @default("standard")
   bedCount              Int                  @default(1)
+  infantAgeMax          Int                  @default(2)
+  childAgeMin           Int                  @default(3)
+  childAgeMax           Int                  @default(11)
+  adultAgeMin           Int                  @default(12)
+  extraAdultRate        Float                @default(0)
+  extraChildRate        Float                @default(0)
+  cribRate              Float                @default(0)
+  extraBedRate          Float                @default(0)
   status                String               @default("active")
   createdAt             DateTime             @default(now()) @db.Timestamptz
   updatedAt             DateTime             @updatedAt @db.Timestamptz

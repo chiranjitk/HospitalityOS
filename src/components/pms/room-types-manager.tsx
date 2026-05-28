@@ -195,6 +195,15 @@ interface FormData {
   overbookingLimit?: string;
   bedType?: string;
   bedCount?: string;
+  // Child age policy fields
+  infantAgeMax?: string;
+  childAgeMin?: string;
+  childAgeMax?: string;
+  adultAgeMin?: string;
+  extraAdultRate?: string;
+  extraChildRate?: string;
+  cribRate?: string;
+  extraBedRate?: string;
 }
 
 const defaultFormData: FormData = {
@@ -216,6 +225,15 @@ const defaultFormData: FormData = {
   overbookingLimit: '',
   bedType: 'standard',
   bedCount: '1',
+  // Child age policy fields
+  infantAgeMax: '2',
+  childAgeMin: '3',
+  childAgeMax: '11',
+  adultAgeMin: '12',
+  extraAdultRate: '0',
+  extraChildRate: '0',
+  cribRate: '0',
+  extraBedRate: '0',
 };
 
 export default function RoomTypesManager() {
@@ -408,6 +426,15 @@ export default function RoomTypesManager() {
           overbookingEnabled: formData.overbookingEnabled || false,
           overbookingPercentage: formData.overbookingPercentage ? parseFloat(formData.overbookingPercentage) : 0,
           overbookingLimit: formData.overbookingLimit ? parseInt(formData.overbookingLimit) : 0,
+          // Child age policy fields
+          infantAgeMax: formData.infantAgeMax ? parseInt(formData.infantAgeMax) : 2,
+          childAgeMin: formData.childAgeMin ? parseInt(formData.childAgeMin) : 3,
+          childAgeMax: formData.childAgeMax ? parseInt(formData.childAgeMax) : 11,
+          adultAgeMin: formData.adultAgeMin ? parseInt(formData.adultAgeMin) : 12,
+          extraAdultRate: formData.extraAdultRate ? parseFloat(formData.extraAdultRate) : 0,
+          extraChildRate: formData.extraChildRate ? parseFloat(formData.extraChildRate) : 0,
+          cribRate: formData.cribRate ? parseFloat(formData.cribRate) : 0,
+          extraBedRate: formData.extraBedRate ? parseFloat(formData.extraBedRate) : 0,
         }),
       });
       
@@ -462,6 +489,15 @@ export default function RoomTypesManager() {
           overbookingEnabled: formData.overbookingEnabled || false,
           overbookingPercentage: formData.overbookingPercentage ? parseFloat(formData.overbookingPercentage) : 0,
           overbookingLimit: formData.overbookingLimit ? parseInt(formData.overbookingLimit) : 0,
+          // Child age policy fields
+          infantAgeMax: formData.infantAgeMax ? parseInt(formData.infantAgeMax) : 2,
+          childAgeMin: formData.childAgeMin ? parseInt(formData.childAgeMin) : 3,
+          childAgeMax: formData.childAgeMax ? parseInt(formData.childAgeMax) : 11,
+          adultAgeMin: formData.adultAgeMin ? parseInt(formData.adultAgeMin) : 12,
+          extraAdultRate: formData.extraAdultRate ? parseFloat(formData.extraAdultRate) : 0,
+          extraChildRate: formData.extraChildRate ? parseFloat(formData.extraChildRate) : 0,
+          cribRate: formData.cribRate ? parseFloat(formData.cribRate) : 0,
+          extraBedRate: formData.extraBedRate ? parseFloat(formData.extraBedRate) : 0,
         }),
       });
       
@@ -730,6 +766,15 @@ export default function RoomTypesManager() {
       overbookingLimit: roomType.overbookingLimit?.toString() || '',
       bedType: roomType.bedType || 'standard',
       bedCount: roomType.bedCount?.toString() || '1',
+      // Child age policy fields
+      infantAgeMax: roomType.infantAgeMax?.toString() || '2',
+      childAgeMin: roomType.childAgeMin?.toString() || '3',
+      childAgeMax: roomType.childAgeMax?.toString() || '11',
+      adultAgeMin: roomType.adultAgeMin?.toString() || '12',
+      extraAdultRate: roomType.extraAdultRate?.toString() || '0',
+      extraChildRate: roomType.extraChildRate?.toString() || '0',
+      cribRate: roomType.cribRate?.toString() || '0',
+      extraBedRate: roomType.extraBedRate?.toString() || '0',
     });
     setIsEditOpen(true);
   };
@@ -1487,6 +1532,122 @@ function RoomTypeForm({ formData, setFormData, properties, amenities, wifiPlans,
             onChange={(e) => setFormData(prev => ({ ...prev, bedCount: e.target.value }))}
             placeholder="1"
           />
+        </div>
+      </div>
+
+      {/* Child Age Policy & Extra Guest Rates */}
+      <div className="rounded-lg border p-4 space-y-4">
+        <div className="flex items-center gap-2 font-medium text-sm">
+          <Users className="h-4 w-4 text-primary" />
+          Child Age Policy & Extra Guest Rates
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Infant (0-? years)</Label>
+            <Input
+              type="number"
+              min="0"
+              max="17"
+              value={formData.infantAgeMax || '2'}
+              onChange={(e) => setFormData(prev => ({ ...prev, infantAgeMax: e.target.value }))}
+              placeholder="2"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Child Min Age</Label>
+            <Input
+              type="number"
+              min="0"
+              max="17"
+              value={formData.childAgeMin || '3'}
+              onChange={(e) => setFormData(prev => ({ ...prev, childAgeMin: e.target.value }))}
+              placeholder="3"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Child Max Age</Label>
+            <Input
+              type="number"
+              min="0"
+              max="17"
+              value={formData.childAgeMax || '11'}
+              onChange={(e) => setFormData(prev => ({ ...prev, childAgeMax: e.target.value }))}
+              placeholder="11"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Adult (from ? years)</Label>
+            <Input
+              type="number"
+              min="0"
+              max="99"
+              value={formData.adultAgeMin || '12'}
+              onChange={(e) => setFormData(prev => ({ ...prev, adultAgeMin: e.target.value }))}
+              placeholder="12"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Extra Adult Rate</Label>
+            <div className="relative">
+              <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                className="pl-8"
+                value={formData.extraAdultRate || '0'}
+                onChange={(e) => setFormData(prev => ({ ...prev, extraAdultRate: e.target.value }))}
+                placeholder="0"
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Extra Child Rate</Label>
+            <div className="relative">
+              <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                className="pl-8"
+                value={formData.extraChildRate || '0'}
+                onChange={(e) => setFormData(prev => ({ ...prev, extraChildRate: e.target.value }))}
+                placeholder="0"
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Crib Rate</Label>
+            <div className="relative">
+              <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                className="pl-8"
+                value={formData.cribRate || '0'}
+                onChange={(e) => setFormData(prev => ({ ...prev, cribRate: e.target.value }))}
+                placeholder="0"
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Extra Bed Rate</Label>
+            <div className="relative">
+              <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                className="pl-8"
+                value={formData.extraBedRate || '0'}
+                onChange={(e) => setFormData(prev => ({ ...prev, extraBedRate: e.target.value }))}
+                placeholder="0"
+              />
+            </div>
+          </div>
         </div>
       </div>
       
