@@ -319,6 +319,20 @@ async function handleReservationCreated(
       },
     });
 
+    // M-34: Create a folio for the OTA booking so charges can be posted to it
+    // OTA bookings without folios would have no way to receive posted charges.
+    await tx.folio.create({
+      data: {
+        tenantId,
+        propertyId: mapping.roomType.propertyId,
+        bookingId: booking.id,
+        guestId: guest.id,
+        folioNumber: `FOL-OTA-${confirmationCode}`,
+        currency: data.currency || 'USD',
+        status: 'open',
+      },
+    });
+
     return booking;
   });
 }
