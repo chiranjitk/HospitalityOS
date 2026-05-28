@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit');
 
     // Build where clause with tenant scoping
-    const where: Record<string, unknown> = { tenantId: user.tenantId };
+    const where: Record<string, unknown> = { tenantId: user.tenantId, deletedAt: null };
     
     if (priority) where.priority = priority;
     if (status) where.status = status;
