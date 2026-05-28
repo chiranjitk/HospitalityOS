@@ -40,15 +40,40 @@ async function buildPropertyInventoryUpdates(
 
   for (const roomType of roomTypes) {
     const totalRooms = roomType.rooms.length;
-    const availableRooms = roomType.rooms.filter(r => r.status === 'available').length;
 
+    // CRITICAL-09 FIX: Calculate real availability with booking overlap detection
+    // for each date instead of just checking room.status
     for (let d = 0; d < 30; d++) {
       const date = new Date(today);
       date.setDate(date.getDate() + d);
+      const dateStr = date.toISOString().split('T')[0];
+      const nextDay = new Date(date);
+      nextDay.setDate(nextDay.getDate() + 1);
+
+      // Count rooms booked on this specific date (checkIn <= date < checkOut)
+      const bookedRoomIds = await db.booking.findMany({
+        where: {
+          propertyId,
+          roomTypeId: roomType.id,
+          status: { in: ['confirmed', 'checked_in'] },
+          cancelledAt: null,
+          checkIn: { lt: nextDay },
+          OR: [
+            { checkOut: null },
+            { checkOut: { gt: date } },
+          ],
+        },
+        select: { roomId: true },
+        distinct: ['roomId'],
+      });
+
+      const bookedCount = new Set(bookedRoomIds.map(b => b.roomId).filter(Boolean)).size;
+      const availableRooms = Math.max(0, totalRooms - bookedCount);
+
       updates.push({
         roomTypeId: roomType.id,
         externalRoomId: '',
-        date: date.toISOString().split('T')[0],
+        date: dateStr,
         availableRooms,
         totalRooms,
       });
