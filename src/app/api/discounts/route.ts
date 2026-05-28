@@ -12,8 +12,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, { status: 403 });
     }
 
+    const searchParams = request.nextUrl.searchParams;
+    const propertyId = searchParams.get('propertyId');
+
+    const where: Record<string, unknown> = { tenantId: user.tenantId, deletedAt: null };
+
+    // M-24: Filter by propertyId to ensure users only see discounts for their property
+    if (propertyId) {
+      where.propertyId = propertyId;
+    }
+
     const data = await db.discount.findMany({
-      where: { tenantId: user.tenantId, deletedAt: null },
+      where,
       orderBy: { createdAt: 'desc' },
     });
 
