@@ -6,6 +6,17 @@ import { notifyPaymentReceived } from '@/lib/notify';
 import { auditLogService } from '@/lib/services/audit-service';
 
 // POST /api/orders/[id]/pay - Process payment for a restaurant order
+//
+// TODO (H-40): This endpoint currently creates payment records with status 'completed'
+// without actually processing through a real payment gateway (Stripe, Razorpay, etc.).
+// For card payments, the gateway field is hardcoded to 'manual_pos', meaning no real
+// charge is made. A production system needs to:
+// 1. Integrate a real payment gateway SDK (e.g., @stripe/stripe-js, razorpay)
+// 2. Create a payment intent/session on the server
+// 3. Confirm the payment on the client and verify on the server
+// 4. Only mark payment as 'completed' after gateway confirmation
+// 5. Handle webhooks for async payment status updates
+// Until then, all "card" payments are recorded as manual POS entries.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
