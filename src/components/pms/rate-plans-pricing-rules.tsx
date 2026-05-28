@@ -245,6 +245,7 @@ const DEFAULT_DEVIATION: DeviationSettings = {
 export default function RatePlansPricingRules() {
   const { toast } = useToast();
   const { formatCurrency, currency } = useCurrency();
+  const currencySymbol = typeof currency === 'string' ? currency : (currency?.symbol || '$');
   const t = useTranslations('pms');
   
   // State
@@ -1525,7 +1526,7 @@ export default function RatePlansPricingRules() {
                   onSave={createRule}
                   onCancel={() => { setIsCreateRuleOpen(false); resetRuleForm(); }}
                   isSaving={isSaving}
-                  currencySymbol={currency || '$'}
+                  currencySymbol={currencySymbol}
                 />
               </DialogContent>
             </Dialog>
@@ -1655,7 +1656,7 @@ export default function RatePlansPricingRules() {
                   onSave={updateRule}
                   onCancel={() => setEditingRule(null)}
                   isSaving={isSaving}
-                  currencySymbol={currency || '$'}
+                  currencySymbol={currencySymbol}
                 />
               )}
             </DialogContent>
