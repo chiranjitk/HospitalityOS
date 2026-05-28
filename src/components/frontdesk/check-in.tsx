@@ -406,7 +406,18 @@ export default function CheckIn() {
 
     setIsProcessing(true);
     try {
-      // Step 1: Update booking status
+      // CRITICAL-18 FIX: Collect deposit BEFORE checking in to ensure transactional safety.
+      // If deposit fails, the guest is NOT checked in. If check-in fails after deposit,
+      // we show a clear error and the deposit is recorded on the folio for reconciliation.
+      const folioId = bookingFolioId || await fetchBookingDetailsForFolio(selectedBooking.id);
+      if (folioId && depositParsed > 0) {
+        const depositSuccess = await createDepositPayment(folioId, depositParsed, false);
+        if (!depositSuccess) {
+          throw new Error('Deposit payment failed. Check-in aborted. Please retry or collect deposit manually.');
+        }
+      }
+
+      // Step 1: Update booking status (only after deposit succeeded)
       const response = await fetch(`/api/bookings/${selectedBooking.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -426,25 +437,16 @@ export default function CheckIn() {
       const result = await response.json();
 
       if (result.success) {
-        // Step 2: Create deposit payment if amount > 0 and folio exists
-        const folioId = bookingFolioId || await fetchBookingDetailsForFolio(selectedBooking.id);
+        // Deposit was already collected before check-in (CRITICAL-18)
+        // Show deposit confirmation
         if (folioId && depositParsed > 0) {
-          const depositSuccess = await createDepositPayment(folioId, depositParsed, false);
-          if (depositSuccess) {
-            toast({
-              title: 'Deposit Recorded',
-              description: `Deposit of ${formatCurrency(depositParsed)} has been recorded on the folio.`,
-            });
-          } else {
-            toast({
-              title: 'Deposit Warning',
-              description: 'Check-in succeeded but deposit payment could not be recorded. Please add it manually.',
-              variant: 'destructive',
-            });
-          }
+          toast({
+            title: 'Deposit Collected',
+            description: `Deposit of ${formatCurrency(depositParsed)} has been recorded on the folio.`,
+          });
         }
 
-        // Step 3: Create pre-auth payment if enabled
+        // Create pre-auth payment if enabled
         if (folioId && preAuthEnabled && preAuthParsed > 0) {
           const preAuthSuccess = await createDepositPayment(folioId, preAuthParsed, true);
           if (preAuthSuccess) {
