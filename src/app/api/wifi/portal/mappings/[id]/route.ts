@@ -65,12 +65,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const {
       vlanId, vlanConfigId, ssid, subnet, priority,
-      fallbackPortalId, enabled,
+      fallbackPortalId, enabled, ipPoolId,
     } = body;
 
     // Validate UUID format for all UUID fields to prevent DB type cast errors
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const uuidFields = { fallbackPortalId, vlanConfigId };
+    const uuidFields = { fallbackPortalId, vlanConfigId, ipPoolId };
     for (const [field, value] of Object.entries(uuidFields)) {
       if (value !== undefined && value !== null && !UUID_REGEX.test(value)) {
         return NextResponse.json(
@@ -87,6 +87,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         ...(vlanConfigId !== undefined && { vlanConfigId }),
         ...(ssid !== undefined && { ssid }),
         ...(subnet !== undefined && { subnet }),
+        ...(ipPoolId !== undefined && { ipPoolId: ipPoolId || null }),
         ...(priority !== undefined && { priority: parseInt(priority, 10) }),
         ...(fallbackPortalId !== undefined && { fallbackPortalId }),
         ...(enabled !== undefined && { enabled }),

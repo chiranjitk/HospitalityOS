@@ -94,6 +94,7 @@ interface PortalMappingEntry {
   id: string;
   propertyId: string;
   portalId: string;
+  ipPoolId: string | null;
   vlanId: number | null;
   ssid: string | null;
   subnet: string | null;
@@ -219,13 +220,18 @@ export default function PortalMappingsTab() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // ─── Join Pools + Mappings ──────────────────────────────────────────────────
+  // Primary match: ipPoolId (direct FK, most reliable)
+  // Fallback match: subnet string comparison (for legacy mappings without ipPoolId)
 
   const joined: PoolWithMapping[] = pools.map(pool => {
-    // Match by subnet or by explicit portal mapping referencing same subnet
-    const mapping = mappings.find(m =>
-      m.subnet && pool.subnet &&
-      m.subnet.replace(/\/32$/, '') === pool.subnet.replace(/\/32$/, '')
-    ) || null;
+    const mapping = mappings.find(m => {
+      // Primary: direct ipPoolId match (created by updated UI)
+      if (m.ipPoolId && m.ipPoolId === pool.id) return true;
+      // Fallback: subnet match (for legacy mappings created before ipPoolId was added)
+      if (m.subnet && pool.subnet &&
+          m.subnet.replace(/\/32$/, '') === pool.subnet.replace(/\/32$/, '')) return true;
+      return false;
+    }) || null;
     return { pool, mapping };
   });
 
@@ -300,6 +306,7 @@ export default function PortalMappingsTab() {
       const payload: Record<string, unknown> = {
         propertyId,
         portalId: form.portalId,
+        ipPoolId: editingPool?.id || null,
         vlanId: form.vlanId ? parseInt(form.vlanId, 10) : null,
         ssid: form.ssid || null,
         subnet: ensureCidr(editingPool?.subnet),
@@ -309,7 +316,7 @@ export default function PortalMappingsTab() {
 
       if (editingMapping) {
         // Update existing mapping
-        const { propertyId: _, portalId: __, subnet: ___, ...updatePayload } = payload;
+        const { propertyId: _, portalId: __, ipPoolId: ___, subnet: ____, ...updatePayload } = payload;
         res = await fetch(`/api/wifi/portal/mappings/${editingMapping.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },

@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
     const {
       propertyId,
       portalId,
+      ipPoolId,
       vlanId,
       vlanConfigId,
       ssid,
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
 
     // Validate UUID format for all UUID fields to prevent DB type cast errors
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const uuidFields = { propertyId, portalId, fallbackPortalId, vlanConfigId };
+    const uuidFields = { propertyId, portalId, ipPoolId, fallbackPortalId, vlanConfigId };
     for (const [field, value] of Object.entries(uuidFields)) {
       if (value && !UUID_REGEX.test(value)) {
         return NextResponse.json(
@@ -125,11 +126,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verify IpPool belongs to same tenant (if provided)
+    if (ipPoolId) {
+      const pool = await db.ipPool.findFirst({
+        where: { id: ipPoolId, tenantId },
+      });
+      if (!pool) {
+        return NextResponse.json(
+          { success: false, error: { code: 'NOT_FOUND', message: 'IP Pool not found' } },
+          { status: 404 }
+        );
+      }
+    }
+
     const mapping = await db.portalMapping.create({
       data: {
         tenantId,
         propertyId,
         portalId,
+        ipPoolId: ipPoolId || null,
         vlanId: vlanId ? parseInt(vlanId, 10) : null,
         vlanConfigId,
         ssid,

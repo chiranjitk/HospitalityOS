@@ -391,7 +391,7 @@ export async function GET(request: NextRequest) {
 
       if (cidrMatches.length > 0) {
         const matched = cidrMatches[0];
-        console.log(`[Resolve Zone] CIDR match: client ${clientIp} → portal ${matched.portalId} via subnet ${matched.subnet}`);
+        console.log(`[Resolve Zone] Step 1 CIDR match: client ${clientIp} → portal ${matched.portalId} (mapping: ${matched.id}, subnet: ${matched.subnet}, priority: ${matched.priority})`);
         const config = await buildPortalConfig(matched.portalId, lang);
 
         if (config) {
@@ -435,44 +435,68 @@ export async function GET(request: NextRequest) {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // Step 2: IP Range fallback — match via IpPoolRange (startIp..endIp)
+    // Step 2: IP Pool match — via ipPoolId FK (primary) or subnet (legacy fallback)
     // ══════════════════════════════════════════════════════════════════════════
-    // This catches cases where:
-    //   - PortalMapping.subnet is null (pool created without subnet, only ranges)
-    //   - Client IP falls within a pool's IP ranges but not the subnet CIDR
-    //   - Legacy mappings with broken subnet (missing /32 from formatInet bug)
+    // Primary: pm."ipPoolId" = ip.id (direct FK — most reliable)
+    // Fallback: subnet string match (for legacy mappings without ipPoolId)
+    // Also matches client IP against IpPool.subnet CIDR and IpPoolRange
     try {
       const rangeMatches = await db.$queryRawUnsafe(`
-        SELECT pm.id, pm."portalId", pm.subnet, pm."fallbackPortalId", pm.priority,
-               ipr."startIp"::text AS "rangeStart", ipr."endIp"::text AS "rangeEnd"
+        SELECT pm.id, pm."portalId", pm.subnet, pm."fallbackPortalId", pm.priority, pm."ipPoolId",
+               ipr."startIp"::text AS "rangeStart", ipr."endIp"::text AS "rangeEnd",
+               ip.subnet::text AS "poolSubnet"
         FROM "PortalMapping" pm
         JOIN "CaptivePortal" cp ON cp.id = pm."portalId"
         JOIN "Tenant" t ON t.id = pm."tenantId"
-        JOIN "IpPool" ip ON (
-          -- Exact subnet match (CIDR format)
-          ip.subnet::text = pm.subnet
-          -- Handle legacy /32 stripped: IpPool 10.0.0.5/32 ↔ PortalMapping 10.0.0.5
-          OR (ip.subnet IS NOT NULL AND pm.subnet IS NOT NULL
-              AND replace(ip.subnet::text, '/32', '') = pm.subnet)
-          -- Handle PortalMapping 10.0.0.5/32 ↔ IpPool 10.0.0.5
-          OR (ip.subnet IS NOT NULL AND pm.subnet IS NOT NULL
-              AND ip.subnet::text = replace(pm.subnet, '/32', ''))
-          -- Handle PortalMapping with subnet but IpPool has no subnet (null match)
-          OR (pm.subnet IS NULL AND ip.subnet IS NULL)
+        -- PRIMARY: Direct ipPoolId FK join (for mappings created by updated UI)
+        -- FALLBACK: Subnet-based join (for legacy mappings without ipPoolId)
+        LEFT JOIN "IpPool" ip ON (
+          (pm."ipPoolId" IS NOT NULL AND ip.id = pm."ipPoolId")
+          OR (
+            pm."ipPoolId" IS NULL
+            AND (
+              ip.subnet::text = pm.subnet
+              OR (ip.subnet IS NOT NULL AND pm.subnet IS NOT NULL
+                  AND replace(ip.subnet::text, '/32', '') = pm.subnet)
+              OR (ip.subnet IS NOT NULL AND pm.subnet IS NOT NULL
+                  AND ip.subnet::text = replace(pm.subnet, '/32', ''))
+              OR (pm.subnet IS NULL AND ip.subnet IS NULL)
+            )
+            AND ip."tenantId" = pm."tenantId"
+          )
         )
-        JOIN "IpPoolRange" ipr ON ipr."poolId" = ip.id
+        LEFT JOIN "IpPoolRange" ipr ON ipr."poolId" = ip.id
         WHERE pm.enabled = true
           AND cp.enabled = true
           AND (t."deletedAt" IS NULL)
-          AND ip.enabled = true
-          AND $1::inet BETWEEN ipr."startIp" AND ipr."endIp"
+          AND (ip IS NULL OR ip.enabled = true)
+          AND (
+            -- Match by pool's IpPoolRange
+            (ipr.id IS NOT NULL AND $1::inet BETWEEN ipr."startIp" AND ipr."endIp")
+            -- Match by pool's subnet CIDR (handles pools with only subnet, no ranges)
+            OR (ipr.id IS NULL AND ip.subnet IS NOT NULL
+                AND $1::inet <<= ip.subnet)
+          )
         ORDER BY pm.priority DESC
         LIMIT 1
-      `, clientIp) as Array<{ id: string; portalId: string; subnet: string | null; fallbackPortalId: string | null; priority: number; rangeStart: string; rangeEnd: string }>;
+      `, clientIp) as Array<{ id: string; portalId: string; subnet: string | null; fallbackPortalId: string | null; priority: number; ipPoolId: string | null; rangeStart: string | null; rangeEnd: string | null; poolSubnet: string | null }>;
+
+      console.log(`[Resolve Zone] Step 2 query returned ${rangeMatches.length} result(s) for client ${clientIp}`);
+      if (rangeMatches.length > 0) {
+        console.log(`[Resolve Zone] Step 2 details:`, JSON.stringify({
+          mappingId: rangeMatches[0].id,
+          portalId: rangeMatches[0].portalId,
+          ipPoolId: rangeMatches[0].ipPoolId,
+          poolSubnet: rangeMatches[0].poolSubnet,
+          rangeStart: rangeMatches[0].rangeStart,
+          rangeEnd: rangeMatches[0].rangeEnd,
+          mappingSubnet: rangeMatches[0].subnet,
+        }));
+      }
 
       if (rangeMatches.length > 0) {
         const matched = rangeMatches[0];
-        console.log(`[Resolve Zone] Range match: client ${clientIp} → portal ${matched.portalId} via range ${matched.rangeStart}–${matched.rangeEnd}`);
+        console.log(`[Resolve Zone] Range match: client ${clientIp} → portal ${matched.portalId} (ipPoolId: ${matched.ipPoolId || 'none'}, poolSubnet: ${matched.poolSubnet || 'none'}, range: ${matched.rangeStart}–${matched.rangeEnd})`);
         const config = await buildPortalConfig(matched.portalId, lang);
 
         if (config) {
@@ -481,7 +505,7 @@ export async function GET(request: NextRequest) {
             data: {
               zone: config.slug,
               portalId: matched.portalId,
-              matchedSubnet: matched.subnet || `${matched.rangeStart}-${matched.rangeEnd}`,
+              matchedSubnet: matched.poolSubnet || matched.subnet || `${matched.rangeStart}-${matched.rangeEnd}`,
               isDefault: false,
               matchedBy: 'range',
               roamingMode: config.roamingMode,
@@ -500,7 +524,7 @@ export async function GET(request: NextRequest) {
             data: {
               zone: fallbackConfig?.slug ?? null,
               portalId: matched.fallbackPortalId,
-              matchedSubnet: matched.subnet,
+              matchedSubnet: matched.poolSubnet || matched.subnet,
               isDefault: false,
               matchedBy: 'range-fallback',
               roamingMode: fallbackConfig?.roamingMode ?? 'auth_origin',

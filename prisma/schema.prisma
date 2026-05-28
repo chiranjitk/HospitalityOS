@@ -4558,6 +4558,7 @@ model PortalMapping {
   tenantId         String        @db.Uuid
   propertyId       String        @db.Uuid
   portalId         String        @db.Uuid
+  ipPoolId         String?       @db.Uuid // Direct link to IpPool — eliminates fragile subnet matching
   vlanId           Int?
   vlanConfigId     String?       @db.Uuid
   ssid             String?
@@ -4568,12 +4569,14 @@ model PortalMapping {
   createdAt        DateTime      @default(now()) @db.Timestamptz
   updatedAt        DateTime      @updatedAt @db.Timestamptz
   captivePortal    CaptivePortal @relation(fields: [portalId], references: [id], onDelete: Cascade)
+  ipPool           IpPool?       @relation(fields: [ipPoolId], references: [id], onDelete: SetNull)
   property         Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   tenant           Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([propertyId])
   @@index([portalId])
+  @@index([ipPoolId])
   @@index([ssid])
   @@index([enabled])
 }
@@ -8079,11 +8082,12 @@ model IpPool {
   enabled       Boolean       @default(true)
   createdAt     DateTime      @default(now()) @db.Timestamptz
   updatedAt     DateTime      @updatedAt @db.Timestamptz
-  ranges        IpPoolRange[]
-  plans         WiFiPlan[]
-  users         WiFiUser[]    @relation("UserIpPoolOverride")
-  planMappings  WiFiPlanIPPool[]
-  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ranges          IpPoolRange[]
+  plans           WiFiPlan[]
+  users           WiFiUser[]    @relation("UserIpPoolOverride")
+  planMappings    WiFiPlanIPPool[]
+  portalMappings  PortalMapping[]
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, name])
   @@index([tenantId])
