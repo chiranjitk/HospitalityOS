@@ -129,6 +129,19 @@ const bookingStatuses = [
   { value: 'no_show', label: 'No Show', color: 'bg-gradient-to-r from-orange-400 to-orange-600' },
 ];
 
+// H-07 FIX: Valid status transitions enforced on the frontend.
+// Only statuses in this map are shown in the dropdown, preventing invalid
+// transitions such as "checked_out → confirmed" or "cancelled → checked_in".
+// This mirrors the backend validTransitions in /api/bookings/[id]/route.ts.
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  draft: ['confirmed', 'cancelled'],
+  confirmed: ['checked_in', 'cancelled', 'no_show'],
+  checked_in: ['checked_out'],
+  checked_out: [], // Terminal state — no further transitions
+  cancelled: [],   // Terminal state
+  no_show: [],     // Terminal state
+};
+
 const paymentStatusConfig = {
   pending: { label: 'Pending', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', icon: Clock },
   partial: { label: 'Partial', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', icon: CreditCard },
@@ -786,7 +799,14 @@ export default function BookingsList() {
                                 {getStatusBadge(booking.status)}
                               </SelectTrigger>
                               <SelectContent>
-                                {bookingStatuses.map(status => (
+                                {/* H-07 FIX: Only show statuses that are valid transitions from the current status */}
+                                {bookingStatuses
+                                  .filter(status => {
+                                    const allowed = VALID_TRANSITIONS[booking.status] || [];
+                                    // Always include the current status so the dropdown displays correctly
+                                    return allowed.includes(status.value) || status.value === booking.status;
+                                  })
+                                  .map(status => (
                                   <SelectItem key={status.value} value={status.value}>
                                     {status.label}
                                   </SelectItem>
