@@ -460,17 +460,15 @@ authorize {
         #
         # FEATURE FLAG: To disable LDAP auth, remove the ldap symlink from mods-enabled/
         # or comment out the 'ldap' line below. SQL-only auth is the default/fallback.
-        ldap
-
+        # ldap (disabled — no LDAP server in sandbox)
+        # -ldap
         # ── StaySuite: Set Auth-Type for LDAP bind authentication ──
-        # If LDAP found the user and we have a User-Password (PAP), set Auth-Type = ldap
-        # This triggers the 'Auth-Type LDAP { ldap }' block in authenticate{} section.
-        # MS-CHAPv2 users will use ntlm_auth instead (configured in mschap module).
-        if ((ok || updated) && User-Password && !control:Auth-Type) {
-                update control {
-                        &Auth-Type := ldap
-                }
-        }
+        # Disabled: no LDAP server in sandbox
+        # if ((ok || updated) && User-Password && !control:Auth-Type) {
+        #         update control {
+        #                 &Auth-Type := ldap
+        #         }
+        # }
 
         # ── StaySuite: SQL fallback (hotel guest auth) ──
         # SQL runs AFTER LDAP. If LDAP already authenticated the user,
@@ -754,9 +752,7 @@ authenticate {
         #
         # For MS-CHAPv2, use ntlm_auth module instead (configured in mschap).
         # For EAP-TTLS, LDAP is called inside the inner-tunnel server.
-        Auth-Type LDAP {
-                ldap
-        }
+        # Auth-Type LDAP { ldap } (disabled — no LDAP server in sandbox)
 
         #
         #  Allow EAP authentication.
