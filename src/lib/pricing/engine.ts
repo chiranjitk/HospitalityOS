@@ -497,7 +497,7 @@ function applyRule(
     case 'weekend':
       // Weekend surcharge/discount (negative value = discount)
       const checkInDay = context.checkIn.getDay();
-      if (checkInDay === 5 || checkInDay === 6) { // Friday or Saturday
+      if (checkInDay === 0 || checkInDay === 6) { // Saturday or Sunday
         amount = currentPrice * (Math.abs(rule.value) / 100);
         newPrice = rule.value < 0 ? currentPrice - amount : currentPrice + amount;
       } else {
@@ -682,7 +682,7 @@ export async function calculatePerNightRates(
 
       // Weekend rules
       if (rule.type === 'weekend') {
-        if (dayOfWeek === 5 || dayOfWeek === 6) { // Fri or Sat
+        if (dayOfWeek === 0 || dayOfWeek === 6) { // Sat or Sun
           const amount = adjustedRate * (Math.abs(rule.value) / 100);
           if (rule.value < 0) {
             adjustedRate = Math.max(0, adjustedRate - amount);
