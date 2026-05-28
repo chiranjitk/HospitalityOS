@@ -73,11 +73,54 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === 'sales') {
-      const byPaymentMethod = await db.order.groupBy({ by: ['notes'], where, _sum: { totalAmount: true }, _count: true });
+      const orders = await db.order.findMany({
+        where,
+        select: { id: true, totalAmount: true, orderType: true },
+      });
+      const orderIds = orders.map(o => o.id);
+
+      // Get actual payment methods from Payment records
+      const payments = orderIds.length > 0
+        ? await db.payment.findMany({
+            where: { folioId: { in: orderIds } },
+            select: { folioId: true, method: true, amount: true },
+          })
+        : [];
+
+      // Build payment method map: folioId -> payment info
+      const paymentByFolio = new Map<string, { method: string; amount: number }[]>();
+      for (const p of payments) {
+        const existing = paymentByFolio.get(p.folioId) || [];
+        existing.push({ method: p.method || 'unknown', amount: p.amount || 0 });
+        paymentByFolio.set(p.folioId, existing);
+      }
+
+      // Aggregate by actual payment method
+      const methodAgg = new Map<string, { total: number; count: number }>();
+      for (const order of orders) {
+        const orderPayments = paymentByFolio.get(order.id);
+        if (orderPayments && orderPayments.length > 0) {
+          for (const p of orderPayments) {
+            const entry = methodAgg.get(p.method) || { total: 0, count: 0 };
+            entry.total += p.amount;
+            entry.count += 1;
+            methodAgg.set(p.method, entry);
+          }
+        } else {
+          const entry = methodAgg.get('unpaid') || { total: 0, count: 0 };
+          entry.total += order.totalAmount || 0;
+          entry.count += 1;
+          methodAgg.set('unpaid', entry);
+        }
+      }
+      const byPaymentMethod = Array.from(methodAgg.entries()).map(([method, agg]) => ({
+        method, total: agg.total, count: agg.count,
+      }));
+
       const byOrderType = await db.order.groupBy({ by: ['orderType'], where, _sum: { totalAmount: true }, _count: true });
 
       return NextResponse.json({ success: true, data: {
-        byPaymentMethod: byPaymentMethod.map(p => ({ method: p.notes || 'Unknown', total: p._sum.totalAmount || 0, count: p._count })),
+        byPaymentMethod,
         byOrderType: byOrderType.map(t => ({ type: t.orderType, total: t._sum.totalAmount || 0, count: t._count })),
         taxSummary: { totalTax: 0 },
       }});
