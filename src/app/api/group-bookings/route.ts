@@ -326,6 +326,16 @@ export async function PUT(request: NextRequest) {    const user = await getUserF
     if (status !== undefined) data.status = status;
     if (updateData.checkIn) data.checkIn = new Date(updateData.checkIn);
     if (updateData.checkOut) data.checkOut = new Date(updateData.checkOut);
+
+    // M-04: Validate date ordering — checkOut must be strictly after checkIn
+    const effectiveCheckIn = data.checkIn instanceof Date ? data.checkIn : (data.checkIn ? new Date(data.checkIn as string) : existingGroup.checkIn);
+    const effectiveCheckOut = data.checkOut instanceof Date ? data.checkOut : (data.checkOut ? new Date(data.checkOut as string) : existingGroup.checkOut);
+    if (effectiveCheckIn && effectiveCheckOut && effectiveCheckIn >= effectiveCheckOut) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Check-out must be after check-in' } },
+        { status: 400 }
+      );
+    }
     if (updateData.contractSignedAt) data.contractSignedAt = new Date(updateData.contractSignedAt);
     if (updateData.totalRooms !== undefined) data.totalRooms = Math.max(1, updateData.totalRooms);
     if (updateData.totalAmount !== undefined) data.totalAmount = Math.max(0, updateData.totalAmount);
