@@ -257,6 +257,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // H-09: Extend the booking's checkOut date to the requested late checkout time
+    // so downstream systems (room availability, night audit, folio) reflect the extended stay.
+    if (isAutoApproved) {
+      try {
+        await db.booking.update({
+          where: { id: bookingId },
+          data: { checkOut: requestedUntilDate },
+        });
+        console.log(`[LateCheckout] Extended booking ${bookingId} checkOut to ${requestedUntilDate.toISOString()}`);
+      } catch (updateError) {
+        console.error('[LateCheckout] Failed to extend booking checkOut date:', updateError);
+      }
+    }
+
     return NextResponse.json(
       {
         success: true,
@@ -349,6 +363,19 @@ export async function PUT(request: NextRequest) {
       } catch (folioError) {
         console.error('[LateCheckout] Failed to post fee to folio on approval:', folioError);
         // Don't fail the approval if folio posting fails
+      }
+    }
+
+    // H-09: When approved (manually), also extend the booking's checkOut date
+    if (status === 'approved') {
+      try {
+        await db.booking.update({
+          where: { id: existing.bookingId },
+          data: { checkOut: existing.requestedUntil },
+        });
+        console.log(`[LateCheckout] Extended booking ${existing.bookingId} checkOut to ${existing.requestedUntil.toISOString()}`);
+      } catch (updateError) {
+        console.error('[LateCheckout] Failed to extend booking checkOut on manual approval:', updateError);
       }
     }
 
