@@ -217,8 +217,13 @@ export async function POST(request: NextRequest) {
 
     if (rates && typeof rates === 'object') {
       await db.$transaction(async (tx) => {
-        for (const [dateStr, price] of Object.entries(rates)) {
-          const priceVal = Number(price);
+        for (const [dateStr, rateData] of Object.entries(rates)) {
+          // Support both flat price value and object with CTA/CTD/minStay
+          const priceVal = typeof rateData === 'number'
+            ? Number(rateData)
+            : Number((rateData as Record<string, unknown>).price);
+          const meta = typeof rateData === 'object' ? rateData as Record<string, unknown> : {};
+
           if (isNaN(priceVal) || priceVal < 0) continue;
 
           const date = new Date(dateStr);
@@ -228,15 +233,26 @@ export async function POST(request: NextRequest) {
             where: { ratePlanId_date: { ratePlanId, date } },
           });
 
+          const updatePayload = {
+            price: priceVal,
+            closedToArrival: !!meta.closedToArrival,
+            closedToDeparture: !!meta.closedToDeparture,
+            minStay: meta.minStay ? parseInt(String(meta.minStay)) : null,
+          };
+
           if (existing) {
             await tx.priceOverride.update({
               where: { id: existing.id },
-              data: { price: priceVal },
+              data: updatePayload,
             });
             updated++;
           } else {
             await tx.priceOverride.create({
-              data: { ratePlanId, date, price: priceVal },
+              data: {
+                ratePlanId,
+                date,
+                ...updatePayload,
+              },
             });
             created++;
           }
