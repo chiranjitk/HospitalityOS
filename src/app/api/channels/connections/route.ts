@@ -471,25 +471,58 @@ export async function PUT(request: NextRequest) {    const user = await requireP
     }
 
     if (action === 'sync') {
-      // Trigger manual sync
-      const connection = await db.channelConnection.update({
+      // CRITICAL-07 FIX: Trigger real OTA sync instead of fake success log
+      const connection = await db.channelConnection.findUnique({
         where: { id },
-        data: {
-          lastSyncAt: new Date(),
-        },
       });
 
-      // Log the sync
-      await db.channelSyncLog.create({
-        data: {
-          connectionId: id,
-          syncType: 'inventory',
-          direction: 'outbound',
-          status: 'success',
-        },
-      });
+      if (!connection) {
+        return NextResponse.json({ success: false, error: 'Connection not found' }, { status: 404 });
+      }
 
-      return NextResponse.json({ success: true, data: connection, message: 'Sync triggered successfully' });
+      try {
+        const { OTASyncService } = await import('@/lib/ota/sync-service');
+        const syncService = new OTASyncService();
+
+        // Sync inventory and rates for the connection
+        await syncService.syncInventoryToChannel(id, []);
+        await syncService.syncRatesToChannel(id, []);
+
+        // Update last sync timestamp
+        const updatedConnection = await db.channelConnection.update({
+          where: { id },
+          data: { lastSyncAt: new Date() },
+        });
+
+        // Log successful sync
+        await db.channelSyncLog.create({
+          data: {
+            connectionId: id,
+            syncType: 'full',
+            direction: 'outbound',
+            status: 'success',
+            message: 'Manual sync completed (inventory + rates)',
+          },
+        });
+
+        return NextResponse.json({ success: true, data: updatedConnection, message: 'Sync completed successfully' });
+      } catch (syncError) {
+        console.error('[Channel Sync] Sync failed:', syncError);
+        // Log failed sync
+        await db.channelSyncLog.create({
+          data: {
+            connectionId: id,
+            syncType: 'full',
+            direction: 'outbound',
+            status: 'failed',
+            message: syncError instanceof Error ? syncError.message : 'Sync failed',
+          },
+        });
+        return NextResponse.json(
+          { success: false, error: { code: 'SYNC_FAILED', message: syncError instanceof Error ? syncError.message : 'Sync failed' } },
+          { status: 500 }
+        );
+      }
     }
 
     if (action === 'test') {
