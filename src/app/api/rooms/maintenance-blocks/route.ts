@@ -181,6 +181,24 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      // Sync: Create a corresponding InventoryLock for the same room/period
+      // This ensures availability engines also see the blocked room
+      await tx.inventoryLock.create({
+        data: {
+          tenantId,
+          propertyId: room.propertyId,
+          roomId,
+          startDate: new Date(startDate),
+          endDate: endDate ? new Date(endDate) : new Date('2100-01-01'),
+          reason: `Maintenance: ${reason}`,
+          lockType: 'maintenance',
+          createdBy: user.id,
+        },
+      }).catch(() => {
+        // If lock creation fails (e.g. overlapping lock), log but don't fail the block
+        console.warn('Could not create synced InventoryLock for MaintenanceBlock');
+      });
+
       return maintenanceBlock;
     });
 

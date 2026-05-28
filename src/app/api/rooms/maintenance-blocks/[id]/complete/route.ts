@@ -64,6 +64,17 @@ export async function POST(
         });
       }
 
+      // Sync: Remove corresponding InventoryLock created by MaintenanceBlock
+      await tx.inventoryLock.deleteMany({
+        where: {
+          roomId: block.roomId,
+          lockType: 'maintenance',
+          reason: { startsWith: 'Maintenance:' },
+        },
+      }).catch(() => {
+        console.warn('Could not clean up synced InventoryLock on block completion');
+      });
+
       return updatedBlock;
     });
 
