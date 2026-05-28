@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
       specialRequests,
       paymentMethod,
       idempotencyKey,
+      walkIn, // M-08: walk-in flag for frontdesk walk-in bookings
     } = data;
 
     // Validate required fields
@@ -405,6 +406,12 @@ export async function POST(request: NextRequest) {
         throw new Error('NO_ROOMS_AVAILABLE');
       }
 
+    // M-08: Determine if this is a walk-in booking (same-day check-in)
+    // Walk-in bookings should auto-check-in: set status to checked_in and actualCheckIn to now
+    const isWalkIn = walkIn === true;
+    const isTodayCheckIn = checkInDate.toDateString() === new Date().toDateString();
+    const initialStatus = (isWalkIn && isTodayCheckIn) ? 'checked_in' : 'confirmed';
+
       // Create the booking
       const newBooking = await tx.booking.create({
         data: {
@@ -427,7 +434,9 @@ export async function POST(request: NextRequest) {
           currency: property.currency,
           ratePlanId: ratePlanId || null,
           source: 'direct',
-          status: 'confirmed',
+          status: initialStatus,
+          // M-08: Auto-set actualCheckIn for walk-in bookings
+          ...(initialStatus === 'checked_in' ? { actualCheckIn: new Date() } : {}),
           specialRequests,
           portalToken,
           portalTokenExpires,
@@ -483,8 +492,10 @@ export async function POST(request: NextRequest) {
           bookingId: newBooking.id,
           action: 'created',
           oldStatus: null,
-          newStatus: 'confirmed',
-          notes: 'Booking created via direct booking engine',
+          newStatus: initialStatus,
+          notes: initialStatus === 'checked_in'
+            ? 'Walk-in booking created and auto-checked in via booking engine'
+            : 'Booking created via direct booking engine',
           performedBy: null,
         },
       });
