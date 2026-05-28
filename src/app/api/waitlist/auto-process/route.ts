@@ -3,6 +3,13 @@ import { db } from '@/lib/db';
 import { requireAuth, hasPermission } from '@/lib/auth/tenant-context';
 
 // POST /api/waitlist/auto-process - Auto-process waitlist entries when rooms become available
+//
+// IMPORTANT: This endpoint should be called by an external cron scheduler (e.g. cron-job.org,
+// Vercel Cron, AWS EventBridge) on a regular interval (e.g. every 5–15 minutes) to
+// automatically process waitlist entries when rooms become available. Configure the cron
+// to POST to this route with { roomTypeId, checkIn, checkOut, propertyId } for each
+// room type that should be checked, or loop over all active room types.
+// Set the CRON_SECRET env var and pass it as a Bearer token for authentication.
 export async function POST(request: NextRequest) {
   try {
     // Authenticate user
