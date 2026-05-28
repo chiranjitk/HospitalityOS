@@ -5772,6 +5772,23 @@ model Role {
   @@index([tenantId])
 }
 
+model RoomConnection {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  roomAId   String   @db.Uuid
+  roomBId   String   @db.Uuid
+  type      String   @default("adjoining") // adjoining, connecting, adjacent
+  createdAt DateTime @default(now()) @db.Timestamptz
+  roomA     Room     @relation("ConnectionA", fields: [roomAId], references: [id], onDelete: Cascade)
+  roomB     Room     @relation("ConnectionB", fields: [roomBId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([roomAId, roomBId])
+  @@index([tenantId])
+  @@index([roomAId])
+  @@index([roomBId])
+}
+
 model Room {
   id                 String             @id @default(uuid()) @db.Uuid
   propertyId         String             @db.Uuid
@@ -5816,6 +5833,8 @@ model Room {
   minibarSetup       MinibarSetup?
   minibarConsumptions MinibarConsumption[]
   roomImages          RoomImage[]
+  connectionsA        RoomConnection[] @relation("ConnectionA")
+  connectionsB        RoomConnection[] @relation("ConnectionB")
 
   @@unique([propertyId, number])
   @@index([propertyId])
@@ -7222,6 +7241,7 @@ model Tenant {
   wifiFloorPlans             WiFiFloorPlan[]
   systemAlertRules           SystemAlertRule[]
   systemAlertEvents          SystemAlertEvent[]
+  roomConnections           RoomConnection[]
 }
 
 // ============================================================

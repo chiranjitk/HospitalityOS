@@ -130,6 +130,20 @@ export default function RoomsManager() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importPropertyId, setImportPropertyId] = useState<string>('');
   
+  // Connected rooms state
+  const [connectedRooms, setConnectedRooms] = useState<Array<{
+    id: string;
+    roomAId: string;
+    roomBId: string;
+    type: string;
+    roomA: { id: string; number: string; name?: string; floor: number; roomType: { name: string; code: string } };
+    roomB: { id: string; number: string; name?: string; floor: number; roomType: { name: string; code: string } };
+  }>>([]);
+  const [addConnectionOpen, setAddConnectionOpen] = useState(false);
+  const [connectionType, setConnectionType] = useState('adjoining');
+  const [selectedRoomForConnection, setSelectedRoomForConnection] = useState<string>('');
+  const [connectionSaving, setConnectionSaving] = useState(false);
+
   // Form state
   const [formData, setFormData] = useState({
     propertyId: '',
@@ -601,8 +615,22 @@ export default function RoomsManager() {
     }
   };
 
+  // Fetch connected rooms
+  const fetchConnections = async (roomId: string) => {
+    try {
+      const res = await fetch(`/api/rooms/connections?roomId=${roomId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) setConnectedRooms(data.data);
+      }
+    } catch {
+      // silently fail
+    }
+  };
+
   const openEditDialog = async (room: Room) => {
     setSelectedRoom(room);
+    fetchConnections(room.id);
     
     // Fetch room images from the new API
     let roomImages: RoomImage[] = [];
@@ -643,6 +671,48 @@ export default function RoomsManager() {
       images: roomImages,
     });
     setIsEditOpen(true);
+  };
+
+  const handleDeleteConnection = async (connectionId: string) => {
+    try {
+      const res = await fetch(`/api/rooms/connections/${connectionId}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast({ title: 'Connection removed' });
+        if (selectedRoom) fetchConnections(selectedRoom.id);
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to remove connection', variant: 'destructive' });
+    }
+  };
+
+  const handleAddConnection = async () => {
+    if (!selectedRoom || !selectedRoomForConnection) return;
+    setConnectionSaving(true);
+    try {
+      const res = await fetch('/api/rooms/connections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomAId: selectedRoom.id,
+          roomBId: selectedRoomForConnection,
+          type: connectionType,
+          tenantId: selectedRoom.propertyId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Connection added' });
+        setAddConnectionOpen(false);
+        setSelectedRoomForConnection('');
+        fetchConnections(selectedRoom.id);
+      } else {
+        toast({ title: 'Error', description: data.error?.message || 'Failed to add connection', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to add connection', variant: 'destructive' });
+    } finally {
+      setConnectionSaving(false);
+    }
   };
 
   const openDeleteDialog = (room: Room) => {
@@ -1162,6 +1232,41 @@ export default function RoomsManager() {
             properties={properties}
             roomTypes={roomTypes}
           />
+          {/* Connected Rooms Section */}
+          <div className="space-y-2 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2">
+                <DoorOpen className="h-4 w-4" />
+                Connected Rooms
+              </Label>
+              <Button type="button" variant="outline" size="sm" onClick={() => setAddConnectionOpen(true)}>
+                <Plus className="h-3 w-3 mr-1" />
+                Add Connection
+              </Button>
+            </div>
+            {connectedRooms.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No connected rooms</p>
+            ) : (
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {connectedRooms.map((conn) => {
+                  const otherRoom = conn.roomAId === selectedRoom?.id ? conn.roomB : conn.roomA;
+                  return (
+                    <div key={conn.id} className="flex items-center justify-between gap-2 p-2 rounded-md border">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="text-xs capitalize">{conn.type}</Badge>
+                        <span className="text-sm font-medium">{otherRoom.number}</span>
+                        <span className="text-xs text-muted-foreground">{otherRoom.roomType?.code}</span>
+                        <span className="text-xs text-muted-foreground">F{otherRoom.floor}</span>
+                      </div>
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteConnection(conn.id)}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           {/* Room Images Section */}
           <div className="space-y-2 pt-4 border-t">
             <Label className="flex items-center gap-2">
@@ -1203,6 +1308,58 @@ export default function RoomsManager() {
             <Button variant="destructive" onClick={handleDelete} disabled={isSaving}>
               {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Connection Dialog */}
+      <Dialog open={addConnectionOpen} onOpenChange={setAddConnectionOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Room Connection</DialogTitle>
+            <DialogDescription>
+              Connect room {selectedRoom?.number} to another room
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Connection Type</Label>
+              <Select value={connectionType} onValueChange={setConnectionType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="adjoining">Adjoining</SelectItem>
+                  <SelectItem value="connecting">Connecting</SelectItem>
+                  <SelectItem value="adjacent">Adjacent</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Connect To Room</Label>
+              <Select value={selectedRoomForConnection} onValueChange={setSelectedRoomForConnection}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a room" />
+                </SelectTrigger>
+                <SelectContent>
+                  {rooms
+                    .filter(r => r.id !== selectedRoom?.id)
+                    .map(r => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.number} — {r.roomType.name} (Floor {r.floor})
+                      </SelectItem>
+                    ))
+                  }
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddConnectionOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddConnection} disabled={connectionSaving || !selectedRoomForConnection}>
+              {connectionSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Add Connection
             </Button>
           </DialogFooter>
         </DialogContent>
