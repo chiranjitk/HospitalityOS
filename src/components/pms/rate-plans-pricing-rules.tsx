@@ -98,6 +98,7 @@ interface PricingRuleConditions {
   minLeadTime?: number;
   maxLeadTime?: number;
   minStay?: number;
+  minNights?: number;
   maxStay?: number;
   advanceBookingDaysMin?: number;
   advanceBookingDaysMax?: number;
@@ -454,8 +455,13 @@ export default function RatePlansPricingRules() {
     for (const rule of applicableRules) {
       const isDiscountType = DISCOUNT_TYPES.includes(rule.type as RuleType);
 
-      // Weekend rules: only apply on Sat/Sun
-      if (rule.type === 'weekend' && !weekendDay) continue;
+      // Weekend rules: check against rule's configured days (default Sat/Sun)
+      if (rule.type === 'weekend') {
+        const weekendDays = rule.conditions?.daysOfWeek?.length
+          ? rule.conditions.daysOfWeek
+          : ['Sat', 'Sun'];
+        if (!weekendDays.includes(dayOfWeek)) continue;
+      }
 
       // Skip rules that require booking context (not available in calendar preview)
       if (['early_bird', 'last_minute', 'long_stay', 'occupancy', 'promo_code', 'channel'].includes(rule.type)) continue;
@@ -785,13 +791,17 @@ export default function RatePlansPricingRules() {
   const getConditionsDescription = (rule: PricingRule): string => {
     const c = rule.conditions || {};
     const parts: string[] = [];
-    if (rule.type === 'weekend') parts.push('Sat & Sun');
-    if (c.daysOfWeek && c.daysOfWeek.length > 0) parts.push(c.daysOfWeek.join(', '));
+    if (rule.type === 'weekend' && c.daysOfWeek?.length) parts.push(c.daysOfWeek.join(', '));
+    else if (rule.type === 'weekend') parts.push('Sat & Sun');
+    if (c.daysOfWeek && rule.type !== 'weekend' && c.daysOfWeek.length > 0) parts.push(c.daysOfWeek.join(', '));
+    if (c.minNights) parts.push(`${c.minNights}+ nights`);
     if (c.minStay) parts.push(`${c.minStay}+ nights`);
     if (c.maxLeadTime) parts.push(`Within ${c.maxLeadTime} days`);
     if (c.advanceBookingDaysMin) parts.push(`${c.advanceBookingDaysMin}+ days advance`);
+    if (c.advanceBookingDaysMax) parts.push(`Within ${c.advanceBookingDaysMax} days`);
     if (c.promoCode) parts.push(`Code: ${c.promoCode}`);
     if (c.bookingChannel && c.bookingChannel.length > 0) parts.push(c.bookingChannel.join(', '));
+    if (c.minOccupancy) parts.push(`${c.minOccupancy}+ guests`);
     return parts.length > 0 ? parts.join(' · ') : 'All conditions';
   };
 
@@ -1902,7 +1912,7 @@ function RuleForm({ rule, onChange, onSave, onCancel, isSaving, currencySymbol }
               case 'long_stay':
                 defaults.value = 10;
                 defaults.valueType = 'percentage';
-                defaults.conditions = { ...conditions, minStay: 7 };
+                defaults.conditions = { ...conditions, minNights: 7 };
                 break;
               case 'promo_code':
                 defaults.value = 10;
@@ -1927,6 +1937,7 @@ function RuleForm({ rule, onChange, onSave, onCancel, isSaving, currencySymbol }
               case 'weekend':
                 defaults.value = 15;
                 defaults.valueType = 'percentage';
+                defaults.conditions = { ...conditions, daysOfWeek: ['Sat', 'Sun'] };
                 break;
               case 'seasonal':
                 defaults.value = 20;
@@ -2047,8 +2058,8 @@ function RuleForm({ rule, onChange, onSave, onCancel, isSaving, currencySymbol }
               <Input
                 type="number"
                 min={1}
-                value={conditions.minStay || ''}
-                onChange={(e) => updateCondition('minStay', parseInt(e.target.value) || 7)}
+                value={conditions.minNights || ''}
+                onChange={(e) => updateCondition('minNights', parseInt(e.target.value) || 7)}
                 placeholder="7"
               />
             </div>
@@ -2065,7 +2076,7 @@ function RuleForm({ rule, onChange, onSave, onCancel, isSaving, currencySymbol }
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Stays of {conditions.minStay || 7}+ nights receive a {rule.value || 10}% discount.
+            Stays of {conditions.minNights || 7}+ nights receive a {rule.value || 10}% discount.
           </p>
         </div>
       )}
@@ -2264,8 +2275,66 @@ function RuleForm({ rule, onChange, onSave, onCancel, isSaving, currencySymbol }
             <Calendar className="h-3.5 w-3.5" />
             Weekend Adjustment
           </label>
-          <p className="text-xs text-muted-foreground">
-            This rule automatically applies on <strong>Saturday</strong> and <strong>Sunday</strong>.
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Adjustment Value</label>
+              <Input
+                type="number"
+                value={rule.value || ''}
+                onChange={(e) => onChange({ ...rule, value: parseFloat(e.target.value) || 0 })}
+                placeholder={rule.valueType === 'percentage' ? '15' : '500'}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Value Type</label>
+              <Select
+                value={rule.valueType || 'percentage'}
+                onValueChange={(v) => onChange({ ...rule, valueType: v as 'percentage' | 'fixed' })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentage">Percentage (%)</SelectItem>
+                  <SelectItem value="fixed">Fixed Amount ({currencySymbol})</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1.5 mt-1">
+            <label className="text-xs text-muted-foreground">Apply on Days</label>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {weekDays.map((day) => {
+                const isSelected = (conditions.daysOfWeek || ['Sat', 'Sun']).includes(day);
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => {
+                      const current = (conditions.daysOfWeek || ['Sat', 'Sun']);
+                      const next = isSelected
+                        ? current.filter((d) => d !== day)
+                        : [...current, day];
+                      if (next.length > 0) updateCondition('daysOfWeek', next);
+                    }}
+                    className={cn(
+                      'px-2.5 py-1 text-xs rounded-md border transition-colors font-medium',
+                      isSelected
+                        ? 'bg-violet-600 text-white border-violet-600'
+                        : 'bg-white dark:bg-slate-800 text-muted-foreground border-slate-300 dark:border-slate-600 hover:border-violet-400'
+                    )}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            {rule.valueType === 'percentage'
+              ? `${rule.value > 0 ? 'Surcharge' : 'Discount'} of ${Math.abs(rule.value)}% applies on ${(conditions.daysOfWeek || ['Sat', 'Sun']).join(', ')}.`
+              : `Fixed ${rule.value > 0 ? 'surcharge' : 'discount'} of ${Math.abs(rule.value)} ${currencySymbol} per night on ${(conditions.daysOfWeek || ['Sat', 'Sun']).join(', ')}.`
+            }
           </p>
         </div>
       )}

@@ -322,6 +322,19 @@ async function loadApplicableRules(
 }
 
 /**
+ * Normalize daysOfWeek from string names ('Sun','Mon',etc.) to numbers (0-6).
+ * The form saves daysOfWeek as strings like ['Sat','Sun'] but the engine expects numbers [0,6].
+ */
+function normalizeDaysOfWeek(daysOfWeek?: (number | string)[]): number[] {
+  if (!daysOfWeek || daysOfWeek.length === 0) return [];
+  const dayNameToNum: Record<string, number> = {
+    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+    Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6,
+  };
+  return daysOfWeek.map(d => typeof d === 'number' ? d : (dayNameToNum[d] ?? -1)).filter(d => d >= 0);
+}
+
+/**
  * Check if rule conditions match the booking context
  */
 function checkRuleConditions(
@@ -359,10 +372,11 @@ function checkRuleConditions(
     return false;
   }
 
-  // Check days of week
+  // Check days of week (normalize string day names to numbers)
   if (conditions.daysOfWeek && conditions.daysOfWeek.length > 0) {
+    const normalizedDays = normalizeDaysOfWeek(conditions.daysOfWeek as (number | string)[]);
     const checkInDay = context.checkIn.getDay();
-    if (!conditions.daysOfWeek.includes(checkInDay)) {
+    if (normalizedDays.length > 0 && !normalizedDays.includes(checkInDay)) {
       return false;
     }
   }
@@ -458,52 +472,86 @@ function applyRule(
       newPrice = Math.max(0, currentPrice - amount);
       break;
 
-    case 'early_bird':
-      // Early bird discount - check advance booking days
+    case 'early_bird': {
+      // Early bird discount - configurable threshold from conditions
       const earlyBirdDays = Math.ceil(
         (context.checkIn.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
       );
-      if (earlyBirdDays >= 7) { // At least 7 days in advance
+      let threshold = 7; // default
+      try {
+        const conds = rule.conditions ? JSON.parse(rule.conditions as string) : {};
+        if (conds.advanceBookingDaysMin !== undefined) threshold = conds.advanceBookingDaysMin;
+      } catch { /* use default */ }
+      if (earlyBirdDays >= threshold) {
         amount = currentPrice * (rule.value / 100);
         newPrice = currentPrice - amount;
       } else {
         return { applied: false, amount: 0, newPrice: currentPrice };
       }
       break;
+    }
 
-    case 'last_minute':
-      // Last minute discount
+    case 'last_minute': {
+      // Last minute discount - configurable threshold from conditions
       const lmAdvanceDays = Math.ceil(
         (context.checkIn.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
       );
-      if (lmAdvanceDays <= 3 && lmAdvanceDays >= 0) { // Within 3 days
+      let maxWindow = 3; // default
+      try {
+        const conds = rule.conditions ? JSON.parse(rule.conditions as string) : {};
+        if (conds.advanceBookingDaysMax !== undefined) maxWindow = conds.advanceBookingDaysMax;
+      } catch { /* use default */ }
+      if (lmAdvanceDays >= 0 && lmAdvanceDays <= maxWindow) {
+        const amt = currentPrice * (Math.abs(rule.value) / 100);
+        if (rule.value > 0) {
+          amount = amt;
+          newPrice = currentPrice + amt;
+        } else {
+          amount = amt;
+          newPrice = currentPrice - amt;
+        }
+      } else {
+        return { applied: false, amount: 0, newPrice: currentPrice };
+      }
+      break;
+    }
+
+    case 'long_stay': {
+      // Long stay discount - configurable minNights from conditions
+      let minNightsThreshold = 7; // default
+      try {
+        const conds = rule.conditions ? JSON.parse(rule.conditions as string) : {};
+        if (conds.minNights !== undefined) minNightsThreshold = conds.minNights;
+        else if (conds.minStay !== undefined) minNightsThreshold = conds.minStay; // backward compat with form
+      } catch { /* use default */ }
+      if (nights >= minNightsThreshold) {
         amount = currentPrice * (rule.value / 100);
         newPrice = currentPrice - amount;
       } else {
         return { applied: false, amount: 0, newPrice: currentPrice };
       }
       break;
+    }
 
-    case 'long_stay':
-      // Long stay discount
-      if (nights >= 7) { // At least 7 nights
-        amount = currentPrice * (rule.value / 100);
-        newPrice = currentPrice - amount;
-      } else {
-        return { applied: false, amount: 0, newPrice: currentPrice };
-      }
-      break;
-
-    case 'weekend':
-      // Weekend surcharge/discount (negative value = discount)
+    case 'weekend': {
+      // Weekend surcharge/discount - read days from conditions
       const checkInDay = context.checkIn.getDay();
-      if (checkInDay === 0 || checkInDay === 6) { // Saturday or Sunday
+      // Read days from conditions, default to Sat(6) and Sun(0)
+      let weekendDays = [0, 6]; // default Sat & Sun
+      try {
+        const conds = rule.conditions ? JSON.parse(rule.conditions as string) : {};
+        if (conds.daysOfWeek && Array.isArray(conds.daysOfWeek) && conds.daysOfWeek.length > 0) {
+          weekendDays = normalizeDaysOfWeek(conds.daysOfWeek as (number | string)[]);
+        }
+      } catch { /* use defaults */ }
+      if (weekendDays.includes(checkInDay)) {
         amount = currentPrice * (Math.abs(rule.value) / 100);
         newPrice = rule.value < 0 ? currentPrice - amount : currentPrice + amount;
       } else {
         return { applied: false, amount: 0, newPrice: currentPrice };
       }
       break;
+    }
 
     case 'seasonal':
       // Seasonal pricing - check if within effective dates
@@ -552,16 +600,68 @@ function applyRule(
       break;
     }
 
-    case 'occupancy':
-      // Occupancy-based pricing
+    case 'occupancy': {
+      // Occupancy-based pricing - configurable threshold from conditions
       const totalGuests = (context.adults ?? 1) + ((context.children) || 0);
-      if (totalGuests > 2) { // More than 2 guests
-        amount = rule.value * (totalGuests - 2); // Extra person charge
+      let threshold = 2; // default
+      try {
+        const conds = rule.conditions ? JSON.parse(rule.conditions as string) : {};
+        if (conds.minOccupancy !== undefined) threshold = conds.minOccupancy;
+      } catch { /* use default */ }
+      if (totalGuests > threshold) {
+        amount = rule.value * (totalGuests - threshold);
         newPrice = currentPrice + amount;
       } else {
         return { applied: false, amount: 0, newPrice: currentPrice };
       }
       break;
+    }
+
+    case 'channel': {
+      // Channel-based pricing
+      let channels: string[] = [];
+      try {
+        const conds = rule.conditions ? JSON.parse(rule.conditions as string) : {};
+        if (conds.bookingChannel && Array.isArray(conds.bookingChannel)) {
+          channels = conds.bookingChannel;
+        }
+      } catch { /* no channels specified */ }
+      if (channels.length === 0 || channels.includes(context.bookingChannel || 'direct')) {
+        if (rule.valueType === 'percentage') {
+          amount = currentPrice * (rule.value / 100);
+          newPrice = currentPrice + amount;
+        } else {
+          amount = rule.value;
+          newPrice = currentPrice + amount;
+        }
+      } else {
+        return { applied: false, amount: 0, newPrice: currentPrice };
+      }
+      break;
+    }
+
+    case 'advance_booking': {
+      // Advance booking discount with configurable min/max days
+      const advDays = Math.ceil(
+        (context.checkIn.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      let minAdv: number | undefined;
+      let maxAdv: number | undefined;
+      try {
+        const conds = rule.conditions ? JSON.parse(rule.conditions as string) : {};
+        minAdv = conds.advanceBookingDaysMin;
+        maxAdv = conds.advanceBookingDaysMax;
+      } catch { /* use defaults */ }
+      const minOk = minAdv !== undefined ? advDays >= minAdv : true;
+      const maxOk = maxAdv !== undefined ? advDays <= maxAdv : true;
+      if (minOk && maxOk) {
+        amount = currentPrice * (rule.value / 100);
+        newPrice = currentPrice - amount;
+      } else {
+        return { applied: false, amount: 0, newPrice: currentPrice };
+      }
+      break;
+    }
 
     default:
       // Unknown rule type, don't apply
@@ -682,7 +782,11 @@ export async function calculatePerNightRates(
 
       // Weekend rules
       if (rule.type === 'weekend') {
-        if (dayOfWeek === 0 || dayOfWeek === 6) { // Sat or Sun
+        let weekendDays = [0, 6];
+        if (conditions.daysOfWeek && Array.isArray(conditions.daysOfWeek) && conditions.daysOfWeek.length > 0) {
+          weekendDays = normalizeDaysOfWeek(conditions.daysOfWeek as (number | string)[]);
+        }
+        if (weekendDays.includes(dayOfWeek)) {
           const amount = adjustedRate * (Math.abs(rule.value) / 100);
           if (rule.value < 0) {
             adjustedRate = Math.max(0, adjustedRate - amount);
