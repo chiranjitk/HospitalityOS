@@ -367,10 +367,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Find the booking
+    // Find the booking — CRITICAL-19 FIX: enforce tenant isolation
     const booking = await db.booking.findFirst({
       where: {
         id: bookingId,
+        tenantId: ctx.tenantId,
         deletedAt: null,
       },
       select: {
