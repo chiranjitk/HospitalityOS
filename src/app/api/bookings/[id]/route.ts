@@ -794,6 +794,19 @@ export async function PUT(
             { status: 400 }
           );
         }
+        // M-15: Force checkout requires admin-only permission
+        if (!user.isPlatformAdmin && user.roleName !== 'admin' && !hasAnyPermission(user, ['admin.*', 'admin.bookings', 'bookings.force_checkout'])) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'INSUFFICIENT_PERMISSIONS',
+                message: 'Force checkout with outstanding balance requires admin permission',
+              },
+            },
+            { status: 403 }
+          );
+        }
         // BUG-020 FIX: Require reason for force checkout with outstanding balance
         if (!forceCheckoutReason) {
           return NextResponse.json(
