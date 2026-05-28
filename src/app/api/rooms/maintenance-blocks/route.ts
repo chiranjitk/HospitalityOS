@@ -173,10 +173,11 @@ export async function POST(request: NextRequest) {
       });
 
       // Update room status if block is active or scheduled
+      // Use 'out_of_service' (valid Prisma RoomStatus enum value)
       if (maintenanceBlock.status === 'active' || maintenanceBlock.status === 'scheduled') {
         await tx.room.update({
           where: { id: roomId },
-          data: { status: 'out_of_order' },
+          data: { status: 'out_of_service' },
         });
       }
 

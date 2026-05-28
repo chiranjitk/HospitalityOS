@@ -98,11 +98,11 @@ export async function GET(request: NextRequest) {
     // A room is available if:
     // 1. It's not in bookedRoomIds
     // 2. It's not in maintenanceBlockedRoomIds
-    // 3. Its status is not 'out_of_order' or 'maintenance'
+    // 3. Its status is not 'out_of_service' or 'maintenance'
     const availableRooms = allRooms.filter(room => 
       !bookedRoomIds.has(room.id) &&
       !maintenanceBlockedRoomIds.has(room.id) &&
-      room.status !== 'out_of_order' &&
+      room.status !== 'out_of_service' &&
       room.status !== 'maintenance'
     );
 

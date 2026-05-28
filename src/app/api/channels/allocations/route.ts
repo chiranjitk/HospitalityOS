@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
         by: ['roomTypeId'],
         where: {
           roomTypeId: { in: roomTypeIds },
-          status: { not: 'out_of_order' },
+          status: { not: 'out_of_service' },
           deletedAt: null,
         },
         _count: { id: true },

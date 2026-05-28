@@ -55,11 +55,12 @@ export async function POST(
       });
 
       // Only set room back to available if no other active blocks
-      // Use 'dirty' as default since maintenance was completed and room likely needs cleaning
+      // Use 'cleaning' (valid Prisma RoomStatus enum) since maintenance was completed
+      // and room likely needs cleaning before becoming available
       if (otherActiveBlocks === 0) {
         await tx.room.update({
           where: { id: block.roomId },
-          data: { status: 'dirty' },
+          data: { status: 'cleaning' },
         });
       }
 

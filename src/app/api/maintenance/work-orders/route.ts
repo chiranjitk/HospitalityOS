@@ -345,9 +345,9 @@ export async function POST(request: NextRequest) {
         if (room) {
           await tx.room.update({
             where: { id: roomId },
-            data: { status: 'out_of_order' },
+            data: { status: 'out_of_service' },
           });
-          console.log(`[WorkOrder] Room ${roomId} set to 'out_of_order' due to ${priority} priority work order ${wo.workOrderNumber}`);
+          console.log(`[WorkOrder] Room ${roomId} set to 'out_of_service' due to ${priority} priority work order ${wo.workOrderNumber}`);
         }
       }
 
