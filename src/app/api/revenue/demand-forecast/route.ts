@@ -14,13 +14,18 @@ export async function GET(request: NextRequest) {
     const horizon = Math.min(parseInt(searchParams.get('horizon') || '30', 10), 90); // Cap at 90 days
     const roomType = searchParams.get('roomType');
 
+    // M-65: Apply roomType filter to bookings and rooms queries
+    const roomTypeFilter = roomType || null;
+
     // Get total rooms for occupancy calculation (filtered via property → tenant)
     const propertyIds = await db.property.findMany({
       where: { tenantId, deletedAt: null },
       select: { id: true },
     });
+    const roomsWhere: Record<string, unknown> = { deletedAt: null, propertyId: { in: propertyIds.map(p => p.id) } };
+    if (roomTypeFilter) roomsWhere.roomTypeId = roomTypeFilter;
     const rooms = await db.room.findMany({
-      where: { deletedAt: null, propertyId: { in: propertyIds.map(p => p.id) } },
+      where: roomsWhere,
       select: { status: true, roomTypeId: true },
     });
 
@@ -28,24 +33,28 @@ export async function GET(request: NextRequest) {
 
     // Get historical booking data for analysis (last 90 days)
     const ninetyDaysAgo = subDays(new Date(), 90);
+    const bookingWhere: Record<string, unknown> = {
+      tenantId,
+      status: { notIn: ['cancelled', 'no_show'] },
+      createdAt: { gte: ninetyDaysAgo },
+    };
+    if (roomTypeFilter) bookingWhere.roomTypeId = roomTypeFilter;
     const bookings = await db.booking.findMany({
-      where: {
-        tenantId,
-        status: { notIn: ['cancelled', 'no_show'] },
-        createdAt: { gte: ninetyDaysAgo },
-      },
+      where: bookingWhere,
       include: {
         roomType: { select: { name: true, id: true } },
       },
     });
 
     // Get historical check-ins for pattern analysis
+    const checkInWhere: Record<string, unknown> = {
+      tenantId,
+      status: { notIn: ['cancelled', 'no_show'] },
+      checkIn: { gte: ninetyDaysAgo },
+    };
+    if (roomTypeFilter) checkInWhere.roomTypeId = roomTypeFilter;
     const checkIns = await db.booking.findMany({
-      where: {
-        tenantId,
-        status: { notIn: ['cancelled', 'no_show'] },
-        checkIn: { gte: ninetyDaysAgo },
-      },
+      where: checkInWhere,
       select: {
         checkIn: true,
         checkOut: true,
