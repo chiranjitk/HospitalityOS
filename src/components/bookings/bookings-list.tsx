@@ -287,6 +287,10 @@ export default function BookingsList() {
       if (dateRangeTo) params.append('checkInTo', dateRangeTo);
       if (sourceFilter !== 'all') params.append('source', sourceFilter);
       
+      // TODO(M-07): This fetches ALL matching bookings without pagination (no limit/offset).
+      // For properties with many bookings, this will cause performance issues.
+      // Implement proper server-side pagination: pass limit/offset params and add
+      // page navigation controls in the UI.
       const response = await fetch(`/api/bookings?${params.toString()}`);
       const result = await response.json();
       
