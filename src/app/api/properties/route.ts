@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
         throw new Error('DUPLICATE_SLUG');
       }
     
-      return tx.property.create({
+      const createdProperty = await tx.property.create({
       data: {
         tenantId,
         name,
@@ -254,6 +254,19 @@ export async function POST(request: NextRequest) {
         status,
       },
     });
+
+      // Auto-assign the creating user to the new property
+      await tx.userProperty.create({
+        data: {
+          userId: user.id,
+          tenantId: user.tenantId,
+          propertyId: createdProperty.id,
+          role: 'admin',
+          isDefault: false,
+        },
+      });
+
+      return createdProperty;
     }); // end transaction
 
     // Audit log for property creation

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useAuthStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -342,6 +343,10 @@ export default function PropertiesList() {
         setIsCreateOpen(false);
         resetForm();
         fetchProperties();
+        // Invalidate Zustand store so other pages (WiFi AAA, etc.) see the new property
+        const store = useAuthStore.getState();
+        store.setProperties([]);
+        store.setCurrentProperty(null);
       } else {
         toast({ title: 'Error', description: result.error?.message || 'Failed to create property', variant: 'destructive' });
       }
@@ -403,6 +408,10 @@ export default function PropertiesList() {
         setIsDeleteOpen(false);
         setSelectedProperty(null);
         fetchProperties();
+        // Invalidate Zustand store so other pages see the updated property list
+        const store = useAuthStore.getState();
+        store.setProperties([]);
+        store.setCurrentProperty(null);
       } else {
         toast({ title: 'Error', description: result.error?.message || 'Failed to delete property', variant: 'destructive' });
       }
