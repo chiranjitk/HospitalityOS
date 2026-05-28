@@ -13,6 +13,7 @@
     "db:migrate": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) prisma migrate dev",
     "db:reset": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) prisma migrate reset",
     "db:seed": "bun prisma/seed.ts",
+    "db:seed:pricing-rules": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) npx tsx prisma/seed-pricing-rules.ts",
     "services:install": "cd mini-services/freeradius-service && bun install && cd ../realtime-service && bun install && cd ../availability-service && bun install && cd ../dhcp-service && bun install && cd ../..",
     "services:setup": "bun install && bun run db:generate && bun run db:push && bun run services:install",
     "test": "DATABASE_URL=$(grep '^DATABASE_URL=' .env | cut -d= -f2-) vitest run",
