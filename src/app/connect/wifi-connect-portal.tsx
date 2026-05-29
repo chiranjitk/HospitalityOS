@@ -1612,6 +1612,8 @@ function UnifiedDesignerForm({
   const enabledFields = UNIFIED_FIELD_DEFS.filter((f) => isFieldEnabled(f.key));
   const hasInputFields = enabledFields.length > 0;
   const isSmsOtp = authMethod === 'sms_otp';
+  const isEmailOtp = authMethod === 'email_otp';
+  const isOtpMethod = isSmsOtp || isEmailOtp;
   const isOpenAccess = authMethod === 'open_access';
 
   // QR prefill notice for voucher
@@ -1683,6 +1685,31 @@ function UnifiedDesignerForm({
         payload.username = formData.username?.trim() || '';
         payload.password = formData.password?.trim() || '';
         break;
+      case 'password':
+        payload.username = formData.username?.trim() || '';
+        payload.password = formData.password?.trim() || '';
+        break;
+      case 'email_otp': {
+        if (!formData.email?.trim()) {
+          setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'emailAddress').toLowerCase());
+          return;
+        }
+        if (otpStep) {
+          if (!otpCode.trim()) {
+            setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'verificationCode').toLowerCase());
+            return;
+          }
+          payload.email = formData.email.trim();
+          payload.otpCode = otpCode.trim();
+          authenticate('email_otp', payload);
+          return;
+        }
+        payload.email = formData.email.trim();
+        authenticate('email_otp', payload);
+        setOtpStep(true);
+        setOtpCountdown(60);
+        return;
+      }
       case 'mac_auth': {
         // MAC auth requires no credentials — auto-detect
         break;
@@ -1773,13 +1800,15 @@ function UnifiedDesignerForm({
   const mutedColor = getMutedTextColor(design);
   const labelColor = getCardTextColor(design);
 
-  // SMS OTP step 2: show OTP input
-  if (isSmsOtp && otpStep) {
+  // OTP step 2: show OTP input (for both SMS and Email OTP)
+  if (isOtpMethod && otpStep) {
+    const contactInfo = isSmsOtp ? formData.phone : formData.email;
+    const contactLabel = isSmsOtp ? getUIString(lang, 'phoneNumber').toLowerCase() : getUIString(lang, 'emailAddress').toLowerCase();
     return (
       <div className="space-y-4">
         <p className="text-sm text-center" style={{ color: mutedColor }}>
           {getUIString(lang, 'enterCodeSentTo')}{' '}
-          <span className="font-medium" style={{ color: labelColor }}>{formData.phone}</span>
+          <span className="font-medium" style={{ color: labelColor }}>{contactInfo}</span>
         </p>
         <DynamicInput
           design={design}
@@ -1844,6 +1873,8 @@ function UnifiedDesignerForm({
   const flowLabel = authMethod === 'room_number' ? getUIString(lang, 'enterRoom')
     : authMethod === 'voucher' ? getUIString(lang, 'enterVoucher')
     : authMethod === 'sms_otp' ? getUIString(lang, 'otpLogin')
+    : authMethod === 'email_otp' ? 'Email Verification'
+    : authMethod === 'password' ? getUIString(lang, 'signIn')
     : authMethod === 'open_access' ? getUIString(lang, 'freeAccess')
     : authMethod === 'mac_auth' ? 'MAC Auto-Login'
     : authMethod === 'social' ? 'Social Login'
@@ -1873,10 +1904,10 @@ function UnifiedDesignerForm({
         </div>
       )}
 
-      {/* SMS OTP hint */}
-      {isSmsOtp && (
+      {/* OTP hint */}
+      {isOtpMethod && (
         <p className="text-sm text-center" style={{ color: mutedColor }}>
-          {getUIString(lang, 'weWillSendCode')}
+          {isSmsOtp ? getUIString(lang, 'weWillSendCode') : 'We will send a verification code to your email'}
         </p>
       )}
 
@@ -1971,7 +2002,7 @@ function UnifiedDesignerForm({
       >
         <>
           <Wifi className="w-5 h-5" />
-          {isSmsOtp ? getUIString(lang, 'sendVerificationCode') : isOpenAccess ? getUIString(lang, 'connectNow') : getUIString(lang, 'connect')}
+          {isOtpMethod ? getUIString(lang, 'sendVerificationCode') : isOpenAccess ? getUIString(lang, 'connectNow') : getUIString(lang, 'connect')}
         </>
       </DynamicButton>
 
@@ -2558,8 +2589,8 @@ function PortalContent() {
         });
         const result = await res.json();
 
-        // SMS OTP first step: just sending phone, don't transition state
-        if (method === 'sms_otp' && !payload.otpCode && result.success) {
+        // OTP first step: just sending contact info, don't transition state
+        if ((method === 'sms_otp' || method === 'email_otp') && !payload.otpCode && result.success) {
           // Capture debug OTP for testing without SMS gateway
           if (result.data?._debugOtp) {
             setDebugOtp(result.data._debugOtp);
@@ -2911,6 +2942,27 @@ function PortalContent() {
             setTermsAccepted={setTermsAccepted}
           />
         );
+      case 'password':
+        return (
+          <PmsCredentialsForm
+            design={design}
+            onSubmit={(u, p) => authenticate('password', { username: u, password: p })}
+            loading={state === 'authenticating'}
+          />
+        );
+      case 'email_otp':
+        return (
+          <SmsOtpForm
+            design={design}
+            onAuthenticate={async (method, payload) => {
+              const gi = buildGuestInfoPayload();
+              return authenticate(method, gi ? { ...payload, guestInfo: gi } : payload);
+            }}
+            loading={state === 'authenticating'}
+            debugOtp={debugOtp}
+            onClearDebugOtp={() => setDebugOtp(null)}
+          />
+        );
       default:
         return (
           <VoucherForm
@@ -3016,6 +3068,8 @@ function PortalContent() {
     room_number: { lastName: true, roomNumber: true, terms: true },
     voucher: { voucherCode: true, terms: true },
     sms_otp: { phone: true, terms: true },
+    email_otp: { email: true, terms: true },
+    password: { username: true, password: true, terms: true },
     open_access: { terms: true },
     mac_auth: {},
     social: { terms: true },
@@ -3049,11 +3103,11 @@ function PortalContent() {
     const accent = design.accentColor;
 
     const formatMethodLabel = (method: string, fallbackLabel?: string): string => {
-      if (fallbackLabel) return fallbackLabel;
+      // Always use our nice readable label — never show raw method names like 'mac_auth'
       const m: Record<string, string> = {
         voucher: 'Voucher Code',
         room_number: 'Room Number',
-        pms_credentials: 'PMS Login',
+        pms_credentials: 'Room + Last Name',
         sms_otp: 'SMS OTP',
         email_otp: 'Email OTP',
         open_access: 'Open Access',
@@ -3062,7 +3116,7 @@ function PortalContent() {
         ldap: 'LDAP / RADIUS',
         password: 'Password',
       };
-      return m[method] || method.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      return m[method] || fallbackLabel || method.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     };
 
     const total = authMethods.length;
