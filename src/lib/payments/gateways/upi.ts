@@ -479,11 +479,11 @@ export function createUpGateway(config?: Partial<GatewayConfig>): UpGateway {
   const defaultConfig: GatewayConfig = {
     id: config?.id || 'upi-default',
     name: 'UPI',
-    type: 'upi',
-    priority: 1,
-    isActive: true,
-    isPrimary: false,
-    mode: 'live',
+    type: config?.type || 'upi',
+    priority: config?.priority ?? 1,
+    isActive: config?.isActive ?? true,
+    isPrimary: config?.isPrimary ?? false,
+    mode: config?.mode || 'live',
     apiKey: config?.apiKey || '', // Merchant VPA (e.g., merchant@upi)
     secretKey: config?.secretKey,
     merchantId: config?.merchantId || config?.apiKey, // Also merchant VPA

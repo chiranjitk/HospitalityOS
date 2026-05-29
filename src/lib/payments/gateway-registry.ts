@@ -123,6 +123,11 @@ export class GatewayRegistry {
       case 'upi':
         gateway = createUpGateway(config);
         break;
+      case 'phonepe': {
+        // PhonePe uses UPI under the hood — reuse the UPI gateway with PhonePe branding
+        gateway = createUpGateway({ ...config, name: config.name || 'PhonePe' });
+        break;
+      }
       case 'square': {
         // Square gateway stub — returns an unavailable gateway with a clear description
         // TODO: Implement full Square gateway with Square Connect API v2
@@ -139,7 +144,8 @@ export class GatewayRegistry {
         break;
       }
       default:
-        throw new Error(`Unknown gateway type: ${config.type}`);
+        console.warn(`[GatewayRegistry] Unknown gateway type: ${config.type} — skipping registration. Supported types: stripe, paypal, square, razorpay, upi, phonepe, manual`);
+        return;
     }
     
     // Validate configuration
