@@ -6,8 +6,9 @@ export default async function loadSection(section: string): Promise<{ default: R
       return import('@/components/parking/slots');
     case 'parking-tracking':
     case 'parking-mapping':
-    case 'parking-billing':
       return import('@/components/parking/vehicle-tracking');
+    case 'parking-billing':
+      return import('@/components/parking/billing');
     default:
       throw new Error(`Unknown parking section: ${section}`);
   }
