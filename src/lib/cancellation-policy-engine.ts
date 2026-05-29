@@ -21,6 +21,8 @@ export interface CancellationResult {
   hoursUntilCheckIn: number;
   isExempt: boolean;
   exemptReason?: string;
+  /** Currency of the penalty amount — matches the booking's original currency */
+  currency: string;
 }
 
 export interface ApplyPenaltyResult {
@@ -205,6 +207,7 @@ export async function evaluateCancellationPolicy(params: {
       penaltyType: 'none',
       hoursUntilCheckIn: Math.round(hoursUntilCheckIn * 100) / 100,
       isExempt: false,
+      currency: booking.currency || 'USD',
     };
   }
 
@@ -285,6 +288,7 @@ export async function evaluateCancellationPolicy(params: {
     hoursUntilCheckIn: Math.round(hoursUntilCheckIn * 100) / 100,
     isExempt,
     exemptReason: reason,
+    currency: booking.currency || 'USD',
   };
 }
 
@@ -327,6 +331,11 @@ export async function applyCancellationPenalty(params: {
         currency: booking.currency,
       },
     });
+  } else if (folio.currency && folio.currency !== evaluation.currency) {
+    // M-26: Multi-currency safety — warn if folio currency differs from booking
+    console.warn(
+      `[Cancellation] Currency mismatch: folio ${folio.id} uses ${folio.currency} but booking penalty is in ${evaluation.currency}. Penalty will be posted in folio's currency context.`
+    );
   }
 
   // Wrap penalty application, folio update, booking status update, and room release in a single transaction

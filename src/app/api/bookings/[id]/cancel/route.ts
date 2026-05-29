@@ -330,7 +330,7 @@ export async function POST(
         },
         penalty: {
           amount: penaltyAmount,
-          currency: booking.currency || 'USD',
+          currency: evaluation.currency,
           applied: penaltyResult.penaltyApplied,
           folioId: penaltyResult.folioId,
           lineItemId: penaltyResult.lineItemId,
@@ -440,7 +440,7 @@ export async function GET(
           totalPaid,
           penaltyAmount,
           refundAmount,
-          currency: booking.currency || 'USD',
+          currency: evaluation.currency,
         },
         checkIn: booking.checkIn.toISOString(),
         checkOut: booking.checkOut.toISOString(),

@@ -76,6 +76,9 @@ export async function POST(request: NextRequest) {
     }
 
     // INVARIANT CHECK: closingBalance must equal openingBalance + income - expense
+    // M-28 / CRITICAL-12: Individual cash book transactions are persisted to the DB
+    // via the Prisma nested `transactions: { create: [...] }` block below (lines 108–121).
+    // This was verified as already-fixed; the comment documents the invariant.
     const incomeAmount = Array.isArray(transactions)
       ? transactions
           .filter((t: Record<string, unknown>) => t.type === 'income' || t.type === 'credit')

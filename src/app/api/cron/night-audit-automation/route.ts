@@ -187,6 +187,7 @@ export async function GET(request: NextRequest) {
             });
 
             // Step 3 — Process no-shows (bookings past check-out date still confirmed)
+            // M-27: Apply noShowPenaltyPercent from cancellation policy
             const today = new Date(); today.setHours(0, 0, 0, 0);
             const noShowBookings = await tx.booking.findMany({
               where: {
@@ -196,8 +197,22 @@ export async function GET(request: NextRequest) {
                 actualCheckIn: null,
                 checkIn: { lt: today },
               },
-              select: { id: true, confirmationCode: true, primaryGuestId: true, folios: { select: { id: true } } },
+              select: { id: true, confirmationCode: true, primaryGuestId: true, totalAmount: true, currency: true, folios: { select: { id: true } } },
             });
+
+            // Look up applicable cancellation policy for no-show penalty percent
+            const noShowPolicy = await db.cancellationPolicy.findFirst({
+              where: {
+                tenantId: property.tenantId,
+                isActive: true,
+                OR: [
+                  { propertyId: property.id },
+                  { propertyId: null },
+                ],
+              },
+            });
+            const noShowPenaltyPercent = noShowPolicy?.noShowPenaltyPercent ?? 100;
+
             for (const ns of noShowBookings) {
               // H-48: Send guest notification before marking no-show.
               // Log a notification record so the guest (or staff) can see the notification
@@ -219,6 +234,50 @@ export async function GET(request: NextRequest) {
                 // Notification creation is best-effort; don't block no-show processing
                 console.error(`[NightAudit] Failed to create no-show notification for booking ${ns.id}:`, notifError);
               }
+
+              // M-27: Apply no-show penalty to folio
+              const penaltyAmount = ns.totalAmount * (noShowPenaltyPercent / 100);
+              if (penaltyAmount > 0 && ns.folios[0]) {
+                await tx.folioLineItem.create({
+                  data: {
+                    folioId: ns.folios[0].id,
+                    description: `No-show penalty (${noShowPenaltyPercent}%)`,
+                    category: 'adjustment',
+                    quantity: 1,
+                    unitPrice: penaltyAmount,
+                    totalAmount: penaltyAmount,
+                    serviceDate: businessDayDate,
+                    referenceType: 'NightAudit',
+                    referenceId: audit.id,
+                    postedBy: 'system',
+                  },
+                });
+                await tx.folio.update({
+                  where: { id: ns.folios[0].id },
+                  data: {
+                    subtotal: { increment: penaltyAmount },
+                    totalAmount: { increment: penaltyAmount },
+                    balance: { increment: penaltyAmount },
+                  },
+                });
+              }
+
+              // Create cancellation penalty record for audit trail
+              await tx.cancellationPenalty.create({
+                data: {
+                  tenantId: property.tenantId,
+                  bookingId: ns.id,
+                  folioId: ns.folios[0]?.id,
+                  policyId: noShowPolicy?.id || null,
+                  policyName: noShowPolicy?.name || 'Default no-show policy',
+                  penaltyType: 'percentage',
+                  penaltyAmount,
+                  originalAmount: ns.totalAmount,
+                  penaltyPercent: noShowPenaltyPercent,
+                  status: 'applied',
+                  reason: 'No-show - auto-processed during night audit',
+                },
+              });
 
               await tx.booking.update({
                 where: { id: ns.id },
