@@ -60,8 +60,6 @@ import {
   Trash2,
   Edit,
   Loader2,
-  Eye,
-  EyeOff,
   RefreshCw,
   UserCircle,
   Wifi,
@@ -278,7 +276,6 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
   // Reset quota & reactivate dialog state
   const [resetQuotaUser, setResetQuotaUser] = useState<RadiusUser | null>(null);
   const [resetQuotaChanging, setResetQuotaChanging] = useState(false);
-  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const originalSessionTimeout = useRef<number | undefined>(undefined);
   const [guestInfoOpen, setGuestInfoOpen] = useState(false);
   const [form, setForm] = useState({
@@ -820,17 +817,6 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
     setSingleDeleteMfaError('');
   };
 
-  const togglePasswordVisibility = (id: string) => {
-    setVisiblePasswords(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  // ─── Helpers ──────────────────────────────────────────────────────────────
-
   /** Strip the 'plan_' prefix that the backend prepends to RADIUS group names */
   const stripPlanPrefix = (group: string) => group.replace(/^plan_/, '');
 
@@ -1278,9 +1264,9 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                       />
                     </TableHead>
                     <TableHead>User</TableHead>
+                    <TableHead>Guest Name</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Plan</TableHead>
-                    <TableHead>Password</TableHead>
                     <TableHead>Bandwidth</TableHead>
                     <TableHead>Session</TableHead>
                     <TableHead>Data Cap</TableHead>
@@ -1313,24 +1299,18 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                           </div>
                         </TableCell>
                         <TableCell>
+                          {(user.guest_first_name || user.guest_last_name) ? (
+                            <span className="text-xs text-muted-foreground">
+                              {[user.guest_first_name, user.guest_last_name].filter(Boolean).join(' ')}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/40">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
                           {getUserStatusBadge(user) || <span className="text-xs text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell>{getGroupBadge(user.group || 'none', user.plan_name)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <span className="font-mono text-xs">
-                              {visiblePasswords.has(user.id) ? user.password : '••••••••'}
-                            </span>
-                            <button
-                              onClick={() => togglePasswordVisibility(user.id)}
-                              className="text-muted-foreground hover:text-foreground p-0.5"
-                            >
-                              {visiblePasswords.has(user.id)
-                                ? <EyeOff className="h-3 w-3" />
-                                : <Eye className="h-3 w-3" />}
-                            </button>
-                          </div>
-                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 text-xs font-mono">
                             <ArrowDownToLine className="h-3 w-3 text-primary" />
