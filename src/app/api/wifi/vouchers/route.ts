@@ -729,7 +729,7 @@ export async function PUT(request: NextRequest) {    const user = await requireP
           downloadSpeed: plan.downloadSpeed ? plan.downloadSpeed * 1000000 : undefined, // Convert Mbps to bps
           uploadSpeed: plan.uploadSpeed ? plan.uploadSpeed * 1000000 : undefined,
           dataLimit: plan.dataLimit || undefined,
-          sessionLimit: plan.sessionLimit || undefined,
+          sessionLimit: (plan as any).maxDevices || plan.sessionLimit || undefined,
         });
 
         wifiCredentials = provisionResult.credentials;

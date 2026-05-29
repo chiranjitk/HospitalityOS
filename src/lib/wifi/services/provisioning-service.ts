@@ -348,7 +348,7 @@ class WiFiProvisioningService {
             where: { id: roomType.wifiPlanId, status: 'active' },
             select: {
               id: true, downloadSpeed: true, uploadSpeed: true,
-              validityDays: true, validityMinutes: true, dataLimit: true, sessionLimit: true, name: true,
+              validityDays: true, validityMinutes: true, dataLimit: true, maxDevices: true, sessionLimit: true, name: true,
               idleTimeoutSec: true,
             },
           });
@@ -357,7 +357,7 @@ class WiFiProvisioningService {
             planValidityDays = roomTypePlan.validityDays || 1;
             planValidityMinutes = roomTypePlan.validityMinutes || roomTypePlan.validityDays * 1440;
             planDataLimit = roomTypePlan.dataLimit;
-            planSessionLimit = roomTypePlan.sessionLimit;
+            planSessionLimit = roomTypePlan.maxDevices || roomTypePlan.sessionLimit;
             planIdleTimeoutSec = roomTypePlan.idleTimeoutSec ?? undefined;
             bandwidth = {
               download: roomTypePlan.downloadSpeed * 1000000, // Mbps → bps
@@ -400,7 +400,7 @@ class WiFiProvisioningService {
             where: { id: effectivePlanId, status: 'active' },
             select: {
               id: true, downloadSpeed: true, uploadSpeed: true,
-              validityDays: true, validityMinutes: true, dataLimit: true, sessionLimit: true, name: true,
+              validityDays: true, validityMinutes: true, dataLimit: true, maxDevices: true, sessionLimit: true, name: true,
               idleTimeoutSec: true,
             },
           });
@@ -409,7 +409,7 @@ class WiFiProvisioningService {
             planValidityDays = defaultPlan.validityDays || 1;
             planValidityMinutes = defaultPlan.validityMinutes || defaultPlan.validityDays * 1440;
             planDataLimit = defaultPlan.dataLimit;
-            planSessionLimit = defaultPlan.sessionLimit;
+            planSessionLimit = defaultPlan.maxDevices || defaultPlan.sessionLimit;
             planIdleTimeoutSec = defaultPlan.idleTimeoutSec ?? undefined;
             bandwidth = {
               download: defaultPlan.downloadSpeed * 1000000,

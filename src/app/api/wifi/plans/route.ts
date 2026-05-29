@@ -9,18 +9,59 @@ import { RADCLIENT_BIN } from '@/lib/wifi/paths';
 import { z } from 'zod';
 
 // ──────────────────────────────────────────────
+// Proactive migration: fix legacy suffixed group names in radusergroup
+// e.g. "business_class_c7c7c7aa" → "business_class"
+// Runs once per process, then skips. This ensures users get correct group
+// attributes (bandwidth, Simultaneous-Use) from radgroupcheck/radgroupreply.
+// ──────────────────────────────────────────────
+let groupMigrationRan = false;
+
+async function migrateStaleGroupNames() {
+  if (groupMigrationRan) return;
+  groupMigrationRan = true;
+  try {
+    // Get all plan names and their correct group names
+    const plans = await db.wiFiPlan.findMany({ select: { name: true } });
+    for (const plan of plans) {
+      const correctName = planNameToGroupName(plan.name);
+      // Find radusergroup entries with stale suffixed group names
+      // e.g. "business_class_c7c7c7aa" should be "business_class"
+      // Use PostgreSQL regex (~) to avoid SQL LIKE underscore wildcard issues
+      const staleRows = await db.$queryRawUnsafe<{ groupname: string }[]>(
+        `SELECT DISTINCT groupname FROM radusergroup WHERE groupname ~ ($1 || '_') AND groupname != $2`,
+        correctName,
+        correctName
+      );
+      for (const stale of staleRows) {
+        const result = await db.radUserGroup.updateMany({
+          where: { groupname: stale.groupname },
+          data: { groupname: correctName },
+        });
+        if (result.count > 0) {
+          console.log(`[plans:migrate] Fixed ${result.count} users: "${stale.groupname}" → "${correctName}"`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[plans:migrate] Failed to migrate stale group names:', err);
+    // Reset flag so it retries on next request
+    groupMigrationRan = false;
+  }
+}
+
+// ──────────────────────────────────────────────
 // M-48: Zod validation schemas
 // ──────────────────────────────────────────────
 
 const createPlanSchema = z.object({
   name: z.string().min(1, 'Plan name is required').max(100),
-  description: z.string().max(500).optional(),
+  description: z.string().max(500).nullable().optional(),
   downloadSpeed: z.number().positive('Download speed must be positive'),
   uploadSpeed: z.number().positive('Upload speed must be positive'),
   burstDownloadSpeed: z.number().positive().optional(),
   burstUploadSpeed: z.number().positive().optional(),
-  dataLimit: z.number().int().min(0).optional(),
-  sessionLimit: z.number().int().min(0).optional(),
+  dataLimit: z.number().int().min(0).nullable().optional(),
+  sessionLimit: z.number().int().min(0).nullable().optional(),
   maxDevices: z.number().int().min(1).max(100).optional().default(1),
   fupPolicyId: z.string().optional(),
   ipPoolId: z.string().optional(),
@@ -41,7 +82,7 @@ const createPlanSchema = z.object({
 const updatePlanSchema = z.object({
   id: z.string().min(1, 'Plan id is required'),
   name: z.string().min(1).max(100).optional(),
-  description: z.string().max(500).optional(),
+  description: z.string().max(500).nullable().optional(),
   downloadSpeed: z.number().positive().optional(),
   uploadSpeed: z.number().positive().optional(),
   burstDownloadSpeed: z.number().positive().nullable().optional(),
@@ -68,6 +109,9 @@ const updatePlanSchema = z.object({
 export async function GET(request: NextRequest) {
   const user = await requirePermission(request, 'wifi.manage');
   if (user instanceof NextResponse) return user;
+
+  // Run proactive migration in background (fire-and-forget)
+  migrateStaleGroupNames().catch(() => {});
 
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -304,6 +348,8 @@ export async function PUT(request: NextRequest) {
     // M-48: Zod validation
     const parsed = updatePlanSchema.safeParse(body);
     if (!parsed.success) {
+      console.error('[plans] PUT validation error:', JSON.stringify(parsed.error.issues));
+      console.error('[plans] PUT body was:', JSON.stringify(body).substring(0, 500));
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map(i => i.message).join(', ') } },
         { status: 400 }
@@ -440,6 +486,48 @@ export async function PUT(request: NextRequest) {
         }
       } catch (migrateErr) {
         console.error('[plans] Failed to migrate stale group names:', migrateErr);
+      }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // Propagate maxDevices change to all existing users on this plan
+    // When a plan's maxDevices is updated, existing users must get their
+    // maxSessions (app-level) and radcheck Simultaneous-Use (RADIUS-level)
+    // updated too — otherwise the old per-user values override the group.
+    // ──────────────────────────────────────────────────────────────────
+    if (updateData.maxDevices !== undefined) {
+      const newMaxDevices = plan.maxDevices;
+      try {
+        // 1. Update WiFiUser.maxSessions for all active users on this plan
+        const userUpdateResult = await db.wiFiUser.updateMany({
+          where: {
+            planId: id,
+            status: 'active',
+            maxSessions: { not: newMaxDevices }, // only update if different
+          },
+          data: { maxSessions: newMaxDevices },
+        });
+
+        // 2. Update per-user Simultaneous-Use in radcheck for all users on this plan
+        //    This is critical because user-level radcheck takes precedence over
+        //    group-level radgroupcheck in FreeRADIUS. Without this, users keep
+        //    their old (smaller) limit even after the plan is updated.
+        const radcheckResult = await db.$executeRawUnsafe(`
+          UPDATE radcheck
+          SET value = $1::text
+          WHERE attribute = 'Simultaneous-Use'
+            AND username IN (
+              SELECT username FROM "WiFiUser" WHERE "planId" = $2::uuid AND status = 'active'
+            )
+            AND value != $1::text
+        `, String(newMaxDevices), id);
+
+        if (userUpdateResult.count > 0 || Number(radcheckResult) > 0) {
+          console.log(`[plans:maxDevices] Plan "${plan.name}" maxDevices updated to ${newMaxDevices}: ` +
+            `updated ${userUpdateResult.count} users' maxSessions, ${radcheckResult} radcheck entries`);
+        }
+      } catch (propagateErr) {
+        console.error('[plans:maxDevices] Failed to propagate maxDevices to existing users:', propagateErr);
       }
     }
 
