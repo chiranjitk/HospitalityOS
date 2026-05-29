@@ -196,7 +196,7 @@ export function RatePlansManager() {
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch room types
@@ -225,7 +225,7 @@ export function RatePlansManager() {
       }
     };
     fetchRoomTypes();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [propertyFilter]);
 
   // Fetch rate plans
@@ -265,7 +265,7 @@ export function RatePlansManager() {
   useEffect(() => {
     const controller = new AbortController();
     fetchRatePlans();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [propertyFilter, statusFilter]);
 
   // Generate code from name

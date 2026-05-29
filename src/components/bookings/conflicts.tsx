@@ -163,11 +163,12 @@ export default function Conflicts() {
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Error fetching properties:', err);
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch conflicts
@@ -214,7 +215,7 @@ export default function Conflicts() {
   useEffect(() => {
     const controller = new AbortController();
     fetchConflicts();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [propertyFilter]);
 
   // Fetch available rooms when resolving
@@ -234,12 +235,13 @@ export default function Conflicts() {
           }
         } catch (err: any) {
           if (err?.name === 'AbortError') return;
+          if (err instanceof Error && err.name === 'AbortError') return;
           console.error('Error fetching rooms:', err);
         }
       };
       fetchRooms();
     }
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [isResolveOpen, propertyFilter]);
 
   // Validate resolution-specific inputs

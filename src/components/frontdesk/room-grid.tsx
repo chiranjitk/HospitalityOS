@@ -221,11 +221,12 @@ export default function RoomGrid() {
         }
       } catch (error) {
         if (error?.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         toast({ title: 'Error', description: 'Failed to fetch properties', variant: 'destructive' });
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch rooms
@@ -245,6 +246,7 @@ export default function RoomGrid() {
       }
     } catch (error) {
       if (error?.name === 'AbortError') return;
+      if (error instanceof Error && error.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch rooms',
@@ -281,6 +283,7 @@ export default function RoomGrid() {
       }
     } catch (error) {
       if (error?.name === 'AbortError') return;
+      if (error instanceof Error && error.name === 'AbortError') return;
       toast({ title: 'Error', description: 'Failed to fetch room booking', variant: 'destructive' });
       setRoomBooking(null);
     } finally {
@@ -292,7 +295,7 @@ export default function RoomGrid() {
   const handleRoomClick = (room: Room) => {
     setSelectedRoom(room);
     setIsDetailOpen(true);
-    if (room.status === 'occupied' || room.status === 'dirty') {
+    if (room.status === 'occupied' || room.status === 'cleaning') {
       fetchRoomBooking(room.id);
     } else {
       setRoomBooking(null);
@@ -339,6 +342,7 @@ export default function RoomGrid() {
       }
     } catch (error) {
       if (error?.name === 'AbortError') return;
+      if (error instanceof Error && error.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to update room status',
@@ -364,7 +368,7 @@ export default function RoomGrid() {
     total: rooms.length,
     available: rooms.filter(r => r.status === 'available').length,
     occupied: rooms.filter(r => r.status === 'occupied').length,
-    dirty: rooms.filter(r => r.status === 'dirty').length,
+    dirty: rooms.filter(r => r.status === 'cleaning').length,
     maintenance: rooms.filter(r => r.status === 'maintenance').length,
   };
 
@@ -670,7 +674,7 @@ export default function RoomGrid() {
               <div className="space-y-2">
                 <div className="text-sm font-medium">Quick Actions</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {selectedRoom.status === 'dirty' && (
+                  {selectedRoom.status === 'cleaning' && (
                     <Button 
                       size="sm" 
                       onClick={() => updateRoomStatus(selectedRoom.id, 'available')}

@@ -107,7 +107,7 @@ export function useAppTranslations() {
       occupied: status('occupied'),
       maintenance: status('maintenance'),
       clean: status('clean'),
-      dirty: status('dirty'),
+      dirty: status('cleaning'),
     },
     dashboard: {
       title: dashboard('title'),

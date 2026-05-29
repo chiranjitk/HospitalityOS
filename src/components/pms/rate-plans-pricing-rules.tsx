@@ -384,7 +384,7 @@ export default function RatePlansPricingRules() {
   useEffect(() => {
     const controller = new AbortController();
     fetchData();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [fetchData]);
 
   // Dynamic deviation color calculator

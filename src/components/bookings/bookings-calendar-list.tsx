@@ -257,11 +257,12 @@ function CalendarViewTab() {
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Error fetching properties:', err);
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Sync propertyId with propertyFilter and fetch room types
@@ -291,11 +292,12 @@ function CalendarViewTab() {
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Error fetching room types:', err);
       }
     };
     fetchRoomTypes();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [propertyFilter]);
 
   // Fetch guests
@@ -317,11 +319,12 @@ function CalendarViewTab() {
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Error fetching guests:', err);
       }
     };
     fetchGuests();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch bookings and availability
@@ -416,7 +419,7 @@ function CalendarViewTab() {
   useEffect(() => {
     const controller = new AbortController();
     fetchData();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [fetchData]);
 
   // Generate calendar days
@@ -1189,11 +1192,12 @@ function BookingsListTab() {
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Error fetching properties:', err);
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch room types when property changes
@@ -1220,11 +1224,12 @@ function BookingsListTab() {
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Error fetching room types:', err);
       }
     };
     fetchRoomTypes();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [formData.propertyId]);
 
   // Fetch guests
@@ -1246,11 +1251,12 @@ function BookingsListTab() {
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Error fetching guests:', err);
       }
     };
     fetchGuests();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch bookings
@@ -1287,7 +1293,7 @@ function BookingsListTab() {
   useEffect(() => {
     const controller = new AbortController();
     fetchBookings();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [statusFilter, propertyFilter]);
 
   useEffect(() => {
@@ -1297,7 +1303,7 @@ function BookingsListTab() {
         fetchBookings();
       }
     }, 300);
-    return () => { clearTimeout(timer); controller.abort(); };
+    return () => { clearTimeout(timer); controller.abort('Component cleanup'); };
   }, [searchQuery]);
 
   // Quick status update

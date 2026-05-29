@@ -239,7 +239,7 @@ export default function RateParityDashboard() {
     }
 
     fetchProperties();
-    return () => { cancelled = true; controller.abort(); };
+    return () => { cancelled = true; controller.abort('Component cleanup'); };
   }, []);
 
   // ============================================

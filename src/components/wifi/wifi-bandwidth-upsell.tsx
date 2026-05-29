@@ -233,11 +233,12 @@ export default function WiFiBandwidthUpsell() {
       } catch (error: unknown) {
         if (cancelled) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Failed to fetch bandwidth upsell settings:', error);
       }
     })();
 
-    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort('Component cleanup'); };
   }, []);
 
   // ─── Fetch Upgrades ────────────────────────────────────────────────────────
@@ -268,13 +269,14 @@ export default function WiFiBandwidthUpsell() {
       } catch (error: unknown) {
         if (cancelled) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Failed to fetch upgrades:', error);
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     })();
 
-    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort('Component cleanup'); };
   }, [statusFilter, dateRange, fetchKey]);
 
   // ─── Fetch Stats ────────────────────────────────────────────────────────────
@@ -298,13 +300,14 @@ export default function WiFiBandwidthUpsell() {
       } catch (error: unknown) {
         if (cancelled) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Failed to fetch upgrade stats:', error);
       } finally {
         if (!cancelled) setStatsLoading(false);
       }
     })();
 
-    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort('Component cleanup'); };
   }, [dateRange, fetchKey]);
 
   // ─── Refresh ────────────────────────────────────────────────────────────────

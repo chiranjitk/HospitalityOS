@@ -272,13 +272,14 @@ export default function WiFiConsentManagement() {
       } catch (error: unknown) {
         if (cancelled) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Failed to fetch consent logs:', error);
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     })();
 
-    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort('Component cleanup'); };
   }, [searchQuery, consentTypeFilter, optInFilter, propertyFilter, dateRange, fetchKey]);
 
   // ─── Fetch Stats ────────────────────────────────────────────────────────────
@@ -302,13 +303,14 @@ export default function WiFiConsentManagement() {
       } catch (error: unknown) {
         if (cancelled) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Failed to fetch consent stats:', error);
       } finally {
         if (!cancelled) setStatsLoading(false);
       }
     })();
 
-    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort('Component cleanup'); };
   }, [dateRange, fetchKey]);
 
   // ─── Refresh ────────────────────────────────────────────────────────────────

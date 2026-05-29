@@ -144,8 +144,8 @@ export class GatewayRegistry {
         break;
       }
       case 'phonepe': {
-        // PhonePe gateway stub — returns an unavailable gateway
-        // TODO: Implement full PhonePe gateway with PhonePe PG API
+        // PhonePe gateway stub — returns an unavailable gateway with a clear description
+        // TODO: Implement full PhonePe gateway with PhonePe PG API v2
         console.warn('[GatewayRegistry] PhonePe gateway is not yet fully implemented — returning stub');
         gateway = createManualGateway({
           ...config,
@@ -153,12 +153,15 @@ export class GatewayRegistry {
           isActive: false,
           healthStatus: 'unhealthy',
         });
+        // Mark as unavailable so routing skips it
         config.isActive = false;
         config.healthStatus = 'unhealthy';
         break;
       }
       default:
-        console.warn(`[GatewayRegistry] Unknown gateway type: ${config.type} — skipping registration. Supported types: stripe, paypal, square, razorpay, upi, phonepe, manual`);
+        console.warn(`[GatewayRegistry] Unknown gateway type: ${config.type} — skipping`);
+        config.isActive = false;
+        config.healthStatus = 'unhealthy';
         return;
     }
     

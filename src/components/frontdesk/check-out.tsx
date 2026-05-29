@@ -176,15 +176,15 @@ export default function CheckOut() {
   const [selectedDepositId, setSelectedDepositId] = useState<string | null>(null);
   const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false);
 
-  // Fetch today's departures
+  // Fetch today's departures — filter by checkOut date on the server
   const fetchDepartures = async (signal?: AbortSignal) => {
     setIsLoading(true);
     try {
       const today = new Date();
       const params = new URLSearchParams();
       params.append('status', 'checked_in');
-      params.append('checkInFrom', startOfDay(today).toISOString());
-      params.append('checkInTo', endOfDay(today).toISOString());
+      params.append('checkOutFrom', startOfDay(today).toISOString());
+      params.append('checkOutTo', endOfDay(today).toISOString());
       if (searchQuery) params.append('search', searchQuery);
 
       const response = await fetch(`/api/bookings?${params.toString()}`, { signal });
@@ -195,15 +195,11 @@ export default function CheckOut() {
       const result = await response.json();
 
       if (result.success) {
-        // Filter to only show check-outs for today
-        const todayDepartures = result.data.filter((b: Booking) => {
-          const checkOut = new Date(b.checkOut);
-          return checkOut.toDateString() === today.toDateString();
-        });
-        setBookings(todayDepartures);
+        setBookings(result.data);
       }
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch departures',
@@ -217,7 +213,7 @@ export default function CheckOut() {
   useEffect(() => {
     const controller = new AbortController();
     fetchDepartures(controller.signal);
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [searchQuery]);
 
   // Fetch booking details with folio
@@ -241,6 +237,7 @@ export default function CheckOut() {
       }
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch booking details',
@@ -355,6 +352,7 @@ export default function CheckOut() {
       }
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to process payment',
@@ -424,6 +422,7 @@ export default function CheckOut() {
       }
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to process deposit refund',
@@ -519,6 +518,7 @@ export default function CheckOut() {
       }
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to process check-out',

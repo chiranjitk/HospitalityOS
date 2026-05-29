@@ -134,7 +134,7 @@ export default function BulkPriceUpdate() {
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch room types when property changes
@@ -160,7 +160,7 @@ export default function BulkPriceUpdate() {
       }
     };
     fetchRoomTypes();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [selectedProperty]);
 
   // Fetch rate plans when room type changes
@@ -186,7 +186,7 @@ export default function BulkPriceUpdate() {
       }
     };
     fetchRatePlans();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [selectedProperty, selectedRoomType]);
 
   // Generate preview

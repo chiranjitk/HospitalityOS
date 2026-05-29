@@ -284,7 +284,7 @@ export default function RoomTypesManager() {
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch amenities
@@ -307,7 +307,7 @@ export default function RoomTypesManager() {
   useEffect(() => {
     const controller = new AbortController();
     fetchAmenities();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch WiFi plans
@@ -329,7 +329,7 @@ export default function RoomTypesManager() {
       }
     };
     fetchWifiPlans();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch room types
@@ -364,7 +364,7 @@ export default function RoomTypesManager() {
   useEffect(() => {
     const controller = new AbortController();
     fetchRoomTypes();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [propertyFilter]);
 
   // Generate code from name

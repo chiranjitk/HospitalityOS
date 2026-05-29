@@ -184,7 +184,7 @@ export default function RoomsManager() {
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch room types when property changes
@@ -210,7 +210,7 @@ export default function RoomsManager() {
       }
     };
     fetchRoomTypes();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [formData.propertyId]);
 
   // Fetch rooms
@@ -247,7 +247,7 @@ export default function RoomsManager() {
   useEffect(() => {
     const controller = new AbortController();
     fetchRooms();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [propertyFilter, statusFilter]);
 
   // Create room
@@ -761,7 +761,7 @@ export default function RoomsManager() {
     total: rooms.length,
     available: rooms.filter(r => r.status === 'available').length,
     occupied: rooms.filter(r => r.status === 'occupied').length,
-    dirty: rooms.filter(r => r.status === 'dirty').length,
+    dirty: rooms.filter(r => r.status === 'cleaning').length,
     maintenance: rooms.filter(r => r.status === 'maintenance').length,
     outOfOrder: rooms.filter(r => r.status === 'out_of_order').length,
   };

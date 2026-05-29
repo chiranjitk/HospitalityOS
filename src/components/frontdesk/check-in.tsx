@@ -194,6 +194,7 @@ export default function CheckIn() {
       }
     } catch (err) {
       if (err?.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch arrivals',
@@ -207,7 +208,7 @@ export default function CheckIn() {
   useEffect(() => {
     const controller = new AbortController();
     fetchArrivals(controller.signal);
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [searchQuery]);
 
   // Fetch available rooms for room type
@@ -227,6 +228,7 @@ export default function CheckIn() {
       }
     } catch (err) {
       if (err?.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch available rooms',
@@ -502,6 +504,7 @@ export default function CheckIn() {
       }
     } catch (err) {
       if (err?.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to process check-in',

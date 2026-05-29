@@ -252,12 +252,13 @@ export default function RoomRateCalendar() {
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Error fetching properties:', error);
         toast({ title: 'Error', description: 'Failed to load properties', variant: 'destructive' });
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Properties fetch cleanup');
   }, []);
 
   // Fetch room types when property changes
@@ -279,11 +280,12 @@ export default function RoomRateCalendar() {
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Error fetching room types:', error);
       }
     };
     fetchRoomTypes();
-    return () => controller.abort();
+    return () => controller.abort('Room types fetch cleanup');
   }, [selectedProperty]);
 
   // Fetch rate plans when room type changes
@@ -304,11 +306,12 @@ export default function RoomRateCalendar() {
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Error fetching rate plans:', error);
       }
     };
     fetchRatePlans();
-    return () => controller.abort();
+    return () => controller.abort('Rate plans fetch cleanup');
   }, [selectedProperty, selectedRoomType]);
 
   // Fetch rates for current month view
@@ -371,13 +374,14 @@ export default function RoomRateCalendar() {
         if (result.success && result.data) setRates(result.data.rates);
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Error fetching rates:', error);
       } finally {
         setIsLoading(false);
       }
     };
     fetchData();
-    return () => controller.abort();
+    return () => controller.abort('Rates fetch cleanup');
   }, [selectedRoomType, selectedRatePlan, currentDate]);
 
   // Navigation

@@ -259,13 +259,14 @@ export default function WifiPartners() {
       } catch (error: unknown) {
         if (cancelled) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Failed to fetch partners:', error);
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     })();
 
-    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort('Component cleanup'); };
   }, [statusFilter, typeFilter, searchQuery, fetchKey]);
 
   // ─── Fetch Stats ─────────────────────────────────────────────────────────
@@ -289,13 +290,14 @@ export default function WifiPartners() {
       } catch (error: unknown) {
         if (cancelled) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Failed to fetch partner stats:', error);
       } finally {
         if (!cancelled) setStatsLoading(false);
       }
     })();
 
-    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort('Component cleanup'); };
   }, [dateRange, fetchKey]);
 
   // ─── Fetch Auth Sessions ─────────────────────────────────────────────────
@@ -359,13 +361,14 @@ export default function WifiPartners() {
       } catch (error: unknown) {
         if (cancelled) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Failed to fetch auth sessions:', error);
       } finally {
         if (!cancelled) setAuthsLoading(false);
       }
     })();
 
-    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort('Component cleanup'); };
   }, [authPartnerFilter, dateRange, fetchKey]);
 
   // ─── Expand partner to show recent auths ─────────────────────────────────

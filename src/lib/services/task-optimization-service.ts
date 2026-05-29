@@ -319,7 +319,7 @@ export class TaskOptimizationService {
             where: { id: suggestion.taskId },
             data: {
               assignedTo: suggestion.suggestedUserId,
-              status: 'assigned',
+              status: 'in_progress',
             },
           }),
           // Mark suggestion as accepted
@@ -365,7 +365,7 @@ export class TaskOptimizationService {
           gte: startOfDay,
           lte: endOfDay,
         },
-        status: { in: ['pending', 'assigned', 'in_progress'] },
+        status: { in: ['pending', 'in_progress'] },
       },
       include: {
         room: {

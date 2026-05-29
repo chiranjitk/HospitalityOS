@@ -202,11 +202,12 @@ export default function Waitlist() {
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Error fetching properties:', err);
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch room types when property changes
@@ -229,11 +230,12 @@ export default function Waitlist() {
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Error fetching room types:', err);
       }
     };
     fetchRoomTypes();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [formData.propertyId]);
 
   // Fetch guests
@@ -255,11 +257,12 @@ export default function Waitlist() {
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Error fetching guests:', err);
       }
     };
     fetchGuests();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch waitlist entries
@@ -296,7 +299,7 @@ export default function Waitlist() {
   useEffect(() => {
     const controller = new AbortController();
     fetchEntries();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [statusFilter, propertyFilter]);
 
   // Create waitlist entry

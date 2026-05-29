@@ -22,7 +22,7 @@ import { motion } from 'framer-motion';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
-type RoomStatus = 'available' | 'occupied' | 'maintenance' | 'dirty' | 'reserved' | 'vip';
+type RoomStatus = 'available' | 'occupied' | 'maintenance' | 'cleaning' | 'reserved' | 'vip';
 
 interface RoomData {
   id: string;
@@ -98,8 +98,8 @@ const STATUS_CONFIG: Record<RoomStatus, {
     statText: 'text-red-700 dark:text-red-400',
     statBorder: 'border-red-200/60 dark:border-red-800/40',
   },
-  dirty: {
-    label: 'Dirty',
+  cleaning: {
+    label: 'Cleaning',
     icon: Sparkles,
     border: 'border-orange-300 dark:border-orange-700',
     bg: 'bg-orange-50',
@@ -149,8 +149,8 @@ function mapApiStatus(apiStatus: string): RoomStatus {
     case 'outOfOrder':
     case 'out_of_order':
       return 'maintenance';
-    case 'dirty':
-      return 'dirty';
+    case 'cleaning':
+      return 'cleaning';
     case 'reserved':
     case 'G25':
       return 'reserved';
@@ -184,7 +184,7 @@ function RoomCell({ room, index }: { room: RoomData; index: number }) {
         </>
       );
     }
-    if (room.status === 'dirty') {
+    if (room.status === 'cleaning') {
       return (
         <>
           <p className="font-medium">Room {room.number} &mdash; {room.type}</p>
@@ -402,7 +402,7 @@ export function RoomStatusOverview() {
       available: 0,
       occupied: 0,
       maintenance: 0,
-      dirty: 0,
+      cleaning: 0,
       reserved: 0,
       vip: 0,
     };
@@ -481,7 +481,7 @@ export function RoomStatusOverview() {
             <SummaryStat status="available" count={statusCounts.available} />
             <SummaryStat status="occupied" count={statusCounts.occupied} />
             <SummaryStat status="maintenance" count={statusCounts.maintenance} />
-            <SummaryStat status="dirty" count={statusCounts.dirty} />
+            <SummaryStat status="cleaning" count={statusCounts.cleaning} />
             <SummaryStat status="reserved" count={statusCounts.reserved} />
             <SummaryStat status="vip" count={statusCounts.vip} />
           </div>

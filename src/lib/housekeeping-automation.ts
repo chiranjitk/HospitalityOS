@@ -27,7 +27,7 @@ export async function markRoomDirtyAfterCheckout(roomId: string, tenantId: strin
           roomId,
           type: 'cleaning',
           category: 'checkout',
-          status: { in: ['pending', 'in_progress', 'assigned'] },
+          status: { in: ['pending', 'in_progress'] },
         },
       });
 
@@ -327,7 +327,7 @@ export async function generateRecurringTasks() {
             propertyId: task.propertyId,
             roomId: task.roomId,
             isRecurring: true,
-            status: { in: ['pending', 'assigned', 'in_progress'] },
+            status: { in: ['pending', 'in_progress'] },
             scheduledAt: { gte: today, lte: todayEnd },
           },
         });
@@ -395,7 +395,7 @@ export async function checkOverduePreventiveMaintenance() {
         where: {
           title: { contains: pm.title },
           type: 'maintenance',
-          status: { in: ['pending', 'in_progress', 'assigned'] },
+          status: { in: ['pending', 'in_progress'] },
           createdAt: { gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
         },
       });

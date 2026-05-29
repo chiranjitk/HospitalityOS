@@ -40,6 +40,8 @@ export async function GET(request: NextRequest) {
     const guestId = searchParams.get('guestId');
     const checkInFrom = searchParams.get('checkInFrom');
     const checkInTo = searchParams.get('checkInTo');
+    const checkOutFrom = searchParams.get('checkOutFrom');
+    const checkOutTo = searchParams.get('checkOutTo');
     const search = searchParams.get('search');
     const limit = searchParams.get('limit');
     const offset = searchParams.get('offset');
@@ -67,6 +69,12 @@ export async function GET(request: NextRequest) {
     if (checkInTo && isNaN(new Date(checkInTo).getTime())) {
       return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid checkInTo date' } }, { status: 400 });
     }
+    if (checkOutFrom && isNaN(new Date(checkOutFrom).getTime())) {
+      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid checkOutFrom date' } }, { status: 400 });
+    }
+    if (checkOutTo && isNaN(new Date(checkOutTo).getTime())) {
+      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid checkOutTo date' } }, { status: 400 });
+    }
 
     if (checkInFrom || checkInTo) {
       where.checkIn = {};
@@ -75,6 +83,16 @@ export async function GET(request: NextRequest) {
       }
       if (checkInTo) {
         (where.checkIn as Record<string, unknown>).lte = new Date(checkInTo);
+      }
+    }
+
+    if (checkOutFrom || checkOutTo) {
+      where.checkOut = {};
+      if (checkOutFrom) {
+        (where.checkOut as Record<string, unknown>).gte = new Date(checkOutFrom);
+      }
+      if (checkOutTo) {
+        (where.checkOut as Record<string, unknown>).lte = new Date(checkOutTo);
       }
     }
     

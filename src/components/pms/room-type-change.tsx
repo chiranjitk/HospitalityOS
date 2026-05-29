@@ -181,7 +181,7 @@ export default function RoomTypeChange() {
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   const fetchData = useCallback(async () => {

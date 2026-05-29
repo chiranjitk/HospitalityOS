@@ -153,29 +153,6 @@ export default function FloorPlans() {
   const t = useTranslations('pms');
   const { user } = useAuth();
 
-  // Real-time room status updates for floor plan
-  const handleRoomStatusChange = useCallback((event: RoomStatusEvent) => {
-    // Update the rooms state when a room status changes via WebSocket
-    setRooms(prev => prev.map(room =>
-      room.id === event.roomId
-        ? { ...room, status: event.status }
-        : room
-    ));
-  }, []);
-
-  const { connectionStatus, subscribeToProperty, unsubscribeFromProperty } = useRealtime({
-    showToasts: false, // Don't show toasts for every room status change on floor plan
-    onRoomStatusChange: handleRoomStatusChange,
-  });
-
-  // Subscribe to property when in editor/viewer mode
-  useEffect(() => {
-    if (selectedFloorPlan && (viewMode === 'editor' || viewMode === 'viewer' || viewMode === 'advanced-editor' || viewMode === 'floor-viewer')) {
-      subscribeToProperty(selectedFloorPlan.propertyId);
-      return () => unsubscribeFromProperty(selectedFloorPlan.propertyId);
-    }
-  }, [selectedFloorPlan, viewMode, subscribeToProperty, unsubscribeFromProperty]);
-
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -229,6 +206,28 @@ export default function FloorPlans() {
   const editorRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const exportCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Real-time room status updates for floor plan
+  const handleRoomStatusChange = useCallback((event: RoomStatusEvent) => {
+    setRooms(prev => prev.map(room =>
+      room.id === event.roomId
+        ? { ...room, status: event.status }
+        : room
+    ));
+  }, []);
+
+  const { connectionStatus, subscribeToProperty, unsubscribeFromProperty } = useRealtime({
+    showToasts: false, // Don't show toasts for every room status change on floor plan
+    onRoomStatusChange: handleRoomStatusChange,
+  });
+
+  // Subscribe to property when in editor/viewer mode
+  useEffect(() => {
+    if (selectedFloorPlan && (viewMode === 'editor' || viewMode === 'viewer' || viewMode === 'advanced-editor' || viewMode === 'floor-viewer')) {
+      subscribeToProperty(selectedFloorPlan.propertyId);
+      return () => unsubscribeFromProperty(selectedFloorPlan.propertyId);
+    }
+  }, [selectedFloorPlan, viewMode, subscribeToProperty, unsubscribeFromProperty]);
 
   // History management
   const pushToHistory = useCallback((positions: RoomPosition[]) => {
@@ -349,7 +348,7 @@ export default function FloorPlans() {
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch floor plans
@@ -371,6 +370,7 @@ export default function FloorPlans() {
       }
     } catch (error: any) {
       if (error?.name === 'AbortError') return;
+      if (error instanceof Error && error.name === 'AbortError') return;
       console.error('Error fetching floor plans:', error);
       toast({
         title: 'Error',
@@ -385,7 +385,7 @@ export default function FloorPlans() {
   useEffect(() => {
     const controller = new AbortController();
     fetchFloorPlans(controller.signal);
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [propertyFilter]);
 
   // Fetch rooms when property changes in editor
