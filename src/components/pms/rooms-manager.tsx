@@ -1126,7 +1126,11 @@ export default function RoomsManager() {
                   {room.hasSeaView && <Badge variant="secondary" className="text-xs"><Waves className="h-3 w-3 mr-1" />Sea</Badge>}
                   {room.hasMountainView && <Badge variant="secondary" className="text-xs"><Mountain className="h-3 w-3 mr-1" />Mtn</Badge>}
                   {room.hasBalcony && <Badge variant="secondary" className="text-xs">Balcony</Badge>}
-                  {room.isAccessible && <Badge variant="secondary" className="text-xs"><Accessibility className="h-3 w-3 mr-1" />A11y</Badge>}
+                  {room.isAccessible && (
+                    <Badge variant="secondary" className="bg-purple-100 text-purple-800 text-xs">
+                      ♿ Accessible
+                    </Badge>
+                  )}
                   {room.isSmoking && <Badge variant="secondary" className="text-xs"><Cigarette className="h-3 w-3 mr-1" />Smoking</Badge>}
                 </div>
                 <div className="flex items-center justify-between pt-1">
@@ -1248,8 +1252,8 @@ export default function RoomsManager() {
                             <Badge variant="secondary" className="text-xs">Balcony</Badge>
                           )}
                           {room.isAccessible && (
-                            <Badge variant="secondary" className="text-xs">
-                              <Accessibility className="h-3 w-3 mr-1" /> Accessible
+                            <Badge variant="secondary" className="bg-purple-100 text-purple-800 text-xs">
+                              ♿ Accessible
                             </Badge>
                           )}
                           {room.isSmoking && (

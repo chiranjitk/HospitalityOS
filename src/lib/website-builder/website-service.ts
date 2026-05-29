@@ -3,6 +3,8 @@
  * One-click website creation and management for hotels
  */
 
+import { parseJsonSafe } from '@/lib/utils/parse-json-safe';
+
 import { db } from '@/lib/db';
 import { renderFullPage, type WebsiteTheme, type WebsitePage, type PropertyData, type RoomTypeData, type ReviewData, type TemplateType } from '@/lib/website-builder/renderer';
 
@@ -215,7 +217,7 @@ export async function createWebsite(
   const roomImages: Array<{ url: string; alt: string }> = [];
   for (const rt of roomTypes) {
     try {
-      const images: string[] = JSON.parse(rt.images || '[]');
+      const images: string[] = parseJsonSafe<string[]>(rt.images, []);
       for (const imgUrl of images.slice(0, 2)) {
         roomImages.push({ url: imgUrl, alt: rt.name });
       }

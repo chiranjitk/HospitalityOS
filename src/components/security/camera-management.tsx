@@ -91,6 +91,7 @@ interface Camera {
   posY?: number;
   propertyId: string;
   propertyName?: string;
+  lastPingAt?: string; // L-23: ISO timestamp of last heartbeat
 }
 
 interface CameraGroup {
@@ -310,6 +311,7 @@ export default function CameraManagement() {
   const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
+      setNow(Date.now()); // L-23: update time reference on fetch
       const [camRes, grpRes] = await Promise.all([
         fetch('/api/security/cameras'),
         fetch('/api/security/camera-groups'),
@@ -338,9 +340,17 @@ export default function CameraManagement() {
     }
   }, []);
 
+  // L-23: Heartbeat state for camera last-seen monitoring
+  const [now, setNow] = useState(Date.now());
+
   useEffect(() => {
     fetchData();
-     
+    // L-23: Refresh camera data every 60 seconds for heartbeat monitoring
+    const interval = setInterval(() => {
+      fetchData();
+      setNow(Date.now());
+    }, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   // ============================================================
@@ -559,6 +569,28 @@ export default function CameraManagement() {
   };
 
   // ============================================================
+  // L-23: Camera heartbeat helper — "Last seen: Xm ago"
+  // ============================================================
+
+  const HEARTBEAT_OFFLINE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+
+  function getLastSeenLabel(camera: Camera): string | null {
+    if (!camera.lastPingAt) return null;
+    const diff = now - new Date(camera.lastPingAt).getTime();
+    if (diff < 0) return null;
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ${minutes % 60}m ago`;
+  }
+
+  function isHeartbeatStale(camera: Camera): boolean {
+    if (!camera.lastPingAt) return true;
+    return (now - new Date(camera.lastPingAt).getTime()) > HEARTBEAT_OFFLINE_THRESHOLD;
+  }
+
+  // ============================================================
   // Status badge helpers
   // ============================================================
 
@@ -772,7 +804,19 @@ export default function CameraManagement() {
                           <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
                             {camera.location || '—'}
                           </TableCell>
-                          <TableCell>{statusBadge(camera.status)}</TableCell>
+                          <TableCell>{statusBadge(camera.status)}
+                            {/* L-23: Last-seen heartbeat indicator */}
+                            {(() => {
+                              const label = getLastSeenLabel(camera);
+                              if (!label) return null;
+                              const stale = isHeartbeatStale(camera);
+                              return (
+                                <span className={cn('ml-1.5 text-[10px] leading-none', stale ? 'text-red-500' : 'text-muted-foreground')}>
+                                  {label}
+                                </span>
+                              );
+                            })()}
+                          </TableCell>
                           <TableCell className="hidden sm:table-cell">{streamTypeBadge(camera.streamType)}</TableCell>
                           <TableCell className="hidden lg:table-cell">
                             {camera.groupName

@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { auditLogService } from '@/lib/services/audit-service';
 import { deductRecipeStockForOrder } from '@/lib/recipe-stock-deduction';
+import { generateFolioNumber } from '@/lib/billing/number-generation';
 import crypto from 'crypto';
 
 function generateOrderNumber(): string {
@@ -301,7 +302,7 @@ export async function PUT(request: NextRequest) {
                   propertyId: booking.propertyId || existing.propertyId,
                   bookingId,
                   guestId: booking.primaryGuestId,
-                  folioNumber: `FOL-RS-${Date.now().toString(36).toUpperCase()}`,
+                  folioNumber: generateFolioNumber('RS'),
                   status: 'open',
                   subtotal: 0,
                   taxes: 0,

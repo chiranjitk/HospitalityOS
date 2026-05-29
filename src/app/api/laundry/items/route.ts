@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest, hasAnyPermission } from '@/lib/auth';
+import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { Prisma } from '@prisma/client';
 import { transformRecords, transformRecord, statusToIsActive } from '@/lib/api-transform';
 

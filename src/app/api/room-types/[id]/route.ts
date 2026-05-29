@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { audit } from '@/lib/audit';
+import { parseJsonSafe } from '@/lib/utils/parse-json-safe';
 
 // GET /api/room-types/[id] - Get a single room type
 export async function GET(
@@ -72,8 +73,8 @@ export async function GET(
       data: {
         ...roomType,
         totalRooms: roomType._count.rooms,
-        amenities: JSON.parse(roomType.amenities),
-        images: JSON.parse(roomType.images),
+        amenities: parseJsonSafe(roomType.amenities, []),
+        images: parseJsonSafe(roomType.images, []),
       },
     });
   } catch (error) {
@@ -276,8 +277,8 @@ export async function PUT(
       success: true, 
       data: {
         ...roomType,
-        amenities: JSON.parse(roomType.amenities),
-        images: JSON.parse(roomType.images),
+        amenities: parseJsonSafe(roomType.amenities, []),
+        images: parseJsonSafe(roomType.images, []),
       }
     });
   } catch (error) {

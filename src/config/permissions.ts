@@ -1,8 +1,25 @@
 // =====================================================
 // PERMISSION CONFIGURATION
 // =====================================================
-// This file defines the permission requirements for each
-// menu item and feature in the application.
+// M-25 FIX: Permission naming standardization and deprecation plan
+//
+// STANDARD FORMAT: `module.action` (dot-separated)
+//   Examples: bookings.view, frontdesk.checkin, rooms.manage
+//
+// LEGACY FORMAT (DEPRECATED): `admin.*` namespace
+//   The `admin.*` wildcard is still used for backward compatibility
+//   in Platform Admin menu items (e.g., admin.tenants, admin.users).
+//   These should NOT be used for new permissions.
+//
+// MIGRATION PLAN:
+//   1. All new permissions must use the `module.action` format.
+//   2. Existing `admin.*` permissions should be migrated to their
+//      corresponding `module.action` equivalents (e.g., admin.users →
+//      users.manage, admin.roles → users.manage).
+//   3. The `admin.*` wildcard will continue to work as a catch-all
+//      for platform administrators during the transition period.
+//   4. Once all role definitions are migrated, remove admin.* entries
+//      from this file and update the permission checker to reject them.
 //
 // Permission Format: "module.action" or "module.submodule.action"
 // - Wildcard "*" means all permissions

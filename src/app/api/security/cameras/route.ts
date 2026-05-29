@@ -147,6 +147,7 @@ export async function GET(request: NextRequest) {
           posY: c.posY,
           propertyId: c.propertyId,
           propertyName: c.property?.name,
+          lastPingAt: c.updatedAt, // L-23: proxy for last heartbeat
         })),
         groups: groups.map(g => ({
           id: g.id,

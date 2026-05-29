@@ -189,8 +189,10 @@ export default function BookingsList() {
   const [dateRangeTo, setDateRangeTo] = useState<string>('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   
-  // Pagination
+  // Server-side pagination
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalBookings, setTotalBookings] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   
   // Expanded booking row for timeline
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
@@ -294,16 +296,18 @@ export default function BookingsList() {
       if (dateRangeTo) params.append('checkInTo', dateRangeTo);
       if (sourceFilter !== 'all') params.append('source', sourceFilter);
       
-      // TODO(M-07): This fetches ALL matching bookings without pagination (no limit/offset).
-      // For properties with many bookings, this will cause performance issues.
-      // Implement proper server-side pagination: pass limit/offset params and add
-      // page navigation controls in the UI.
+      // M-07 FIX: Server-side pagination with limit/offset.
+      // Only fetch one page of results at a time to avoid loading all bookings.
+      const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+      params.append('limit', String(ITEMS_PER_PAGE));
+      params.append('offset', String(offset));
       const response = await fetch(`/api/bookings?${params.toString()}`);
       const result = await response.json();
       
       if (result.success) {
         setBookings(result.data);
-        setCurrentPage(1); // Reset to first page on filter change
+        // Use server-provided total if available, otherwise fall back to data length
+        setTotalBookings(result.total ?? (Array.isArray(result.data) ? result.data.length : 0));
       }
     } catch (error) {
       console.error('Error fetching bookings:', error);
@@ -337,12 +341,10 @@ export default function BookingsList() {
     return bookings.filter(b => b.paymentStatus === paymentFilter);
   }, [bookings, paymentFilter]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredBookings.length / ITEMS_PER_PAGE);
-  const paginatedBookings = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredBookings.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredBookings, currentPage]);
+  // M-07 FIX: Server-side pagination - total pages computed from server-reported total.
+  const totalPages = Math.ceil(totalBookings / ITEMS_PER_PAGE);
+  const paginatedBookings = filteredBookings;
+  const hasMore = currentPage < totalPages;
 
   // BW-01 FIX: Handle cancel by showing preview dialog instead of immediately updating
   const handleStatusChange = async (bookingId: string, newStatus: string) => {
@@ -546,9 +548,9 @@ export default function BookingsList() {
     );
   };
 
-  // Stats
+  // Stats — use totalBookings for accurate total, page data for other stats
   const stats = {
-    total: bookings.length,
+    total: totalBookings || bookings.length,
     confirmed: bookings.filter(b => b.status === 'confirmed').length,
     checkedIn: bookings.filter(b => b.status === 'checked_in').length,
     checkingOut: bookings.filter(b => {
@@ -958,11 +960,11 @@ export default function BookingsList() {
               </div>
               </ScrollArea>
               
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/20">
+              {/* M-07 FIX: Server-side pagination with page controls and Load More */}
+              {totalBookings > 0 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t bg-muted/20 gap-2">
                   <div className="text-sm text-muted-foreground">
-                    Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredBookings.length)} of {filteredBookings.length} bookings
+                    Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, totalBookings)} of {totalBookings} bookings
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -1008,6 +1010,21 @@ export default function BookingsList() {
                       Next
                       <ChevronRight className="h-4 w-4" />
                     </Button>
+                    {hasMore && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={isLoadingMore}
+                        onClick={async () => {
+                          setIsLoadingMore(true);
+                          setCurrentPage(p => p + 1);
+                          setIsLoadingMore(false);
+                        }}
+                      >
+                        {isLoadingMore ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                        Load More
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}

@@ -682,7 +682,8 @@ export async function POST(request: NextRequest) {
           propertyId,
           bookingId: newBooking.id,
           guestId: primaryGuestId,
-          folioNumber: `FOL-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`,
+          // L-03 TODO: migrate to shared generateFolioNumber() from '@/lib/billing/number-generation'
+          folioNumber: `FOL-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()`},
           currency: finalCurrency || currency,
           status: 'open',
         },

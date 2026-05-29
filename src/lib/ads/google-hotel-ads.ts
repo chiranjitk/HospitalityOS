@@ -4,6 +4,8 @@
  * rate submissions, booking integration, and performance data retrieval.
  */
 
+import { parseJsonSafe } from '@/lib/utils/parse-json-safe';
+
 import { db } from '@/lib/db';
 
 // Types for Google Hotel Ads
@@ -160,7 +162,7 @@ export class GoogleHotelAdsService {
     <Description>${rt.description || ''}</Description>
     <Capacity>${rt.maxOccupancy}</Capacity>
     <PhotoURL>
-      <URL>${JSON.parse(rt.images || '[]')[0] || ''}</URL>
+      <URL>${parseJsonSafe<string[]>(rt.images, [])[0] || ''}</URL>
     </PhotoURL>`
       )
       .join('\n');

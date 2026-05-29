@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/db';
 import { OTAClientFactory } from '@/lib/ota';
+import { generateFolioNumber } from '@/lib/billing/number-generation';
 
 // ============================================
 // CHANNEL-SPECIFIC EVENT TYPE MAPPING
@@ -515,7 +516,7 @@ async function handleBookingCreated(channel: string, connection: { id: string; t
     });
 
     // GAP 1: Auto-create folio for the booking (same pattern as direct bookings)
-    const folioNumber = `FOL-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+    const folioNumber = generateFolioNumber();
     await tx.folio.create({
       data: {
         tenantId: connection.tenantId,

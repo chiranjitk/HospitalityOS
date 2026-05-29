@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import crypto from 'crypto';
+import { generateFolioNumber } from '@/lib/billing/number-generation';
 
 // OTA Webhook Handler - Handles inbound reservations from Booking.com, Airbnb, Expedia
 
@@ -566,7 +567,7 @@ export async function handleReservationCreated(
         propertyId: mapping.roomType.propertyId,
         bookingId: booking.id,
         guestId: guest.id,
-        folioNumber: `FOL-OTA-${confirmationCode}`,
+        folioNumber: generateFolioNumber('OTA'),
         currency: data.currency || 'USD',
         status: 'open',
       },

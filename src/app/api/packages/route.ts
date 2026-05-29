@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth';
+import { getUserFromRequest } from '@/lib/auth-helpers';
 import { Prisma } from '@prisma/client';
 import { audit } from '@/lib/audit';
 

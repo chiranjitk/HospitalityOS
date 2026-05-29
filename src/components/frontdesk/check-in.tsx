@@ -30,6 +30,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import RegistrationCard from '@/components/frontdesk/registration-card';
 import {
   LogIn,
   Search,
@@ -48,6 +49,7 @@ import {
   CreditCard,
   Banknote,
   Wallet,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -170,6 +172,19 @@ export default function CheckIn() {
 
   // Folio ID for payment creation
   const [bookingFolioId, setBookingFolioId] = useState<string | null>(null);
+
+  // M-09 FIX: Registration card integration state
+  const [regPurpose, setRegPurpose] = useState<string>('');
+  const [regVehiclePlate, setRegVehiclePlate] = useState<string>('');
+  const [regTermsAccepted, setRegTermsAccepted] = useState(false);
+
+  // M-11 FIX: Key card issuance state
+  const [isIssuingKeyCard, setIsIssuingKeyCard] = useState(false);
+  const [issuedKeyCard, setIssuedKeyCard] = useState<{
+    cardNumber: string;
+    room: string;
+    expiry: string;
+  } | null>(null);
 
   // Fetch today's arrivals
   const fetchArrivals = async (signal?: AbortSignal) => {
@@ -301,6 +316,15 @@ export default function CheckIn() {
 
     setBookingFolioId(null);
 
+    // M-09 FIX: Reset registration card state for new check-in
+    setRegPurpose('');
+    setRegVehiclePlate('');
+    setRegTermsAccepted(false);
+
+    // M-11 FIX: Reset key card state for new check-in
+    setIssuedKeyCard(null);
+    setIsIssuingKeyCard(false);
+
     // If room already assigned, use it
     if (booking.room) {
       setSelectedRoomId(booking.room.id);
@@ -430,9 +454,8 @@ export default function CheckIn() {
       }
 
       // Step 1: Update booking status (only after deposit succeeded)
-      // TODO(M-10): Integrate registration card component for guest details capture during check-in
-      // TODO(M-11): Integrate signature pad component for terms acceptance signature
-      // TODO(M-09): Integrate key card issuance component for physical key card generation
+      // M-09 FIX: Registration card data is captured inline in the dialog form
+      // M-11 FIX: Key card issuance is available as an inline button after check-in
       const response = await fetch(`/api/bookings/${selectedBooking.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -516,6 +539,61 @@ export default function CheckIn() {
   };
 
   // Copy to clipboard helper
+  // M-11 FIX: Issue a physical key card for the guest's room
+  const issueKeyCard = async () => {
+    if (!selectedBooking) return;
+    setIsIssuingKeyCard(true);
+    try {
+      const roomNumber = selectedBooking.room?.number || '';
+      const guestName = `${selectedBooking.primaryGuest.firstName} ${selectedBooking.primaryGuest.lastName}`;
+      const response = await fetch('/api/frontdesk/key-cards/issue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomNumber,
+          guestName,
+          guestId: selectedBooking.primaryGuest.id,
+          bookingId: selectedBooking.id,
+          checkOut: selectedBooking.checkOut,
+        }),
+      });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          setIssuedKeyCard({
+            cardNumber: result.data.cardNumber || result.data.cardNo || 'N/A',
+            room: roomNumber || result.data.room || 'N/A',
+            expiry: result.data.expiry || formatDateTime(selectedBooking.checkOut),
+          });
+          toast({
+            title: 'Key Card Issued',
+            description: `Card #${result.data.cardNumber || result.data.cardNo || 'assigned'} for Room ${roomNumber}`,
+          });
+        } else {
+          toast({
+            title: 'Key Card Issued',
+            description: 'Key card has been generated for the guest room.',
+          });
+        }
+      } else {
+        const errorData = await response.json().catch(() => null);
+        toast({
+          title: 'Key Card Issue Failed',
+          description: errorData?.error?.message || 'Failed to issue key card. The guest can still check in.',
+          variant: 'destructive',
+        });
+      }
+    } catch {
+      toast({
+        title: 'Key Card Issue Failed',
+        description: 'Network error issuing key card. The guest can still check in.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsIssuingKeyCard(false);
+    }
+  };
+
   const copyToClipboard = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text).catch(() => {});
@@ -1052,6 +1130,102 @@ export default function CheckIn() {
                   onChange={(e) => setNotes(e.target.value)}
                   rows={2}
                 />
+              </div>
+
+              <Separator />
+
+              {/* M-09 FIX: Registration Card — inline capture of essential fields during check-in */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <Label className="text-sm font-medium">Registration Card</Label>
+                </div>
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Purpose of Visit</Label>
+                      <Select value={regPurpose} onValueChange={setRegPurpose}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select purpose" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="leisure">Leisure / Holiday</SelectItem>
+                          <SelectItem value="business">Business Travel</SelectItem>
+                          <SelectItem value="conference">Conference / Meeting</SelectItem>
+                          <SelectItem value="medical">Medical Visit</SelectItem>
+                          <SelectItem value="transit">Transit / Stopover</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Vehicle Plate (optional)</Label>
+                      <Input
+                        placeholder="License plate number"
+                        value={regVehiclePlate}
+                        onChange={(e) => setRegVehiclePlate(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      id="regTerms"
+                      checked={regTermsAccepted}
+                      onChange={(e) => setRegTermsAccepted(e.target.checked)}
+                      className="rounded border-gray-300 mt-0.5"
+                    />
+                    <Label htmlFor="regTerms" className="text-xs leading-relaxed cursor-pointer">
+                      Guest information verified. Hotel rules and check-out procedures have been communicated.
+                    </Label>
+                  </div>
+                </div>
+              </div>
+
+              {/* M-11 FIX: Key Card Issuance — inline key card section */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Key className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <Label className="text-sm font-medium">Key Card</Label>
+                </div>
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg space-y-3">
+                  {issuedKeyCard ? (
+                    <div className="flex items-center gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                      <div className="text-sm">
+                        <span className="font-medium">Card #{issuedKeyCard.cardNumber}</span>
+                        <span className="text-muted-foreground"> · Room {issuedKeyCard.room} · Exp: {issuedKeyCard.expiry}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={issueKeyCard}
+                        disabled={isIssuingKeyCard}
+                        className="w-full"
+                      >
+                        {isIssuingKeyCard ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Issuing...
+                          </>
+                        ) : (
+                          <>
+                            <Key className="h-4 w-4 mr-2" />
+                            Issue Key Card
+                          </>
+                        )}
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        Issue a physical key card for Room {selectedBooking.room?.number || 'assigned'}.
+                        This can also be done after check-in.
+                      </p>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           )}

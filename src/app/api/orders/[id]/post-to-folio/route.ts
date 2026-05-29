@@ -132,6 +132,7 @@ export async function POST(
             propertyId: booking.propertyId,
             bookingId,
             guestId: booking.primaryGuestId,
+            // L-03 TODO: migrate to shared generateFolioNumber() from '@/lib/billing/number-generation'
             folioNumber: `FOL-${Date.now().toString(36).toUpperCase()}`,
             status: 'open',
             subtotal: 0,

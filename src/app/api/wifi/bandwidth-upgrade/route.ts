@@ -191,6 +191,7 @@ export async function POST(request: NextRequest) {
             });
             if (bookingForFolio) {
               const { randomBytes } = await import('crypto');
+              // L-03 TODO: migrate to shared generateFolioNumber() from '@/lib/billing/number-generation'
               const folioNumber = `FOL-${Date.now().toString(36).toUpperCase()}-${randomBytes(2).toString('hex').toUpperCase()}`;
               folio = await db.folio.create({
                 data: {

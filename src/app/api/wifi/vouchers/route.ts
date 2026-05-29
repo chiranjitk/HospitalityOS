@@ -768,6 +768,7 @@ export async function PUT(request: NextRequest) {    const user = await requireP
             });
 
             if (bookingForFolio) {
+              // L-03 TODO: migrate to shared generateFolioNumber() from '@/lib/billing/number-generation'
               const folioNumber = `FOL-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
               folio = await db.folio.create({
                 data: {

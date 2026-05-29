@@ -5,9 +5,15 @@ import { db } from '@/lib/db';
 import { emitBookingCheckedOut } from '@/lib/events/booking-events';
 import { markRoomDirtyAfterCheckout } from '@/lib/housekeeping-automation';
 import { requireAuth } from '@/lib/auth/tenant-context';
+import { checkRateLimit } from '@/lib/rate-limit-simple';
 
 // POST /api/frontdesk/kiosk-checkout - Process express check-out from kiosk
 export async function POST(request: NextRequest) {
+  // L-35: Rate limiting — 5 requests per minute per IP
+  const ip = request.headers.get('x-forwarded-for') || 'unknown';
+  if (!checkRateLimit(ip, 5, 60000)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
   try {
     // Authentication — kiosk should present a valid token
     const ctx = await requireAuth(request);
