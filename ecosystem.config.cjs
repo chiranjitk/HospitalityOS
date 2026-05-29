@@ -22,6 +22,10 @@ module.exports = {
       max_memory_restart: '2G',
       env: {
         PORT: 3000,
+        DATABASE_URL: 'postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30',
+        NEXTAUTH_SECRET: 'dev-secret-key-staysuite-2025-sandbox',
+        NEXTAUTH_URL: 'http://localhost:3000',
+        RADIUS_SECRET: 'Staysuite2025',
         NODE_OPTIONS: '--max-old-space-size=4096',
       },
     },
