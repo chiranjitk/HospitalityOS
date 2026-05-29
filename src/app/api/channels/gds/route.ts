@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
+import { createGDSClient, validateGDSConfig, getGDSConfig } from '@/lib/gds/client-factory';
 
 // GET /api/channels/gds — GDS Connectivity dashboard
 export async function GET(request: NextRequest) {
@@ -186,26 +187,161 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Connection not found' }, { status: 404 });
     }
 
-    // Handle test connection
+    // Handle test connection — delegate to real GDS protocol adapter
     if (action === 'test') {
-      return NextResponse.json({
-        success: true,
-        message: `GDS connection ${existing.provider} test initiated`,
-        data: { id, success: true, latency: 200, message: 'Test initiated', testedAt: new Date().toISOString() },
-      });
+      const config = getGDSConfig(existing);
+      const configErrors = validateGDSConfig(config);
+
+      if (configErrors.length > 0) {
+        return NextResponse.json({
+          success: false,
+          message: `Connection configuration incomplete: ${configErrors.join(', ')}`,
+          data: { id, connected: false, error: configErrors.join(', '), testedAt: new Date().toISOString() },
+        });
+      }
+
+      try {
+        const client = createGDSClient(existing);
+        const result = await client.testConnection();
+
+        // Update connection status based on real test
+        await db.gdsConnection.update({
+          where: { id },
+          data: {
+            status: result.connected ? 'active' : 'error',
+            lastError: result.error || null,
+            lastSyncAt: result.connected ? new Date() : undefined,
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: result.connected
+            ? `GDS connection ${existing.provider} test successful`
+            : `GDS connection ${existing.provider} test failed`,
+          data: {
+            id,
+            connected: result.connected,
+            latency: result.latency,
+            provider: result.provider,
+            pccVerified: result.pccVerified,
+            propertyCodeVerified: result.propertyCodeVerified,
+            endpointReachable: result.endpointReachable,
+            error: result.error || undefined,
+            testedAt: new Date().toISOString(),
+          },
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await db.gdsConnection.update({
+          where: { id },
+          data: { status: 'error', lastError: message },
+        });
+        return NextResponse.json({
+          success: false,
+          message: `GDS connection test failed: ${message}`,
+          data: { id, connected: false, error: message, testedAt: new Date().toISOString() },
+        });
+      }
     }
 
-    // Handle sync now
+    // Handle sync now — delegate to real GDS protocol adapter
     if (action === 'sync') {
+      const config = getGDSConfig(existing);
+      const configErrors = validateGDSConfig(config);
+
+      if (configErrors.length > 0) {
+        return NextResponse.json({
+          success: false,
+          message: `Cannot sync — configuration incomplete: ${configErrors.join(', ')}`,
+          data: { id, status: 'error', error: configErrors.join(', ') },
+        });
+      }
+
+      // Update status to syncing
       await db.gdsConnection.update({
         where: { id },
-        data: { status: 'syncing', lastSyncAt: new Date() },
+        data: { status: 'syncing' },
       });
-      return NextResponse.json({
-        success: true,
-        message: 'GDS sync initiated successfully',
-        data: { id, status: 'syncing', syncStartedAt: new Date().toISOString() },
-      });
+
+      try {
+        const client = createGDSClient(existing);
+        const syncAction = body.syncAction || 'booking_pull';
+
+        // Perform the requested sync operation
+        let recordsProcessed = 0;
+        let syncErrors: string[] = [];
+
+        if (syncAction === 'booking_pull' || syncAction === 'full_sync') {
+          const since = existing.lastSyncAt || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+          const bookings = await client.pullBookings(since);
+          recordsProcessed = bookings.length;
+
+          // Store new bookings
+          for (const booking of bookings) {
+            try {
+              const existingBooking = await db.gdsBooking.findFirst({
+                where: { connectionId: id, pnr: booking.pnr, tenantId: user.tenantId },
+              });
+              if (!existingBooking) {
+                await db.gdsBooking.create({
+                  data: {
+                    tenantId: user.tenantId,
+                    connectionId: id,
+                    gdsRef: `${booking.gdsSource.toUpperCase()}:${booking.pnr}`,
+                    pnr: booking.pnr,
+                    guestName: `${booking.firstName} ${booking.lastName}`.trim(),
+                    checkIn: booking.checkIn,
+                    checkOut: booking.checkOut,
+                    roomType: booking.roomType || null,
+                    rateCode: booking.rateCode || null,
+                    adults: booking.guestCount || 1,
+                    status: booking.status.toLowerCase() === 'cancelled' ? 'cancelled' : booking.status.toLowerCase() === 'confirmed' ? 'confirmed' : 'new',
+                    syncStatus: 'synced',
+                  },
+                });
+              }
+            } catch (dbErr) {
+              syncErrors.push(`Store booking ${booking.pnr}: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`);
+            }
+          }
+        }
+
+        await db.gdsConnection.update({
+          where: { id },
+          data: {
+            status: 'active',
+            lastSyncAt: new Date(),
+            lastError: syncErrors.length > 0 ? syncErrors[0] : null,
+          },
+        });
+
+        return NextResponse.json({
+          success: syncErrors.length === 0,
+          message: syncErrors.length === 0
+            ? 'GDS sync completed successfully'
+            : `GDS sync completed with ${syncErrors.length} error(s)`,
+          data: {
+            id,
+            status: 'active',
+            recordsProcessed,
+            errors: syncErrors.length > 0 ? syncErrors : undefined,
+            syncStartedAt: new Date().toISOString(),
+            syncCompletedAt: new Date().toISOString(),
+          },
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await db.gdsConnection.update({
+          where: { id },
+          data: { status: 'error', lastError: message },
+        });
+        return NextResponse.json({
+          success: false,
+          message: `GDS sync failed: ${message}`,
+          data: { id, status: 'error', error: message },
+        });
+      }
     }
 
     // Handle toggle
