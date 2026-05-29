@@ -24,6 +24,12 @@ export async function GET(request: NextRequest) {
     }
 
     const tenantId = user.tenantId;
+    const searchParams = request.nextUrl.searchParams;
+
+    // M-32 FIX: Add pagination support
+    const limitParam = parseInt(searchParams.get('limit') || '50', 10);
+    const limit = isNaN(limitParam) ? 50 : Math.min(Math.max(limitParam, 1), 100);
+    const offset = parseInt(searchParams.get('offset') || '0', 10) || 0;
 
     // Get channel connections
     const connections = await db.channelConnection.findMany({
@@ -50,11 +56,20 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Get existing mappings
+    // M-32 FIX: Get total count and paginated mappings
+    const total = await db.channelMapping.count({
+      where: {
+        connection: { tenantId },
+      },
+    });
+
+    // Get existing mappings (paginated)
     const mappings = await db.channelMapping.findMany({
       where: {
         connection: { tenantId },
       },
+      take: limit,
+      skip: offset,
     });
 
     // Build mapping data
@@ -125,6 +140,8 @@ export async function GET(request: NextRequest) {
       roomTypes: roomTypes.map(rt => ({ id: rt.id, name: rt.name, code: rt.code })),
       ratePlans: ratePlans.map(rp => ({ id: rp.id, name: rp.name, code: rp.code, roomTypeId: rp.roomTypeId })),
       stats,
+      // M-32 FIX: Include pagination metadata
+      pagination: { total, limit, offset },
     });
   } catch (error) {
     console.error('Error fetching channel mappings:', error);

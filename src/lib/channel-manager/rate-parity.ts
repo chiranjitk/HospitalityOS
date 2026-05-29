@@ -27,6 +27,8 @@ export interface ChannelRateEntry {
   currency: string;
   externalRateId?: string;
   source: 'channel' | 'pms';
+  /** M-31 FIX: Indicates if the channel rate data is stale (last-known-good, not live) */
+  isStale?: boolean;
 }
 
 export interface ChannelParityCheck {
@@ -40,6 +42,8 @@ export interface ChannelParityCheck {
   parityStatus: ParityStatus;
   recommendedRate: number;
   strategyApplied: string;
+  /** M-31 FIX: Indicates if channel rate data is stale */
+  isStale?: boolean;
 }
 
 export interface ParityReport {
@@ -59,6 +63,8 @@ export interface ParityReport {
   recommendedRate: number;
   priceFloor?: number;
   checkedAt: string;
+  /** M-31 FIX: Whether any channel data in this report is stale */
+  hasStaleData?: boolean;
 }
 
 export interface RateParityOptions {
@@ -165,6 +171,8 @@ export async function checkRateParity(
 
     // Use rate min/max from restriction if available, otherwise try live OTA fetch, then variance fallback
     let channelRate = pmsBaseRate;
+    // M-31 FIX: Track whether the rate data is stale (last-known-good, not live)
+    let channelRateIsStale = false;
 
     if (restriction?.rateMin && restriction.rateMin > 0) {
       channelRate = restriction.rateMin;
@@ -179,19 +187,24 @@ export async function checkRateParity(
           { start: new Date(date), end: new Date(date) },
         );
 
-        // Use the first available rate for this date, or fall back to variance
+        // M-31 FIX: Use live rates if available, detect stale (last-known-good) data via source flag
         if (liveRates.length > 0 && liveRates[0].baseRate > 0) {
           channelRate = liveRates[0].baseRate;
+          // Mark as stale if the rate fetcher returned fallback data
+          channelRateIsStale = liveRates[0].source === 'fallback';
         } else {
-          // Fallback: use variance-based estimation
+          // Final fallback: use variance-based estimation only when no last-known-good data exists
+          console.warn(`[RateParity] No rate data available for ${mapping.connection.channel}, using variance fallback`);
           const varianceFactor = getChannelVarianceFactor(mapping.connection.channel);
           channelRate = Math.round(pmsBaseRate * varianceFactor * 100) / 100;
+          channelRateIsStale = true;
         }
       } catch (error) {
-        // Fallback: use variance-based estimation if live fetch fails
+        // Final fallback: use variance-based estimation if live fetch fails entirely
         console.warn(`[RateParity] Live rate fetch failed for ${mapping.connection.channel}, using variance fallback:`, error);
         const varianceFactor = getChannelVarianceFactor(mapping.connection.channel);
         channelRate = Math.round(pmsBaseRate * varianceFactor * 100) / 100;
+        channelRateIsStale = true;
       }
     }
 
@@ -203,6 +216,7 @@ export async function checkRateParity(
       currency: roomType.currency,
       source: 'channel',
       externalRateId: mapping.externalRateId || undefined,
+      isStale: channelRateIsStale,
     });
   }
 
@@ -245,6 +259,7 @@ export async function checkRateParity(
         parityStatus,
         recommendedRate: Math.round(recommendedRate * 100) / 100,
         strategyApplied: strategy,
+        isStale: entry.isStale,
       };
     });
 
@@ -261,6 +276,9 @@ export async function checkRateParity(
   } else {
     overallStatus = 'overpriced';
   }
+
+  // M-31 FIX: Flag if any channel data is stale
+  const hasStaleData = channels.some(c => c.isStale);
 
   const rates = channels.map(c => c.channelRate).concat(pmsBaseRate);
   const lowestRate = rates.length > 0 ? Math.min(...rates) : pmsBaseRate;
@@ -293,6 +311,7 @@ export async function checkRateParity(
     recommendedRate: Math.round(recommendedRate * 100) / 100,
     priceFloor: priceFloor ? Math.round(priceFloor * 100) / 100 : undefined,
     checkedAt: new Date().toISOString(),
+    hasStaleData,
   };
 }
 

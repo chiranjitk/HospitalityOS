@@ -27,6 +27,11 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
+    // M-32 FIX: Add pagination support
+    const limitParam = parseInt(searchParams.get('limit') || '50', 10);
+    const limit = isNaN(limitParam) ? 50 : Math.min(Math.max(limitParam, 1), 100);
+    const offset = parseInt(searchParams.get('offset') || '0', 10) || 0;
+
     // Get channel connections
     const connections = await db.channelConnection.findMany({
       where: { tenantId },
@@ -62,7 +67,15 @@ export async function GET(request: NextRequest) {
       dateOverlapFilter.AND = [overlapWhere];
     }
 
-    // Get existing restrictions
+    // M-32 FIX: Get total count for pagination
+    const total = await db.channelRestriction.count({
+      where: {
+        connection: { tenantId },
+        ...dateOverlapFilter,
+      },
+    });
+
+    // Get existing restrictions (paginated)
     const restrictions = await db.channelRestriction.findMany({
       where: {
         connection: { tenantId },
@@ -73,6 +86,8 @@ export async function GET(request: NextRequest) {
         connection: true,
         roomType: true,
       },
+      take: limit,
+      skip: offset,
     });
 
     // Build restriction data
@@ -138,6 +153,8 @@ export async function GET(request: NextRequest) {
         name: rt.name,
         code: rt.code,
       })),
+      // M-32 FIX: Include pagination metadata
+      pagination: { total, limit, offset },
     });
   } catch (error) {
     console.error('Error fetching restrictions:', error);

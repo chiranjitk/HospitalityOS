@@ -37,16 +37,63 @@ import { REST_CLIENT_CONFIGS, GENERIC_REST_CONFIG } from './clients/rest-configs
 // OTA CLIENT FACTORY
 // ============================================
 
+// M-30 FIX: Cache entry that includes credentials hash and TTL for invalidation
+interface ClientCacheEntry {
+  client: OTAAPIClient;
+  credentialsHash: string;
+  createdAt: number;
+}
+
+/** TTL for cached authenticated clients (5 minutes) */
+const CLIENT_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/** Simple string hash for credentials comparison */
+function hashCredentials(credentials: OTACredentials): string {
+  const parts = [
+    credentials.apiKey || '',
+    credentials.apiSecret || '',
+    credentials.accessToken || '',
+    credentials.refreshToken || '',
+    credentials.username || '',
+    credentials.password || '',
+    credentials.hotelId || '',
+    credentials.propertyId || '',
+    credentials.certificate || '',
+    credentials.signature || '',
+  ];
+  let hash = 0;
+  const str = parts.join('|');
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return hash.toString(36);
+}
+
 export class OTAClientFactory {
-  private static clients: Map<string, OTAAPIClient> = new Map();
+  /** M-30 FIX: Cache now stores credentials hash + creation time for invalidation */
+  private static clients: Map<string, ClientCacheEntry> = new Map();
+
+  /** Cleanup expired cache entries every 5 minutes */
+  private static cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of OTAClientFactory.clients.entries()) {
+      if (now - entry.createdAt > CLIENT_CACHE_TTL_MS) {
+        OTAClientFactory.clients.delete(key);
+      }
+    }
+  }, CLIENT_CACHE_TTL_MS).unref();
 
   /**
-   * Create or get an OTA client instance
+   * Create or get an OTA client instance.
+   * Uses a cache key of just channelId (no credentials) for unauthenticated clients.
    */
   static createClient(channelId: string): OTAAPIClient | null {
     // Check if we already have a cached client
-    if (this.clients.has(channelId)) {
-      return this.clients.get(channelId)!;
+    const cached = this.clients.get(channelId);
+    if (cached) {
+      return cached.client;
     }
 
     const config = getOTAById(channelId);
@@ -159,18 +206,39 @@ export class OTAClientFactory {
         client = new ConfigurableRestClient(config, { ...GENERIC_REST_CONFIG, otaId: channelId, otaName: channelId });
     }
 
-    this.clients.set(channelId, client);
+    this.clients.set(channelId, {
+      client,
+      credentialsHash: '',
+      createdAt: Date.now(),
+    });
     return client;
   }
 
   /**
-   * Get a client with credentials set
+   * M-30 FIX: Get a client with credentials set.
+   * Uses credentials hash as cache key so different tenants/connections
+   * get separate cached instances. Invalidates when credentials change
+   * or TTL expires (5 minutes).
    */
   static async getAuthenticatedClient(
     channelId: string,
     credentials: OTACredentials
   ): Promise<OTAAPIClient | null> {
+    const credHash = hashCredentials(credentials);
+    const cacheKey = `auth:${channelId}:${credHash}`;
+
+    // Check if we have a valid cached authenticated client for these exact credentials
+    const cached = this.clients.get(cacheKey);
+    if (cached && (Date.now() - cached.createdAt) < CLIENT_CACHE_TTL_MS) {
+      return cached.client;
+    }
+
+    // Expire any old cache entry for these credentials
+    this.clients.delete(cacheKey);
+
+    // Also expire the bare channelId cache since credentials changed
     this.clients.delete(channelId);
+
     const client = this.createClient(channelId);
     if (!client) return null;
 
@@ -180,14 +248,36 @@ export class OTAClientFactory {
       return null;
     }
 
+    // Cache with credentials-aware key
+    this.clients.set(cacheKey, {
+      client,
+      credentialsHash: credHash,
+      createdAt: Date.now(),
+    });
+
     return client;
+  }
+
+  /**
+   * M-30 FIX: Invalidate cached client for a specific connection.
+   * Call this when credentials are updated via the API.
+   * Clears both bare channelId cache and any auth-prefixed entries.
+   */
+  static invalidateClient(channelId: string): void {
+    this.clients.delete(channelId);
+    // Also remove any authenticated cache entries for this channel
+    for (const key of this.clients.keys()) {
+      if (key === channelId || key.startsWith(`auth:${channelId}:`)) {
+        this.clients.delete(key);
+      }
+    }
   }
 
   /**
    * Clear cached client
    */
   static clearClient(channelId: string): void {
-    this.clients.delete(channelId);
+    this.invalidateClient(channelId);
   }
 
   /**

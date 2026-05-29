@@ -587,6 +587,14 @@ export async function PUT(request: NextRequest) {    const user = await requireP
       data: sanitizedUpdates,
     });
 
+    // M-30 FIX: Invalidate cached OTA client when credentials are updated
+    // so stale auth tokens are not reused on subsequent sync operations
+    const credentialFields = ['apiKey', 'apiSecret', 'accessToken', 'refreshToken',
+      'username', 'password', 'clientId', 'clientSecret', 'hotelId', 'endpointUrl'];
+    if (credentialFields.some(f => f in updates)) {
+      OTAClientFactory.invalidateClient(connection.channel);
+    }
+
     return NextResponse.json({ success: true, data: connection });
   } catch (error) {
     console.error('Error updating channel connection:', error);

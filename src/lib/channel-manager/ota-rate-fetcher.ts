@@ -44,6 +44,12 @@ const rateCache = new Map<string, RateCacheEntry>();
 setInterval(() => { const now = Date.now(); for (const [key, val] of rateCache.entries()) { if (val.expiresAt < now) rateCache.delete(key); } }, 15 * 60_000).unref();
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
+// M-31 FIX: Separate last-known-good cache with longer TTL (2 hours)
+// When live API calls fail, we return stale-but-real data instead of fake variance values.
+const lastKnownGoodCache = new Map<string, RateCacheEntry>();
+const LAST_KNOWN_GOOD_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
+setInterval(() => { const now = Date.now(); for (const [key, val] of lastKnownGoodCache.entries()) { if (val.expiresAt < now) lastKnownGoodCache.delete(key); } }, LAST_KNOWN_GOOD_TTL_MS).unref();
+
 /** Default channel variance factors used as fallback when live rates are unavailable */
 const DEFAULT_VARIANCE_FACTORS: Record<string, number> = {
   booking_com: 0.98,
@@ -162,10 +168,26 @@ export async function fetchLiveRatesFromChannel(
       expiresAt: Date.now() + CACHE_TTL_MS,
     });
 
+    // M-31 FIX: Also store as last-known-good data for fallback when future API calls fail
+    if (entries.length > 0 && entries.some(e => e.baseRate > 0)) {
+      lastKnownGoodCache.set(cacheKey, {
+        key: cacheKey,
+        rates: entries,
+        expiresAt: Date.now() + LAST_KNOWN_GOOD_TTL_MS,
+      });
+    }
+
     return entries;
   } catch (error) {
     console.error(`[OTA Rate Fetcher] Error fetching rates for connection ${connectionId}:`, error);
-    // Return empty on error — caller can decide whether to use fallback
+    // M-31 FIX: Try last-known-good data before returning empty
+    const lkg = lastKnownGoodCache.get(cacheKey);
+    if (lkg && lkg.expiresAt > Date.now()) {
+      // Mark entries as stale so callers know the data is not fresh
+      const staleEntries = lkg.rates.map(e => ({ ...e, source: 'fallback' as const }));
+      console.warn(`[OTA Rate Fetcher] Using stale last-known-good data for ${connectionId} (${cacheKey})`);
+      return staleEntries;
+    }
     return [];
   }
 }
@@ -238,9 +260,16 @@ export function clearRateCache(connectionId?: string): void {
         rateCache.delete(key);
       }
     }
+    // M-31 FIX: Also clear last-known-good cache
+    for (const [key, entry] of lastKnownGoodCache.entries()) {
+      if (key.startsWith(connectionId)) {
+        lastKnownGoodCache.delete(key);
+      }
+    }
   } else {
-    // Clear all cache
+    // Clear all caches
     rateCache.clear();
+    lastKnownGoodCache.clear();
   }
 }
 
