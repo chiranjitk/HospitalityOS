@@ -2486,35 +2486,6 @@ function PortalContent() {
     }
   }, [portalConfig?.slug, portalConfig?.autoAuthEnabled, autoAuthAttempted, state, attemptAutoAuth]);
 
-  // ── Handle social OAuth callback params ──
-  // When the OAuth provider redirects back to /connect with social_token, auto-authenticate
-  useEffect(() => {
-    if (socialTokenParam && socialProviderParam && portalConfig?.slug && !autoAuthAttempted) {
-      console.log(`[Portal] Social OAuth callback detected: provider=${socialProviderParam}`);
-      setAutoAuthAttempted(true);
-      setSelectedMethod('social');
-      authenticate('social', {
-        socialProvider: socialProviderParam,
-        socialToken: socialTokenParam,
-      });
-    }
-    // Handle social error from OAuth callback
-    if (socialErrorParam && !autoAuthAttempted) {
-      console.warn(`[Portal] Social OAuth error: ${socialErrorParam}`);
-      setAutoAuthAttempted(true);
-      const errorMessages: Record<string, string> = {
-        invalid_provider: 'Invalid social login provider.',
-        no_code: 'Social login authorization was cancelled.',
-        no_config: 'Social login is not configured.',
-        no_credentials: 'Social login credentials are missing.',
-        token_exchange_failed: 'Failed to exchange authorization code. Please try again.',
-        no_id_token: 'Failed to get identity from social provider.',
-        internal: 'An error occurred during social login. Please try again.',
-      };
-      setErrorMessage(errorMessages[socialErrorParam] || 'Social login failed. Please try again or use a different method.');
-    }
-  }, [socialTokenParam, socialProviderParam, socialErrorParam, portalConfig?.slug, autoAuthAttempted, authenticate]);
-
   // ── Authentication handler ──
   const portalSlug = portalConfig?.slug || 'default';
   const authenticate = useCallback(
@@ -2592,6 +2563,36 @@ function PortalContent() {
     },
     [portalSlug, preGeneratedFingerprint]
   );
+
+  // ── Handle social OAuth callback params ──
+  // When the OAuth provider redirects back to /connect with social_token, auto-authenticate.
+  // This must be placed AFTER the authenticate callback definition to avoid "Cannot access before initialization".
+  useEffect(() => {
+    if (socialTokenParam && socialProviderParam && portalConfig?.slug && !autoAuthAttempted) {
+      console.log(`[Portal] Social OAuth callback detected: provider=${socialProviderParam}`);
+      setAutoAuthAttempted(true);
+      setSelectedMethod('social');
+      authenticate('social', {
+        socialProvider: socialProviderParam,
+        socialToken: socialTokenParam,
+      });
+    }
+    // Handle social error from OAuth callback
+    if (socialErrorParam && !autoAuthAttempted) {
+      console.warn(`[Portal] Social OAuth error: ${socialErrorParam}`);
+      setAutoAuthAttempted(true);
+      const errorMessages: Record<string, string> = {
+        invalid_provider: 'Invalid social login provider.',
+        no_code: 'Social login authorization was cancelled.',
+        no_config: 'Social login is not configured.',
+        no_credentials: 'Social login credentials are missing.',
+        token_exchange_failed: 'Failed to exchange authorization code. Please try again.',
+        no_id_token: 'Failed to get identity from social provider.',
+        internal: 'An error occurred during social login. Please try again.',
+      };
+      setErrorMessage(errorMessages[socialErrorParam] || 'Social login failed. Please try again or use a different method.');
+    }
+  }, [socialTokenParam, socialProviderParam, socialErrorParam, portalConfig?.slug, autoAuthAttempted, authenticate]);
 
   // ── Disconnect handler: ends session, resets portal ──
   // IMPORTANT: We do NOT delete the DeviceProfile and do NOT clear the storageToken.
