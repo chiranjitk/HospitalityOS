@@ -463,26 +463,24 @@ export function getOverlayStyle(design: PortalDesignConfig): React.CSSProperties
 
 export function getFormContainerClasses(design: PortalDesignConfig): string {
   const dark = isDarkBackground(design);
-  let cls = 'p-6 space-y-5';
+  let cls = 'p-6 sm:p-8 space-y-5';
 
-  // Background — MUST match admin preview getFormClasses() exactly:
-  //   glass     → bg-white/10 backdrop-blur-xl border
-  //   minimal   → transparent
-  //   rounded/square/pill → bg-white/10 backdrop-blur-md (semi-transparent on dark)
-  // On light backgrounds, use opaque white for non-transparent styles
+  // Premium glassmorphism styling — matches /portal/captive quality
   if (design.formStyle === 'glass') {
     cls += dark
-      ? ' bg-white/10 backdrop-blur-xl border border-white/20'
-      : ' bg-white/95 backdrop-blur-xl border border-gray-200';
+      ? ' bg-white/[0.03] backdrop-blur-2xl border border-white/[0.08]'
+      : ' bg-white/95 backdrop-blur-2xl border border-gray-200';
   } else if (design.formStyle === 'minimal') {
     cls += ' bg-transparent';
   } else {
-    // rounded, square, pill — match preview: semi-transparent on dark, solid on light
+    // rounded, square, pill — premium glass on dark, solid on light
     cls += dark
-      ? ' bg-white/10 backdrop-blur-md'
+      ? ' bg-white/[0.03] backdrop-blur-2xl border border-white/[0.08]'
       : ' bg-white';
     if (design.formStyle === 'pill') {
-      cls += ' border border-white/20';
+      cls += ' border border-white/[0.08]';
+    } else if (dark) {
+      cls += ' border border-white/[0.08]';
     }
   }
 
@@ -503,17 +501,27 @@ export function getFormContainerClasses(design: PortalDesignConfig): string {
 // ────────────────────────────────────────────────────────────
 
 export function getCardShadowCSS(design: PortalDesignConfig): React.CSSProperties {
+  const dark = isDarkBackground(design);
+  const accent = design.accentColor || '#14b8a6';
   switch (design.cardShadow) {
     case 'large':
-      return { boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' };
+      return dark
+        ? { boxShadow: `0 25px 50px -12px rgba(0,0,0,0.5), 0 0 60px -10px ${accent}15` }
+        : { boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' };
     case 'medium':
-      return { boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)' };
+      return dark
+        ? { boxShadow: `0 20px 40px -12px rgba(0,0,0,0.4), 0 0 40px -8px ${accent}10` }
+        : { boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)' };
     case 'small':
-      return { boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)' };
+      return dark
+        ? { boxShadow: `0 8px 16px -4px rgba(0,0,0,0.3), 0 0 20px -6px ${accent}08` }
+        : { boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)' };
     case 'none':
       return { boxShadow: 'none' };
     default:
-      return { boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)' };
+      return dark
+        ? { boxShadow: `0 20px 40px -12px rgba(0,0,0,0.4), 0 0 40px -8px ${accent}10` }
+        : { boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)' };
   }
 }
 
@@ -563,12 +571,13 @@ export function getMutedTextColor(design: PortalDesignConfig): string {
  */
 export function getInputClasses(design: PortalDesignConfig): string {
   const dark = isDarkBackground(design);
+  const accent = design.accentColor || '#14b8a6';
   // On dark backgrounds, ALL form styles are semi-transparent → use light colors
   const useLight = dark;
 
-  let cls = 'w-full focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed';
+  let cls = 'w-full h-12 text-base focus:outline-none transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed';
 
-  // Border styling
+  // Border styling — premium glass inputs on dark backgrounds
   if (design.inputStyle === 'underline') {
     if (useLight) {
       cls += ' border-0 border-b-2 px-1 py-3 bg-transparent border-white/30';
@@ -577,20 +586,20 @@ export function getInputClasses(design: PortalDesignConfig): string {
     }
   } else if (design.inputStyle === 'pill') {
     if (useLight) {
-      cls += ' bg-white/10 border border-white/20 rounded-full px-4 py-3';
+      cls += ' bg-white/[0.04] border border-white/[0.1] rounded-full px-4 py-3 focus-visible:border-white/20';
     } else {
       cls += ' bg-white/90 border-2 border-gray-200 rounded-full px-4 py-3';
     }
   } else if (design.inputStyle === 'square') {
     if (useLight) {
-      cls += ' bg-white/10 border border-white/20 rounded-none px-3 py-3';
+      cls += ' bg-white/[0.04] border border-white/[0.1] rounded-none px-3 py-3 focus-visible:border-white/20';
     } else {
       cls += ' bg-white/90 border-2 border-gray-200 rounded-none px-3 py-3';
     }
   } else {
-    // rounded (default)
+    // rounded (default) — premium glass matching /portal/captive
     if (useLight) {
-      cls += ' bg-white/10 border border-white/20 rounded-xl px-4 py-3';
+      cls += ' bg-white/[0.04] border border-white/[0.1] rounded-xl px-4 py-3 focus-visible:border-white/20';
     } else {
       cls += ' bg-white/90 border-2 border-gray-200 rounded-xl px-4 py-3';
     }
@@ -598,9 +607,14 @@ export function getInputClasses(design: PortalDesignConfig): string {
 
   // Text color
   if (useLight) {
-    cls += ' text-white placeholder:text-white/40';
+    cls += ' text-white placeholder:text-white/25';
   } else {
     cls += ' text-gray-800 placeholder:text-gray-400';
+  }
+
+  // Focus ring — accent color glow on dark
+  if (useLight) {
+    cls += ` focus-visible:ring-[${accent}20] focus-visible:ring-2 focus-visible:ring-offset-0`;
   }
 
   return cls;
@@ -656,12 +670,13 @@ export function getButtonClasses(
       break;
   }
 
-  // Style type
+  // Style type — premium styling with gradient, shadow, and hover scale
   switch (design.buttonStyle) {
     case 'gradient': {
-      className += ' text-white hover:opacity-90';
+      className += ' text-white hover:opacity-90 hover:scale-[1.02]';
       style = {
         background: `linear-gradient(135deg, ${design.gradientFrom || color}, ${design.gradientTo || color})`,
+        boxShadow: dark ? `0 4px 14px ${color}40` : `0 4px 14px rgba(0,0,0,0.15)`,
       };
       break;
     }
@@ -677,19 +692,19 @@ export function getButtonClasses(
       break;
     }
     case 'pill': {
-      className += ' text-white hover:opacity-90';
-      style = { backgroundColor: color, borderRadius: '9999px' };
+      className += ' text-white hover:opacity-90 hover:scale-[1.02]';
+      style = { backgroundColor: color, borderRadius: '9999px', boxShadow: dark ? `0 4px 14px ${color}40` : '0 4px 14px rgba(0,0,0,0.15)' };
       break;
     }
     case 'rounded': {
-      className += ' text-white hover:opacity-90';
-      style = { backgroundColor: color, borderRadius: '0.5rem' };
+      className += ' text-white hover:opacity-90 hover:scale-[1.02]';
+      style = { backgroundColor: color, borderRadius: '0.5rem', boxShadow: dark ? `0 4px 14px ${color}40` : '0 4px 14px rgba(0,0,0,0.15)' };
       break;
     }
     default: {
-      // filled
-      className += ' text-white hover:opacity-90';
-      style = { backgroundColor: color };
+      // filled — premium with accent glow and hover scale
+      className += ' text-white hover:opacity-90 hover:scale-[1.02]';
+      style = { backgroundColor: color, boxShadow: dark ? `0 4px 14px ${color}40` : '0 4px 14px rgba(0,0,0,0.15)' };
       break;
     }
   }
@@ -721,7 +736,7 @@ export function getButtonClasses(
  */
 export function getIconColor(design: PortalDesignConfig): string {
   const dark = isDarkBackground(design);
-  if (dark) return 'rgba(255,255,255,0.4)';
+  if (dark) return 'rgba(255,255,255,0.35)'; // subtler — matches /portal/captive muted feel
   return '#9ca3af'; // gray-400
 }
 
