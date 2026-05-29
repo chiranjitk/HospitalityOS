@@ -228,9 +228,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       if (status === 'completed' && existingWorkOrder.roomId) {
         await tx.room.update({
           where: { id: existingWorkOrder.roomId },
-          data: { status: 'dirty', housekeepingStatus: 'dirty' },
+          data: { status: 'cleaning', housekeepingStatus: 'dirty' },
         });
-        console.log(`[WorkOrder] Room ${existingWorkOrder.roomId} restored to 'dirty' after work order ${existingWorkOrder.workOrderNumber} completion`);
+        console.log(`[WorkOrder] Room ${existingWorkOrder.roomId} restored to 'cleaning' after work order ${existingWorkOrder.workOrderNumber} completion`);
       }
 
       return wo;

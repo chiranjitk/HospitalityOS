@@ -486,11 +486,11 @@ export async function PUT(
             }
           }
 
-          // Mark old room dirty inside the same transaction
+          // Mark old room as cleaning inside the same transaction
           if (existingBooking.roomId) {
             await tx.room.update({
               where: { id: existingBooking.roomId },
-              data: { status: 'dirty', housekeepingStatus: 'dirty', currentTaskId: null },
+              data: { status: 'cleaning', housekeepingStatus: 'dirty', currentTaskId: null },
             });
           }
         });
@@ -942,12 +942,12 @@ export async function PUT(
             }
           }
 
-          // 2. Update room status to 'dirty' and set housekeeping status (G1)
+          // 2. Update room status to 'cleaning' and set housekeeping status (G1)
           //    Both status and housekeepingStatus must be set atomically inside the
           //    transaction so that the room is never in an inconsistent state.
           await tx.room.update({
             where: { id: effectiveRoomId },
-            data: { status: 'dirty', housekeepingStatus: 'dirty', currentTaskId: null },
+            data: { status: 'cleaning', housekeepingStatus: 'dirty', currentTaskId: null },
           });
 
           // 3. Auto-close folio and generate invoice (AFTER WiFi fees are posted)
@@ -1026,7 +1026,7 @@ export async function PUT(
           roomId: effectiveRoomId,
           propertyId: room.propertyId,
           tenantId: room.property.tenantId,
-          status: 'dirty',
+          status: 'cleaning',
           previousStatus: 'occupied',
         });
       }
@@ -1876,10 +1876,10 @@ export async function PATCH(
       // Wrap ALL checkout database side-effects in a single transaction for data integrity.
       try {
         await db.$transaction(async (tx) => {
-          // 1. Update room status to 'dirty'
+          // 1. Update room status to 'cleaning'
           await tx.room.update({
             where: { id: effectivePatchRoomId },
-            data: { status: 'dirty' },
+            data: { status: 'cleaning' },
           });
 
           // 2. Auto-close folio and generate invoice
@@ -2001,7 +2001,7 @@ export async function PATCH(
           roomId: effectivePatchRoomId,
           propertyId: room.propertyId,
           tenantId: room.property.tenantId,
-          status: 'dirty',
+          status: 'cleaning',
           previousStatus: 'occupied',
         });
       }

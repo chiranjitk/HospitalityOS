@@ -236,11 +236,11 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // 3. Update room status to dirty, mark for housekeeping, and revoke digital key
+      // 3. Update room status to cleaning, mark for housekeeping, and revoke digital key
       await tx.room.update({
         where: { id: booking.room.id },
         data: {
-          status: 'dirty',
+          status: 'cleaning',
           housekeepingStatus: 'dirty',
           digitalKeyEnabled: false,
           digitalKeySecret: null,

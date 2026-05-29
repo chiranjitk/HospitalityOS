@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
         propertyId: { in: propertyIds },
         deletedAt: null,
         OR: [
-          { status: 'dirty' },
+          { status: 'cleaning' },
           { housekeepingStatus: 'dirty', status: { not: 'occupied' } },
         ],
       },

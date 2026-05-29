@@ -154,11 +154,11 @@ export async function POST(request: NextRequest) {
       });
 
       // 6. Update room statuses
-      // FIX: Set old room status to 'dirty' (not 'available') since housekeeping needs to clean it.
+      // Set old room status to 'cleaning' since housekeeping needs to clean it.
       // A room with housekeepingStatus 'dirty' should never be 'available' for booking.
       await tx.room.update({
         where: { id: fromRoomId },
-        data: { status: 'dirty', housekeepingStatus: 'dirty' },
+        data: { status: 'cleaning', housekeepingStatus: 'dirty' },
       });
 
       await tx.room.update({
