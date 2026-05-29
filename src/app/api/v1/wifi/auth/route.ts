@@ -1620,14 +1620,9 @@ export async function POST(request: NextRequest) {
           // Update last activity timestamp
           await db.wiFiUser.update({ where: { id: pmsUser.id }, data: { validFrom: now } });
 
-          // Read bandwidth from radreply (user-level overrides > group-level)
-          const pmsRadreply = await db.radReply.findMany({ where: { username: pmsUser.username } });
-          const getRadReplyVal = (attr: string): string | undefined =>
-            pmsRadreply.find(r => r.attribute === attr)?.value;
-          const pmsBwDownBps = getRadReplyVal('WISPr-Bandwidth-Max-Down') || getRadReplyVal('Cryptsk-Bandwidth-Max-Down');
-          const pmsBwUpBps = getRadReplyVal('WISPr-Bandwidth-Max-Up') || getRadReplyVal('Cryptsk-Bandwidth-Max-Up');
-          const pmsBwDown = pmsBwDownBps ? Math.round(Number(pmsBwDownBps) / 1000000) : (pmsUser.plan?.downloadSpeed || bwDown);
-          const pmsBwUp = pmsBwUpBps ? Math.round(Number(pmsBwUpBps) / 1000000) : (pmsUser.plan?.uploadSpeed || bwUp);
+          // Display bandwidth: always show original plan speed (not FUP-throttled radreply)
+          const pmsBwDown = pmsUser.plan?.downloadSpeed || bwDown;
+          const pmsBwUp = pmsUser.plan?.uploadSpeed || bwUp;
 
           await logAuthAttempt(pmsUser.username, 'Access-Accept', request, `pool:${pool.poolName} reuse:pms plan:${pmsUser.plan?.name || 'none'}`);
           logIdentityVerification({
@@ -1982,7 +1977,7 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        // ── Read user's bandwidth from radreply ──
+        // ── Read user's bandwidth from radreply for firewall enforcement ──
         const userRadreply = await db.radReply.findMany({
           where: { username: username.trim() },
         });
@@ -1993,8 +1988,9 @@ export async function POST(request: NextRequest) {
           || getRadReplyValue('Cryptsk-Bandwidth-Max-Down');
         const bwUpBps = getRadReplyValue('WISPr-Bandwidth-Max-Up')
           || getRadReplyValue('Cryptsk-Bandwidth-Max-Up');
-        const userBwDown = bwDownBps ? Math.round(Number(bwDownBps) / 1000000) : bwDown;
-        const userBwUp = bwUpBps ? Math.round(Number(bwUpBps) / 1000000) : bwUp;
+        // Display: always show original plan speed (not FUP-throttled radreply)
+        const userBwDown = wifiUser.plan?.downloadSpeed || bwDown;
+        const userBwUp = wifiUser.plan?.uploadSpeed || bwUp;
 
         // Activate firewall (internal NAS) or skip (external gateway handles firewall)
         if (!externalGateway) {
