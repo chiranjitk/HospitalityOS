@@ -3066,8 +3066,8 @@ function PortalContent() {
     };
 
     const total = authMethods.length;
-    // ≤3: single row; 4-6: 2 rows × 3 cols; 7+: 2 cols wide tabs
-    const cols = total <= 3 ? 3 : total <= 6 ? 3 : 2;
+    // ≤4: single row; 5+: 4 per line
+    const cols = total <= 4 ? total : 4;
 
     return (
       <div className="space-y-2">
@@ -3084,14 +3084,14 @@ function PortalContent() {
             border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : accent + '15'}`,
           }}
         >
-          <div className={`grid ${cols === 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-1`}>
+          <div className={`grid ${cols === 2 ? 'grid-cols-2' : cols === 3 ? 'grid-cols-3' : 'grid-cols-4'} gap-1`}>
             {authMethods.map((am) => {
               const isActive = effectiveAuthMethod === am.method;
               return (
                 <button
                   key={am.method}
                   onClick={() => setSelectedMethod(am.method)}
-                  className="flex items-center justify-center gap-2 px-3 h-10 rounded-lg text-sm font-medium cursor-pointer transition-all duration-200 hover:opacity-80 active:scale-[0.97]"
+                  className="flex items-center justify-center gap-1.5 px-2 h-9 rounded-lg text-xs font-medium cursor-pointer transition-all duration-200 hover:opacity-80 active:scale-[0.97]"
                   style={{
                     color: isActive ? '#ffffff' : (dark ? 'rgba(255,255,255,0.5)' : accent + '99'),
                     boxShadow: isActive ? `0 4px 14px ${accent}40` : 'none',
