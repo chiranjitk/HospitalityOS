@@ -60,8 +60,6 @@ import {
   Trash2,
   Edit,
   Loader2,
-  Eye,
-  EyeOff,
   RefreshCw,
   UserCircle,
   Wifi,
@@ -819,50 +817,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
     setSingleDeleteMfaError('');
   };
 
-  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, string>>({});
-  const [fetchingPasswords, setFetchingPasswords] = useState<Set<string>>(new Set());
-
-  const togglePasswordVisibility = async (id: string) => {
-    // If already revealed, hide it
-    if (revealedPasswords[id]) {
-      setRevealedPasswords(prev => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-      return;
-    }
-    // Fetch password from secure endpoint
-    setFetchingPasswords(prev => new Set(prev).add(id));
-    try {
-      const res = await fetch('/api/wifi/radius', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'get-password', id }),
-      });
-      const data = await res.json();
-      if (data.success && data.data?.password) {
-        setRevealedPasswords(prev => ({ ...prev, [id]: data.data.password }));
-        // Auto-copy to clipboard
-        try {
-          await navigator.clipboard.writeText(data.data.password);
-          toast({ title: 'Copied', description: 'Password copied to clipboard', duration: 2000 });
-        } catch { /* clipboard not available */ }
-      } else {
-        toast({ title: 'Unavailable', description: data.error || 'Password not available (user may be deprovisioned)', variant: 'destructive' });
-      }
-    } catch {
-      toast({ title: 'Error', description: 'Failed to fetch password', variant: 'destructive' });
-    } finally {
-      setFetchingPasswords(prev => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-    }
-  };
-
-  // ─── Helpers ──────────────────────────────────────────────────────────────
+  const originalSessionTimeout = useRef<number | undefined>(undefined);
 
   /** Strip the 'plan_' prefix that the backend prepends to RADIUS group names */
   const stripPlanPrefix = (group: string) => group.replace(/^plan_/, '');
@@ -1313,7 +1268,6 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                     <TableHead>User</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Plan</TableHead>
-                    <TableHead>Password</TableHead>
                     <TableHead>Bandwidth</TableHead>
                     <TableHead>Session</TableHead>
                     <TableHead>Data Cap</TableHead>
@@ -1349,35 +1303,6 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                           {getUserStatusBadge(user) || <span className="text-xs text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell>{getGroupBadge(user.group || 'none', user.plan_name)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            {fetchingPasswords.has(user.id) ? (
-                              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                            ) : revealedPasswords[user.id] ? (
-                              <>
-                                <span className="font-mono text-xs select-all">{revealedPasswords[user.id]}</span>
-                                <button
-                                  onClick={() => togglePasswordVisibility(user.id)}
-                                  className="text-muted-foreground hover:text-foreground p-0.5"
-                                  title="Hide password"
-                                >
-                                  <EyeOff className="h-3 w-3" />
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <span className="font-mono text-xs text-muted-foreground">••••••••</span>
-                                <button
-                                  onClick={() => togglePasswordVisibility(user.id)}
-                                  className="text-muted-foreground hover:text-foreground p-0.5"
-                                  title="Reveal & copy password"
-                                >
-                                  <Eye className="h-3 w-3" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 text-xs font-mono">
                             <ArrowDownToLine className="h-3 w-3 text-primary" />
