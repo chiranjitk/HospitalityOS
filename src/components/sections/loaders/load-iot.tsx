@@ -11,6 +11,10 @@ export default async function loadSection(section: string): Promise<{ default: R
     case 'iot-smart-locks':
     case 'iot-smart-lock-management':
       return import('@/components/iot/smart-lock-management');
+    case 'iot-occupancy-triggers':
+      return import('@/components/iot/occupancy-triggers');
+    case 'iot-energy-schedule':
+      return import('@/components/iot/energy-schedule');
     default:
       throw new Error(`Unknown iot section: ${section}`);
   }

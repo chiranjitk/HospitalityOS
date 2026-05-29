@@ -22,11 +22,12 @@ export default async function masterLoader(section: string): Promise<{ default: 
     case 'revenue':
       return (await import('./tier2-core')).default(section);
 
-    // Admin: admin, settings, security, chain, channels (5 imports)
+    // Admin: admin, settings, security, surveillance, visitor, chain, channels
     case 'admin':
     case 'settings':
     case 'security':
     case 'surveillance':
+    case 'visitor':
     case 'chain':
     case 'channel':
       return (await import('./tier2-admin')).default(section);

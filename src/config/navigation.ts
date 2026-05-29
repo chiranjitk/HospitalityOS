@@ -283,6 +283,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'billing-deposits', title: 'Deposit Schedules', href: '#billing-deposits', icon: Wallet },
       { id: 'billing-financing', title: 'BNPL / Financing', href: '#billing-financing', icon: CreditCard },
       { id: 'billing-cash-book', title: 'Cash Book', href: '#billing-cash-book', icon: BookOpen },
+      { id: 'billing-group-folio', title: 'Group Folio', href: '#billing-group-folio', icon: Users2 },
     ],
   },
 
@@ -578,6 +579,8 @@ export const navigationConfig: NavSection[] = [
       { id: 'iot-devices', title: 'Device Management', href: '#iot-devices', icon: Server },
       { id: 'iot-controls', title: 'Room Controls', href: '#iot-controls', icon: Settings },
       { id: 'iot-energy', title: 'Energy Dashboard', href: '#iot-energy', icon: TrendingUp },
+      { id: 'iot-occupancy-triggers', title: 'Occupancy Triggers', href: '#iot-occupancy-triggers', icon: Activity },
+      { id: 'iot-energy-schedule', title: 'Energy Scheduling', href: '#iot-energy-schedule', icon: Timer },
     ],
   },
 
@@ -712,6 +715,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'security-sso', title: 'SSO Configuration', href: '#security-sso', icon: Key },
       { id: 'security-sessions', title: 'Device Sessions', href: '#security-sessions', icon: Smartphone },
       { id: 'security-audit-logs', title: 'Audit Logs', href: '#security-audit-logs', icon: History },
+      { id: 'visitor-log', title: 'Visitor Management', href: '#visitor-log', icon: UserPlus },
     ],
   },
   {
