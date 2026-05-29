@@ -74,6 +74,7 @@ import {
   X,
   LogOut,
   Bug,
+  Share2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import SurveyWidget from '@/components/wifi/survey-widget';
@@ -176,6 +177,8 @@ const METHOD_ICONS: Record<string, React.ReactNode> = {
   pms_credentials: <Key className="w-4 h-4" />,
   sms_otp: <Smartphone className="w-4 h-4" />,
   open_access: <Globe className="w-4 h-4" />,
+  mac_auth: <Shield className="w-4 h-4" />,
+  social: <Share2 className="w-4 h-4" />,
   ldap: <Shield className="w-4 h-4" />,
 };
 
@@ -2382,9 +2385,14 @@ function PortalContent() {
   };
 
   const useUnifiedForm = hasConfiguredFormFields();
-  const effectiveAuthMethod = useUnifiedForm
-    ? (portalConfig?.authMethod || 'voucher')
-    : activeMethod;
+  // When multiple auth methods are configured, the selectedMethod (from guest tabs)
+  // takes priority over the designer's single authFlow — so guests can switch methods.
+  const hasMultipleMethods = authMethods.length > 1;
+  const effectiveAuthMethod = hasMultipleMethods
+    ? activeMethod
+    : useUnifiedForm
+      ? (portalConfig?.authMethod || 'voucher')
+      : activeMethod;
 
   // ── Form field helpers (for fallback mode) ──
   const isFieldVisible = (key: string): boolean => {
@@ -2546,8 +2554,7 @@ function PortalContent() {
   // ── Method selector tabs (DISABLED) ──
   // Tabs have been removed. When formFields is configured we use the unified
   // designer form. When formFields is null we use a simple single-method
-  // fallback — no tabs, no method switching.
-  const renderMethodTabs = () => null;
+  // fallback — method tabs are handled by the main renderMethodTabs below.
 
   // ── Guest info fields section (FALLBACK MODE only) ──
   const renderGuestInfoFields = () => {
@@ -2628,6 +2635,75 @@ function PortalContent() {
     ? [...savedOrder, ...DEFAULT_BLOCK_ORDER.filter(b => !savedOrder.includes(b))]
     : DEFAULT_BLOCK_ORDER;
 
+  // ── Method field defaults per auth method (for swapping formFields when guest switches) ──
+  const METHOD_FIELD_DEFAULTS: Record<string, Record<string, boolean>> = {
+    pms_credentials: { username: true, password: true, terms: true },
+    room_number: { lastName: true, roomNumber: true, terms: true },
+    voucher: { voucherCode: true, terms: true },
+    sms_otp: { phone: true, terms: true },
+    open_access: { terms: true },
+    mac_auth: {},
+    social: { terms: true },
+    ldap: { username: true, password: true, terms: true },
+  };
+
+  // Compute effective formFields that adapts to the currently selected method
+  const getEffectiveFormFields = (): Record<string, boolean> | null => {
+    if (!formFields || typeof formFields !== 'object') return null;
+    const methodDefaults = METHOD_FIELD_DEFAULTS[effectiveAuthMethod] || {};
+    const merged: Record<string, boolean> = {};
+    for (const key of Object.keys(formFields)) {
+      const val = formFields[key];
+      if (typeof val === 'boolean') {
+        // Use method default: if key is in methodDefaults, use that value; otherwise keep original
+        merged[key] = key in methodDefaults ? methodDefaults[key] : val;
+      } else if (typeof val === 'object' && val !== null) {
+        const fc = val as FormFieldConfig;
+        merged[key] = key in methodDefaults ? methodDefaults[key] : (fc.visible ?? false);
+      }
+    }
+    return merged;
+  };
+
+  const effectiveFormFields = hasMultipleMethods ? getEffectiveFormFields() : null;
+
+  // ── Render method selector tabs (shown when multiple auth methods are configured) ──
+  const renderMethodTabs = () => {
+    if (!hasMultipleMethods || authMethods.length <= 1) return null;
+    const mutedColor = getMutedTextColor(design);
+    return (
+      <div className="space-y-1.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-center" style={{ color: mutedColor }}>
+          Sign in with
+        </p>
+        <div className="flex flex-wrap gap-1.5 justify-center">
+          {authMethods.map((am) => {
+            const isActive = effectiveAuthMethod === am.method;
+            return (
+              <button
+                key={am.method}
+                onClick={() => setSelectedMethod(am.method)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all',
+                  isActive
+                    ? 'text-white shadow-sm'
+                    : 'hover:opacity-80'
+                )}
+                style={isActive
+                  ? { backgroundColor: design.accentColor, color: '#ffffff' }
+                  : { backgroundColor: design.accentColor + '15', color: design.accentColor }
+                }
+              >
+                {METHOD_ICONS[am.method] || null}
+                <span>{am.label || am.method}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   // ── Render the card content (shared across layouts) ──
   const renderCardContent = () => {
     if (state === 'success' && authResult) {
@@ -2642,9 +2718,10 @@ function PortalContent() {
         <>
           {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
           {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} />}
+          {renderMethodTabs()}
           <UnifiedDesignerForm
             design={design}
-            formFields={formFields}
+            formFields={effectiveFormFields || formFields}
             authMethod={effectiveAuthMethod}
             codeParam={codeParam}
             authenticate={authenticate}
@@ -2660,14 +2737,15 @@ function PortalContent() {
     }
 
     // ══════════════════════════════════════════════════════════
-    // FALLBACK MODE — simple single-method form (NO tabs)
+    // FALLBACK MODE — form with method tabs when multiple methods exist
     // ══════════════════════════════════════════════════════════
     return (
       <>
         {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
         {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} />}
+        {renderMethodTabs()}
 
-        {/* Auth Form — no tabs, just the default method's form */}
+        {/* Auth Form */}
         <div
           className="transition-opacity duration-200"
           style={{ opacity: canSubmit ? 1 : 0.5, pointerEvents: canSubmit ? 'auto' : 'none' }}
