@@ -40,14 +40,20 @@ ATTRIBUTE       Cryptsk-Bandwidth-Max-Down      2       integer
 # Maximum upload bandwidth in bits per second (bps)
 ATTRIBUTE       Cryptsk-Bandwidth-Max-Up        3       integer
 
+# Burst/ceiling download bandwidth in bits per second (bps)
+ATTRIBUTE       Cryptsk-Bandwidth-Ceil-Down     4       integer
+
+# Burst/ceiling upload bandwidth in bits per second (bps)
+ATTRIBUTE       Cryptsk-Bandwidth-Ceil-Up       5       integer
+
 # Total data limit (combined input + output) in bytes
-ATTRIBUTE       Cryptsk-Total-Limit             4       integer
+ATTRIBUTE       Cryptsk-Total-Limit             6       integer
 
 # Maximum input (download) data in bytes
-ATTRIBUTE       Cryptsk-Max-Input-Octets        5       integer
+ATTRIBUTE       Cryptsk-Max-Input-Octets        7       integer
 
 # Maximum output (upload) data in bytes
-ATTRIBUTE       Cryptsk-Max-Output-Octets       6       integer
+ATTRIBUTE       Cryptsk-Max-Output-Octets       8       integer
 
 # -- Session & Access Control (11-20) --------------------------------------
 
