@@ -110,6 +110,7 @@ import {
   MapPin,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 import { useToast } from '@/hooks/use-toast';
 import { usePropertyId } from '@/hooks/use-property';
 
@@ -216,20 +217,21 @@ function SortIcon({ col, isActive }: { col: string; isActive: boolean }) {
 }
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: 'bandwidth', label: 'Bandwidth Usage', icon: BarChart3 },
-  { id: 'user-bw', label: 'User Bandwidth', icon: Users },
-  { id: 'web-surfing', label: 'Web Surfing', icon: Globe },
-  { id: 'nat-logs', label: 'NAT Logs', icon: Shield },
-  { id: 'syslog', label: 'Syslog Forwarding', icon: Radio },
-  { id: 'voucher', label: 'Voucher Report', icon: Ticket },
-  { id: 'sys-health', label: 'System Health', icon: Activity },
-  { id: 'coa-audit', label: 'CoA Audit', icon: FileCheck },
-  { id: 'user-status-history', label: 'User History', icon: History },
+  { id: 'bandwidth', label: 'wrTabBandwidth', icon: BarChart3 },
+  { id: 'user-bw', label: 'wrTabUserBw', icon: Users },
+  { id: 'web-surfing', label: 'wrTabWebSurfing', icon: Globe },
+  { id: 'nat-logs', label: 'wrTabNatLogs', icon: Shield },
+  { id: 'syslog', label: 'wrTabSyslog', icon: Radio },
+  { id: 'voucher', label: 'wrTabVoucher', icon: Ticket },
+  { id: 'sys-health', label: 'wrTabSysHealth', icon: Activity },
+  { id: 'coa-audit', label: 'wrTabCoaAudit', icon: FileCheck },
+  { id: 'user-status-history', label: 'wrTabUserHistory', icon: History },
 ];
 
 // ==================== MAIN COMPONENT ====================
 
 export default function ReportsPage() {
+  const t = useTranslations('wifiReports');
   const [activeTab, setActiveTab] = useState<TabId>('bandwidth');
   const tabsRef = useRef<HTMLDivElement>(null);
 
@@ -264,7 +266,7 @@ export default function ReportsPage() {
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  {tab.label}
+                  {t(tab.label)}
                 </button>
               );
             })}
@@ -282,17 +284,17 @@ export default function ReportsPage() {
           {activeTab === 'voucher' && <VoucherReportTab />}
           {activeTab === 'sys-health' && <SystemHealthTab />}
           {activeTab === 'coa-audit' && (
-            <Suspense fallback={<LoadingSpinner message="Loading CoA Audit..." />}>
+            <Suspense fallback={<LoadingSpinner message={t('wrLoadingCoaAudit')} />}>
               <CoaAuditTab />
             </Suspense>
           )}
           {activeTab === 'user-status-history' && (
-            <Suspense fallback={<LoadingSpinner message="Loading User History..." />}>
+            <Suspense fallback={<LoadingSpinner message={t('wrLoadingUserHistory')} />}>
               <UserStatusHistoryTab />
             </Suspense>
           )}
           {activeTab === 'syslog' && (
-            <Suspense fallback={<LoadingSpinner message="Loading Syslog Forwarding..." />}>
+            <Suspense fallback={<LoadingSpinner message={t('wrLoadingSyslog')} />}>
               <SyslogTab />
             </Suspense>
           )}
@@ -322,6 +324,7 @@ function BandwidthChartTooltip({ active, payload, label }: any) {
 }
 
 function BandwidthUsageTab() {
+  const t = useTranslations('wifiReports');
   const [dateRange, setDateRange] = useState('30');
   const [property, setProperty] = useState('all');
   const [bandwidthData, setBandwidthData] = useState<any[]>([]);
@@ -344,11 +347,11 @@ function BandwidthUsageTab() {
       if (result.success) {
         setBandwidthData(result.data || []);
       } else {
-        toast({ title: 'Error', description: typeof result.error === 'string' ? result.error : result.error?.message || 'Failed to fetch bandwidth data', variant: 'destructive' });
+        toast({ title: t('wrError'), description: typeof result.error === 'string' ? result.error : result.error?.message || t('wrFailedFetchBandwidth'), variant: 'destructive' });
       }
     } catch (e) {
       console.error(e);
-      toast({ title: 'Error', description: 'Failed to fetch bandwidth data', variant: 'destructive' });
+      toast({ title: t('wrError'), description: t('wrFailedFetchBandwidth'), variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -381,7 +384,7 @@ function BandwidthUsageTab() {
     return { totalDown, totalUp, uniqueUsers, peakTime: peakDay?.peakTime || '—', activeSessions };
   }, [filteredData]);
 
-  if (loading) return <LoadingSpinner message="Loading bandwidth data..." />;
+  if (loading) return <LoadingSpinner message={t('wrLoadingBandwidth')} />;
 
   return (
     <div className="space-y-4">
@@ -391,13 +394,13 @@ function BandwidthUsageTab() {
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Period:</span>
+              <span className="text-sm font-medium">{t('wrPeriod')}</span>
             </div>
             <div className="flex gap-2">
               {[
-                { value: 'today', label: 'Today' },
-                { value: '7', label: '7 Days' },
-                { value: '30', label: '30 Days' },
+                { value: 'today', label: t('wrToday') },
+                { value: '7', label: t('wr7Days') },
+                { value: '30', label: t('wr30Days') },
               ].map((p) => (
                 <Button key={p.value} variant={dateRange === p.value ? 'default' : 'outline'} size="sm" onClick={() => setDateRange(p.value)}>
                   {p.label}
@@ -408,7 +411,7 @@ function BandwidthUsageTab() {
             <Select value={property} onValueChange={setProperty}>
               <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Properties</SelectItem>
+                <SelectItem value="all">{t('wrAllProperties')}</SelectItem>
                 {properties.map((p) => (
                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                 ))}
@@ -426,17 +429,17 @@ function BandwidthUsageTab() {
                 a.download = `bandwidth-report-${new Date().toISOString().split('T')[0]}.csv`;
                 a.click();
                 URL.revokeObjectURL(url);
-                toast({ title: 'Exported', description: 'CSV file downloaded' });
+                toast({ title: t('wrExported'), description: t('wrCsvDownloaded') });
               }}>
-                <FileDown className="h-3.5 w-3.5 mr-1.5" /> CSV
+                <FileDown className="h-3.5 w-3.5 mr-1.5" /> {t('wrCSV')}
               </Button>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button variant="outline" size="sm" onClick={() => window.print()}>
-                    <FileText className="h-3.5 w-3.5 mr-1.5" /> PDF
+                    <FileText className="h-3.5 w-3.5 mr-1.5" /> {t('wrPDF')}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>PDF export coming soon — uses print for now</TooltipContent>
+                <TooltipContent>{t('wrPdfComingSoon')}</TooltipContent>
               </Tooltip>
             </div>
           </div>
@@ -445,21 +448,21 @@ function BandwidthUsageTab() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-        <SummaryCard icon={Download} label="Total Download" value={formatMB(summary.totalDown)} color="teal" />
-        <SummaryCard icon={Upload} label="Total Upload" value={formatMB(summary.totalUp)} color="amber" />
-        <SummaryCard icon={Users} label="Unique Users" value={summary.uniqueUsers.toString()} color="emerald" />
-        <SummaryCard icon={Clock} label="Peak Usage" value={summary.peakTime} color="amber" />
-        <SummaryCard icon={Wifi} label="Active Sessions" value={summary.activeSessions.toString()} color="emerald" />
+        <SummaryCard icon={Download} label={t('wrTotalDownload')} value={formatMB(summary.totalDown)} color="teal" />
+        <SummaryCard icon={Upload} label={t('wrTotalUpload')} value={formatMB(summary.totalUp)} color="amber" />
+        <SummaryCard icon={Users} label={t('wrUniqueUsers')} value={summary.uniqueUsers.toString()} color="emerald" />
+        <SummaryCard icon={Clock} label={t('wrPeakUsage')} value={summary.peakTime} color="amber" />
+        <SummaryCard icon={Wifi} label={t('wrActiveSessions')} value={summary.activeSessions.toString()} color="emerald" />
       </div>
 
       {/* Recharts AreaChart */}
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Daily Bandwidth</CardTitle>
+            <CardTitle className="text-base">{t('wrDailyBandwidth')}</CardTitle>
             <div className="flex items-center gap-4 text-xs">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-primary" /> Download</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-500" /> Upload</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-primary" /> {t('wrDownload')}</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-500" /> {t('wrUpload')}</span>
             </div>
           </div>
         </CardHeader>
@@ -497,7 +500,7 @@ function BandwidthUsageTab() {
                 <Area
                   type="monotone"
                   dataKey="download"
-                  name="Download"
+                  name={t('wrDownload')}
                   stroke="#14b8a6"
                   fill="url(#gradientDownload)"
                   strokeWidth={2}
@@ -505,7 +508,7 @@ function BandwidthUsageTab() {
                 <Area
                   type="monotone"
                   dataKey="upload"
-                  name="Upload"
+                  name={t('wrUpload')}
                   stroke="#f59e0b"
                   fill="url(#gradientUpload)"
                   strokeWidth={2}
@@ -514,7 +517,7 @@ function BandwidthUsageTab() {
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-[280px] text-muted-foreground text-sm">
-              No bandwidth data available for the selected period
+              {t('wrNoBandwidthData')}
             </div>
           )}
         </CardContent>
@@ -523,21 +526,21 @@ function BandwidthUsageTab() {
       {/* Data Table */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Detailed Usage Data</CardTitle>
+          <CardTitle className="text-base">{t('wrDetailedUsageData')}</CardTitle>
         </CardHeader>
         <CardContent className="p-0 overflow-hidden">
           <div className="max-h-96 overflow-x-auto overflow-y-auto">
             <Table className="min-w-max">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs whitespace-nowrap">Date</TableHead>
-                  <TableHead className="text-xs whitespace-nowrap text-right hidden sm:table-cell">DL (MB)</TableHead>
-                  <TableHead className="text-xs whitespace-nowrap text-right hidden sm:table-cell">UL (MB)</TableHead>
-                  <TableHead className="text-xs whitespace-nowrap text-right">Total</TableHead>
-                  <TableHead className="text-xs whitespace-nowrap text-right hidden md:table-cell">Users</TableHead>
-                  <TableHead className="text-xs whitespace-nowrap text-right hidden md:table-cell">Peak</TableHead>
-                  <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Peak Time</TableHead>
-                  <TableHead className="text-xs whitespace-nowrap text-right hidden lg:table-cell">Active</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap">{t('wrThDate')}</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap text-right hidden sm:table-cell">{t('wrThDlMb')}</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap text-right hidden sm:table-cell">{t('wrThUlMb')}</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap text-right">{t('wrThTotal')}</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap text-right hidden md:table-cell">{t('wrThUsers')}</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap text-right hidden md:table-cell">{t('wrThPeak')}</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">{t('wrThPeakTime')}</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap text-right hidden lg:table-cell">{t('wrThActive')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -556,7 +559,7 @@ function BandwidthUsageTab() {
                 {filteredData.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center text-muted-foreground py-8 text-xs">
-                      No data found for the selected period. Bandwidth data is sourced from RADIUS accounting sessions.
+                      {t('wrNoDataFoundPeriod')}
                     </TableCell>
                   </TableRow>
                 )}
@@ -617,6 +620,7 @@ function UserBarTooltip({ active, payload, label }: any) {
 }
 
 function UserBandwidthTab() {
+  const t = useTranslations('wifiReports');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortKey, setSortKey] = useState<string>('totalDown');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -636,11 +640,11 @@ function UserBandwidthTab() {
       if (result.success) {
         setUsersData(result.data || []);
       } else {
-        toast({ title: 'Error', description: typeof result.error === 'string' ? result.error : result.error?.message || 'Failed to fetch user bandwidth', variant: 'destructive' });
+        toast({ title: t('wrError'), description: typeof result.error === 'string' ? result.error : result.error?.message || t('wrFailedFetchUserBw'), variant: 'destructive' });
       }
     } catch (e) {
       console.error(e);
-      toast({ title: 'Error', description: 'Failed to fetch user bandwidth', variant: 'destructive' });
+      toast({ title: t('wrError'), description: t('wrFailedFetchUserBw'), variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -722,7 +726,7 @@ function UserBandwidthTab() {
     else { setSortKey(key); setSortDir('desc'); }
   };
 
-  if (loading) return <LoadingSpinner message="Loading user bandwidth..." />;
+  if (loading) return <LoadingSpinner message={t('wrLoadingUserBw')} />;
 
   return (
     <div className="space-y-4">
@@ -732,7 +736,7 @@ function UserBandwidthTab() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by username, IP, or MAC address..."
+              placeholder={t('wrSearchUsernameIpMac')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
@@ -743,10 +747,10 @@ function UserBandwidthTab() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-        <SummaryCard icon={Users} label="Total Users" value={summaryStats.totalUsers.toString()} color="emerald" />
-        <SummaryCard icon={BarChart3} label="Total Bandwidth" value={formatMB(summaryStats.totalBw)} color="teal" />
-        <SummaryCard icon={TrendingUp} label="Avg / User" value={formatMB(summaryStats.avgPerUser)} color="amber" />
-        <SummaryCard icon={Download} label="Top Consumer" value={summaryStats.topConsumer.split('.').slice(-2).join('.')} color="teal" />
+        <SummaryCard icon={Users} label={t('wrTotalUsers')} value={summaryStats.totalUsers.toString()} color="emerald" />
+        <SummaryCard icon={BarChart3} label={t('wrTotalBandwidth')} value={formatMB(summaryStats.totalBw)} color="teal" />
+        <SummaryCard icon={TrendingUp} label={t('wrAvgPerUser')} value={formatMB(summaryStats.avgPerUser)} color="amber" />
+        <SummaryCard icon={Download} label={t('wrTopConsumer')} value={summaryStats.topConsumer.split('.').slice(-2).join('.')} color="teal" />
       </div>
 
       {/* Top 10 Charts with Recharts */}
@@ -754,7 +758,7 @@ function UserBandwidthTab() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Download className="h-4 w-4 text-primary" /> Top 10 by Download
+              <Download className="h-4 w-4 text-primary" /> {t('wrTop10Download')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -765,7 +769,7 @@ function UserBandwidthTab() {
                   <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => formatMB(v)} tickLine={false} axisLine={false} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={75} />
                   <RechartsTooltip content={<UserBarTooltip />} />
-                  <Bar dataKey="download" name="Download" fill="#14b8a6" radius={[0, 4, 4, 0]} barSize={14} />
+                  <Bar dataKey="download" name={t('wrDownload')} fill="#14b8a6" radius={[0, 4, 4, 0]} barSize={14} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -776,7 +780,7 @@ function UserBandwidthTab() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Upload className="h-4 w-4 text-amber-500 dark:text-amber-400" /> Top 10 by Upload
+              <Upload className="h-4 w-4 text-amber-500 dark:text-amber-400" /> {t('wrTop10Upload')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -787,7 +791,7 @@ function UserBandwidthTab() {
                   <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => formatMB(v)} tickLine={false} axisLine={false} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={75} />
                   <RechartsTooltip content={<UserBarTooltip />} />
-                  <Bar dataKey="upload" name="Upload" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={14} />
+                  <Bar dataKey="upload" name={t('wrUpload')} fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={14} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -800,7 +804,7 @@ function UserBandwidthTab() {
       {/* Plan Aggregate Cards */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Average Usage per Plan Tier</CardTitle>
+          <CardTitle className="text-base">{t('wrAvgUsagePerPlan')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -812,7 +816,7 @@ function UserBandwidthTab() {
               return (
                 <div key={plan} className="rounded-lg border p-3">
                   <Badge variant={plan.includes('VIP') ? 'default' : plan.includes('Premium') ? 'secondary' : 'outline'} className="mb-2 text-xs">{plan}</Badge>
-                  <p className="text-xs text-muted-foreground">{data.count} user{data.count !== 1 ? 's' : ''}</p>
+                  <p className="text-xs text-muted-foreground">{t('wrVoucherUserCount', { count: data.count })}</p>
                   <div className="mt-2 space-y-1">
                     <div className="flex justify-between text-xs">
                       <span className="text-primary">↓ {formatMB(avgDown)}</span>
@@ -823,8 +827,8 @@ function UserBandwidthTab() {
                       <div className="bg-gradient-to-r from-amber-400 to-orange-400 rounded-r-sm transition-all" style={{ width: `${100 - downPct}%` }} />
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Down</span>
-                      <span>Up</span>
+                      <span>{t('wrDown')}</span>
+                      <span>{t('wrUp')}</span>
                     </div>
                   </div>
                 </div>
@@ -837,23 +841,23 @@ function UserBandwidthTab() {
       {/* Users Table */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">User Bandwidth Details</CardTitle>
-          <CardDescription>Click a row to expand session history</CardDescription>
+          <CardTitle className="text-base">{t('wrUserBwDetails')}</CardTitle>
+          <CardDescription>{t('wrClickExpandSession')}</CardDescription>
         </CardHeader>
         <CardContent className="p-0 overflow-hidden">
           <div className="max-h-96 overflow-x-auto overflow-y-auto">
             <Table className="min-w-max">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="cursor-pointer text-xs whitespace-nowrap" onClick={() => handleSort('username')}>Username <SortIcon col="username" isActive={sortKey === 'username'} /></TableHead>
-                  <TableHead className="cursor-pointer text-xs whitespace-nowrap hidden sm:table-cell" onClick={() => handleSort('ip')}>IP <SortIcon col="ip" isActive={sortKey === 'ip'} /></TableHead>
-                  <TableHead className="text-xs whitespace-nowrap hidden md:table-cell">MAC</TableHead>
-                  <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Plan</TableHead>
-                  <TableHead className="cursor-pointer text-xs whitespace-nowrap text-right hidden md:table-cell" onClick={() => handleSort('sessions')}>Sessions <SortIcon col="sessions" isActive={sortKey === 'sessions'} /></TableHead>
-                  <TableHead className="cursor-pointer text-xs whitespace-nowrap text-right" onClick={() => handleSort('totalDown')}>DL <SortIcon col="totalDown" isActive={sortKey === 'totalDown'} /></TableHead>
-                  <TableHead className="cursor-pointer text-xs whitespace-nowrap text-right" onClick={() => handleSort('totalUp')}>UL <SortIcon col="totalUp" isActive={sortKey === 'totalUp'} /></TableHead>
-                  <TableHead className="cursor-pointer text-xs whitespace-nowrap text-right hidden lg:table-cell" onClick={() => handleSort('avgDuration')}>Avg Dur <SortIcon col="avgDuration" isActive={sortKey === 'avgDuration'} /></TableHead>
-                  <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Last Seen</TableHead>
+                  <TableHead className="cursor-pointer text-xs whitespace-nowrap" onClick={() => handleSort('username')}>{t('wrThUsername')} <SortIcon col="username" isActive={sortKey === 'username'} /></TableHead>
+                  <TableHead className="cursor-pointer text-xs whitespace-nowrap hidden sm:table-cell" onClick={() => handleSort('ip')}>{t('wrThIP')} <SortIcon col="ip" isActive={sortKey === 'ip'} /></TableHead>
+                  <TableHead className="text-xs whitespace-nowrap hidden md:table-cell">{t('wrThMAC')}</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">{t('wrThPlan')}</TableHead>
+                  <TableHead className="cursor-pointer text-xs whitespace-nowrap text-right hidden md:table-cell" onClick={() => handleSort('sessions')}>{t('wrThSessions')} <SortIcon col="sessions" isActive={sortKey === 'sessions'} /></TableHead>
+                  <TableHead className="cursor-pointer text-xs whitespace-nowrap text-right" onClick={() => handleSort('totalDown')}>{t('wrThDL')} <SortIcon col="totalDown" isActive={sortKey === 'totalDown'} /></TableHead>
+                  <TableHead className="cursor-pointer text-xs whitespace-nowrap text-right" onClick={() => handleSort('totalUp')}>{t('wrThUL')} <SortIcon col="totalUp" isActive={sortKey === 'totalUp'} /></TableHead>
+                  <TableHead className="cursor-pointer text-xs whitespace-nowrap text-right hidden lg:table-cell" onClick={() => handleSort('avgDuration')}>{t('wrThAvgDur')} <SortIcon col="avgDuration" isActive={sortKey === 'avgDuration'} /></TableHead>
+                  <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">{t('wrThLastSeen')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -877,19 +881,19 @@ function UserBandwidthTab() {
                       <TableRow className="bg-muted/10">
                         <TableCell colSpan={9}>
                           <div className="p-3 ml-4">
-                            <p className="text-xs font-semibold mb-2 flex items-center gap-1.5"><Clock className="h-3 w-3" /> Session History for {user.username}</p>
+                            <p className="text-xs font-semibold mb-2 flex items-center gap-1.5"><Clock className="h-3 w-3" /> {t('wrSessionHistoryFor', { username: user.username })}</p>
                             {user.sessionHistory && user.sessionHistory.length > 0 ? (
                               <div className="overflow-x-auto">
                                 <Table>
                                   <TableHeader>
                                     <TableRow>
-                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">Session</TableHead>
-                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">Start</TableHead>
-                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">End</TableHead>
-                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden sm:table-cell">NAS</TableHead>
-                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">DL</TableHead>
-                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">UL</TableHead>
-                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">Duration</TableHead>
+                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">{t('wrThSession')}</TableHead>
+                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">{t('wrThStart')}</TableHead>
+                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">{t('wrThEnd')}</TableHead>
+                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden sm:table-cell">{t('wrThNAS')}</TableHead>
+                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">{t('wrThDL')}</TableHead>
+                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">{t('wrThUL')}</TableHead>
+                                      <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">{t('wrThDuration')}</TableHead>
                                     </TableRow>
                                   </TableHeader>
                                   <TableBody>
@@ -897,7 +901,7 @@ function UserBandwidthTab() {
                                       <TableRow key={s.id}>
                                         <TableCell className="font-mono text-[10px] sm:text-xs whitespace-nowrap">{s.id.substring(0, 8)}...</TableCell>
                                         <TableCell className="text-[10px] sm:text-xs whitespace-nowrap">{s.start ? new Date(s.start).toLocaleString() : '—'}</TableCell>
-                                        <TableCell className="text-[10px] sm:text-xs whitespace-nowrap">{s.end ? new Date(s.end).toLocaleString() : 'Active'}</TableCell>
+                                        <TableCell className="text-[10px] sm:text-xs whitespace-nowrap">{s.end ? new Date(s.end).toLocaleString() : t('wrActive')}</TableCell>
                                         <TableCell className="font-mono text-[10px] sm:text-xs text-muted-foreground hidden sm:table-cell">{s.nas || '—'}</TableCell>
                                         <TableCell className="text-[10px] sm:text-xs text-right text-primary font-mono whitespace-nowrap">{formatMB(s.download)}</TableCell>
                                         <TableCell className="text-[10px] sm:text-xs text-right text-amber-600 dark:text-amber-400 font-mono whitespace-nowrap">{formatMB(s.upload)}</TableCell>
@@ -908,7 +912,7 @@ function UserBandwidthTab() {
                                 </Table>
                               </div>
                             ) : (
-                              <p className="text-xs text-muted-foreground">No session history available</p>
+                              <p className="text-xs text-muted-foreground">{t('wrNoSessionHistory')}</p>
                             )}
                           </div>
                         </TableCell>
@@ -920,8 +924,8 @@ function UserBandwidthTab() {
                   <TableRow>
                     <TableCell colSpan={9} className="text-center text-muted-foreground py-8 text-xs">
                       {usersData.length === 0
-                        ? 'No user bandwidth data. Data is sourced from RADIUS accounting sessions.'
-                        : 'No users match your search.'}
+                        ? t('wrNoUserBwData')
+                        : t('wrNoUsersMatchSearch')}
                     </TableCell>
                   </TableRow>
                 )}
@@ -937,6 +941,7 @@ function UserBandwidthTab() {
 // ==================== TAB 3: WEB SURFING ====================
 
 function WebSurfingTab() {
+  const t = useTranslations('wifiReports');
   const [domainSearch, setDomainSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [surfingLogs, setSurfingLogs] = useState<any[]>([]);
@@ -947,19 +952,19 @@ function WebSurfingTab() {
   const { toast } = useToast();
 
   const ALL_CATEGORIES = [
-    { value: 'social_media', label: 'Social Media' },
-    { value: 'video', label: 'Video' },
-    { value: 'streaming', label: 'Streaming' },
-    { value: 'shopping', label: 'Shopping' },
-    { value: 'tech', label: 'Technology' },
-    { value: 'communication', label: 'Communication' },
-    { value: 'news', label: 'News' },
-    { value: 'food', label: 'Food & Dining' },
-    { value: 'entertainment', label: 'Entertainment' },
-    { value: 'education', label: 'Education' },
-    { value: 'travel', label: 'Travel' },
-    { value: 'gaming', label: 'Gaming' },
-    { value: 'other', label: 'Other' },
+    { value: 'social_media', label: t('wrCatSocialMedia') },
+    { value: 'video', label: t('wrCatVideo') },
+    { value: 'streaming', label: t('wrCatStreaming') },
+    { value: 'shopping', label: t('wrCatShopping') },
+    { value: 'tech', label: t('wrCatTechnology') },
+    { value: 'communication', label: t('wrCatCommunication') },
+    { value: 'news', label: t('wrCatNews') },
+    { value: 'food', label: t('wrCatFoodDining') },
+    { value: 'entertainment', label: t('wrCatEntertainment') },
+    { value: 'education', label: t('wrCatEducation') },
+    { value: 'travel', label: t('wrCatTravel') },
+    { value: 'gaming', label: t('wrCatGaming') },
+    { value: 'other', label: t('wrCatOther') },
   ];
 
   const catColors: Record<string, string> = {
@@ -1005,7 +1010,7 @@ function WebSurfingTab() {
     a.download = `web-surfing-report-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast({ title: 'Exported', description: 'Web surfing CSV downloaded' });
+    toast({ title: t('wrExported'), description: t('wrWebSurfingCsvDownloaded') });
   }, [surfingLogs, toast]);
 
   const fetchWebSurfing = useCallback(async () => {
@@ -1024,7 +1029,7 @@ function WebSurfingTab() {
       }
     } catch (e) {
       console.error(e);
-      toast({ title: 'Error', description: 'Failed to fetch web surfing logs', variant: 'destructive' });
+      toast({ title: t('wrError'), description: t('wrFailedFetchWebSurfing'), variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -1074,7 +1079,7 @@ function WebSurfingTab() {
     }, { result: '', cumulative: 0 }).result;
   }, [categoryBreakdown]);
 
-  if (loading) return <LoadingSpinner message="Loading web surfing logs..." />;
+  if (loading) return <LoadingSpinner message={t('wrLoadingWebSurfing')} />;
 
   return (
     <div className="space-y-4">
@@ -1082,10 +1087,10 @@ function WebSurfingTab() {
       <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3">
         <Eye className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
         <div className="flex-1">
-          <p className="text-sm text-muted-foreground">Domain-level access logs only. Full URL tracking disabled for guest privacy (GDPR/PIPL).</p>
+          <p className="text-sm text-muted-foreground">{t('wrPrivacyNotice')}</p>
           <Badge variant={dataSource === 'clickhouse' ? 'default' : 'secondary'} className={cn('mt-1 text-xs', dataSource === 'clickhouse' && 'bg-emerald-600 text-white hover:bg-emerald-700')}>
             <Database className="h-3 w-3 mr-1" />
-            {dataSource === 'clickhouse' ? 'ClickHouse Live' : dataSource === 'ulogd2' ? 'ulogd2 Live' : 'Demo Data'}
+            {dataSource === 'clickhouse' ? t('wrClickHouseLive') : dataSource === 'ulogd2' ? t('wrUlogd2Live') : t('wrDemoData')}
           </Badge>
         </div>
       </div>
@@ -1093,8 +1098,8 @@ function WebSurfingTab() {
       {/* 4 Summary Cards */}
       {summary && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Globe className="h-6 w-6 sm:h-8 sm:w-8 text-violet-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Domains</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.totalDomains || 0).toLocaleString()}</p></div></div></Card>
-          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Activity className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Traffic</p><p className="text-lg sm:text-xl font-bold truncate">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Globe className="h-6 w-6 sm:h-8 sm:w-8 text-violet-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('wrTotalDomains')}</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.totalDomains || 0).toLocaleString()}</p></div></div></Card>
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Activity className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('wrTotalTraffic')}</p><p className="text-lg sm:text-xl font-bold truncate">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Users className="h-6 w-6 sm:h-8 sm:w-8 text-amber-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Unique Users</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.uniqueUsers || 0).toLocaleString()}</p></div></div></Card>
           <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-rose-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Top Category</p><p className="text-lg sm:text-xl font-bold capitalize truncate">{(summary.topCategory || 'other').replace('_', ' ')}</p></div></div></Card>
         </div>
@@ -1106,16 +1111,16 @@ function WebSurfingTab() {
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search domain, IP, or guest name..." value={domainSearch} onChange={(e) => setDomainSearch(e.target.value)} className="pl-9" />
+              <Input placeholder={t('wrSearchDomainIpGuest')} value={domainSearch} onChange={(e) => setDomainSearch(e.target.value)} className="pl-9" />
             </div>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger className="w-full sm:w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="all">{t('wrAllCategories')}</SelectItem>
                 {ALL_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleExportCSV}><FileDown className="h-3.5 w-3.5 mr-1.5" /> Export</Button>
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleExportCSV}><FileDown className="h-3.5 w-3.5 mr-1.5" /> {t('wrExport')}</Button>
           </div>
         </CardContent>
       </Card>
@@ -1123,7 +1128,7 @@ function WebSurfingTab() {
       {/* Top Domains + Category Pie */}
       <div className="grid md:grid-cols-3 gap-3 sm:gap-4">
         <Card className="md:col-span-2">
-          <CardHeader className="pb-2"><CardTitle className="text-sm sm:text-base">Top 20 Most Visited Domains</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm sm:text-base">{t('wrTop20Domains')}</CardTitle></CardHeader>
           <CardContent className="overflow-hidden">
             <ScrollArea className="max-h-64">
               <div className="space-y-1.5">
@@ -1142,7 +1147,7 @@ function WebSurfingTab() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm sm:text-base">Category Distribution</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm sm:text-base">{t('wrCategoryDistribution')}</CardTitle></CardHeader>
           <CardContent>
             <div className="flex flex-col items-center">
               {categoryBreakdown.length > 0 ? (
@@ -1168,28 +1173,28 @@ function WebSurfingTab() {
 
       {/* Domain Access Logs Table */}
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm sm:text-base">Domain Access Logs</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-sm sm:text-base">{t('wrDomainAccessLogs')}</CardTitle></CardHeader>
         <CardContent className="p-0 overflow-hidden">
           <div className="max-h-96 overflow-x-auto overflow-y-auto">
             <Table className="min-w-max">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-xs whitespace-nowrap">Timestamp</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap">Domain</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap">Source IP</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Src Port</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Dest IP</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Dst Port</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap hidden xl:table-cell">Interface</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap hidden sm:table-cell">Guest Name</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap hidden md:table-cell">Category</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap text-right">Conns</TableHead>
-                    <TableHead className="text-xs whitespace-nowrap text-right">Bytes</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap">{t('wrThTimestamp')}</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap">{t('wrThDomain')}</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap">{t('wrThSourceIP')}</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">{t('wrThSrcPort')}</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">{t('wrThDestIP')}</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">{t('wrThDstPort')}</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden xl:table-cell">{t('wrThInterface')}</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden sm:table-cell">{t('wrThGuestName')}</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden md:table-cell">{t('wrThCategory')}</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap text-right">{t('wrThConns')}</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap text-right">{t('wrThBytes')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredLogs.length === 0 ? (
-                    <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground text-xs">No web surfing data available. Data will appear once the DNS logging pipeline is active.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground text-xs">{t('wrNoWebSurfingData')}</TableCell></TableRow>
                   ) : filteredLogs.slice(0, 200).map((log, idx) => (
                     <TableRow key={log.id || `${log.domain}-${log.sourceIp || log.source_ip}-${idx}`} className="hover:bg-muted/30">
                       <TableCell className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">{new Date(log.timestamp || log.lastAccess || log.last_access).toLocaleString()}</TableCell>
@@ -1225,6 +1230,7 @@ function WebSurfingTab() {
 // ==================== TAB 4: NAT LOGS ====================
 
 function NATLogsTab() {
+  const t = useTranslations('wifiReports');
   const [logs, setLogs] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [dataSource, setDataSource] = useState<string>('demo');
@@ -1246,7 +1252,7 @@ function NATLogsTab() {
     a.download = `nat-logs-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast({ title: 'Exported', description: 'NAT logs CSV downloaded' });
+    toast({ title: t('wrExported'), description: t('wrNatLogsCsvDownloaded') });
   }, [logs, toast]);
 
   const fetchNATLogs = useCallback(async () => {
@@ -1266,7 +1272,7 @@ function NATLogsTab() {
       }
     } catch (e) {
       console.error(e);
-      toast({ title: 'Error', description: 'Failed to fetch NAT logs', variant: 'destructive' });
+      toast({ title: t('wrError'), description: t('wrFailedFetchNatLogs'), variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -1285,7 +1291,7 @@ function NATLogsTab() {
     return result;
   }, [logs, searchQuery, protocolFilter, actionFilter]);
 
-  if (loading) return <LoadingSpinner message="Loading NAT logs..." />;
+  if (loading) return <LoadingSpinner message={t('wrLoadingNatLogs')} />;
 
   // Format timestamp with date
   const formatTimestamp = (ts: string) => {
@@ -1306,13 +1312,13 @@ function NATLogsTab() {
       <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3">
         <Shield className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
         <div className="flex-1">
-          <p className="text-sm text-muted-foreground">NAT connection logs for IPDR compliance (TRAI). Data retained for minimum 1 year.</p>
+          <p className="text-sm text-muted-foreground">{t('wrNATComplianceNotice')}</p>
           <div className="flex gap-2 mt-1">
             <Badge variant={dataSource === 'clickhouse' ? 'default' : 'secondary'} className={cn('text-xs', dataSource === 'clickhouse' && 'bg-emerald-600 text-white hover:bg-emerald-700')}>
               <Database className="h-3 w-3 mr-1" />
-              {dataSource === 'clickhouse' ? 'ClickHouse Live' : dataSource === 'ulogd2' ? 'ulogd2 Live' : 'Demo Data'}
+              {dataSource === 'clickhouse' ? t('wrClickHouseLive') : dataSource === 'ulogd2' ? t('wrUlogd2Live') : t('wrDemoData')}
             </Badge>
-            <Badge variant="outline" className="text-xs"><Shield className="h-3 w-3 mr-1" />IPDR Compliant</Badge>
+            <Badge variant="outline" className="text-xs"><Shield className="h-3 w-3 mr-1" />{t('wrIPDRCompliant')}</Badge>
           </div>
         </div>
       </div>
@@ -1320,10 +1326,10 @@ function NATLogsTab() {
       {/* 4 Summary Cards */}
       {summary && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Activity className="h-6 w-6 sm:h-8 sm:w-8 text-sky-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Connections</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.totalConnections || 0).toLocaleString()}</p></div></div></Card>
-          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Download className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Traffic</p><p className="text-lg sm:text-xl font-bold truncate">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
-          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Users className="h-6 w-6 sm:h-8 sm:w-8 text-amber-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Unique Sources</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.uniqueSources || 0).toLocaleString()}</p></div></div></Card>
-          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Network className="h-6 w-6 sm:h-8 sm:w-8 text-violet-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">Top Protocol</p><p className="text-lg sm:text-xl font-bold uppercase truncate">{summary.topProtocol || 'tcp'}</p></div></div></Card>
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Activity className="h-6 w-6 sm:h-8 sm:w-8 text-sky-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('wrTotalConnections')}</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.totalConnections || 0).toLocaleString()}</p></div></div></Card>
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Download className="h-6 w-6 sm:h-8 sm:w-8 text-primary flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('wrTotalTraffic')}</p><p className="text-lg sm:text-xl font-bold truncate">{formatBytes(summary.totalBytes || 0)}</p></div></div></Card>
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Users className="h-6 w-6 sm:h-8 sm:w-8 text-amber-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('wrUniqueSources')}</p><p className="text-lg sm:text-xl font-bold truncate">{(summary.uniqueSources || 0).toLocaleString()}</p></div></div></Card>
+          <Card className="p-3 sm:p-4"><div className="flex items-center gap-2 sm:gap-3 min-w-0"><Network className="h-6 w-6 sm:h-8 sm:w-8 text-violet-500 flex-shrink-0" /><div className="min-w-0"><p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('wrTopProtocol')}</p><p className="text-lg sm:text-xl font-bold uppercase truncate">{summary.topProtocol || 'tcp'}</p></div></div></Card>
         </div>
       )}
 
@@ -1333,23 +1339,23 @@ function NATLogsTab() {
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search IP, domain, or guest name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
+              <Input placeholder={t('wrSearchIpDomainGuest')} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
             </div>
             <Select value={protocolFilter} onValueChange={setProtocolFilter}>
               <SelectTrigger className="w-full sm:w-32"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Proto</SelectItem>
-                <SelectItem value="tcp">TCP</SelectItem>
-                <SelectItem value="udp">UDP</SelectItem>
-                <SelectItem value="icmp">ICMP</SelectItem>
+                <SelectItem value="all">{t('wrAllProto')}</SelectItem>
+                <SelectItem value="tcp">{t('wrProtoTCP')}</SelectItem>
+                <SelectItem value="udp">{t('wrProtoUDP')}</SelectItem>
+                <SelectItem value="icmp">{t('wrProtoICMP')}</SelectItem>
               </SelectContent>
             </Select>
             <Select value={actionFilter} onValueChange={setActionFilter}>
               <SelectTrigger className="w-full sm:w-32"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Actions</SelectItem>
-                <SelectItem value="allow">Allow</SelectItem>
-                <SelectItem value="deny">Deny</SelectItem>
+                <SelectItem value="all">{t('wrAllActions')}</SelectItem>
+                <SelectItem value="allow">{t('wrActionAllow')}</SelectItem>
+                <SelectItem value="deny">{t('wrActionDeny')}</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -1359,9 +1365,9 @@ function NATLogsTab() {
               onClick={() => setGuestOnly(!guestOnly)}
             >
               <Users className="h-3.5 w-3.5 mr-1.5" />
-              {guestOnly ? 'Guests Only' : 'All Traffic'}
+              {guestOnly ? t('wrGuestsOnly') : t('wrAllTraffic')}
             </Button>
-            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleExportCSV}><FileDown className="h-3.5 w-3.5 mr-1.5" /> Export</Button>
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleExportCSV}><FileDown className="h-3.5 w-3.5 mr-1.5" /> {t('wrExport')}</Button>
           </div>
         </CardContent>
       </Card>
@@ -1373,22 +1379,22 @@ function NATLogsTab() {
               <Table className="min-w-max">
                 <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow>
-                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">Timestamp</TableHead>
-                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">Source</TableHead>
-                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden sm:table-cell">NAT</TableHead>
-                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden lg:table-cell">Dest</TableHead>
-                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">Proto</TableHead>
-                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden sm:table-cell">Event</TableHead>
-                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">↓ DL</TableHead>
-                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">↑ UL</TableHead>
-                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right hidden md:table-cell">Pkts</TableHead>
-                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden md:table-cell">Domain</TableHead>
-                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden lg:table-cell">Guest</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">{t('wrThTimestamp')}</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">{t('wrThSource')}</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden sm:table-cell">{t('wrThNAT')}</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden lg:table-cell">{t('wrThDest')}</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap">{t('wrThProto')}</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden sm:table-cell">{t('wrThEvent')}</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">{t('wrThDLArrow')}</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">{t('wrThULArrow')}</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right hidden md:table-cell">{t('wrThPkts')}</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden md:table-cell">{t('wrThDomain')}</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden lg:table-cell">{t('wrThGuest')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredLogs.length === 0 ? (
-                    <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground text-xs">No NAT log data available. Data will appear once the conntrack logging pipeline is active.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground text-xs">{t('wrNoNatLogData')}</TableCell></TableRow>
                   ) : filteredLogs.slice(0, 200).map((log, idx) => (
                     <TableRow key={log.id || `nat-${idx}`} className={cn('hover:bg-muted/30', (log.action === 'deny') && 'bg-red-50/50 dark:bg-red-950/10')}>
                       <TableCell className="text-[10px] sm:text-xs text-muted-foreground font-mono whitespace-nowrap">
@@ -1482,6 +1488,7 @@ const statusColors: Record<string, string> = {
 };
 
 function VoucherReportTab() {
+  const t = useTranslations('wifiReports');
   const [vouchers, setVouchers] = useState<VoucherRow[]>([]);
   const [summary, setSummary] = useState<VoucherSummary | null>(null);
   const [planBreakdown, setPlanBreakdown] = useState<PlanBreakdown[]>([]);
@@ -1503,11 +1510,11 @@ function VoucherReportTab() {
         setPlanBreakdown(result.data?.planBreakdown || []);
         setVouchers(result.data?.vouchers || []);
       } else {
-        toast({ title: 'Error', description: typeof result.error === 'string' ? result.error : result.error?.message || 'Failed to fetch voucher report', variant: 'destructive' });
+        toast({ title: t('wrError'), description: typeof result.error === 'string' ? result.error : result.error?.message || t('wrFailedFetchVoucher'), variant: 'destructive' });
       }
     } catch (e) {
       console.error(e);
-      toast({ title: 'Error', description: 'Failed to fetch voucher report', variant: 'destructive' });
+      toast({ title: t('wrError'), description: t('wrFailedFetchVoucher'), variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -1531,10 +1538,10 @@ function VoucherReportTab() {
     a.download = `voucher-report-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast({ title: 'Exported', description: 'Voucher report CSV downloaded' });
+    toast({ title: t('wrExported'), description: t('wrVoucherCsvDownloaded') });
   }, [vouchers, toast]);
 
-  if (loading) return <LoadingSpinner message="Loading voucher report..." />;
+  if (loading) return <LoadingSpinner message={t('wrLoadingVoucher')} />;
 
   return (
     <div className="space-y-4">
@@ -1544,15 +1551,15 @@ function VoucherReportTab() {
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
             <div className="flex items-center gap-2">
               <Ticket className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Status:</span>
+              <span className="text-sm font-medium">{t('wrStatus')}</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               {[
-                { value: 'all', label: 'All' },
-                { value: 'active', label: 'Active' },
-                { value: 'used', label: 'Used' },
-                { value: 'expired', label: 'Expired' },
-                { value: 'revoked', label: 'Revoked' },
+                { value: 'all', label: t('wrStatusAll') },
+                { value: 'active', label: t('wrStatusActive') },
+                { value: 'used', label: t('wrStatusUsed') },
+                { value: 'expired', label: t('wrStatusExpired') },
+                { value: 'revoked', label: t('wrStatusRevoked') },
               ].map((s) => (
                 <Button key={s.value} variant={statusFilter === s.value ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter(s.value)}>
                   {s.label}
@@ -1566,7 +1573,7 @@ function VoucherReportTab() {
             <div className="relative flex-1 min-w-48">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by code or issued to..."
+                placeholder={t('wrSearchCodeIssuedTo')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
@@ -1574,7 +1581,7 @@ function VoucherReportTab() {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={handleExportCSV}>
-                <FileDown className="h-3.5 w-3.5 mr-1.5" /> CSV
+                <FileDown className="h-3.5 w-3.5 mr-1.5" /> {t('wrCSV')}
               </Button>
               <Button variant="outline" size="sm" onClick={fetchVouchers}>
                 <RefreshCw className="h-3.5 w-3.5" />
@@ -1587,11 +1594,11 @@ function VoucherReportTab() {
       {/* Summary Cards */}
       {summary && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-          <SummaryCard icon={Ticket} label="Total Vouchers" value={summary.total.toString()} color="teal" />
-          <SummaryCard icon={CheckCircle2} label="Active" value={summary.active.toString()} color="emerald" />
-          <SummaryCard icon={Wifi} label="Used (Redeemed)" value={summary.used.toString()} color="teal" />
-          <SummaryCard icon={AlertTriangle} label="Redemption Rate" value={`${summary.redemptionRate.toFixed(0)}%`} color="amber" />
-          <SummaryCard icon={Clock} label="Expiring Soon" value={summary.expiringSoon.toString()} color={summary.expiringSoon > 0 ? 'red' : 'emerald'} />
+          <SummaryCard icon={Ticket} label={t('wrTotalVouchers')} value={summary.total.toString()} color="teal" />
+          <SummaryCard icon={CheckCircle2} label={t('wrStatusActive')} value={summary.active.toString()} color="emerald" />
+          <SummaryCard icon={Wifi} label={t('wrUsedRedeemed')} value={summary.used.toString()} color="teal" />
+          <SummaryCard icon={AlertTriangle} label={t('wrRedemptionRate')} value={`${summary.redemptionRate.toFixed(0)}%`} color="amber" />
+          <SummaryCard icon={Clock} label={t('wrExpiringSoon')} value={summary.expiringSoon.toString()} color={summary.expiringSoon > 0 ? 'red' : 'emerald'} />
         </div>
       )}
 
@@ -1600,9 +1607,9 @@ function VoucherReportTab() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" /> Plan Adoption
+              <BarChart3 className="h-4 w-4" /> {t('wrPlanAdoption')}
             </CardTitle>
-            <CardDescription>Voucher usage breakdown by WiFi plan</CardDescription>
+            <CardDescription>{t('wrPlanBreakdownDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -1612,12 +1619,12 @@ function VoucherReportTab() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">{plan.total} voucher{plan.total !== 1 ? 's' : ''}</span>
                     <Badge className={cn('text-xs', statusColors[plan.active > 0 ? 'active' : 'expired'])}>
-                      {plan.active} active
+                      {t('wrActiveCountBadge', { count: plan.active })}
                     </Badge>
                   </div>
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Redeemed</span>
+                      <span>{t('wrRedeemed')}</span>
                       <span>{plan.redemptionRate.toFixed(0)}%</span>
                     </div>
                     <div className="flex h-2 rounded-full bg-muted overflow-hidden">
@@ -1628,8 +1635,8 @@ function VoucherReportTab() {
                     </div>
                   </div>
                   <div className="flex gap-3 text-xs">
-                    <span className="text-primary">{plan.used} used</span>
-                    <span className="text-gray-500">{plan.expired} expired</span>
+                    <span className="text-primary">{t('wrVoucherUserCount', { count: plan.used })} {t('wrStatusUsed').toLowerCase()}</span>
+                    <span className="text-gray-500">{t('wrVoucherUserCount', { count: plan.expired })} {t('wrStatusExpired').toLowerCase()}</span>
                   </div>
                 </div>
               ))}
@@ -1641,10 +1648,10 @@ function VoucherReportTab() {
       {/* Voucher Table */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Voucher Details</CardTitle>
+          <CardTitle className="text-base">{t('wrVoucherDetails')}</CardTitle>
           <CardDescription>
-            {vouchers.length} voucher{vouchers.length !== 1 ? 's' : ''} found
-            {statusFilter !== 'all' && ` (filtered: ${statusFilter})`}
+            {t('wrVouchersFound', { count: vouchers.length })}
+            {statusFilter !== 'all' && ` (${t('wrFilteredLabel', { status: statusFilter })})`}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0 overflow-hidden">
@@ -1652,14 +1659,14 @@ function VoucherReportTab() {
             <Table className="min-w-max">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-xs whitespace-nowrap">Code</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap">{t('wrThCode')}</TableHead>
                   <TableHead className="text-xs whitespace-nowrap hidden sm:table-cell">Plan</TableHead>
                   <TableHead className="text-xs whitespace-nowrap">Guest</TableHead>
-                  <TableHead className="text-xs whitespace-nowrap">Status</TableHead>
-                  <TableHead className="text-xs whitespace-nowrap hidden md:table-cell">Validity</TableHead>
-                  <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Used At</TableHead>
-                  <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">Issued</TableHead>
-                  <TableHead className="text-xs whitespace-nowrap text-right hidden xl:table-cell">Property</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap">{t('wrStatusAll')}</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap hidden md:table-cell">{t('wrThValidity')}</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">{t('wrThUsedAt')}</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">{t('wrThIssued')}</TableHead>
+                  <TableHead className="text-xs whitespace-nowrap text-right hidden xl:table-cell">{t('wrThProperty')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1675,7 +1682,7 @@ function VoucherReportTab() {
                           className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0"
                           onClick={() => {
                             navigator.clipboard.writeText(v.code);
-                            toast({ title: 'Copied', description: `Voucher code ${v.code} copied to clipboard` });
+                            toast({ title: t('wrCopied'), description: t('wrCodeCopied', { code: v.code }) });
                           }}
                         >
                           <Copy className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
@@ -1714,8 +1721,8 @@ function VoucherReportTab() {
                   <TableRow>
                     <TableCell colSpan={8} className="text-center text-muted-foreground py-8 text-xs">
                       {searchQuery || statusFilter !== 'all'
-                        ? 'No vouchers match your filters.'
-                        : 'No vouchers found. Create vouchers from the WiFi Management section.'}
+                        ? t('wrNoVouchersMatch')
+                        : t('wrNoVouchersCreate')}
                     </TableCell>
                   </TableRow>
                 )}
@@ -1836,6 +1843,7 @@ const IFACE_COLORS = ['#14b8a6', '#f97316', '#06b6d4', '#f43f5e', '#8b5cf6', '#e
 // ==================== MAIN SYSTEM HEALTH TAB ====================
 
 function SystemHealthTab() {
+  const t = useTranslations('wifiReports');
   const { toast } = useToast();
 
   // Shared metrics state (polled every 2s)
@@ -2280,24 +2288,24 @@ function SystemHealthTab() {
 
   // Metric card data (pure computation, no hooks)
   const getMetricCards = () => [
-    { label: 'CPU', value: cpuPct, icon: Cpu, history: history?.cpu },
-    { label: 'RAM', value: ramPct, icon: MemoryStick, history: history?.memory },
-    { label: 'Disk', value: diskPct, icon: HardDrive, history: history?.disk },
-    { label: 'Active Alerts', value: activeAlerts.length, icon: Bell, history: null },
+    { label: t('wrCPU'), value: cpuPct, icon: Cpu, history: history?.cpu },
+    { label: t('wrRAM'), value: ramPct, icon: MemoryStick, history: history?.memory },
+    { label: t('wrDisk'), value: diskPct, icon: HardDrive, history: history?.disk },
+    { label: t('wrActiveAlerts'), value: activeAlerts.length, icon: Bell, history: null },
   ];
 
-  if (loading && !metrics) return <LoadingSpinner message="Loading system health..." />;
+  if (loading && !metrics) return <LoadingSpinner message={t('wrLoadingSysHealth')} />;
 
   const metricCards = getMetricCards();
 
   return (
     <Tabs defaultValue="overview" className="space-y-4">
       <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:w-auto lg:inline-grid">
-        <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
-        <TabsTrigger value="interfaces" className="text-xs sm:text-sm">Interfaces</TabsTrigger>
-        <TabsTrigger value="resources" className="text-xs sm:text-sm">Resources</TabsTrigger>
-        <TabsTrigger value="users" className="text-xs sm:text-sm">Active Users</TabsTrigger>
-        <TabsTrigger value="pool-bw" className="text-xs sm:text-sm">Pool BW</TabsTrigger>
+        <TabsTrigger value="overview" className="text-xs sm:text-sm">{t('wrOverview')}</TabsTrigger>
+        <TabsTrigger value="interfaces" className="text-xs sm:text-sm">{t('wrInterfaces')}</TabsTrigger>
+        <TabsTrigger value="resources" className="text-xs sm:text-sm">{t('wrResources')}</TabsTrigger>
+        <TabsTrigger value="users" className="text-xs sm:text-sm">{t('wrActiveUsersTab')}</TabsTrigger>
+        <TabsTrigger value="pool-bw" className="text-xs sm:text-sm">{t('wrPoolBW')}</TabsTrigger>
       </TabsList>
 
       {/* ==================== SUB-TAB 1: OVERVIEW ==================== */}
@@ -2336,7 +2344,7 @@ function SystemHealthTab() {
             <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Network className="h-4 w-4 text-muted-foreground" />
-                Real-time Interface Bandwidth
+                {t('wrRealtimeIfaceBandwidth')}
               </CardTitle>
               <div className="flex flex-wrap items-center gap-3 text-xs">
                 {interfaces.map((iface: any, i: number) => (
@@ -2398,7 +2406,7 @@ function SystemHealthTab() {
         <Card>
           <CardContent className="p-4">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm font-medium text-muted-foreground">Interface:</span>
+              <span className="text-sm font-medium text-muted-foreground">{t('wrInterfaceLabel')}</span>
               {interfaces.map((iface: any) => (
                 <Button key={iface.name} variant={selectedIface === iface.name ? 'default' : 'outline'} size="sm" className="font-mono text-xs" onClick={() => setSelectedIface(iface.name)}>
                   <Wifi className="h-3 w-3 mr-1.5" />
@@ -2413,13 +2421,13 @@ function SystemHealthTab() {
         {selectedIface && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-mono">{selectedIface} — Real-time Traffic</CardTitle>
+              <CardTitle className="text-base font-mono">{t('wrRealtimeTraffic', { iface: selectedIface })}</CardTitle>
             </CardHeader>
             <CardContent>
               {bwChartData.length > 0 ? (
                 <ChartContainer config={{
-                  rx: { label: 'Download', color: '#14b8a6' },
-                  tx: { label: 'Upload', color: '#f97316' },
+                  rx: { label: t('wrDownload'), color: '#14b8a6' },
+                  tx: { label: t('wrUpload'), color: '#f97316' },
                 }} className="h-[260px] w-full">
                   <AreaChart data={bwChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <defs>
@@ -2436,8 +2444,8 @@ function SystemHealthTab() {
                     <XAxis dataKey="time" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                     <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatMbps(v)} width={70} />
                     <ChartTooltip content={<HealthChartTooltip />} />
-                    <Area type="monotone" dataKey={`${selectedIface}_rx`} name="Download" stroke="#14b8a6" fill="url(#iface-rx-grad)" strokeWidth={2} dot={false} />
-                    <Area type="monotone" dataKey={`${selectedIface}_tx`} name="Upload" stroke="#f97316" fill="url(#iface-tx-grad)" strokeWidth={2} dot={false} />
+                    <Area type="monotone" dataKey={`${selectedIface}_rx`} name={t('wrDownload')} stroke="#14b8a6" fill="url(#iface-rx-grad)" strokeWidth={2} dot={false} />
+                    <Area type="monotone" dataKey={`${selectedIface}_tx`} name={t('wrUpload')} stroke="#f97316" fill="url(#iface-tx-grad)" strokeWidth={2} dot={false} />
                   </AreaChart>
                 </ChartContainer>
               ) : (
@@ -2451,7 +2459,7 @@ function SystemHealthTab() {
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle className="text-base font-mono">{selectedIface} — Historical</CardTitle>
+              <CardTitle className="text-base font-mono">{t('wrHistorical', { iface: selectedIface })}</CardTitle>
               <RangeSelector value={ifaceHistRange} onChange={setIfaceHistRange} />
             </div>
           </CardHeader>
@@ -2460,16 +2468,16 @@ function SystemHealthTab() {
               <div className="flex items-center justify-center h-[260px]"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : ifaceHistChartData.length > 0 ? (
               <ChartContainer config={{
-                rx: { label: 'Download (RX)', color: '#14b8a6' },
-                tx: { label: 'Upload (TX)', color: '#f97316' },
+                rx: { label: t('wrDownloadRx'), color: '#14b8a6' },
+                tx: { label: t('wrUploadTx'), color: '#f97316' },
               }} className="h-[260px] w-full">
                 <LineChart data={ifaceHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
                   <XAxis dataKey="time" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatBandwidth(v)} width={70} />
                   <ChartTooltip content={<HealthChartTooltip />} />
-                  <Line type="monotone" dataKey="rx" name="Download (RX)" stroke="#14b8a6" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="tx" name="Upload (TX)" stroke="#f97316" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="rx" name={t('wrDownloadRx')} stroke="#14b8a6" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="tx" name={t('wrUploadTx')} stroke="#f97316" strokeWidth={2} dot={false} />
                 </LineChart>
               </ChartContainer>
             ) : (
@@ -2488,19 +2496,19 @@ function SystemHealthTab() {
             <Card className="p-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
-                  <p className="text-xs text-muted-foreground">Current ↓</p>
+                  <p className="text-xs text-muted-foreground">{t('wrCurrentDown')}</p>
                   <p className="text-lg font-bold tabular-nums text-primary">{formatMbps(iface.rxSpeed || 0)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Current ↑</p>
+                  <p className="text-xs text-muted-foreground">{t('wrCurrentUp')}</p>
                   <p className="text-lg font-bold tabular-nums text-orange-600 dark:text-orange-400">{formatMbps(iface.txSpeed || 0)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Total Received</p>
+                  <p className="text-xs text-muted-foreground">{t('wrTotalReceived')}</p>
                   <p className={cn('text-lg font-bold tabular-nums', rxCol.color)}>{rxCol.text}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Total Transmitted</p>
+                  <p className="text-xs text-muted-foreground">{t('wrTotalTransmitted')}</p>
                   <p className={cn('text-lg font-bold tabular-nums', txCol.color)}>{txCol.text}</p>
                 </div>
               </div>
@@ -2518,7 +2526,7 @@ function SystemHealthTab() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Cpu className="h-4 w-4 text-primary" /> CPU
+                  <Cpu className="h-4 w-4 text-primary" /> {t('wrCPU')}
                 </CardTitle>
                 <span className={cn('text-2xl font-bold tabular-nums', getMetricColor(cpuPct).text)}>{Math.round(cpuPct)}%</span>
               </div>
@@ -2531,7 +2539,7 @@ function SystemHealthTab() {
                 <RangeSelector value={cpuRange} onChange={setCpuRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
               {cpuHistChartData.length > 0 ? (
-                <ChartContainer config={{ usage: { label: 'CPU', color: '#14b8a6' } }} className="h-[160px] w-full">
+                <ChartContainer config={{ usage: { label: t('wrCPU'), color: '#14b8a6' } }} className="h-[160px] w-full">
                   <AreaChart data={cpuHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="cpu-grad" x1="0" y1="0" x2="0" y2="1">
@@ -2542,7 +2550,7 @@ function SystemHealthTab() {
                     <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} width={40} />
                     <ChartTooltip content={<HealthChartTooltip unit="%" />} />
-                    <Area type="monotone" dataKey="usage" name="CPU" stroke="#14b8a6" fill="url(#cpu-grad)" strokeWidth={1.5} dot={false} />
+                    <Area type="monotone" dataKey="usage" name={t('wrCPU')} stroke="#14b8a6" fill="url(#cpu-grad)" strokeWidth={1.5} dot={false} />
                   </AreaChart>
                 </ChartContainer>
               ) : (
@@ -2556,7 +2564,7 @@ function SystemHealthTab() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <MemoryStick className="h-4 w-4 text-orange-500 dark:text-orange-400" /> RAM
+                  <MemoryStick className="h-4 w-4 text-orange-500 dark:text-orange-400" /> {t('wrRAM')}
                 </CardTitle>
                 <span className={cn('text-2xl font-bold tabular-nums', getMetricColor(ramPct).text)}>{Math.round(ramPct)}%</span>
               </div>
@@ -2569,7 +2577,7 @@ function SystemHealthTab() {
                 <RangeSelector value={memRange} onChange={setMemRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
               {memHistChartData.length > 0 ? (
-                <ChartContainer config={{ percent: { label: 'RAM', color: '#f97316' } }} className="h-[160px] w-full">
+                <ChartContainer config={{ percent: { label: t('wrRAM'), color: '#f97316' } }} className="h-[160px] w-full">
                   <AreaChart data={memHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="mem-grad" x1="0" y1="0" x2="0" y2="1">
@@ -2580,7 +2588,7 @@ function SystemHealthTab() {
                     <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} width={40} />
                     <ChartTooltip content={<HealthChartTooltip unit="%" />} />
-                    <Area type="monotone" dataKey="percent" name="RAM" stroke="#f97316" fill="url(#mem-grad)" strokeWidth={1.5} dot={false} />
+                    <Area type="monotone" dataKey="percent" name={t('wrRAM')} stroke="#f97316" fill="url(#mem-grad)" strokeWidth={1.5} dot={false} />
                   </AreaChart>
                 </ChartContainer>
               ) : (
@@ -2594,7 +2602,7 @@ function SystemHealthTab() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <HardDrive className="h-4 w-4 text-rose-500 dark:text-rose-400" /> Disk
+                  <HardDrive className="h-4 w-4 text-rose-500 dark:text-rose-400" /> {t('wrDisk')}
                 </CardTitle>
                 <span className={cn('text-2xl font-bold tabular-nums', getMetricColor(diskPct).text)}>{Math.round(diskPct)}%</span>
               </div>
@@ -2607,7 +2615,7 @@ function SystemHealthTab() {
                 <RangeSelector value={diskRange} onChange={setDiskRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
               {diskHistChartData.length > 0 ? (
-                <ChartContainer config={{ percent: { label: 'Disk', color: '#f43f5e' } }} className="h-[160px] w-full">
+                <ChartContainer config={{ percent: { label: t('wrDisk'), color: '#f43f5e' } }} className="h-[160px] w-full">
                   <AreaChart data={diskHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="disk-grad" x1="0" y1="0" x2="0" y2="1">
@@ -2618,7 +2626,7 @@ function SystemHealthTab() {
                     <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} width={40} />
                     <ChartTooltip content={<HealthChartTooltip unit="%" />} />
-                    <Area type="monotone" dataKey="percent" name="Disk" stroke="#f43f5e" fill="url(#disk-grad)" strokeWidth={1.5} dot={false} />
+                    <Area type="monotone" dataKey="percent" name={t('wrDisk')} stroke="#f43f5e" fill="url(#disk-grad)" strokeWidth={1.5} dot={false} />
                   </AreaChart>
                 </ChartContainer>
               ) : (
@@ -2631,7 +2639,7 @@ function SystemHealthTab() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-primary" /> Load Average
+                  <Activity className="h-4 w-4 text-primary" /> {t('wrLoadAverage')}
                 </CardTitle>
                 <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
                   <span className="text-primary">{loadAvg[0]?.toFixed(2)}</span>
@@ -2642,23 +2650,23 @@ function SystemHealthTab() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>1m / 5m / 15m</span>
+                <span>{t('wrLoadAvgLabels')}</span>
                 <RangeSelector value={loadRange} onChange={setLoadRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
               {loadHistChartData.length > 0 ? (
                 <ChartContainer config={{
-                  load1: { label: '1 min', color: '#14b8a6' },
-                  load5: { label: '5 min', color: '#f97316' },
-                  load15: { label: '15 min', color: '#f43f5e' },
+                  load1: { label: t('wr1Min'), color: '#14b8a6' },
+                  load5: { label: t('wr5Min'), color: '#f97316' },
+                  load15: { label: t('wr15Min'), color: '#f43f5e' },
                 }} className="h-[160px] w-full">
                   <LineChart data={loadHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
                     <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} width={40} />
                     <ChartTooltip content={<HealthChartTooltip />} />
-                    <Line type="monotone" dataKey="load1" name="1 min" stroke="#14b8a6" strokeWidth={1.5} dot={false} />
-                    <Line type="monotone" dataKey="load5" name="5 min" stroke="#f97316" strokeWidth={1.5} dot={false} />
-                    <Line type="monotone" dataKey="load15" name="15 min" stroke="#f43f5e" strokeWidth={1.5} dot={false} />
+                    <Line type="monotone" dataKey="load1" name={t('wr1Min')} stroke="#14b8a6" strokeWidth={1.5} dot={false} />
+                    <Line type="monotone" dataKey="load5" name={t('wr5Min')} stroke="#f97316" strokeWidth={1.5} dot={false} />
+                    <Line type="monotone" dataKey="load15" name={t('wr15Min')} stroke="#f43f5e" strokeWidth={1.5} dot={false} />
                   </LineChart>
                 </ChartContainer>
               ) : (
@@ -2672,7 +2680,7 @@ function SystemHealthTab() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Database className="h-4 w-4 text-amber-500 dark:text-amber-400" /> Swap
+                  <Database className="h-4 w-4 text-amber-500 dark:text-amber-400" /> {t('wrSwap')}
                 </CardTitle>
                 <span className={cn('text-2xl font-bold tabular-nums', getMetricColor(swapPct).text)}>{swapPct > 0 ? `${Math.round(swapPct)}%` : '—'}</span>
               </div>
@@ -2685,7 +2693,7 @@ function SystemHealthTab() {
                 <RangeSelector value={swapRange} onChange={setSwapRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
               {swapHistChartData.length > 0 ? (
-                <ChartContainer config={{ percent: { label: 'Swap', color: '#eab308' } }} className="h-[160px] w-full">
+                <ChartContainer config={{ percent: { label: t('wrSwap'), color: '#eab308' } }} className="h-[160px] w-full">
                   <AreaChart data={swapHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="swap-grad" x1="0" y1="0" x2="0" y2="1">
@@ -2696,7 +2704,7 @@ function SystemHealthTab() {
                     <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} width={40} />
                     <ChartTooltip content={<HealthChartTooltip unit="%" />} />
-                    <Area type="monotone" dataKey="percent" name="Swap" stroke="#eab308" fill="url(#swap-grad)" strokeWidth={1.5} dot={false} />
+                    <Area type="monotone" dataKey="percent" name={t('wrSwap')} stroke="#eab308" fill="url(#swap-grad)" strokeWidth={1.5} dot={false} />
                   </AreaChart>
                 </ChartContainer>
               ) : (
@@ -2710,7 +2718,7 @@ function SystemHealthTab() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Database className="h-4 w-4 text-primary" /> Disk I/O
+                  <Database className="h-4 w-4 text-primary" /> {t('wrDiskIO')}
                 </CardTitle>
                 <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
                   <span className="text-primary">R: {formatBandwidth(diskIoReads)}</span>
@@ -2724,16 +2732,16 @@ function SystemHealthTab() {
               </div>
               {diskIoHistChartData.length > 0 ? (
                 <ChartContainer config={{
-                  read_bytes: { label: 'Read', color: '#14b8a6' },
-                  write_bytes: { label: 'Write', color: '#f97316' },
+                  read_bytes: { label: t('wrRead'), color: '#14b8a6' },
+                  write_bytes: { label: t('wrWrite'), color: '#f97316' },
                 }} className="h-[160px] w-full">
                   <LineChart data={diskIoHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
                     <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatBandwidth(v)} width={55} />
                     <ChartTooltip content={<HealthChartTooltip />} />
-                    <Line type="monotone" dataKey="read_bytes" name="Read" stroke="#14b8a6" strokeWidth={1.5} dot={false} />
-                    <Line type="monotone" dataKey="write_bytes" name="Write" stroke="#f97316" strokeWidth={1.5} dot={false} />
+                    <Line type="monotone" dataKey="read_bytes" name={t('wrRead')} stroke="#14b8a6" strokeWidth={1.5} dot={false} />
+                    <Line type="monotone" dataKey="write_bytes" name={t('wrWrite')} stroke="#f97316" strokeWidth={1.5} dot={false} />
                   </LineChart>
                 </ChartContainer>
               ) : (
@@ -2750,7 +2758,7 @@ function SystemHealthTab() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Thermometer className="h-4 w-4 text-red-500 dark:text-red-400" /> CPU Temperature
+                  <Thermometer className="h-4 w-4 text-red-500 dark:text-red-400" /> {t('wrCPUTemperature')}
                 </CardTitle>
                 <span className="text-2xl font-bold tabular-nums text-red-600 dark:text-red-400">{cpuTemp.toFixed(1)}°C</span>
               </div>
@@ -2760,7 +2768,7 @@ function SystemHealthTab() {
                 <RangeSelector value={thermalRange} onChange={setThermalRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
               </div>
               {thermalHistChartData.length > 0 ? (
-                <ChartContainer config={{ cpu_temp: { label: 'CPU Temp', color: '#f43f5e' } }} className="h-[160px] w-full">
+                <ChartContainer config={{ cpu_temp: { label: t('wrCpuTemp'), color: '#f43f5e' } }} className="h-[160px] w-full">
                   <AreaChart data={thermalHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="thermal-grad" x1="0" y1="0" x2="0" y2="1">
@@ -2771,7 +2779,7 @@ function SystemHealthTab() {
                     <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}°C`} width={40} />
                     <ChartTooltip content={<HealthChartTooltip unit="°C" />} />
-                    <Area type="monotone" dataKey="cpu_temp" name="CPU Temp" stroke="#f43f5e" fill="url(#thermal-grad)" strokeWidth={1.5} dot={false} />
+                    <Area type="monotone" dataKey="cpu_temp" name={t('wrCpuTemp')} stroke="#f43f5e" fill="url(#thermal-grad)" strokeWidth={1.5} dot={false} />
                   </AreaChart>
                 </ChartContainer>
               ) : (
@@ -2785,7 +2793,7 @@ function SystemHealthTab() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-rose-500 dark:text-rose-400" /> Network Errors
+                  <AlertTriangle className="h-4 w-4 text-rose-500 dark:text-rose-400" /> {t('wrNetworkErrors')}
                 </CardTitle>
                 <span className="text-2xl font-bold tabular-nums text-rose-600 dark:text-rose-400">
                   {((netErrors.rx_err || 0) + (netErrors.tx_err || 0)).toLocaleString()}
@@ -2798,16 +2806,16 @@ function SystemHealthTab() {
               </div>
               {netErrHistChartData.length > 0 ? (
                 <ChartContainer config={{
-                  rx_err: { label: 'RX Errors', color: '#f43f5e' },
-                  tx_err: { label: 'TX Errors', color: '#eab308' },
+                  rx_err: { label: t('wrRxErrors'), color: '#f43f5e' },
+                  tx_err: { label: t('wrTxErrors'), color: '#eab308' },
                 }} className="h-[160px] w-full">
                   <LineChart data={netErrHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" />
                     <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} width={45} />
                     <ChartTooltip content={<HealthChartTooltip />} />
-                    <Line type="monotone" dataKey="rx_err" name="RX Errors" stroke="#f43f5e" strokeWidth={1.5} dot={false} />
-                    <Line type="monotone" dataKey="tx_err" name="TX Errors" stroke="#eab308" strokeWidth={1.5} dot={false} />
+                    <Line type="monotone" dataKey="rx_err" name={t('wrRxErrors')} stroke="#f43f5e" strokeWidth={1.5} dot={false} />
+                    <Line type="monotone" dataKey="tx_err" name={t('wrTxErrors')} stroke="#eab308" strokeWidth={1.5} dot={false} />
                   </LineChart>
                 </ChartContainer>
               ) : (
@@ -2821,7 +2829,7 @@ function SystemHealthTab() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Network className="h-4 w-4 text-primary" /> TCP Connections
+                  <Network className="h-4 w-4 text-primary" /> {t('wrTCPConnections')}
                 </CardTitle>
                 <span className="text-2xl font-bold tabular-nums text-primary">{tcpStates.established?.toLocaleString() ?? 0}</span>
               </div>
@@ -2832,10 +2840,10 @@ function SystemHealthTab() {
               </div>
               {tcpHistChartData.length > 0 ? (
                 <ChartContainer config={{
-                  established: { label: 'Established', color: '#14b8a6' },
-                  time_wait: { label: 'Time Wait', color: '#eab308' },
-                  close_wait: { label: 'Close Wait', color: '#f43f5e' },
-                  syn_recv: { label: 'SYN Recv', color: '#8b5cf6' },
+                  established: { label: t('wrEstablished'), color: '#14b8a6' },
+                  time_wait: { label: t('wrTimeWait'), color: '#eab308' },
+                  close_wait: { label: t('wrCloseWait'), color: '#f43f5e' },
+                  syn_recv: { label: t('wrSynRecv'), color: '#8b5cf6' },
                 }} className="h-[160px] w-full">
                   <AreaChart data={tcpHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <defs>
@@ -2860,10 +2868,10 @@ function SystemHealthTab() {
                     <XAxis dataKey="time" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} width={40} />
                     <ChartTooltip content={<HealthChartTooltip />} />
-                    <Area type="monotone" dataKey="syn_recv" name="SYN Recv" stroke="#8b5cf6" fill="url(#tcp-syn-grad)" stackId="tcp" strokeWidth={1} dot={false} />
-                    <Area type="monotone" dataKey="close_wait" name="Close Wait" stroke="#f43f5e" fill="url(#tcp-cw-grad)" stackId="tcp" strokeWidth={1} dot={false} />
-                    <Area type="monotone" dataKey="time_wait" name="Time Wait" stroke="#eab308" fill="url(#tcp-tw-grad)" stackId="tcp" strokeWidth={1} dot={false} />
-                    <Area type="monotone" dataKey="established" name="Established" stroke="#14b8a6" fill="url(#tcp-est-grad)" stackId="tcp" strokeWidth={1.5} dot={false} />
+                    <Area type="monotone" dataKey="syn_recv" name={t('wrSynRecv')} stroke="#8b5cf6" fill="url(#tcp-syn-grad)" stackId="tcp" strokeWidth={1} dot={false} />
+                    <Area type="monotone" dataKey="close_wait" name={t('wrCloseWait')} stroke="#f43f5e" fill="url(#tcp-cw-grad)" stackId="tcp" strokeWidth={1} dot={false} />
+                    <Area type="monotone" dataKey="time_wait" name={t('wrTimeWait')} stroke="#eab308" fill="url(#tcp-tw-grad)" stackId="tcp" strokeWidth={1} dot={false} />
+                    <Area type="monotone" dataKey="established" name={t('wrEstablished')} stroke="#14b8a6" fill="url(#tcp-est-grad)" stackId="tcp" strokeWidth={1.5} dot={false} />
                   </AreaChart>
                 </ChartContainer>
               ) : (
@@ -2877,15 +2885,15 @@ function SystemHealthTab() {
         <Card className="p-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-center">
             <div>
-              <p className="text-xs text-muted-foreground">CPU Cores</p>
+              <p className="text-xs text-muted-foreground">{t('wrCPUCores')}</p>
               <p className="text-lg font-bold tabular-nums">{cores}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Total RAM</p>
+              <p className="text-xs text-muted-foreground">{t('wrTotalRAM')}</p>
               <p className="text-lg font-bold tabular-nums">{formatBytes(totalRam)}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Total Disk</p>
+              <p className="text-xs text-muted-foreground">{t('wrTotalDisk')}</p>
               <p className="text-lg font-bold tabular-nums">{formatBytes(totalDisk)}</p>
             </div>
           </div>
@@ -2898,10 +2906,10 @@ function SystemHealthTab() {
         <div className="flex flex-wrap items-center gap-3">
           <Badge variant="default" className="text-sm px-3 py-1">
             <Users className="h-3 w-3 mr-1.5" />
-            {activeUsers.length} active sessions
+            {t('wrActiveSessionsCount', { count: activeUsers.length })}
           </Badge>
           <Badge variant="outline" className="text-sm px-3 py-1">
-            Total bandwidth: <span className="font-mono ml-1">{formatBytes(totalUserBw)}</span>
+            {t('wrTotalBandwidthLabel')} <span className="font-mono ml-1">{formatBytes(totalUserBw)}</span>
           </Badge>
         </div>
 
@@ -2910,14 +2918,14 @@ function SystemHealthTab() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" /> Active Sessions — History
+                <Users className="h-4 w-4 text-primary" /> {t('wrActiveSessionsHistory')}
               </CardTitle>
               <RangeSelector value={sessionHistRange} onChange={setSessionHistRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
             </div>
           </CardHeader>
           <CardContent>
             {sessionHistChartData.length > 0 ? (
-              <ChartContainer config={{ count: { label: 'Sessions', color: '#14b8a6' } }} className="h-[260px] w-full">
+              <ChartContainer config={{ count: { label: t('wrSessions'), color: '#14b8a6' } }} className="h-[260px] w-full">
                 <AreaChart data={sessionHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="session-grad" x1="0" y1="0" x2="0" y2="1">
@@ -2929,7 +2937,7 @@ function SystemHealthTab() {
                   <XAxis dataKey="time" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
                   <ChartTooltip content={<HealthChartTooltip />} />
-                  <Area type="monotone" dataKey="count" name="Sessions" stroke="#14b8a6" fill="url(#session-grad)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="count" name={t('wrSessions')} stroke="#14b8a6" fill="url(#session-grad)" strokeWidth={2} dot={false} />
                 </AreaChart>
               </ChartContainer>
             ) : (
@@ -2943,7 +2951,7 @@ function SystemHealthTab() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <Shield className="h-4 w-4 text-primary" /> Authentication Stats
+                <Shield className="h-4 w-4 text-primary" /> {t('wrAuthStats')}
               </CardTitle>
               <RangeSelector value={authHistRange} onChange={setAuthHistRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
             </div>
@@ -2951,8 +2959,8 @@ function SystemHealthTab() {
           <CardContent>
             {authHistChartData.length > 0 ? (
               <ChartContainer config={{
-                accept: { label: 'Accept', color: '#10b981' },
-                reject: { label: 'Reject', color: '#f43f5e' },
+                accept: { label: t('wrAccept'), color: '#10b981' },
+                reject: { label: t('wrReject'), color: '#f43f5e' },
               }} className="h-[260px] w-full">
                 <AreaChart data={authHistChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                   <defs>
@@ -2969,8 +2977,8 @@ function SystemHealthTab() {
                   <XAxis dataKey="time" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
                   <ChartTooltip content={<HealthChartTooltip />} />
-                  <Area type="monotone" dataKey="accept" name="Accept" stroke="#10b981" fill="url(#auth-accept-grad)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="reject" name="Reject" stroke="#f43f5e" fill="url(#auth-reject-grad)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="accept" name={t('wrAccept')} stroke="#10b981" fill="url(#auth-accept-grad)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="reject" name={t('wrReject')} stroke="#f43f5e" fill="url(#auth-reject-grad)" strokeWidth={2} dot={false} />
                 </AreaChart>
               </ChartContainer>
             ) : (
@@ -2984,7 +2992,7 @@ function SystemHealthTab() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <Activity className="h-4 w-4 text-violet-500 dark:text-violet-400" /> Per-User Bandwidth History
+                <Activity className="h-4 w-4 text-violet-500 dark:text-violet-400" /> {t('wrPerUserBwHistory')}
               </CardTitle>
               <div className="flex items-center gap-2">
                 <RangeSelector value={userBwRange} onChange={setUserBwRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
@@ -3012,7 +3020,7 @@ function SystemHealthTab() {
                 <PopoverContent className="w-[320px] p-0" align="start">
                   <Command shouldFilter={false}>
                     <CommandInput
-                      placeholder="Type to search users..."
+                      placeholder={t('wrTypeToSearchUsers')}
                       value={userBwSearch}
                       onValueChange={setUserBwSearch}
                       className="h-8 text-xs"
@@ -3020,8 +3028,8 @@ function SystemHealthTab() {
                     <CommandList className="max-h-[260px]">
                       <CommandEmpty className="text-xs py-4">
                         {deduplicatedUsers.length === 0
-                          ? 'No active users'
-                          : `No users match "${userBwSearch}"`}
+                          ? t('wrNoActiveUsers')
+                          : t('wrNoUsersMatch', { search: userBwSearch })}
                       </CommandEmpty>
                       <CommandGroup>
                         {filteredBwUsers.map((u: any) => (
@@ -3061,7 +3069,7 @@ function SystemHealthTab() {
                 <Badge variant="secondary" className="text-xs shrink-0">{formatBps(userBwChartData[userBwChartData.length - 1].download + userBwChartData[userBwChartData.length - 1].upload)}</Badge>
               )}
               {deduplicatedUsers.length > 0 && (
-                <Badge variant="outline" className="text-[10px] shrink-0">{deduplicatedUsers.length} user{deduplicatedUsers.length !== 1 ? 's' : ''} w/ history</Badge>
+                <Badge variant="outline" className="text-[10px] shrink-0">{t('wrUsersWithHistory', { count: deduplicatedUsers.length })}</Badge>
               )}
             </div>
 
@@ -3070,8 +3078,8 @@ function SystemHealthTab() {
               <div className="flex items-center justify-center h-[260px]"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
             ) : userBwChartData.length > 0 ? (
               <ChartContainer config={{
-                download: { label: 'Download', color: '#8b5cf6' },
-                upload: { label: 'Upload', color: '#f97316' },
+                download: { label: t('wrDownload'), color: '#8b5cf6' },
+                upload: { label: t('wrUpload'), color: '#f97316' },
               }} className="h-[260px] w-full">
                 <AreaChart data={userBwChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                   <defs>
@@ -3088,8 +3096,8 @@ function SystemHealthTab() {
                   <XAxis dataKey="time" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={50} tickFormatter={(v: number) => formatBps(v)} />
                   <ChartTooltip content={<HealthChartTooltip />} />
-                  <Area type="monotone" dataKey="download" name="Download" stroke="#8b5cf6" fill="url(#user-dl-grad)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="upload" name="Upload" stroke="#f97316" fill="url(#user-ul-grad)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="download" name={t('wrDownload')} stroke="#8b5cf6" fill="url(#user-dl-grad)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="upload" name={t('wrUpload')} stroke="#f97316" fill="url(#user-ul-grad)" strokeWidth={2} dot={false} />
                 </AreaChart>
               </ChartContainer>
             ) : selectedBwUser ? (
@@ -3108,7 +3116,7 @@ function SystemHealthTab() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <Layers className="h-4 w-4 text-primary" /> Per-Pool Bandwidth
+                <Layers className="h-4 w-4 text-primary" /> {t('wrPerPoolBw')}
               </CardTitle>
               <RangeSelector value={poolBwRange} onChange={setPoolBwRange} ranges={['1h', '6h', '24h', '7d', '30d', '90d', '1y']} />
             </div>
@@ -3126,7 +3134,7 @@ function SystemHealthTab() {
                   >
                     {selectedPool
                       ? <span className="truncate">{selectedPool.name}</span>
-                      : <span className="text-muted-foreground">Select a bandwidth pool...</span>
+                      : <span className="text-muted-foreground">{t('wrSelectPool')}</span>
                     }
                     <Search className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
                   </Button>
@@ -3134,7 +3142,7 @@ function SystemHealthTab() {
                 <PopoverContent className="w-[320px] p-0" align="start">
                   <Command shouldFilter={false}>
                     <CommandInput
-                      placeholder="Type to search pools..."
+                      placeholder={t('wrTypeToSearchPools')}
                       value={poolSearch}
                       onValueChange={setPoolSearch}
                       className="h-8 text-xs"
@@ -3142,8 +3150,8 @@ function SystemHealthTab() {
                     <CommandList className="max-h-[260px]">
                       <CommandEmpty className="text-xs py-4">
                         {poolList.length === 0
-                          ? 'No bandwidth pools configured'
-                          : `No pools match "${poolSearch}"`}
+                          ? t('wrNoPoolsConfigured')
+                          : t('wrNoPoolsMatch', { search: poolSearch })}
                       </CommandEmpty>
                       <CommandGroup>
                         {poolList.map((pool: any) => (
@@ -3179,7 +3187,7 @@ function SystemHealthTab() {
                 </div>
               )}
               {poolList.length > 0 && (
-                <Badge variant="outline" className="text-[10px] shrink-0">{poolList.length} pool{poolList.length !== 1 ? 's' : ''}</Badge>
+                <Badge variant="outline" className="text-[10px] shrink-0">{t('wrPoolCount', { count: poolList.length })}</Badge>
               )}
             </div>
 
@@ -3188,8 +3196,8 @@ function SystemHealthTab() {
               <div className="flex items-center justify-center h-[260px]"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
             ) : poolBwChartData.length > 0 ? (
               <ChartContainer config={{
-                download: { label: 'Download', color: '#14b8a6' },
-                upload: { label: 'Upload', color: '#f97316' },
+                download: { label: t('wrDownload'), color: '#14b8a6' },
+                upload: { label: t('wrUpload'), color: '#f97316' },
               }} className="h-[260px] w-full">
                 <AreaChart data={poolBwChartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                   <defs>
@@ -3206,8 +3214,8 @@ function SystemHealthTab() {
                   <XAxis dataKey="time" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={50} tickFormatter={(v: number) => formatBps(v)} />
                   <ChartTooltip content={<HealthChartTooltip />} />
-                  <Area type="monotone" dataKey="download" name="Download" stroke="#14b8a6" fill="url(#pool-dl-grad)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="upload" name="Upload" stroke="#f97316" fill="url(#pool-ul-grad)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="download" name={t('wrDownload')} stroke="#14b8a6" fill="url(#pool-dl-grad)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="upload" name={t('wrUpload')} stroke="#f97316" fill="url(#pool-ul-grad)" strokeWidth={2} dot={false} />
                 </AreaChart>
               </ChartContainer>
             ) : selectedPool ? (

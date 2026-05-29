@@ -61,6 +61,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useTranslations } from 'next-intl';
 
 // ═══════════════════════════════════════════════════════════════════
 // Shared Types & Helpers
@@ -113,6 +114,7 @@ function TerminalOutput({
   label: string;
   maxHeight?: string;
 }) {
+  const t = useTranslations('wifiDiagnostics');
   return (
     <div className="mt-4">
       <div className="flex items-center gap-2 mb-2">
@@ -128,7 +130,7 @@ function TerminalOutput({
         )}
       >
         <pre className="p-4 text-xs font-mono text-primary leading-relaxed whitespace-pre-wrap break-all">
-          {content || '(no output)'}
+          {content || t('gdNoOutput')}
         </pre>
       </div>
     </div>
@@ -164,12 +166,13 @@ function SummaryBar({
 function RunButton({
   loading,
   onClick,
-  label = 'Run',
+  label,
 }: {
   loading: boolean;
   onClick: () => void;
   label?: string;
 }) {
+  const t = useTranslations('wifiDiagnostics');
   return (
     <Button
       size="sm"
@@ -182,7 +185,7 @@ function RunButton({
       ) : (
         <Play className="h-3.5 w-3.5 mr-1.5" />
       )}
-      {loading ? 'Running...' : label}
+      {loading ? t('gdRunning') : (label || t('gdRun'))}
     </Button>
   );
 }
@@ -197,9 +200,10 @@ function ErrorBox({ message }: { message: string }) {
 }
 
 function DurationBadge({ ms }: { ms: number }) {
+  const t = useTranslations('wifiDiagnostics');
   return (
     <span className="text-[10px] text-muted-foreground tabular-nums ml-2">
-      {ms}ms
+      {ms}{t('gdUnitMs')}
     </span>
   );
 }
@@ -210,6 +214,7 @@ function DurationBadge({ ms }: { ms: number }) {
 
 function PingTool() {
   const { toast } = useToast();
+  const t = useTranslations('wifiDiagnostics');
   const [host, setHost] = useState('8.8.8.8');
   const [count, setCount] = useState('4');
   const [timeout, setTimeout_] = useState('5');
@@ -241,18 +246,18 @@ function PingTool() {
         const d = r.data as Record<string, unknown>;
         const s = d.summary as Record<string, unknown> | undefined;
         toast({
-          title: 'Ping Complete',
-          description: `${String(s?.received ?? 0)}/${String(s?.transmitted ?? 0)} packets received`,
+          title: t('gdPingComplete'),
+          description: t('gdPacketsReceived', { received: String(s?.received ?? 0), transmitted: String(s?.transmitted ?? 0) }),
         });
       } else {
-        toast({ title: 'Ping Failed', description: r.error, variant: 'destructive' });
+        toast({ title: t('gdPingFailed'), description: r.error, variant: 'destructive' });
       }
     } catch {
       setState('done');
-      setResult({ success: false, duration_ms: 0, data: {}, error: 'Network error' });
-      toast({ title: 'Error', description: 'Failed to connect', variant: 'destructive' });
+      setResult({ success: false, duration_ms: 0, data: {}, error: t('gdNetworkError') });
+      toast({ title: t('gdError'), description: t('gdFailedToConnect'), variant: 'destructive' });
     }
-  }, [host, count, timeout, toast]);
+  }, [host, count, timeout, toast, t]);
 
   const data = result?.data as Record<string, unknown> | undefined;
   const summary = data?.summary as Record<string, unknown> | undefined;
@@ -263,37 +268,37 @@ function PingTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={CircleDot} title="Live Ping" description="Send ICMP echo requests to test host reachability and measure latency" gradient="from-primary to-primary/70" />
+        <ToolHeader icon={CircleDot} title={t('gdPingTitle')} description={t('gdPingDesc')} gradient="from-primary to-primary/70" />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="lg:col-span-2">
-            <Label className="text-xs">Target Host / IP</Label>
+            <Label className="text-xs">{t('gdTargetHost')}</Label>
             <Input
               value={host}
               onChange={(e) => setHost(e.target.value)}
-              placeholder="8.8.8.8 or google.com"
+              placeholder={t('gdTargetPlaceholder')}
               className="mt-1 h-8 text-xs"
               onKeyDown={(e) => e.key === 'Enter' && run()}
             />
           </div>
           <div>
-            <Label className="text-xs">Packets</Label>
+            <Label className="text-xs">{t('gdPackets')}</Label>
             <Select value={count} onValueChange={setCount}>
               <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {['3', '4', '5', '10', '20', '50'].map((v) => (
-                  <SelectItem key={v} value={v}>{v} packets</SelectItem>
+                  <SelectItem key={v} value={v}>{t('gdPacketsCount', { count: v })}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label className="text-xs">Timeout (s)</Label>
+            <Label className="text-xs">{t('gdTimeoutS')}</Label>
             <Select value={timeout} onValueChange={setTimeout_}>
               <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {['1', '2', '5', '10', '15', '30'].map((v) => (
-                  <SelectItem key={v} value={v}>{v}s</SelectItem>
+                  <SelectItem key={v} value={v}>{t('gdUnitSeconds', { value: v })}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -301,7 +306,7 @@ function PingTool() {
         </div>
 
         <div className="flex items-center gap-2 mt-4">
-          <RunButton loading={state === 'loading'} onClick={run} label="Start Ping" />
+          <RunButton loading={state === 'loading'} onClick={run} label={t('gdStartPing')} />
           {result && <DurationBadge ms={result.duration_ms} />}
         </div>
 
@@ -311,10 +316,10 @@ function PingTool() {
           <>
             <SummaryBar
               items={[
-                { label: 'Sent', value: String(summary.transmitted ?? '-') },
-                { label: 'Received', value: String(summary.received ?? '-') },
+                { label: t('gdSent'), value: String(summary.transmitted ?? '-') },
+                { label: t('gdReceived'), value: String(summary.received ?? '-') },
                 {
-                  label: 'Packet Loss',
+                  label: t('gdPacketLoss'),
                   value: `${lossPct}%`,
                   color: lossPct === 0
                     ? 'text-primary'
@@ -322,22 +327,22 @@ function PingTool() {
                       ? 'text-amber-600 dark:text-amber-400'
                       : 'text-red-600 dark:text-red-400',
                 },
-                { label: 'Avg RTT', value: rtt ? `${rtt.avg} ms` : '--' },
+                { label: t('gdAvgRtt'), value: rtt ? t('gdRttMsValue', { value: String(rtt.avg) }) : '--' },
               ]}
             />
             {rtt && (
               <div className="mt-3 flex gap-4 text-[10px] text-muted-foreground">
-                <span>Min: {rtt.min} ms</span>
-                <span>Avg: {rtt.avg} ms</span>
-                <span>Max: {rtt.max} ms</span>
-                <span>MDev: {rtt.mdev} ms</span>
+                <span>{t('gdMinRtt', { value: String(rtt.min) })}</span>
+                <span>{t('gdAvgRttValue', { value: String(rtt.avg) })}</span>
+                <span>{t('gdMaxRtt', { value: String(rtt.max) })}</span>
+                <span>{t('gdMdevRtt', { value: String(rtt.mdev) })}</span>
               </div>
             )}
           </>
         )}
 
         {data?.rawOutput && (
-          <TerminalOutput content={String(data.rawOutput)} label="Raw Output" />
+          <TerminalOutput content={String(data.rawOutput)} label={t('gdRawOutput')} />
         )}
 
         {packets.length > 0 && (
@@ -346,10 +351,10 @@ function PingTool() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-xs w-16">Seq</TableHead>
-                  <TableHead className="text-xs">From</TableHead>
-                  <TableHead className="text-xs w-16">TTL</TableHead>
-                  <TableHead className="text-xs text-right">RTT</TableHead>
+                  <TableHead className="text-xs w-16">{t('gdThSeq')}</TableHead>
+                  <TableHead className="text-xs">{t('gdThFrom')}</TableHead>
+                  <TableHead className="text-xs w-16">{t('gdThTtl')}</TableHead>
+                  <TableHead className="text-xs text-right">{t('gdThRtt')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -359,7 +364,7 @@ function PingTool() {
                     <TableCell className="font-mono text-xs">{p.from || host}</TableCell>
                     <TableCell className="text-xs">{p.ttl ?? '--'}</TableCell>
                     <TableCell className="text-right text-xs tabular-nums font-medium text-primary">
-                      {p.rtt} ms
+                      {t('gdRttMsValue', { value: String(p.rtt) })}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -379,6 +384,7 @@ function PingTool() {
 
 function TracerouteTool() {
   const { toast } = useToast();
+  const t = useTranslations('wifiDiagnostics');
   const [host, setHost] = useState('8.8.8.8');
   const [maxHops, setMaxHops] = useState('30');
   const [timeout, setTimeout_] = useState('5');
@@ -407,15 +413,15 @@ function TracerouteTool() {
       setResult(r);
       setState('done');
       if (r.success) {
-        toast({ title: 'Traceroute Complete', description: `${json.data?.hopCount || 0} hops traced` });
+        toast({ title: t('gdTracerouteComplete'), description: t('gdHopsTraced', { hops: String(json.data?.hopCount || 0) }) });
       } else {
-        toast({ title: 'Traceroute Failed', description: r.error, variant: 'destructive' });
+        toast({ title: t('gdTracerouteFailed'), description: r.error, variant: 'destructive' });
       }
     } catch {
       setState('done');
-      setResult({ success: false, duration_ms: 0, data: {}, error: 'Network error' });
+      setResult({ success: false, duration_ms: 0, data: {}, error: t('gdNetworkError') });
     }
-  }, [host, maxHops, timeout, toast]);
+  }, [host, maxHops, timeout, toast, t]);
 
   const data = result?.data as Record<string, unknown> | undefined;
   const hops = (data?.hops as Array<Record<string, unknown>>) || [];
@@ -423,21 +429,21 @@ function TracerouteTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Network} title="Traceroute" description="Trace the network path to a destination, showing each hop and its latency" gradient="from-amber-500 to-orange-600" />
+        <ToolHeader icon={Network} title={t('gdTracerouteTitle')} description={t('gdTracerouteDesc')} gradient="from-amber-500 to-orange-600" />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="lg:col-span-2">
-            <Label className="text-xs">Target Host / IP</Label>
+            <Label className="text-xs">{t('gdTargetHost')}</Label>
             <Input
               value={host}
               onChange={(e) => setHost(e.target.value)}
-              placeholder="8.8.8.8 or google.com"
+              placeholder={t('gdTargetPlaceholder')}
               className="mt-1 h-8 text-xs"
               onKeyDown={(e) => e.key === 'Enter' && run()}
             />
           </div>
           <div>
-            <Label className="text-xs">Max Hops</Label>
+            <Label className="text-xs">{t('gdMaxHops')}</Label>
             <Select value={maxHops} onValueChange={setMaxHops}>
               <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -448,12 +454,12 @@ function TracerouteTool() {
             </Select>
           </div>
           <div>
-            <Label className="text-xs">Timeout (s)</Label>
+            <Label className="text-xs">{t('gdTimeoutS')}</Label>
             <Select value={timeout} onValueChange={setTimeout_}>
               <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {['1', '2', '3', '5', '10'].map((v) => (
-                  <SelectItem key={v} value={v}>{v}s</SelectItem>
+                  <SelectItem key={v} value={v}>{t('gdUnitSeconds', { value: v })}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -461,11 +467,11 @@ function TracerouteTool() {
         </div>
 
         <div className="flex items-center gap-2 mt-4">
-          <RunButton loading={state === 'loading'} onClick={run} label="Trace Route" />
+          <RunButton loading={state === 'loading'} onClick={run} label={t('gdTraceRoute')} />
           {result && <DurationBadge ms={result.duration_ms} />}
           {result?.success && (
             <Badge variant="outline" className="text-[10px] ml-2">
-              {hops.length} hops
+              {t('gdHopsCount', { count: hops.length })}
             </Badge>
           )}
         </div>
@@ -478,10 +484,10 @@ function TracerouteTool() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-xs w-14">Hop</TableHead>
-                  <TableHead className="text-xs">Probe 1</TableHead>
-                  <TableHead className="text-xs">Probe 2</TableHead>
-                  <TableHead className="text-xs">Probe 3</TableHead>
+                  <TableHead className="text-xs w-14">{t('gdThHop')}</TableHead>
+                  <TableHead className="text-xs">{t('gdThProbe1')}</TableHead>
+                  <TableHead className="text-xs">{t('gdThProbe2')}</TableHead>
+                  <TableHead className="text-xs">{t('gdThProbe3')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -505,7 +511,7 @@ function TracerouteTool() {
                         return (
                           <TableCell key={i} className="text-xs">
                             <span className="font-mono">{probe.ip}</span>
-                            <span className="text-muted-foreground ml-1">{probe.rtt} ms</span>
+                            <span className="text-muted-foreground ml-1">{t('gdRttMsValue', { value: String(probe.rtt) })}</span>
                           </TableCell>
                         );
                       })}
@@ -519,7 +525,7 @@ function TracerouteTool() {
         )}
 
         {data?.rawOutput && (
-          <TerminalOutput content={String(data.rawOutput)} label="Raw Output" />
+          <TerminalOutput content={String(data.rawOutput)} label={t('gdRawOutput')} />
         )}
       </CardContent>
     </Card>
@@ -532,6 +538,7 @@ function TracerouteTool() {
 
 function DnsLookupTool() {
   const { toast } = useToast();
+  const t = useTranslations('wifiDiagnostics');
   const [hostname, setHostname] = useState('google.com');
   const [type, setType] = useState('A');
   const [server, setServer] = useState('');
@@ -560,15 +567,15 @@ function DnsLookupTool() {
       setResult(r);
       setState('done');
       if (r.success) {
-        toast({ title: 'DNS Lookup Complete', description: `${json.data?.count || 0} records found` });
+        toast({ title: t('gdDnsComplete'), description: t('gdRecordsFound', { count: String(json.data?.count || 0) }) });
       } else {
-        toast({ title: 'DNS Lookup Failed', description: r.error, variant: 'destructive' });
+        toast({ title: t('gdDnsFailed'), description: r.error, variant: 'destructive' });
       }
     } catch {
       setState('done');
-      setResult({ success: false, duration_ms: 0, data: {}, error: 'Network error' });
+      setResult({ success: false, duration_ms: 0, data: {}, error: t('gdNetworkError') });
     }
-  }, [hostname, type, server, toast]);
+  }, [hostname, type, server, toast, t]);
 
   const data = result?.data as Record<string, unknown> | undefined;
   const records = data?.records;
@@ -576,21 +583,21 @@ function DnsLookupTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Globe} title="DNS Lookup" description="Query DNS records (A, AAAA, CNAME, MX, NS, TXT, SOA) from any DNS server" gradient="from-primary to-primary/70" />
+        <ToolHeader icon={Globe} title={t('gdDnsTitle')} description={t('gdDnsDesc')} gradient="from-primary to-primary/70" />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="lg:col-span-2">
-            <Label className="text-xs">Hostname</Label>
+            <Label className="text-xs">{t('gdHostname')}</Label>
             <Input
               value={hostname}
               onChange={(e) => setHostname(e.target.value)}
-              placeholder="google.com"
+              placeholder={t('gdHostnamePlaceholder')}
               className="mt-1 h-8 text-xs"
               onKeyDown={(e) => e.key === 'Enter' && run()}
             />
           </div>
           <div>
-            <Label className="text-xs">Record Type</Label>
+            <Label className="text-xs">{t('gdRecordType')}</Label>
             <Select value={type} onValueChange={setType}>
               <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -601,11 +608,11 @@ function DnsLookupTool() {
             </Select>
           </div>
           <div>
-            <Label className="text-xs">DNS Server (optional)</Label>
+            <Label className="text-xs">{t('gdDnsServerOptional')}</Label>
             <Input
               value={server}
               onChange={(e) => setServer(e.target.value)}
-              placeholder="8.8.8.8"
+              placeholder={t('gdDnsServerPlaceholder')}
               className="mt-1 h-8 text-xs"
               onKeyDown={(e) => e.key === 'Enter' && run()}
             />
@@ -613,11 +620,11 @@ function DnsLookupTool() {
         </div>
 
         <div className="flex items-center gap-2 mt-4">
-          <RunButton loading={state === 'loading'} onClick={run} label="Lookup" />
+          <RunButton loading={state === 'loading'} onClick={run} label={t('gdLookup')} />
           {result && <DurationBadge ms={result.duration_ms} />}
           {result?.success && data?.server && (
             <Badge variant="outline" className="text-[10px] ml-2">
-              via {String(data.server)}
+              {t('gdVia', { server: String(data.server) })}
             </Badge>
           )}
         </div>
@@ -630,8 +637,8 @@ function DnsLookupTool() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-xs">#</TableHead>
-                  <TableHead className="text-xs">Record</TableHead>
+                  <TableHead className="text-xs">{t('gdThHash')}</TableHead>
+                  <TableHead className="text-xs">{t('gdThRecord')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -660,7 +667,7 @@ function DnsLookupTool() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={2} className="text-center text-xs text-muted-foreground py-4">
-                      No records found
+                      {t('gdNoRecordsFound')}
                     </TableCell>
                   </TableRow>
                 )}
@@ -680,6 +687,7 @@ function DnsLookupTool() {
 
 function ArpTableTool() {
   const { toast } = useToast();
+  const t = useTranslations('wifiDiagnostics');
   const [search, setSearch] = useState('');
   const [state, setState] = useState<RunState>('idle');
   const [result, setResult] = useState<ToolResult | null>(null);
@@ -707,13 +715,13 @@ function ArpTableTool() {
       setResult(r);
       setState('done');
       if (r.success) {
-        toast({ title: 'ARP Table Loaded', description: `${json.data?.total || 0} entries` });
+        toast({ title: t('gdArpLoaded'), description: t('gdEntriesCount', { count: String(json.data?.total || 0) }) });
       }
     } catch {
       setState('done');
-      setResult({ success: false, duration_ms: 0, data: {}, error: 'Network error' });
+      setResult({ success: false, duration_ms: 0, data: {}, error: t('gdNetworkError') });
     }
-  }, [search, toast]);
+  }, [search, toast, t]);
 
   const flushArp = useCallback(async () => {
     setFlushing(true);
@@ -722,20 +730,20 @@ function ArpTableTool() {
       const res = await fetch(`/api/wifi/diagnostics?${qs}`);
       const json = await res.json();
       if (json.success) {
-        toast({ title: 'ARP Cache Flushed', description: 'ARP cache cleared successfully' });
+        toast({ title: t('gdArpFlushed'), description: t('gdArpCleared') });
         run();
       } else {
-        toast({ title: 'Flush Failed', description: json.error || 'Failed to flush ARP cache', variant: 'destructive' });
+        toast({ title: t('gdFlushFailed'), description: json.error || t('gdFailedFlushArp'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Network error flushing ARP', variant: 'destructive' });
+      toast({ title: t('gdError'), description: t('gdNetworkErrorFlushArp'), variant: 'destructive' });
     }
     setFlushing(false);
-  }, [toast, run]);
+  }, [toast, run, t]);
 
   const addStaticEntry = useCallback(async () => {
     if (!addIp.trim() || !addMac.trim()) {
-      toast({ title: 'Validation Error', description: 'IP and MAC are required', variant: 'destructive' });
+      toast({ title: t('gdValidationError'), description: t('gdIpMacRequired'), variant: 'destructive' });
       return;
     }
     setAddingStatic(true);
@@ -747,20 +755,20 @@ function ArpTableTool() {
       const res = await fetch(`/api/wifi/diagnostics?${qs}`);
       const json = await res.json();
       if (json.success) {
-        toast({ title: 'Static Entry Added', description: `${addIp.trim()} → ${addMac.trim()}` });
+        toast({ title: t('gdStaticEntryAdded'), description: t('gdStaticEntryArrow', { ip: addIp.trim(), mac: addMac.trim() }) });
         setAddIp('');
         setAddMac('');
         setAddDevice('');
         setShowAddForm(false);
         run();
       } else {
-        toast({ title: 'Add Failed', description: json.error || 'Failed to add static entry', variant: 'destructive' });
+        toast({ title: t('gdAddFailed'), description: json.error || t('gdFailedAddStatic'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Network error adding static entry', variant: 'destructive' });
+      toast({ title: t('gdError'), description: t('gdNetworkErrorAddStatic'), variant: 'destructive' });
     }
     setAddingStatic(false);
-  }, [addIp, addMac, addDevice, toast, run]);
+  }, [addIp, addMac, addDevice, toast, run, t]);
 
   const data = result?.data as Record<string, unknown> | undefined;
   const entries = (data?.entries as Array<Record<string, unknown>>) || [];
@@ -768,20 +776,20 @@ function ArpTableTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Hash} title="ARP Table" description="View the system ARP cache — MAC to IP address mappings from the gateway" gradient="from-primary to-primary/70" />
+        <ToolHeader icon={Hash} title={t('gdArpTitle')} description={t('gdArpDesc')} gradient="from-primary to-primary/70" />
 
         <div className="flex items-end gap-3 flex-wrap">
           <div className="flex-1 min-w-[180px] max-w-sm">
-            <Label className="text-xs">Filter (IP / MAC / Device)</Label>
+            <Label className="text-xs">{t('gdFilterIpMacDevice')}</Label>
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="192.168 or eth0"
+              placeholder={t('gdFilterIpMacDevicePlaceholder')}
               className="mt-1 h-8 text-xs"
               onKeyDown={(e) => e.key === 'Enter' && run()}
             />
           </div>
-          <RunButton loading={state === 'loading'} onClick={run} label="Refresh ARP" />
+          <RunButton loading={state === 'loading'} onClick={run} label={t('gdRefreshArp')} />
           <Button
             size="sm"
             variant="outline"
@@ -790,7 +798,7 @@ function ArpTableTool() {
             onClick={flushArp}
           >
             {flushing ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
-            Flush ARP Cache
+            {t('gdFlushArpCache')}
           </Button>
           <Button
             size="sm"
@@ -799,39 +807,39 @@ function ArpTableTool() {
             onClick={() => setShowAddForm(!showAddForm)}
           >
             <Plus className="h-3.5 w-3.5 mr-1.5" />
-            Add Static Entry
+            {t('gdAddStaticEntry')}
           </Button>
           {result && <DurationBadge ms={result.duration_ms} />}
         </div>
 
         {showAddForm && (
           <div className="mt-4 rounded-lg border bg-muted/30 p-4">
-            <p className="text-xs font-medium mb-3">Add Static ARP Entry</p>
+            <p className="text-xs font-medium mb-3">{t('gdAddStaticArpEntry')}</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <Label className="text-xs">IP Address *</Label>
+                <Label className="text-xs">{t('gdIpAddressRequired')}</Label>
                 <Input
                   value={addIp}
                   onChange={(e) => setAddIp(e.target.value)}
-                  placeholder="192.168.1.100"
+                  placeholder={t('gdIpAddressPlaceholder')}
                   className="mt-1 h-8 text-xs font-mono"
                 />
               </div>
               <div>
-                <Label className="text-xs">MAC Address *</Label>
+                <Label className="text-xs">{t('gdMacAddressRequired')}</Label>
                 <Input
                   value={addMac}
                   onChange={(e) => setAddMac(e.target.value)}
-                  placeholder="aa:bb:cc:dd:ee:ff"
+                  placeholder={t('gdMacAddressPlaceholder')}
                   className="mt-1 h-8 text-xs font-mono"
                 />
               </div>
               <div>
-                <Label className="text-xs">Device (optional)</Label>
+                <Label className="text-xs">{t('gdDeviceOptional')}</Label>
                 <Input
                   value={addDevice}
                   onChange={(e) => setAddDevice(e.target.value)}
-                  placeholder="eth0"
+                  placeholder={t('gdDevicePlaceholder')}
                   className="mt-1 h-8 text-xs font-mono"
                 />
               </div>
@@ -839,9 +847,9 @@ function ArpTableTool() {
             <div className="flex gap-2 mt-3">
               <Button size="sm" className="h-7 text-xs px-3" disabled={addingStatic || !addIp.trim() || !addMac.trim()} onClick={addStaticEntry}>
                 {addingStatic ? <Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> : <Plus className="h-3 w-3 mr-1.5" />}
-                Submit
+                {t('gdSubmit')}
               </Button>
-              <Button size="sm" variant="ghost" className="h-7 text-xs px-3" onClick={() => setShowAddForm(false)}>Cancel</Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs px-3" onClick={() => setShowAddForm(false)}>{t('gdCancel')}</Button>
             </div>
           </div>
         )}
@@ -854,11 +862,11 @@ function ArpTableTool() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-xs">IP Address</TableHead>
-                  <TableHead className="text-xs">MAC Address</TableHead>
-                  <TableHead className="text-xs">Type</TableHead>
-                  <TableHead className="text-xs">Flags</TableHead>
-                  <TableHead className="text-xs">Device</TableHead>
+                  <TableHead className="text-xs">{t('gdThIpAddress')}</TableHead>
+                  <TableHead className="text-xs">{t('gdThMacAddress')}</TableHead>
+                  <TableHead className="text-xs">{t('gdThType')}</TableHead>
+                  <TableHead className="text-xs">{t('gdThFlags')}</TableHead>
+                  <TableHead className="text-xs">{t('gdThDevice')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -884,7 +892,7 @@ function ArpTableTool() {
         {state === 'done' && entries.length === 0 && !result?.error && (
           <div className="mt-4 text-center py-8 text-xs text-muted-foreground">
             <Hash className="h-8 w-8 mx-auto mb-2 opacity-30" />
-            No ARP entries found
+            {t('gdNoArpEntries')}
           </div>
         )}
       </CardContent>
@@ -898,6 +906,7 @@ function ArpTableTool() {
 
 function NetworkScanTool() {
   const { toast } = useToast();
+  const t = useTranslations('wifiDiagnostics');
   const [subnet, setSubnet] = useState('192.168.1.0/24');
   const [timeout, setTimeout_] = useState('2');
   const [state, setState] = useState<RunState>('idle');
@@ -925,17 +934,17 @@ function NetworkScanTool() {
       setState('done');
       if (r.success) {
         toast({
-          title: 'Scan Complete',
-          description: `${json.data?.totalFound || 0} hosts alive`,
+          title: t('gdScanComplete'),
+          description: t('gdHostsAlive', { count: String(json.data?.totalFound || 0) }),
         });
       } else {
-        toast({ title: 'Scan Failed', description: r.error, variant: 'destructive' });
+        toast({ title: t('gdScanFailed'), description: r.error, variant: 'destructive' });
       }
     } catch {
       setState('done');
-      setResult({ success: false, duration_ms: 0, data: {}, error: 'Network error' });
+      setResult({ success: false, duration_ms: 0, data: {}, error: t('gdNetworkError') });
     }
-  }, [subnet, timeout, toast]);
+  }, [subnet, timeout, toast, t]);
 
   const data = result?.data as Record<string, unknown> | undefined;
   const aliveHosts = (data?.aliveHosts as string[]) || [];
@@ -943,26 +952,26 @@ function NetworkScanTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Radar} title="Network Scan" description="Scan a local subnet to discover alive hosts using fast parallel ping (fping)" gradient="from-rose-500 to-pink-600" />
+        <ToolHeader icon={Radar} title={t('gdScanTitle')} description={t('gdScanDesc')} gradient="from-rose-500 to-pink-600" />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="lg:col-span-2">
-            <Label className="text-xs">Subnet (CIDR)</Label>
+            <Label className="text-xs">{t('gdSubnetCidr')}</Label>
             <Input
               value={subnet}
               onChange={(e) => setSubnet(e.target.value)}
-              placeholder="192.168.1.0/24"
+              placeholder={t('gdSubnetPlaceholder')}
               className="mt-1 h-8 text-xs font-mono"
               onKeyDown={(e) => e.key === 'Enter' && run()}
             />
           </div>
           <div>
-            <Label className="text-xs">Timeout (s)</Label>
+            <Label className="text-xs">{t('gdTimeoutS')}</Label>
             <Select value={timeout} onValueChange={setTimeout_}>
               <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {['1', '2', '3', '5', '10'].map((v) => (
-                  <SelectItem key={v} value={v}>{v}s</SelectItem>
+                  <SelectItem key={v} value={v}>{t('gdUnitSeconds', { value: v })}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -970,17 +979,17 @@ function NetworkScanTool() {
         </div>
 
         <div className="flex items-center gap-2 mt-4">
-          <RunButton loading={state === 'loading'} onClick={run} label="Start Scan" />
+          <RunButton loading={state === 'loading'} onClick={run} label={t('gdStartScan')} />
           {result && <DurationBadge ms={result.duration_ms} />}
           {state === 'loading' && (
             <span className="text-xs text-muted-foreground flex items-center gap-1.5">
               <Loader2 className="h-3 w-3 animate-spin" />
-              Scanning {subnet}...
+              {t('gdScanningSubnet', { subnet })}
             </span>
           )}
           {result?.success && data?.method && (
             <Badge variant="outline" className="text-[10px] ml-2">
-              via {String(data.method)}
+              {t('gdVia', { server: String(data.method) })}
             </Badge>
           )}
         </div>
@@ -991,7 +1000,7 @@ function NetworkScanTool() {
           <div className="mt-4">
             <div className="flex items-center gap-2 mb-2">
               <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-              <span className="text-xs font-medium">{aliveHosts.length} hosts alive</span>
+              <span className="text-xs font-medium">{t('gdHostsAlive', { count: aliveHosts.length })}</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
               {aliveHosts.map((h, i) => (
@@ -1017,6 +1026,7 @@ function NetworkScanTool() {
 
 function PacketCaptureTool() {
   const { toast } = useToast();
+  const t = useTranslations('wifiDiagnostics');
   const [iface, setIface] = useState('any');
   const [filter, setFilter] = useState('');
   const [duration, setDuration] = useState('10');
@@ -1049,17 +1059,17 @@ function PacketCaptureTool() {
       setState('done');
       if (r.success) {
         toast({
-          title: 'Capture Complete',
-          description: `${json.data?.totalCaptured || 0} packets captured`,
+          title: t('gdCaptureComplete'),
+          description: t('gdPacketsCaptured', { count: String(json.data?.totalCaptured || 0) }),
         });
       } else {
-        toast({ title: 'Capture Failed', description: r.error, variant: 'destructive' });
+        toast({ title: t('gdCaptureFailed'), description: r.error, variant: 'destructive' });
       }
     } catch {
       setState('done');
-      setResult({ success: false, duration_ms: 0, data: {}, error: 'Network error' });
+      setResult({ success: false, duration_ms: 0, data: {}, error: t('gdNetworkError') });
     }
-  }, [iface, filter, duration, count, savePcap, toast]);
+  }, [iface, filter, duration, count, savePcap, toast, t]);
 
   const data = result?.data as Record<string, unknown> | undefined;
   const packets = (data?.packets as string[]) || [];
@@ -1085,40 +1095,40 @@ function PacketCaptureTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Shield} title="Packet Capture" description="Capture live network traffic using tcpdump with BPF filter support" gradient="from-violet-500 to-purple-600" />
+        <ToolHeader icon={Shield} title={t('gdCaptureTitle')} description={t('gdCaptureDesc')} gradient="from-violet-500 to-purple-600" />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
-            <Label className="text-xs">Interface</Label>
+            <Label className="text-xs">{t('gdInterface')}</Label>
             <Input
               value={iface}
               onChange={(e) => setIface(e.target.value)}
-              placeholder="eth0"
+              placeholder={t('gdInterfacePlaceholder')}
               className="mt-1 h-8 text-xs font-mono"
             />
           </div>
           <div>
-            <Label className="text-xs">BPF Filter (optional)</Label>
+            <Label className="text-xs">{t('gdBpfFilterOptional')}</Label>
             <Input
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              placeholder="port 53 or host 8.8.8.8"
+              placeholder={t('gdBpfFilterPlaceholder')}
               className="mt-1 h-8 text-xs font-mono"
             />
           </div>
           <div>
-            <Label className="text-xs">Duration (s)</Label>
+            <Label className="text-xs">{t('gdDurationS')}</Label>
             <Select value={duration} onValueChange={setDuration}>
               <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {['5', '10', '15', '30', '60'].map((v) => (
-                  <SelectItem key={v} value={v}>{v}s</SelectItem>
+                  <SelectItem key={v} value={v}>{t('gdUnitSeconds', { value: v })}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label className="text-xs">Max Packets</Label>
+            <Label className="text-xs">{t('gdMaxPackets')}</Label>
             <Select value={count} onValueChange={setCount}>
               <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -1137,14 +1147,14 @@ function PacketCaptureTool() {
               checked={savePcap}
               onCheckedChange={(v) => setSavePcap(v === true)}
             />
-            <Label htmlFor="save-pcap" className="text-xs cursor-pointer select-none">Save PCAP</Label>
+            <Label htmlFor="save-pcap" className="text-xs cursor-pointer select-none">{t('gdSavePcap')}</Label>
           </div>
-          <RunButton loading={state === 'loading'} onClick={run} label="Start Capture" />
+          <RunButton loading={state === 'loading'} onClick={run} label={t('gdStartCapture')} />
           {result && <DurationBadge ms={result.duration_ms} />}
           {state === 'loading' && (
             <span className="text-xs text-muted-foreground flex items-center gap-1.5">
               <Loader2 className="h-3 w-3 animate-spin" />
-              Capturing on {iface}...
+              {t('gdCapturingOn', { iface })}
             </span>
           )}
         </div>
@@ -1154,10 +1164,10 @@ function PacketCaptureTool() {
         {result?.success && (
           <SummaryBar
             items={[
-              { label: 'Interface', value: String(data?.interface || iface) },
-              { label: 'Filter', value: String(data?.filter || 'none') },
-              { label: 'Captured', value: `${packets.length} packets` },
-              ...(pcapSaved ? [{ label: 'PCAP', value: 'Saved', color: 'text-primary' }] : []),
+              { label: t('gdSummaryInterface'), value: String(data?.interface || iface) },
+              { label: t('gdSummaryFilter'), value: String(data?.filter || t('gdNone')) },
+              { label: t('gdSummaryCaptured'), value: t('gdPacketsCount', { count: String(packets.length) }) },
+              ...(pcapSaved ? [{ label: 'PCAP', value: t('gdSaved'), color: 'text-primary' as const }] : []),
             ]}
           />
         )}
@@ -1171,7 +1181,7 @@ function PacketCaptureTool() {
               className="inline-flex items-center gap-1.5 h-8 px-4 rounded-md text-xs font-medium bg-violet-600 hover:bg-violet-700 text-white transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
-              Download PCAP
+              {t('gdDownloadPcap')}
             </a>
           </div>
         )}
@@ -1182,14 +1192,14 @@ function PacketCaptureTool() {
             <div className="flex items-center gap-2 mb-1">
               <Shield className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Capture Analysis
+                {t('gdCaptureAnalysis')}
               </span>
             </div>
 
             {/* Protocol Breakdown Bar Chart */}
             {Object.keys(protocolBreakdown).length > 0 && (
               <div className="rounded-lg border bg-muted/20 p-4">
-                <p className="text-xs font-medium mb-3">Protocol Breakdown</p>
+                <p className="text-xs font-medium mb-3">{t('gdProtocolBreakdown')}</p>
                 <div className="space-y-2">
                   {Object.entries(protocolBreakdown).sort(([, a], [, b]) => b - a).map(([proto, cnt]) => {
                     const pct = totalProto > 0 ? (cnt / totalProto) * 100 : 0;
@@ -1215,13 +1225,13 @@ function PacketCaptureTool() {
               {/* Top Source IPs */}
               {topSourceIps.length > 0 && (
                 <div className="rounded-lg border bg-muted/20 p-4">
-                  <p className="text-xs font-medium mb-2">Top Source IPs</p>
+                  <p className="text-xs font-medium mb-2">{t('gdTopSourceIps')}</p>
                   <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
-                        <TableHead className="text-[10px]">IP</TableHead>
-                        <TableHead className="text-[10px] text-right">Count</TableHead>
+                        <TableHead className="text-[10px]">{t('gdThIp')}</TableHead>
+                        <TableHead className="text-[10px] text-right">{t('gdThCount')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1240,13 +1250,13 @@ function PacketCaptureTool() {
               {/* Top Dest IPs */}
               {topDestIps.length > 0 && (
                 <div className="rounded-lg border bg-muted/20 p-4">
-                  <p className="text-xs font-medium mb-2">Top Dest IPs</p>
+                  <p className="text-xs font-medium mb-2">{t('gdTopDestIps')}</p>
                   <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
-                        <TableHead className="text-[10px]">IP</TableHead>
-                        <TableHead className="text-[10px] text-right">Count</TableHead>
+                        <TableHead className="text-[10px]">{t('gdThIp')}</TableHead>
+                        <TableHead className="text-[10px] text-right">{t('gdThCount')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1265,13 +1275,13 @@ function PacketCaptureTool() {
               {/* Top Dest Ports */}
               {topDestPorts.length > 0 && (
                 <div className="rounded-lg border bg-muted/20 p-4">
-                  <p className="text-xs font-medium mb-2">Top Dest Ports</p>
+                  <p className="text-xs font-medium mb-2">{t('gdTopDestPorts')}</p>
                   <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
-                        <TableHead className="text-[10px]">Port</TableHead>
-                        <TableHead className="text-[10px] text-right">Count</TableHead>
+                        <TableHead className="text-[10px]">{t('gdThPort')}</TableHead>
+                        <TableHead className="text-[10px] text-right">{t('gdThCount')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1293,7 +1303,7 @@ function PacketCaptureTool() {
         {packets.length > 0 && (
           <TerminalOutput
             content={packets.join('\n')}
-            label="Captured Packets"
+            label={t('gdCapturedPackets')}
             maxHeight="max-h-96"
           />
         )}
@@ -1349,6 +1359,7 @@ function SpeedGauge({
   phase: string;
   pingMs?: number | null;
 }) {
+  const t = useTranslations('wifiDiagnostics');
   const CX = 150;
   const CY = 150;
   const R = 108;
@@ -1377,7 +1388,7 @@ function SpeedGauge({
 
   const isPing = phase === 'ping';
   const centerNum = isPing ? (pingMs != null ? pingMs.toFixed(1) : '...') : speed.toFixed(2);
-  const centerUnit = isPing ? 'ms' : 'Mbps';
+  const centerUnit = isPing ? t('gdUnitMs') : t('gdUnitMbps');
 
   return (
     <svg viewBox="0 0 300 200" className="w-full max-w-xs mx-auto" aria-label="Speed gauge">
@@ -1471,6 +1482,7 @@ const abortRef = { current: null as AbortController | null };
 
 function SpeedTestTool() {
   const { toast } = useToast();
+  const t = useTranslations('wifiDiagnostics');
 
   // State
   const [phase, setPhase] = useState<string>('idle');
@@ -1773,33 +1785,33 @@ function SpeedTestTool() {
           elapsed: ulResult.elapsed,
         },
         ping: pingResult,
-        server: { name: 'Cloudflare CDN Edge', location: 'Nearest Cloudflare PoP' },
+        server: { name: t('gdCloudflareEdge'), location: t('gdNearestCloudflarePop') },
       };
       setFinalResult(result);
 
       toast({
-        title: 'Internet Speed Test Complete',
-        description: `↓ ${dlResult.mbps} Mbps | ↑ ${ulResult.mbps} Mbps | ⚡ ${pingResult.latency} ms`,
+        title: t('gdSpeedTestComplete'),
+        description: t('gdSpeedTestResult', { dl: String(dlResult.mbps), ul: String(ulResult.mbps), ping: String(pingResult.latency) }),
       });
     } catch (err: unknown) {
       if (signal.aborted) return;
       setPhase('error');
-      const msg = err instanceof Error ? err.message : 'Speed test failed';
+      const msg = err instanceof Error ? err.message : t('gdSpeedTestFailedMsg');
       setErrorMsg(msg);
-      toast({ title: 'Speed Test Failed', description: msg, variant: 'destructive' });
+      toast({ title: t('gdSpeedTestFailed'), description: msg, variant: 'destructive' });
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const isRunning = ['starting', 'ping', 'download', 'upload'].includes(phase);
   const isComplete = phase === 'complete';
 
   const phaseLabel: Record<string, string> = {
-    starting: 'Connecting to Cloudflare...',
-    ping: 'Testing Internet Latency',
-    download: 'Testing Internet Download',
-    upload: 'Testing Internet Upload',
-    complete: 'Complete',
-    error: 'Error',
+    starting: t('gdConnectingCloudflare'),
+    ping: t('gdTestingLatency'),
+    download: t('gdTestingDownload'),
+    upload: t('gdTestingUpload'),
+    complete: t('gdComplete'),
+    error: t('gdError'),
     idle: '',
   };
 
@@ -1815,11 +1827,11 @@ function SpeedTestTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Gauge} title="Internet Speed Test" description="Real bandwidth test — measures gateway → internet speed via Cloudflare CDN" gradient="from-orange-500 to-red-500" />
+        <ToolHeader icon={Gauge} title={t('gdSpeedTestTitle')} description={t('gdSpeedTestDesc')} gradient="from-orange-500 to-red-500" />
 
         <div className="flex items-center gap-3">
-          <RunButton loading={isRunning} onClick={startTest} label={isRunning ? 'Testing...' : 'Start Speed Test'} disabled={isRunning} />
-          {isComplete && <Badge variant="outline" className="text-[10px] ml-1">Internet Speed Test</Badge>}
+          <RunButton loading={isRunning} onClick={startTest} label={isRunning ? t('gdTesting') : t('gdStartSpeedTest')} disabled={isRunning} />
+          {isComplete && <Badge variant="outline" className="text-[10px] ml-1">{t('gdSpeedTestTitle')}</Badge>}
         </div>
 
         {errorMsg && <ErrorBox message={errorMsg} />}
@@ -1850,7 +1862,7 @@ function SpeedTestTool() {
                 {isTransitioning ? (
                   <span className="flex items-center gap-1.5">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    {phase === 'download' ? 'Finishing download...' : 'Preparing upload...'}
+                    {phase === 'download' ? t('gdFinishingDownload') : t('gdPreparingUpload')}
                   </span>
                 ) : (
                   <>
@@ -1865,8 +1877,8 @@ function SpeedTestTool() {
             {/* Ping info */}
             {pingData && !isComplete && (
               <div className="flex justify-center gap-4 mt-2 text-xs text-muted-foreground">
-                <span>Ping: <strong className="text-foreground tabular-nums">{pingData.latency.toFixed(1)} ms</strong></span>
-                <span>Jitter: <strong className="text-foreground tabular-nums">{pingData.jitter.toFixed(1)} ms</strong></span>
+                <span>{t('gdPing')}: <strong className="text-foreground tabular-nums">{pingData.latency.toFixed(1)} {t('gdUnitMs')}</strong></span>
+                <span>{t('gdJitter')}: <strong className="text-foreground tabular-nums">{pingData.jitter.toFixed(1)} {t('gdUnitMs')}</strong></span>
               </div>
             )}
           </div>
@@ -1880,44 +1892,44 @@ function SpeedTestTool() {
               <div className="rounded-xl border bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 p-5 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Download</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('gdDownload')}</span>
                 </div>
                 <div className="flex items-end justify-center gap-1">
                   <span className="text-3xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{dlMbps.toFixed(2)}</span>
-                  <span className="text-sm text-muted-foreground mb-0.5">Mbps</span>
+                  <span className="text-sm text-muted-foreground mb-0.5">{t('gdUnitMbps')}</span>
                 </div>
                 {download && (
                   <p className="text-[11px] text-muted-foreground mt-1.5 font-mono tabular-nums">
-                    {String(download.totalMB)} MB in {String(download.elapsed)}s
+                    {t('gdMbInTime', { mb: String(download.totalMB), time: String(download.elapsed) })}
                   </p>
                 )}
               </div>
               <div className="rounded-xl border bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 p-5 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Upload className="h-4 w-4 text-orange-500" />
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Upload</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('gdUpload')}</span>
                 </div>
                 <div className="flex items-end justify-center gap-1">
                   <span className="text-3xl font-bold tabular-nums text-orange-600 dark:text-orange-400">{ulMbps.toFixed(2)}</span>
-                  <span className="text-sm text-muted-foreground mb-0.5">Mbps</span>
+                  <span className="text-sm text-muted-foreground mb-0.5">{t('gdUnitMbps')}</span>
                 </div>
                 {upload && (
                   <p className="text-[11px] text-muted-foreground mt-1.5 font-mono tabular-nums">
-                    {String(upload.totalMB)} MB in {String(upload.elapsed)}s
+                    {t('gdMbInTime', { mb: String(upload.totalMB), time: String(upload.elapsed) })}
                   </p>
                 )}
               </div>
               <div className="rounded-xl border bg-gradient-to-br from-cyan-50 to-sky-50 dark:from-cyan-950/20 dark:to-sky-950/20 p-5 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Activity className="h-4 w-4 text-cyan-500" />
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ping</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('gdPing')}</span>
                 </div>
                 <div className="flex items-end justify-center gap-1">
                   <span className="text-3xl font-bold tabular-nums text-cyan-600 dark:text-cyan-400">{pingLat.toFixed(1)}</span>
-                  <span className="text-sm text-muted-foreground mb-0.5">ms</span>
+                  <span className="text-sm text-muted-foreground mb-0.5">{t('gdUnitMs')}</span>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1.5 font-mono tabular-nums">
-                  Jitter: {pingJit.toFixed(1)} ms
+                  {t('gdJitter')}: {pingJit.toFixed(1)} {t('gdUnitMs')}
                 </p>
               </div>
             </div>
@@ -1927,14 +1939,14 @@ function SpeedTestTool() {
               <div className="rounded-xl border bg-muted/30 p-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Test Server</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{t('gdTestServer')}</p>
                     <p className="text-xs font-medium mt-1 truncate">{String(server.name)}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{String(server.location)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Test Type</p>
-                    <p className="text-xs font-medium mt-1">Gateway → Internet</p>
-                    <p className="text-[10px] text-muted-foreground">Measures real internet bandwidth via Cloudflare CDN</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{t('gdTestType')}</p>
+                    <p className="text-xs font-medium mt-1">{t('gdGatewayInternet')}</p>
+                    <p className="text-[10px] text-muted-foreground">{t('gdMeasuresBandwidth')}</p>
                   </div>
                 </div>
               </div>
@@ -1952,6 +1964,7 @@ function SpeedTestTool() {
 
 function PortCheckTool() {
   const { toast } = useToast();
+  const t = useTranslations('wifiDiagnostics');
   const [host, setHost] = useState('8.8.8.8');
   const [port, setPort] = useState('443');
   const [timeout, setTimeout_] = useState('3');
@@ -1981,52 +1994,53 @@ function PortCheckTool() {
       setState('done');
       if (r.success) {
         const d = r.data as Record<string, unknown>;
+        const portStatusLabel = String(d.status) === 'open' ? t('gdPortOpen') : String(d.status) === 'timeout' ? t('gdPortTimeout') : t('gdPortClosed');
         toast({
-          title: `Port ${d.port}: ${String(d.status).toUpperCase()}`,
-          description: `Latency: ${d.latency_ms}ms`,
+          title: t('gdPortResult', { port: String(d.port), status: portStatusLabel }),
+          description: t('gdLatencyMs', { value: String(d.latency_ms) }),
         });
       }
     } catch {
       setState('done');
-      setResult({ success: false, duration_ms: 0, data: {}, error: 'Network error' });
+      setResult({ success: false, duration_ms: 0, data: {}, error: t('gdNetworkError') });
     }
-  }, [host, port, timeout, toast]);
+  }, [host, port, timeout, toast, t]);
 
   const data = result?.data as Record<string, unknown> | undefined;
 
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Zap} title="Port Check" description="Test TCP connectivity to any host and port — check if a service is reachable" gradient="from-amber-500 to-yellow-500" />
+        <ToolHeader icon={Zap} title={t('gdPortCheckTitle')} description={t('gdPortCheckDesc')} gradient="from-amber-500 to-yellow-500" />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="lg:col-span-2">
-            <Label className="text-xs">Host / IP</Label>
+            <Label className="text-xs">{t('gdHostIp')}</Label>
             <Input
               value={host}
               onChange={(e) => setHost(e.target.value)}
-              placeholder="8.8.8.8"
+              placeholder={t('gdHostIpPlaceholder')}
               className="mt-1 h-8 text-xs"
               onKeyDown={(e) => e.key === 'Enter' && run()}
             />
           </div>
           <div>
-            <Label className="text-xs">Port</Label>
+            <Label className="text-xs">{t('gdPort')}</Label>
             <Input
               value={port}
               onChange={(e) => setPort(e.target.value.replace(/[^0-9]/g, ''))}
-              placeholder="443"
+              placeholder={t('gdPortPlaceholder')}
               className="mt-1 h-8 text-xs font-mono"
               onKeyDown={(e) => e.key === 'Enter' && run()}
             />
           </div>
           <div>
-            <Label className="text-xs">Timeout (s)</Label>
+            <Label className="text-xs">{t('gdTimeoutS')}</Label>
             <Select value={timeout} onValueChange={setTimeout_}>
               <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {['1', '2', '3', '5', '10'].map((v) => (
-                  <SelectItem key={v} value={v}>{v}s</SelectItem>
+                  <SelectItem key={v} value={v}>{t('gdUnitSeconds', { value: v })}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -2034,7 +2048,7 @@ function PortCheckTool() {
         </div>
 
         <div className="flex items-center gap-2 mt-4">
-          <RunButton loading={state === 'loading'} onClick={run} label="Check Port" />
+          <RunButton loading={state === 'loading'} onClick={run} label={t('gdCheckPort')} />
           {result && <DurationBadge ms={result.duration_ms} />}
         </div>
 
@@ -2048,21 +2062,21 @@ function PortCheckTool() {
                   <>
                     <CheckCircle2 className="h-10 w-10 mx-auto text-primary mb-2" />
                     <p className="font-semibold text-sm text-primary">
-                      OPEN
+                      {t('gdPortOpen')}
                     </p>
                   </>
                 ) : data.status === 'timeout' ? (
                   <>
                     <AlertTriangle className="h-10 w-10 mx-auto text-amber-500 mb-2" />
                     <p className="font-semibold text-sm text-amber-600 dark:text-amber-400">
-                      TIMEOUT
+                      {t('gdPortTimeout')}
                     </p>
                   </>
                 ) : (
                   <>
                     <XCircle className="h-10 w-10 mx-auto text-red-500 mb-2" />
                     <p className="font-semibold text-sm text-red-600 dark:text-red-400">
-                      CLOSED
+                      {t('gdPortClosed')}
                     </p>
                   </>
                 )}
@@ -2071,8 +2085,8 @@ function PortCheckTool() {
                 </p>
               </div>
               <div className="flex-1 rounded-xl border bg-muted/30 p-6">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Latency</p>
-                <p className="text-2xl font-bold tabular-nums">{data.latency_ms}<span className="text-sm ml-1 font-normal">ms</span></p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">{t('gdLatency')}</p>
+                <p className="text-2xl font-bold tabular-nums">{data.latency_ms}<span className="text-sm ml-1 font-normal">{t('gdUnitMs')}</span></p>
               </div>
             </div>
           </div>
@@ -2088,11 +2102,21 @@ function PortCheckTool() {
 
 function ConntrackTool() {
   const { toast } = useToast();
+  const t = useTranslations('wifiDiagnostics');
   const [search, setSearch] = useState('');
   const [state, setState] = useState<RunState>('idle');
   const [result, setResult] = useState<ToolResult | null>(null);
   const [viewTab, setViewTab] = useState<'tcp' | 'udp'>('tcp');
   const [stateFilter, setStateFilter] = useState<string>('all');
+
+  const STATE_LABELS: Record<string, string> = {
+    ESTABLISHED: t('gdStateEstablished'),
+    LISTEN: t('gdStateListen'),
+    TIME_WAIT: t('gdStateTimeWait'),
+    CLOSE_WAIT: t('gdStateCloseWait'),
+    SYN_RECV: t('gdStateSynRecv'),
+    SYN_SENT: t('gdStateSynSent'),
+  };
 
   const run = useCallback(async () => {
     setState('loading');
@@ -2111,13 +2135,13 @@ function ConntrackTool() {
       setResult(r);
       setState('done');
       if (r.success) {
-        toast({ title: 'Connection Table Loaded', description: `${json.data?.total || 0} total connections` });
+        toast({ title: t('gdConntrackLoaded'), description: t('gdTotalConnections', { count: String(json.data?.total || 0) }) });
       }
     } catch {
       setState('done');
-      setResult({ success: false, duration_ms: 0, data: {}, error: 'Network error' });
+      setResult({ success: false, duration_ms: 0, data: {}, error: t('gdNetworkError') });
     }
-  }, [search, toast]);
+  }, [search, toast, t]);
 
   const data = result?.data as Record<string, unknown> | undefined;
   const allConnections = (data?.connections as Array<Record<string, unknown>>) || [];
@@ -2151,11 +2175,11 @@ function ConntrackTool() {
 
   const getStateBadge = (connState: string) => {
     switch (connState) {
-      case 'ESTABLISHED': return <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 text-[10px]">{connState}</Badge>;
-      case 'LISTEN': return <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 text-[10px]">{connState}</Badge>;
-      case 'TIME_WAIT': return <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-[10px]">{connState}</Badge>;
-      case 'CLOSE_WAIT': return <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-0 text-[10px]">{connState}</Badge>;
-      case 'SYN_SENT': case 'SYN_RECV': return <Badge className="bg-cyan-500 hover:bg-cyan-600 text-white border-0 text-[10px]">{connState}</Badge>;
+      case 'ESTABLISHED': return <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 text-[10px]">{STATE_LABELS[connState] || connState}</Badge>;
+      case 'LISTEN': return <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 text-[10px]">{STATE_LABELS[connState] || connState}</Badge>;
+      case 'TIME_WAIT': return <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-[10px]">{STATE_LABELS[connState] || connState}</Badge>;
+      case 'CLOSE_WAIT': return <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-0 text-[10px]">{STATE_LABELS[connState] || connState}</Badge>;
+      case 'SYN_SENT': case 'SYN_RECV': return <Badge className="bg-cyan-500 hover:bg-cyan-600 text-white border-0 text-[10px]">{STATE_LABELS[connState] || connState}</Badge>;
       default: return <Badge variant="outline" className="text-[10px]">{connState}</Badge>;
     }
   };
@@ -2184,33 +2208,33 @@ function ConntrackTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Activity} title="Connection Table" description="Active TCP + UDP connections — SonicWall-style view with state analysis" gradient="from-slate-500 to-gray-600" />
+        <ToolHeader icon={Activity} title={t('gdConntrackTitle')} description={t('gdConntrackDesc')} gradient="from-slate-500 to-gray-600" />
 
         {/* Filter bar */}
         <div className="flex items-end gap-3 flex-wrap">
           <div className="flex-1 min-w-[180px] max-w-sm">
-            <Label className="text-xs">Filter (IP / Port)</Label>
+            <Label className="text-xs">{t('gdFilterIpPort')}</Label>
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="192.168 or :443"
+              placeholder={t('gdFilterIpPortPlaceholder')}
               className="mt-1 h-8 text-xs font-mono"
               onKeyDown={(e) => e.key === 'Enter' && run()}
             />
           </div>
           <div>
-            <Label className="text-xs">State</Label>
+            <Label className="text-xs">{t('gdState')}</Label>
             <Select value={stateFilter} onValueChange={setStateFilter}>
               <SelectTrigger className="mt-1 h-8 text-xs w-[140px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All States</SelectItem>
+                <SelectItem value="all">{t('gdAllStates')}</SelectItem>
                 {VISIBLE_STATES.map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                  <SelectItem key={s} value={s}>{STATE_LABELS[s] || s}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <RunButton loading={state === 'loading'} onClick={run} label="Load Connections" />
+          <RunButton loading={state === 'loading'} onClick={run} label={t('gdLoadConnections')} />
           {result && <DurationBadge ms={result.duration_ms} />}
         </div>
 
@@ -2221,29 +2245,29 @@ function ConntrackTool() {
             {/* Header Summary Bar */}
             <div className="mt-4 flex flex-wrap gap-2">
               <Badge variant="outline" className="text-xs px-3 py-1">
-                <span className="text-muted-foreground mr-1">Total</span>
+                <span className="text-muted-foreground mr-1">{t('gdTotal')}</span>
                 <span className="font-bold tabular-nums">{totalConns}</span>
               </Badge>
               <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 text-xs px-3 py-1">
-                ESTABLISHED: {established}
+                {STATE_LABELS.ESTABLISHED}: {established}
               </Badge>
               <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 text-xs px-3 py-1">
-                LISTEN: {listening}
+                {STATE_LABELS.LISTEN}: {listening}
               </Badge>
               <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-xs px-3 py-1">
-                TIME_WAIT: {timeWait}
+                {STATE_LABELS.TIME_WAIT}: {timeWait}
               </Badge>
               <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-0 text-xs px-3 py-1">
-                CLOSE_WAIT: {closeWait}
+                {STATE_LABELS.CLOSE_WAIT}: {closeWait}
               </Badge>
               <Badge className="bg-cyan-500 hover:bg-cyan-600 text-white border-0 text-xs px-3 py-1">
-                SYN_RECV: {synRecv}
+                {STATE_LABELS.SYN_RECV}: {synRecv}
               </Badge>
             </div>
 
             {/* Utilization Bar */}
             <div className="mt-3 rounded-lg border bg-muted/20 p-4">
-              <p className="text-xs font-medium mb-3">State Distribution</p>
+              <p className="text-xs font-medium mb-3">{t('gdStateDistribution')}</p>
               <div className="flex h-6 rounded overflow-hidden bg-muted">
                 {totalConns > 0 && (
                   <>
@@ -2266,27 +2290,27 @@ function ConntrackTool() {
                 )}
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
-                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" /> ESTABLISHED</span>
-                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" /> LISTEN</span>
-                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> TIME_WAIT</span>
-                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" /> CLOSE_WAIT</span>
-                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-cyan-500" /> SYN_RECV</span>
+                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" /> {STATE_LABELS.ESTABLISHED}</span>
+                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" /> {STATE_LABELS.LISTEN}</span>
+                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> {STATE_LABELS.TIME_WAIT}</span>
+                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" /> {STATE_LABELS.CLOSE_WAIT}</span>
+                <span className="text-[10px] flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-cyan-500" /> {STATE_LABELS.SYN_RECV}</span>
               </div>
             </div>
 
             {/* Summary Stats */}
             <SummaryBar
               items={[
-                { label: 'Total TCP', value: String(data?.totalTcp ?? allConnections.length) },
-                { label: 'Total UDP', value: String(data?.totalUdp ?? udpConnections.length) },
-                { label: 'Source', value: String(data?.source ?? '—') },
+                { label: t('gdTotalTcp'), value: String(data?.totalTcp ?? allConnections.length) },
+                { label: t('gdTotalUdp'), value: String(data?.totalUdp ?? udpConnections.length) },
+                { label: t('gdSource'), value: String(data?.source ?? '—') },
               ]}
             />
 
             {/* TCP/UDP Toggle */}
             <div className="flex gap-2 mt-4">
-              <Button variant={viewTab === 'tcp' ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => { setViewTab('tcp'); setStateFilter('all'); }}>TCP ({allConnections.length})</Button>
-              <Button variant={viewTab === 'udp' ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => { setViewTab('udp'); setStateFilter('all'); }}>UDP ({udpConnections.length})</Button>
+              <Button variant={viewTab === 'tcp' ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => { setViewTab('tcp'); setStateFilter('all'); }}>{t('gdTcpCount', { count: allConnections.length })}</Button>
+              <Button variant={viewTab === 'udp' ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => { setViewTab('udp'); setStateFilter('all'); }}>{t('gdUdpCount', { count: udpConnections.length })}</Button>
             </div>
 
             {/* Connection Table */}
@@ -2297,12 +2321,12 @@ function ConntrackTool() {
                   <Table>
                     <TableHeader className="sticky top-0 bg-background z-10">
                       <TableRow className="hover:bg-transparent">
-                        <TableHead className="text-[10px] w-14">Proto</TableHead>
-                        <TableHead className="text-[10px]">Source IP</TableHead>
-                        <TableHead className="text-[10px] w-16">Src Port</TableHead>
-                        <TableHead className="text-[10px]">Dest IP</TableHead>
-                        <TableHead className="text-[10px] w-16">Dst Port</TableHead>
-                        <TableHead className="text-[10px] w-28">State</TableHead>
+                        <TableHead className="text-[10px] w-14">{t('gdThProto')}</TableHead>
+                        <TableHead className="text-[10px]">{t('gdThSourceIp')}</TableHead>
+                        <TableHead className="text-[10px] w-16">{t('gdThSrcPort')}</TableHead>
+                        <TableHead className="text-[10px]">{t('gdThDestIp')}</TableHead>
+                        <TableHead className="text-[10px] w-16">{t('gdThDstPort')}</TableHead>
+                        <TableHead className="text-[10px] w-28">{t('gdState')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2321,20 +2345,20 @@ function ConntrackTool() {
                   </div>
                 </div>
                 <p className="mt-1 text-[10px] text-muted-foreground">
-                  Showing {displayRows.length} filtered {viewTab} connections
+                  {t('gdShowingFiltered', { count: displayRows.length, proto: viewTab })}
                 </p>
               </div>
             ) : (
               <div className="mt-4 text-center py-6 text-xs text-muted-foreground">
                 <Activity className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                No {viewTab} connections found{search ? ` matching "${search}"` : ''}{stateFilter !== 'all' ? ` in ${stateFilter} state` : ''}
+                {t('gdNoConnFound', { proto: viewTab })}{search ? ` ${t('gdMatching', { search })}` : ''}{stateFilter !== 'all' ? ` ${t('gdInState', { state: stateFilter })}` : ''}
               </div>
             )}
 
             {/* Top Talkers */}
             {topTalkers.length > 0 && (
               <div className="mt-5 rounded-lg border bg-muted/20 p-4">
-                <p className="text-xs font-medium mb-3">Top Talkers (by Source IP)</p>
+                <p className="text-xs font-medium mb-3">{t('gdTopTalkers')}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2">
                   {topTalkers.map(([ip, count], i) => (
                     <div key={i} className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2">
@@ -2359,6 +2383,7 @@ function ConntrackTool() {
 
 function RouteTableTool() {
   const { toast } = useToast();
+  const t = useTranslations('wifiDiagnostics');
   const [state, setState] = useState<RunState>('idle');
   const [result, setResult] = useState<ToolResult | null>(null);
 
@@ -2378,13 +2403,13 @@ function RouteTableTool() {
       setResult(r);
       setState('done');
       if (r.success) {
-        toast({ title: 'Route Table Loaded', description: `${json.data?.total || 0} routes` });
+        toast({ title: t('gdRouteLoaded'), description: t('gdRoutesLoaded', { count: String(json.data?.total || 0) }) });
       }
     } catch {
       setState('done');
-      setResult({ success: false, duration_ms: 0, data: {}, error: 'Network error' });
+      setResult({ success: false, duration_ms: 0, data: {}, error: t('gdNetworkError') });
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const data = result?.data as Record<string, unknown> | undefined;
   const routes = (data?.routes as Array<Record<string, unknown>>) || [];
@@ -2393,14 +2418,14 @@ function RouteTableTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Route} title="Route Table" description="Display the system routing table — kernel IP routing table entries" gradient="from-primary to-primary/70" />
+        <ToolHeader icon={Route} title={t('gdRouteTitle')} description={t('gdRouteDesc')} gradient="from-primary to-primary/70" />
 
         <div className="flex items-center gap-2">
-          <RunButton loading={state === 'loading'} onClick={run} label="Show Routes" />
+          <RunButton loading={state === 'loading'} onClick={run} label={t('gdShowRoutes')} />
           {result && <DurationBadge ms={result.duration_ms} />}
           {result?.success && routes.length > 0 && (
             <Badge variant="outline" className="text-[10px] ml-2">
-              {routes.length} routes
+              {t('gdRoutesCount', { count: routes.length })}
             </Badge>
           )}
         </div>
@@ -2414,12 +2439,12 @@ function RouteTableTool() {
               <Table>
                 <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-[10px]">Destination</TableHead>
-                    <TableHead className="text-[10px]">Gateway</TableHead>
-                    <TableHead className="text-[10px]">Protocol</TableHead>
-                    <TableHead className="text-[10px]">Priority/Scope</TableHead>
-                    <TableHead className="text-[10px]">Dev</TableHead>
-                    <TableHead className="text-[10px] text-right">Metric</TableHead>
+                    <TableHead className="text-[10px]">{t('gdThDestination')}</TableHead>
+                    <TableHead className="text-[10px]">{t('gdThGateway')}</TableHead>
+                    <TableHead className="text-[10px]">{t('gdThProtocol')}</TableHead>
+                    <TableHead className="text-[10px]">{t('gdThPriorityScope')}</TableHead>
+                    <TableHead className="text-[10px]">{t('gdThDev')}</TableHead>
+                    <TableHead className="text-[10px] text-right">{t('gdThMetric')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -2443,13 +2468,13 @@ function RouteTableTool() {
         )}
 
         {result?.success && routes.length === 0 && rawOutput && (
-          <TerminalOutput content={rawOutput} label="Route Table Output" />
+          <TerminalOutput content={rawOutput} label={t('gdRouteTableOutput')} />
         )}
 
         {state === 'done' && routes.length === 0 && !rawOutput && !result?.error && (
           <div className="mt-4 text-center py-8 text-xs text-muted-foreground">
             <Route className="h-8 w-8 mx-auto mb-2 opacity-30" />
-            No route table data available
+            {t('gdNoRouteData')}
           </div>
         )}
       </CardContent>
@@ -2471,6 +2496,7 @@ function formatBytes(bytes: number): string {
 
 function InterfaceStatsTool() {
   const { toast } = useToast();
+  const t = useTranslations('wifiDiagnostics');
   const [state, setState] = useState<RunState>('idle');
   const [result, setResult] = useState<ToolResult | null>(null);
 
@@ -2491,13 +2517,13 @@ function InterfaceStatsTool() {
       setState('done');
       if (r.success) {
         const ifaces = json.data?.interfaces as Array<Record<string, unknown>> | undefined;
-        toast({ title: 'Interface Stats Loaded', description: `${ifaces?.length || 0} interfaces` });
+        toast({ title: t('gdIfaceStatsLoaded'), description: t('gdInterfacesCount', { count: String(ifaces?.length || 0) }) });
       }
     } catch {
       setState('done');
-      setResult({ success: false, duration_ms: 0, data: {}, error: 'Network error' });
+      setResult({ success: false, duration_ms: 0, data: {}, error: t('gdNetworkError') });
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const data = result?.data as Record<string, unknown> | undefined;
   const hostname = data?.hostname as string | undefined;
@@ -2510,10 +2536,10 @@ function InterfaceStatsTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={HardDrive} title="Interface Stats" description="Network interface statistics — RX/TX bytes, packets, errors, and drops" gradient="from-primary to-primary/70" />
+        <ToolHeader icon={HardDrive} title={t('gdIfaceStatsTitle')} description={t('gdIfaceStatsDesc')} gradient="from-primary to-primary/70" />
 
         <div className="flex items-center gap-2">
-          <RunButton loading={state === 'loading'} onClick={run} label="Refresh Stats" />
+          <RunButton loading={state === 'loading'} onClick={run} label={t('gdRefreshStats')} />
           {result && <DurationBadge ms={result.duration_ms} />}
         </div>
 
@@ -2522,7 +2548,7 @@ function InterfaceStatsTool() {
         {result?.success && hostname && (
           <div className="mt-4">
             <Badge variant="outline" className="text-xs px-3 py-1">
-              <span className="text-muted-foreground mr-1">Hostname:</span>
+              <span className="text-muted-foreground mr-1">{t('gdHostnameLabel')}</span>
               <span className="font-mono">{hostname}</span>
             </Badge>
           </div>
@@ -2562,12 +2588,12 @@ function InterfaceStatsTool() {
                       {/* RX */}
                       <div>
                         <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-1">
-                          RX (Receive)
+                          {t('gdRxReceive')}
                         </p>
                         <div className="space-y-1.5">
                           <div>
                             <div className="flex justify-between text-[11px] mb-0.5">
-                              <span className="text-muted-foreground">Bytes</span>
+                              <span className="text-muted-foreground">{t('gdBytes')}</span>
                               <span className="font-mono tabular-nums">{formatBytes(rxBytes)}</span>
                             </div>
                             <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -2575,9 +2601,9 @@ function InterfaceStatsTool() {
                             </div>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-[11px]">
-                            <div><span className="text-muted-foreground">Packets:</span> <span className="font-mono tabular-nums">{rxPackets.toLocaleString()}</span></div>
-                            <div><span className="text-muted-foreground">Errors:</span> <span className={cn('font-mono tabular-nums', rxErrors > 0 ? 'text-red-500' : '')}>{rxErrors}</span></div>
-                            <div><span className="text-muted-foreground">Drops:</span> <span className={cn('font-mono tabular-nums', rxDrops > 0 ? 'text-red-500' : '')}>{rxDrops}</span></div>
+                            <div><span className="text-muted-foreground">{t('gdPacketsLabel')}</span> <span className="font-mono tabular-nums">{rxPackets.toLocaleString()}</span></div>
+                            <div><span className="text-muted-foreground">{t('gdErrors')}</span> <span className={cn('font-mono tabular-nums', rxErrors > 0 ? 'text-red-500' : '')}>{rxErrors}</span></div>
+                            <div><span className="text-muted-foreground">{t('gdDrops')}</span> <span className={cn('font-mono tabular-nums', rxDrops > 0 ? 'text-red-500' : '')}>{rxDrops}</span></div>
                           </div>
                         </div>
                       </div>
@@ -2585,12 +2611,12 @@ function InterfaceStatsTool() {
                       {/* TX */}
                       <div>
                         <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-1">
-                          TX (Transmit)
+                          {t('gdTxTransmit')}
                         </p>
                         <div className="space-y-1.5">
                           <div>
                             <div className="flex justify-between text-[11px] mb-0.5">
-                              <span className="text-muted-foreground">Bytes</span>
+                              <span className="text-muted-foreground">{t('gdBytes')}</span>
                               <span className="font-mono tabular-nums">{formatBytes(txBytes)}</span>
                             </div>
                             <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -2598,9 +2624,9 @@ function InterfaceStatsTool() {
                             </div>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-[11px]">
-                            <div><span className="text-muted-foreground">Packets:</span> <span className="font-mono tabular-nums">{txPackets.toLocaleString()}</span></div>
-                            <div><span className="text-muted-foreground">Errors:</span> <span className={cn('font-mono tabular-nums', txErrors > 0 ? 'text-red-500' : '')}>{txErrors}</span></div>
-                            <div><span className="text-muted-foreground">Drops:</span> <span className={cn('font-mono tabular-nums', txDrops > 0 ? 'text-red-500' : '')}>{txDrops}</span></div>
+                            <div><span className="text-muted-foreground">{t('gdPacketsLabel')}</span> <span className="font-mono tabular-nums">{txPackets.toLocaleString()}</span></div>
+                            <div><span className="text-muted-foreground">{t('gdErrors')}</span> <span className={cn('font-mono tabular-nums', txErrors > 0 ? 'text-red-500' : '')}>{txErrors}</span></div>
+                            <div><span className="text-muted-foreground">{t('gdDrops')}</span> <span className={cn('font-mono tabular-nums', txDrops > 0 ? 'text-red-500' : '')}>{txDrops}</span></div>
                           </div>
                         </div>
                       </div>
@@ -2614,7 +2640,7 @@ function InterfaceStatsTool() {
         {result?.success && interfaces.length === 0 && (
           <div className="mt-4 text-center py-8 text-xs text-muted-foreground">
             <HardDrive className="h-8 w-8 mx-auto mb-2 opacity-30" />
-            No interface data available
+            {t('gdNoIfaceData')}
           </div>
         )}
       </CardContent>
@@ -2627,6 +2653,7 @@ function InterfaceStatsTool() {
 // ═══════════════════════════════════════════════════════════════════
 
 function ServerConsoleTool() {
+  const t = useTranslations('wifiDiagnostics');
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const termRef = useRef<HTMLDivElement>(null);
@@ -2800,7 +2827,7 @@ function ServerConsoleTool() {
   return (
     <Card>
       <CardContent className="p-5">
-        <ToolHeader icon={Terminal} title="Server Console" description="WebSocket-based terminal with real-time shell access to the gateway" gradient="from-slate-700 to-slate-900" />
+        <ToolHeader icon={Terminal} title={t('gdConsoleTitle')} description={t('gdConsoleDesc')} gradient="from-slate-700 to-slate-900" />
 
         <div className="flex items-center gap-3">
           <Button
@@ -2812,12 +2839,12 @@ function ServerConsoleTool() {
             {connecting ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                Connecting...
+                {t('gdConnecting')}
               </>
             ) : (
               <>
                 <Play className="h-3.5 w-3.5 mr-1.5" />
-                Connect
+                {t('gdConnect')}
               </>
             )}
           </Button>
@@ -2828,7 +2855,7 @@ function ServerConsoleTool() {
               className="h-8 px-3"
               onClick={reconnectTerminal}
             >
-              Reconnect
+              {t('gdReconnect')}
             </Button>
           )}
           <Badge
@@ -2846,7 +2873,7 @@ function ServerConsoleTool() {
               connecting && 'bg-amber-500 animate-pulse',
               !connected && !connecting && 'bg-slate-400',
             )} />
-            {connected ? 'Connected' : connecting ? 'Connecting...' : 'Disconnected'}
+            {connected ? t('gdConnected') : connecting ? t('gdConnecting') : t('gdDisconnected')}
           </Badge>
         </div>
 
@@ -2871,31 +2898,32 @@ function ServerConsoleTool() {
 // ═══════════════════════════════════════════════════════════════════
 
 const TOOLS = [
-  { id: 'ping', label: 'Ping', icon: CircleDot },
-  { id: 'traceroute', label: 'Traceroute', icon: Network },
-  { id: 'dns-lookup', label: 'DNS Lookup', icon: Globe },
-  { id: 'arp-table', label: 'ARP Table', icon: Hash },
-  { id: 'network-scan', label: 'Network Scan', icon: Radar },
-  { id: 'packet-capture', label: 'Packet Capture', icon: Shield },
-  { id: 'speed-test', label: 'Speed Test', icon: Gauge },
-  { id: 'port-check', label: 'Port Check', icon: Zap },
-  { id: 'connections', label: 'Connections', icon: Activity },
-  { id: 'route-table', label: 'Route Table', icon: Route },
-  { id: 'interface-stats', label: 'Interfaces', icon: HardDrive },
-  { id: 'server-console', label: 'Console', icon: Terminal },
+  { id: 'ping', labelKey: 'gdTabPing' as const, icon: CircleDot },
+  { id: 'traceroute', labelKey: 'gdTabTraceroute' as const, icon: Network },
+  { id: 'dns-lookup', labelKey: 'gdTabDnsLookup' as const, icon: Globe },
+  { id: 'arp-table', labelKey: 'gdTabArpTable' as const, icon: Hash },
+  { id: 'network-scan', labelKey: 'gdTabNetworkScan' as const, icon: Radar },
+  { id: 'packet-capture', labelKey: 'gdTabPacketCapture' as const, icon: Shield },
+  { id: 'speed-test', labelKey: 'gdTabSpeedTest' as const, icon: Gauge },
+  { id: 'port-check', labelKey: 'gdTabPortCheck' as const, icon: Zap },
+  { id: 'connections', labelKey: 'gdTabConnections' as const, icon: Activity },
+  { id: 'route-table', labelKey: 'gdTabRouteTable' as const, icon: Route },
+  { id: 'interface-stats', labelKey: 'gdTabInterfaces' as const, icon: HardDrive },
+  { id: 'server-console', labelKey: 'gdTabConsole' as const, icon: Terminal },
 ];
 
 export default function GatewayDiagnostics() {
+  const t = useTranslations('wifiDiagnostics');
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Terminal className="h-5 w-5" />
-          Gateway Diagnostics
+          {t('gdTitle')}
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Network troubleshooting tools — ping, traceroute, DNS, ARP, packet capture, speed test, console
+          {t('gdSubtitle')}
         </p>
       </div>
 
@@ -2911,7 +2939,7 @@ export default function GatewayDiagnostics() {
                 className="text-xs gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm px-3 py-1.5"
               >
                 <Icon className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{tool.label}</span>
+                <span className="hidden sm:inline">{t(tool.labelKey)}</span>
               </TabsTrigger>
             );
           })}

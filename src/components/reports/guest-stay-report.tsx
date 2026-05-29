@@ -109,6 +109,7 @@ import { format, subDays, parseISO, isValid } from 'date-fns';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 
 // ============================================================================
@@ -402,31 +403,35 @@ interface ColumnDef {
   essential: boolean;
 }
 
-const ALL_COLUMNS: ColumnDef[] = [
-  { key: 'guestName', label: 'Guest Name', essential: true },
-  { key: 'email', label: 'Email', essential: false },
-  { key: 'phone', label: 'Phone', essential: false },
-  { key: 'nationality', label: 'Nationality', essential: true },
-  { key: 'isVIP', label: 'VIP', essential: true },
-  { key: 'loyaltyTier', label: 'Loyalty Tier', essential: true },
-  { key: 'confirmationCode', label: 'Confirmation Code', essential: true },
-  { key: 'propertyName', label: 'Property', essential: true },
-  { key: 'roomNumber', label: 'Room Number', essential: true },
-  { key: 'roomType', label: 'Room Type', essential: true },
-  { key: 'checkIn', label: 'Check-In', essential: true },
-  { key: 'checkOut', label: 'Check-Out', essential: true },
-  { key: 'nights', label: 'Nights', essential: true },
-  { key: 'roomRate', label: 'Room Rate', essential: false },
-  { key: 'taxes', label: 'Taxes', essential: false },
-  { key: 'totalAmount', label: 'Total Amount', essential: true },
-  { key: 'status', label: 'Status', essential: true },
-  { key: 'paymentStatus', label: 'Payment Status', essential: true },
-  { key: 'source', label: 'Source', essential: true },
-  { key: 'folioNumber', label: 'Folio #', essential: false },
-  { key: 'paymentMethod', label: 'Payment Method', essential: false },
+const COLUMN_DEFINITIONS: Array<{ key: ColumnKey; labelKey: string; essential: boolean }> = [
+  { key: 'guestName', labelKey: 'gsrColGuestName', essential: true },
+  { key: 'email', labelKey: 'gsrColEmail', essential: false },
+  { key: 'phone', labelKey: 'gsrColPhone', essential: false },
+  { key: 'nationality', labelKey: 'gsrColNationality', essential: true },
+  { key: 'isVIP', labelKey: 'gsrColVIP', essential: true },
+  { key: 'loyaltyTier', labelKey: 'gsrColLoyaltyTier', essential: true },
+  { key: 'confirmationCode', labelKey: 'gsrColConfirmationCode', essential: true },
+  { key: 'propertyName', labelKey: 'gsrColProperty', essential: true },
+  { key: 'roomNumber', labelKey: 'gsrColRoomNumber', essential: true },
+  { key: 'roomType', labelKey: 'gsrColRoomType', essential: true },
+  { key: 'checkIn', labelKey: 'gsrColCheckIn', essential: true },
+  { key: 'checkOut', labelKey: 'gsrColCheckOut', essential: true },
+  { key: 'nights', labelKey: 'gsrColNights', essential: true },
+  { key: 'roomRate', labelKey: 'gsrColRoomRate', essential: false },
+  { key: 'taxes', labelKey: 'gsrColTaxes', essential: false },
+  { key: 'totalAmount', labelKey: 'gsrColTotalAmount', essential: true },
+  { key: 'status', labelKey: 'gsrColStatus', essential: true },
+  { key: 'paymentStatus', labelKey: 'gsrColPaymentStatus', essential: true },
+  { key: 'source', labelKey: 'gsrColSource', essential: true },
+  { key: 'folioNumber', labelKey: 'gsrColFolio', essential: false },
+  { key: 'paymentMethod', labelKey: 'gsrColPaymentMethod', essential: false },
 ];
 
-const DEFAULT_VISIBLE_COLUMNS = ALL_COLUMNS.filter(c => c.essential).map(c => c.key);
+const DEFAULT_VISIBLE_COLUMNS = COLUMN_DEFINITIONS.filter(c => c.essential).map(c => c.key);
+
+function getAllColumns(t: (key: string) => string): ColumnDef[] {
+  return COLUMN_DEFINITIONS.map(c => ({ key: c.key, label: t(c.labelKey), essential: c.essential }));
+}
 
 type SortField = keyof GuestStayRecord;
 type SortDirection = 'asc' | 'desc';
@@ -441,57 +446,67 @@ interface DrilldownFilter {
 // Constants
 // ============================================================================
 
-const chartConfig = {
-  revenue: { label: 'Revenue', color: '#10b981' },
-  bookings: { label: 'Bookings', color: '#f59e0b' },
-  guests: { label: 'Guests', color: '#8b5cf6' },
-  count: { label: 'Count', color: '#06b6d4' },
-  amount: { label: 'Amount', color: '#10b981' },
-  rate: { label: 'Rate', color: '#f43f5e' },
-  cancelled: { label: 'Cancelled', color: '#f43f5e' },
-  nonCancelled: { label: 'Non-cancelled', color: '#10b981' },
-} satisfies ChartConfig;
+function getChartConfig(t: (key: string) => string) {
+  return {
+    revenue: { label: t('gsrChartRevenue'), color: '#10b981' },
+    bookings: { label: t('gsrChartBookings'), color: '#f59e0b' },
+    guests: { label: t('gsrChartGuests'), color: '#8b5cf6' },
+    count: { label: t('gsrChartCount'), color: '#06b6d4' },
+    amount: { label: t('gsrChartAmount'), color: '#10b981' },
+    rate: { label: t('gsrChartRate'), color: '#f43f5e' },
+    cancelled: { label: t('gsrChartCancelled'), color: '#f43f5e' },
+    nonCancelled: { label: t('gsrChartNonCancelled'), color: '#10b981' },
+  } satisfies ChartConfig;
+}
 
 const chartColors = [
   '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#f43f5e', '#84cc16', '#14b8a6',
 ];
 
-const BOOKING_STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: 'all', label: 'All Statuses' },
-  { value: 'confirmed', label: 'Confirmed' },
-  { value: 'checked_in', label: 'Checked In' },
-  { value: 'checked_out', label: 'Checked Out' },
-  { value: 'cancelled', label: 'Cancelled' },
-  { value: 'no_show', label: 'No Show' },
-];
+function getBookingStatusOptions(t: (key: string) => string) {
+  return [
+    { value: 'all', label: t('gsrAllStatuses') },
+    { value: 'confirmed', label: t('gsrConfirmed') },
+    { value: 'checked_in', label: t('gsrCheckedIn') },
+    { value: 'checked_out', label: t('gsrCheckedOut') },
+    { value: 'cancelled', label: t('gsrCancelled') },
+    { value: 'no_show', label: t('gsrNoShow') },
+  ];
+}
 
-const LOYALTY_TIER_OPTIONS: { value: string; label: string }[] = [
-  { value: 'all', label: 'All Tiers' },
-  { value: 'bronze', label: 'Bronze' },
-  { value: 'silver', label: 'Silver' },
-  { value: 'gold', label: 'Gold' },
-  { value: 'platinum', label: 'Platinum' },
-];
+function getLoyaltyTierOptions(t: (key: string) => string) {
+  return [
+    { value: 'all', label: t('gsrAllTiers') },
+    { value: 'bronze', label: t('gsrBronze') },
+    { value: 'silver', label: t('gsrSilver') },
+    { value: 'gold', label: t('gsrGold') },
+    { value: 'platinum', label: t('gsrPlatinum') },
+  ];
+}
 
-const BOOKING_SOURCE_OPTIONS: { value: string; label: string }[] = [
-  { value: 'all', label: 'All Sources' },
-  { value: 'direct', label: 'Direct' },
-  { value: 'booking_com', label: 'Booking.com' },
-  { value: 'expedia', label: 'Expedia' },
-  { value: 'airbnb', label: 'Airbnb' },
-  { value: 'walk_in', label: 'Walk-in' },
-  { value: 'phone', label: 'Phone' },
-  { value: 'corporate', label: 'Corporate' },
-  { value: 'ota', label: 'OTA' },
-];
+function getBookingSourceOptions(t: (key: string) => string) {
+  return [
+    { value: 'all', label: t('gsrAllSources') },
+    { value: 'direct', label: t('gsrDirect') },
+    { value: 'booking_com', label: t('gsrBookingCom') },
+    { value: 'expedia', label: t('gsrExpedia') },
+    { value: 'airbnb', label: t('gsrAirbnb') },
+    { value: 'walk_in', label: t('gsrWalkIn') },
+    { value: 'phone', label: t('gsrPhone') },
+    { value: 'corporate', label: t('gsrCorporate') },
+    { value: 'ota', label: t('gsrOTA') },
+  ];
+}
 
-const QUICK_RANGES: { label: string; days: number }[] = [
-  { label: 'Last 7 Days', days: 7 },
-  { label: 'Last 30 Days', days: 30 },
-  { label: 'Last 90 Days', days: 90 },
-  { label: 'Last 1 Year', days: 365 },
-  { label: 'All Time', days: 0 },
-];
+function getQuickRanges(t: (key: string) => string) {
+  return [
+    { label: t('gsrLast7Days'), days: 7 },
+    { label: t('gsrLast30Days'), days: 30 },
+    { label: t('gsrLast90Days'), days: 90 },
+    { label: t('gsrLast1Year'), days: 365 },
+    { label: t('gsrAllTime'), days: 0 },
+  ];
+}
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
@@ -527,15 +542,17 @@ const tierBadgeVariants: Record<string, string> = {
 
 const COLUMNS_STORAGE_KEY = 'guestStayReport_columns';
 
-const DAY_OF_WEEK_OPTIONS = [
-  { value: '0', label: 'Sunday' },
-  { value: '1', label: 'Monday' },
-  { value: '2', label: 'Tuesday' },
-  { value: '3', label: 'Wednesday' },
-  { value: '4', label: 'Thursday' },
-  { value: '5', label: 'Friday' },
-  { value: '6', label: 'Saturday' },
-];
+function getDayOfWeekOptions(t: (key: string) => string) {
+  return [
+    { value: '0', label: t('gsrSunday') },
+    { value: '1', label: t('gsrMonday') },
+    { value: '2', label: t('gsrTuesday') },
+    { value: '3', label: t('gsrWednesday') },
+    { value: '4', label: t('gsrThursday') },
+    { value: '5', label: t('gsrFriday') },
+    { value: '6', label: t('gsrSaturday') },
+  ];
+}
 
 const TIMEZONE_OPTIONS = [
   'UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
@@ -653,28 +670,51 @@ function SummaryCard({
 }
 
 function StatusBadge({ status }: { status: BookingStatus }) {
+  const t = useTranslations('reports');
+  const labelMap: Record<string, string> = {
+    confirmed: 'gsrConfirmed',
+    checked_in: 'gsrCheckedIn',
+    checked_out: 'gsrCheckedOut',
+    cancelled: 'gsrCancelled',
+    no_show: 'gsrNoShow',
+  };
   return (
     <Badge variant="secondary" className={cn('text-xs font-medium', statusBadgeVariants[status])}>
-      {formatStatusLabel(status)}
+      {t(labelMap[status])}
     </Badge>
   );
 }
 
 function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
+  const t = useTranslations('reports');
+  const labelMap: Record<string, string> = {
+    paid: 'gsrPaid',
+    pending: 'gsrPending',
+    partial: 'gsrPartial',
+    refunded: 'gsrRefunded',
+    overdue: 'gsrOverdue',
+  };
   return (
     <Badge variant="secondary" className={cn('text-xs font-medium', paymentBadgeVariants[status])}>
-      {formatStatusLabel(status)}
+      {t(labelMap[status])}
     </Badge>
   );
 }
 
 function LoyaltyTierBadge({ tier }: { tier: LoyaltyTier | null }) {
+  const t = useTranslations('reports');
   if (!tier) return <span className="text-muted-foreground text-xs">&mdash;</span>;
   const TierIcon = tierIcons[tier];
+  const tierKeyMap: Record<string, string> = {
+    bronze: 'gsrBronze',
+    silver: 'gsrSilver',
+    gold: 'gsrGold',
+    platinum: 'gsrPlatinum',
+  };
   return (
     <Badge variant="secondary" className={cn('text-xs font-medium gap-1', tierBadgeVariants[tier])}>
       {TierIcon && <TierIcon className="h-3 w-3" />}
-      {tier.charAt(0).toUpperCase() + tier.slice(1)}
+      {t(tierKeyMap[tier])}
     </Badge>
   );
 }
@@ -710,6 +750,7 @@ function ComparisonMetricCard({
   previous: number;
   formatFn?: (v: number) => string;
 }) {
+  const t = useTranslations('reports');
   const { change, direction } = getPercentageChange(current, previous);
   const fmt = formatFn || ((v: number) => (v ?? 0).toLocaleString());
   return (
@@ -719,7 +760,7 @@ function ComparisonMetricCard({
         <div className="flex items-end gap-3">
           <div>
             <p className="text-lg font-bold">{fmt(current)}</p>
-            <p className="text-xs text-muted-foreground">vs {fmt(previous)}</p>
+            <p className="text-xs text-muted-foreground">{t('gsrVs')} {fmt(previous)}</p>
           </div>
           <div className={cn(
             'flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded',
@@ -753,6 +794,7 @@ function GuestDetailDialog({
   currencySymbol: string;
 }) {
   if (!record) return null;
+  const t = useTranslations('reports');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -760,22 +802,22 @@ function GuestDetailDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5 text-emerald-500" />
-            Guest Stay Details
+            {t('gsrGuestStayDetails')}
           </DialogTitle>
           <DialogDescription>
-            Complete information for booking {record.confirmationCode}
+            {t('gsrCompleteInfoForBooking', { code: record.confirmationCode })}
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="max-h-[calc(90vh-120px)] pr-4">
           <Tabs defaultValue="profile" className="w-full">
             <TabsList className="w-full grid grid-cols-6">
-              <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="booking">Booking</TabsTrigger>
-              <TabsTrigger value="folio">Folio</TabsTrigger>
-              <TabsTrigger value="stay">Stay</TabsTrigger>
-              <TabsTrigger value="payments">Payments</TabsTrigger>
-              <TabsTrigger value="feedback">Feedback</TabsTrigger>
+              <TabsTrigger value="profile">{t('gsrTabProfile')}</TabsTrigger>
+              <TabsTrigger value="booking">{t('gsrTabBooking')}</TabsTrigger>
+              <TabsTrigger value="folio">{t('gsrTabFolio')}</TabsTrigger>
+              <TabsTrigger value="stay">{t('gsrTabStay')}</TabsTrigger>
+              <TabsTrigger value="payments">{t('gsrTabPayments')}</TabsTrigger>
+              <TabsTrigger value="feedback">{t('gsrTabFeedback')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile" className="space-y-4 mt-4">
@@ -794,21 +836,21 @@ function GuestDetailDialog({
               </div>
               <Separator />
               <div className="space-y-1">
-                <InfoRow label="Email" value={<span className="flex items-center gap-1"><Mail className="h-3 w-3" />{record.email}</span>} />
-                <InfoRow label="Phone" value={<span className="flex items-center gap-1"><Phone className="h-3 w-3" />{record.phone}</span>} />
-                <InfoRow label="Nationality" value={<span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{record.nationality}</span>} />
-                {record.address && <InfoRow label="Address" value={record.address} />}
-                {record.city && <InfoRow label="City" value={record.city} />}
-                {record.country && <InfoRow label="Country" value={record.country} />}
-                {record.dateOfBirth && <InfoRow label="Date of Birth" value={formatDateSafe(record.dateOfBirth)} />}
-                {record.idType && <InfoRow label="ID Type" value={record.idType} />}
-                {record.idNumber && <InfoRow label="ID Number" value={record.idNumber} />}
+                <InfoRow label={t('gsrLabelEmail')} value={<span className="flex items-center gap-1"><Mail className="h-3 w-3" />{record.email}</span>} />
+                <InfoRow label={t('gsrLabelPhone')} value={<span className="flex items-center gap-1"><Phone className="h-3 w-3" />{record.phone}</span>} />
+                <InfoRow label={t('gsrLabelNationality')} value={<span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{record.nationality}</span>} />
+                {record.address && <InfoRow label={t('gsrLabelAddress')} value={record.address} />}
+                {record.city && <InfoRow label={t('gsrLabelCity')} value={record.city} />}
+                {record.country && <InfoRow label={t('gsrLabelCountry')} value={record.country} />}
+                {record.dateOfBirth && <InfoRow label={t('gsrLabelDateOfBirth')} value={formatDateSafe(record.dateOfBirth)} />}
+                {record.idType && <InfoRow label={t('gsrLabelIDType')} value={record.idType} />}
+                {record.idNumber && <InfoRow label={t('gsrLabelIDNumber')} value={record.idNumber} />}
               </div>
               {record.specialRequests && (
                 <>
                   <Separator />
                   <div>
-                    <p className="text-sm font-medium mb-1">Special Requests</p>
+                    <p className="text-sm font-medium mb-1">{t('gsrLabelSpecialRequests')}</p>
                     <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">{record.specialRequests}</p>
                   </div>
                 </>
@@ -819,7 +861,7 @@ function GuestDetailDialog({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Card className="bg-muted/30 border-0">
                   <CardContent className="p-4">
-                    <p className="text-xs text-muted-foreground">Property</p>
+                    <p className="text-xs text-muted-foreground">{t('gsrLabelProperty')}</p>
                     <p className="font-medium flex items-center gap-1 mt-1">
                       <Building2 className="h-3.5 w-3.5 text-emerald-500" />
                       {record.propertyName}
@@ -828,7 +870,7 @@ function GuestDetailDialog({
                 </Card>
                 <Card className="bg-muted/30 border-0">
                   <CardContent className="p-4">
-                    <p className="text-xs text-muted-foreground">Room</p>
+                    <p className="text-xs text-muted-foreground">{t('gsrLabelRoom')}</p>
                     <p className="font-medium flex items-center gap-1 mt-1">
                       <BedDouble className="h-3.5 w-3.5 text-amber-500" />
                       {record.roomNumber} &mdash; {record.roomType}
@@ -838,45 +880,45 @@ function GuestDetailDialog({
               </div>
               <Separator />
               <div className="space-y-1">
-                <InfoRow label="Confirmation Code" value={<span className="font-mono">{record.confirmationCode}</span>} />
-                <InfoRow label="Status" value={<StatusBadge status={record.status} />} />
-                <InfoRow label="Source" value={formatStatusLabel(record.source)} />
-                <InfoRow label="Check-In" value={formatDateSafe(record.checkIn)} />
-                <InfoRow label="Check-Out" value={formatDateSafe(record.checkOut)} />
-                <InfoRow label="Duration" value={`${record.nights} night${record.nights !== 1 ? 's' : ''}`} />
-                {record.adults !== undefined && <InfoRow label="Adults" value={String(record.adults)} />}
-                {record.children !== undefined && <InfoRow label="Children" value={String(record.children)} />}
+                <InfoRow label={t('gsrLabelConfirmationCode')} value={<span className="font-mono">{record.confirmationCode}</span>} />
+                <InfoRow label={t('gsrLabelStatus')} value={<StatusBadge status={record.status} />} />
+                <InfoRow label={t('gsrLabelSource')} value={formatStatusLabel(record.source)} />
+                <InfoRow label={t('gsrLabelCheckIn')} value={formatDateSafe(record.checkIn)} />
+                <InfoRow label={t('gsrLabelCheckOut')} value={formatDateSafe(record.checkOut)} />
+                <InfoRow label={t('gsrLabelDuration')} value={t('gsrNightsCount', { nights: record.nights })} />
+                {record.adults !== undefined && <InfoRow label={t('gsrLabelAdults')} value={String(record.adults)} />}
+                {record.children !== undefined && <InfoRow label={t('gsrLabelChildren')} value={String(record.children)} />}
               </div>
             </TabsContent>
 
             <TabsContent value="folio" className="space-y-4 mt-4">
               <div className="space-y-1">
-                {record.folioNumber && <InfoRow label="Folio Number" value={<span className="font-mono">{record.folioNumber}</span>} />}
-                <InfoRow label="Room Rate / Night" value={formatCurrencyValue(record.roomRate, currencySymbol)} />
-                <InfoRow label="Total Room Charges" value={formatCurrencyValue(record.roomRate * record.nights, currencySymbol)} />
-                <InfoRow label="Taxes & Fees" value={formatCurrencyValue(record.taxes, currencySymbol)} />
+                {record.folioNumber && <InfoRow label={t('gsrLabelFolioNumber')} value={<span className="font-mono">{record.folioNumber}</span>} />}
+                <InfoRow label={t('gsrLabelRoomRateNight')} value={formatCurrencyValue(record.roomRate, currencySymbol)} />
+                <InfoRow label={t('gsrLabelTotalRoomCharges')} value={formatCurrencyValue(record.roomRate * record.nights, currencySymbol)} />
+                <InfoRow label={t('gsrLabelTaxesFees')} value={formatCurrencyValue(record.taxes, currencySymbol)} />
                 <Separator className="my-2" />
-                <InfoRow label="Total Amount" value={<span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrencyValue(record.totalAmount, currencySymbol)}</span>} />
-                <InfoRow label="Payment Status" value={<PaymentStatusBadge status={record.paymentStatus} />} />
-                {record.paymentMethod && <InfoRow label="Payment Method" value={<span className="flex items-center gap-1"><CreditCard className="h-3 w-3" />{record.paymentMethod}</span>} />}
+                <InfoRow label={t('gsrLabelTotalAmount')} value={<span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrencyValue(record.totalAmount, currencySymbol)}</span>} />
+                <InfoRow label={t('gsrLabelPaymentStatus')} value={<PaymentStatusBadge status={record.paymentStatus} />} />
+                {record.paymentMethod && <InfoRow label={t('gsrLabelPaymentMethod')} value={<span className="flex items-center gap-1"><CreditCard className="h-3 w-3" />{record.paymentMethod}</span>} />}
                 {record.paidAmount !== undefined && (
-                  <InfoRow label="Paid Amount" value={formatCurrencyValue(record.paidAmount, currencySymbol)} />
+                  <InfoRow label={t('gsrLabelPaidAmount')} value={formatCurrencyValue(record.paidAmount, currencySymbol)} />
                 )}
                 {record.outstandingAmount !== undefined && record.outstandingAmount > 0 && (
-                  <InfoRow label="Outstanding" value={<span className="text-red-600 dark:text-red-400 font-medium">{formatCurrencyValue(record.outstandingAmount, currencySymbol)}</span>} />
+                  <InfoRow label={t('gsrLabelOutstanding')} value={<span className="text-red-600 dark:text-red-400 font-medium">{formatCurrencyValue(record.outstandingAmount, currencySymbol)}</span>} />
                 )}
               </div>
             </TabsContent>
 
             <TabsContent value="stay" className="space-y-4 mt-4">
               <div className="space-y-1">
-                <InfoRow label="Scheduled Check-In" value={formatDateSafe(record.checkIn)} />
-                <InfoRow label="Scheduled Check-Out" value={formatDateSafe(record.checkOut)} />
-                {record.actualCheckIn && <InfoRow label="Actual Check-In" value={formatDateSafe(record.actualCheckIn)} />}
-                {record.actualCheckOut && <InfoRow label="Actual Check-Out" value={formatDateSafe(record.actualCheckOut)} />}
-                <InfoRow label="Total Nights" value={`${record.nights} night${record.nights !== 1 ? 's' : ''}`} />
-                <InfoRow label="Room Type" value={record.roomType} />
-                <InfoRow label="Room Number" value={record.roomNumber} />
+                <InfoRow label={t('gsrLabelScheduledCheckIn')} value={formatDateSafe(record.checkIn)} />
+                <InfoRow label={t('gsrLabelScheduledCheckOut')} value={formatDateSafe(record.checkOut)} />
+                {record.actualCheckIn && <InfoRow label={t('gsrLabelActualCheckIn')} value={formatDateSafe(record.actualCheckIn)} />}
+                {record.actualCheckOut && <InfoRow label={t('gsrLabelActualCheckOut')} value={formatDateSafe(record.actualCheckOut)} />}
+                <InfoRow label={t('gsrLabelTotalNights')} value={t('gsrNightsCount', { nights: record.nights })} />
+                <InfoRow label={t('gsrLabelRoomType')} value={record.roomType} />
+                <InfoRow label={t('gsrLabelRoomNumber')} value={record.roomNumber} />
               </div>
             </TabsContent>
 
@@ -890,7 +932,7 @@ function GuestDetailDialog({
                           <div>
                             <p className="text-sm font-medium">{formatStatusLabel(p.method)}</p>
                             <p className="text-xs text-muted-foreground">
-                              Folio: {p.folioNumber} &bull; {p.gateway && `${p.gateway} \u2022 `}{p.cardType && `${p.cardType} `}
+                              {t('gsrFolio')}: {p.folioNumber} &bull; {p.gateway && `${p.gateway} \u2022 `}{p.cardType && `${p.cardType} `}
                               {p.cardLast4 && `****${p.cardLast4}`}
                             </p>
                           </div>
@@ -904,21 +946,21 @@ function GuestDetailDialog({
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">No payment records found</p>
+                <p className="text-sm text-muted-foreground text-center py-8">{t('gsrNoPaymentRecords')}</p>
               )}
 
               {record.allFolioLineItems && record.allFolioLineItems.length > 0 && (
                 <>
                   <Separator />
-                  <p className="text-sm font-medium">Folio Line Items</p>
+                  <p className="text-sm font-medium">{t('gsrFolioLineItems')}</p>
                   <div className="max-h-48 overflow-y-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="text-xs">Description</TableHead>
-                          <TableHead className="text-xs">Category</TableHead>
-                          <TableHead className="text-xs text-right">Qty</TableHead>
-                          <TableHead className="text-xs text-right">Amount</TableHead>
+                          <TableHead className="text-xs">{t('gsrDescription')}</TableHead>
+                          <TableHead className="text-xs">{t('gsrCategory')}</TableHead>
+                          <TableHead className="text-xs text-right">{t('gsrQty')}</TableHead>
+                          <TableHead className="text-xs text-right">{t('gsrAmount')}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -940,7 +982,7 @@ function GuestDetailDialog({
             <TabsContent value="feedback" className="space-y-4 mt-4">
               {record.guestReviews && record.guestReviews.length > 0 && (
                 <div className="space-y-3">
-                  <p className="text-sm font-medium">Reviews</p>
+                  <p className="text-sm font-medium">{t('gsrReviews')}</p>
                   {record.guestReviews.map((rv) => (
                     <Card key={rv.id} className="bg-muted/30 border-0">
                       <CardContent className="p-3">
@@ -960,10 +1002,10 @@ function GuestDetailDialog({
                         {rv.title && <p className="text-sm font-medium">{rv.title}</p>}
                         {rv.comment && <p className="text-xs text-muted-foreground">{rv.comment}</p>}
                         <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-                          {rv.cleanlinessRating && <span>Cleanliness: {rv.cleanlinessRating}/5</span>}
-                          {rv.serviceRating && <span>Service: {rv.serviceRating}/5</span>}
-                          {rv.locationRating && <span>Location: {rv.locationRating}/5</span>}
-                          {rv.valueRating && <span>Value: {rv.valueRating}/5</span>}
+                          {rv.cleanlinessRating && <span>{t('gsrCleanliness', { rating: rv.cleanlinessRating })}</span>}
+                          {rv.serviceRating && <span>{t('gsrService', { rating: rv.serviceRating })}</span>}
+                          {rv.locationRating && <span>{t('gsrLocation', { rating: rv.locationRating })}</span>}
+                          {rv.valueRating && <span>{t('gsrValueRating', { rating: rv.valueRating })}</span>}
                         </div>
                       </CardContent>
                     </Card>
@@ -973,7 +1015,7 @@ function GuestDetailDialog({
 
               {record.guestFeedbacks && record.guestFeedbacks.length > 0 && (
                 <div className="space-y-3">
-                  <p className="text-sm font-medium">Feedback</p>
+                  <p className="text-sm font-medium">{t('gsrFeedbackTitle')}</p>
                   {record.guestFeedbacks.map((fb) => (
                     <Card key={fb.id} className="bg-muted/30 border-0">
                       <CardContent className="p-3">
@@ -995,7 +1037,7 @@ function GuestDetailDialog({
               )}
 
               {(!record.guestReviews || record.guestReviews.length === 0) && (!record.guestFeedbacks || record.guestFeedbacks.length === 0) && (
-                <p className="text-sm text-muted-foreground text-center py-8">No feedback or reviews found for this guest</p>
+                <p className="text-sm text-muted-foreground text-center py-8">{t('gsrNoFeedbackOrReviews')}</p>
               )}
             </TabsContent>
           </Tabs>
@@ -1058,10 +1100,11 @@ function ScheduleReportDialog({
   const [exportFormat, setExportFormat] = useState<'xlsx' | 'csv' | 'pdf'>('xlsx');
   const [recipients, setRecipients] = useState('');
   const [saving, setSaving] = useState(false);
+  const t = useTranslations('reports');
 
   const handleSave = async () => {
-    if (!name.trim()) { toast.error('Please enter a report name'); return; }
-    if (!recipients.trim()) { toast.error('Please enter at least one recipient'); return; }
+    if (!name.trim()) { toast.error(t('gsrPleaseEnterReportName')); return; }
+    if (!recipients.trim()) { toast.error(t('gsrPleaseEnterRecipient')); return; }
     setSaving(true);
     try {
       const response = await fetch('/api/reports/scheduled', {
@@ -1078,13 +1121,13 @@ function ScheduleReportDialog({
           recipients: recipients.split(',').map(e => e.trim()).filter(Boolean),
         }),
       });
-      if (!response.ok) throw new Error('Failed to create schedule');
-      toast.success('Report scheduled successfully');
+      if (!response.ok) throw new Error(t('gsrFailedToSchedule'));
+      toast.success(t('gsrReportScheduledSuccess'));
       setName(''); setRecipients(''); setFrequency('weekly'); setTime('09:00');
       onOpenChange(false);
       onSaved();
     } catch {
-      toast.error('Failed to schedule report');
+      toast.error(t('gsrFailedToSchedule'));
     } finally {
       setSaving(false);
     }
@@ -1096,63 +1139,63 @@ function ScheduleReportDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarClock className="h-5 w-5 text-emerald-500" />
-            Schedule Report
+            {t('gsrScheduleReportTitle')}
           </DialogTitle>
-          <DialogDescription>Set up an automated report schedule</DialogDescription>
+<DialogDescription>{t('gsrSetupAutomatedSchedule')}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <Label className="text-xs font-medium">Report Name</Label>
-            <Input className="mt-1 h-8 text-sm" placeholder="Weekly Guest Stay Report" value={name} onChange={e => setName(e.target.value)} />
+            <Label className="text-xs font-medium">{t('gsrReportName')}</Label>
+            <Input className="mt-1 h-8 text-sm" placeholder={t('gsrWeeklyGuestStayReport')} value={name} onChange={e => setName(e.target.value)} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs font-medium">Frequency</Label>
+              <Label className="text-xs font-medium">{t('gsrFrequency')}</Label>
               <Select value={frequency} onValueChange={v => setFrequency(v as 'daily' | 'weekly' | 'monthly')}>
                 <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="daily">{t('gsrDaily')}</SelectItem>
+                  <SelectItem value="weekly">{t('gsrWeekly')}</SelectItem>
+                  <SelectItem value="monthly">{t('gsrMonthly')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="text-xs font-medium">Format</Label>
+              <Label className="text-xs font-medium">{t('gsrFormat')}</Label>
               <Select value={exportFormat} onValueChange={v => setExportFormat(v as 'xlsx' | 'csv' | 'pdf')}>
                 <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="xlsx">Excel (.xlsx)</SelectItem>
-                  <SelectItem value="csv">CSV (.csv)</SelectItem>
-                  <SelectItem value="pdf">PDF (.pdf)</SelectItem>
+                  <SelectItem value="xlsx">{t('gsrExcelXlsx')}</SelectItem>
+                  <SelectItem value="csv">{t('gsrCSVFile')}</SelectItem>
+                  <SelectItem value="pdf">{t('gsrPDFFile')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           {frequency === 'weekly' && (
             <div>
-              <Label className="text-xs font-medium">Day of Week</Label>
+              <Label className="text-xs font-medium">{t('gsrDayOfWeek')}</Label>
               <Select value={dayOfWeek} onValueChange={setDayOfWeek}>
                 <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {DAY_OF_WEEK_OPTIONS.map(d => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
+                  {getDayOfWeekOptions(t).map(d => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           )}
           {frequency === 'monthly' && (
             <div>
-              <Label className="text-xs font-medium">Day of Month</Label>
+              <Label className="text-xs font-medium">{t('gsrDayOfMonth')}</Label>
               <Input className="mt-1 h-8 text-sm" type="number" min={1} max={31} value={dayOfMonth} onChange={e => setDayOfMonth(e.target.value)} />
             </div>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs font-medium">Time (HH:mm)</Label>
+              <Label className="text-xs font-medium">{t('gsrTimeHHmm')}</Label>
               <Input className="mt-1 h-8 text-sm" type="time" value={time} onChange={e => setTime(e.target.value)} />
             </div>
             <div>
-              <Label className="text-xs font-medium">Timezone</Label>
+              <Label className="text-xs font-medium">{t('gsrTimezone')}</Label>
               <Select value={timezone} onValueChange={setTimezone}>
                 <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -1162,12 +1205,12 @@ function ScheduleReportDialog({
             </div>
           </div>
           <div>
-            <Label className="text-xs font-medium">Recipients (comma-separated emails)</Label>
-            <Input className="mt-1 h-8 text-sm" placeholder="john@hotel.com, jane@hotel.com" value={recipients} onChange={e => setRecipients(e.target.value)} />
+            <Label className="text-xs font-medium">{t('gsrRecipients')}</Label>
+            <Input className="mt-1 h-8 text-sm" placeholder={t('gsrRecipientsPlaceholder')} value={recipients} onChange={e => setRecipients(e.target.value)} />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>{t('gsrCancel')}</Button>
           <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5" onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Save Schedule
@@ -1184,6 +1227,16 @@ function ScheduleReportDialog({
 
 export default function GuestStayReport() {
   const { formatCurrency, currency } = useCurrency();
+  const t = useTranslations('reports');
+
+  // Computed translated constants
+  const allColumns = getAllColumns(t);
+  const chartConfig = getChartConfig(t);
+  const bookingStatusOptions = getBookingStatusOptions(t);
+  const loyaltyTierOptions = getLoyaltyTierOptions(t);
+  const bookingSourceOptions = getBookingSourceOptions(t);
+  const quickRanges = getQuickRanges(t);
+  const dayOfWeekOptions = getDayOfWeekOptions(t);
 
   // ---- State ----
   const [data, setData] = useState<GuestStayReportData | null>(null);
@@ -1252,7 +1305,7 @@ export default function GuestStayReport() {
       }
       const response = await fetch(`/api/reports/guest-stay-report?${params}`);
       if (!response.ok) {
-        throw new Error('Failed to load report data');
+        throw new Error(t('gsrFailedToLoadData'));
       }
       const result = await response.json();
       if (result.success) {
@@ -1280,10 +1333,10 @@ export default function GuestStayReport() {
           setCompareData(null);
         }
       } else {
-        throw new Error(result.error || 'Failed to load report data');
+        throw new Error(result.error || t('gsrFailedToLoadData'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load report data');
+      setError(err instanceof Error ? err.message : t('gsrFailedToLoadData'));
     } finally {
       setIsLoading(false);
     }
@@ -1483,7 +1536,7 @@ export default function GuestStayReport() {
       });
       const response = await fetch(`/api/reports/guest-stay-report?${params}`);
       if (!response.ok) {
-        throw new Error('Export failed');
+        throw new Error(t('gsrFailedToExport'));
       }
 
       const blob = await response.blob();
@@ -1499,9 +1552,9 @@ export default function GuestStayReport() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      toast.success(`Exported as ${format.toUpperCase()} successfully`);
+      toast.success(t('gsrExportedAsSuccess', { format: format.toUpperCase() }));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to export report');
+      toast.error(err instanceof Error ? err.message : t('gsrFailedToExport'));
     } finally {
       setExporting(false);
     }
@@ -1519,7 +1572,7 @@ export default function GuestStayReport() {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Guest Stay Report</title>
+        <title>{t('gsrPrintTitle')}</title>
         <style>
           @media print { @page { margin: 1cm; } }
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1a1a1a; margin: 0; padding: 20px; font-size: 12px; }
@@ -1540,25 +1593,25 @@ export default function GuestStayReport() {
       </head>
       <body>
         <div class="header">
-          <h1>StaySuite - Guest Stay Report</h1>
-          <div class="subtitle">${propertyName || 'All Properties'}</div>
+          <h1>{t('gsrStaySuiteReport')}</h1>
+          <div class="subtitle">${propertyName || t('gsrPrintAllProperties')}</div>
         </div>
         <div class="meta">
-          <span>Date Range: ${dateRange}</span>
-          <span>Generated: ${generatedDate}</span>
+          <span>{t('gsrPrintDateRange', { range: dateRange })}</span>
+          <span>{t('gsrPrintGenerated', { date: generatedDate })}</span>
         </div>
         <table class="summary-table">
-          <tr><th>Metric</th><th>Value</th><th>Metric</th><th>Value</th></tr>
-          <tr><td>Total Guests</td><td>${s.totalGuests.toLocaleString()}</td><td>Total Revenue</td><td>${formatCurrencyValue(s.totalRevenue, currency.symbol)}</td></tr>
-          <tr><td>Total Stays</td><td>${s.totalStays.toLocaleString()}</td><td>Avg Revenue/Stay</td><td>${formatCurrencyValue(s.avgRevenuePerStay, currency.symbol)}</td></tr>
-          <tr><td>Total Room Nights</td><td>${s.totalRoomNights.toLocaleString()}</td><td>Cancellation Rate</td><td>${s.cancellationRate}%</td></tr>
-          <tr><td>Avg Stay Length</td><td>${(s.avgStayLength ?? 0).toFixed(1)} nights</td><td>ADR</td><td>${formatCurrencyValue(s.adr, currency.symbol)}</td></tr>
-          <tr><td>Collection Rate</td><td>${s.collectionRate}%</td><td>RevPAR</td><td>${formatCurrencyValue(s.revpar, currency.symbol)}</td></tr>
+          <tr><th>${t('gsrPrintMetric')}</th><th>${t('gsrPrintValue')}</th><th>${t('gsrPrintMetric')}</th><th>${t('gsrPrintValue')}</th></tr>
+          <tr><td>${t('gsrTotalGuests')}</td><td>${s.totalGuests.toLocaleString()}</td><td>${t('gsrTotalRevenue')}</td><td>${formatCurrencyValue(s.totalRevenue, currency.symbol)}</td></tr>
+          <tr><td>${t('gsrTotalStays')}</td><td>${s.totalStays.toLocaleString()}</td><td>${t('gsrAvgRevenueStay')}</td><td>${formatCurrencyValue(s.avgRevenuePerStay, currency.symbol)}</td></tr>
+          <tr><td>${t('gsrTotalRoomNights')}</td><td>${s.totalRoomNights.toLocaleString()}</td><td>${t('gsrCancellationRate')}</td><td>${s.cancellationRate}%</td></tr>
+          <tr><td>${t('gsrAvgStayLength')}</td><td>${(s.avgStayLength ?? 0).toFixed(1)} ${t('gsrPrintNights')}</td><td>${t('gsrADR')}</td><td>${formatCurrencyValue(s.adr, currency.symbol)}</td></tr>
+          <tr><td>${t('gsrCompCollectionRate')}</td><td>${s.collectionRate}%</td><td>${t('gsrRevPAR')}</td><td>${formatCurrencyValue(s.revpar, currency.symbol)}</td></tr>
         </table>
         <table class="data-table">
           <thead>
             <tr>
-              ${visibleColumns.map(k => `<th>${ALL_COLUMNS.find(c => c.key === k)?.label || k}</th>`).join('')}
+              ${visibleColumns.map(k => `<th>${allColumns.find(c => c.key === k)?.label || k}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
@@ -1571,7 +1624,7 @@ export default function GuestStayReport() {
             }).join('')}</tr>`).join('')}
           </tbody>
         </table>
-        <div class="page-num">Page 1</div>
+        <div class="page-num">{t('gsrPrintPage')}</div>
       </body>
       </html>
     `;
@@ -1664,7 +1717,7 @@ export default function GuestStayReport() {
         <div className="p-4 rounded-full bg-red-100 dark:bg-red-900/30">
           <X className="h-8 w-8 text-red-600 dark:text-red-400" />
         </div>
-        <h3 className="text-lg font-semibold">Failed to Load Report</h3>
+        <h3 className="text-lg font-semibold">{t('gsrFailedToLoadReport')}</h3>
         <p className="text-sm text-muted-foreground text-center max-w-md">{error}</p>
         <Button variant="outline" className="gap-2" onClick={() => fetchData(appliedFilters)}>
           <RefreshCw className="h-4 w-4" />
@@ -1721,39 +1774,39 @@ export default function GuestStayReport() {
       {/* ================================================================== */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Guest Stay Report</h2>
+          <h2 className="text-2xl font-bold tracking-tight">{t('gsrTitle')}</h2>
           <p className="text-muted-foreground">
-            Comprehensive guest stay analysis with filters and multi-format export
+            {t('gsrSubtitle')}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Enhancement 10: Print Button */}
           <Button variant="outline" size="sm" className="gap-2" onClick={handlePrint} disabled={data.records.length === 0}>
             <Printer className="h-4 w-4" />
-            Print
+            {t('gsrPrint')}
           </Button>
           {/* Enhancement 7: Schedule Button */}
           <Button variant="outline" size="sm" className="gap-2" onClick={() => setScheduleOpen(true)}>
             <CalendarClock className="h-4 w-4" />
-            Schedule
+            {t('gsrSchedule')}
           </Button>
           {/* Enhancement 7: View Schedules */}
           <Button variant="outline" size="sm" className="gap-2" onClick={() => setViewSchedulesOpen(true)}>
             <Clock4 className="h-4 w-4" />
-            Schedules
+            {t('gsrSchedules')}
           </Button>
           {/* Enhancement 8: Columns Button */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
                 <Columns3 className="h-4 w-4" />
-                Columns
+                {t('gsrColumns')}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52 max-h-80 overflow-y-auto">
-              <DropdownMenuLabel className="text-xs">Toggle Columns</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-xs">{t('gsrToggleColumns')}</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {ALL_COLUMNS.map(col => (
+              {allColumns.map(col => (
                 <DropdownMenuCheckboxItem
                   key={col.key}
                   checked={visibleColumns.includes(col.key)}
@@ -1770,21 +1823,21 @@ export default function GuestStayReport() {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2" disabled={exporting || data.records.length === 0}>
                 {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                Export
+                {t('gsrExport')}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => handleExport('csv')} disabled={exporting}>
                 <FileText className="h-4 w-4 mr-2" />
-                Export as CSV
+                {t('gsrExportAsCSV')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExport('xlsx')} disabled={exporting}>
                 <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Export as Excel
+                {t('gsrExportAsExcel')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExport('pdf')} disabled={exporting}>
                 <File className="h-4 w-4 mr-2" />
-                Export as PDF
+                {t('gsrExportAsPDF')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1798,7 +1851,7 @@ export default function GuestStayReport() {
         {/* Date Range & Quick Ranges */}
         <div className="flex flex-col lg:flex-row items-start lg:items-center gap-3">
           <div className="flex items-center gap-2">
-            <Label className="text-xs font-medium text-muted-foreground shrink-0">From</Label>
+            <Label className="text-xs font-medium text-muted-foreground shrink-0">{t('gsrFrom')}</Label>
             <Input
               type="date"
               className="w-36 h-8 text-sm"
@@ -1808,7 +1861,7 @@ export default function GuestStayReport() {
                 if (isValid(d)) setFilters(prev => ({ ...prev, startDate: d }));
               }}
             />
-            <Label className="text-xs font-medium text-muted-foreground shrink-0">To</Label>
+            <Label className="text-xs font-medium text-muted-foreground shrink-0">{t('gsrTo')}</Label>
             <Input
               type="date"
               className="w-36 h-8 text-sm"
@@ -1821,7 +1874,7 @@ export default function GuestStayReport() {
           </div>
 
           <div className="flex flex-wrap gap-1.5">
-            {QUICK_RANGES.map(qr => (
+            {quickRanges.map(qr => (
               <Button
                 key={qr.days}
                 variant={activeQuickRange === qr.days ? 'default' : 'outline'}
@@ -1845,7 +1898,7 @@ export default function GuestStayReport() {
               onCheckedChange={val => setFilters(prev => ({ ...prev, enableComparison: val }))}
             />
             <Label htmlFor="compare-toggle" className="text-xs font-medium cursor-pointer">
-              Compare Periods
+              {t('gsrComparePeriods')}
             </Label>
           </div>
         </div>
@@ -1854,7 +1907,7 @@ export default function GuestStayReport() {
         {filters.enableComparison && (
           <div className="flex items-center gap-2 p-3 bg-violet-50 dark:bg-violet-950/30 rounded-lg border border-violet-200 dark:border-violet-800">
             <ArrowUpDown className="h-4 w-4 text-violet-500 shrink-0" />
-            <Label className="text-xs font-medium text-violet-700 dark:text-violet-400 shrink-0">Compare from</Label>
+            <Label className="text-xs font-medium text-violet-700 dark:text-violet-400 shrink-0">{t('gsrCompareFrom')}</Label>
             <Input
               type="date"
               className="w-36 h-8 text-sm"
@@ -1885,10 +1938,10 @@ export default function GuestStayReport() {
           >
             <SelectTrigger className="w-44 h-8 text-sm">
               <Building2 className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-              <SelectValue placeholder="All Properties" />
+              <SelectValue placeholder={t('gsrAllProperties')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Properties</SelectItem>
+              <SelectItem value="all">{t('gsrAllProperties')}</SelectItem>
               {properties.map(p => (
                 <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
               ))}
@@ -1900,10 +1953,10 @@ export default function GuestStayReport() {
             onValueChange={val => setFilters(prev => ({ ...prev, bookingStatus: val }))}
           >
             <SelectTrigger className="w-36 h-8 text-sm">
-              <SelectValue placeholder="All Statuses" />
+              <SelectValue placeholder={t('gsrAllStatuses')} />
             </SelectTrigger>
             <SelectContent>
-              {BOOKING_STATUS_OPTIONS.map(opt => (
+              {bookingStatusOptions.map(opt => (
                 <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
               ))}
             </SelectContent>
@@ -1914,10 +1967,10 @@ export default function GuestStayReport() {
             onValueChange={val => setFilters(prev => ({ ...prev, loyaltyTier: val }))}
           >
             <SelectTrigger className="w-32 h-8 text-sm">
-              <SelectValue placeholder="All Tiers" />
+              <SelectValue placeholder={t('gsrAllTiers')} />
             </SelectTrigger>
             <SelectContent>
-              {LOYALTY_TIER_OPTIONS.map(opt => (
+              {loyaltyTierOptions.map(opt => (
                 <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
               ))}
             </SelectContent>
@@ -1928,10 +1981,10 @@ export default function GuestStayReport() {
             onValueChange={val => setFilters(prev => ({ ...prev, bookingSource: val }))}
           >
             <SelectTrigger className="w-36 h-8 text-sm">
-              <SelectValue placeholder="All Sources" />
+              <SelectValue placeholder={t('gsrAllSources')} />
             </SelectTrigger>
             <SelectContent>
-              {BOOKING_SOURCE_OPTIONS.map(opt => (
+              {bookingSourceOptions.map(opt => (
                 <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
               ))}
             </SelectContent>
@@ -1944,14 +1997,14 @@ export default function GuestStayReport() {
               onCheckedChange={val => setFilters(prev => ({ ...prev, vipOnly: val }))}
             />
             <Label htmlFor="vip-toggle" className="text-xs font-medium cursor-pointer">
-              VIP Only
+              {t('gsrVIPOnly')}
             </Label>
           </div>
 
           <div className="relative flex-1 min-w-[180px] max-w-xs">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search guest name or email..."
+              placeholder={t('gsrSearchPlaceholder')}
               className="pl-8 h-8 text-sm"
               value={filters.search}
               onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
@@ -1961,11 +2014,11 @@ export default function GuestStayReport() {
           <div className="flex items-center gap-2 ml-auto">
             <Button size="sm" className="h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleApplyFilters}>
               <Filter className="h-3.5 w-3.5" />
-              Apply
+              {t('gsrApply')}
             </Button>
             <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={handleResetFilters}>
               <RefreshCw className="h-3.5 w-3.5" />
-              Reset
+              {t('gsrReset')}
             </Button>
           </div>
         </div>
@@ -1978,12 +2031,12 @@ export default function GuestStayReport() {
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2">
           <Badge variant="secondary" className="gap-1.5 py-1 px-3 text-sm bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
             <Filter className="h-3 w-3" />
-            Filtered by: {drilldownFilter.field === 'month' ? 'Month' : formatStatusLabel(drilldownFilter.field)} = {drilldownFilter.field === 'month' ? formatMonthLabel(drilldownFilter.value) : formatStatusLabel(drilldownFilter.value)}
+            {t('gsrFilteredBy', { field: drilldownFilter.field === 'month' ? t('gsrMonth') : formatStatusLabel(drilldownFilter.field), value: drilldownFilter.field === 'month' ? formatMonthLabel(drilldownFilter.value) : formatStatusLabel(drilldownFilter.value) })}
             <button onClick={clearDrilldownFilter} className="ml-1 hover:bg-emerald-200 dark:hover:bg-emerald-800 rounded-full p-0.5">
               <X className="h-3 w-3" />
             </button>
           </Badge>
-          <span className="text-xs text-muted-foreground">{sortedRecords.length} matching records</span>
+          <span className="text-xs text-muted-foreground">{t('gsrMatchingRecords', { count: sortedRecords.length })}</span>
         </motion.div>
       )}
 
@@ -1992,12 +2045,12 @@ export default function GuestStayReport() {
       {/* ================================================================== */}
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 gap-1">
-          <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
-          <TabsTrigger value="data" className="text-xs sm:text-sm">Data Table</TabsTrigger>
-          <TabsTrigger value="comparison" className="text-xs sm:text-sm">Comparison</TabsTrigger>
-          <TabsTrigger value="analytics" className="text-xs sm:text-sm">Analytics</TabsTrigger>
-          <TabsTrigger value="guests" className="text-xs sm:text-sm">Guest Value</TabsTrigger>
-          <TabsTrigger value="schedules" className="text-xs sm:text-sm">Schedules</TabsTrigger>
+          <TabsTrigger value="overview" className="text-xs sm:text-sm">{t('gsrTabOverview')}</TabsTrigger>
+          <TabsTrigger value="data" className="text-xs sm:text-sm">{t('gsrTabDataTable')}</TabsTrigger>
+          <TabsTrigger value="comparison" className="text-xs sm:text-sm">{t('gsrTabComparison')}</TabsTrigger>
+          <TabsTrigger value="analytics" className="text-xs sm:text-sm">{t('gsrTabAnalytics')}</TabsTrigger>
+          <TabsTrigger value="guests" className="text-xs sm:text-sm">{t('gsrTabGuestValue')}</TabsTrigger>
+          <TabsTrigger value="schedules" className="text-xs sm:text-sm">{t('gsrTabSchedules')}</TabsTrigger>
         </TabsList>
 
         {/* ============================================================== */}
@@ -2007,90 +2060,90 @@ export default function GuestStayReport() {
           {/* Summary Cards Row */}
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 xl:grid-cols-5">
             <SummaryCard
-              title="Total Guests"
+              title={t('gsrTotalGuests')}
               value={summary.totalGuests.toLocaleString()}
-              subtitle="Unique guests"
+              subtitle={t('gsrUniqueGuests')}
               icon={Users}
               gradient="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900"
               iconBg="bg-emerald-200 dark:bg-emerald-800"
               iconColor="text-emerald-700 dark:text-emerald-400"
             />
             <SummaryCard
-              title="Total Stays"
+              title={t('gsrTotalStays')}
               value={summary.totalStays.toLocaleString()}
-              subtitle="Booking count"
+              subtitle={t('gsrBookingCount')}
               icon={Calendar}
               gradient="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900"
               iconBg="bg-amber-200 dark:bg-amber-800"
               iconColor="text-amber-700 dark:text-amber-400"
             />
             <SummaryCard
-              title="Total Room Nights"
+              title={t('gsrTotalRoomNights')}
               value={summary.totalRoomNights.toLocaleString()}
-              subtitle="Nights sold"
+              subtitle={t('gsrNightsSold')}
               icon={Moon}
               gradient="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900"
               iconBg="bg-violet-200 dark:bg-violet-800"
               iconColor="text-violet-700 dark:text-violet-400"
             />
             <SummaryCard
-              title="Total Revenue"
+              title={t('gsrTotalRevenue')}
               value={formatCurrency(summary.totalRevenue)}
-              subtitle="Gross revenue"
+              subtitle={t('gsrGrossRevenue')}
               icon={DollarSign}
               gradient="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900"
               iconBg="bg-cyan-200 dark:bg-cyan-800"
               iconColor="text-cyan-700 dark:text-cyan-400"
             />
             <SummaryCard
-              title="Avg Stay Length"
-              value={`${(summary.avgStayLength ?? 0).toFixed(1)} nights`}
-              subtitle="Per booking"
+              title={t('gsrAvgStayLength')}
+              value={t('gsrNightsValue', { nights: (summary.avgStayLength ?? 0).toFixed(1) })}
+              subtitle={t('gsrPerBooking')}
               icon={Clock}
               gradient="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900"
               iconBg="bg-pink-200 dark:bg-pink-800"
               iconColor="text-pink-700 dark:text-pink-400"
             />
             <SummaryCard
-              title="Avg Revenue/Stay"
+              title={t('gsrAvgRevenueStay')}
               value={formatCurrency(summary.avgRevenuePerStay)}
-              subtitle="Per booking"
+              subtitle={t('gsrPerBooking')}
               icon={TrendingUp}
               gradient="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900"
               iconBg="bg-teal-200 dark:bg-teal-800"
               iconColor="text-teal-700 dark:text-teal-400"
             />
             <SummaryCard
-              title="Cancellation Rate"
+              title={t('gsrCancellationRate')}
               value={`${summary.cancellationRate}%`}
-              subtitle={`${summary.cancelledStays} cancelled, ${summary.noShowCount} no-show`}
+              subtitle={t('gsrCancelledNoShow', { cancelled: summary.cancelledStays, noShow: summary.noShowCount })}
               icon={XCircle}
               gradient="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900"
               iconBg="bg-rose-200 dark:bg-rose-800"
               iconColor="text-rose-700 dark:text-rose-400"
             />
             <SummaryCard
-              title="Outstanding"
+              title={t('gsrOutstanding')}
               value={formatCurrency(summary.totalOutstanding)}
-              subtitle={`${summary.collectionRate}% collected`}
+              subtitle={t('gsrCollectedRate', { rate: summary.collectionRate })}
               icon={DollarSign}
               gradient="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900"
               iconBg="bg-orange-200 dark:bg-orange-800"
               iconColor="text-orange-700 dark:text-orange-400"
             />
             <SummaryCard
-              title="ADR"
+              title={t('gsrADR')}
               value={formatCurrency(summary.adr)}
-              subtitle="Avg Daily Rate"
+              subtitle={t('gsrAvgDailyRate')}
               icon={BarChart3}
               gradient="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900"
               iconBg="bg-teal-200 dark:bg-teal-800"
               iconColor="text-teal-700 dark:text-teal-400"
             />
             <SummaryCard
-              title="RevPAR"
+              title={t('gsrRevPAR')}
               value={formatCurrency(summary.revpar)}
-              subtitle={summary.averageRating !== null ? `\u2605 ${summary.averageRating}` : 'No ratings'}
+              subtitle={summary.averageRating !== null ? `\u2605 ${summary.averageRating}` : t('gsrNoRatings')}
               icon={TrendingUp}
               gradient="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900"
               iconBg="bg-pink-200 dark:bg-pink-800"
@@ -2106,9 +2159,9 @@ export default function GuestStayReport() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-                    Monthly Revenue Trend
+                    {t('gsrMonthlyRevenueTrend')}
                   </CardTitle>
-                  <CardDescription>Click a data point to filter table</CardDescription>
+                  <CardDescription>{t('gsrClickDataPointFilter')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {charts.monthlyRevenue.length > 0 ? (
@@ -2132,7 +2185,7 @@ export default function GuestStayReport() {
                       </LineChart>
                     </ChartContainer>
                   ) : (
-                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">No data available</div>
+                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">{t('gsrNoDataAvailable')}</div>
                   )}
                 </CardContent>
               </Card>
@@ -2144,9 +2197,9 @@ export default function GuestStayReport() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <MapPin className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-                    Guest Distribution by Nationality
+                    {t('gsrGuestDistNationality')}
                   </CardTitle>
-                  <CardDescription>Click a segment to filter table</CardDescription>
+                  <CardDescription>{t('gsrClickSegmentFilter')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {charts.nationalityDistribution.length > 0 ? (
@@ -2169,7 +2222,7 @@ export default function GuestStayReport() {
                       </PieChart>
                     </ChartContainer>
                   ) : (
-                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">No data available</div>
+                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">{t('gsrNoDataAvailable')}</div>
                   )}
                 </CardContent>
               </Card>
@@ -2181,9 +2234,9 @@ export default function GuestStayReport() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <BarChart3 className="h-4 w-4 text-violet-500 dark:text-violet-400" />
-                    Booking Status Distribution
+                    {t('gsrBookingStatusDist')}
                   </CardTitle>
-                  <CardDescription>Click a bar to filter table</CardDescription>
+                  <CardDescription>{t('gsrClickBarFilter')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {charts.bookingStatusDistribution.length > 0 ? (
@@ -2204,7 +2257,7 @@ export default function GuestStayReport() {
                       </BarChart>
                     </ChartContainer>
                   ) : (
-                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">No data available</div>
+                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">{t('gsrNoDataAvailable')}</div>
                   )}
                 </CardContent>
               </Card>
@@ -2216,9 +2269,9 @@ export default function GuestStayReport() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <BedDouble className="h-4 w-4 text-cyan-500 dark:text-cyan-400" />
-                    Revenue by Room Type
+                    {t('gsrRevenueByRoomType')}
                   </CardTitle>
-                  <CardDescription>Click a bar to filter table</CardDescription>
+                  <CardDescription>{t('gsrClickBarFilter')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {charts.revenueByRoomType.length > 0 ? (
@@ -2239,7 +2292,7 @@ export default function GuestStayReport() {
                       </BarChart>
                     </ChartContainer>
                   ) : (
-                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">No data available</div>
+                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">{t('gsrNoDataAvailable')}</div>
                   )}
                 </CardContent>
               </Card>
@@ -2249,8 +2302,8 @@ export default function GuestStayReport() {
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.2 }}>
               <Card className="border-0 shadow-sm rounded-xl">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Revenue by Source</CardTitle>
-                  <CardDescription>Booking channel performance</CardDescription>
+                  <CardTitle className="text-base">{t('gsrRevenueBySource')}</CardTitle>
+                  <CardDescription>{t('gsrBookingChannelPerf')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {charts.revenueBySource && charts.revenueBySource.length > 0 ? (
@@ -2260,11 +2313,11 @@ export default function GuestStayReport() {
                         <XAxis type="number" tickFormatter={(v) => `${currency.symbol}${(v/1000).toFixed(0)}k`} />
                         <YAxis type="category" dataKey="source" width={80} tick={{ fontSize: 11 }} />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                        <Bar dataKey="revenue" fill="#10b981" radius={[0, 4, 4, 0]} name="Revenue" />
+                        <Bar dataKey="revenue" fill="#10b981" radius={[0, 4, 4, 0]} name={t('gsrChartRevenue')} />
                       </BarChart>
                     </ChartContainer>
                   ) : (
-                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">No data available</div>
+                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">{t('gsrNoDataAvailable')}</div>
                   )}
                 </CardContent>
               </Card>
@@ -2276,9 +2329,9 @@ export default function GuestStayReport() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
                     <CreditCard className="h-4 w-4 text-emerald-500" />
-                    Payment Methods
+                    {t('gsrPaymentMethods')}
                   </CardTitle>
-                  <CardDescription>Total amount by payment method</CardDescription>
+                  <CardDescription>{t('gsrTotalAmountByMethod')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {paymentSummaryData.length > 0 ? (
@@ -2288,7 +2341,7 @@ export default function GuestStayReport() {
                         <XAxis type="number" tickFormatter={(v) => `${currency.symbol}${(v/1000).toFixed(0)}k`} />
                         <YAxis type="category" dataKey="method" width={110} tick={{ fontSize: 11 }} />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                        <Bar dataKey="amount" radius={[0, 4, 4, 0]} name="Amount">
+                        <Bar dataKey="amount" radius={[0, 4, 4, 0]} name={t('gsrChartAmount')}>
                           {paymentSummaryData.map((_, index) => (
                             <Cell key={`pm-${index}`} fill={chartColors[index % chartColors.length]} />
                           ))}
@@ -2296,7 +2349,7 @@ export default function GuestStayReport() {
                       </BarChart>
                     </ChartContainer>
                   ) : (
-                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">No payment data available</div>
+                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">{t('gsrNoPaymentData')}</div>
                   )}
                 </CardContent>
               </Card>
@@ -2306,8 +2359,8 @@ export default function GuestStayReport() {
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.25 }}>
               <Card className="border-0 shadow-sm rounded-xl">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Cancellation Analysis</CardTitle>
-                  <CardDescription>Booking outcome distribution</CardDescription>
+                  <CardTitle className="text-base">{t('gsrCancellationAnalysisTitle')}</CardTitle>
+                  <CardDescription>{t('gsrBookingOutcomeDist')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {charts.cancellationAnalysis ? (
@@ -2316,11 +2369,11 @@ export default function GuestStayReport() {
                         <ChartTooltip content={<ChartTooltipContent />} />
                         <Pie
                           data={[
-                            { name: 'Checked Out', value: charts.cancellationAnalysis.checkedOut, fill: '#10b981' },
-                            { name: 'Confirmed', value: charts.cancellationAnalysis.confirmed, fill: '#06b6d4' },
-                            { name: 'Checked In', value: charts.cancellationAnalysis.checkedIn, fill: '#f59e0b' },
-                            { name: 'Cancelled', value: charts.cancellationAnalysis.cancelled, fill: '#f43f5e' },
-                            { name: 'No Show', value: charts.cancellationAnalysis.noShow, fill: '#94a3b8' },
+                            { name: t('gsrCheckedOut'), value: charts.cancellationAnalysis.checkedOut, fill: '#10b981' },
+                            { name: t('gsrConfirmed'), value: charts.cancellationAnalysis.confirmed, fill: '#06b6d4' },
+                            { name: t('gsrCheckedIn'), value: charts.cancellationAnalysis.checkedIn, fill: '#f59e0b' },
+                            { name: t('gsrCancelled'), value: charts.cancellationAnalysis.cancelled, fill: '#f43f5e' },
+                            { name: t('gsrNoShow'), value: charts.cancellationAnalysis.noShow, fill: '#94a3b8' },
                           ]}
                           dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80}
                           label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
@@ -2328,7 +2381,7 @@ export default function GuestStayReport() {
                       </PieChart>
                     </ChartContainer>
                   ) : (
-                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">No data available</div>
+                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">{t('gsrNoDataAvailable')}</div>
                   )}
                 </CardContent>
               </Card>
@@ -2338,8 +2391,8 @@ export default function GuestStayReport() {
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.3 }}>
               <Card className="border-0 shadow-sm rounded-xl">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Guest Retention</CardTitle>
-                  <CardDescription>First-time vs repeat guests</CardDescription>
+                  <CardTitle className="text-base">{t('gsrGuestRetention')}</CardTitle>
+                  <CardDescription>{t('gsrFirstTimeVsRepeat')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {charts.repeatGuestAnalysis ? (
@@ -2348,8 +2401,8 @@ export default function GuestStayReport() {
                         <ChartTooltip content={<ChartTooltipContent />} />
                         <Pie
                           data={[
-                            { name: 'First-Time', value: charts.repeatGuestAnalysis.firstTime.guests, fill: '#06b6d4' },
-                            { name: 'Repeat', value: charts.repeatGuestAnalysis.repeat.guests, fill: '#8b5cf6' },
+                            { name: t('gsrFirstTime'), value: charts.repeatGuestAnalysis.firstTime.guests, fill: '#06b6d4' },
+                            { name: t('gsrRepeat'), value: charts.repeatGuestAnalysis.repeat.guests, fill: '#8b5cf6' },
                           ]}
                           dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80}
                           label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
@@ -2357,7 +2410,7 @@ export default function GuestStayReport() {
                       </PieChart>
                     </ChartContainer>
                   ) : (
-                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">No data available</div>
+                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">{t('gsrNoDataAvailable')}</div>
                   )}
                 </CardContent>
               </Card>
@@ -2374,13 +2427,13 @@ export default function GuestStayReport() {
               <CardHeader className="pb-3">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div>
-                    <CardTitle className="text-lg">Stay Records</CardTitle>
+                    <CardTitle className="text-lg">{t('gsrStayRecords')}</CardTitle>
                     <CardDescription>
-                      {sortedRecords.length} record{sortedRecords.length !== 1 ? 's' : ''} found
-                      {drilldownFilter && <span className="ml-1 text-emerald-600 dark:text-emerald-400">(filtered)</span>}
+                      {t('gsrRecordsFound', { count: sortedRecords.length })}
+                      {drilldownFilter && <span className="ml-1 text-emerald-600 dark:text-emerald-400">{t('gsrFiltered')}</span>}
                       {selectedRows.size > 0 && (
                         <span className="ml-2 text-emerald-600 dark:text-emerald-400">
-                          ({selectedRows.size} selected)
+                          {t('gsrSelectedCount', { count: selectedRows.size })}
                         </span>
                       )}
                     </CardDescription>
@@ -2395,7 +2448,7 @@ export default function GuestStayReport() {
                       </SelectTrigger>
                       <SelectContent>
                         {PAGE_SIZE_OPTIONS.map(size => (
-                          <SelectItem key={size} value={String(size)}>{size} rows</SelectItem>
+                          <SelectItem key={size} value={String(size)}>{t('gsrRows', { count: size })}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -2413,12 +2466,12 @@ export default function GuestStayReport() {
                             className="rounded border-input h-3.5 w-3.5 accent-emerald-600"
                             checked={paginatedRecords.length > 0 && selectedRows.size === paginatedRecords.length}
                             onChange={toggleAllRows}
-                            aria-label="Select all rows"
+                            aria-label={t('gsrSelectAllRows')}
                           />
                         </TableHead>
                         {visibleColumns.map(key => (
                           <SortableHeader key={key} field={key as SortField} sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
-                            {ALL_COLUMNS.find(c => c.key === key)?.label || key}
+                            {allColumns.find(c => c.key === key)?.label || key}
                           </SortableHeader>
                         ))}
                       </TableRow>
@@ -2429,8 +2482,8 @@ export default function GuestStayReport() {
                           <TableCell colSpan={visibleColumns.length + 1} className="text-center py-12">
                             <div className="flex flex-col items-center gap-2 text-muted-foreground">
                               <Users className="h-8 w-8" />
-                              <p className="font-medium">No records found</p>
-                              <p className="text-xs">Try adjusting your filters or date range</p>
+                              <p className="font-medium">{t('gsrNoRecordsFound')}</p>
+                              <p className="text-xs">{t('gsrTryAdjustingFilters')}</p>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -2450,7 +2503,7 @@ export default function GuestStayReport() {
                                 className="rounded border-input h-3.5 w-3.5 accent-emerald-600"
                                 checked={selectedRows.has(record.id)}
                                 onChange={() => toggleRow(record.id)}
-                                aria-label={`Select ${record.guestName}`}
+                                aria-label={t('gsrSelectGuest', { name: record.guestName })}
                               />
                             </TableCell>
                             {visibleColumns.map(key => (
@@ -2469,7 +2522,7 @@ export default function GuestStayReport() {
                 {sortedRecords.length > 0 && (
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t">
                     <p className="text-sm text-muted-foreground">
-                      Showing {(currentPage - 1) * pageSize + 1}&ndash;{Math.min(currentPage * pageSize, sortedRecords.length)} of {sortedRecords.length}
+                      {t('gsrShowingOf', { from: (currentPage - 1) * pageSize + 1, to: Math.min(currentPage * pageSize, sortedRecords.length), total: sortedRecords.length })}
                     </p>
                     <div className="flex items-center gap-1">
                       <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>
@@ -2479,7 +2532,7 @@ export default function GuestStayReport() {
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
                       <span className="text-sm px-2 min-w-[80px] text-center">
-                        Page {currentPage} / {totalPages}
+                        {t('gsrPageOf', { current: currentPage, total: totalPages })}
                       </span>
                       <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
                         <ChevronRight className="h-4 w-4" />
@@ -2504,9 +2557,9 @@ export default function GuestStayReport() {
               <CardContent className="py-12">
                 <div className="flex flex-col items-center gap-3 text-muted-foreground">
                   <ArrowUpDown className="h-10 w-10" />
-                  <p className="font-medium">No Comparison Active</p>
+                  <p className="font-medium">{t('gsrNoComparisonActive')}</p>
                   <p className="text-sm text-center max-w-md">
-                    Enable &ldquo;Compare Periods&rdquo; in the filter bar above and select a comparison date range to see period-over-period analysis.
+                    {t('gsrNoComparisonDesc')}
                   </p>
                 </div>
               </CardContent>
@@ -2515,26 +2568,26 @@ export default function GuestStayReport() {
             <>
               <div className="flex items-center gap-3 mb-2">
                 <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
-                  Current: {format(appliedFilters.startDate, 'MMM dd, yyyy')} &ndash; {format(appliedFilters.endDate, 'MMM dd, yyyy')}
+                  {t('gsrCurrentPeriod', { from: format(appliedFilters.startDate, 'MMM dd, yyyy'), to: format(appliedFilters.endDate, 'MMM dd, yyyy') })}
                 </Badge>
                 <span className="text-muted-foreground">vs</span>
                 <Badge className="bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400">
-                  Previous: {format(appliedFilters.compareStartDate!, 'MMM dd, yyyy')} &ndash; {format(appliedFilters.compareEndDate!, 'MMM dd, yyyy')}
+                  {t('gsrPreviousPeriod', { from: format(appliedFilters.compareStartDate!, 'MMM dd, yyyy'), to: format(appliedFilters.compareEndDate!, 'MMM dd, yyyy') })}
                 </Badge>
               </div>
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                <ComparisonMetricCard label="Total Guests" current={summary.totalGuests} previous={compareData.summary.totalGuests} />
-                <ComparisonMetricCard label="Total Stays" current={summary.totalStays} previous={compareData.summary.totalStays} />
-                <ComparisonMetricCard label="Total Room Nights" current={summary.totalRoomNights} previous={compareData.summary.totalRoomNights} />
-                <ComparisonMetricCard label="Total Revenue" current={summary.totalRevenue} previous={compareData.summary.totalRevenue} formatFn={v => formatCurrencyValue(v, currency.symbol)} />
-                <ComparisonMetricCard label="Avg Stay Length" current={summary.avgStayLength} previous={compareData.summary.avgStayLength} formatFn={v => `${(v ?? 0).toFixed(1)} nights`} />
-                <ComparisonMetricCard label="Avg Revenue/Stay" current={summary.avgRevenuePerStay} previous={compareData.summary.avgRevenuePerStay} formatFn={v => formatCurrencyValue(v, currency.symbol)} />
-                <ComparisonMetricCard label="Cancellation Rate" current={summary.cancellationRate} previous={compareData.summary.cancellationRate} formatFn={v => `${(v ?? 0).toFixed(1)}%`} />
-                <ComparisonMetricCard label="ADR" current={summary.adr} previous={compareData.summary.adr} formatFn={v => formatCurrencyValue(v, currency.symbol)} />
-                <ComparisonMetricCard label="RevPAR" current={summary.revpar} previous={compareData.summary.revpar} formatFn={v => formatCurrencyValue(v, currency.symbol)} />
-                <ComparisonMetricCard label="Collection Rate" current={summary.collectionRate} previous={compareData.summary.collectionRate} formatFn={v => `${(v ?? 0).toFixed(1)}%`} />
-                <ComparisonMetricCard label="Repeat Guests" current={summary.repeatGuestCount} previous={compareData.summary.repeatGuestCount} />
-                <ComparisonMetricCard label="First-Time Guests" current={summary.firstTimeGuestCount} previous={compareData.summary.firstTimeGuestCount} />
+                <ComparisonMetricCard label={t('gsrCompTotalGuests')} current={summary.totalGuests} previous={compareData.summary.totalGuests} />
+                <ComparisonMetricCard label={t('gsrCompTotalStays')} current={summary.totalStays} previous={compareData.summary.totalStays} />
+                <ComparisonMetricCard label={t('gsrCompTotalRoomNights')} current={summary.totalRoomNights} previous={compareData.summary.totalRoomNights} />
+                <ComparisonMetricCard label={t('gsrCompTotalRevenue')} current={summary.totalRevenue} previous={compareData.summary.totalRevenue} formatFn={v => formatCurrencyValue(v, currency.symbol)} />
+                <ComparisonMetricCard label={t('gsrCompAvgStayLength')} current={summary.avgStayLength} previous={compareData.summary.avgStayLength} formatFn={v => t('gsrNightsValue', { nights: (v ?? 0).toFixed(1) })} />
+                <ComparisonMetricCard label={t('gsrCompAvgRevenueStay')} current={summary.avgRevenuePerStay} previous={compareData.summary.avgRevenuePerStay} formatFn={v => formatCurrencyValue(v, currency.symbol)} />
+                <ComparisonMetricCard label={t('gsrCompCancellationRate')} current={summary.cancellationRate} previous={compareData.summary.cancellationRate} formatFn={v => `${(v ?? 0).toFixed(1)}%`} />
+                <ComparisonMetricCard label={t('gsrCompADR')} current={summary.adr} previous={compareData.summary.adr} formatFn={v => formatCurrencyValue(v, currency.symbol)} />
+                <ComparisonMetricCard label={t('gsrCompRevPAR')} current={summary.revpar} previous={compareData.summary.revpar} formatFn={v => formatCurrencyValue(v, currency.symbol)} />
+                <ComparisonMetricCard label={t('gsrCompCollectionRate')} current={summary.collectionRate} previous={compareData.summary.collectionRate} formatFn={v => `${(v ?? 0).toFixed(1)}%`} />
+                <ComparisonMetricCard label={t('gsrCompRepeatGuests')} current={summary.repeatGuestCount} previous={compareData.summary.repeatGuestCount} />
+                <ComparisonMetricCard label={t('gsrCompFirstTimeGuests')} current={summary.firstTimeGuestCount} previous={compareData.summary.firstTimeGuestCount} />
               </div>
             </>
           )}
@@ -2548,18 +2601,18 @@ export default function GuestStayReport() {
           <div>
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <XCircle className="h-5 w-5 text-rose-500" />
-              Cancellation Analysis
+              {t('gsrCancellationAnalysisTitle')}
             </h3>
             {extCancellation ? (
               <div className="space-y-4">
                 <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-                  <SummaryCard title="Cancellation Rate" value={`${(extCancellation.cancellationRate ?? 0).toFixed(1)}%`} icon={XCircle}
+                  <SummaryCard title={t('gsrExtCancellationRate')} value={`${(extCancellation.cancellationRate ?? 0).toFixed(1)}%`} icon={XCircle}
                     gradient="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900" iconBg="bg-rose-200 dark:bg-rose-800" iconColor="text-rose-700 dark:text-rose-400" />
-                  <SummaryCard title="Cancelled Bookings" value={String(summary.cancelledStays)} icon={XCircle}
+                  <SummaryCard title={t('gsrExtCancelledBookings')} value={String(summary.cancelledStays)} icon={XCircle}
                     gradient="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900" iconBg="bg-red-200 dark:bg-red-800" iconColor="text-red-700 dark:text-red-400" />
-                  <SummaryCard title="Cancelled Risk Score" value={extCancellation.avgRiskScore?.cancelled?.toFixed(1) || 'N/A'} icon={AlertTriangle}
+                  <SummaryCard title={t('gsrExtCancelledRiskScore')} value={extCancellation.avgRiskScore?.cancelled?.toFixed(1) || 'N/A'} icon={AlertTriangle}
                     gradient="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900" iconBg="bg-amber-200 dark:bg-amber-800" iconColor="text-amber-700 dark:text-amber-400" />
-                  <SummaryCard title="Non-Cancelled Risk" value={extCancellation.avgRiskScore?.nonCancelled?.toFixed(1) || 'N/A'} icon={Shield}
+                  <SummaryCard title={t('gsrExtNonCancelledRisk')} value={extCancellation.avgRiskScore?.nonCancelled?.toFixed(1) || 'N/A'} icon={Shield}
                     gradient="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900" iconBg="bg-emerald-200 dark:bg-emerald-800" iconColor="text-emerald-700 dark:text-emerald-400" />
                 </div>
                 <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
@@ -2567,7 +2620,7 @@ export default function GuestStayReport() {
                   {extCancellation.byReason && extCancellation.byReason.length > 0 && (
                     <Card className="border-0 shadow-sm rounded-xl">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">By Reason</CardTitle>
+                        <CardTitle className="text-base">{t('gsrExtByReason')}</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <ChartContainer config={chartConfig} className="h-[250px] w-full">
@@ -2576,7 +2629,7 @@ export default function GuestStayReport() {
                             <XAxis type="number" />
                             <YAxis type="category" dataKey="reason" width={100} tick={{ fontSize: 11 }} />
                             <ChartTooltip content={<ChartTooltipContent />} />
-                            <Bar dataKey="count" radius={[0, 4, 4, 0]} fill="#f43f5e" name="Count" />
+                            <Bar dataKey="count" radius={[0, 4, 4, 0]} fill="#f43f5e" name={t('gsrChartCount')} />
                           </BarChart>
                         </ChartContainer>
                       </CardContent>
@@ -2586,7 +2639,7 @@ export default function GuestStayReport() {
                   {extCancellation.byLeadTimeBucket && extCancellation.byLeadTimeBucket.length > 0 && (
                     <Card className="border-0 shadow-sm rounded-xl">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">By Lead Time</CardTitle>
+                        <CardTitle className="text-base">{t('gsrExtByLeadTime')}</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <ChartContainer config={chartConfig} className="h-[250px] w-full">
@@ -2595,7 +2648,7 @@ export default function GuestStayReport() {
                             <XAxis dataKey="bucket" tick={{ fontSize: 10 }} />
                             <YAxis />
                             <ChartTooltip content={<ChartTooltipContent />} />
-                            <Bar dataKey="rate" radius={[4, 4, 0, 0]} fill="#f59e0b" name="Cancellation Rate (%)" />
+                            <Bar dataKey="rate" radius={[4, 4, 0, 0]} fill="#f59e0b" name={t('gsrExtCancellationRatePct')} />
                           </BarChart>
                         </ChartContainer>
                       </CardContent>
@@ -2605,7 +2658,7 @@ export default function GuestStayReport() {
                   {extCancellation.monthlyTrend && extCancellation.monthlyTrend.length > 0 && (
                     <Card className="border-0 shadow-sm rounded-xl">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Monthly Trend</CardTitle>
+                        <CardTitle className="text-base">{t('gsrExtMonthlyTrend')}</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <ChartContainer config={chartConfig} className="h-[250px] w-full">
@@ -2614,7 +2667,7 @@ export default function GuestStayReport() {
                             <XAxis dataKey="month" tickFormatter={formatMonthLabel} tick={{ fontSize: 10 }} />
                             <YAxis />
                             <ChartTooltip content={<ChartTooltipContent />} />
-                            <Line type="monotone" dataKey="rate" stroke="#f43f5e" strokeWidth={2} dot={{ r: 3 }} name="Rate (%)" />
+                            <Line type="monotone" dataKey="rate" stroke="#f43f5e" strokeWidth={2} dot={{ r: 3 }} name={t('gsrExtRatePct')} />
                           </LineChart>
                         </ChartContainer>
                       </CardContent>
@@ -2627,15 +2680,15 @@ export default function GuestStayReport() {
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base flex items-center gap-2">
                         <AlertTriangle className="h-4 w-4 text-amber-500" />
-                        Risk Score Comparison
+                        {t('gsrExtRiskScoreComparison')}
                       </CardTitle>
-                      <CardDescription>Average risk score: cancelled vs non-cancelled bookings</CardDescription>
+                      <CardDescription>{t('gsrExtRiskScoreDesc')}</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <ChartContainer config={chartConfig} className="h-[180px] w-full max-w-md mx-auto">
                         <BarChart data={[
-                          { name: 'Cancelled', score: extCancellation.avgRiskScore.cancelled, fill: '#f43f5e' },
-                          { name: 'Non-Cancelled', score: extCancellation.avgRiskScore.nonCancelled, fill: '#10b981' },
+                          { name: t('gsrExtCancelledLabel'), score: extCancellation.avgRiskScore.cancelled, fill: '#f43f5e' },
+                          { name: t('gsrExtNonCancelledLabel'), score: extCancellation.avgRiskScore.nonCancelled, fill: '#10b981' },
                         ]}>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" vertical={false} />
                           <XAxis dataKey="name" />
@@ -2653,8 +2706,8 @@ export default function GuestStayReport() {
                 <CardContent className="py-12">
                   <div className="flex flex-col items-center gap-2 text-muted-foreground">
                     <XCircle className="h-8 w-8" />
-                    <p className="font-medium">Extended cancellation data not available</p>
-                    <p className="text-xs">The API does not return detailed cancellation analysis</p>
+                    <p className="font-medium">{t('gsrExtDataNotAvailable')}</p>
+                    <p className="text-xs">{t('gsrExtAPINotReturn')}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -2667,7 +2720,7 @@ export default function GuestStayReport() {
           <div>
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <PieChartIcon className="h-5 w-5 text-emerald-500" />
-              Revenue Breakdown
+              {t('gsrRevBreakdown')}
             </h3>
             {revBreakdown ? (
               <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
@@ -2675,7 +2728,7 @@ export default function GuestStayReport() {
                 {revBreakdown.byCategory && revBreakdown.byCategory.length > 0 && (
                   <Card className="border-0 shadow-sm rounded-xl">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Revenue by Category</CardTitle>
+                      <CardTitle className="text-base">{t('gsrRevByCategory')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <ChartContainer config={chartConfig} className="h-[300px] w-full">
@@ -2701,7 +2754,7 @@ export default function GuestStayReport() {
                 {revBreakdown.byCategoryByMonth && revBreakdown.byCategoryByMonth.length > 0 && (
                   <Card className="border-0 shadow-sm rounded-xl">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Revenue by Category &amp; Month</CardTitle>
+                      <CardTitle className="text-base">{t('gsrRevByCategoryMonth')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <ChartContainer config={chartConfig} className="h-[300px] w-full">
@@ -2725,8 +2778,8 @@ export default function GuestStayReport() {
                 <CardContent className="py-12">
                   <div className="flex flex-col items-center gap-2 text-muted-foreground">
                     <DollarSign className="h-8 w-8" />
-                    <p className="font-medium">Revenue breakdown data not available</p>
-                    <p className="text-xs">The API does not return detailed revenue breakdown</p>
+                    <p className="font-medium">{t('gsrRevBreakdownNotAvailable')}</p>
+                    <p className="text-xs">{t('gsrRevAPINotReturn')}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -2739,18 +2792,18 @@ export default function GuestStayReport() {
           <div>
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Clock4 className="h-5 w-5 text-cyan-500" />
-              Booking Lead Time Analysis
+              {t('gsrLeadTimeAnalysis')}
             </h3>
             {leadTime ? (
               <div className="space-y-4">
                 <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-                  <SummaryCard title="Avg Lead Time" value={`${(leadTime.averageLeadTime ?? 0).toFixed(1)} days`} icon={Clock}
+                  <SummaryCard title={t('gsrAvgLeadTime')} value={`${(leadTime.averageLeadTime ?? 0).toFixed(1)} days`} icon={Clock}
                     gradient="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900" iconBg="bg-cyan-200 dark:bg-cyan-800" iconColor="text-cyan-700 dark:text-cyan-400" />
-                  <SummaryCard title="Median Lead Time" value={`${(leadTime.medianLeadTime ?? 0).toFixed(1)} days`} icon={Clock4}
+                  <SummaryCard title={t('gsrMedianLeadTime')} value={`${(leadTime.medianLeadTime ?? 0).toFixed(1)} days`} icon={Clock4}
                     gradient="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900" iconBg="bg-teal-200 dark:bg-teal-800" iconColor="text-teal-700 dark:text-teal-400" />
-                  <SummaryCard title="Same-Day Cancel Rate" value={`${(leadTime.cancellationCorrelation?.sameDayCancellationRate ?? 0).toFixed(1)}%`} icon={AlertTriangle}
+                  <SummaryCard title={t('gsrSameDayCancelRate')} value={`${(leadTime.cancellationCorrelation?.sameDayCancellationRate ?? 0).toFixed(1)}%`} icon={AlertTriangle}
                     gradient="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900" iconBg="bg-amber-200 dark:bg-amber-800" iconColor="text-amber-700 dark:text-amber-400" />
-                  <SummaryCard title="Advance Cancel Rate" value={`${(leadTime.cancellationCorrelation?.advanceCancellationRate ?? 0).toFixed(1)}%`} icon={Shield}
+                  <SummaryCard title={t('gsrAdvanceCancelRate')} value={`${(leadTime.cancellationCorrelation?.advanceCancellationRate ?? 0).toFixed(1)}%`} icon={Shield}
                     gradient="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900" iconBg="bg-emerald-200 dark:bg-emerald-800" iconColor="text-emerald-700 dark:text-emerald-400" />
                 </div>
                 <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
@@ -2758,7 +2811,7 @@ export default function GuestStayReport() {
                   {leadTime.distribution && leadTime.distribution.length > 0 && (
                     <Card className="border-0 shadow-sm rounded-xl">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Lead Time Distribution</CardTitle>
+                        <CardTitle className="text-base">{t('gsrLeadTimeDist')}</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <ChartContainer config={chartConfig} className="h-[250px] w-full">
@@ -2767,7 +2820,7 @@ export default function GuestStayReport() {
                             <XAxis dataKey="bucket" tick={{ fontSize: 10 }} />
                             <YAxis />
                             <ChartTooltip content={<ChartTooltipContent />} />
-                            <Bar dataKey="count" radius={[4, 4, 0, 0]} fill="#06b6d4" name="Bookings" />
+                            <Bar dataKey="count" radius={[4, 4, 0, 0]} fill="#06b6d4" name={t('gsrChartBookings')} />
                           </BarChart>
                         </ChartContainer>
                       </CardContent>
@@ -2777,7 +2830,7 @@ export default function GuestStayReport() {
                   {leadTime.bySource && leadTime.bySource.length > 0 && (
                     <Card className="border-0 shadow-sm rounded-xl">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Lead Time by Source</CardTitle>
+                        <CardTitle className="text-base">{t('gsrLeadTimeBySource')}</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <ChartContainer config={chartConfig} className="h-[250px] w-full">
@@ -2786,7 +2839,7 @@ export default function GuestStayReport() {
                             <XAxis type="number" />
                             <YAxis type="category" dataKey="source" width={90} tick={{ fontSize: 11 }} />
                             <ChartTooltip content={<ChartTooltipContent />} />
-                            <Bar dataKey="avgLeadTime" radius={[0, 4, 4, 0]} fill="#8b5cf6" name="Avg Lead Time (days)" />
+                            <Bar dataKey="avgLeadTime" radius={[0, 4, 4, 0]} fill="#8b5cf6" name={t('gsrAvgLeadTimeDays')} />
                           </BarChart>
                         </ChartContainer>
                       </CardContent>
@@ -2799,8 +2852,8 @@ export default function GuestStayReport() {
                 <CardContent className="py-12">
                   <div className="flex flex-col items-center gap-2 text-muted-foreground">
                     <Clock4 className="h-8 w-8" />
-                    <p className="font-medium">Lead time analysis data not available</p>
-                    <p className="text-xs">The API does not return lead time analysis</p>
+                    <p className="font-medium">{t('gsrLeadTimeNotAvailable')}</p>
+                    <p className="text-xs">{t('gsrLeadTimeAPINotReturn')}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -2814,7 +2867,7 @@ export default function GuestStayReport() {
         <TabsContent value="guests" className="space-y-6 mt-4">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Star className="h-5 w-5 text-amber-500" />
-            Top Guests by Lifetime Value
+            {t('gsrTopGuestsLifetimeValue')}
           </h3>
           {guestLTV && guestLTV.length > 0 ? (
             <Card className="border-0 shadow-sm rounded-xl overflow-hidden">
@@ -2823,14 +2876,14 @@ export default function GuestStayReport() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/30">
-                        <TableHead className="text-xs">#</TableHead>
-                        <TableHead className="text-xs">Guest Name</TableHead>
-                        <TableHead className="text-xs text-right">Total Spent</TableHead>
-                        <TableHead className="text-xs text-right">Total Stays</TableHead>
-                        <TableHead className="text-xs text-right">Total Nights</TableHead>
-                        <TableHead className="text-xs text-right">Avg per Stay</TableHead>
-                        <TableHead className="text-xs">First Stay</TableHead>
-                        <TableHead className="text-xs">Last Stay</TableHead>
+                        <TableHead className="text-xs">{t('gsrHash')}</TableHead>
+                        <TableHead className="text-xs">{t('gsrColGuestName')}</TableHead>
+                        <TableHead className="text-xs text-right">{t('gsrTotalSpent')}</TableHead>
+                        <TableHead className="text-xs text-right">{t('gsrTotalStaysCol')}</TableHead>
+                        <TableHead className="text-xs text-right">{t('gsrTotalNightsCol')}</TableHead>
+                        <TableHead className="text-xs text-right">{t('gsrAvgPerStay')}</TableHead>
+                        <TableHead className="text-xs">{t('gsrFirstStay')}</TableHead>
+                        <TableHead className="text-xs">{t('gsrLastStay')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2863,8 +2916,8 @@ export default function GuestStayReport() {
               <CardContent className="py-12">
                 <div className="flex flex-col items-center gap-2 text-muted-foreground">
                   <Users className="h-8 w-8" />
-                  <p className="font-medium">Guest lifetime value data not available</p>
-                  <p className="text-xs">The API does not return guest lifetime value data</p>
+                  <p className="font-medium">{t('gsrGuestLTNotAvailable')}</p>
+                  <p className="text-xs">{t('gsrGuestLTAPINotReturn')}</p>
                 </div>
               </CardContent>
             </Card>
@@ -2878,11 +2931,11 @@ export default function GuestStayReport() {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <CalendarClock className="h-5 w-5 text-emerald-500" />
-              Scheduled Reports
+              {t('gsrScheduledReports')}
             </h3>
             <Button size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setScheduleOpen(true)}>
               <CalendarClock className="h-4 w-4" />
-              New Schedule
+              {t('gsrNewSchedule')}
             </Button>
           </div>
           {scheduledReports.length > 0 ? (
@@ -2897,15 +2950,15 @@ export default function GuestStayReport() {
                           <Badge variant="secondary" className={cn('text-xs',
                             sr.active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-800/40 dark:text-gray-400'
                           )}>
-                            {sr.active ? 'Active' : 'Inactive'}
+                            {sr.active ? t('gsrActive') : t('gsrInactive')}
                           </Badge>
                           <Badge variant="outline" className="text-xs">{sr.frequency}</Badge>
                           <Badge variant="outline" className="text-xs">{sr.format.toUpperCase()}</Badge>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {sr.time} {sr.timezone} &bull; {sr.recipients.length} recipient{sr.recipients.length !== 1 ? 's' : ''}
-                          {sr.lastRun && ` \u2022 Last run: ${formatDateSafe(sr.lastRun)}`}
-                          {sr.nextRun && ` \u2022 Next run: ${formatDateSafe(sr.nextRun)}`}
+                          {sr.time} {sr.timezone} &bull; {t('gsrRecipientCount', { count: sr.recipients.length })}
+                          {sr.lastRun && ` \u2022 ${t('gsrLastRun', { date: formatDateSafe(sr.lastRun) })}`}
+                          {sr.nextRun && ` \u2022 ${t('gsrNextRun', { date: formatDateSafe(sr.nextRun) })}`}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -2920,9 +2973,9 @@ export default function GuestStayReport() {
                               });
                               if (resp.ok) {
                                 setScheduledReports(prev => prev.map(s => s.id === sr.id ? { ...s, active: checked } : s));
-                                toast.success(`Schedule ${checked ? 'activated' : 'deactivated'}`);
+                                toast.success(checked ? t('gsrScheduleActivated') : t('gsrScheduleDeactivated'));
                               }
-                            } catch { toast.error('Failed to update schedule'); }
+                            } catch { toast.error(t('gsrFailedUpdateSchedule')); }
                           }}
                         />
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
@@ -2931,9 +2984,9 @@ export default function GuestStayReport() {
                               const resp = await fetch(`/api/reports/scheduled/${sr.id}`, { method: 'DELETE' });
                               if (resp.ok) {
                                 setScheduledReports(prev => prev.filter(s => s.id !== sr.id));
-                                toast.success('Schedule deleted');
+                                toast.success(t('gsrScheduleDeleted'));
                               }
-                            } catch { toast.error('Failed to delete schedule'); }
+                            } catch { toast.error(t('gsrFailedDeleteSchedule')); }
                           }}
                         >
                           <X className="h-4 w-4" />
@@ -2949,8 +3002,8 @@ export default function GuestStayReport() {
               <CardContent className="py-12">
                 <div className="flex flex-col items-center gap-2 text-muted-foreground">
                   <CalendarClock className="h-8 w-8" />
-                  <p className="font-medium">No scheduled reports</p>
-                  <p className="text-xs">Create a schedule to automate report delivery</p>
+                  <p className="font-medium">{t('gsrNoScheduledReports')}</p>
+                  <p className="text-xs">{t('gsrCreateScheduleDesc')}</p>
                 </div>
               </CardContent>
             </Card>
@@ -2985,9 +3038,9 @@ export default function GuestStayReport() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarClock className="h-5 w-5 text-emerald-500" />
-              Scheduled Reports
+              {t('gsrScheduledReports')}
             </DialogTitle>
-            <DialogDescription>Manage your automated report schedules</DialogDescription>
+            <DialogDescription>{t('gsrManageSchedules')}</DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh]">
             {scheduledReports.length > 0 ? (
@@ -3000,13 +3053,13 @@ export default function GuestStayReport() {
                           <div className="flex items-center gap-2 mb-1">
                             <p className="font-medium text-sm">{sr.name}</p>
                             <Badge variant="secondary" className={cn('text-xs', sr.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700')}>
-                              {sr.active ? 'Active' : 'Inactive'}
+                              {sr.active ? t('gsrActive') : t('gsrInactive')}
                             </Badge>
                           </div>
                           <p className="text-xs text-muted-foreground">
                             {sr.frequency} at {sr.time} {sr.timezone} &bull; {sr.format.toUpperCase()} &bull; {sr.recipients.join(', ')}
                           </p>
-                          {sr.nextRun && <p className="text-xs text-muted-foreground">Next: {formatDateSafe(sr.nextRun)}</p>}
+                          {sr.nextRun && <p className="text-xs text-muted-foreground">{t('gsrNext', { date: formatDateSafe(sr.nextRun) })}</p>}
                         </div>
                         <div className="flex items-center gap-2">
                           <Switch
@@ -3020,9 +3073,9 @@ export default function GuestStayReport() {
                                 });
                                 if (resp.ok) {
                                   setScheduledReports(prev => prev.map(s => s.id === sr.id ? { ...s, active: checked } : s));
-                                  toast.success(`Schedule ${checked ? 'activated' : 'deactivated'}`);
+                                  toast.success(checked ? t('gsrScheduleActivated') : t('gsrScheduleDeactivated'));
                                 }
-                              } catch { toast.error('Failed to update'); }
+                              } catch { toast.error(t('gsrFailedUpdate')); }
                             }}
                           />
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-500" onClick={async () => {
@@ -3030,9 +3083,9 @@ export default function GuestStayReport() {
                               const resp = await fetch(`/api/reports/scheduled/${sr.id}`, { method: 'DELETE' });
                               if (resp.ok) {
                                 setScheduledReports(prev => prev.filter(s => s.id !== sr.id));
-                                toast.success('Deleted');
+                                toast.success(t('gsrDeleted'));
                               }
-                            } catch { toast.error('Failed to delete'); }
+                            } catch { toast.error(t('gsrFailedDelete')); }
                           }}>
                             <X className="h-4 w-4" />
                           </Button>
@@ -3045,7 +3098,7 @@ export default function GuestStayReport() {
             ) : (
               <div className="py-8 text-center text-muted-foreground">
                 <CalendarClock className="h-8 w-8 mx-auto mb-2" />
-                <p className="font-medium">No scheduled reports yet</p>
+                <p className="font-medium">{t('gsrNoScheduledReportsYet')}</p>
               </div>
             )}
           </ScrollArea>

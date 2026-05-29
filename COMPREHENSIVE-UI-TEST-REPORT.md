@@ -26,10 +26,10 @@
 |----------|-------|--------|
 | 🔴 CRITICAL | 1 | Fixed ✅ |
 | 🟠 HIGH | 6 | 5 Fixed ✅, 1 WiFi pending ⏳ |
-| 🟡 MEDIUM | 9 | 7 Fixed ✅, 2 WiFi pending ⏳ |
+| 🟡 MEDIUM | 9 | 8 Fixed ✅, 1 WiFi pending ⏳ |
 | 🔵 LOW | 5 | All Fixed ✅ |
 | ✅ PASS | 151 | No issues found |
-| **Total** | **172** | **168 PASS, 4 WiFi pending (user will fix later)** |
+| **Total** | **172** | **168 PASS, 5 WiFi pending (user will fix later)** |
 
 ---
 
@@ -109,11 +109,13 @@
 - **Recommendation**: Refactor WiFi giant components into sub-components; use composition pattern
 - **Status**: ⏳ WiFi Pending (user will handle)
 
-### 🟡 MEDIUM-04: Hardcoded Strings in Reports/WiFi Components ⏳ PENDING (WIFI)
-- `reports/guest-stay-report.tsx` — 25 hardcoded strings (non-WiFi, future fix)
-- `wifi/gateway-diagnostics.tsx` — 20 hardcoded strings
-- `wifi/reports-page.tsx` — 13 hardcoded strings
-- **Status**: ⏳ WiFi Pending
+### 🟡 MEDIUM-04: Hardcoded Strings in Reports/WiFi Components `[FIXED]`
+- `reports/guest-stay-report.tsx` — ~280 hardcoded strings replaced with `t('gsr...')` calls (319 keys in `reports` namespace)
+- `wifi/gateway-diagnostics.tsx` — ~250 hardcoded strings replaced with `t('gd...')` calls (254 keys in new `wifiDiagnostics` namespace)
+- `wifi/reports-page.tsx` — ~280 hardcoded strings replaced with `t('wr...')` calls (250 keys in new `wifiReports` namespace)
+- **Total: 823 i18n translation keys** added across all 15 language files (en, fr, hi, ta, ml, zh, es, mr, ja, de, gu, pt, te, ar, bn)
+- ICU plural support added for nights count, records found, rows, recipients
+- **Status**: ✅ Fixed
 
 ### 🟡 MEDIUM-05: `useEffect` Without Dependencies (472 instances) — ACKNOWLEDGED
 - Many are intentional mount-only effects with `[]` deps. Full audit deferred.
