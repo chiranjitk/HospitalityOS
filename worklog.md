@@ -388,3 +388,51 @@ Stage Summary:
 - L-32 fixed: SystemConfig.version field + migration helper for JSON schema evolution
 - L-33 fixed: canonical plan pricing source + reconciliation check in revenue analytics
 - Commit: de43d2fd — pushed to main
+---
+Task ID: L-34, L-35, L-36, L-37, L-38
+Agent: Fix Agent
+Task: Fix 5 LOW-priority security findings — RADIUS password docs, kiosk rate limit, camera URL encryption, cron secret warning, tenant email verification
+
+Work Log:
+- L-34: Added detailed security justification comments to wifi-user-service.ts for cleartext password in radcheck
+  - FreeRADIUS PAP (RFC 2865 §2.2) requires cleartext to compute auth hash
+  - Documented mitigations: network segmentation, DB role permissions, TLS (RadSec/pg SSL), audit trail
+  - Added comments at file header, provisionUser() RadCheck creation, and resumeUser() RadCheck re-creation
+- L-35: Added rate limiting to kiosk confirmation code verification endpoint
+  - GET /api/frontdesk/kiosk-session now rate-limited to 5 attempts per minute per IP
+  - Uses existing DB-persisted rate limiter from @/lib/rate-limiter
+  - Returns 429 with Retry-After header when limit exceeded
+  - Prevents brute-force guessing of booking confirmation codes at kiosks
+- L-36: Added encryption at rest for camera stream URLs
+  - Imported encrypt/decrypt/isEncrypted from @/lib/encryption (AES-256-GCM)
+  - Camera stream URLs are encrypted on POST (create) and PUT (update) in cameras/route.ts
+  - URLs are decrypted on GET (list) and in cameras/[id]/stream/route.ts
+  - Handles backward compatibility: already-encrypted URLs are not double-encrypted
+  - Failed decryption falls back to raw URL (legacy plaintext support)
+  - Added TLS transit comment: encryption at rest protects DB, RTSPS/TLS protects network
+- L-37: Added startup CRON_SECRET production safety check in instrumentation.ts
+  - On server startup, if NODE_ENV=production, checks CRON_SECRET env var
+  - Logs console.error with prominent box-art warning if CRON_SECRET is unset or still 'dev-only-cron-secret'
+  - Includes instructions: export CRON_SECRET=$(openssl rand -hex 32)
+  - Added documentation comment to night-audit-automation/route.ts CRON_SECRET line
+- L-38: Added email verification infrastructure to tenant creation
+  - Added emailVerified Boolean field to Tenant Prisma model (default: false)
+  - Ran prisma db push to add column to database
+  - Added tenantEmailVerificationTokenCache to cache.ts (24h TTL, same pattern as user email verification)
+  - Tenant creation POST now sets emailVerified: false and sends verification email
+  - Email includes verification link to /api/admin/tenants/verify-email?token=<token>
+  - Created /api/admin/tenants/verify-email/route.ts GET endpoint
+  - Verification endpoint: validates token, checks email match, sets emailVerified=true, creates audit log
+  - Returns HTML success page for browser clicks, JSON for API consumers
+  - Email validation added to tenant creation (regex check)
+  - Response includes emailVerified flag and requiresEmailVerification indicator
+- ESLint: All 11 changed files pass with zero errors
+
+Stage Summary:
+- 11 files changed (9 modified + 1 new + 1 schema), 451 insertions, 5 deletions
+- L-34 fixed: documented RADIUS cleartext password requirement with security justification and mitigations
+- L-35 fixed: kiosk confirmation code endpoint rate-limited to 5 attempts/min/IP (429 + Retry-After)
+- L-36 fixed: camera stream URLs encrypted at rest (AES-256-GCM) with decrypt-on-read and TLS transit notes
+- L-37 fixed: startup CRON_SECRET production warning with box-art console.error if unset or default
+- L-38 fixed: tenant email verification infrastructure — emailVerified flag, send verification email, verify endpoint
+- Commit: ea4295b8 — pushed to main
