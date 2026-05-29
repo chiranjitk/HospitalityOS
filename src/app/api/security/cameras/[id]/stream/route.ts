@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth-helpers';
+import { decrypt } from '@/lib/encryption';
 import crypto from 'crypto';
 
 /**
@@ -45,6 +46,9 @@ export async function GET(
       return NextResponse.json({ error: 'Camera has no stream URL configured' }, { status: 400 });
     }
 
+    // L-36: Decrypt stream URL (stored encrypted at rest in the database)
+    const decryptedStreamUrl = decrypt(camera.streamUrl) ?? camera.streamUrl;
+
     // Generate time-limited signed token (valid for 2 hours)
     const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
     const signature = crypto
@@ -55,13 +59,15 @@ export async function GET(
     const proxyUrl = `/api/security/cameras/${camera.id}/stream?token=${signature}&expires=${expiresAt.getTime()}`;
 
     // Determine stream format based on camera stream type
+    // L-36: NOTE: Use TLS (RTSPS, HLS over HTTPS) for stream transmission.
+    // Encryption at rest only protects the DB — not the network path.
     let format: 'hls' | 'rtsp' | 'webrtc' = 'rtsp';
     if (camera.streamType === 'hls') format = 'hls';
     else if (camera.streamType === 'webrtc') format = 'webrtc';
-    else if (camera.streamUrl.includes('.m3u8')) format = 'hls';
+    else if (decryptedStreamUrl.includes('.m3u8')) format = 'hls';
 
     return NextResponse.json({
-      streamUrl: camera.streamUrl,
+      streamUrl: decryptedStreamUrl,
       format,
       expiresAt: expiresAt.toISOString(),
       proxyUrl,

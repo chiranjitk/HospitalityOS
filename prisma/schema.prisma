@@ -6944,6 +6944,7 @@ model Tenant {
   language                  String                     @default("en")
   plan                      String                     @default("trial")
   status                    String                     @default("trial")
+  emailVerified             Boolean                    @default(false)
   trialEndsAt               DateTime?                  @db.Timestamptz
   subscriptionStartsAt      DateTime?                  @db.Timestamptz
   subscriptionEndsAt        DateTime?                  @db.Timestamptz

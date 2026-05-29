@@ -22,6 +22,44 @@ export async function register() {
 
   console.log('[Instrumentation] Next.js server started — license check deferred to scheduler');
 
+  // L-37: CRON_SECRET production safety check.
+  // Warn loudly if CRON_SECRET is still the default value or unset in production.
+  // CRON_SECRET is used to authenticate all cron job endpoints (/api/cron/*).
+  // Setting a strong, unique secret is MANDATORY before deploying to production.
+  //
+  // To set: export CRON_SECRET=$(openssl rand -hex 32)
+  // or in .env: CRON_SECRET=<64-char hex string>
+  if (process.env.NODE_ENV === 'production') {
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) {
+      console.error(
+        '╔══════════════════════════════════════════════════════════════════════╗\n' +
+        '║  ⛔  SECURITY WARNING: CRON_SECRET is not set in production!       ║\n' +
+        '║                                                                     ║\n' +
+        '║  All cron endpoints (/api/cron/*) are UNPROTECTED.                  ║\n' +
+        '║  Any attacker can trigger night audits, billing, and other cron     ║\n' +
+        '║  jobs. Set CRON_SECRET env var immediately:                        ║\n' +
+        '║                                                                     ║\n' +
+        '║    export CRON_SECRET=$(openssl rand -hex 32)                      ║\n' +
+        '║                                                                     ║\n' +
+        '╚══════════════════════════════════════════════════════════════════════╝'
+      );
+    } else if (cronSecret === 'dev-only-cron-secret') {
+      console.error(
+        '╔══════════════════════════════════════════════════════════════════════╗\n' +
+        '║  ⚠️  SECURITY WARNING: CRON_SECRET is still the default value!       ║\n' +
+        '║                                                                     ║\n' +
+        '║  The default secret "dev-only-cron-secret" is publicly known.       ║\n' +
+        '║  All cron endpoints are effectively unprotected in production.      ║\n' +
+        '║  Generate a secure secret:                                          ║\n' +
+        '║                                                                     ║\n' +
+        '║    export CRON_SECRET=$(openssl rand -hex 32)                      ║\n' +
+        '║                                                                     ║\n' +
+        '╚══════════════════════════════════════════════════════════════════════╝'
+      );
+    }
+  }
+
   // License periodic check is handled by the scheduler process.
   // Kick off a one-time HTTP call to our own /api/license/check endpoint
   // which runs in Node.js runtime (not Edge) and can safely use fs/crypto/etc.

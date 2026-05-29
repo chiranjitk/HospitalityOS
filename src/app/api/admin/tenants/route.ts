@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePlatformAdmin } from '@/lib/auth/tenant-context';
+import crypto from 'crypto';
+import { tenantEmailVerificationTokenCache } from '@/lib/cache';
 
 // GET - List tenants (Platform Admin only)
 export async function GET(request: NextRequest) {
@@ -198,6 +200,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid email format' },
+        { status: 400 }
+      );
+    }
+
     // Check if slug already exists and create tenant atomically to prevent race conditions
     let tenant;
     try {
@@ -212,6 +223,10 @@ export async function POST(request: NextRequest) {
         }
 
         // Create tenant in database
+        // L-38: New tenants are created with emailVerified: false.
+        // A verification email is sent to the tenant email address.
+        // The tenant admin must click the verification link to activate
+        // full tenant functionality.
         // Look up trial days from RegistrationPlan (default 14)
         let trialDays = 14;
         try {
@@ -227,6 +242,7 @@ export async function POST(request: NextRequest) {
             status: status || 'trial',
             email,
             phone: phone || null,
+            emailVerified: false, // L-38: requires email verification
             maxProperties: limits?.properties || 1,
             maxUsers: limits?.users || 5,
             maxRooms: limits?.rooms || 50,
@@ -266,6 +282,52 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
+    // L-38: Send email verification email to the tenant admin
+    // Generate verification token and store in cache (24h TTL)
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    tenantEmailVerificationTokenCache.set(verificationToken, {
+      tenantId: tenant.id,
+      email: tenant.email,
+      createdAt: Date.now(),
+    });
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000';
+    const verifyLink = `${appUrl}/api/admin/tenants/verify-email?token=${verificationToken}`;
+
+    // Send verification email (best-effort, don't fail tenant creation)
+    try {
+      const { emailService } = await import('@/lib/services/email-service');
+      await emailService.send({
+        to: tenant.email,
+        subject: `Verify Your Email - ${tenant.name} on StaySuite`,
+        variables: {
+          name: tenant.name,
+          verifyLink,
+          expiresIn: '24 hours',
+        },
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #1a1a2e;">Verify Your Tenant Email</h2>
+            <p>Hello,</p>
+            <p>Your organization <strong>{{name}}</strong> has been created on StaySuite HospitalityOS.</p>
+            <p>Please verify your email address by clicking the link below:</p>
+            <p><a href="{{verifyLink}}" style="display: inline-block; padding: 12px 24px; background-color: #1a1a2e; color: white; text-decoration: none; border-radius: 6px;">Verify Email</a></p>
+            <p>Or copy and paste this link: <a href="{{verifyLink}}">{{verifyLink}}</a></p>
+            <p><strong>This link expires in {{expiresIn}}.</strong></p>
+            <p>Until your email is verified, some features may be restricted.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+            <p style="color: #888; font-size: 12px;">StaySuite HospitalityOS — Platform Administration</p>
+          </div>
+        `,
+        text: `Hello,\n\nYour organization {{name}} has been created on StaySuite HospitalityOS.\n\nPlease verify your email address by visiting:\n\n{{verifyLink}}\n\nThis link expires in {{expiresIn}}.\n\nStaySuite HospitalityOS`,
+        tags: { type: 'tenant_email_verification', tenantId: tenant.id },
+      });
+      console.log(`[Tenant] Verification email sent to ${tenant.email} for tenant ${tenant.id}`);
+    } catch (emailError) {
+      console.error(`[Tenant] Failed to send verification email to ${tenant.email}:`, emailError);
+      // Don't fail tenant creation — admin can resend later
+    }
+
     // Try to create initial usage summary (may fail if table doesn't exist)
     try {
       if (db.usageSummary) {
@@ -301,6 +363,7 @@ export async function POST(request: NextRequest) {
         plan: tenant.plan,
         status: tenant.status,
         email: tenant.email,
+        emailVerified: tenant.emailVerified,
         phone: tenant.phone || undefined,
         properties: 0,
         users: 0,
@@ -316,7 +379,8 @@ export async function POST(request: NextRequest) {
           storage: tenant.storageLimitMb,
         },
       },
-      message: 'Tenant created successfully',
+      message: 'Tenant created successfully. A verification email has been sent to the tenant email.',
+      requiresEmailVerification: true,
     });
   } catch (error) {
     console.error('Error creating tenant:', error);

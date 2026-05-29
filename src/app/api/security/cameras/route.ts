@@ -2,10 +2,46 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { encrypt, decrypt, isEncrypted } from '@/lib/encryption';
 
 // Valid camera statuses
 const VALID_CAMERA_STATUSES = ['online', 'offline', 'maintenance'];
 const VALID_STREAM_TYPES = ['rtsp', 'rtmp', 'hls', 'webrtc', 'onvif'];
+
+// L-36: Camera stream URLs are encrypted at rest using AES-256-GCM.
+// This protects sensitive RTSP/RTMP credentials embedded in stream URLs
+// (e.g., rtsp://admin:password@camera-ip/stream) from being exposed in
+// the database if the DB is compromised. The encryption key comes from
+// the ENCRYPTION_KEY environment variable (see src/lib/encryption.ts).
+// NOTE: TLS must be used for all stream transmission between cameras and
+// the media server (e.g., RTSPS, or RTSP over TLS tunnel) to protect
+// credentials in transit. Encryption at rest alone does not secure transit.
+
+/**
+ * Encrypt a camera stream URL if it's not already encrypted.
+ * Returns the encrypted URL or the original value if empty.
+ */
+function encryptStreamUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (isEncrypted(url)) return url; // Already encrypted
+  try {
+    return encrypt(url);
+  } catch (error) {
+    console.error('[Camera] Failed to encrypt stream URL:', error);
+    return null;
+  }
+}
+
+/**
+ * Decrypt a camera stream URL.
+ * Returns the plaintext URL or the original value if already plaintext.
+ */
+function decryptStreamUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const decrypted = decrypt(url);
+  // If decryption fails (returns null), return the original — it might be legacy plaintext
+  return decrypted ?? url;
+}
 
 // GET /api/security/cameras - List all cameras
 export async function GET(request: NextRequest) {
@@ -103,7 +139,7 @@ export async function GET(request: NextRequest) {
           location: c.location || '',
           status: c.status,
           isRecording: c.isRecording,
-          streamUrl: c.streamUrl || undefined,
+          streamUrl: decryptStreamUrl(c.streamUrl) || undefined, // L-36: Decrypt for API response
           streamType: c.streamType,
           groupId: c.groupId,
           groupName: c.group?.name || null,
@@ -211,7 +247,7 @@ export async function POST(request: NextRequest) {
         propertyId,
         name: name.trim(),
         location: location?.trim() || null,
-        streamUrl: streamUrl?.trim() || null,
+        streamUrl: encryptStreamUrl(streamUrl?.trim() || null), // L-36: Encrypt at rest
         streamType,
         groupId,
         status: 'online',
@@ -326,6 +362,8 @@ export async function PUT(request: NextRequest) {
         ...(status && { status }),
         ...(isRecording !== undefined && { isRecording }),
         ...(groupId !== undefined && { groupId }),
+        // L-36: If streamUrl is being updated, encrypt it at rest
+        ...(body.streamUrl !== undefined && { streamUrl: encryptStreamUrl(body.streamUrl?.trim() || null) }),
       },
       include: {
         group: {

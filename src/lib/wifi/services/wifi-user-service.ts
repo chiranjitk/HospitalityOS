@@ -25,6 +25,12 @@
  * DO: Use transaction for provisioning operations
  * DO NOT: Implement RADIUS protocol in Node.js
  * DO NOT: Build DHCP/DNS in PMS
+ *
+ * SECURITY NOTE (L-34): Passwords stored as Cleartext-Password in radcheck
+ * are required by FreeRADIUS PAP authentication (RFC 2865). This is an
+ * accepted industry-standard trade-off. Ensure database is segmented from
+ * guest networks and all connections use TLS. See provisionUser() L-34
+ * block for detailed justification and mitigations.
  */
 
 import { db } from '@/lib/db';
@@ -361,6 +367,26 @@ export class WiFiUserService {
           });
 
           // 2. Create RadCheck (authentication — FreeRADIUS reads this table directly)
+          //
+          // SECURITY JUSTIFICATION (L-34): Cleartext password storage in radcheck
+          // -------------------------------------------------------------------
+          // FreeRADIUS uses the PAP (Password Authentication Protocol) which
+          // requires the password in cleartext to perform the auth check. The
+          // RADIUS server reads the "Cleartext-Password" attribute directly from
+          // the radcheck table, hashes it with the request's password, and
+          // compares the hashes. Storing only a hash would break this mechanism.
+          //
+          // Accepted risk: This is a documented, industry-standard trade-off
+          // for RADIUS deployments (RFC 2865 §2.2). Mitigations:
+          //   • Network segmentation: The PostgreSQL database holding radcheck
+          //     MUST NOT be accessible from the guest network. Only the
+          //     FreeRADIUS service and the PMS backend may connect.
+          //   • Database-level permissions: Use a dedicated RADIUS DB role
+          //     with SELECT-only access to radcheck/radreply tables.
+          //   • TLS encryption: All connections between NAS ↔ RADIUS and
+          //     RADIUS ↔ PostgreSQL should use TLS (RadSec / pg SSL).
+          //   • Audit trail: WiFiUser.password field is only used internally
+          //     and never exposed via API responses.
           await tx.radCheck.create({
             data: {
               wifiUserId: wifiUser.id,
@@ -873,6 +899,8 @@ export class WiFiUserService {
       });
 
       // Re-create RadCheck (password) if not exists
+      // SECURITY (L-34): Cleartext-Password is required by FreeRADIUS PAP auth.
+      // See provisionUser() for full security justification and mitigation notes.
       const existingCheck = await tx.radCheck.findFirst({
         where: { username: wifiUser.username },
       });

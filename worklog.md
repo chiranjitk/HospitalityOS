@@ -337,3 +337,54 @@ Stage Summary:
 - L-26 fixed: POST /api/iot/locks/[id]/command for lock/unlock/status/timed_unlock/emergency_unlock
 - L-27 fixed: IoT HAL base adapter, category interfaces, and registry stub with implementation guides
 - Commit: 3fcd49b2 — pushed to main
+---
+Task ID: L-28, L-29, L-30, L-31, L-32, L-33
+Agent: Fix Agent
+Task: Fix 6 LOW-priority findings — biometric attendance, health checks, schema sync, settings migration, revenue reconciliation
+
+Work Log:
+- L-28: Added biometric verification fields to StaffAttendance Prisma model
+  - Added `biometricVerified` (Boolean, default false) and `verificationMethod` (String?) columns
+  - Updated attendance POST route to accept and validate these fields on clock-in/out
+  - Validates verificationMethod against allowlist: fingerprint, face_recognition, palm_vein, iris, voice, card, pin
+  - When biometricVerified=true, verificationMethod is required
+  - Added integration guide comment in schema for real biometric hardware (ZKTeco, Suprema, HikVision)
+- L-29: Replaced hardcoded healthy statuses with live connectivity checks
+  - Created `performLiveHealthChecks()` in services.ts with TCP probes for Redis, SMTP, RADIUS
+  - Created `getAllServicesHealthWithLiveChecks()` async function merging config flags + live results
+  - ServiceStatus interface extended with `reachable` and `latencyMs` optional fields
+  - Health route uses live checks in detailed mode, config-based in normal mode
+  - Database check already existed via SELECT 1; now includes reachable flag in response
+  - Added TODO comments for services needing vendor-specific health endpoints (Twilio, Meta, Stripe, PayPal)
+- L-30: Verified Prisma schema ↔ DB column sync for RadPostAuth and FairAccessPolicy
+  - RadPostAuth.replyMessage already in schema with @map("replyMessage") matching DB
+  - FairAccessPolicy.throttleDownKbps/throttleUpKbps already in schema matching DB camelCase columns
+  - Added documentation comments confirming sync with complete-database.sql §3 and §3b
+- L-31: Verified H-21 fix (commit e1664cae) for standalone invoice financial values
+  - Invoice route already overrides client-supplied subtotal/taxes/totalAmount with server-calculated values
+  - Added verification comment referencing the original fix commit
+- L-32: Added schema version migration path for SystemConfig JSON blobs
+  - Added `version` field (Int, default 1) to SystemConfig Prisma model
+  - Created src/lib/settings-migration.ts with migration registry pattern
+  - `migrateSetting()` migrates a single config key to latest version
+  - `migrateAllSettings()` migrates all known keys for a tenant (idempotent, boot-safe)
+  - Registered initial migration for linear_pricing_config (v1→v2: add effectiveDate, propertyTypeId)
+  - `getRegisteredMigrations()` helper for admin dashboards
+- L-33: Created canonical plan pricing source and revenue reconciliation
+  - Created src/lib/plan-pricing.ts with PLAN_PRICING, PLAN_PRICING_YEARLY, PLAN_LIMITS constants
+  - Updated admin/billing/calculate to import from canonical source (was hardcoded inline)
+  - Updated admin/revenue to import from canonical source
+  - Added `reconcilePlanPricing()` to detect mismatches between code and SubscriptionPlan DB table
+  - Revenue route now runs reconciliation and includes results in response when mismatches found
+  - Added `verifyInternalConsistency()` to check yearly = monthly * 10 invariant
+- ESLint: All 9 changed files pass with zero errors
+
+Stage Summary:
+- 9 files changed (7 modified + 2 new), 505 insertions, 31 deletions
+- L-28 fixed: biometric verification fields on StaffAttendance with hardware integration guide
+- L-29 fixed: live connectivity health checks for Redis/SMTP/RADIUS with reachable flags
+- L-30 verified: all 3 DB columns present in Prisma schema with sync comments
+- L-31 verified: H-21 fix confirmed — client financial values overridden server-side
+- L-32 fixed: SystemConfig.version field + migration helper for JSON schema evolution
+- L-33 fixed: canonical plan pricing source + reconciliation check in revenue analytics
+- Commit: de43d2fd — pushed to main

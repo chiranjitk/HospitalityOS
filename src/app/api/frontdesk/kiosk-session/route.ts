@@ -1,9 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/tenant-context';
+import { rateLimit } from '@/lib/rate-limiter';
+
+/**
+ * Extract client IP from request headers.
+ */
+function getClientIp(request: NextRequest): string {
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    const firstIp = forwardedFor.split(',')[0].trim();
+    if (firstIp) return firstIp;
+  }
+  const realIp = request.headers.get('x-real-ip');
+  if (realIp) return realIp.trim();
+  return '127.0.0.1';
+}
 
 // GET /api/frontdesk/kiosk-session - Verify booking code for kiosk check-in/check-out
 export async function GET(request: NextRequest) {
+  // L-35: Rate limiting — max 5 confirmation code attempts per minute per IP.
+  // This prevents brute-force guessing of 6-character booking codes at kiosks.
+  const clientIp = getClientIp(request);
+  const rateLimitResult = await rateLimit(`kiosk:confirm:${clientIp}`, 5, 60_000);
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: 'RATE_LIMITED',
+          message: 'Too many attempts. Please wait before trying again.',
+        },
+      },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimitResult.retryAfter),
+        },
+      }
+    );
+  }
+
   const ctx = await requireAuth(request);
   if (ctx instanceof NextResponse) return ctx;
 

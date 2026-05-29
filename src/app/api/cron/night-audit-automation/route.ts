@@ -10,6 +10,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+// L-37: CRON_SECRET env var configuration
+// IMPORTANT: Set CRON_SECRET to a strong random value in production!
+//   export CRON_SECRET=$(openssl rand -hex 32)
+// The startup check in src/instrumentation.ts will warn loudly if this is
+// still the default value when NODE_ENV=production.
 const CRON_SECRET = process.env.CRON_SECRET || (process.env.NODE_ENV !== 'production' ? 'dev-only-cron-secret' : '');
 
 export async function GET(request: NextRequest) {

@@ -203,3 +203,33 @@ export const emailVerificationTokenCache = {
     return globalCache.has(`verify:${token}`);
   },
 };
+
+// =====================================================
+// Tenant Email Verification Token Cache (L-38)
+// =====================================================
+
+interface TenantEmailVerificationTokenData {
+  tenantId: string;
+  email: string;
+  createdAt: number;
+}
+
+const TENANT_EMAIL_VERIFICATION_TOKEN_TTL = 24 * 60 * 60; // 24 hours
+
+export const tenantEmailVerificationTokenCache = {
+  set: (token: string, data: TenantEmailVerificationTokenData): void => {
+    globalCache.set(`tenant_verify:${token}`, data, TENANT_EMAIL_VERIFICATION_TOKEN_TTL);
+  },
+
+  get: (token: string): TenantEmailVerificationTokenData | null => {
+    return globalCache.get<TenantEmailVerificationTokenData>(`tenant_verify:${token}`);
+  },
+
+  delete: (token: string): boolean => {
+    return globalCache.delete(`tenant_verify:${token}`);
+  },
+
+  has: (token: string): boolean => {
+    return globalCache.has(`tenant_verify:${token}`);
+  },
+};
