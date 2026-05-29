@@ -1242,13 +1242,19 @@ function MacAuthForm({ design, onAuthenticate, loading }: MacAuthFormProps) {
     }
   }, [onAuthenticate]);
 
+  // Use a ref to prevent infinite re-triggering when onAuthenticate changes
+  const handleMacAuthRef = useRef(handleMacAuth);
   useEffect(() => {
-    // Auto-attempt MAC auth on mount
+    handleMacAuthRef.current = handleMacAuth;
+  }, [handleMacAuth]);
+
+  useEffect(() => {
+    // Auto-attempt MAC auth on mount — runs only once
     const timer = setTimeout(() => {
-      handleMacAuth();
+      handleMacAuthRef.current();
     }, 500);
     return () => clearTimeout(timer);
-  }, [handleMacAuth]);
+  }, []);
 
   const mutedColor = (design.textColor as string) ? `${design.textColor}99` : 'rgba(0,0,0,0.6)';
 
@@ -1299,6 +1305,38 @@ function MacAuthForm({ design, onAuthenticate, loading }: MacAuthFormProps) {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── FloatingOrb — animated blurred background orb ─────────────────────────────
+function FloatingOrb({ className, style, delay = 0 }: { className?: string; style?: React.CSSProperties; delay?: number }) {
+  return (
+    <motion.div
+      className={cn('absolute rounded-full blur-3xl pointer-events-none', className)}
+      style={style}
+      animate={{
+        y: [0, -30, 15, -20, 0],
+        x: [0, 15, -10, 20, 0],
+        scale: [1, 1.1, 0.95, 1.05, 1],
+      }}
+      transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut', delay }}
+    />
+  );
+}
+
+// ─── GridPattern — subtle grid overlay ────────────────────────────────────────
+function GridPattern() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div
+        className="absolute inset-0 opacity-[0.03] dark:opacity-[0.02]"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
+          backgroundSize: '60px 60px',
+        }}
+      />
     </div>
   );
 }
@@ -3036,13 +3074,16 @@ function PortalContent() {
                   key={am.method}
                   onClick={() => setSelectedMethod(am.method)}
                   className={cn(
-                    'relative flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-xs font-medium transition-all duration-300 whitespace-nowrap cursor-pointer',
-                    isActive && 'shadow-lg'
+                    'relative flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-xs font-medium whitespace-nowrap cursor-pointer',
+                    'transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]'
                   )}
                   style={{
                     backgroundColor: isActive ? accent : 'transparent',
                     color: isActive ? '#ffffff' : (dark ? 'rgba(255,255,255,0.5)' : accent + '99'),
-                    boxShadow: isActive ? `0 2px 10px ${accent}40` : 'none',
+                    boxShadow: isActive ? `0 4px 14px ${accent}50` : 'none',
+                    background: isActive
+                      ? `linear-gradient(135deg, ${accent}, ${accent}cc)`
+                      : 'transparent',
                   }}
                 >
                   <span className="flex-shrink-0">
@@ -3363,12 +3404,16 @@ function PortalContent() {
       case 'form':
         return (
           <div
-            className={cn('w-full animate-in fade-in-0 slide-in-from-bottom-4 duration-500 transition-all', formCls)}
+            className={cn('w-full animate-in fade-in-0 slide-in-from-bottom-4 duration-500 transition-all relative overflow-hidden', formCls, 'backdrop-blur-2xl')}
             style={{
               ...cardShadowStyle,
+              backgroundColor: dark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.85)',
+              border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
               ...(design.formStyle === 'glass' && dark ? { boxShadow: `0 0 30px -5px ${design.accentColor}40, 0 0 60px -10px ${design.accentColor}20` } : {}),
             }}
           >
+            {/* Gradient top border accent */}
+            <div className="absolute top-0 left-0 right-0 h-px" style={{ background: `linear-gradient(to right, transparent, ${design.accentColor}50, transparent)` }} />
             {renderCardContent()}
           </div>
         );
@@ -3406,6 +3451,20 @@ function PortalContent() {
       >
         {/* Background overlay */}
         <div className="fixed inset-0 pointer-events-none" style={overlayStyle} />
+
+        {/* Background Effects — always present */}
+        <GridPattern />
+
+        {/* Mesh gradient overlay */}
+        <div className="fixed inset-0 pointer-events-none">
+          <div className="absolute top-0 left-0 w-full h-full" style={{ background: `radial-gradient(ellipse at top left, ${design.accentColor}15 0%, transparent 50%)` }} />
+          <div className="absolute top-0 left-0 w-full h-full" style={{ background: `radial-gradient(ellipse at bottom right, ${design.accentColor}10 0%, transparent 50%)` }} />
+        </div>
+
+        {/* Floating Orbs */}
+        <FloatingOrb className="w-[400px] h-[400px] opacity-20 -top-48 -right-48" style={{ backgroundColor: design.accentColor }} delay={0} />
+        <FloatingOrb className="w-[350px] h-[350px] opacity-15 bottom-0 -left-32" style={{ backgroundColor: design.accentColor }} delay={5} />
+        <FloatingOrb className="w-[250px] h-[250px] opacity-10 top-1/3 right-1/4" style={{ backgroundColor: design.accentColor }} delay={10} />
 
         {/* Main content */}
         <main className={cn('flex-1 flex items-center justify-center p-4 relative z-10', isBottomSheet && 'items-end')}>
@@ -3481,12 +3540,16 @@ function PortalContent() {
 
                 {/* Form Card */}
                 <div
-                  className={formCls}
+                  className={cn(formCls, 'relative overflow-hidden backdrop-blur-2xl')}
                   style={{
                     ...cardShadowStyle,
+                    backgroundColor: dark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.85)',
+                    border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
                     ...(design.formStyle === 'glass' && dark ? { boxShadow: `0 0 30px -5px ${design.accentColor}40, 0 0 60px -10px ${design.accentColor}20` } : {}),
                   }}
                 >
+                  {/* Gradient top border accent */}
+                  <div className="absolute top-0 left-0 right-0 h-px" style={{ background: `linear-gradient(to right, transparent, ${design.accentColor}50, transparent)` }} />
                   {/* Mobile-only header */}
                   <div className="md:hidden text-center space-y-2 mb-4">
                     <PortalLogo design={design} size="small" />
@@ -3562,7 +3625,9 @@ function PortalContent() {
               })()}
 
               {/* Form Card */}
-              <div className={cn(formCls, 'mt-2')} style={cardShadowStyle}>
+              <div className={cn(formCls, 'mt-2 relative overflow-hidden backdrop-blur-2xl')} style={{ ...cardShadowStyle, backgroundColor: dark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.85)', border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}` }}>
+                {/* Gradient top border accent */}
+                <div className="absolute top-0 left-0 right-0 h-px" style={{ background: `linear-gradient(to right, transparent, ${design.accentColor}50, transparent)` }} />
                 {renderFormContent()}
               </div>
 
