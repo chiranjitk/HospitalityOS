@@ -1264,6 +1264,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                       />
                     </TableHead>
                     <TableHead>User</TableHead>
+                    <TableHead>Guest Name</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Plan</TableHead>
                     <TableHead>Bandwidth</TableHead>
@@ -1296,6 +1297,15 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${getUserTypeBadgeColor(user)}`}>{typeLabel}</span>
                             </div>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {(user.guest_first_name || user.guest_last_name) ? (
+                            <span className="text-xs text-muted-foreground">
+                              {[user.guest_first_name, user.guest_last_name].filter(Boolean).join(' ')}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/40">—</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           {getUserStatusBadge(user) || <span className="text-xs text-muted-foreground">—</span>}
