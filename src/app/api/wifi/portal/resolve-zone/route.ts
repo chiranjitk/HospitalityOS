@@ -384,7 +384,7 @@ export async function GET(request: NextRequest) {
             WHEN pm.subnet ~ '/' THEN pm.subnet::inet
             ELSE (pm.subnet || '/32')::inet
           END
-        ORDER BY pm.priority DESC
+        ORDER BY pm.priority DESC, pm."updatedAt" DESC
         LIMIT 1
       `, clientIp) as Array<{ id: string; portalId: string; subnet: string; fallbackPortalId: string | null; priority: number }>;
 
@@ -479,7 +479,7 @@ export async function GET(request: NextRequest) {
         -- Prefer ipPoolId-based matches over legacy subnet-only matches.
         -- When a mapping explicitly maps an IpPool to a portal (ipPoolId IS NOT NULL),
         -- it should take precedence over legacy mappings that only match by subnet string.
-        ORDER BY (pm."ipPoolId" IS NOT NULL) DESC, pm.priority DESC
+        ORDER BY (pm."ipPoolId" IS NOT NULL) DESC, pm.priority DESC, pm."updatedAt" DESC
         LIMIT 1
       `, clientIp) as Array<{ id: string; portalId: string; subnet: string | null; fallbackPortalId: string | null; priority: number; ipPoolId: string | null; rangeStart: string | null; rangeEnd: string | null; poolSubnet: string | null }>;
 
