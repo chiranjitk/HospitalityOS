@@ -1601,7 +1601,8 @@ function HistoryTab() {
         const result = await res.json();
         if (result.success) setProperties(result.data);
       } catch (error) {
-      console.error("Operation failed:", error);
+        console.error("Operation failed:", error);
+      }
     };
     fetchProperties();
   }, []);

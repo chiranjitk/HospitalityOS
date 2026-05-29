@@ -746,7 +746,7 @@ export default function PurchaseRequisition() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
-          <p className="text-sm text-muted-foreground mt-2">{t(\'iprLoading\')}</p>
+          <p className="text-sm text-muted-foreground mt-2">{t('iprLoading')}</p>
         </div>
       </div>
     );
@@ -771,7 +771,7 @@ export default function PurchaseRequisition() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold tracking-tight">{t(\'iprTitle\')}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t('iprTitle')}</h1>
         <p className="text-muted-foreground">
           {t('iprSubtitle')}
         </p>
@@ -781,42 +781,42 @@ export default function PurchaseRequisition() {
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 border-emerald-200 dark:border-emerald-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-400">{t(\'iprTotalRequisitions\')}</CardTitle>
+            <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-400">{t('iprTotalRequisitions')}</CardTitle>
             <ClipboardList className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{stats.total}</div>
-            <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70 mt-1">{t(\'iprThisPeriod\')}</p>
+            <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70 mt-1">{t('iprThisPeriod')}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 border-amber-200 dark:border-amber-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-400">{t(\'iprPendingApproval\')}</CardTitle>
+            <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-400">{t('iprPendingApproval')}</CardTitle>
             <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">{stats.pendingApproval}</div>
-            <p className="text-xs text-amber-600/70 dark:text-amber-400/70 mt-1">{t(\'iprRequiresAction\')}</p>
+            <p className="text-xs text-amber-600/70 dark:text-amber-400/70 mt-1">{t('iprRequiresAction')}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-green-700 dark:text-green-400">{t(\'iprThreeWayMatchedCard\')}</CardTitle>
+            <CardTitle className="text-sm font-medium text-green-700 dark:text-green-400">{t('iprThreeWayMatchedCard')}</CardTitle>
             <FileCheck2 className="h-4 w-4 text-green-600 dark:text-green-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-700 dark:text-green-300">{stats.matched}</div>
-            <p className="text-xs text-green-600/70 dark:text-green-400/70 mt-1">{t(\'iprFullyReconciled\')}</p>
+            <p className="text-xs text-green-600/70 dark:text-green-400/70 mt-1">{t('iprFullyReconciled')}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-950/20 dark:to-pink-950/20 border-rose-200 dark:border-rose-800">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-rose-700 dark:text-rose-400">{t(\'iprTotalValue\')}</CardTitle>
+            <CardTitle className="text-sm font-medium text-rose-700 dark:text-rose-400">{t('iprTotalValue')}</CardTitle>
             <DollarSign className="h-4 w-4 text-rose-600 dark:text-rose-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-rose-700 dark:text-rose-300">{formatCurrency(stats.totalValue)}</div>
-            <p className="text-xs text-rose-600/70 dark:text-rose-400/70 mt-1">{t(\'iprCombinedRequisitions\')}</p>
+            <p className="text-xs text-rose-600/70 dark:text-rose-400/70 mt-1">{t('iprCombinedRequisitions')}</p>
           </CardContent>
         </Card>
       </div>
@@ -863,7 +863,7 @@ export default function PurchaseRequisition() {
                     <SelectValue placeholder={t("iprFilterDepartment")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">{t(\'iprAllDepartments\')}</SelectItem>
+                    <SelectItem value="all">{t('iprAllDepartments')}</SelectItem>
                     {departments.map(d => (
                       <SelectItem key={d} value={d}>{d}</SelectItem>
                     ))}
@@ -874,7 +874,7 @@ export default function PurchaseRequisition() {
                     <SelectValue placeholder={t("iprFilterStatus")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">{t(\'iprAllStatus\')}</SelectItem>
+                    <SelectItem value="all">{t('iprAllStatus')}</SelectItem>
                     {Object.entries(STATUS_CONFIG).map(([key, config]) => (
                       <SelectItem key={key} value={key}>{config.label}</SelectItem>
                     ))}
@@ -885,7 +885,7 @@ export default function PurchaseRequisition() {
                     <SelectValue placeholder={t("iprFilterPriority")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">{t(\'iprAll\')}</SelectItem>
+                    <SelectItem value="all">{t('iprAll')}</SelectItem>
                     {Object.entries(PRIORITY_CONFIG).map(([key, config]) => (
                       <SelectItem key={key} value={key}>{config.label}</SelectItem>
                     ))}
@@ -910,14 +910,14 @@ export default function PurchaseRequisition() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{t(\'iprThReq\')}</TableHead>
-                      <TableHead>{t(\'iprThDepartment\')}</TableHead>
-                      <TableHead>{t(\'iprThRequestedBy\')}</TableHead>
-                      <TableHead>{t(\'iprThDate\')}</TableHead>
-                      <TableHead>{t(\'iprThPriority\')}</TableHead>
-                      <TableHead>{t(\'iprThTotal\')}</TableHead>
-                      <TableHead>{t(\'iprThStatus\')}</TableHead>
-                      <TableHead className="text-right">{t(\'iprThActions\')}</TableHead>
+                      <TableHead>{t('iprThReq')}</TableHead>
+                      <TableHead>{t('iprThDepartment')}</TableHead>
+                      <TableHead>{t('iprThRequestedBy')}</TableHead>
+                      <TableHead>{t('iprThDate')}</TableHead>
+                      <TableHead>{t('iprThPriority')}</TableHead>
+                      <TableHead>{t('iprThTotal')}</TableHead>
+                      <TableHead>{t('iprThStatus')}</TableHead>
+                      <TableHead className="text-right">{t('iprThActions')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -955,7 +955,7 @@ export default function PurchaseRequisition() {
                           <TableCell>
                             <span className="font-medium">{formatCurrency(req.totalAmount)}</span>
                             {req.totalAmount >= req.approvalThreshold && (
-                              <div className="text-xs text-amber-600 dark:text-amber-400">{t(\'iprNeedsApproval\')}</div>
+                              <div className="text-xs text-amber-600 dark:text-amber-400">{t('iprNeedsApproval')}</div>
                             )}
                           </TableCell>
                           <TableCell>{getStatusBadge(req.status)}</TableCell>
@@ -1034,14 +1034,14 @@ export default function PurchaseRequisition() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{t(\'iprThPo\')}</TableHead>
-                      <TableHead>{t(\'iprThGrn\')}</TableHead>
-                      <TableHead>{t(\'iprThInvoice\')}</TableHead>
-                      <TableHead>{t(\'iprThVendor\')}</TableHead>
-                      <TableHead>{t(\'iprThPoAmount\')}</TableHead>
-                      <TableHead>{t(\'iprThInvoiceAmount\')}</TableHead>
-                      <TableHead>{t(\'iprThMatchStatus\')}</TableHead>
-                      <TableHead className="text-right">{t(\'iprThActions\')}</TableHead>
+                      <TableHead>{t('iprThPo')}</TableHead>
+                      <TableHead>{t('iprThGrn')}</TableHead>
+                      <TableHead>{t('iprThInvoice')}</TableHead>
+                      <TableHead>{t('iprThVendor')}</TableHead>
+                      <TableHead>{t('iprThPoAmount')}</TableHead>
+                      <TableHead>{t('iprThInvoiceAmount')}</TableHead>
+                      <TableHead>{t('iprThMatchStatus')}</TableHead>
+                      <TableHead className="text-right">{t('iprThActions')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1154,7 +1154,7 @@ export default function PurchaseRequisition() {
             <CardContent>
               <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                 <div className="flex-1 space-y-2">
-                  <Label>{t(\'iprAutoApproveThreshold\')}</Label>
+                  <Label>{t('iprAutoApproveThreshold')}</Label>
                   <p className="text-sm text-muted-foreground">
                     t('iprAutoApproveDesc')
                   </p>
@@ -1202,12 +1202,12 @@ export default function PurchaseRequisition() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{t(\'iprThItem\')}</TableHead>
-                      <TableHead>{t(\'iprThReorderPoint\')}</TableHead>
-                      <TableHead>{t(\'iprThCurrentStock\')}</TableHead>
-                      <TableHead>{t(\'iprThReorderQty\')}</TableHead>
-                      <TableHead>{t(\'iprThStockStatus\')}</TableHead>
-                      <TableHead>{t(\'iprThAutoApproveCol\')}</TableHead>
+                      <TableHead>{t('iprThItem')}</TableHead>
+                      <TableHead>{t('iprThReorderPoint')}</TableHead>
+                      <TableHead>{t('iprThCurrentStock')}</TableHead>
+                      <TableHead>{t('iprThReorderQty')}</TableHead>
+                      <TableHead>{t('iprThStockStatus')}</TableHead>
+                      <TableHead>{t('iprThAutoApproveCol')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1237,7 +1237,7 @@ export default function PurchaseRequisition() {
                         </TableCell>
                         <TableCell>
                           {rule.autoApprove && rule.reorderQty * 10 <= autoApproveThreshold ? (
-                            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs">{t(\'iprYes\')}</Badge>
+                            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs">{t('iprYes')}</Badge>
                           ) : (
                             <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-xs">{t('iprNeedsApproval')}</Badge>
                           )}
@@ -1269,9 +1269,9 @@ export default function PurchaseRequisition() {
                       <TableRow>
                         <TableHead>{t('iprThCategory')}</TableHead>
                         <TableHead>{t('iprThSupplier')}</TableHead>
-                        <TableHead>{t(\'iprThRank\')}</TableHead>
-                        <TableHead>{t(\'iprThOnTimeRate\')}</TableHead>
-                        <TableHead>{t(\'iprThAccuracyRate\')}</TableHead>
+                        <TableHead>{t('iprThRank')}</TableHead>
+                        <TableHead>{t('iprThOnTimeRate')}</TableHead>
+                        <TableHead>{t('iprThAccuracyRate')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1327,8 +1327,8 @@ export default function PurchaseRequisition() {
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                 <BarChart3 className="h-10 w-10 mb-3 opacity-50" />
-                <p className="text-sm font-medium">{t(\'iprNoAnalytics\')}</p>
-                <p className="text-xs mt-1">{t(\'iprNoAnalyticsDesc\')}</p>
+                <p className="text-sm font-medium">{t('iprNoAnalytics')}</p>
+                <p className="text-xs mt-1">{t('iprNoAnalyticsDesc')}</p>
               </CardContent>
             </Card>
           ) : (
@@ -1368,7 +1368,7 @@ export default function PurchaseRequisition() {
                     <Timer className="h-6 w-6 text-violet-600 dark:text-violet-400" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">{t(\'iprAvgApprovalTime\')}</p>
+                    <p className="text-sm font-medium text-muted-foreground">{t('iprAvgApprovalTime')}</p>
                     <p className="text-3xl font-bold text-violet-700 dark:text-violet-300">{analytics.avgApprovalTime}h</p>
                     <p className="text-xs text-violet-600/70 dark:text-violet-400/70 flex items-center gap-1 mt-0.5">
                       <TrendingDown className="h-3 w-3" />
@@ -1385,7 +1385,7 @@ export default function PurchaseRequisition() {
                     <DollarSign className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">{t(\'iprCostSavings\')}</p>
+                    <p className="text-sm font-medium text-muted-foreground">{t('iprCostSavings')}</p>
                     <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(analytics.costSavings)}</p>
                     <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70 flex items-center gap-1 mt-0.5">
                       <TrendingUp className="h-3 w-3" />
@@ -1412,10 +1412,10 @@ export default function PurchaseRequisition() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>{t('iprThSupplier')}</TableHead>
-                      <TableHead>{t(\'iprThOrders\')}</TableHead>
-                      <TableHead>{t(\'iprThOnTimeDelivery\')}</TableHead>
-                      <TableHead>{t(\'iprThOrderAccuracy\')}</TableHead>
-                      <TableHead>{t(\'iprThRating\')}</TableHead>
+                      <TableHead>{t('iprThOrders')}</TableHead>
+                      <TableHead>{t('iprThOnTimeDelivery')}</TableHead>
+                      <TableHead>{t('iprThOrderAccuracy')}</TableHead>
+                      <TableHead>{t('iprThRating')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1466,7 +1466,7 @@ export default function PurchaseRequisition() {
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{t(\'iprReqDetails\')}</DialogTitle>
+            <DialogTitle>{t('iprReqDetails')}</DialogTitle>
             <DialogDescription>{selectedRequisition?.requisitionNumber}</DialogDescription>
           </DialogHeader>
           {selectedRequisition && (
@@ -1494,7 +1494,7 @@ export default function PurchaseRequisition() {
                 </div>
                 {selectedRequisition.approvedBy && (
                   <div className="space-y-1">
-                    <Label className="text-muted-foreground">{t(\'iprThApprovedBy\')}</Label>
+                    <Label className="text-muted-foreground">{t('iprThApprovedBy')}</Label>
                     <div>{selectedRequisition.approvedBy}</div>
                   </div>
                 )}
@@ -1503,18 +1503,18 @@ export default function PurchaseRequisition() {
               <Separator />
 
               <div className="space-y-2">
-                <Label>{t(\'iprThItems\')}</Label>
+                <Label>{t('iprThItems')}</Label>
                 <div className="border rounded-lg">
                   <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>{t(\'iprThItem\')}</TableHead>
-                        <TableHead>{t(\'iprThSku\')}</TableHead>
+                        <TableHead>{t('iprThItem')}</TableHead>
+                        <TableHead>{t('iprThSku')}</TableHead>
                         <TableHead>{t('iprThCategory')}</TableHead>
-                        <TableHead>{t(\'iprThQty\')}</TableHead>
-                        <TableHead>{t(\'iprThUnitPrice\')}</TableHead>
-                        <TableHead className="text-right">{t(\'iprThTotal\')}</TableHead>
+                        <TableHead>{t('iprThQty')}</TableHead>
+                        <TableHead>{t('iprThUnitPrice')}</TableHead>
+                        <TableHead className="text-right">{t('iprThTotal')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1536,7 +1536,7 @@ export default function PurchaseRequisition() {
 
               <div className="bg-muted p-3 rounded-lg">
                 <div className="flex justify-between text-sm">
-                  <span>t('iprTotalAmountLabel')/span>
+                  <span>{t('iprTotalAmountLabel')}</span>
                   <span className="font-bold">{formatCurrency(selectedRequisition.totalAmount)}</span>
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
@@ -1551,14 +1551,14 @@ export default function PurchaseRequisition() {
 
               {selectedRequisition.notes && (
                 <div className="space-y-1">
-                  <Label className="text-muted-foreground">{t(\'iprThNotes\')}</Label>
+                  <Label className="text-muted-foreground">{t('iprThNotes')}</Label>
                   <div className="text-sm bg-muted p-3 rounded-lg">{selectedRequisition.notes}</div>
                 </div>
               )}
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setViewDialogOpen(false)}>{t(\'iprClose\')}</Button>
+            <Button variant="outline" onClick={() => setViewDialogOpen(false)}>{t('iprClose')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1567,24 +1567,24 @@ export default function PurchaseRequisition() {
       <Dialog open={viewDialogOpen && !selectedRequisition && !!selectedMatch} onOpenChange={(open) => { setViewDialogOpen(open); if (!open) setSelectedMatch(null); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{t(\'iprInvoiceMatchDetails\')}</DialogTitle>
+            <DialogTitle>{t('iprInvoiceMatchDetails')}</DialogTitle>
             <DialogDescription>{selectedMatch?.invoiceNumber} — {selectedMatch?.vendorName}</DialogDescription>
           </DialogHeader>
           {selectedMatch && (
             <div className="space-y-4 py-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="bg-muted p-3 rounded-lg text-center">
-                  <Label className="text-xs text-muted-foreground">{t(\'iprThPoAmount\')}</Label>
+                  <Label className="text-xs text-muted-foreground">{t('iprThPoAmount')}</Label>
                   <div className="text-lg font-bold">{formatCurrency(selectedMatch.poAmount)}</div>
                   <div className="text-xs">{selectedMatch.poNumber}</div>
                 </div>
                 <div className="bg-muted p-3 rounded-lg text-center">
-                  <Label className="text-xs text-muted-foreground">{t(\'iprGrnAmountLabel\')}</Label>
+                  <Label className="text-xs text-muted-foreground">{t('iprGrnAmountLabel')}</Label>
                   <div className="text-lg font-bold">{formatCurrency(selectedMatch.grnAmount)}</div>
                   <div className="text-xs">{selectedMatch.grnNumber}</div>
                 </div>
                 <div className="bg-muted p-3 rounded-lg text-center">
-                  <Label className="text-xs text-muted-foreground">{t(\'iprThInvoiceAmount\')}</Label>
+                  <Label className="text-xs text-muted-foreground">{t('iprThInvoiceAmount')}</Label>
                   <div className={cn('text-lg font-bold', selectedMatch.invoiceAmount !== selectedMatch.poAmount && 'text-red-600 dark:text-red-400')}>
                     {formatCurrency(selectedMatch.invoiceAmount)}
                   </div>
@@ -1593,7 +1593,7 @@ export default function PurchaseRequisition() {
               </div>
 
               <div className="space-y-1">
-                <Label>{t(\'iprThMatchStatus\')}</Label>
+                <Label>{t('iprThMatchStatus')}</Label>
                 {getMatchStatusBadge(selectedMatch.matchStatus)}
               </div>
 
@@ -1610,10 +1610,10 @@ export default function PurchaseRequisition() {
                       <Table>
                         <TableHeader>
                           <TableRow className="bg-red-50 dark:bg-red-950/30">
-                            <TableHead>{t(\'iprThType\')}</TableHead>
-                            <TableHead>{t(\'iprThExpected\')}</TableHead>
-                            <TableHead>{t(\'iprThActual\')}</TableHead>
-                            <TableHead>{t(\'iprThDifference\')}</TableHead>
+                            <TableHead>{t('iprThType')}</TableHead>
+                            <TableHead>{t('iprThExpected')}</TableHead>
+                            <TableHead>{t('iprThActual')}</TableHead>
+                            <TableHead>{t('iprThDifference')}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1650,7 +1650,7 @@ export default function PurchaseRequisition() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setViewDialogOpen(false); setSelectedMatch(null); }}>{t(\'iprClose\')}</Button>
+            <Button variant="outline" onClick={() => { setViewDialogOpen(false); setSelectedMatch(null); }}>{t('iprClose')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1659,7 +1659,7 @@ export default function PurchaseRequisition() {
       <AlertDialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t(\'iprApproveRequisition\')}</AlertDialogTitle>
+            <AlertDialogTitle>{t('iprApproveRequisition')}</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to approve {selectedRequisition?.requisitionNumber} for {formatCurrency(selectedRequisition?.totalAmount || 0)}?
               This will generate a purchase order and send it to the preferred suppliers.
@@ -1679,12 +1679,12 @@ export default function PurchaseRequisition() {
       <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{t(\'iprRejectRequisition\')}</DialogTitle>
+            <DialogTitle>{t('iprRejectRequisition')}</DialogTitle>
             <DialogDescription>{t('iprRejectDesc', { number: selectedRequisition?.requisitionNumber })}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>{t(\'iprRejectionReason\')}</Label>
+              <Label>{t('iprRejectionReason')}</Label>
               <Textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
@@ -1694,7 +1694,7 @@ export default function PurchaseRequisition() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>{t(\'iprCancel\')}</Button>
+            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>{t('iprCancel')}</Button>
             <Button onClick={confirmReject} className="bg-red-500 hover:bg-red-600" disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Reject
@@ -1718,7 +1718,7 @@ export default function PurchaseRequisition() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>{t(\'iprReasonNotes\')}</Label>
+              <Label>{t('iprReasonNotes')}</Label>
               <Textarea
                 value={varianceReason}
                 onChange={(e) => setVarianceReason(e.target.value)}
@@ -1733,7 +1733,7 @@ export default function PurchaseRequisition() {
             {varianceAction === 'credit' && selectedMatch && (
               <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3 rounded-lg">
                 <div className="flex justify-between text-sm">
-                  <span>t('iprCreditAmountLabel')/span>
+                  <span>{t('iprCreditAmountLabel')}</span>
                   <span className="font-bold text-amber-700 dark:text-amber-400">
                     {formatCurrency(Math.abs(selectedMatch.invoiceAmount - selectedMatch.poAmount))}
                   </span>
@@ -1742,7 +1742,7 @@ export default function PurchaseRequisition() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setVarianceDialogOpen(false)}>{t(\'iprCancel\')}</Button>
+            <Button variant="outline" onClick={() => setVarianceDialogOpen(false)}>{t('iprCancel')}</Button>
             <Button
               onClick={confirmVarianceResolution}
               className={cn(

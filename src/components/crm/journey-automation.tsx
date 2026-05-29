@@ -1056,8 +1056,8 @@ export default function JourneyAutomation() {
                     className="h-3"
                   />
                   <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{selectedJourney.completedContacts.toLocaleString() {t('jaCompletedCount', { count: selectedJourney.completedContacts.toLocaleString() })}</span>
-                    <span>{selectedJourney.activeContacts {t('jaStillActive', { count: selectedJourney.activeContacts })}</span>
+                    <span>{t('jaCompletedCount', { count: selectedJourney.completedContacts.toLocaleString() })}</span>
+                    <span>{t('jaStillActive', { count: selectedJourney.activeContacts })}</span>
                   </div>
                 </div>
               </div>
