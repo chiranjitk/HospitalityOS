@@ -2,9 +2,18 @@
  * RevPAR Optimization Engine
  * Calculates current ADR, occupancy, and RevPAR metrics
  * and generates rate adjustment suggestions to maximize revenue.
+ *
+ * Enhanced with time-series forecasting (Holt-Winters, ARIMA, Regression, Ensemble).
+ * The existing rules-based engine remains the default; time-series is opt-in.
  */
 
 import { db } from '@/lib/db';
+import {
+  runTimeSeriesForecast,
+  type TimeSeriesForecastResult,
+  type RegressionFeatureRow,
+} from '@/lib/revenue/time-series-forecast';
+import { addDays, subDays } from 'date-fns';
 
 export interface RevPARMetrics {
   propertyId: string;
@@ -313,4 +322,321 @@ export async function optimizeRevPAR(
   suggestions.sort((a, b) => Math.abs(b.expectedRevenueImpact) - Math.abs(a.expectedRevenueImpact));
 
   return suggestions;
+}
+
+// ─── Time-Series Enhanced Forecasting ────────────────────────────────────────
+
+export interface TimeSeriesRevPARSuggestion extends RevPARSuggestion {
+  forecastOccupancy: number;
+  forecastOccupancyLower: number;
+  forecastOccupancyUpper: number;
+  forecastConfidence: number;
+  forecastModel: string;
+  forecastModelMAPE: number;
+  tsFactors: string[];
+}
+
+export interface ForecastWithTimeSeriesResult {
+  suggestions: TimeSeriesRevPARSuggestion[];
+  forecastDetails: TimeSeriesForecastResult;
+  method: 'timeseries' | 'rules_fallback';
+  reason: string;
+}
+
+/**
+ * Generate RevPAR optimization suggestions using time-series forecasting.
+ * Runs all 5 models, selects best by cross-validation MAPE,
+ * and returns optimization suggestions using the best forecast.
+ * Falls back to rules-based engine when insufficient data.
+ */
+export async function forecastWithTimeSeries(
+  tenantId: string,
+  propertyId: string,
+  dateRange: { start: Date; end: Date }
+): Promise<ForecastWithTimeSeriesResult> {
+  // 1. Gather historical data (last 90-365 days)
+  const lookbackDays = 180;
+  const historicalStart = subDays(dateRange.start, lookbackDays);
+
+  // Fetch property info
+  const property = await db.property.findUnique({
+    where: { id: propertyId },
+    select: { totalRooms: true },
+  });
+  const totalRooms = property?.totalRooms || 100;
+
+  // Fetch all bookings in the historical window
+  const allBookings = await db.booking.findMany({
+    where: {
+      tenantId,
+      propertyId,
+      status: { in: ['checked_in', 'checked_out', 'confirmed'] },
+      deletedAt: null,
+      checkIn: { lte: dateRange.start },
+      checkOut: { gt: historicalStart },
+    },
+    select: {
+      totalAmount: true,
+      checkIn: true,
+      checkOut: true,
+      actualCheckIn: true,
+    },
+  });
+
+  // Build daily occupancy time series
+  const occupancyMap = new Map<string, number>();
+  for (let d = new Date(historicalStart); d <= dateRange.start; d = addDays(d, 1)) {
+    const dayStr = d.toISOString().split('T')[0];
+    occupancyMap.set(dayStr, 0);
+  }
+
+  for (const b of allBookings) {
+    const start = new Date(b.checkIn);
+    const end = new Date(b.checkOut);
+    for (let d = start; d < end; d = addDays(d, 1)) {
+      const dayStr = d.toISOString().split('T')[0];
+      const current = occupancyMap.get(dayStr) || 0;
+      occupancyMap.set(dayStr, current + 1);
+    }
+  }
+
+  // Build sorted arrays
+  const historicalDates = Array.from(occupancyMap.keys()).sort();
+  const historicalData = historicalDates.map(d => {
+    const occupied = occupancyMap.get(d) || 0;
+    return Math.min(100, (occupied / totalRooms) * 100);
+  });
+
+  // Check if we have enough data for time-series
+  if (historicalData.length < 30) {
+    // Fall back to rules-based engine
+    const rulesSuggestions = await optimizeRevPAR(tenantId, propertyId, dateRange);
+    return {
+      suggestions: rulesSuggestions.map(s => ({
+        ...s,
+        forecastOccupancy: s.expectedOccupancy,
+        forecastOccupancyLower: s.expectedOccupancy * 0.9,
+        forecastOccupancyUpper: Math.min(100, s.expectedOccupancy * 1.1),
+        forecastConfidence: 0.3,
+        forecastModel: 'rules_fallback',
+        forecastModelMAPE: Infinity,
+        tsFactors: [],
+      })),
+      forecastDetails: {
+        ensemble: {
+          prediction: [], lower: [], upper: [],
+          confidence: 0.3, modelWeights: [], breakdown: [],
+        },
+        holtWinters: {
+          predictions: [], lower: [], upper: [],
+          level: [], trend: [], seasonal: [],
+          alpha: 0, beta: 0, gamma: 0, period: 7,
+          type: 'additive', mape: Infinity,
+        },
+        arima: {
+          predictions: [], residuals: [],
+          modelOrder: { p: 0, d: 0, q: 0 },
+          arCoeffs: [], maCoeffs: [],
+          aic: 0, bic: 0, mape: Infinity, isStationary: true,
+        },
+        regression: null,
+        bestModel: 'insufficient_data', bestMAPE: Infinity,
+        seasonalPeriod: 7, isStationary: true,
+        dataPoints: historicalData.length,
+        stationarity: { isStationary: false, adfStat: 0, pValue: 1 },
+      },
+      method: 'rules_fallback',
+      reason: `Insufficient historical data (${historicalData.length} days, need ≥30). Using rules-based engine.`,
+    };
+  }
+
+  // Build feature rows for regression
+  const features: RegressionFeatureRow[] = historicalDates.map(dateStr => {
+    const d = new Date(dateStr);
+    return {
+      dayOfWeek: d.getDay(),
+      month: d.getMonth(),
+      dayOfYear: Math.floor((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24)),
+      isHoliday: false, // Could be enhanced with holiday calendar
+      isWeekend: d.getDay() === 0 || d.getDay() === 6,
+      leadTime: 0,
+      eventsCount: 0,
+      competitorPrice: 0,
+      weatherScore: 50,
+    };
+  });
+
+  // Calculate horizon (days from start to end)
+  const horizon = Math.max(1, Math.ceil(
+    (dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24)
+  ));
+
+  // Run the full time-series forecast pipeline
+  const forecastResult = runTimeSeriesForecast({
+    historicalData,
+    historicalDates,
+    horizon,
+    features,
+  });
+
+  // Get competitor and event data for the forecast period
+  const competitorRates = await db.competitorPrice.findMany({
+    where: {
+      tenantId, propertyId,
+      date: { gte: dateRange.start, lte: dateRange.end },
+    },
+    select: { date: true, price: true },
+  });
+  const competitorMap = new Map<string, number>();
+  const competitorCountMap = new Map<string, number>();
+  for (const cr of competitorRates) {
+    const dateKey = new Date(cr.date).toISOString().split('T')[0];
+    competitorMap.set(dateKey, (competitorMap.get(dateKey) || 0) + cr.price);
+    competitorCountMap.set(dateKey, (competitorCountMap.get(dateKey) || 0) + 1);
+  }
+
+  const events = await db.event.findMany({
+    where: {
+      tenantId, propertyId,
+      startDate: { lte: new Date(dateRange.end.getTime() + 7 * 24 * 60 * 60 * 1000) },
+      endDate: { gte: dateRange.start },
+    },
+    select: { startDate: true, endDate: true, name: true },
+  });
+
+  // Get current metrics for recent ADR context
+  const recentMetrics = await getCurrentMetrics(tenantId, propertyId, {
+    start: subDays(dateRange.start, 14),
+    end: dateRange.start,
+  });
+  const avgADR = recentMetrics.length > 0
+    ? recentMetrics.reduce((s, m) => s + m.adr, 0) / recentMetrics.length
+    : 0;
+
+  // Generate TS-enhanced suggestions
+  const suggestions: TimeSeriesRevPARSuggestion[] = [];
+  const futureDates: string[] = [];
+  for (let i = 0; i < horizon; i++) {
+    const d = addDays(dateRange.start, i);
+    futureDates.push(d.toISOString().split('T')[0]);
+  }
+
+  for (let i = 0; i < Math.min(horizon, forecastResult.ensemble.prediction.length); i++) {
+    const dateStr = futureDates[i];
+    const forecastOcc = forecastResult.ensemble.prediction[i] || 0;
+    const forecastLower = forecastResult.ensemble.lower[i] || 0;
+    const forecastUpper = forecastResult.ensemble.upper[i] || 0;
+    const d = new Date(dateStr);
+    const dayOfWeek = d.getDay();
+
+    const factors: string[] = [];
+    let suggestedChange = 0;
+    let reasoning = '';
+    let priority: RevPARSuggestion['priority'] = 'low';
+    let expectedOccupancy = forecastOcc;
+
+    // Rate strategy based on forecast occupancy
+    if (forecastOcc < 50) {
+      suggestedChange = -(10 + (50 - forecastOcc) * 0.2);
+      reasoning = `TS forecast: Low occupancy (${Math.round(forecastOcc)}%). Rate reduction recommended.`;
+      priority = forecastOcc < 30 ? 'urgent' : 'high';
+      expectedOccupancy = Math.min(85, forecastOcc + Math.abs(suggestedChange) * 1.2);
+      factors.push('ts_low_occupancy');
+    } else if (forecastOcc < 70) {
+      suggestedChange = -3;
+      reasoning = `TS forecast: Moderate occupancy (${Math.round(forecastOcc)}%). Slight reduction to capture demand.`;
+      priority = 'medium';
+      expectedOccupancy = forecastOcc + 5;
+      factors.push('ts_moderate_occupancy');
+    } else if (forecastOcc < 85) {
+      suggestedChange = 5 + (forecastOcc - 70) * 0.5;
+      reasoning = `TS forecast: Good demand (${Math.round(forecastOcc)}%). Rate increase opportunity.`;
+      priority = 'medium';
+      expectedOccupancy = Math.max(60, forecastOcc - suggestedChange * 0.2);
+      factors.push('ts_good_demand');
+    } else {
+      suggestedChange = 10 + (forecastOcc - 85) * 1.5;
+      reasoning = `TS forecast: High demand (${Math.round(forecastOcc)}%). Aggressive rate increase.`;
+      priority = forecastOcc > 95 ? 'urgent' : 'high';
+      expectedOccupancy = Math.max(55, forecastOcc - suggestedChange * 0.3);
+      factors.push('ts_high_demand');
+    }
+
+    // Weekend adjustments
+    if (dayOfWeek === 5 || dayOfWeek === 6 && forecastOcc < 90) {
+      suggestedChange += 3;
+      factors.push('ts_weekend_premium');
+    }
+
+    // Competitor pricing
+    const compTotal = competitorMap.get(dateStr) || 0;
+    const compCount = competitorCountMap.get(dateStr) || 0;
+    const avgCompRate = compCount > 0 ? compTotal / compCount : 0;
+    if (avgCompRate > 0 && avgADR > 0) {
+      if (avgADR > avgCompRate * 1.15) {
+        suggestedChange -= 4;
+        factors.push('ts_above_competitor');
+      } else if (avgADR < avgCompRate * 0.85) {
+        suggestedChange += 4;
+        factors.push('ts_below_competitor');
+      }
+    }
+
+    // Event impact
+    const eventImpact = events.filter(e => {
+      const eStart = new Date(e.startDate);
+      const eEnd = new Date(e.endDate);
+      return d >= new Date(eStart.getTime() - 3 * 24 * 60 * 60 * 1000)
+        && d <= new Date(eEnd.getTime() + 3 * 24 * 60 * 60 * 1000);
+    });
+    if (eventImpact.length > 0) {
+      suggestedChange += eventImpact.length * 4;
+      factors.push('ts_event_impact');
+    }
+
+    suggestedChange = Math.max(-20, Math.min(30, suggestedChange));
+
+    const suggestedNewRate = avgADR * (1 + suggestedChange / 100);
+    const expectedRevpar = (suggestedNewRate * expectedOccupancy) / 100;
+    const expectedRevenueImpact = (expectedRevpar - (avgADR * forecastOcc / 100)) * totalRooms;
+
+    if (Math.abs(suggestedChange) < 1) continue;
+
+    suggestions.push({
+      date: dateStr,
+      dayOfWeek: DAY_NAMES[dayOfWeek],
+      currentAdr: avgADR,
+      currentOccupancy: forecastOcc,
+      currentRevpar: avgADR * forecastOcc / 100,
+      suggestedRateChange: Math.round(suggestedChange * 10) / 10,
+      suggestedNewRate: Math.round(suggestedNewRate * 100) / 100,
+      expectedOccupancy: Math.round(expectedOccupancy * 10) / 10,
+      expectedRevpar: Math.round(expectedRevpar * 100) / 100,
+      expectedRevenueImpact: Math.round(expectedRevenueImpact * 100) / 100,
+      reasoning,
+      priority,
+      factors,
+      forecastOccupancy: Math.round(forecastOcc * 10) / 10,
+      forecastOccupancyLower: Math.round(forecastLower * 10) / 10,
+      forecastOccupancyUpper: Math.round(forecastUpper * 10) / 10,
+      forecastConfidence: forecastResult.ensemble.confidence,
+      forecastModel: forecastResult.bestModel,
+      forecastModelMAPE: forecastResult.bestMAPE,
+      tsFactors: [
+        `seasonal_period=${forecastResult.seasonalPeriod}`,
+        `stationary=${forecastResult.isStationary}`,
+        `data_points=${forecastResult.dataPoints}`,
+      ],
+    });
+  }
+
+  // Sort by revenue impact
+  suggestions.sort((a, b) => Math.abs(b.expectedRevenueImpact) - Math.abs(a.expectedRevenueImpact));
+
+  return {
+    suggestions,
+    forecastDetails: forecastResult,
+    method: 'timeseries',
+    reason: `Time-series forecast using ${forecastResult.bestModel} (MAPE: ${Math.round(forecastResult.bestMAPE * 100) / 100}%). ${forecastResult.dataPoints} data points analyzed.`,
+  };
 }
