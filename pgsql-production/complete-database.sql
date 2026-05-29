@@ -1171,3 +1171,24 @@ BEGIN
         ALTER TABLE "DeviceProfile" ADD CONSTRAINT "DeviceProfile_guestId_fkey" FOREIGN KEY ("guestId") REFERENCES "Guest"("id") ON DELETE SET NULL ON UPDATE CASCADE;
     END IF;
 END $$;
+
+-- ============================================================================
+-- GRANT permissions for application database user (staysuite)
+-- ============================================================================
+-- Tables and sequences are granted via prisma/schema.prisma (db push).
+-- Views are created AFTER prisma db push, so we must grant SELECT here.
+
+DO $$
+DECLARE
+  v_name TEXT;
+BEGIN
+  FOR v_name IN SELECT viewname FROM pg_views WHERE schemaname = 'public' LOOP
+    EXECUTE format('GRANT SELECT ON %I TO staysuite', v_name);
+  END LOOP;
+  FOR v_name IN SELECT proname FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' LOOP
+    BEGIN
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %I(TEXT, INTEGER, INTEGER, INTEGER, INTEGER) TO staysuite', v_name);
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+  END LOOP;
+END $$;
