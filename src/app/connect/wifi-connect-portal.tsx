@@ -1192,6 +1192,176 @@ function SmsOtpForm({
 }
 
 // ────────────────────────────────────────────────────────────
+// Email OTP Form (2-step, fallback mode — guest-verified flow)
+// ────────────────────────────────────────────────────────────
+
+function EmailOtpForm({
+  design,
+  onAuthenticate,
+  loading,
+  debugOtp,
+  onClearDebugOtp,
+}: {
+  design: PortalDesignConfig;
+  onAuthenticate: (method: string, payload: Record<string, string>) => void | Promise<boolean>;
+  loading: boolean;
+  debugOtp?: string | null;
+  onClearDebugOtp?: () => void;
+}) {
+  const lang = usePortalLang();
+  const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState<'email' | 'otp'>('email');
+  const [error, setError] = useState('');
+  const [countdown, setCountdown] = useState(0);
+  const [guestInfo, setGuestInfo] = useState<{ guestName?: string; roomNumber?: string; maskedEmail?: string } | null>(null);
+
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
+
+  const handleSendOtp = async () => {
+    if (!email.trim()) { setError(getUIString(lang, 'pleaseEnter') + ' email address'); return; }
+    setError('');
+    setGuestInfo(null);
+    onClearDebugOtp?.();
+    const result = await onAuthenticate('email_otp', { email: email.trim() });
+    // Only advance to OTP step if the server accepted the request
+    if (result === false) return;
+    setStep('otp');
+    setCountdown(60);
+  };
+
+  const handleVerifyOtp = () => {
+    if (!otp.trim()) { setError(getUIString(lang, 'pleaseEnter') + ' verification code'); return; }
+    setError('');
+    onAuthenticate('email_otp', {
+      email: email.trim(),
+      otpCode: otp.trim(),
+    });
+  };
+
+  const handleResend = () => {
+    if (countdown > 0) return;
+    setOtp('');
+    setError('');
+    onClearDebugOtp?.();
+    onAuthenticate('email_otp', { email: email.trim() });
+    setCountdown(60);
+  };
+
+  const mutedColor = getMutedTextColor(design);
+  const labelColor = getCardTextColor(design);
+
+  if (step === 'email') {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-center" style={{ color: mutedColor }}>
+          Enter your email address registered with your booking
+        </p>
+        <DynamicInput
+          design={design}
+          label="Email Address"
+          type="email"
+          value={email}
+          onChange={setEmail}
+          placeholder="guest@example.com"
+          disabled={loading}
+          autoFocus
+          icon={<Mail className="w-4 h-4" />}
+          inputMode="email"
+        />
+        {error && <ErrorDisplay message={error} />}
+        <DynamicButton design={design} onClick={handleSendOtp} disabled={!email.trim()} loading={loading}>
+          <>
+            <Mail className="w-5 h-5" />
+            Send Verification Code
+          </>
+        </DynamicButton>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Show guest info after successful email lookup */}
+      {guestInfo && (
+        <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 text-center text-sm space-y-1">
+          {guestInfo.guestName && (
+            <p className="font-medium text-emerald-800 dark:text-emerald-200">{guestInfo.guestName}</p>
+          )}
+          {guestInfo.roomNumber && (
+            <p className="text-emerald-600 dark:text-emerald-300">Room {guestInfo.roomNumber}</p>
+          )}
+        </div>
+      )}
+      <p className="text-sm text-center" style={{ color: mutedColor }}>
+        Enter code sent to{' '}
+        <span className="font-medium" style={{ color: labelColor }}>{guestInfo?.maskedEmail || email}</span>
+      </p>
+      <DynamicInput
+        design={design}
+        label="Verification Code"
+        value={otp}
+        onChange={(v) => setOtp(v.replace(/\D/g, '').slice(0, 6))}
+        placeholder="000000"
+        disabled={loading}
+        autoFocus
+        maxLength={6}
+        inputMode="numeric"
+        className="text-center text-2xl font-mono font-bold tracking-[0.5em]"
+      />
+      {/* Debug OTP display */}
+      {debugOtp && (
+        <div className="rounded-lg border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/40 p-3 text-center">
+          <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 mb-1 flex items-center justify-center gap-1">
+            <Bug className="w-3 h-3" />
+            DEBUG — Email OTP
+          </p>
+          <p className="text-3xl font-mono font-black tracking-[0.3em] text-amber-800 dark:text-amber-200">
+            {debugOtp}
+          </p>
+          <button
+            onClick={() => navigator.clipboard?.writeText(debugOtp)}
+            className="mt-1.5 text-xs text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 underline"
+          >
+            Copy to clipboard
+          </button>
+        </div>
+      )}
+      {error && <ErrorDisplay message={error} />}
+      <DynamicButton design={design} onClick={handleVerifyOtp} disabled={otp.length < 6} loading={loading}>
+        <>
+          <CheckCircle className="w-5 h-5" />
+          {getUIString(lang, 'verifyAndConnect')}
+        </>
+      </DynamicButton>
+      <div className="flex items-center justify-between text-sm">
+        <button
+          onClick={() => { setStep('email'); setOtp(''); setError(''); setGuestInfo(null); onClearDebugOtp?.(); }}
+          className="hover:underline flex items-center gap-1"
+          style={{ color: mutedColor }}
+        >
+          <span>&larr;</span> Change email
+        </button>
+        <button
+          onClick={handleResend}
+          disabled={countdown > 0}
+          className="flex items-center gap-1 disabled:opacity-40"
+          style={{ color: design.accentColor }}
+        >
+          <RefreshCw className="w-3 h-3" />
+          {countdown > 0 ? `Resend in ${countdown}s` : 'Resend code'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
 // Open Access Form (fallback mode)
 // ────────────────────────────────────────────────────────────
 
@@ -2396,6 +2566,7 @@ function PortalContent() {
   const [autoAuthAttempted, setAutoAuthAttempted] = useState(false);
   const [maxDeviceMessage, setMaxDeviceMessage] = useState('');
   const [debugOtp, setDebugOtp] = useState<string | null>(null);
+  const [emailOtpGuestInfo, setEmailOtpGuestInfo] = useState<{ guestName?: string; roomNumber?: string; maskedEmail?: string } | null>(null);
 
   // Pre-generated fingerprint — computed once on mount and reused for
   // both auto-auth attempts and manual auth DeviceProfile creation.
@@ -2587,6 +2758,14 @@ function PortalContent() {
           // Capture debug OTP for testing without SMS gateway
           if (result.data?._debugOtp) {
             setDebugOtp(result.data._debugOtp);
+          }
+          // Capture guest info from email OTP response for display
+          if (method === 'email_otp' && result.data?.guestName) {
+            setEmailOtpGuestInfo({
+              guestName: result.data.guestName,
+              roomNumber: result.data.roomNumber,
+              maskedEmail: result.data.maskedEmail,
+            });
           }
           setState('auth_form');
           return true;
@@ -2937,7 +3116,7 @@ function PortalContent() {
         );
       case 'email_otp':
         return (
-          <SmsOtpForm
+          <EmailOtpForm
             design={design}
             onAuthenticate={async (method, payload) => {
               const gi = buildGuestInfoPayload();

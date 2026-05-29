@@ -16,6 +16,7 @@ import {
 import { getExternalGatewayConfig, buildGatewayAuthResponse, type ExternalGatewayConfig } from '@/lib/wifi/utils/external-gateway';
 import { getLocalNasConfig } from '@/lib/wifi/local-nas-config';
 import { getWifiSettings } from '@/lib/wifi-settings';
+import { sendEmailForTenant } from '@/lib/adapters/email';
 
 /** Lazy-import ldapjs for LDAP auth (avoids issues when package not installed). */
 async function getLdapjs() {
@@ -307,7 +308,7 @@ async function isDeviceAutoAuthDisabled(tenantId: string, macAddress: string | n
 // ────────────────────────────────────────────────────────────
 const otpStore = new Map<
   string,
-  { code: string; expiresAt: number; phone: string; attempts: number }
+  { code: string; expiresAt: number; phone?: string; email?: string; guestId?: string; roomNumber?: string; planId?: string; attempts: number }
 >();
 const MAX_OTP_STORE_ENTRIES = 10000; // Prevent unbounded growth
 
@@ -381,6 +382,22 @@ function isValidPhoneNumber(phone: string): boolean {
 function normalizePhoneNumberLocal(phone: string): string {
   // Use the shared normalizer with configurable default country code
   return normalizePhoneNumber(phone, process.env.SMS_DEFAULT_COUNTRY_CODE || process.env.DEFAULT_COUNTRY_CODE || undefined);
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/** Mask email address: user@domain.com → u***@domain.com */
+function maskEmailAddr(email: string): string {
+  const atIdx = email.indexOf('@');
+  if (atIdx <= 1) return '****';
+  const local = email.slice(0, atIdx);
+  return local[0] + '***' + email.slice(atIdx);
 }
 
 // ────────────────────────────────────────────────────────────
@@ -1070,7 +1087,7 @@ export async function POST(request: NextRequest) {
       return errorResponse('INVALID_REQUEST', 'Request body must be a JSON object.', 400);
     }
 
-    const VALID_METHODS = ['voucher', 'room_number', 'pms_credentials', 'sms_otp', 'open_access', 'ldap', 'mac_auth', 'social'];
+    const VALID_METHODS = ['voucher', 'room_number', 'pms_credentials', 'sms_otp', 'email_otp', 'open_access', 'ldap', 'mac_auth', 'social'];
     const {
       method,
       portalSlug,
@@ -1080,6 +1097,7 @@ export async function POST(request: NextRequest) {
       username,
       password,
       phoneNumber,
+      email,
       otpCode,
       guestInfo,
       marketingEmailConsent,
@@ -1098,6 +1116,7 @@ export async function POST(request: NextRequest) {
       username?: string;
       password?: string;
       phoneNumber?: string;
+      email?: string;
       otpCode?: string;
       guestInfo?: {
         firstName?: string;
@@ -2371,6 +2390,464 @@ export async function POST(request: NextRequest) {
               ...(process.env.NODE_ENV !== 'production' && { _debugOtp: code }),
               _smsSent: smsSent,
               ...(!smsSent && smsError && { _error: smsError }),
+            },
+          });
+        }
+      }
+
+      // ─── Email OTP ──────────────────────────────────────
+      // Enterprise flow:
+      //   Step 1 (no otpCode): Guest enters email → lookup in Guest DB →
+      //     - Not found → error "Email not registered"
+      //     - Found + has active WiFiUser (auto-created at check-in) → error "Already checked in, use PMS Credentials"
+      //     - Found + no WiFiUser → generate OTP, send email, return success
+      //   Step 2 (with otpCode): Verify OTP → create WiFiUser with room plan → RADIUS auth → online
+      case 'email_otp': {
+        // Check if Email OTP is enabled for this tenant
+        if (portal?.tenantId) {
+          try {
+            const ivSettings = await getWifiSettings(portal.tenantId, 'identity_verification');
+            if (!ivSettings.enableEmailOtp) {
+              return errorResponse('EMAIL_OTP_DISABLED', 'Email OTP verification is disabled for this property. Please use another authentication method.');
+            }
+          } catch { /* best effort — allow if settings can't be read */ }
+        }
+
+        if (otpCode) {
+          // ── Step 2: Verify OTP ──
+          if (!email?.trim()) {
+            return errorResponse('MISSING_EMAIL', 'Email address is required for OTP verification');
+          }
+
+          const normalizedEmail = normalizeEmail(email.trim());
+          const stored = otpStore.get(`email:${normalizedEmail}`);
+
+          if (!stored) {
+            recordFailedAttempt(extractClientIp(request) || 'unknown');
+            logAuthAttempt(`email-${normalizedEmail}`, 'Access-Reject', request, 'OTP_NOT_FOUND').catch(() => {});
+            return errorResponse('OTP_NOT_FOUND', 'No OTP found. Please request a new one.');
+          }
+
+          if (Date.now() > stored.expiresAt) {
+            otpStore.delete(`email:${normalizedEmail}`);
+            recordFailedAttempt(extractClientIp(request) || 'unknown');
+            logAuthAttempt(`email-${normalizedEmail}`, 'Access-Reject', request, 'OTP_EXPIRED').catch(() => {});
+            return errorResponse('OTP_EXPIRED', 'Your OTP has expired. Please request a new one.');
+          }
+
+          // Track wrong attempts
+          stored.attempts++;
+          if (stored.attempts > OTP_MAX_VERIFY_ATTEMPTS) {
+            otpStore.delete(`email:${normalizedEmail}`);
+            recordFailedAttempt(extractClientIp(request) || 'unknown');
+            logAuthAttempt(`email-${normalizedEmail}`, 'Access-Reject', request, 'OTP_MAX_ATTEMPTS').catch(() => {});
+            return errorResponse('OTP_MAX_ATTEMPTS', 'Too many incorrect attempts. Please request a new OTP.');
+          }
+
+          if (stored.code !== otpCode.trim()) {
+            recordFailedAttempt(extractClientIp(request) || 'unknown');
+            logAuthAttempt(`email-${normalizedEmail}`, 'Access-Reject', request, 'OTP_INVALID').catch(() => {});
+            const remaining = OTP_MAX_VERIFY_ATTEMPTS - stored.attempts;
+            return errorResponse('OTP_INVALID', `Invalid OTP code. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`);
+          }
+
+          // ── OTP verified — check IP pool ──
+          const emailPool = await getValidatedPool(request, resolveAllowedPoolIds(portalPlanIpPoolId, undefined, !!portalPlanIpPoolId, portalPlanPoolIds));
+          if (!emailPool) {
+            await logAuthAttempt(`email-${normalizedEmail}`, 'Access-Reject', request, `IP_NOT_IN_POOL:${getClientIpString(request)}`);
+            return errorResponse('IP_NOT_IN_POOL', 'Your device is not connected to a managed WiFi network. Please connect to the hotel WiFi and try again.', 403);
+          }
+
+          // Capture OTP code before deleting from store
+          const emailOtpPassword = stored.code;
+          const emailOtpGuestId = stored.guestId;
+          const emailOtpPlanId = stored.planId;
+          const emailOtpRoomNumber = stored.roomNumber;
+          otpStore.delete(`email:${normalizedEmail}`);
+
+          const now = new Date();
+          const validUntil = new Date(now.getTime() + portalSessionTimeoutMin * 60 * 1000);
+          // Username: email-{localpart} (e.g. email-john for john@hotel.com)
+          const emailLocalPart = normalizedEmail.split('@')[0].replace(/[^a-z0-9]/gi, '');
+          const wifiUsername = `email-${emailLocalPart}`;
+          let emailSessionId: string | null = null;
+          let emailGuestId: string | null = emailOtpGuestId || null;
+          let emailPlanDnKbps = bwDown * 1000;
+          let emailPlanUpKbps = bwUp * 1000;
+
+          const fallbackPropertyId = portal?.propertyId
+            || await (portal?.tenantId
+              ? db.property.findFirst({ where: { tenantId: portal.tenantId }, select: { id: true } }).then(p => p?.id)
+              : Promise.resolve(undefined));
+
+          let emailSessionCheck: { limitReached: boolean; releaseLock: () => Promise<void> } | null = null;
+
+          if (fallbackPropertyId) {
+            // ── Resolve plan ──
+            let planId: string | null = emailOtpPlanId || null;
+            let maxDevices = 1;
+            let dataLimit: number | undefined;
+
+            if (planId) {
+              // Use the plan bound to the guest's room type
+              const planAttrs = await db.wiFiPlan.findUnique({
+                where: { id: planId },
+                select: { maxDevices: true, dataLimit: true, downloadSpeed: true, uploadSpeed: true },
+              });
+              if (planAttrs?.maxDevices && planAttrs.maxDevices > 0) maxDevices = planAttrs.maxDevices;
+              if (planAttrs?.dataLimit && planAttrs.dataLimit > 0) dataLimit = planAttrs.dataLimit;
+              if (planAttrs?.downloadSpeed && planAttrs.downloadSpeed > 0) {
+                emailPlanDnKbps = planAttrs.downloadSpeed * 1000;
+                emailPlanUpKbps = planAttrs.uploadSpeed * 1000;
+              }
+            } else {
+              // Fallback: use AAA default plan
+              const aaaConfig = await db.wiFiAAAConfig.findUnique({
+                where: { propertyId: fallbackPropertyId },
+                select: { defaultPlanId: true },
+              });
+              if (aaaConfig?.defaultPlanId) {
+                planId = aaaConfig.defaultPlanId;
+                const planAttrs = await db.wiFiPlan.findUnique({
+                  where: { id: planId },
+                  select: { maxDevices: true, dataLimit: true, downloadSpeed: true, uploadSpeed: true },
+                });
+                if (planAttrs?.maxDevices && planAttrs.maxDevices > 0) maxDevices = planAttrs.maxDevices;
+                if (planAttrs?.dataLimit && planAttrs.dataLimit > 0) dataLimit = planAttrs.dataLimit;
+                if (planAttrs?.downloadSpeed && planAttrs.downloadSpeed > 0) {
+                  emailPlanDnKbps = planAttrs.downloadSpeed * 1000;
+                  emailPlanUpKbps = planAttrs.uploadSpeed * 1000;
+                }
+              }
+            }
+
+            // Check concurrent session limit
+            emailSessionCheck = await isSessionLimitReached(wifiUsername, maxDevices);
+            if (emailSessionCheck.limitReached) {
+              await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
+              return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
+            }
+
+            await provisionOrResumeUser(wifiUsername, now, validUntil, {
+              tenantId: portal?.tenantId || '',
+              propertyId: fallbackPropertyId,
+              username: wifiUsername,
+              password: emailOtpPassword,
+              planId: planId ?? undefined,
+              downloadSpeed: emailPlanDnKbps * 1000,
+              uploadSpeed: emailPlanUpKbps * 1000,
+              sessionTimeoutMinutes: portalSessionTimeoutMin,
+              idleTimeoutSeconds: portal?.idleTimeout,
+              sessionLimit: maxDevices,
+              dataLimit,
+              guestId: emailOtpGuestId || undefined,
+            });
+
+            // Update radcheck password to match the verified OTP
+            await db.radCheck.updateMany({
+              where: { username: wifiUsername, attribute: 'Cleartext-Password' },
+              data: { value: emailOtpPassword, isActive: true },
+            });
+            console.log(`[Email OTP] Updated radcheck password for ${wifiUsername}`);
+
+            // RADIUS authenticate
+            const radiusResult = await radiusAuth(wifiUsername, emailOtpPassword);
+            if (!radiusResult.accepted) {
+              await logAuthAttempt(wifiUsername, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
+              return errorResponse(radiusResult.rejectReason || 'AUTH_FAILED', getRejectMessage(radiusResult.rejectReason || 'AUTH_FAILED'));
+            }
+
+            await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${emailPool.poolName}${planId ? ` plan:${planId}` : ''}`);
+            emailSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, emailPool, fallbackPropertyId);
+
+            logIdentityVerification({
+              tenantId: portal?.tenantId || '',
+              propertyId: fallbackPropertyId,
+              sessionId: emailSessionId,
+              username: wifiUsername,
+              verificationMethod: 'otp_email',
+              verifiedIdentity: maskEmailAddr(normalizedEmail),
+              verificationStatus: 'verified',
+              ipAddress: getClientIpString(request),
+              macAddress: effectiveMac,
+            });
+
+            // Activate firewall
+            if (!externalGateway) {
+              await activateUserFirewall({
+                username: wifiUsername, clientIp: getClientIpString(request),
+                propertyId: fallbackPropertyId, sessionId: emailSessionId,
+                macAddress: effectiveMac,
+                dnKbps: emailPlanDnKbps,
+                upKbps: emailPlanUpKbps,
+                dnCeilKbps: Math.ceil(emailPlanDnKbps * 1.2),
+                upCeilKbps: Math.ceil(emailPlanUpKbps * 1.2),
+                subnet: emailPool.subnet,
+              });
+
+              const emailCounterIp = normalizeIp(getClientIpString(request));
+              if (emailCounterIp && emailCounterIp !== '0.0.0.0') {
+                addUserCounter(emailCounterIp);
+              }
+            }
+
+            // Save device profile for auto-reauth
+            try {
+              const emailUser = await db.wiFiUser.findUnique({
+                where: { username: wifiUsername },
+                select: { id: true, tenantId: true, propertyId: true, guestId: true },
+              });
+              if (emailUser) {
+                emailGuestId = emailUser.guestId || null;
+                await upsertDeviceProfileWithFingerprint({
+                  wifiUserId: emailUser.id, tenantId: emailUser.tenantId,
+                  propertyId: emailUser.propertyId, guestId: emailUser.guestId,
+                  username: wifiUsername, request,
+                  macAddress: effectiveMac, fingerprintHash, storageToken,
+                });
+                await saveGuestInfoAfterAuth({
+                  wifiUserId: emailUser.id,
+                  propertyId: fallbackPropertyId,
+                  guestInfo: normalizedGuestInfo,
+                  marketingConsent: { emailConsent: marketingEmailConsent === 'true' || marketingEmailConsent === true, smsConsent: marketingSmsConsent === 'true' || marketingSmsConsent === true },
+                  portalSlug,
+                  request,
+                });
+              }
+            } catch { /* best effort */ }
+          }
+
+          resetRateLimit(clientRateLimitIp);
+          const emailBwDown = typeof emailPlanDnKbps !== 'undefined' ? emailPlanDnKbps / 1000 : bwDown;
+          const emailBwUp = typeof emailPlanUpKbps !== 'undefined' ? emailPlanUpKbps / 1000 : bwUp;
+          await emailSessionCheck?.releaseLock?.();
+          return successResponse(
+            {
+              authenticated: true, method: 'email_otp', username: wifiUsername,
+              sessionTimeout: portalSessionTimeoutMin, bandwidthDown: emailBwDown, bandwidthUp: emailBwUp,
+              poolName: emailPool.poolName, message: 'Connected successfully!',
+              sessionId: emailSessionId,
+              guestId: emailGuestId,
+              roomNumber: emailOtpRoomNumber,
+            },
+            { username: wifiUsername, password: emailOtpPassword },
+            externalGateway
+          );
+        } else {
+          // ── Step 1: Send OTP ──
+          if (!email?.trim()) {
+            return errorResponse('MISSING_EMAIL', 'Please enter your email address');
+          }
+
+          if (!isValidEmail(email.trim())) {
+            return errorResponse('INVALID_EMAIL', 'Please enter a valid email address.');
+          }
+
+          const normalizedEmail = normalizeEmail(email.trim());
+          const tenantId = portal?.tenantId || '';
+
+          // ── LOOKUP GUEST IN DATABASE ──
+          // Must be an existing guest (booked or checked-in) — no self-registration
+          if (!tenantId) {
+            return errorResponse('CONFIG_ERROR', 'Portal configuration error. Please contact front desk.');
+          }
+
+          // Find guest by email with active booking (checked_in or confirmed, not cancelled/checked_out)
+          const activeBookingStatuses = ['checked_in', 'confirmed'];
+          const guest = await db.guest.findFirst({
+            where: {
+              tenantId,
+              email: { equals: normalizedEmail, mode: 'insensitive' },
+            },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+            },
+          });
+
+          if (!guest) {
+            // Guest not found in database
+            console.log(`[Email OTP] Guest not found for email: ${normalizedEmail} (tenant: ${tenantId})`);
+            return errorResponse('EMAIL_NOT_REGISTERED',
+              'This email is not registered with us. If you are a hotel guest, please contact the front desk for assistance.',
+              403);
+          }
+
+          // Check if guest has an active booking
+          const activeBooking = await db.booking.findFirst({
+            where: {
+              primaryGuestId: guest.id,
+              tenantId,
+              status: { in: activeBookingStatuses },
+              checkIn: { lte: new Date() },
+              checkOut: { gte: new Date() },
+            },
+            select: {
+              id: true,
+              confirmationCode: true,
+              status: true,
+              roomNumber: true,
+              roomId: true,
+              roomTypeId: true,
+              propertyId: true,
+            },
+            orderBy: { checkIn: 'desc' },
+          });
+
+          if (!activeBooking) {
+            console.log(`[Email OTP] Guest ${guest.id} (${normalizedEmail}) has no active booking`);
+            return errorResponse('NO_ACTIVE_BOOKING',
+              'No active booking found for this email. Please contact the front desk if you believe this is an error.',
+              403);
+          }
+
+          // Check if guest already has an active WiFiUser (auto-created at check-in)
+          const existingWifiUser = await db.wiFiUser.findFirst({
+            where: {
+              tenantId,
+              guestId: guest.id,
+              status: 'active',
+              validUntil: { gte: new Date() },
+            },
+            select: {
+              id: true,
+              username: true,
+              validUntil: true,
+            },
+          });
+
+          if (existingWifiUser) {
+            console.log(`[Email OTP] Guest ${guest.id} (${normalizedEmail}) already has active WiFiUser: ${existingWifiUser.username}`);
+            return errorResponse('ALREADY_CONNECTED',
+              'You are already checked in and have an active WiFi session. Please connect using your PMS Credentials or Room + Last Name.',
+              403);
+          }
+
+          // ── Resolve WiFi plan from room type binding ──
+          let resolvedPlanId: string | null = null;
+          let resolvedRoomLabel: string | null = null;
+
+          if (activeBooking.roomId) {
+            const room = await db.room.findUnique({
+              where: { id: activeBooking.roomId },
+              select: { roomNumber: true, roomTypeId: true, floor: true, roomType: { select: { wifiPlanId: true } } },
+            });
+            if (room) {
+              resolvedRoomLabel = room.roomNumber || activeBooking.roomNumber || null;
+              if (room.roomType?.wifiPlanId) {
+                resolvedPlanId = room.roomType.wifiPlanId;
+              }
+            }
+          } else if (activeBooking.roomTypeId) {
+            // Direct room type lookup without room assignment
+            const roomType = await db.roomType.findUnique({
+              where: { id: activeBooking.roomTypeId },
+              select: { wifiPlanId: true },
+            });
+            if (roomType?.wifiPlanId) resolvedPlanId = roomType.wifiPlanId;
+            resolvedRoomLabel = activeBooking.roomNumber || null;
+          }
+
+          // Per-email rate limiting
+          const rateKey = `email:${normalizedEmail}`;
+          const rateCheck = checkOtpRateLimit(rateKey);
+          if (!rateCheck.allowed) {
+            return errorResponse(
+              'OTP_RATE_LIMITED',
+              `Too many OTP requests. Please try again in ${rateCheck.retryAfterSec} seconds.`,
+              429,
+            );
+          }
+
+          // Generate and store OTP
+          const code = generateOtp();
+          otpStore.set(`email:${normalizedEmail}`, {
+            code,
+            expiresAt: Date.now() + 5 * 60 * 1000,
+            email: normalizedEmail,
+            guestId: guest.id,
+            roomNumber: resolvedRoomLabel || undefined,
+            planId: resolvedPlanId || undefined,
+            attempts: 0,
+          });
+
+          // ── Send OTP via Email ──
+          let emailSent = false;
+          let emailError: string | undefined;
+
+          try {
+            const property = activeBooking.propertyId
+              ? await db.property.findUnique({ where: { id: activeBooking.propertyId }, select: { name: true, logoUrl: true } })
+              : null;
+            const propertyName = property?.name || 'StaySuite';
+            const guestName = guest.firstName || 'Guest';
+
+            const result = await sendEmailForTenant(tenantId, {
+              to: normalizedEmail,
+              subject: `${propertyName} — Your WiFi Verification Code`,
+              text: `Dear ${guestName},\n\nYour WiFi verification code is: ${code}\n\nThis code expires in 5 minutes. Do not share this code with anyone.\n\nIf you did not request this code, please ignore this email.\n\nWelcome to ${propertyName}!\n`,
+              html: `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;margin:40px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+    <tr><td style="background:#1a1a2e;padding:24px 32px;text-align:center;">
+      <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:600;">${propertyName}</h1>
+    </td></tr>
+    <tr><td style="padding:32px;">
+      <p style="margin:0 0 8px;color:#555;font-size:14px;">Dear ${guestName},</p>
+      <p style="margin:0 0 24px;color:#555;font-size:14px;">Your WiFi verification code is:</p>
+      <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="text-align:center;padding:16px;background:#f0f4ff;border-radius:8px;">
+        <span style="font-size:32px;font-weight:700;letter-spacing:6px;color:#1a1a2e;">${code}</span>
+      </td></tr></table>
+      <p style="margin:16px 0 0;color:#999;font-size:12px;">This code expires in 5 minutes. Do not share this code with anyone.</p>
+      ${resolvedRoomLabel ? `<p style="margin:8px 0 0;color:#999;font-size:12px;">Room: <strong>${resolvedRoomLabel}</strong></p>` : ''}
+    </td></tr>
+    <tr><td style="padding:16px 32px;text-align:center;border-top:1px solid #eee;">
+      <p style="margin:0;color:#bbb;font-size:11px;">If you did not request this code, please ignore this email.</p>
+    </td></tr>
+  </table>
+</body></html>`,
+            });
+            emailSent = result.success;
+            if (!result.success) {
+              emailError = result.error;
+              console.error(`[Email OTP] Failed to send to ${normalizedEmail}: ${emailError}`);
+            } else {
+              console.log(`[Email OTP] Sent via ${result.provider} to ${normalizedEmail} (messageId: ${result.messageId})`);
+            }
+          } catch (err) {
+            emailError = err instanceof Error ? err.message : 'Email delivery failed';
+            console.error(`[Email OTP] Exception sending to ${normalizedEmail}:`, emailError);
+          }
+
+          // Debug logging
+          console.log(`[Email OTP] ═══════════════════════════════════════════════════════`);
+          console.log(`[Email OTP] ★ DEBUG OTP for ${normalizedEmail}: ${code}`);
+          console.log(`[Email OTP]   Guest: ${guest.firstName} ${guest.lastName} (${guest.id})`);
+          console.log(`[Email OTP]   Booking: ${activeBooking.confirmationCode} (${activeBooking.status})`);
+          console.log(`[Email OTP]   Room: ${resolvedRoomLabel || 'N/A'} | Plan: ${resolvedPlanId || 'default'}`);
+          console.log(`[Email OTP]   Expires: 5 min | Email Sent: ${emailSent}`);
+          console.log(`[Email OTP] ═══════════════════════════════════════════════════════`);
+
+          return NextResponse.json({
+            success: true,
+            data: {
+              otpSent: emailSent,
+              message: emailSent
+                ? 'Verification code sent to your email'
+                : 'Code generated but email delivery failed. Please try again.',
+              // Return guest info for frontend display
+              guestName: `${guest.firstName} ${guest.lastName}`,
+              roomNumber: resolvedRoomLabel || undefined,
+              maskedEmail: maskEmailAddr(normalizedEmail),
+              // Only expose OTP in non-production environments for testing
+              ...(process.env.NODE_ENV !== 'production' && { _debugOtp: code }),
+              _emailSent: emailSent,
+              ...(!emailSent && emailError && { _error: emailError }),
             },
           });
         }
