@@ -98,10 +98,10 @@ export async function GET(request: NextRequest) {
     
     if (search) {
       where.OR = [
-        { confirmationCode: { contains: search,  } },
-        { primaryGuest: { firstName: { contains: search,  } } },
-        { primaryGuest: { lastName: { contains: search,  } } },
-        { primaryGuest: { email: { contains: search,  } } },
+        { confirmationCode: { contains: search, mode: 'insensitive' } },
+        { primaryGuest: { firstName: { contains: search, mode: 'insensitive' } } },
+        { primaryGuest: { lastName: { contains: search, mode: 'insensitive' } } },
+        { primaryGuest: { email: { contains: search, mode: 'insensitive' } } },
       ];
     }
     
