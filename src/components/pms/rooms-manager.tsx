@@ -44,6 +44,7 @@ import {
   FileSpreadsheet,
   CheckCircle,
   XCircle,
+  X,
   AlertCircle,
   Image as ImageIcon
 } from 'lucide-react';
@@ -143,6 +144,16 @@ export default function RoomsManager() {
   const [connectionType, setConnectionType] = useState('adjoining');
   const [selectedRoomForConnection, setSelectedRoomForConnection] = useState<string>('');
   const [connectionSaving, setConnectionSaving] = useState(false);
+
+  // Bulk creation state
+  const [createMode, setCreateMode] = useState<'single' | 'bulk'>('single');
+  const [bulkPrefix, setBulkPrefix] = useState('');
+  const [bulkStart, setBulkStart] = useState(1);
+  const [bulkCount, setBulkCount] = useState(1);
+  const [bulkPadding, setBulkPadding] = useState(2);
+  const [bulkFloor, setBulkFloor] = useState(1);
+  const [bulkResult, setBulkResult] = useState<{ created: number; skipped: number; duplicates: number } | null>(null);
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -302,6 +313,90 @@ export default function RoomsManager() {
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Generate bulk room numbers
+  const generateBulkRoomNumbers = (prefix: string, start: number, count: number, padding: number): string[] => {
+    const numbers: string[] = [];
+    for (let i = 0; i < count && i < 200; i++) {
+      const num = start + i;
+      const padded = String(num).padStart(padding, '0');
+      numbers.push(`${prefix}${padded}`);
+    }
+    return numbers;
+  };
+
+  // Handle bulk room creation
+  const handleBulkCreate = async () => {
+    if (!formData.propertyId || !formData.roomTypeId || !bulkPrefix) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in all required fields',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const roomNumbers = generateBulkRoomNumbers(bulkPrefix, bulkStart, bulkCount, bulkPadding);
+    if (roomNumbers.length === 0) return;
+
+    setIsBulkSaving(true);
+    setBulkResult(null);
+    try {
+      const response = await fetch('/api/rooms/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          propertyId: formData.propertyId,
+          roomTypeId: formData.roomTypeId,
+          rooms: roomNumbers.map(num => ({
+            number: num,
+            floor: bulkFloor,
+          })),
+          isAccessible: formData.isAccessible,
+          isSmoking: formData.isSmoking,
+          hasBalcony: formData.hasBalcony,
+          hasSeaView: formData.hasSeaView,
+          hasMountainView: formData.hasMountainView,
+          status: formData.status,
+          digitalKeyEnabled: formData.digitalKeyEnabled,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API error ${response.status}: ${errorText}`);
+      }
+      const result = await response.json();
+
+      if (result.success) {
+        setBulkResult({
+          created: result.data.created,
+          skipped: result.data.skipped,
+          duplicates: result.data.duplicates,
+        });
+        toast({
+          title: 'Bulk Room Creation',
+          description: `${result.data.created} rooms created${result.data.duplicates > 0 ? `, ${result.data.duplicates} skipped (already exist)` : ''}`,
+        });
+        fetchRooms();
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error?.message || 'Failed to create rooms',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error bulk creating rooms:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to create rooms',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBulkSaving(false);
     }
   };
 
@@ -736,6 +831,13 @@ export default function RoomsManager() {
       digitalKeyEnabled: false,
       images: [],
     });
+    setCreateMode('single');
+    setBulkPrefix('');
+    setBulkStart(1);
+    setBulkCount(1);
+    setBulkPadding(2);
+    setBulkFloor(1);
+    setBulkResult(null);
   };
 
   // Filter rooms by search query
@@ -1176,43 +1278,167 @@ export default function RoomsManager() {
       )}
 
       {/* Create Dialog */}
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90dvh] flex flex-col overflow-hidden">
+      <Dialog open={isCreateOpen} onOpenChange={(open) => { setIsCreateOpen(open); if (!open) { setBulkResult(null); setCreateMode('single'); }}}>
+        <DialogContent className="w-[95vw] sm:max-w-xl max-h-[90dvh] flex flex-col overflow-hidden">
           <DialogHeader className="shrink-0">
-            <DialogTitle>Add New Room</DialogTitle>
+            <DialogTitle>Add Room</DialogTitle>
             <DialogDescription>
-              Create a new room
+              Create a single room or bulk add multiple rooms at once
             </DialogDescription>
           </DialogHeader>
+
+          {/* Mode Tabs */}
+          <Tabs value={createMode} onValueChange={(v) => setCreateMode(v as 'single' | 'bulk')} className="shrink-0">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="single">Single Room</TabsTrigger>
+              <TabsTrigger value="bulk">Bulk Rooms</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
           <div className="flex-1 overflow-y-auto">
-            <RoomForm 
+            {/* Common fields - always shown */}
+            <RoomForm
               formData={formData}
               setFormData={setFormData}
               properties={properties}
               roomTypes={roomTypes}
             />
-            {/* Room Images Section */}
-            <div className="space-y-2 pt-4 border-t mt-4">
-              <Label className="flex items-center gap-2">
-                <ImageIcon className="h-4 w-4" />
-                Room Photos
-              </Label>
-              <RoomImageGallery
-                roomId={isCreateOpen ? 'new' : (selectedRoom?.id || '')}
-                images={formData.images}
-                onImagesChange={(images) => setFormData(prev => ({ ...prev, images }))}
-                maxImages={20}
-              />
-            </div>
+
+            {createMode === 'single' ? (
+              /* Single Room: existing room photos section */
+              <>
+                <div className="space-y-2 pt-4 border-t mt-4">
+                  <Label className="flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4" />
+                    Room Photos
+                  </Label>
+                  <RoomImageGallery
+                    roomId="new"
+                    images={formData.images}
+                    onImagesChange={(images) => setFormData(prev => ({ ...prev, images }))}
+                    maxImages={20}
+                  />
+                </div>
+              </>
+            ) : (
+              /* Bulk Room Creation UI */
+              <div className="space-y-4 pt-4 border-t mt-4">
+                {/* Bulk configuration */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="bulkPrefix">Room Number Prefix *</Label>
+                    <Input
+                      id="bulkPrefix"
+                      value={bulkPrefix}
+                      onChange={(e) => setBulkPrefix(e.target.value)}
+                      placeholder="e.g. 10 (for floor 10)"
+                    />
+                    <p className="text-xs text-muted-foreground">Floor number or wing prefix (e.g. &quot;10&quot;, &quot;A&quot;)</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bulkStart">Starting Number *</Label>
+                    <Input
+                      id="bulkStart"
+                      type="number"
+                      min={0}
+                      value={bulkStart}
+                      onChange={(e) => setBulkStart(parseInt(e.target.value) || 1)}
+                      placeholder="e.g. 1"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="bulkCount">Number of Rooms *</Label>
+                    <Input
+                      id="bulkCount"
+                      type="number"
+                      min={1}
+                      max={200}
+                      value={bulkCount}
+                      onChange={(e) => setBulkCount(parseInt(e.target.value) || 1)}
+                      placeholder="e.g. 20"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bulkPadding">Number Padding</Label>
+                    <Select value={String(bulkPadding)} onValueChange={(v) => setBulkPadding(parseInt(v))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">No padding (1, 2, 3...)</SelectItem>
+                        <SelectItem value="2">2 digits (01, 02, 03...)</SelectItem>
+                        <SelectItem value="3">3 digits (001, 002, 003...)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="bulkFloor">Floor (overrides room floor field above)</Label>
+                  <Input
+                    id="bulkFloor"
+                    type="number"
+                    min={1}
+                    value={bulkFloor}
+                    onChange={(e) => setBulkFloor(parseInt(e.target.value) || 1)}
+                  />
+                </div>
+
+                {/* Preview of generated room numbers */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    Room Numbers Preview
+                    <Badge variant="secondary">{generateBulkRoomNumbers(bulkPrefix, bulkStart, bulkCount, bulkPadding).length} rooms</Badge>
+                  </Label>
+                  <div className="p-3 bg-muted rounded-lg max-h-40 overflow-y-auto">
+                    <div className="flex flex-wrap gap-2">
+                      {generateBulkRoomNumbers(bulkPrefix, bulkStart, bulkCount, bulkPadding).map((num, i) => (
+                        <Badge key={i} variant="outline" className="font-mono">{num}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bulk Result */}
+                {bulkResult && (
+                  <div className="space-y-2 p-4 bg-muted rounded-lg">
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="flex items-center gap-1">
+                        <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
+                        {bulkResult.created} created
+                      </span>
+                      {bulkResult.duplicates > 0 && (
+                        <span className="flex items-center gap-1">
+                          <AlertCircle className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                          {bulkResult.duplicates} skipped (already exist)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+            <Button variant="outline" onClick={() => { setIsCreateOpen(false); setBulkResult(null); setCreateMode('single'); }}>
               Cancel
             </Button>
-            <Button onClick={handleCreate} disabled={isSaving}>
-              {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create
-            </Button>
+            {createMode === 'single' ? (
+              <Button onClick={handleCreate} disabled={isSaving}>
+                {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Create Room
+              </Button>
+            ) : (
+              <Button onClick={handleBulkCreate} disabled={isBulkSaving || !bulkPrefix || bulkCount < 1}>
+                {isBulkSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Create {generateBulkRoomNumbers(bulkPrefix, bulkStart, bulkCount, bulkPadding).length} Rooms
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
