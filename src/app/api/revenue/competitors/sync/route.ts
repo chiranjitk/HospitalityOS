@@ -1,70 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import {
+  fetchCompetitorRates,
+  storeFetchedRates,
+  getActiveCompetitors,
+  getCompSetMembers,
+  getFetchStrategy,
+} from '@/lib/revenue/rate-fetcher';
+import { z } from 'zod';
 
-/**
- * Deterministic competitor markup factors keyed by competitor type/URL pattern.
- * These model realistic OTA commission markups and direct-booking discounts
- * so that generated prices are grounded in real rate-plan data rather than random values.
- */
-const COMPETITOR_MARKUP_FACTORS: Record<string, { factor: number; label: string }> = {
-  booking_com:     { factor: 1.15, label: 'Booking.com (+15% commission markup)' },
-  expedia:         { factor: 1.10, label: 'Expedia (+10% commission markup)' },
-  agoda:           { factor: 1.08, label: 'Agoda (+8% commission markup)' },
-  hotels_com:      { factor: 1.12, label: 'Hotels.com (+12% commission markup)' },
-  airbnb:          { factor: 1.05, label: 'Airbnb (+5% service fee impact)' },
-  tripadvisor:     { factor: 1.07, label: 'TripAdvisor (+7% referral markup)' },
-  direct:          { factor: 0.95, label: 'Direct booking (-5% discount)' },
-  corporate:       { factor: 0.90, label: 'Corporate rate (-10% negotiated discount)' },
-  walk_in:         { factor: 1.00, label: 'Walk-in (rack rate, no markup)' },
-};
+/** Whether synthetic demo data is allowed */
+const ALLOW_DEMO_DATA = process.env.COMPETITOR_PRICING_ALLOW_DEMO === 'true';
 
-/** Default markup when no pattern matches */
-const DEFAULT_MARKUP_FACTOR = 1.12;
-
-/**
- * Resolve the appropriate markup factor for a given competitor entry.
- * Tries to match against the competitor name, URL, or type.
- */
-function resolveMarkupFactor(competitor: {
-  competitorName?: string | null;
-  competitorUrl?: string | null;
-  competitorType?: string | null;
-}): number {
-  const haystack = [
-    competitor.competitorName,
-    competitor.competitorUrl,
-    competitor.competitorType,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-
-  for (const [pattern, { factor }] of Object.entries(COMPETITOR_MARKUP_FACTORS)) {
-    if (haystack.includes(pattern)) {
-      return factor;
-    }
-  }
-
-  return DEFAULT_MARKUP_FACTOR;
-}
-
-/**
- * Compute a deterministic daily variation so that the same competitor
- * on the same day always returns the same price, but it varies
- * realistically day-to-day.
- *
- * Uses a simple hash of (competitorName + date) mapped to [-0.05, +0.05].
- */
-function dailyVariation(competitorName: string, dateStr: string): number {
-  let hash = 0;
-  const seed = `${competitorName}:${dateStr}`;
-  for (let i = 0; i < seed.length; i++) {
-    hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
-  }
-  // Map hash to [-0.05, 0.05]
-  return ((hash % 1000) / 1000) * 0.10 - 0.05;
-}
+// Validation schema
+const SyncRequestSchema = z.object({
+  propertyId: z.string().uuid(),
+  competitorNames: z.array(z.string()).optional(),
+  checkIn: z.string().optional(),
+  checkOut: z.string().optional(),
+});
 
 // POST /api/revenue/competitors/sync - Trigger manual competitor price sync
 export async function POST(request: NextRequest) {
@@ -73,19 +28,54 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { propertyId, competitorNames } = body;
+    const parsed = SyncRequestSchema.safeParse(body);
 
-    if (!propertyId) {
-      return NextResponse.json({ error: 'propertyId is required' }, { status: 400 });
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: parsed.error.flatten() },
+        { status: 400 },
+      );
     }
 
-    // Get all tracked competitors for this property
-    const competitors = await db.competitorPrice.findMany({
-      where: {
-        tenantId: user.tenantId,
-        propertyId,
-      },
+    const { propertyId, competitorNames, checkIn, checkOut } = parsed.data;
+
+    // Validate the property belongs to the tenant
+    const property = await db.property.findFirst({
+      where: { id: propertyId, tenantId: user.tenantId },
+      select: { id: true, name: true },
+    });
+
+    if (!property) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+    }
+
+    // Default date range: today + 30 days
+    const today = new Date();
+    const defaultEnd = new Date(today);
+    defaultEnd.setDate(defaultEnd.getDate() + 30);
+
+    const startDate = checkIn ? new Date(checkIn) : today;
+    const endDate = checkOut ? new Date(checkOut) : defaultEnd;
+    const dateRange = { checkIn: startDate, checkOut: endDate };
+
+    // Gather competitors from all sources
+    let competitors = await getActiveCompetitors(user.tenantId, propertyId);
+
+    // Also include compset members
+    const compSetMembers = await getCompSetMembers(user.tenantId, propertyId);
+    const existingNames = new Set(competitors.map(c => c.name));
+    for (const member of compSetMembers) {
+      if (!existingNames.has(member.name)) {
+        competitors.push(member);
+      }
+    }
+
+    // Also check legacy CompetitorPrice entries for competitors not in new tables
+    const legacyCompetitors = await db.competitorPrice.findMany({
+      where: { tenantId: user.tenantId, propertyId },
+      distinct: ['competitorName'],
       select: {
+        id: true,
         competitorName: true,
         competitorType: true,
         competitorUrl: true,
@@ -93,118 +83,99 @@ export async function POST(request: NextRequest) {
         roomTypeName: true,
         rating: true,
       },
-      distinct: ['competitorName'],
     });
-
-    // If specific competitors requested, filter
-    const targets = competitorNames && competitorNames.length > 0
-      ? competitors.filter(c => competitorNames.includes(c.competitorName))
-      : competitors;
-
-    // Fetch real rate plans for deterministic base pricing
-    const ratePlans = await db.ratePlan.findMany({
-      where: { tenantId: user.tenantId, deletedAt: null },
-      select: { basePrice: true, roomTypeId: true },
-    });
-
-    // Compute weighted average base price (weighted by occurrence if multiple plans per room type)
-    const avgBasePrice = ratePlans.length > 0
-      ? ratePlans.reduce((sum, rp) => sum + rp.basePrice, 0) / ratePlans.length
-      : 150; // sensible fallback
-
-    const today = new Date().toISOString().split('T')[0];
-    const syncResults = [];
-
-    for (const competitor of targets) {
-      try {
-        // Determine base price: prefer matching room type, fall back to average
-        let basePrice = avgBasePrice;
-        if (competitor.roomTypeId) {
-          const matchingPlan = ratePlans.find(rp => rp.roomTypeId === competitor.roomTypeId);
-          if (matchingPlan) {
-            basePrice = matchingPlan.basePrice;
-          }
-        }
-
-        // Apply deterministic competitor-specific markup
-        const markupFactor = resolveMarkupFactor(competitor);
-        const variation = dailyVariation(competitor.competitorName, today);
-        const collectedPrice = parseFloat((basePrice * markupFactor * (1 + variation)).toFixed(2));
-
-        // Upsert the competitor price for today
-        await db.competitorPrice.upsert({
-          where: {
-            propertyId_competitorName_date: {
-              propertyId,
-              competitorName: competitor.competitorName,
-              date: new Date(today),
-            },
-          },
-          create: {
-            tenantId: user.tenantId,
-            propertyId,
-            competitorName: competitor.competitorName,
-            competitorType: competitor.competitorType,
-            competitorUrl: competitor.competitorUrl,
-            rating: competitor.rating,
-            date: new Date(today),
-            price: collectedPrice,
-            currency: 'USD',
-            roomTypeId: competitor.roomTypeId,
-            roomTypeName: competitor.roomTypeName,
-            source: 'auto',
-          },
-          update: {
-            price: collectedPrice,
-            source: 'auto',
-          },
-        });
-
-        syncResults.push({
-          competitorName: competitor.competitorName,
-          price: collectedPrice,
-          status: 'success',
-        });
-
-        // Log sync
-        await db.competitorSyncLog.create({
-          data: {
-            tenantId: user.tenantId,
-            propertyId,
-            competitorName: competitor.competitorName,
-            syncType: 'manual',
-            status: 'success',
-            pricesCollected: 1,
-            startedAt: new Date(),
-            completedAt: new Date(),
-          },
-        });
-      } catch (err) {
-        await db.competitorSyncLog.create({
-          data: {
-            tenantId: user.tenantId,
-            propertyId,
-            competitorName: competitor.competitorName,
-            syncType: 'manual',
-            status: 'failed',
-            errorMessage: err instanceof Error ? err.message : 'Unknown error',
-            startedAt: new Date(),
-          },
-        });
-
-        syncResults.push({
-          competitorName: competitor.competitorName,
-          status: 'failed',
+    for (const lc of legacyCompetitors) {
+      if (!existingNames.has(lc.competitorName)) {
+        competitors.push({
+          id: lc.id,
+          tenantId: user.tenantId,
+          name: lc.competitorName,
+          channel: lc.competitorType || 'direct',
+          propertyId: null,
+          url: lc.competitorUrl || null,
+          isActive: true,
         });
       }
     }
 
+    // Filter to specific competitors if requested
+    if (competitorNames && competitorNames.length > 0) {
+      competitors = competitors.filter(c => competitorNames.includes(c.name));
+    }
+
+    if (competitors.length === 0) {
+      return NextResponse.json({
+        success: true,
+        synced: 0,
+        failed: 0,
+        results: [],
+        date: today.toISOString().split('T')[0],
+        message: 'No competitors configured for this property',
+      });
+    }
+
+    // Get active channel connections for strategy reporting
+    const connections = await db.channelConnection.findMany({
+      where: { tenantId: user.tenantId, status: 'active' },
+    });
+
+    // Fetch rates using the unified rate-fetcher service
+    const fetchedRates = await fetchCompetitorRates(
+      user.tenantId,
+      propertyId,
+      competitors,
+      dateRange,
+    );
+
+    // Store results in both RateShoppingResult and CompetitorPrice
+    const summary = await storeFetchedRates(user.tenantId, propertyId, fetchedRates);
+
+    // Log the sync
+    await db.competitorSyncLog.create({
+      data: {
+        tenantId: user.tenantId,
+        propertyId,
+        competitorName: `batch-sync-${competitors.length}-competitors`,
+        syncType: 'manual',
+        status: summary.failed === 0 ? 'success' : 'partial',
+        pricesCollected: summary.total,
+        errorMessage: summary.failed > 0 ? `${summary.failed} rates failed` : null,
+        startedAt: new Date(),
+        completedAt: new Date(),
+      },
+    });
+
+    // Build per-competitor sync results
+    const perCompetitorResults = competitors.map((c) => {
+      const compRates = fetchedRates.filter(r => r.competitorId === c.id);
+      const strategy = getFetchStrategy(c, connections);
+
+      return {
+        competitorName: c.name,
+        channel: c.channel,
+        ratesFetched: compRates.length,
+        strategy,
+        hasRealData: compRates.some(r => r.source === 'real'),
+        hasDemoData: compRates.some(r => r.isDemo),
+        status: compRates.length > 0 ? 'success' : 'no_data',
+      };
+    });
+
     return NextResponse.json({
       success: true,
-      synced: syncResults.filter(r => r.status === 'success').length,
-      failed: syncResults.filter(r => r.status === 'failed').length,
-      results: syncResults,
-      date: today,
+      synced: summary.total,
+      failed: summary.failed,
+      realRates: summary.real,
+      syntheticRates: summary.synthetic,
+      importedRates: summary.imported,
+      results: perCompetitorResults,
+      strategies: summary.strategies,
+      date: today.toISOString().split('T')[0],
+      dateRange: {
+        checkIn: startDate.toISOString().split('T')[0],
+        checkOut: endDate.toISOString().split('T')[0],
+      },
+      allowDemoData: ALLOW_DEMO_DATA,
     });
   } catch (error) {
     console.error('Error syncing competitor prices:', error);

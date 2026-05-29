@@ -1,6 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import {
+  fetchCompetitorRates,
+  storeFetchedRates,
+} from '@/lib/revenue/rate-fetcher';
+import { z } from 'zod';
+
+// Zod schemas for different POST actions
+const CreateCompetitorSchema = z.object({
+  action: z.literal('create').optional(),
+  name: z.string().min(1),
+  channel: z.string().min(1),
+  propertyId: z.string().uuid().optional(),
+  url: z.string().optional(),
+});
+
+const FetchSchema = z.object({
+  action: z.literal('fetch'),
+  competitorId: z.string().uuid(),
+  checkIn: z.string(),
+  checkOut: z.string(),
+  propertyId: z.string().uuid(),
+});
+
+const UpdateCompetitorSchema = z.object({
+  action: z.literal('update').optional(),
+  id: z.string().uuid(),
+  name: z.string().optional(),
+  channel: z.string().optional(),
+  propertyId: z.string().uuid().optional().nullable(),
+  url: z.string().optional().nullable(),
+  isActive: z.boolean().optional(),
+});
 
 // GET /api/revenue/rate-shopping — List competitors + trigger rate comparison summary
 export async function GET(request: NextRequest) {
@@ -52,14 +84,29 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/revenue/rate-shopping — Create competitor
+// POST /api/revenue/rate-shopping — Create competitor OR trigger fetch
 export async function POST(request: NextRequest) {
   try {
     const ctx = await requirePermission(request, 'revenue.manage');
     if (ctx instanceof NextResponse) return ctx;
 
     const body = await request.json();
-    const { name, channel, propertyId, url } = body;
+
+    // Route based on action
+    if (body.action === 'fetch') {
+      return handleFetchAction(ctx.tenantId, body);
+    }
+
+    // Default: create competitor
+    const parsed = CreateCompetitorSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: 'Validation failed', details: parsed.error.flatten() },
+        { status: 400 },
+      );
+    }
+
+    const { name, channel, propertyId, url } = parsed.data;
 
     if (!name || !channel) {
       return NextResponse.json({ success: false, error: 'Name and channel are required' }, { status: 400 });
@@ -77,9 +124,50 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: competitor }, { status: 201 });
   } catch (error) {
-    console.error('Error creating competitor:', error);
-    return NextResponse.json({ success: false, error: 'Failed to create competitor' }, { status: 500 });
+    console.error('Error in POST /api/revenue/rate-shopping:', error);
+    return NextResponse.json({ success: false, error: 'Failed to process request' }, { status: 500 });
   }
+}
+
+/**
+ * Handle the 'fetch' action — fetch rates for a single competitor.
+ */
+async function handleFetchAction(tenantId: string, body: unknown) {
+  const parsed = FetchSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { success: false, error: 'Validation failed', details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  const { competitorId, checkIn, checkOut, propertyId } = parsed.data;
+
+  // Get the competitor
+  const competitor = await db.rateShoppingCompetitor.findFirst({
+    where: { id: competitorId, tenantId },
+  });
+
+  if (!competitor) {
+    return NextResponse.json({ success: false, error: 'Competitor not found' }, { status: 404 });
+  }
+
+  const dateRange = { checkIn: new Date(checkIn), checkOut: new Date(checkOut) };
+
+  // Fetch rates
+  const fetchedRates = await fetchCompetitorRates(tenantId, propertyId, [competitor], dateRange);
+
+  // Store results
+  const summary = await storeFetchedRates(tenantId, propertyId, fetchedRates);
+
+  return NextResponse.json({
+    success: true,
+    data: {
+      competitor: competitor.name,
+      rates: fetchedRates,
+      summary,
+    },
+  });
 }
 
 // DELETE /api/revenue/rate-shopping — Remove competitor
