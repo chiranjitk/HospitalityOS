@@ -63,3 +63,21 @@ Stage Summary:
 - 1 arriving tomorrow: RS-009 (Vikram Singh, room 502)
 - 1 future: RS-005 (Pooja Saha, room 101, Jun 05-08)
 - 1 extended stay: RS-001 (Amit Mukherjee, room 501, checkout May 30)
+
+---
+Task ID: 4
+Agent: Main Fix Agent
+Task: Fix discrepancy between Calendar All Bookings (5) and Frontdesk Checkout (2) views
+
+Work Log:
+- Identified root cause: frontdesk check-out.tsx was filtering by checkIn=today then client-side filtering checkOut=today
+- This double filter only showed same-day stays (checked in AND out today), missing multi-night stays
+- Added checkOutFrom/checkOutTo parameters to GET /api/bookings API route
+- Changed frontdesk checkout page to use checkOutFrom/checkOutTo instead of checkInFrom/checkInTo
+- Removed redundant client-side filter since the API now handles it correctly
+
+Stage Summary:
+- API: Added checkOutFrom + checkOutTo query params to /api/bookings GET endpoint
+- Frontend: check-out.tsx now sends checkOutFrom=today&checkOutTo=today to the API
+- Both views now show the same 5 guests for checkout today
+- No TypeScript errors
