@@ -436,3 +436,48 @@ Stage Summary:
 - L-37 fixed: startup CRON_SECRET production warning with box-art console.error if unset or default
 - L-38 fixed: tenant email verification infrastructure — emailVerified flag, send verification email, verify endpoint
 - Commit: ea4295b8 — pushed to main
+---
+Task ID: L-39, L-40, L-41, L-42, L-43, L-44
+Agent: Fix Agent
+Task: Fix 6 LOW-priority frontend findings — guests search debounce, currency fix, offline queue, analytics ordering, VIP dedup, tax preview
+
+Work Log:
+- L-39: Added 300ms debounce to guests-list search input
+  - Imported useDebounce from existing @/hooks/use-debounce
+  - Added debouncedSearchQuery = useDebounce(searchQuery, 300)
+  - Updated filteredGuests useMemo to depend on debouncedSearchQuery instead of raw searchQuery
+  - Search input still updates instantly for visual feedback, but filtering waits 300ms
+- L-40: Replaced hardcoded INR in 3 POS components with CurrencyContext
+  - offline-mode.tsx: Removed formatAmount with hardcoded Intl.NumberFormat('en-IN', { currency: 'INR' }), replaced with formatCurrency from useCurrency()
+  - offline-pos.tsx: Same fix — replaced formatAmount with formatCurrency from CurrencyContext
+  - digital-menu-boards.tsx: Same fix — replaced formatAmount with formatCurrency from CurrencyContext
+  - All 3 components now respect tenant-configured currency from /api/settings/tax-currency
+- L-41: Fixed filteredQueue always returning empty in offline-mode.tsx
+  - Root cause: filteredQueue useMemo had `return []` hardcoded, ignoring searchQuery and queueFilter
+  - Fixed to properly filter queueItems by status (queueFilter) and order ID search (searchQuery)
+  - Added queueItems to useMemo dependency array so queue data flows through to the filtered view
+- L-42: Fixed analytics topGuests not properly ordered
+  - Root cause: Original query used take(5) BEFORE in-memory sorting by totalSpent, returning an arbitrary 5 guests
+  - Fixed by fetching broader candidate set (take: 50), computing totalSpent from bookings, sorting DESC, and slicing to top 5
+  - Added comment explaining Prisma limitation: cannot orderBy an aggregated relation field
+- L-43: Removed redundant isToday computation in VIP recognition component
+  - Root cause: todaysArrivals.map() recomputed `format(new Date(), 'yyyy-MM-dd')` for every guest card on every render
+  - Since todaysArrivals is already filtered to today's check-ins via useMemo, the isToday check was always true
+  - Removed redundant isToday variable, hardcoded border-emerald-300 class (always applied for today's arrivals)
+- L-44: Fixed tax preview mismatch between frontend and server in POS orders
+  - Root cause: Frontend used flat `subtotal * (taxRate / 100)` while server uses multi-component taxComponents (e.g., CGST + SGST + cess)
+  - Imported useTax from TaxContext and used calculateTax(subtotal, 'food') for both calculateTotal() and editTaxes
+  - TaxContext mirrors server logic: iterates enabled tax rules, handles compound/non-compound taxes
+  - Added Math.round(x * 100) / 100 to match server's rounding behavior
+  - Added detailed comments explaining the reconciliation between frontend preview and server calculation
+- ESLint: 0 new errors introduced (6 pre-existing errors confirmed via git stash test)
+
+Stage Summary:
+- 7 files changed, 73 insertions, 39 deletions
+- L-39 fixed: guests-list search debounced at 300ms using existing useDebounce hook
+- L-40 fixed: 3 POS components use tenant-configured currency instead of hardcoded INR
+- L-41 fixed: offline queue now properly filters by status and search query (was always empty)
+- L-42 fixed: top guests analytics fetches broader set before sorting by totalSpent DESC
+- L-43 fixed: removed redundant per-render isToday check in VIP todaysArrivals map
+- L-44 fixed: tax preview uses TaxContext.calculateTax matching server multi-component tax logic
+- Commit: 43cf4070 — pushed to main
