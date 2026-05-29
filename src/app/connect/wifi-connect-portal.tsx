@@ -3066,6 +3066,14 @@ function PortalContent() {
       return labelMap[method] || method.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     };
 
+    // Determine grid columns based on method count
+    const total = authMethods.length;
+    const gridClass = total <= 3
+      ? 'grid-cols-3'
+      : total <= 6
+        ? 'grid-cols-3'
+        : 'grid-cols-4';
+
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-1.5">
@@ -3082,11 +3090,8 @@ function PortalContent() {
             border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : accent + '15'}`,
           }}
         >
-          {/* Scrollable tab row — hide scrollbar, each tab sizes to content */}
-          <div
-            className="flex gap-1 overflow-x-auto"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          >
+          {/* Grid layout: all tabs visible at once */}
+          <div className={`grid ${gridClass} gap-1`}>
             {authMethods.map((am) => {
               const isActive = effectiveAuthMethod === am.method;
               return (
@@ -3094,7 +3099,7 @@ function PortalContent() {
                   key={am.method}
                   onClick={() => setSelectedMethod(am.method)}
                   className={cn(
-                    'relative shrink-0 flex items-center justify-center gap-2 px-4 h-9 rounded-lg text-sm font-medium whitespace-nowrap cursor-pointer',
+                    'relative flex items-center justify-center gap-1.5 px-2 h-9 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap cursor-pointer',
                     'transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]'
                   )}
                   style={{
