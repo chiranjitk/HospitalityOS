@@ -140,6 +140,7 @@ export async function GET(request: NextRequest) {
           select: {
             vouchers: true,
             sessions: true,
+            wifiUsers: { where: { status: 'active' } },
           },
         },
         fupPolicy: {
@@ -705,6 +706,7 @@ export async function DELETE(request: NextRequest) {
           select: {
             vouchers: true,
             sessions: true,
+            wifiUsers: { where: { status: 'active' } },
           },
         },
       },
@@ -725,8 +727,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Check if plan has active vouchers or sessions
-    if (existingPlan._count.vouchers > 0 || existingPlan._count.sessions > 0) {
+    // Check if plan has active vouchers, sessions, or users
+    if (existingPlan._count.vouchers > 0 || existingPlan._count.sessions > 0 || existingPlan._count.wifiUsers > 0) {
       // Soft delete by setting status to inactive
       const plan = await db.wiFiPlan.update({
         where: { id },
@@ -736,7 +738,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: plan,
-        message: 'WiFi plan deactivated (has associated vouchers/sessions)',
+        message: 'WiFi plan deactivated (has associated vouchers/sessions/users)',
       });
     }
 
