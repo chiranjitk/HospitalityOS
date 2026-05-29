@@ -130,7 +130,7 @@ export default function BulkPriceUpdate() {
           }
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchProperties();
@@ -156,7 +156,7 @@ export default function BulkPriceUpdate() {
           }
         }
       } catch (error) {
-        console.error('Error fetching room types:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchRoomTypes();
@@ -182,7 +182,7 @@ export default function BulkPriceUpdate() {
           }
         }
       } catch (error) {
-        console.error('Error fetching rate plans:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchRatePlans();

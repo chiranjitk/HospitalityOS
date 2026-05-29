@@ -535,7 +535,7 @@ const t = useTranslations('pos');
                             setSelectedOrder(data.data);
                           }
                         })
-                        .catch(() => {});
+                        .catch((error) => { console.error('Context: fetching selected order:', error); });
                     }}
                   />
                 </div>

@@ -119,7 +119,6 @@ export default function OverbookingSettings() {
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         if (error instanceof Error && error.name === 'AbortError') return;
-        console.error('Error fetching properties:', error);
         toast({
           title: 'Error',
           description: 'Failed to fetch properties',
@@ -183,7 +182,6 @@ export default function OverbookingSettings() {
         });
       }
     } catch (error) {
-      console.error('Error updating overbooking settings:', error);
       toast({
         title: 'Error',
         description: 'Failed to update overbooking settings',
@@ -289,7 +287,6 @@ export default function OverbookingSettings() {
         });
       }
     } catch (error) {
-      console.error('Error fetching room types:', error);
     } finally {
       setIsLoading(false);
     }

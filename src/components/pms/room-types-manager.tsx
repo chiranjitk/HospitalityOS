@@ -280,7 +280,7 @@ export default function RoomTypesManager() {
           }
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchProperties();
@@ -300,7 +300,7 @@ export default function RoomTypesManager() {
         setAmenities(result.data);
       }
     } catch (error) {
-      console.error('Error fetching amenities:', error);
+      console.error('Operation failed:', error);
     }
   };
 
@@ -325,7 +325,7 @@ export default function RoomTypesManager() {
           setWifiPlans(result.data);
         }
       } catch (error) {
-        console.error('Error fetching WiFi plans:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchWifiPlans();
@@ -350,7 +350,6 @@ export default function RoomTypesManager() {
         setRoomTypes(result.data);
       }
     } catch (error) {
-      console.error('Error fetching room types:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch room types',
@@ -460,7 +459,6 @@ export default function RoomTypesManager() {
         });
       }
     } catch (error) {
-      console.error('Error creating room type:', error);
       toast({
         title: 'Error',
         description: 'Failed to create room type',
@@ -523,7 +521,6 @@ export default function RoomTypesManager() {
         });
       }
     } catch (error) {
-      console.error('Error updating room type:', error);
       toast({
         title: 'Error',
         description: 'Failed to update room type',
@@ -564,7 +561,6 @@ export default function RoomTypesManager() {
         });
       }
     } catch (error) {
-      console.error('Error deleting room type:', error);
       toast({
         title: 'Error',
         description: 'Failed to delete room type',
@@ -718,7 +714,6 @@ export default function RoomTypesManager() {
             failed++;
           }
         } catch (e) {
-          console.error('Failed to import item:', e);
           failed++;
         }
       }
@@ -734,7 +729,6 @@ export default function RoomTypesManager() {
       });
       fetchRoomTypes();
     } catch (error) {
-      console.error('Import error:', error);
       toast({ 
         title: 'Import Failed', 
         description: 'Invalid file format. Please check the file structure.', 
@@ -1819,7 +1813,7 @@ function AmenityManager({ amenities, onRefresh }: AmenityManagerProps) {
         onRefresh();
       }
     } catch (error) {
-      console.error('Error toggling amenity:', error);
+      console.error('Operation failed:', error);
     }
   };
 

@@ -274,7 +274,6 @@ export function AuditLogsViewer() {
       const data = await response.json();
       if (data.success) setStats(data.data);
     } catch {
-      console.error('Failed to fetch stats');
       toast.error('Failed to load statistics');
     } finally {
       setStatsLoading(false);
@@ -319,7 +318,6 @@ export function AuditLogsViewer() {
       a.click();
       window.URL.revokeObjectURL(url);
     } catch {
-      console.error('Export failed');
       toast.error('Export failed. Please try again.');
     }
   };

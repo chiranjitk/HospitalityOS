@@ -264,7 +264,6 @@ export default function SpaWellness() {
       // Store full revenue period stats
       if (revenueStats) setApiRevenueStats(revenueStats);
     } catch (err) {
-      console.error('Error fetching spa data:', err);
       setSpaError(err instanceof Error ? err.message : 'Failed to load spa data');
     } finally {
       setSpaLoading(false);

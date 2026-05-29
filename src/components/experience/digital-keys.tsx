@@ -86,7 +86,7 @@ export default function DigitalKeys() {
           setProperties(result.data);
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchProperties();
@@ -115,7 +115,6 @@ export default function DigitalKeys() {
         throw new Error(result.error?.message || 'Failed to fetch digital keys');
       }
     } catch (error) {
-      console.error('Error fetching digital keys:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch digital keys',
@@ -162,7 +161,6 @@ export default function DigitalKeys() {
         throw new Error(result.error?.message || 'Failed to update key');
       }
     } catch (error) {
-      console.error('Error updating key:', error);
       toast({
         title: 'Error',
         description: 'Failed to update key status',
@@ -212,7 +210,6 @@ export default function DigitalKeys() {
         throw new Error(result.error?.message || 'Failed to regenerate key');
       }
     } catch (error) {
-      console.error('Error regenerating key:', error);
       toast({
         title: 'Error',
         description: 'Failed to regenerate key',

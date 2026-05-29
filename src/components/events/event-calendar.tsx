@@ -198,7 +198,7 @@ export default function EventCalendar() {
         setProperties(data.properties || []);
       }
     } catch (error) {
-      console.error('Error fetching properties:', error);
+      console.error('Operation failed:', error);
     }
   };
 
@@ -210,7 +210,7 @@ export default function EventCalendar() {
         setSpaces(data.spaces || []);
       }
     } catch (error) {
-      console.error('Error fetching spaces:', error);
+      console.error('Operation failed:', error);
     }
   };
 
@@ -231,7 +231,6 @@ export default function EventCalendar() {
         total: 0, inquiry: 0, confirmed: 0, in_progress: 0, completed: 0, cancelled: 0, upcoming: 0, totalRevenue: 0
       });
     } catch (error) {
-      console.error('Error fetching events:', error);
       toast.error('Failed to load events');
     } finally {
       setLoading(false);
@@ -253,7 +252,6 @@ export default function EventCalendar() {
       const data = await response.json();
       return data.conflicts || [];
     } catch (error) {
-      console.error('Error checking conflicts:', error);
       return [];
     }
   };
@@ -335,7 +333,6 @@ export default function EventCalendar() {
         toast.error('Failed to reschedule event');
       }
     } catch (error) {
-      console.error('Error rescheduling event:', error);
       toast.error('Failed to reschedule event');
     } finally {
       setIsRescheduling(false);

@@ -590,7 +590,6 @@ export function KPICards() {
   // Handle real-time dashboard updates
   const handleDashboardUpdate = useCallback((event: DashboardUpdateEvent) => {
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[KPICards] Received dashboard update:', event.type);
     }
     if (event.type === 'stats') {
       fetchStats();

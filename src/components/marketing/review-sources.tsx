@@ -147,7 +147,6 @@ export default function ReviewSources() {
         setSources([]);
       }
     } catch (error) {
-      console.error('Error fetching sources:', error);
       toast.error('Failed to load review sources');
       setSources([]);
     } finally {
@@ -201,7 +200,6 @@ export default function ReviewSources() {
       setAddDialog(false);
       resetForm();
     } catch (error) {
-      console.error('Error connecting source:', error);
       toast.error('Failed to connect review source');
     } finally {
       setSubmitting(false);
@@ -242,7 +240,6 @@ export default function ReviewSources() {
 
       toast.success(`Sync ${enabled ? 'enabled' : 'disabled'}`);
     } catch (error) {
-      console.error('Error toggling sync:', error);
       toast.error('Failed to update sync setting');
     }
   };
@@ -276,7 +273,6 @@ export default function ReviewSources() {
       
       toast.success('Sync completed successfully');
     } catch (error) {
-      console.error('Error syncing source:', error);
       toast.error('Sync failed. Please try again.');
     }
   };
@@ -300,7 +296,6 @@ export default function ReviewSources() {
       toast.success('Review source disconnected');
       setConfigDialog(false);
     } catch (error) {
-      console.error('Error disconnecting source:', error);
       toast.error('Failed to disconnect source');
     }
   };

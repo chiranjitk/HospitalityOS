@@ -227,7 +227,7 @@ export function BookingCalendar() {
           }
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchProperties();
@@ -258,7 +258,7 @@ export function BookingCalendar() {
           }
         }
       } catch (error) {
-        console.error('Error fetching room types:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchRoomTypes();
@@ -281,7 +281,7 @@ export function BookingCalendar() {
           });
         }
       } catch (error) {
-        console.error('Error fetching guests:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchGuests();
@@ -345,7 +345,6 @@ export function BookingCalendar() {
         if (process.env.NODE_ENV !== 'production') { console.log('Availability API not available, using booking data'); }
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -563,7 +562,6 @@ export function BookingCalendar() {
           });
         }
       } catch (error) {
-        console.error('Error moving booking:', error);
         toast({
           title: 'Error',
           description: 'Failed to move booking',
@@ -599,7 +597,6 @@ export function BookingCalendar() {
           });
         }
       } catch (error) {
-        console.error('Error resizing booking:', error);
         toast({
           title: 'Error',
           description: 'Failed to resize booking',
@@ -725,7 +722,6 @@ export function BookingCalendar() {
         });
       }
     } catch (error) {
-      console.error('Error creating booking:', error);
       toast({
         title: 'Error',
         description: 'Failed to create booking',

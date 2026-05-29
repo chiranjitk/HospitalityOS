@@ -114,7 +114,6 @@ export default function ReputationDashboard() {
       const result = await response.json();
       setData(result);
     } catch (error) {
-      console.error('Error fetching reviews:', error);
       toast.error('Failed to load reviews');
     } finally {
       setLoading(false);
@@ -148,7 +147,6 @@ export default function ReputationDashboard() {
       setResponseText('');
       fetchReviews();
     } catch (error) {
-      console.error('Error responding to review:', error);
       toast.error('Failed to submit response');
     } finally {
       setSubmitting(false);

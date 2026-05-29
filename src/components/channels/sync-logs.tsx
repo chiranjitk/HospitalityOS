@@ -73,7 +73,6 @@ export default function SyncLogs() {
         toast.error('Failed to load sync logs');
       }
     } catch (error) {
-      console.error('Error fetching sync logs:', error);
       toast.error('Failed to load sync logs');
     } finally {
       setLoading(false);

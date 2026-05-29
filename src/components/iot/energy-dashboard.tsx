@@ -118,7 +118,6 @@ export default function EnergyDashboard() {
         setData(energyData);
       }
     } catch (error) {
-      console.error('Error fetching energy data:', error);
       toast.error('Failed to fetch energy data');
     } finally {
       setLoading(false);

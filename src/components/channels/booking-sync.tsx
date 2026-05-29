@@ -88,7 +88,6 @@ export default function BookingSync() {
         toast.error('Failed to load booking sync status');
       }
     } catch (error) {
-      console.error('Error fetching booking sync:', error);
       toast.error('Failed to load booking sync status');
     } finally {
       setLoading(false);

@@ -58,6 +58,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface RevenueAccount {
   id: string;
@@ -114,6 +115,7 @@ const TAX_TREATMENTS = [
 
 export default function PostingRules() {
   const { toast } = useToast();
+  const t = useTranslations('billing');
   const [rules, setRules] = useState<PostingRule[]>([]);
   const [accounts, setAccounts] = useState<RevenueAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -162,7 +164,7 @@ export default function PostingRules() {
       if (rulesResult.success) setRules(rulesResult.data || []);
       if (accountsResult.success) setAccounts(accountsResult.data || []);
     } catch {
-      toast({ title: 'Error', description: 'Failed to load data', variant: 'destructive' });
+      toast({ title: t('prError'), description: t('prFailedToLoadData'), variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -178,7 +180,7 @@ export default function PostingRules() {
   // Create/Update Rule
   const handleSaveRule = async () => {
     if (!ruleForm.name || !ruleForm.chargeType || !ruleForm.revenueAccountId) {
-      toast({ title: 'Validation Error', description: 'Name, charge type, and revenue account are required', variant: 'destructive' });
+      toast({ title: t('prValidationError'), description: t('prRuleFieldsRequired'), variant: 'destructive' });
       return;
     }
     setIsSaving(true);
@@ -196,14 +198,14 @@ export default function PostingRules() {
       });
       const result = await res.json();
       if (result.success) {
-        toast({ title: 'Success', description: isEditing ? 'Rule updated' : 'Rule created' });
+        toast({ title: t('prSuccess'), description: isEditing ? t('prRuleUpdated') : t('prRuleCreated') });
         closeRuleDialog();
         fetchData();
       } else {
-        toast({ title: 'Error', description: result.error?.message || 'Failed to save rule', variant: 'destructive' });
+        toast({ title: t('prError'), description: result.error?.message || t('prFailedToSaveRule'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to save rule', variant: 'destructive' });
+      toast({ title: t('prError'), description: t('prFailedToSaveRule'), variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -212,7 +214,7 @@ export default function PostingRules() {
   // Create Account
   const handleSaveAccount = async () => {
     if (!accountForm.code || !accountForm.name) {
-      toast({ title: 'Validation Error', description: 'Code and name are required', variant: 'destructive' });
+      toast({ title: t('prValidationError'), description: t('prCodeAndNameRequired'), variant: 'destructive' });
       return;
     }
     setIsSaving(true);
@@ -224,15 +226,15 @@ export default function PostingRules() {
       });
       const result = await res.json();
       if (result.success) {
-        toast({ title: 'Success', description: 'Account created' });
+        toast({ title: t('prSuccess'), description: t('prAccountCreated') });
         setIsAccountDialogOpen(false);
         resetAccountForm();
         fetchData();
       } else {
-        toast({ title: 'Error', description: result.error?.message || 'Failed to create account', variant: 'destructive' });
+        toast({ title: t('prError'), description: result.error?.message || t('prFailedToCreateAccount'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to create account', variant: 'destructive' });
+      toast({ title: t('prError'), description: t('prFailedToCreateAccount'), variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -250,10 +252,10 @@ export default function PostingRules() {
       if (result.success) {
         fetchData();
       } else {
-        toast({ title: 'Error', description: 'Failed to toggle auto-post', variant: 'destructive' });
+        toast({ title: t('prError'), description: t('prFailedToToggleAutoPost'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to toggle auto-post', variant: 'destructive' });
+      toast({ title: t('prError'), description: t('prFailedToToggleAutoPost'), variant: 'destructive' });
     }
   };
 
@@ -269,10 +271,10 @@ export default function PostingRules() {
       if (result.success) {
         fetchData();
       } else {
-        toast({ title: 'Error', description: 'Failed to update status', variant: 'destructive' });
+        toast({ title: t('prError'), description: t('prFailedToUpdateStatus'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to update status', variant: 'destructive' });
+      toast({ title: t('prError'), description: t('prFailedToUpdateStatus'), variant: 'destructive' });
     }
   };
 
@@ -343,26 +345,26 @@ export default function PostingRules() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Settings className="h-5 w-5" />
-            Posting Rules
+            {t('prTitle')}
           </h2>
           <p className="text-sm text-muted-foreground">
-            Configure charge posting rules and revenue accounts
+            {t('prDescription')}
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={fetchData}>
             <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+            {t('prRefresh')}
           </Button>
           {activeTab === 'rules' ? (
             <Button onClick={() => { resetRuleForm(); setIsEditing(false); setIsRuleDialogOpen(true); }}>
               <Plus className="h-4 w-4 mr-2" />
-              Add Rule
+              {t('prAddRule')}
             </Button>
           ) : (
             <Button onClick={() => { resetAccountForm(); setIsAccountDialogOpen(true); }}>
               <Plus className="h-4 w-4 mr-2" />
-              Add Account
+              {t('prAddAccount')}
             </Button>
           )}
         </div>
@@ -377,7 +379,7 @@ export default function PostingRules() {
             </div>
             <div>
               <div className="text-2xl font-bold">{stats.totalRules}</div>
-              <div className="text-xs text-muted-foreground">Total Rules</div>
+              <div className="text-xs text-muted-foreground">{t('prTotalRules')}</div>
             </div>
           </div>
         </Card>
@@ -388,7 +390,7 @@ export default function PostingRules() {
             </div>
             <div>
               <div className="text-2xl font-bold">{stats.activeRules}</div>
-              <div className="text-xs text-muted-foreground">Active Rules</div>
+              <div className="text-xs text-muted-foreground">{t('prActiveRules')}</div>
             </div>
           </div>
         </Card>
@@ -399,7 +401,7 @@ export default function PostingRules() {
             </div>
             <div>
               <div className="text-2xl font-bold">{stats.autoPostRules}</div>
-              <div className="text-xs text-muted-foreground">Auto-Post</div>
+              <div className="text-xs text-muted-foreground">{t('prAutoPostStat')}</div>
             </div>
           </div>
         </Card>
@@ -410,7 +412,7 @@ export default function PostingRules() {
             </div>
             <div>
               <div className="text-2xl font-bold">{stats.totalAccounts}</div>
-              <div className="text-xs text-muted-foreground">Accounts</div>
+              <div className="text-xs text-muted-foreground">{t('prAccounts')}</div>
             </div>
           </div>
         </Card>
@@ -422,7 +424,7 @@ export default function PostingRules() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder={activeTab === 'rules' ? 'Search rules...' : 'Search accounts...'}
+              placeholder={activeTab === 'rules' ? t('prSearchRules') : t('prSearchAccounts')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
@@ -436,11 +438,11 @@ export default function PostingRules() {
         <TabsList>
           <TabsTrigger value="rules">
             <FileText className="h-4 w-4 mr-1.5" />
-            Posting Rules
+            {t('prTabRules')}
           </TabsTrigger>
           <TabsTrigger value="accounts">
             <BookOpen className="h-4 w-4 mr-1.5" />
-            Revenue Accounts
+            {t('prTabAccounts')}
           </TabsTrigger>
         </TabsList>
 
@@ -455,22 +457,22 @@ export default function PostingRules() {
               ) : filteredRules.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                   <Layers className="h-12 w-12 mb-4" />
-                  <p>No posting rules found</p>
-                  <p className="text-sm mt-1">Create a rule to get started</p>
+                  <p>{t('prNoRulesFound')}</p>
+                  <p className="text-sm mt-1">{t('prCreateRuleToStart')}</p>
                 </div>
               ) : (
                 <ScrollArea className="max-h-[500px]">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Rule Name</TableHead>
-                        <TableHead>Charge Category</TableHead>
-                        <TableHead>Charge Type</TableHead>
-                        <TableHead>Revenue Account</TableHead>
-                        <TableHead>Tax</TableHead>
-                        <TableHead>Auto-Post</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead>{t('prHeaderRuleName')}</TableHead>
+                        <TableHead>{t('prHeaderChargeCategory')}</TableHead>
+                        <TableHead>{t('prHeaderChargeType')}</TableHead>
+                        <TableHead>{t('prHeaderRevenueAccount')}</TableHead>
+                        <TableHead>{t('prHeaderTax')}</TableHead>
+                        <TableHead>{t('prHeaderAutoPost')}</TableHead>
+                        <TableHead>{t('prHeaderStatus')}</TableHead>
+                        <TableHead className="text-right">{t('prHeaderActions')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -501,7 +503,7 @@ export default function PostingRules() {
                                   <span className="text-sm">{rule.revenueAccount.name}</span>
                                 </>
                               ) : (
-                                <span className="text-sm text-muted-foreground">Not assigned</span>
+                                <span className="text-sm text-muted-foreground">{t('prNotAssigned')}</span>
                               )}
                             </div>
                           </TableCell>
@@ -532,7 +534,7 @@ export default function PostingRules() {
                           <TableCell className="text-right">
                             <Button variant="ghost" size="sm" onClick={() => openEditRule(rule)}>
                               <Pencil className="h-3 w-3 mr-1" />
-                              Edit
+                              {t('prEdit')}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -556,19 +558,19 @@ export default function PostingRules() {
               ) : filteredAccounts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                   <BookOpen className="h-12 w-12 mb-4" />
-                  <p>No revenue accounts found</p>
-                  <p className="text-sm mt-1">Add an account to get started</p>
+                  <p>{t('prNoAccountsFound')}</p>
+                  <p className="text-sm mt-1">{t('prCreateAccountToStart')}</p>
                 </div>
               ) : (
                 <ScrollArea className="max-h-[500px]">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Code</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>{t('prHeaderCode')}</TableHead>
+                        <TableHead>{t('prHeaderName')}</TableHead>
+                        <TableHead>{t('prHeaderType')}</TableHead>
+                        <TableHead>{t('prHeaderAccountCategory')}</TableHead>
+                        <TableHead>{t('prHeaderStatus')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -615,26 +617,26 @@ export default function PostingRules() {
       <Dialog open={isRuleDialogOpen} onOpenChange={closeRuleDialog}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{isEditing ? 'Edit Posting Rule' : 'Add Posting Rule'}</DialogTitle>
+            <DialogTitle>{isEditing ? t('prEditRuleTitle') : t('prAddRuleTitle')}</DialogTitle>
             <DialogDescription>
-              {isEditing ? 'Modify the posting rule configuration' : 'Create a new charge posting rule'}
+              {isEditing ? t('prEditRuleDesc') : t('prAddRuleDesc')}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
             <div className="space-y-2">
-              <Label htmlFor="ruleName">Rule Name *</Label>
+              <Label htmlFor="ruleName">{t('prLabelRuleName')}</Label>
               <Input
                 id="ruleName"
-                placeholder="e.g., Standard Room Rate"
+                placeholder={t('prPlaceholderRuleName')}
                 value={ruleForm.name}
                 onChange={(e) => setRuleForm(prev => ({ ...prev, name: e.target.value }))}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="ruleDescription">Description</Label>
+              <Label htmlFor="ruleDescription">{t('prLabelDescription')}</Label>
               <Textarea
-                placeholder="Optional description..."
+                placeholder={t('prPlaceholderDescription')}
                 value={ruleForm.description}
                 onChange={(e) => setRuleForm(prev => ({ ...prev, description: e.target.value }))}
                 rows={2}
@@ -643,13 +645,13 @@ export default function PostingRules() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="chargeCategory">Charge Category *</Label>
+                <Label htmlFor="chargeCategory">{t('prLabelChargeCategory')}</Label>
                 <Select
                   value={ruleForm.chargeCategory}
                   onValueChange={(value) => setRuleForm(prev => ({ ...prev, chargeCategory: value }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
+                    <SelectValue placeholder={t('prPlaceholderChargeCategory')} />
                   </SelectTrigger>
                   <SelectContent>
                     {CHARGE_CATEGORIES.map(cat => (
@@ -659,10 +661,10 @@ export default function PostingRules() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="chargeType">Charge Type *</Label>
+                <Label htmlFor="chargeType">{t('prLabelChargeType')}</Label>
                 <Input
                   id="chargeType"
-                  placeholder="e.g., standard, premium"
+                  placeholder={t('prPlaceholderChargeType')}
                   value={ruleForm.chargeType}
                   onChange={(e) => setRuleForm(prev => ({ ...prev, chargeType: e.target.value }))}
                 />
@@ -670,13 +672,13 @@ export default function PostingRules() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="revenueAccountId">Revenue Account *</Label>
+              <Label htmlFor="revenueAccountId">{t('prLabelRevenueAccount')}</Label>
               <Select
                 value={ruleForm.revenueAccountId}
                 onValueChange={(value) => setRuleForm(prev => ({ ...prev, revenueAccountId: value }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select account" />
+                  <SelectValue placeholder={t('prPlaceholderRevenueAccount')} />
                 </SelectTrigger>
                 <SelectContent>
                   {accounts.filter(a => a.status === 'active').map(account => (
@@ -689,7 +691,7 @@ export default function PostingRules() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="taxTreatment">Tax Treatment</Label>
+              <Label htmlFor="taxTreatment">{t('prLabelTaxTreatment')}</Label>
               <Select
                 value={ruleForm.taxTreatment}
                 onValueChange={(value) => setRuleForm(prev => ({ ...prev, taxTreatment: value }))}
@@ -707,8 +709,8 @@ export default function PostingRules() {
 
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div className="space-y-0.5">
-                <Label>Auto-Post</Label>
-                <p className="text-xs text-muted-foreground">Automatically post charges to folios</p>
+                <Label>{t('prLabelAutoPost')}</Label>
+                <p className="text-xs text-muted-foreground">{t('prAutoPostDesc')}</p>
               </div>
               <Switch
                 checked={ruleForm.autoPost}
@@ -717,7 +719,7 @@ export default function PostingRules() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="conditions">Conditions (JSON)</Label>
+              <Label htmlFor="conditions">{t('prLabelConditions')}</Label>
               <Textarea
                 placeholder='{"roomType": "standard", "minStay": 1}'
                 value={ruleForm.conditions}
@@ -728,10 +730,10 @@ export default function PostingRules() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={closeRuleDialog}>Cancel</Button>
+            <Button variant="outline" onClick={closeRuleDialog}>{t('prCancel')}</Button>
             <Button onClick={handleSaveRule} disabled={isSaving}>
               {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {isEditing ? 'Update Rule' : 'Create Rule'}
+              {isEditing ? t('prUpdateRule') : t('prCreateRule')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -741,24 +743,24 @@ export default function PostingRules() {
       <Dialog open={isAccountDialogOpen} onOpenChange={setIsAccountDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Revenue Account</DialogTitle>
+            <DialogTitle>{t('prAddAccountTitle')}</DialogTitle>
             <DialogDescription>
-              Create a new account in the chart of accounts
+              {t('prAddAccountDesc')}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="accountCode">Account Code *</Label>
+                <Label htmlFor="accountCode">{t('prLabelAccountCode')}</Label>
                 <Input
                   id="accountCode"
-                  placeholder="e.g., 4100"
+                  placeholder={t('prPlaceholderAccountCode')}
                   value={accountForm.code}
                   onChange={(e) => setAccountForm(prev => ({ ...prev, code: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="accountType">Account Type *</Label>
+                <Label htmlFor="accountType">{t('prLabelAccountType')}</Label>
                 <Select
                   value={accountForm.type}
                   onValueChange={(value) => setAccountForm(prev => ({ ...prev, type: value as 'revenue' | 'expense' | 'liability' | 'asset' }))}
@@ -775,27 +777,27 @@ export default function PostingRules() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="accountName">Account Name *</Label>
+              <Label htmlFor="accountName">{t('prLabelAccountName')}</Label>
               <Input
                 id="accountName"
-                placeholder="e.g., Room Revenue"
+                placeholder={t('prPlaceholderAccountName')}
                 value={accountForm.name}
                 onChange={(e) => setAccountForm(prev => ({ ...prev, name: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="accountCategory">Category</Label>
+              <Label htmlFor="accountCategory">{t('prLabelCategory')}</Label>
               <Input
                 id="accountCategory"
-                placeholder="e.g., Operating Revenue"
+                placeholder={t('prPlaceholderCategory')}
                 value={accountForm.category}
                 onChange={(e) => setAccountForm(prev => ({ ...prev, category: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="accountDescription">Description</Label>
+              <Label htmlFor="accountDescription">{t('prLabelAccountDescription')}</Label>
               <Textarea
-                placeholder="Optional..."
+                placeholder={t('prPlaceholderOptional')}
                 value={accountForm.description}
                 onChange={(e) => setAccountForm(prev => ({ ...prev, description: e.target.value }))}
                 rows={2}
@@ -803,10 +805,10 @@ export default function PostingRules() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAccountDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setIsAccountDialogOpen(false)}>{t('prCancel')}</Button>
             <Button onClick={handleSaveAccount} disabled={isSaving}>
               {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create Account
+              {t('prCreateAccount')}
             </Button>
           </DialogFooter>
         </DialogContent>

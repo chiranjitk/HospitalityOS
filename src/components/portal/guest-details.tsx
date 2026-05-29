@@ -129,7 +129,6 @@ export function GuestDetails({ token, guest, isComplete, onUpdate, onComplete }:
         });
       }
     } catch (error) {
-      console.error('Error updating guest details:', error);
       toast({
         title: 'Error',
         description: 'Failed to update guest details',

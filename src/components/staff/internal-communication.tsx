@@ -199,7 +199,6 @@ export default function InternalCommunication() {
           setChannels(channelsData.channels || []);
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
         toast.error('Failed to load communication data');
       } finally {
         setIsLoading(false);
@@ -221,7 +220,7 @@ export default function InternalCommunication() {
           setMessages(data.messages || []);
         }
       } catch (error) {
-        console.error('Error fetching messages:', error);
+        console.error('Operation failed:', error);
       }
     };
 

@@ -124,7 +124,6 @@ export function WiFiUsersManagement() {
         setUsers(data.data || []);
       }
     } catch (error) {
-      console.error('Error fetching users:', error);
       toast.error('Failed to fetch WiFi users');
     } finally {
       setLoading(false);
@@ -162,7 +161,6 @@ export function WiFiUsersManagement() {
         toast.error(data.error || 'Failed to provision user');
       }
     } catch (error) {
-      console.error('Error provisioning user:', error);
       toast.error('Failed to provision WiFi user');
     }
   };

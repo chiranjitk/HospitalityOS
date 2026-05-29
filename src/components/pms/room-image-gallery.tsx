@@ -402,7 +402,6 @@ export function RoomImageGallery({
               return m;
             });
           } catch (err) {
-            console.error('Upload error for', file.name, err);
             toast({
               title: 'Upload failed',
               description: `Failed to upload ${file.name}`,

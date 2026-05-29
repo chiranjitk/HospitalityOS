@@ -58,7 +58,7 @@ const t = useTranslations('pos');
       const res = await fetch('/api/receipt-templates');
       const data = await res.json();
       if (data.success && data.data) setTemplate(data.data);
-    } catch {} finally { setLoading(false); }
+    } catch (error) { console.error('Context: fetching receipt template:', error); } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { fetchTemplate(); }, [fetchTemplate]);

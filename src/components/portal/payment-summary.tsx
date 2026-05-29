@@ -91,7 +91,6 @@ export function PaymentSummary({
         description: 'Payment gateway integration would redirect here',
       });
     } catch (error) {
-      console.error('Payment error:', error);
       toast({
         title: 'Error',
         description: 'Failed to process payment',

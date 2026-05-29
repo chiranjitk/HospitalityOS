@@ -300,7 +300,6 @@ export default function BookingStatusTimeline({
           setAuditMap(map);
         }
       } catch (error) {
-        console.error('Error fetching audit logs for timeline:', error);
       } finally {
         if (!cancelled) setIsLoadingLogs(false);
       }

@@ -24,10 +24,10 @@ export function DashboardHeader({ onRefresh, isRefreshing, lastUpdated }: Dashbo
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().catch((error) => { console.error('Context: requesting fullscreen:', error); });
       setIsFullscreen(true);
     } else {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch((error) => { console.error('Context: exiting fullscreen:', error); });
       setIsFullscreen(false);
     }
   }, []);

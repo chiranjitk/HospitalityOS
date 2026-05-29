@@ -133,7 +133,6 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
         }
       }
     } catch (error) {
-      console.error('Error fetching rooms:', error);
       toast.error('Failed to fetch rooms');
     } finally {
       setLoading(false);
@@ -160,7 +159,6 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
         setLastUpdated(new Date());
       }
     } catch (error) {
-      console.error('Error fetching realtime states:', error);
     } finally {
       setRefreshing(false);
     }
@@ -254,7 +252,6 @@ export default function RoomControls({ roomId }: RoomControlsProps) {
         toast.error('Failed to send command');
       }
     } catch (error) {
-      console.error('Error sending command:', error);
       toast.error('Failed to send command');
     } finally {
       setControlling(null);

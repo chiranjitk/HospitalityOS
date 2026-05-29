@@ -293,7 +293,6 @@ export default function CurrencyConfig() {
         setStats(data.stats);
       }
     } catch (error) {
-      console.error('Error fetching currency configs:', error);
       toast.error('Failed to load currency configurations');
     } finally {
       setLoading(false);

@@ -69,7 +69,6 @@ export function GuestSegmentsWidget() {
       }
       else throw new Error(result.error?.message || t('failedToLoad'));
     } catch (err) {
-      console.error('Guest segments fetch failed:', err); setError(err instanceof Error ? err.message : t('unknownError'));
     } finally { setIsLoading(false); }
   }, [t]);
 

@@ -149,7 +149,6 @@ export default function PerformanceTracking() {
         toast.error('Failed to load performance data');
       }
     } catch (error) {
-      console.error('Error fetching performance:', error);
       toast.error('Failed to load performance data');
     } finally {
       setLoading(false);

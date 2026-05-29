@@ -298,7 +298,6 @@ export function ChannelPromoCodes() {
       }
       if (connData.success) setConnections(connData.data || []);
     } catch (err) {
-      console.error('Error fetching data:', err);
       toast.error('Failed to load promo codes');
     } finally {
       setLoading(false);

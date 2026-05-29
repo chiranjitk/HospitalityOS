@@ -127,7 +127,6 @@ export default function CRS() {
         toast.error('Failed to load CRS data');
       }
     } catch (error) {
-      console.error('Error fetching CRS data:', error);
       toast.error('Failed to load CRS data');
     } finally {
       setLoading(false);

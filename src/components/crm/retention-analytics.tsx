@@ -347,7 +347,6 @@ export default function RetentionAnalytics() {
         setInsightData(insights);
       }
     } catch (error) {
-      console.error('Error fetching analytics:', error);
       toast.error('Failed to fetch analytics');
     } finally {
       setLoading(false);

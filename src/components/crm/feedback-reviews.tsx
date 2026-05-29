@@ -147,7 +147,6 @@ export default function FeedbackReviews() {
         setFeedbackStats(feedbackData.data.stats);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
       toast.error('Failed to fetch data');
     } finally {
       setLoading(false);

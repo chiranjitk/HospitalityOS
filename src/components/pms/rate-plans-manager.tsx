@@ -192,7 +192,7 @@ export function RatePlansManager() {
           setProperties(result.data);
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchProperties();
@@ -221,7 +221,7 @@ export function RatePlansManager() {
           }
         }
       } catch (error) {
-        console.error('Error fetching room types:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchRoomTypes();
@@ -251,7 +251,6 @@ export function RatePlansManager() {
         setRatePlans(result.data);
       }
     } catch (error) {
-      console.error('Error fetching rate plans:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch rate plans',
@@ -345,7 +344,6 @@ export function RatePlansManager() {
         });
       }
     } catch (error) {
-      console.error('Error creating rate plan:', error);
       toast({
         title: 'Error',
         description: 'Failed to create rate plan',
@@ -400,7 +398,6 @@ export function RatePlansManager() {
         });
       }
     } catch (error) {
-      console.error('Error updating rate plan:', error);
       toast({
         title: 'Error',
         description: 'Failed to update rate plan',
@@ -441,7 +438,6 @@ export function RatePlansManager() {
         });
       }
     } catch (error) {
-      console.error('Error deleting rate plan:', error);
       toast({
         title: 'Error',
         description: 'Failed to delete rate plan',

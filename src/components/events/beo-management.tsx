@@ -244,7 +244,7 @@ function mapDbToBEO(rec: BEORecord): BEO {
   const foodItems = items.filter(i => i.category === 'food' || i.category === 'beverage');
   const avItems = items.filter(i => i.category === 'av' || i.category === 'rental');
   let avReq: Record<string, unknown> = {};
-  try { avReq = JSON.parse(rec.avRequirements || '{}'); } catch {}
+  try { avReq = JSON.parse(rec.avRequirements || '{}'); } catch (error) { console.error('Context: parsing avRequirements:', error); }
 
   return {
     id: rec.id,
@@ -428,7 +428,6 @@ export default function BEOManagement() {
         setBeos([]);
       }
     } catch (err) {
-      console.error('Failed to fetch BEOs:', err);
       setError(err instanceof Error ? err.message : 'Failed to load BEO data');
     } finally {
       setLoading(false);

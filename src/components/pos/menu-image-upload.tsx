@@ -112,7 +112,6 @@ export default function MenuImageUpload({
           setUploadProgress(50);
         } catch {
           // If resize fails, use original file
-          console.warn('Image resize failed, using original file');
           setUploadProgress(50);
         }
       }

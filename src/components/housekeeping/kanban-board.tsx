@@ -121,7 +121,7 @@ export default function KanbanBoard() {
           setSelectedPropertyId(result.data[0].id);
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchProperties();
@@ -141,7 +141,6 @@ export default function KanbanBoard() {
         setTasks(result.data);
       }
     } catch (error) {
-      console.error('Error fetching tasks:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch tasks',
@@ -232,7 +231,6 @@ export default function KanbanBoard() {
         });
       }
     } catch (error) {
-      console.error('Error updating task:', error);
       fetchTasks();
       toast({
         title: 'Error',
@@ -368,7 +366,6 @@ export default function KanbanBoard() {
         });
       }
     } catch (error) {
-      console.error('Error reopening task:', error);
       toast({
         title: 'Error',
         description: 'Failed to reopen task',

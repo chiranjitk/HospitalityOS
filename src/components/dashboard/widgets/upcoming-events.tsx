@@ -120,7 +120,6 @@ export function UpcomingEventsWidget() {
       if (result.success && result.data) { setData(result.data); setLastRefresh(new Date()); }
       else { throw new Error(result.error?.message || t('failedToLoad')); }
     } catch (err) {
-      console.error('Events fetch failed:', err);
       setError(err instanceof Error ? err.message : t('unknownError'));
     } finally { setIsLoading(false); }
   }, [t]);

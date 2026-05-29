@@ -166,7 +166,7 @@ export function PricingManager() {
           }
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchProperties();
@@ -192,7 +192,7 @@ export function PricingManager() {
           }
         }
       } catch (error) {
-        console.error('Error fetching room types:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchRoomTypes();
@@ -233,7 +233,6 @@ export function PricingManager() {
           setPriceOverrides(filteredOverrides);
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
         toast({
           title: 'Error',
           description: 'Failed to fetch pricing data',
@@ -336,7 +335,6 @@ export function PricingManager() {
         });
       }
     } catch (error) {
-      console.error('Error saving rate plan:', error);
       toast({
         title: 'Error',
         description: 'Failed to save rate plan',
@@ -368,7 +366,6 @@ export function PricingManager() {
         });
       }
     } catch (error) {
-      console.error('Error deleting rate plan:', error);
       toast({
         title: 'Error',
         description: 'Failed to delete rate plan',
@@ -451,7 +448,6 @@ export function PricingManager() {
         });
       }
     } catch (error) {
-      console.error('Error saving price override:', error);
       toast({
         title: 'Error',
         description: 'Failed to save price override',
@@ -483,7 +479,6 @@ export function PricingManager() {
         });
       }
     } catch (error) {
-      console.error('Error deleting override:', error);
       toast({
         title: 'Error',
         description: 'Failed to delete override',

@@ -158,7 +158,6 @@ export default function ParkingSlots() {
         setSummary(result.summary);
       }
     } catch (error) {
-      console.error('Error fetching parking slots:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch parking slots',
@@ -231,7 +230,6 @@ export default function ParkingSlots() {
         });
       }
     } catch (error) {
-      console.error('Error creating parking slot:', error);
       toast({
         title: 'Error',
         description: 'Failed to create parking slot',
@@ -267,7 +265,7 @@ export default function ParkingSlots() {
         });
       }
     } catch (error) {
-      console.error('Error updating slot:', error);
+      console.error('Update operation failed:', error);
     }
   };
 
@@ -301,7 +299,6 @@ export default function ParkingSlots() {
         });
       }
     } catch (error) {
-      console.error('Error deleting slot:', error);
     } finally {
       setDeleteSlotId(null);
     }

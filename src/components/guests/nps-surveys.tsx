@@ -86,7 +86,6 @@ export default function NpsSurveys() {
         setAggregate(json.aggregate);
       }
     } catch (err) {
-      console.error(err);
       toast.error('Failed to load NPS surveys');
     } finally {
       setLoading(false);
@@ -121,7 +120,6 @@ export default function NpsSurveys() {
         setScoreDistribution(json.data.stats?.scoreDistribution || {});
       }
     } catch (err) {
-      console.error(err);
       toast.error('Failed to load survey details');
     }
   };

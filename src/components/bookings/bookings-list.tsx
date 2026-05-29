@@ -235,7 +235,7 @@ export default function BookingsList() {
           }
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchProperties();
@@ -259,7 +259,7 @@ export default function BookingsList() {
           }
         }
       } catch (error) {
-        console.error('Error fetching room types:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchRoomTypes();
@@ -278,7 +278,7 @@ export default function BookingsList() {
           }
         }
       } catch (error) {
-        console.error('Error fetching guests:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchGuests();
@@ -310,7 +310,6 @@ export default function BookingsList() {
         setTotalBookings(result.total ?? (Array.isArray(result.data) ? result.data.length : 0));
       }
     } catch (error) {
-      console.error('Error fetching bookings:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch bookings',
@@ -438,7 +437,6 @@ export default function BookingsList() {
         });
       }
     } catch (error) {
-      console.error('Error updating booking:', error);
       toast({
         title: 'Error',
         description: 'Failed to update booking',
@@ -497,7 +495,6 @@ export default function BookingsList() {
         });
       }
     } catch (error) {
-      console.error('Error creating booking:', error);
       toast({
         title: 'Error',
         description: 'Failed to create booking',

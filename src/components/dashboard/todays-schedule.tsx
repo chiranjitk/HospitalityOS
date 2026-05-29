@@ -149,7 +149,6 @@ export function TodaysSchedule() {
         setData(result.data);
       }
     } catch (error) {
-      console.error('Error fetching schedule:', error);
     } finally {
       setIsLoading(false);
     }

@@ -114,7 +114,6 @@ export function WiFiGatewayConfig() {
           setGateways(mapped);
         }
       } catch (error) {
-        console.error('Error loading gateways:', error);
       } finally {
         setLoading(false);
       }

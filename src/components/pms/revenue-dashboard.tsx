@@ -86,7 +86,6 @@ export default function RevenueDashboard() {
           }
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
         setError('Failed to load data. Please try again.');
       }
     };
@@ -179,7 +178,6 @@ export default function RevenueDashboard() {
           setMetrics(metricsData);
         }
       } catch (error) {
-        console.error('Error fetching metrics:', error);
         setError('Failed to load data. Please try again.');
       } finally {
         setIsLoading(false);

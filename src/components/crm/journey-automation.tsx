@@ -23,6 +23,7 @@ import {
   TrendingUp, DollarSign, Activity, Copy, MoreHorizontal, Search, AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   FunnelChart, Funnel, LabelList, Cell, PieChart, Pie,
@@ -181,6 +182,7 @@ const JOURNEY_TEMPLATES: JourneyTemplate[] = [
 
 // ─── Component ────────────────────────────────────────────────────────────
 export default function JourneyAutomation() {
+  const t = useTranslations('crm');
   const [journeys, setJourneys] = useState<JourneyAutomation[]>([]);
   const [guestTimeline, setGuestTimeline] = useState<GuestTimelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -376,7 +378,7 @@ export default function JourneyAutomation() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Journey Automation</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('jaTitle')}</h1>
           <p className="text-muted-foreground">
             Design, deploy, and track automated guest journey workflows
           </p>
@@ -406,10 +408,10 @@ export default function JourneyAutomation() {
           <CardContent className="flex items-center gap-3 p-6">
             <AlertTriangle className="h-5 w-5 text-red-500" />
             <div>
-              <p className="text-sm font-medium text-red-700">Failed to load automation data</p>
+              <p className="text-sm font-medium text-red-700">{t('jaFailedToLoad')}</p>
               <p className="text-xs text-muted-foreground">{error}</p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Retry</Button>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>{t('jaRetry')}</Button>
           </CardContent>
         </Card>
       )}
@@ -421,7 +423,7 @@ export default function JourneyAutomation() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground">Active Journeys</p>
+                <p className="text-xs font-medium text-muted-foreground">{t('jaActiveJourneys')}</p>
                 <p className="text-xl font-bold">{totalActive}</p>
               </div>
               <Activity className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
@@ -432,7 +434,7 @@ export default function JourneyAutomation() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground">Total Enrolled</p>
+                <p className="text-xs font-medium text-muted-foreground">{t('jaTotalEnrolled')}</p>
                 <p className="text-xl font-bold">{totalEnrolled.toLocaleString()}</p>
               </div>
               <Users className="h-5 w-5 text-amber-600 dark:text-amber-400" />
@@ -443,7 +445,7 @@ export default function JourneyAutomation() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground">Avg Conversion</p>
+                <p className="text-xs font-medium text-muted-foreground">{t('jaAvgConversion')}</p>
                 <p className="text-xl font-bold">{avgConversion.toFixed(1)}%</p>
               </div>
               <TrendingUp className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
@@ -454,7 +456,7 @@ export default function JourneyAutomation() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground">Revenue Attributed</p>
+                <p className="text-xs font-medium text-muted-foreground">{t('jaRevenueAttributed')}</p>
                 <p className="text-xl font-bold">${(totalRevenue / 1000).toFixed(0)}K</p>
               </div>
               <DollarSign className="h-5 w-5 text-rose-600 dark:text-rose-400" />
@@ -466,10 +468,10 @@ export default function JourneyAutomation() {
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
-          <TabsTrigger value="journeys">Active Journeys</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="timeline">Contact Timeline</TabsTrigger>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
+          <TabsTrigger value="journeys">{t('jaTabActive')}</TabsTrigger>
+          <TabsTrigger value="analytics">{t('jaTabAnalytics')}</TabsTrigger>
+          <TabsTrigger value="timeline">{t('jaTabTimeline')}</TabsTrigger>
+          <TabsTrigger value="templates">{t('jaTabTemplates')}</TabsTrigger>
         </TabsList>
 
         {/* ─── Active Journeys Tab ───────────────────────────────────── */}
@@ -479,7 +481,7 @@ export default function JourneyAutomation() {
             <div className="relative flex-1 max-w-sm focus-within:ring-2 focus-within:ring-primary/20 rounded-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search journeys..."
+                placeholder={t('jaSearchJourneys')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
@@ -487,10 +489,10 @@ export default function JourneyAutomation() {
             </div>
             <Select value={stageFilter} onValueChange={setStageFilter}>
               <SelectTrigger className="w-40">
-                <SelectValue placeholder="Stage" />
+                <SelectValue placeholder={t('jaStage')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Stages</SelectItem>
+                <SelectItem value="all">{t('jaAllStages')}</SelectItem>
                 {JOURNEY_STAGES.map(s => (
                   <SelectItem key={s} value={s}>{s}</SelectItem>
                 ))}
@@ -498,10 +500,10 @@ export default function JourneyAutomation() {
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-36">
-                <SelectValue placeholder="Status" />
+                <SelectValue placeholder={t('jaThStatus')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="all">{t('jaAllStatus')}</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="paused">Paused</SelectItem>
                 <SelectItem value="draft">Draft</SelectItem>
@@ -537,19 +539,19 @@ export default function JourneyAutomation() {
                           <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <Users className="h-3.5 w-3.5" />
-                              {journey.totalEnrolled.toLocaleString()} enrolled
+                              {t('jaEnrolled', { count: journey.totalEnrolled.toLocaleString() })}
                             </span>
                             <span className="flex items-center gap-1">
                               <Activity className="h-3.5 w-3.5" />
-                              {journey.activeContacts} active
+                              {t('jaActive', { count: journey.activeContacts })}
                             </span>
                             <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
                               <TrendingUp className="h-3.5 w-3.5" />
-                              {journey.conversionRate}% converted
+                              {t('jaConverted', { rate: journey.conversionRate })}
                             </span>
                             <span className="flex items-center gap-1 font-medium text-rose-600 dark:text-rose-400">
                               <DollarSign className="h-3.5 w-3.5" />
-                              ${(journey.revenueAttributed / 1000).toFixed(0)}K revenue
+                              {t('jaRevenue', { amount: Math.round(journey.revenueAttributed / 1000) })}
                             </span>
                           </div>
                         </div>
@@ -564,11 +566,11 @@ export default function JourneyAutomation() {
                           disabled={journey.status === 'draft' || journey.status === 'completed'}
                         >
                           {journey.status === 'active' ? (
-                            <><Pause className="h-3.5 w-3.5 mr-1.5" />Pause</>
+                            <><Pause className="h-3.5 w-3.5 mr-1.5" />{t('jaPause')}</>
                           ) : journey.status === 'paused' ? (
-                            <><Play className="h-3.5 w-3.5 mr-1.5" />Resume</>
+                            <><Play className="h-3.5 w-3.5 mr-1.5" />{t('jaResume')}</>
                           ) : (
-                            <><Play className="h-3.5 w-3.5 mr-1.5" />Start</>
+                            <><Play className="h-3.5 w-3.5 mr-1.5" />{t('jaStart')}</>
                           )}
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => duplicateJourney(journey.id)}>
@@ -592,7 +594,7 @@ export default function JourneyAutomation() {
                       <div className="mt-6 pt-6 border-t">
                         <h4 className="text-sm font-semibold mb-4 flex items-center gap-2">
                           <GitBranch className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                          Workflow Steps
+                          {t('jaWorkflowSteps')}
                         </h4>
                         <div className="flex gap-6 overflow-x-auto pb-2">
                           <ScrollArea className="w-full">
@@ -611,12 +613,12 @@ export default function JourneyAutomation() {
                           </ScrollArea>
                         </div>
 
-                        {/* Touchpoint Performance */}
+                        {/* {t('jaTouchpointPerformance')} */}
                         {journey.touchpoints.length > 0 && (
                           <div className="mt-6">
                             <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                               <BarChart3 className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-                              Touchpoint Performance
+                              {t('jaTouchpointPerformance')}
                             </h4>
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                               {journey.touchpoints.map((tp) => (
@@ -628,19 +630,19 @@ export default function JourneyAutomation() {
                                   <div className="grid grid-cols-4 gap-2 text-center text-xs">
                                     <div>
                                       <p className="font-semibold">{tp.sent}</p>
-                                      <p className="text-muted-foreground">Sent</p>
+                                      <p className="text-muted-foreground">{t('jaSent')}</p>
                                     </div>
                                     <div>
                                       <p className="font-semibold text-emerald-600 dark:text-emerald-400">{tp.sent > 0 ? ((tp.opened / tp.sent) * 100).toFixed(0) : 0}%</p>
-                                      <p className="text-muted-foreground">Open</p>
+                                      <p className="text-muted-foreground">{t('jaOpen')}</p>
                                     </div>
                                     <div>
                                       <p className="font-semibold text-cyan-600 dark:text-cyan-400">{tp.sent > 0 ? ((tp.clicked / tp.sent) * 100).toFixed(0) : 0}%</p>
-                                      <p className="text-muted-foreground">Click</p>
+                                      <p className="text-muted-foreground">{t('jaClick')}</p>
                                     </div>
                                     <div>
                                       <p className="font-semibold text-amber-600 dark:text-amber-400">{tp.sent > 0 ? ((tp.converted / tp.sent) * 100).toFixed(0) : 0}%</p>
-                                      <p className="text-muted-foreground">Convert</p>
+                                      <p className="text-muted-foreground">{t('jaConvert')}</p>
                                     </div>
                                   </div>
                                 </div>
@@ -660,11 +662,11 @@ export default function JourneyAutomation() {
                   <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
                     <GitBranch className="h-8 w-8 text-muted-foreground" />
                   </div>
-                  <h3 className="font-semibold text-lg">No journeys found</h3>
+                  <h3 className="font-semibold text-lg">{t('jaNoJourneysFound')}</h3>
                   <p className="text-sm text-muted-foreground mt-1 max-w-sm">
                     {searchQuery || stageFilter !== 'all' || statusFilter !== 'all'
-                      ? 'No journeys match your current filters. Try adjusting your search or filter criteria.'
-                      : "You haven't created any automation journeys yet. Start by choosing a template or building one from scratch."}
+                      ? t('jaNoJourneysFilter')
+                      : t('jaNoJourneysEmpty')}
                   </p>
                   <div className="flex gap-2 mt-4">
                     {(searchQuery || stageFilter !== 'all' || statusFilter !== 'all') && (
@@ -689,8 +691,8 @@ export default function JourneyAutomation() {
             {/* Revenue by Journey */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Revenue by Journey</CardTitle>
-                <CardDescription>Top performing journeys by attributed revenue</CardDescription>
+                <CardTitle className="text-base">{t('jaRevenueByJourney')}</CardTitle>
+                <CardDescription>{t('jaTopPerformingRevenue')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-64">
@@ -698,7 +700,7 @@ export default function JourneyAutomation() {
                     <BarChart data={getRevenueBarData()} layout="vertical" margin={{ left: 10 }}>
                       <XAxis type="number" tickFormatter={(v) => `$${v / 1000}K`} fontSize={11} />
                       <YAxis type="category" dataKey="name" width={140} fontSize={10} tickLine={false} />
-                      <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, 'Revenue']} />
+                      <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, t('jaRevenueLabel')]} />
                       <Bar dataKey="revenue" radius={[0, 4, 4, 0]}>
                         {getRevenueBarData().map((entry, idx) => (
                           <Cell key={idx} fill={['#10b981', '#14b8a6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'][idx % 6]} />
@@ -713,8 +715,8 @@ export default function JourneyAutomation() {
             {/* Conversion Distribution */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Conversion Distribution</CardTitle>
-                <CardDescription>Journeys by conversion rate tier</CardDescription>
+                <CardTitle className="text-base">{t('jaConversionDistribution')}</CardTitle>
+                <CardDescription>{t('jaJourneysByConvRate')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-64 flex items-center justify-center">
@@ -745,8 +747,8 @@ export default function JourneyAutomation() {
           {/* Stage-wise Performance */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Performance by Guest Journey Stage</CardTitle>
-              <CardDescription>Enrollment and conversion across journey stages</CardDescription>
+              <CardTitle className="text-base">{t('jaStagePerformance')}</CardTitle>
+              <CardDescription>{t('jaEnrollmentConversion')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -765,20 +767,20 @@ export default function JourneyAutomation() {
                             <Activity className="h-5 w-5 text-primary" />
                           </div>
                           <p className="font-semibold text-sm">{stage}</p>
-                          <p className="text-xs text-muted-foreground">{stageJourneys.length} journeys</p>
+                          <p className="text-xs text-muted-foreground">{t('jaJourneysCount', { count: stageJourneys.length })}</p>
                           <Separator />
                           <div className="space-y-1.5 text-xs">
                             <div>
                               <p className="font-bold text-base">{enroll.toLocaleString()}</p>
-                              <p className="text-muted-foreground">Enrolled</p>
+                              <p className="text-muted-foreground">{t('jaEnrolledLabel')}</p>
                             </div>
                             <div>
                               <p className="font-bold text-base text-emerald-600 dark:text-emerald-400">{conv.toFixed(1)}%</p>
-                              <p className="text-muted-foreground">Avg Conv.</p>
+                              <p className="text-muted-foreground">{t('jaAvgConv')}</p>
                             </div>
                             <div>
                               <p className="font-bold text-base text-amber-600 dark:text-amber-400">${(rev / 1000).toFixed(0)}K</p>
-                              <p className="text-muted-foreground">Revenue</p>
+                              <p className="text-muted-foreground">{t('jaRevenueLabel')}</p>
                             </div>
                           </div>
                         </div>
@@ -793,8 +795,8 @@ export default function JourneyAutomation() {
           {/* Touchpoint Channel Mix */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Channel Performance Summary</CardTitle>
-              <CardDescription>Aggregate metrics across all journeys by channel type</CardDescription>
+              <CardTitle className="text-base">{t('jaChannelPerformance')}</CardTitle>
+              <CardDescription>{t('jaAggregateMetrics')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -816,19 +818,19 @@ export default function JourneyAutomation() {
                       <div className="grid grid-cols-4 gap-2 text-center text-xs">
                         <div>
                           <p className="font-bold text-sm">{totalSent.toLocaleString()}</p>
-                          <p className="text-muted-foreground">Sent</p>
+                          <p className="text-muted-foreground">{t('jaSent')}</p>
                         </div>
                         <div>
                           <p className="font-bold text-sm text-emerald-600">{totalSent > 0 ? ((totalOpened / totalSent) * 100).toFixed(1) : 0}%</p>
-                          <p className="text-muted-foreground">Open</p>
+                          <p className="text-muted-foreground">{t('jaOpen')}</p>
                         </div>
                         <div>
                           <p className="font-bold text-sm text-cyan-600">{totalSent > 0 ? ((totalClicked / totalSent) * 100).toFixed(1) : 0}%</p>
-                          <p className="text-muted-foreground">Click</p>
+                          <p className="text-muted-foreground">{t('jaClick')}</p>
                         </div>
                         <div>
                           <p className="font-bold text-sm text-amber-600">{totalSent > 0 ? ((totalConverted / totalSent) * 100).toFixed(1) : 0}%</p>
-                          <p className="text-muted-foreground">Convert</p>
+                          <p className="text-muted-foreground">{t('jaConvert')}</p>
                         </div>
                       </div>
                     </div>
@@ -903,7 +905,7 @@ export default function JourneyAutomation() {
                       <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
                         <Clock className="h-8 w-8 text-muted-foreground" />
                       </div>
-                      <h3 className="font-semibold text-lg">No contact activity yet</h3>
+                      <h3 className="font-semibold text-lg">{t('jaNoContactActivity')}</h3>
                       <p className="text-sm text-muted-foreground mt-1 max-w-sm">
                         Timeline entries will appear here once your journeys start sending automated touchpoints to guests.
                       </p>
@@ -932,7 +934,7 @@ export default function JourneyAutomation() {
                         <Badge variant="outline" className="text-xs mt-1">{template.stage}</Badge>
                         <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{template.description}</p>
                         <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
-                          <span>{template.steps} steps</span>
+                          <span>{t('jaStepsCount', { count: template.steps })}</span>
                           <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{template.avgConversionRate}% avg conv.</span>
                         </div>
                         <Button variant="outline" size="sm" className="w-full mt-4">
@@ -952,8 +954,8 @@ export default function JourneyAutomation() {
                 <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mb-3">
                   <Plus className="h-6 w-6 text-muted-foreground" />
                 </div>
-                <p className="font-semibold">Build Custom Journey</p>
-                <p className="text-sm text-muted-foreground mt-1">Create a journey from scratch</p>
+                <p className="font-semibold">{t('jaBuildCustom')}</p>
+                <p className="text-sm text-muted-foreground mt-1">{t('jaBuildFromScratch')}</p>
               </CardContent>
             </Card>
           </div>
@@ -966,7 +968,7 @@ export default function JourneyAutomation() {
         <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>{selectedJourney?.name}</DialogTitle>
-            <DialogDescription>Conversion funnel and performance details</DialogDescription>
+            <DialogDescription>{t('jaConvFunnel')}</DialogDescription>
           </DialogHeader>
           {selectedJourney && (
             <ScrollArea className="flex-1">
@@ -975,26 +977,26 @@ export default function JourneyAutomation() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-center">
                     <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{selectedJourney.totalEnrolled.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">Total Enrolled</p>
+                    <p className="text-xs text-muted-foreground">{t('jaTotalEnrolled')}</p>
                   </div>
                   <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-center">
                     <p className="text-lg font-bold text-amber-700 dark:text-amber-300">{selectedJourney.activeContacts}</p>
-                    <p className="text-xs text-muted-foreground">Active Now</p>
+                    <p className="text-xs text-muted-foreground">{t('jaActiveNow')}</p>
                   </div>
                   <div className="p-3 rounded-lg bg-cyan-50 dark:bg-cyan-950/50 text-center">
                     <p className="text-lg font-bold text-cyan-700 dark:text-cyan-300">{selectedJourney.conversionRate}%</p>
-                    <p className="text-xs text-muted-foreground">Conversion Rate</p>
+                    <p className="text-xs text-muted-foreground">{t('jaConversionRate')}</p>
                   </div>
                   <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-center">
                     <p className="text-lg font-bold text-rose-700 dark:text-rose-300">${selectedJourney.revenueAttributed.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">Revenue</p>
+                    <p className="text-xs text-muted-foreground">{t('jaRevenueLabel')}</p>
                   </div>
                 </div>
 
                 {/* Funnel Visualization */}
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold">Conversion Funnel</CardTitle>
+                    <CardTitle className="text-sm font-semibold">{t('jaConvFunnel')}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
@@ -1009,9 +1011,9 @@ export default function JourneyAutomation() {
                                 <span className="font-medium">{tp.name}</span>
                               </div>
                               <div className="flex items-center gap-3">
-                                <span className="text-muted-foreground">{tp.sent.toLocaleString()} sent</span>
+                                <span className="text-muted-foreground">{tp.sent.toLocaleString()} {t('jaSent')}</span>
                                 {idx > 0 && (
-                                  <span className="text-red-500 dark:text-red-400">-{dropOff}% drop</span>
+                                  <span className="text-red-500 dark:text-red-400">-{dropOff}% {t('jaDropPct', { rate: dropOff })}</span>
                                 )}
                               </div>
                             </div>
@@ -1040,7 +1042,7 @@ export default function JourneyAutomation() {
                 {/* Overall Progress */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">Journey Progress</span>
+                    <span className="font-medium">{t('jaJourneyProgress')}</span>
                     <span className="text-muted-foreground">
                       {selectedJourney.totalEnrolled > 0
                         ? ((selectedJourney.completedContacts / selectedJourney.totalEnrolled) * 100).toFixed(1)
@@ -1054,8 +1056,8 @@ export default function JourneyAutomation() {
                     className="h-3"
                   />
                   <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{selectedJourney.completedContacts.toLocaleString()} completed</span>
-                    <span>{selectedJourney.activeContacts} still active</span>
+                    <span>{selectedJourney.completedContacts.toLocaleString() {t('jaCompletedCount', { count: selectedJourney.completedContacts.toLocaleString() })}</span>
+                    <span>{selectedJourney.activeContacts {t('jaStillActive', { count: selectedJourney.activeContacts })}</span>
                   </div>
                 </div>
               </div>
@@ -1070,22 +1072,22 @@ export default function JourneyAutomation() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <GitBranch className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-              Journey Builder
+              {t('jaJourneyBuilder')}
             </DialogTitle>
-            <DialogDescription>Design your automated guest journey workflow</DialogDescription>
+            <DialogDescription>{t('jaDesignJourney')}</DialogDescription>
           </DialogHeader>
           <ScrollArea className="flex-1">
             <div className="space-y-6 py-4">
               {/* Journey Info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Journey Name</label>
+                  <label className="text-sm font-medium">{t('jaJourneyName')}</label>
                   <Input placeholder="e.g., VIP Welcome Sequence" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Journey Stage</label>
+                  <label className="text-sm font-medium">{t('jaJourneyStage')}</label>
                   <Select>
-                    <SelectTrigger><SelectValue placeholder="Select stage" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t('jaSelectStage')} /></SelectTrigger>
                     <SelectContent>
                       {JOURNEY_STAGES.map(s => (
                         <SelectItem key={s} value={s}>{s}</SelectItem>
@@ -1095,15 +1097,15 @@ export default function JourneyAutomation() {
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Description</label>
-                <Textarea placeholder="Describe the purpose of this journey..." rows={2} />
+                <label className="text-sm font-medium">{t('jaDescription')}</label>
+                <Textarea placeholder={t('jaDescribePurpose')} rows={2} />
               </div>
 
               <Separator />
 
               {/* Node Palette */}
               <div>
-                <h4 className="font-semibold mb-3">Add Nodes</h4>
+                <h4 className="font-semibold mb-3">{t('jaAddNodes')}</h4>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   {([
                     { type: 'trigger' as NodeType, label: 'Trigger', icon: Zap, color: 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300' },
@@ -1116,7 +1118,7 @@ export default function JourneyAutomation() {
                       key={type}
                       variant="outline"
                       className={cn('flex flex-col gap-1 h-auto py-3 hover:shadow-md transition-all', color)}
-                      onClick={() => {}}
+                      disabled
                     >
                       <NodeIcon className="h-5 w-5" />
                       <span className="text-xs font-medium">{label}</span>
@@ -1132,7 +1134,7 @@ export default function JourneyAutomation() {
                 {/* Triggers Config */}
                 <div className="space-y-3">
                   <h4 className="font-semibold text-sm flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-amber-500" /> Trigger Options
+                    <Zap className="h-4 w-4 text-amber-500" /> {t("jaTriggerOptions")}
                   </h4>
                   <div className="space-y-2">
                     {TRIGGER_OPTIONS.map(opt => (
@@ -1147,7 +1149,7 @@ export default function JourneyAutomation() {
                 {/* Actions Config */}
                 <div className="space-y-3">
                   <h4 className="font-semibold text-sm flex items-center gap-2">
-                    <Send className="h-4 w-4 text-emerald-500" /> Action Options
+                    <Send className="h-4 w-4 text-emerald-500" /> {t('jaActionOptions')}
                   </h4>
                   <div className="space-y-2">
                     {ACTION_OPTIONS.map(opt => (
@@ -1165,7 +1167,7 @@ export default function JourneyAutomation() {
               {/* Conditions Config */}
               <div className="space-y-3">
                 <h4 className="font-semibold text-sm flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-violet-500" /> Condition Options
+                  <Filter className="h-4 w-4 text-violet-500" /> {t('jaConditionOptions')}
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   {CONDITION_OPTIONS.map(opt => (
@@ -1179,16 +1181,16 @@ export default function JourneyAutomation() {
               {/* Visual Canvas Placeholder */}
               <div className="border-2 border-dashed rounded-xl p-8 text-center bg-muted/20">
                 <GitBranch className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                <p className="text-sm font-medium text-muted-foreground">Drag nodes here to build your journey</p>
-                <p className="text-xs text-muted-foreground mt-1">Connect nodes by dragging from one output to another input</p>
+                <p className="text-sm font-medium text-muted-foreground">{t('jaDragNodes')}</p>
+                <p className="text-xs text-muted-foreground mt-1">{t('jaConnectNodes')}</p>
               </div>
             </div>
           </ScrollArea>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBuilderDialogOpen(false)}>Cancel</Button>
-            <Button variant="outline">Save as Draft</Button>
+            <Button variant="outline" onClick={() => setBuilderDialogOpen(false)}>t('jaCancel')</Button>
+            <Button variant="outline">{t('jaSaveDraft')}</Button>
             <Button className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-md">
-              Activate Journey
+              {t('jaActivateJourney')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1198,8 +1200,8 @@ export default function JourneyAutomation() {
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
         <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>Choose a Journey Template</DialogTitle>
-            <DialogDescription>Start with a pre-built journey and customize it</DialogDescription>
+            <DialogTitle>{t('jaChooseTemplate')}</DialogTitle>
+            <DialogDescription>{t('jaStartWithTemplate')}</DialogDescription>
           </DialogHeader>
           <ScrollArea className="flex-1">
             <div className="space-y-3 py-4">
@@ -1222,7 +1224,7 @@ export default function JourneyAutomation() {
                         <p className="text-xs text-muted-foreground mt-0.5">{template.description}</p>
                         <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
                           <span>{template.steps} steps</span>
-                          <span className="text-emerald-600 font-medium">{template.avgConversionRate}% conv.</span>
+                          <span className="text-emerald-600 font-medium">{t('jaAvgConvRate', { rate: template.avgConversionRate })}</span>
                         </div>
                       </div>
                       <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />

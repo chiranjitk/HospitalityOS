@@ -201,7 +201,6 @@ export default function PurchaseOrders() {
         setStockItems(stockData.data);
       }
     } catch (error) {
-      console.error('Error fetching purchase orders:', error);
       toast.error('Failed to fetch purchase orders');
     } finally {
       setLoading(false);
@@ -291,7 +290,6 @@ export default function PurchaseOrders() {
         toast.error(data.error?.message || 'Failed to create order');
       }
     } catch (error) {
-      console.error('Error creating purchase order:', error);
       toast.error('Failed to create purchase order');
     } finally {
       setSaving(false);
@@ -316,7 +314,6 @@ export default function PurchaseOrders() {
         toast.error(data.error?.message || `Failed to ${newStatus} order`);
       }
     } catch (error) {
-      console.error('Error updating order:', error);
       toast.error('Failed to update order');
     } finally {
       setSaving(false);
@@ -366,7 +363,6 @@ export default function PurchaseOrders() {
         toast.error(data.error?.message || 'Failed to receive order');
       }
     } catch (error) {
-      console.error('Error receiving order:', error);
       toast.error('Failed to receive order');
     } finally {
       setSaving(false);

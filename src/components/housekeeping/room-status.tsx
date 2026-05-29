@@ -125,7 +125,7 @@ export default function RoomStatus() {
           setProperties(result.data);
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchProperties();
@@ -146,7 +146,6 @@ export default function RoomStatus() {
         setRooms(result.data);
       }
     } catch (error) {
-      console.error('Error fetching rooms:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch rooms',
@@ -230,7 +229,6 @@ export default function RoomStatus() {
         });
       }
     } catch (error) {
-      console.error('Error updating room status:', error);
       toast({
         title: 'Error',
         description: 'Failed to update room status',

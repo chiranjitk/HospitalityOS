@@ -62,6 +62,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useTranslations } from 'next-intl';
 
 // --- Types ---
 interface TravelAgent {
@@ -142,6 +143,7 @@ const INVOICE_STATUSES: Record<string, { label: string; color: string }> = {
 
 export default function CityLedgerPage() {
   const { toast } = useToast();
+  const t = useTranslations('billing');
 
   // Shared state
   const [properties, setProperties] = useState<Property[]>([]);
@@ -221,7 +223,7 @@ export default function CityLedgerPage() {
           }
         }
       } catch {
-        toast({ title: 'Error', description: 'Failed to fetch properties', variant: 'destructive' });
+        toast({ title: t('clError'), description: t('clFailedToFetchProperties'), variant: 'destructive' });
       }
     };
     fetchProperties();
@@ -239,7 +241,7 @@ export default function CityLedgerPage() {
       const result = await res.json();
       if (result.success) setAgents(result.data || []);
     } catch {
-      toast({ title: 'Error', description: 'Failed to fetch travel agents', variant: 'destructive' });
+      toast({ title: t('clError'), description: t('clFailedToFetchAgents'), variant: 'destructive' });
     } finally {
       setIsLoadingAgents(false);
     }
@@ -260,7 +262,7 @@ export default function CityLedgerPage() {
         setLedgerAggs(result.aggregates || null);
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to fetch city ledger', variant: 'destructive' });
+      toast({ title: t('clError'), description: t('clFailedToFetchLedger'), variant: 'destructive' });
     } finally {
       setIsLoadingInvoices(false);
     }
@@ -277,7 +279,7 @@ export default function CityLedgerPage() {
         const result = await res.json();
         if (result.success) setAgents(result.data || []);
       } catch {
-        toast({ title: 'Error', description: 'Failed to fetch travel agents', variant: 'destructive' });
+        toast({ title: t('clError'), description: t('clFailedToFetchAgents'), variant: 'destructive' });
       } finally {
         setIsLoadingAgents(false);
       }
@@ -298,7 +300,7 @@ export default function CityLedgerPage() {
           setLedgerAggs(result.aggregates || null);
         }
       } catch {
-        toast({ title: 'Error', description: 'Failed to fetch city ledger', variant: 'destructive' });
+        toast({ title: t('clError'), description: t('clFailedToFetchLedger'), variant: 'destructive' });
       } finally {
         setIsLoadingInvoices(false);
       }
@@ -324,7 +326,7 @@ export default function CityLedgerPage() {
   // --- Agent CRUD ---
   const handleCreateAgent = async () => {
     if (!agentForm.agencyName.trim() || !agentForm.code.trim() || !selectedPropertyId) {
-      toast({ title: 'Validation', description: 'Agency name, code, and property are required', variant: 'destructive' });
+      toast({ title: t('clValidation'), description: t('clAgentFieldsRequired'), variant: 'destructive' });
       return;
     }
     setIsSaving(true);
@@ -341,15 +343,15 @@ export default function CityLedgerPage() {
       });
       const result = await res.json();
       if (result.success) {
-        toast({ title: 'Success', description: 'Travel agent created' });
+        toast({ title: t('clSuccess'), description: t('clAgentCreated') });
         setIsAgentDialogOpen(false);
         resetAgentForm();
         fetchAgents();
       } else {
-        toast({ title: 'Error', description: result.error || 'Failed to create agent', variant: 'destructive' });
+        toast({ title: t('clError'), description: result.error || t('clFailedToCreateAgent'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to create agent', variant: 'destructive' });
+      toast({ title: t('clError'), description: t('clFailedToCreateAgent'), variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -361,13 +363,13 @@ export default function CityLedgerPage() {
       const res = await fetch(`/api/travel-agents/${id}`, { method: 'DELETE' });
       const result = await res.json();
       if (result.success) {
-        toast({ title: 'Deleted', description: 'Travel agent deleted' });
+        toast({ title: t('clDeleted'), description: t('clAgentDeleted') });
         fetchAgents();
       } else {
-        toast({ title: 'Error', description: result.error || 'Delete failed', variant: 'destructive' });
+        toast({ title: t('clError'), description: result.error || t('clDeleteFailed'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to delete agent', variant: 'destructive' });
+      toast({ title: t('clError'), description: t('clFailedToDeleteAgent'), variant: 'destructive' });
     } finally {
       setActionLoading(null);
     }
@@ -387,7 +389,7 @@ export default function CityLedgerPage() {
 
   const handleCreateInvoice = async () => {
     if (!invoiceForm.accountName.trim() || !invoiceForm.invoiceNumber.trim() || !invoiceForm.invoiceDate || !invoiceForm.dueDate || !selectedPropertyId) {
-      toast({ title: 'Validation', description: 'Account name, invoice number, and dates are required', variant: 'destructive' });
+      toast({ title: t('clValidation'), description: t('clInvoiceFieldsRequired'), variant: 'destructive' });
       return;
     }
     setIsSaving(true);
@@ -403,15 +405,15 @@ export default function CityLedgerPage() {
       });
       const result = await res.json();
       if (result.success) {
-        toast({ title: 'Success', description: 'Invoice created' });
+        toast({ title: t('clSuccess'), description: t('clInvoiceCreated') });
         setIsInvoiceDialogOpen(false);
         resetInvoiceForm();
         fetchInvoices();
       } else {
-        toast({ title: 'Error', description: result.error || 'Failed to create invoice', variant: 'destructive' });
+        toast({ title: t('clError'), description: result.error || t('clFailedToCreateInvoice'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to create invoice', variant: 'destructive' });
+      toast({ title: t('clError'), description: t('clFailedToCreateInvoice'), variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -431,7 +433,7 @@ export default function CityLedgerPage() {
 
   const handleRecordPayment = async () => {
     if (!selectedInvoice || parseFloat(paymentForm.amount) <= 0) {
-      toast({ title: 'Validation', description: 'Payment amount must be positive', variant: 'destructive' });
+      toast({ title: t('clValidation'), description: t('clPaymentAmountMustBePositive'), variant: 'destructive' });
       return;
     }
     setIsSaving(true);
@@ -448,14 +450,14 @@ export default function CityLedgerPage() {
       });
       const result = await res.json();
       if (result.success) {
-        toast({ title: 'Payment Recorded', description: `Payment of $${paymentForm.amount} recorded` });
+        toast({ title: t('clPaymentRecorded'), description: `Payment of $${paymentForm.amount} recorded` });
         setIsPaymentDialogOpen(false);
         fetchInvoices();
       } else {
-        toast({ title: 'Error', description: result.error || 'Payment failed', variant: 'destructive' });
+        toast({ title: t('clError'), description: result.error || t('clPaymentFailed'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to record payment', variant: 'destructive' });
+      toast({ title: t('clError'), description: t('clFailedToRecordPayment'), variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -472,13 +474,13 @@ export default function CityLedgerPage() {
       });
       const result = await res.json();
       if (result.success) {
-        toast({ title: 'Updated', description: `Invoice status changed to ${status}` });
+        toast({ title: t('clUpdated'), description: `${t('clStatusChanged')} ${status}` });
         fetchInvoices();
       } else {
-        toast({ title: 'Error', description: result.error || 'Status update failed', variant: 'destructive' });
+        toast({ title: t('clError'), description: result.error || t('clStatusUpdateFailed'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to update status', variant: 'destructive' });
+      toast({ title: t('clError'), description: t('clFailedToUpdateStatus'), variant: 'destructive' });
     } finally {
       setActionLoading(null);
     }
@@ -502,14 +504,14 @@ export default function CityLedgerPage() {
         <div>
           <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
             <Building2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-            Travel Agent & City Ledger
+            {t('clTitle')}
           </h2>
-          <p className="text-sm text-muted-foreground mt-0.5">Manage travel agent accounts and city ledger AR</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{t('clDescription')}</p>
         </div>
         <div className="flex items-center gap-2">
           <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId}>
             <SelectTrigger className="w-full sm:w-48 h-10">
-              <SelectValue placeholder="Select Property" />
+              <SelectValue placeholder={t('clSelectProperty')} />
             </SelectTrigger>
             <SelectContent>
               {properties.map(p => (
@@ -523,10 +525,10 @@ export default function CityLedgerPage() {
       <Tabs defaultValue="travel-agents" className="space-y-4">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="travel-agents" className="gap-1.5">
-            <Users className="h-4 w-4" /> Travel Agents
+            <Users className="h-4 w-4" /> {t('clTabTravelAgents')}
           </TabsTrigger>
           <TabsTrigger value="city-ledger" className="gap-1.5">
-            <FileText className="h-4 w-4" /> City Ledger
+            <FileText className="h-4 w-4" /> {t('clTabCityLedger')}
           </TabsTrigger>
         </TabsList>
 
@@ -536,21 +538,21 @@ export default function CityLedgerPage() {
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search agents..." value={agentSearch} onChange={e => setAgentSearch(e.target.value)} className="pl-9 h-10" />
+                <Input placeholder={t('clSearchAgents')} value={agentSearch} onChange={e => setAgentSearch(e.target.value)} className="pl-9 h-10" />
               </div>
             </div>
             <div className="flex gap-2">
               <Select value={agentStatusFilter} onValueChange={setAgentStatusFilter}>
-                <SelectTrigger className="w-full sm:w-36 h-10"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-36 h-10"><SelectValue placeholder={t('clAllStatus')} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="all">{t('clAllStatus')}</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="inactive">Inactive</SelectItem>
                   <SelectItem value="suspended">Suspended</SelectItem>
                 </SelectContent>
               </Select>
               <Button onClick={() => { resetAgentForm(); setIsAgentDialogOpen(true); }} className="bg-gradient-to-r from-emerald-600 to-emerald-500 hover:shadow-lg hover:shadow-emerald-500/20 transition-all">
-                <Plus className="h-4 w-4 mr-1.5" />Add Agent
+                <Plus className="h-4 w-4 mr-1.5" />{t('clAddAgent')}
               </Button>
             </div>
           </div>
@@ -562,8 +564,8 @@ export default function CityLedgerPage() {
               ) : agents.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                   <Users className="h-12 w-12 mb-3 opacity-30" />
-                  <p className="font-medium">No travel agents found</p>
-                  <Button className="mt-4" onClick={() => { resetAgentForm(); setIsAgentDialogOpen(true); }}><Plus className="h-4 w-4 mr-1.5" />Add Agent</Button>
+                  <p className="font-medium">{t('clNoAgentsFound')}</p>
+                  <Button className="mt-4" onClick={() => { resetAgentForm(); setIsAgentDialogOpen(true); }}><Plus className="h-4 w-4 mr-1.5" />{t('clAddAgent')}</Button>
                 </div>
               ) : (
                 <div className="hidden md:block">
@@ -571,15 +573,15 @@ export default function CityLedgerPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Agency</TableHead>
-                          <TableHead>Code</TableHead>
-                          <TableHead>Contact</TableHead>
-                          <TableHead className="text-right">Commission</TableHead>
-                          <TableHead className="text-right">Credit Limit</TableHead>
-                          <TableHead className="text-right">Balance</TableHead>
-                          <TableHead>Terms</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
+                          <TableHead>{t('clHeaderAgency')}</TableHead>
+                          <TableHead>{t('clHeaderCode')}</TableHead>
+                          <TableHead>{t('clHeaderContact')}</TableHead>
+                          <TableHead className="text-right">{t('clHeaderCommission')}</TableHead>
+                          <TableHead className="text-right">{t('clHeaderCreditLimit')}</TableHead>
+                          <TableHead className="text-right">{t('clHeaderBalance')}</TableHead>
+                          <TableHead>{t('clHeaderTerms')}</TableHead>
+                          <TableHead>{t('clHeaderStatus')}</TableHead>
+                          <TableHead className="text-right">{t('clHeaderActions')}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -616,7 +618,7 @@ export default function CityLedgerPage() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-40">
                                   <DropdownMenuItem onClick={() => handleDeleteAgent(agent.id)} className="text-red-600 dark:text-red-400">
-                                    <Trash2 className="h-4 w-4 mr-2" />Delete
+                                    <Trash2 className="h-4 w-4 mr-2" />{t('clDelete')}
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -640,9 +642,9 @@ export default function CityLedgerPage() {
                       <Badge variant={agent.status === 'active' ? 'default' : 'secondary'}>{agent.status}</Badge>
                     </div>
                     <div className="flex gap-4 text-xs text-muted-foreground">
-                      <span>Code: <Badge variant="outline" className="font-mono ml-1">{agent.code}</Badge></span>
-                      <span>Comm: {agent.commissionType === 'percentage' ? `${agent.commissionRate}%` : formatCurrency(agent.commissionRate)}</span>
-                      <span>Balance: <span className="font-medium text-foreground">{formatCurrency(agent.currentBalance)}</span></span>
+                      <span>{t('clMobileCode')} <Badge variant="outline" className="font-mono ml-1">{agent.code}</Badge></span>
+                      <span>{t('clMobileComm')} {agent.commissionType === 'percentage' ? `${agent.commissionRate}%` : formatCurrency(agent.commissionRate)}</span>
+                      <span>{t('clMobileBalance')} <span className="font-medium text-foreground">{formatCurrency(agent.currentBalance)}</span></span>
                     </div>
                   </div>
                 ))}
@@ -661,7 +663,7 @@ export default function CityLedgerPage() {
                   <div className="p-2 rounded-lg bg-amber-500/10 shrink-0"><AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" /></div>
                   <div className="min-w-0">
                     <div className="text-base sm:text-xl font-bold truncate">{formatCurrency(ledgerAggs.totalOutstanding)}</div>
-                    <div className="text-xs text-muted-foreground">Outstanding</div>
+                    <div className="text-xs text-muted-foreground">{t('clOutstanding')}</div>
                   </div>
                 </div>
               </Card>
@@ -670,7 +672,7 @@ export default function CityLedgerPage() {
                   <div className="p-2 rounded-lg bg-red-500/10 shrink-0"><Clock className="h-4 w-4 text-red-600 dark:text-red-400" /></div>
                   <div className="min-w-0">
                     <div className="text-base sm:text-xl font-bold truncate">{formatCurrency(ledgerAggs.totalOutstanding)}</div>
-                    <div className="text-xs text-muted-foreground">Overdue</div>
+                    <div className="text-xs text-muted-foreground">{t('clOverdue')}</div>
                   </div>
                 </div>
               </Card>
@@ -679,7 +681,7 @@ export default function CityLedgerPage() {
                   <div className="p-2 rounded-lg bg-emerald-500/10 shrink-0"><CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>
                   <div className="min-w-0">
                     <div className="text-base sm:text-xl font-bold truncate">{formatCurrency(ledgerAggs.totalPaid)}</div>
-                    <div className="text-xs text-muted-foreground">Total Paid</div>
+                    <div className="text-xs text-muted-foreground">{t('clTotalPaid')}</div>
                   </div>
                 </div>
               </Card>
@@ -691,21 +693,21 @@ export default function CityLedgerPage() {
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search invoices..." value={invoiceSearch} onChange={e => setInvoiceSearch(e.target.value)} className="pl-9 h-10" />
+                <Input placeholder={t('clSearchInvoices')} value={invoiceSearch} onChange={e => setInvoiceSearch(e.target.value)} className="pl-9 h-10" />
               </div>
             </div>
             <div className="flex gap-2">
               <Select value={invoiceStatusFilter} onValueChange={setInvoiceStatusFilter}>
-                <SelectTrigger className="w-full sm:w-40 h-10"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-40 h-10"><SelectValue placeholder={t('clAllStatus')} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="all">{t('clAllStatus')}</SelectItem>
                   {Object.entries(INVOICE_STATUSES).map(([k, v]) => (
                     <SelectItem key={k} value={k}>{v.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <Button onClick={() => { resetInvoiceForm(); setIsInvoiceDialogOpen(true); }} className="bg-gradient-to-r from-emerald-600 to-emerald-500 hover:shadow-lg hover:shadow-emerald-500/20 transition-all">
-                <Plus className="h-4 w-4 mr-1.5" />Create Invoice
+                <Plus className="h-4 w-4 mr-1.5" />{t('clCreateInvoice')}
               </Button>
             </div>
           </div>
@@ -717,8 +719,8 @@ export default function CityLedgerPage() {
               ) : invoices.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                   <FileText className="h-12 w-12 mb-3 opacity-30" />
-                  <p className="font-medium">No invoices found</p>
-                  <Button className="mt-4" onClick={() => { resetInvoiceForm(); setIsInvoiceDialogOpen(true); }}><Plus className="h-4 w-4 mr-1.5" />Create Invoice</Button>
+                  <p className="font-medium">{t('clNoInvoicesFound')}</p>
+                  <Button className="mt-4" onClick={() => { resetInvoiceForm(); setIsInvoiceDialogOpen(true); }}><Plus className="h-4 w-4 mr-1.5" />{t('clCreateInvoice')}</Button>
                 </div>
               ) : (
                 <div className="hidden md:block">
@@ -726,14 +728,14 @@ export default function CityLedgerPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Invoice #</TableHead>
-                          <TableHead>Account</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead className="text-right">Amount</TableHead>
-                          <TableHead>Due Date</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead className="text-right">Paid</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
+                          <TableHead>{t('clHeaderInvoiceNum')}</TableHead>
+                          <TableHead>{t('clHeaderAccount')}</TableHead>
+                          <TableHead>{t('clHeaderType')}</TableHead>
+                          <TableHead className="text-right">{t('clHeaderAmount')}</TableHead>
+                          <TableHead>{t('clHeaderDueDate')}</TableHead>
+                          <TableHead>{t('clHeaderStatus')}</TableHead>
+                          <TableHead className="text-right">{t('clHeaderPaid')}</TableHead>
+                          <TableHead className="text-right">{t('clHeaderActions')}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -759,16 +761,16 @@ export default function CityLedgerPage() {
                                 <DropdownMenuContent align="end" className="w-48">
                                   {!['paid', 'cancelled'].includes(inv.status) && (
                                     <>
-                                      <DropdownMenuItem onClick={() => updateInvoiceStatus(inv.id, 'sent')}><FileText className="h-4 w-4 mr-2" />Mark Sent</DropdownMenuItem>
-                                      <DropdownMenuItem onClick={() => openPaymentDialog(inv)}><CreditCard className="h-4 w-4 mr-2" />Record Payment</DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => updateInvoiceStatus(inv.id, 'sent')}><FileText className="h-4 w-4 mr-2" />{t('clMarkSent')}</DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => openPaymentDialog(inv)}><CreditCard className="h-4 w-4 mr-2" />{t('clRecordPayment')}</DropdownMenuItem>
                                       <DropdownMenuContent>
-                                        <DropdownMenuItem onClick={() => openPaymentDialog(inv)}><CreditCard className="h-4 w-4 mr-2" />Record Payment</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => openPaymentDialog(inv)}><CreditCard className="h-4 w-4 mr-2" />{t('clRecordPayment')}</DropdownMenuItem>
                                       </DropdownMenuContent>
                                     </>
                                   )}
                                   {inv.status === 'draft' && (
                                     <DropdownMenuItem onClick={() => updateInvoiceStatus(inv.id, 'cancelled')} className="text-red-600 dark:text-red-400">
-                                      <X className="h-4 w-4 mr-2" />Cancel
+                                      <X className="h-4 w-4 mr-2" />{t('clCancel')}
                                     </DropdownMenuItem>
                                   )}
                                 </DropdownMenuContent>
@@ -793,12 +795,12 @@ export default function CityLedgerPage() {
                       <StatusBadge status={inv.status} />
                     </div>
                     <div className="flex gap-4 text-xs text-muted-foreground">
-                      <span>Total: <span className="font-medium text-foreground">{formatCurrency(inv.total)}</span></span>
-                      <span>Paid: <span className="font-medium text-foreground">{formatCurrency(inv.paidAmount)}</span></span>
+                      <span>{t('clMobileTotal')} <span className="font-medium text-foreground">{formatCurrency(inv.total)}</span></span>
+                      <span>{t('clMobilePaid')} <span className="font-medium text-foreground">{formatCurrency(inv.paidAmount)}</span></span>
                     </div>
                     {!['paid', 'cancelled'].includes(inv.status) && (
                       <Button size="sm" variant="outline" className="w-full h-9" onClick={() => openPaymentDialog(inv)}>
-                        <CreditCard className="h-3.5 w-3.5 mr-1.5" />Record Payment
+                        <CreditCard className="h-3.5 w-3.5 mr-1.5" />{t('clRecordPayment')}
                       </Button>
                     )}
                   </div>
@@ -813,45 +815,45 @@ export default function CityLedgerPage() {
       <Dialog open={isAgentDialogOpen} onOpenChange={open => { if (!open) resetAgentForm(); setIsAgentDialogOpen(open); }}>
         <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Travel Agent</DialogTitle>
-            <DialogDescription>Create a new travel agent account</DialogDescription>
+            <DialogTitle>{t('clAddAgentTitle')}</DialogTitle>
+            <DialogDescription>{t('clAddAgentDesc')}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label>Agency Name *</Label><Input value={agentForm.agencyName} onChange={e => setAgentForm(p => ({ ...p, agencyName: e.target.value }))} placeholder="Agency name" /></div>
-              <div className="space-y-1.5"><Label>Code *</Label><Input value={agentForm.code} onChange={e => setAgentForm(p => ({ ...p, code: e.target.value }))} placeholder="AGENCY001" /></div>
+              <div className="space-y-1.5"><Label>{t('clLabelAgencyName')}</Label><Input value={agentForm.agencyName} onChange={e => setAgentForm(p => ({ ...p, agencyName: e.target.value }))} placeholder={t('clPlaceholderAgencyName')} /></div>
+              <div className="space-y-1.5"><Label>{t('clLabelCode')}</Label><Input value={agentForm.code} onChange={e => setAgentForm(p => ({ ...p, code: e.target.value }))} placeholder={t('clPlaceholderCode')} /></div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label>Contact Person</Label><Input value={agentForm.contactPerson} onChange={e => setAgentForm(p => ({ ...p, contactPerson: e.target.value }))} placeholder="John Doe" /></div>
-              <div className="space-y-1.5"><Label>Email</Label><Input type="email" value={agentForm.email} onChange={e => setAgentForm(p => ({ ...p, email: e.target.value }))} placeholder="agent@example.com" /></div>
+              <div className="space-y-1.5"><Label>{t('clLabelContactPerson')}</Label><Input value={agentForm.contactPerson} onChange={e => setAgentForm(p => ({ ...p, contactPerson: e.target.value }))} placeholder={t('clPlaceholderContactPerson')} /></div>
+              <div className="space-y-1.5"><Label>{t('clLabelEmail')}</Label><Input type="email" value={agentForm.email} onChange={e => setAgentForm(p => ({ ...p, email: e.target.value }))} placeholder={t('clPlaceholderEmail')} /></div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label>Phone</Label><Input value={agentForm.phone} onChange={e => setAgentForm(p => ({ ...p, phone: e.target.value }))} placeholder="+1 555-000-0000" /></div>
+              <div className="space-y-1.5"><Label>{t('clLabelPhone')}</Label><Input value={agentForm.phone} onChange={e => setAgentForm(p => ({ ...p, phone: e.target.value }))} placeholder={t('clPlaceholderPhone')} /></div>
               <div className="space-y-1.5">
-                <Label>Commission</Label>
+                <Label>{t('clLabelCommission')}</Label>
                 <div className="flex gap-2">
                   <Input type="number" value={agentForm.commissionRate} onChange={e => setAgentForm(p => ({ ...p, commissionRate: e.target.value }))} className="flex-1" />
                   <Select value={agentForm.commissionType} onValueChange={v => setAgentForm(p => ({ ...p, commissionType: v }))}>
                     <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="percentage">%</SelectItem>
-                      <SelectItem value="flat">Flat</SelectItem>
+                      <SelectItem value="percentage">{t('clPercent')}</SelectItem>
+                      <SelectItem value="flat">{t('clFlat')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label>Credit Limit</Label><Input type="number" value={agentForm.creditLimit} onChange={e => setAgentForm(p => ({ ...p, creditLimit: e.target.value }))} /></div>
+              <div className="space-y-1.5"><Label>{t('clLabelCreditLimit')}</Label><Input type="number" value={agentForm.creditLimit} onChange={e => setAgentForm(p => ({ ...p, creditLimit: e.target.value }))} /></div>
               <div className="space-y-1.5">
-                <Label>Payment Terms</Label>
+                <Label>{t('clLabelPaymentTerms')}</Label>
                 <Select value={agentForm.paymentTerms} onValueChange={v => setAgentForm(p => ({ ...p, paymentTerms: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{PAYMENT_TERMS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>
-            <div className="space-y-1.5"><Label>Status</Label>
+            <div className="space-y-1.5"><Label>{t('clLabelStatus')}</Label>
               <Select value={agentForm.status} onValueChange={v => setAgentForm(p => ({ ...p, status: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -861,11 +863,11 @@ export default function CityLedgerPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5"><Label>Notes</Label><Textarea value={agentForm.notes} onChange={e => setAgentForm(p => ({ ...p, notes: e.target.value }))} rows={2} /></div>
+            <div className="space-y-1.5"><Label>{t('clLabelNotes')}</Label><Textarea value={agentForm.notes} onChange={e => setAgentForm(p => ({ ...p, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAgentDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreateAgent} disabled={isSaving}>{isSaving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}Create Agent</Button>
+            <Button variant="outline" onClick={() => setIsAgentDialogOpen(false)}>{t('clCancel')}</Button>
+            <Button onClick={handleCreateAgent} disabled={isSaving}>{isSaving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}{t('clCreateAgent')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -874,64 +876,64 @@ export default function CityLedgerPage() {
       <Dialog open={isInvoiceDialogOpen} onOpenChange={open => { if (!open) resetInvoiceForm(); setIsInvoiceDialogOpen(open); }}>
         <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create City Ledger Invoice</DialogTitle>
-            <DialogDescription>Add a new invoice with line items</DialogDescription>
+            <DialogTitle>{t('clCreateInvoiceTitle')}</DialogTitle>
+            <DialogDescription>{t('clCreateInvoiceDesc')}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label>Invoice Number *</Label><Input value={invoiceForm.invoiceNumber} onChange={e => setInvoiceForm(p => ({ ...p, invoiceNumber: e.target.value }))} placeholder="CL-2025-001" /></div>
+              <div className="space-y-1.5"><Label>{t('clLabelInvoiceNumber')}</Label><Input value={invoiceForm.invoiceNumber} onChange={e => setInvoiceForm(p => ({ ...p, invoiceNumber: e.target.value }))} placeholder={t('clPlaceholderInvoiceNumber')} /></div>
               <div className="space-y-1.5">
-                <Label>Account Type</Label>
+                <Label>{t('clLabelAccountType')}</Label>
                 <Select value={invoiceForm.accountType} onValueChange={v => setInvoiceForm(p => ({ ...p, accountType: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="travel_agent">Travel Agent</SelectItem>
-                    <SelectItem value="corporate">Corporate</SelectItem>
-                    <SelectItem value="direct_bill">Direct Bill</SelectItem>
+                    <SelectItem value="travel_agent">{t('clTravelAgent')}</SelectItem>
+                    <SelectItem value="corporate">{t('clCorporate')}</SelectItem>
+                    <SelectItem value="direct_bill">{t('clDirectBill')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            <div className="space-y-1.5"><Label>Account Name *</Label><Input value={invoiceForm.accountName} onChange={e => setInvoiceForm(p => ({ ...p, accountName: e.target.value }))} placeholder="Company name" /></div>
+            <div className="space-y-1.5"><Label>{t('clLabelAccountName')}</Label><Input value={invoiceForm.accountName} onChange={e => setInvoiceForm(p => ({ ...p, accountName: e.target.value }))} placeholder={t('clPlaceholderAccountName')} /></div>
             {invoiceForm.accountType === 'travel_agent' && (
               <div className="space-y-1.5">
-                <Label>Link Travel Agent</Label>
+                <Label>{t('clLabelLinkTravelAgent')}</Label>
                 <Select value={invoiceForm.travelAgentId} onValueChange={v => setInvoiceForm(p => ({ ...p, travelAgentId: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select agent..." /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('clSelectAgent')} /></SelectTrigger>
                   <SelectContent>{agents.map(a => <SelectItem key={a.id} value={a.id}>{a.agencyName} ({a.code})</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label>Invoice Date *</Label><Input type="date" value={invoiceForm.invoiceDate} onChange={e => setInvoiceForm(p => ({ ...p, invoiceDate: e.target.value }))} /></div>
-              <div className="space-y-1.5"><Label>Due Date *</Label><Input type="date" value={invoiceForm.dueDate} onChange={e => setInvoiceForm(p => ({ ...p, dueDate: e.target.value }))} /></div>
+              <div className="space-y-1.5"><Label>{t('clLabelInvoiceDate')}</Label><Input type="date" value={invoiceForm.invoiceDate} onChange={e => setInvoiceForm(p => ({ ...p, invoiceDate: e.target.value }))} /></div>
+              <div className="space-y-1.5"><Label>{t('clLabelDueDate')}</Label><Input type="date" value={invoiceForm.dueDate} onChange={e => setInvoiceForm(p => ({ ...p, dueDate: e.target.value }))} /></div>
             </div>
 
             <Separator />
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-sm font-semibold">Line Items</Label>
-                <Button variant="ghost" size="sm" onClick={addLineItem} className="h-7 text-xs"><Plus className="h-3 w-3 mr-1" />Add Item</Button>
+                <Label className="text-sm font-semibold">{t('clLabelLineItems')}</Label>
+                <Button variant="ghost" size="sm" onClick={addLineItem} className="h-7 text-xs"><Plus className="h-3 w-3 mr-1" />{t('clAddItem')}</Button>
               </div>
               <div className="space-y-2">
                 {lineItems.map((item, idx) => (
                   <Card key={idx} className="p-3">
                     <div className="grid grid-cols-12 gap-2 items-end">
                       <div className="col-span-12 sm:col-span-5 space-y-1">
-                        <Label className="text-xs text-muted-foreground">Description</Label>
-                        <Input placeholder="Item description" value={item.description} onChange={e => { const ni = [...lineItems]; ni[idx] = { ...ni[idx], description: e.target.value }; setLineItems(ni); }} className="h-9 text-sm" />
+                        <Label className="text-xs text-muted-foreground">{t('clLabelItemDescription')}</Label>
+                        <Input placeholder={t('clPlaceholderItemDescription')} value={item.description} onChange={e => { const ni = [...lineItems]; ni[idx] = { ...ni[idx], description: e.target.value }; setLineItems(ni); }} className="h-9 text-sm" />
                       </div>
                       <div className="col-span-4 sm:col-span-2 space-y-1">
-                        <Label className="text-xs text-muted-foreground">Amount</Label>
+                        <Label className="text-xs text-muted-foreground">{t('clLabelItemAmount')}</Label>
                         <Input type="number" placeholder="0.00" value={item.amount} onChange={e => { const ni = [...lineItems]; ni[idx] = { ...ni[idx], amount: e.target.value }; setLineItems(ni); }} className="h-9 text-sm" />
                       </div>
                       <div className="col-span-3 sm:col-span-2 space-y-1">
-                        <Label className="text-xs text-muted-foreground">Qty</Label>
+                        <Label className="text-xs text-muted-foreground">{t('clLabelQty')}</Label>
                         <Input type="number" min="1" value={item.quantity} onChange={e => { const ni = [...lineItems]; ni[idx] = { ...ni[idx], quantity: e.target.value }; setLineItems(ni); }} className="h-9 text-sm" />
                       </div>
                       <div className="col-span-3 sm:col-span-2 space-y-1">
-                        <Label className="text-xs text-muted-foreground">Folio ID</Label>
-                        <Input placeholder="Optional" value={item.folioId} onChange={e => { const ni = [...lineItems]; ni[idx] = { ...ni[idx], folioId: e.target.value }; setLineItems(ni); }} className="h-9 text-sm" />
+                        <Label className="text-xs text-muted-foreground">{t('clLabelFolioId')}</Label>
+                        <Input placeholder={t('clPlaceholderOptional')} value={item.folioId} onChange={e => { const ni = [...lineItems]; ni[idx] = { ...ni[idx], folioId: e.target.value }; setLineItems(ni); }} className="h-9 text-sm" />
                       </div>
                       <div className="col-span-1 flex items-end justify-center">
                         <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-red-500" onClick={() => removeLineItem(idx)} disabled={lineItems.length === 1}><X className="h-4 w-4" /></Button>
@@ -939,7 +941,7 @@ export default function CityLedgerPage() {
                     </div>
                     <div className="flex justify-end mt-1">
                       <span className="text-xs text-muted-foreground">
-                        Line total: {formatCurrency((parseFloat(item.amount) || 0) * (parseInt(item.quantity) || 1))}
+                        {t('clLineTotal')} {formatCurrency((parseFloat(item.amount) || 0) * (parseInt(item.quantity) || 1))}
                       </span>
                     </div>
                   </Card>
@@ -948,14 +950,14 @@ export default function CityLedgerPage() {
             </div>
             <Card className="p-4 bg-muted/30">
               <div className="flex justify-end space-y-1 max-w-[200px] ml-auto">
-                <div className="flex justify-between text-sm w-full"><span>Subtotal</span><span className="font-medium">{formatCurrency(lineItems.reduce((s, i) => s + (parseFloat(i.amount) || 0) * (parseInt(i.quantity) || 1), 0))}</span></div>
+                <div className="flex justify-between text-sm w-full"><span>{t('clSubtotal')}</span><span className="font-medium">{formatCurrency(lineItems.reduce((s, i) => s + (parseFloat(i.amount) || 0) * (parseInt(i.quantity) || 1), 0))}</span></div>
               </div>
             </Card>
-            <div className="space-y-1.5"><Label>Notes</Label><Textarea value={invoiceForm.notes} onChange={e => setInvoiceForm(p => ({ ...p, notes: e.target.value }))} rows={2} /></div>
+            <div className="space-y-1.5"><Label>{t('clLabelNotes')}</Label><Textarea value={invoiceForm.notes} onChange={e => setInvoiceForm(p => ({ ...p, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsInvoiceDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreateInvoice} disabled={isSaving}>{isSaving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}Create Invoice</Button>
+            <Button variant="outline" onClick={() => setIsInvoiceDialogOpen(false)}>{t('clCancel')}</Button>
+            <Button onClick={handleCreateInvoice} disabled={isSaving}>{isSaving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}{t('clCreateInvoice')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -964,32 +966,32 @@ export default function CityLedgerPage() {
       <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Record Payment</DialogTitle>
+            <DialogTitle>{t('clRecordPaymentTitle')}</DialogTitle>
             <DialogDescription>
-              Invoice: {selectedInvoice?.invoiceNumber} • Outstanding: {formatCurrency((selectedInvoice?.total || 0) - (selectedInvoice?.paidAmount || 0))}
+              {t('clInvoice')}: {selectedInvoice?.invoiceNumber} • {t('clOutstandingLabel')}: {formatCurrency((selectedInvoice?.total || 0) - (selectedInvoice?.paidAmount || 0))}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            <div className="space-y-1.5"><Label>Payment Amount *</Label><Input type="number" step="0.01" value={paymentForm.amount} onChange={e => setPaymentForm(p => ({ ...p, amount: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('clLabelPaymentAmount')}</Label><Input type="number" step="0.01" value={paymentForm.amount} onChange={e => setPaymentForm(p => ({ ...p, amount: e.target.value }))} /></div>
             <div className="space-y-1.5">
-              <Label>Payment Method</Label>
+              <Label>{t('clLabelPaymentMethod')}</Label>
               <Select value={paymentForm.paymentMethod} onValueChange={v => setPaymentForm(p => ({ ...p, paymentMethod: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="credit_card">Credit Card</SelectItem>
-                  <SelectItem value="check">Check</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  <SelectItem value="bank_transfer">{t('clBankTransfer')}</SelectItem>
+                  <SelectItem value="cash">{t('clCash')}</SelectItem>
+                  <SelectItem value="credit_card">{t('clCreditCard')}</SelectItem>
+                  <SelectItem value="check">{t('clCheck')}</SelectItem>
+                  <SelectItem value="other">{t('clOther')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5"><Label>Reference</Label><Input value={paymentForm.reference} onChange={e => setPaymentForm(p => ({ ...p, reference: e.target.value }))} placeholder="Transaction reference" /></div>
-            <div className="space-y-1.5"><Label>Payment Date</Label><Input type="date" value={paymentForm.paidAt} onChange={e => setPaymentForm(p => ({ ...p, paidAt: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('clLabelReference')}</Label><Input value={paymentForm.reference} onChange={e => setPaymentForm(p => ({ ...p, reference: e.target.value }))} placeholder={t('clPlaceholderReference')} /></div>
+            <div className="space-y-1.5"><Label>{t('clLabelPaymentDate')}</Label><Input type="date" value={paymentForm.paidAt} onChange={e => setPaymentForm(p => ({ ...p, paidAt: e.target.value }))} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleRecordPayment} disabled={isSaving}>{isSaving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Banknote className="h-4 w-4 mr-1.5" />}Record Payment</Button>
+            <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>{t('clCancel')}</Button>
+            <Button onClick={handleRecordPayment} disabled={isSaving}>{isSaving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Banknote className="h-4 w-4 mr-1.5" />}{t('clRecordPayment')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

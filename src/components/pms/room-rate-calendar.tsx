@@ -253,7 +253,6 @@ export default function RoomRateCalendar() {
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         if (error instanceof Error && error.name === 'AbortError') return;
-        console.error('Error fetching properties:', error);
         toast({ title: 'Error', description: 'Failed to load properties', variant: 'destructive' });
       }
     };
@@ -281,7 +280,6 @@ export default function RoomRateCalendar() {
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         if (error instanceof Error && error.name === 'AbortError') return;
-        console.error('Error fetching room types:', error);
       }
     };
     fetchRoomTypes();
@@ -307,7 +305,6 @@ export default function RoomRateCalendar() {
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         if (error instanceof Error && error.name === 'AbortError') return;
-        console.error('Error fetching rate plans:', error);
       }
     };
     fetchRatePlans();
@@ -345,7 +342,6 @@ export default function RoomRateCalendar() {
         setRates(result.data.rates);
       }
     } catch (error) {
-      console.error('Error fetching rates:', error);
     } finally {
       setIsLoading(false);
     }
@@ -375,7 +371,6 @@ export default function RoomRateCalendar() {
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         if (error instanceof Error && error.name === 'AbortError') return;
-        console.error('Error fetching rates:', error);
       } finally {
         setIsLoading(false);
       }

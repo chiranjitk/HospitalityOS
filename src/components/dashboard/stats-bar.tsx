@@ -102,7 +102,6 @@ export function StatsBar() {
           ]);
         }
       } catch (err) {
-        console.error('Failed to fetch quick stats:', err);
       } finally {
         setIsLoading(false);
       }

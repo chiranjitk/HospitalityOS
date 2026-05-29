@@ -109,7 +109,6 @@ export default function ChatTransfer({
         setTransferHistory(historyResult.data || []);
       }
     } catch (error) {
-      console.error('Error fetching transfer data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -163,7 +162,6 @@ export default function ChatTransfer({
         });
       }
     } catch (error) {
-      console.error('Error transferring conversation:', error);
       toast({
         title: 'Error',
         description: 'Failed to transfer conversation',

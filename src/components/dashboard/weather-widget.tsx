@@ -86,7 +86,6 @@ export function WeatherWidget() {
           low: Math.round(daily.temperature_2m_min[0]),
         });
       } catch (err) {
-        console.error('Failed to fetch weather data:', err);
         setError(true);
       } finally {
         setLoading(false);

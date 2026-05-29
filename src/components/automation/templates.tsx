@@ -237,7 +237,6 @@ export default function Templates() {
         toast.error(msg);
       }
     } catch (error) {
-      console.error('Error creating from template:', error);
       toast.error('Failed to create automation');
     } finally {
       setIsCreating(false);

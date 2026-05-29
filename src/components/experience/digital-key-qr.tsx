@@ -152,7 +152,6 @@ export default function DigitalKeyQR({ keyId, keySecret, guestName, roomNumber }
         });
       }
     } catch (error) {
-      console.error('Error fetching key data:', error);
       toast({
         title: 'Error',
         description: 'Failed to load key data',

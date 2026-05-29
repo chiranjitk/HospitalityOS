@@ -130,7 +130,6 @@ const t = useTranslations('revenue');
         toast.error('Failed to load competitor pricing');
       }
     } catch (error) {
-      console.error('Error fetching competitor pricing:', error);
       toast.error('Failed to load competitor pricing');
     } finally {
       setIsLoading(false);

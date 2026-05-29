@@ -221,7 +221,6 @@ export default function UnifiedInbox() {
         throw new Error(result.error?.message || 'Failed to fetch conversations');
       }
     } catch (error) {
-      console.error('Error fetching conversations:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch conversations',
@@ -242,7 +241,7 @@ export default function UnifiedInbox() {
         setStaffMembers(result.data || []);
       }
     } catch (error) {
-      console.error('Error fetching staff members:', error);
+      console.error('Operation failed:', error);
     }
   }, []);
 
@@ -256,7 +255,7 @@ export default function UnifiedInbox() {
         setTemplates(result.data || []);
       }
     } catch (error) {
-      console.error('Error fetching templates:', error);
+      console.error('Operation failed:', error);
     }
   }, []);
 
@@ -279,7 +278,6 @@ export default function UnifiedInbox() {
         throw new Error(result.error?.message || 'Failed to fetch messages');
       }
     } catch (error) {
-      console.error('Error fetching messages:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch messages',
@@ -330,7 +328,6 @@ export default function UnifiedInbox() {
         throw new Error(result.error?.message || 'Failed to send message');
       }
     } catch (error) {
-      console.error('Error sending message:', error);
       toast({
         title: 'Error',
         description: 'Failed to send message',
@@ -367,7 +364,6 @@ export default function UnifiedInbox() {
         throw new Error(result.error?.message || 'Failed to update status');
       }
     } catch (error) {
-      console.error('Error updating status:', error);
       toast({
         title: 'Error',
         description: 'Failed to update status',
@@ -421,7 +417,6 @@ export default function UnifiedInbox() {
         throw new Error(result.error?.message || 'Failed to assign conversation');
       }
     } catch (error) {
-      console.error('Error assigning conversation:', error);
       toast({
         title: 'Error',
         description: 'Failed to assign conversation',
@@ -833,7 +828,7 @@ export default function UnifiedInbox() {
                                 body: JSON.stringify({ id: selectedConversation.id }),
                               });
                             } catch (error) {
-                              console.error('Error deleting conversation:', error);
+                              console.error('Delete operation failed:', error);
                             }
                             setConversations(prev => prev.filter(c => c.id !== selectedConversation.id));
                             setSelectedConversation(null);

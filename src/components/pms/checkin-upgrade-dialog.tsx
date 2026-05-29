@@ -133,7 +133,6 @@ export default function CheckinUpgradeDialog({
         });
       }
     } catch (error) {
-      console.error('Error fetching upgrade offers:', error);
       toast({
         title: 'Error',
         description: 'Failed to load upgrade options',
@@ -217,7 +216,6 @@ export default function CheckinUpgradeDialog({
 
       onOpenChange(false);
     } catch (error) {
-      console.error('Error accepting upgrade:', error);
       toast({
         title: 'Error',
         description: 'Failed to apply upgrade',

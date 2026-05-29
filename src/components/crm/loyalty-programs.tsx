@@ -234,7 +234,6 @@ export default function LoyaltyPrograms() {
         }));
       }
     } catch (error) {
-      console.error('Error fetching loyalty data:', error);
       toast.error('Failed to fetch loyalty data');
     } finally {
       setLoading(false);
@@ -254,7 +253,6 @@ export default function LoyaltyPrograms() {
         setLedgerData(data.data);
       }
     } catch (error) {
-      console.error('Error fetching points ledger:', error);
     } finally {
       setLedgerLoading(false);
     }

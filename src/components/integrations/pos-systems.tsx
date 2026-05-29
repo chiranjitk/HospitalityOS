@@ -151,7 +151,6 @@ export default function PosSystems() {
         toast.error(data.error?.message || 'Sync failed');
       }
     } catch (error) {
-      console.error('Sync error:', error);
       toast.error('Sync failed');
     }
   };
@@ -176,7 +175,6 @@ export default function PosSystems() {
         toast.error(data.error?.message || 'Connection failed');
       }
     } catch (error) {
-      console.error('Connection error:', error);
       toast.error('Connection failed');
     }
   };

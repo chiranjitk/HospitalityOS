@@ -401,7 +401,7 @@ export default function Payments() {
           }
         }
       } catch (error) {
-
+        console.error('Operation failed:', error);
       }
     };
     fetchFolios();
@@ -457,7 +457,7 @@ export default function Payments() {
         setFolios(result.data.filter((f: Folio) => f.balance > 0));
       }
     } catch (error) {
-
+      console.error('Operation failed:', error);
     }
   };
 
@@ -493,7 +493,7 @@ export default function Payments() {
         setIsDetailOpen(true);
       }
     } catch (error) {
-
+      console.error('Operation failed:', error);
     }
   };
 

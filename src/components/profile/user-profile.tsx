@@ -120,7 +120,6 @@ export default function UserProfile() {
           }
         }
       } catch (error) {
-        console.error('Failed to fetch sessions:', error);
       } finally {
         setSessionsLoading(false);
       }
@@ -176,7 +175,6 @@ export default function UserProfile() {
           }
         }
       } catch (error) {
-        console.error('Failed to fetch preferences:', error);
       } finally {
         setPreferencesLoading(false);
       }
@@ -220,7 +218,6 @@ export default function UserProfile() {
         toast.error(data.error || 'Failed to update profile');
       }
     } catch (error) {
-      console.error('Error updating profile:', error);
       toast.error('Failed to update profile');
     } finally {
       setIsLoading(false);
@@ -262,7 +259,6 @@ export default function UserProfile() {
         toast.error(data.error || 'Failed to change password');
       }
     } catch (error) {
-      console.error('Error changing password:', error);
       toast.error('Failed to change password');
     } finally {
       setIsLoading(false);
@@ -304,7 +300,6 @@ export default function UserProfile() {
         toast.error(data.error || 'Failed to save preferences');
       }
     } catch (error) {
-      console.error('Error saving preferences:', error);
       toast.error('Failed to save preferences');
     } finally {
       setIsLoading(false);
@@ -325,7 +320,6 @@ export default function UserProfile() {
         toast.error(data.error || 'Failed to revoke session');
       }
     } catch (error) {
-      console.error('Error revoking session:', error);
       toast.error('Failed to revoke session');
     }
   };

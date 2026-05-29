@@ -143,7 +143,6 @@ export default function LeaveManagement() {
         if (data.pagination) setTotalPages(data.pagination.totalPages);
       }
     } catch (error) {
-      console.error('Error fetching leaves:', error);
       toast.error('Failed to load leave requests');
     } finally {
       setIsLoading(false);
@@ -187,7 +186,6 @@ export default function LeaveManagement() {
         setCalendarLeaves(calLeaves);
       }
     } catch (error) {
-      console.error('Error fetching calendar leaves:', error);
     } finally {
       setCalendarLoading(false);
     }
@@ -231,7 +229,6 @@ export default function LeaveManagement() {
         toast.error(data.error?.message || 'Failed to create leave request');
       }
     } catch (error) {
-      console.error('Error creating leave:', error);
       toast.error('Failed to create leave request');
     } finally {
       setProcessing(null);

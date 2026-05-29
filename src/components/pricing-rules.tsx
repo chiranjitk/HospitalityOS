@@ -120,7 +120,7 @@ export function PricingRules() {
           setProperties(result.data);
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchProperties();
@@ -140,7 +140,7 @@ export function PricingRules() {
           setRoomTypes(result.data);
         }
       } catch (error) {
-        console.error('Error fetching room types:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchRoomTypes();
@@ -163,7 +163,7 @@ export function PricingRules() {
           }
         }
       } catch (error) {
-        console.error('Error fetching rate plans:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchRatePlans();
@@ -188,7 +188,6 @@ export function PricingRules() {
         setOverrides(data);
       }
     } catch (error) {
-      console.error('Error fetching price overrides:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch price overrides',
@@ -244,7 +243,6 @@ export function PricingRules() {
         });
       }
     } catch (error) {
-      console.error('Error creating price override:', error);
       toast({
         title: 'Error',
         description: 'Failed to create price override',
@@ -290,7 +288,6 @@ export function PricingRules() {
         });
       }
     } catch (error) {
-      console.error('Error updating price override:', error);
       toast({
         title: 'Error',
         description: 'Failed to update price override',
@@ -328,7 +325,6 @@ export function PricingRules() {
         });
       }
     } catch (error) {
-      console.error('Error deleting price override:', error);
       toast({
         title: 'Error',
         description: 'Failed to delete price override',

@@ -225,7 +225,6 @@ export function ChannelCancellationPolicies() {
       }
       if (connData.success) setConnections(connData.data || []);
     } catch (err) {
-      console.error('Error fetching data:', err);
       toast.error('Failed to load cancellation policies');
     } finally {
       setLoading(false);

@@ -82,7 +82,6 @@ export function ArticleViewer({ articleId, onBack }: ArticleViewerProps) {
         onBack();
       }
     } catch (error) {
-      console.error('Error fetching article:', error);
       toast.error('Failed to fetch article');
     } finally {
       setLoading(false);
@@ -107,7 +106,7 @@ export function ArticleViewer({ articleId, onBack }: ArticleViewerProps) {
         );
       }
     } catch (error) {
-      console.error('Error fetching related articles:', error);
+      console.error('Operation failed:', error);
     }
   };
 
@@ -133,7 +132,7 @@ export function ArticleViewer({ articleId, onBack }: ArticleViewerProps) {
         }
       }
     } catch (error) {
-      console.error('Error submitting feedback:', error);
+      console.error('Operation failed:', error);
     }
   };
 

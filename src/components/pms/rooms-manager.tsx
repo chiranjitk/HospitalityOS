@@ -191,7 +191,7 @@ export default function RoomsManager() {
           }
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        console.error('Import operation failed:', error);
       }
     };
     fetchProperties();
@@ -217,7 +217,7 @@ export default function RoomsManager() {
           }
         }
       } catch (error) {
-        console.error('Error fetching room types:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchRoomTypes();
@@ -244,7 +244,6 @@ export default function RoomsManager() {
         setRooms(result.data);
       }
     } catch (error) {
-      console.error('Error fetching rooms:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch rooms',
@@ -305,7 +304,6 @@ export default function RoomsManager() {
         });
       }
     } catch (error) {
-      console.error('Error creating room:', error);
       toast({
         title: 'Error',
         description: 'Failed to create room',
@@ -390,7 +388,6 @@ export default function RoomsManager() {
         });
       }
     } catch (error) {
-      console.error('Error bulk creating rooms:', error);
       toast({
         title: 'Error',
         description: 'Failed to create rooms',
@@ -449,7 +446,6 @@ export default function RoomsManager() {
         });
       }
     } catch (error) {
-      console.error('Error updating room:', error);
       toast({
         title: 'Error',
         description: 'Failed to update room',
@@ -490,7 +486,6 @@ export default function RoomsManager() {
         });
       }
     } catch (error) {
-      console.error('Error deleting room:', error);
       toast({
         title: 'Error',
         description: 'Failed to delete room',
@@ -531,7 +526,6 @@ export default function RoomsManager() {
         });
       }
     } catch (error) {
-      console.error('Error updating room status:', error);
       toast({
         title: 'Error',
         description: 'Failed to update room status',
@@ -700,7 +694,6 @@ export default function RoomsManager() {
       setImportResult(result);
       fetchRooms();
     } catch (error) {
-      console.error('Import error:', error);
       toast({
         title: 'Import Failed',
         description: error instanceof Error ? error.message : 'Failed to import rooms',

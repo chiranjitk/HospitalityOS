@@ -227,7 +227,7 @@ export default function Reservations() {
         setAvailableTables(data.data);
       }
     } catch (error) {
-
+      console.error('Operation failed:', error);
     }
   }, [propertyId]);
 

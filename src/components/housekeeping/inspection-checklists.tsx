@@ -388,7 +388,9 @@ function TemplatesTab() {
         const res = await fetch('/api/room-types?limit=100');
         const result = await res.json();
         if (result.success) setDbRoomTypes(result.data || []);
-      } catch { /* fallback to hardcoded */ }
+      } catch (error) {
+        console.error('Failed to fetch room types for template form:', error); /* fallback to hardcoded */
+      }
     };
     fetchRoomTypes();
   }, []);
@@ -407,7 +409,6 @@ function TemplatesTab() {
         setTemplates(result.data);
       }
     } catch (error) {
-      console.error('Error fetching templates:', error);
       toast({ title: 'Error', description: 'Failed to fetch templates', variant: 'destructive' });
     } finally {
       setIsLoading(false);
@@ -518,7 +519,6 @@ function TemplatesTab() {
         toast({ title: 'Error', description: result.error?.message || 'Failed to create template', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error creating template:', error);
       toast({ title: 'Error', description: 'Failed to create template', variant: 'destructive' });
     } finally {
       setIsSaving(false);
@@ -560,7 +560,6 @@ function TemplatesTab() {
         toast({ title: 'Error', description: result.error?.message || 'Failed to update template', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error updating template:', error);
       toast({ title: 'Error', description: 'Failed to update template', variant: 'destructive' });
     } finally {
       setIsSaving(false);
@@ -584,7 +583,6 @@ function TemplatesTab() {
         toast({ title: 'Error', description: result.error?.message || 'Failed to delete template', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error deleting template:', error);
       toast({ title: 'Error', description: 'Failed to delete template', variant: 'destructive' });
     } finally {
       setIsSaving(false);
@@ -1172,7 +1170,6 @@ function InspectTab() {
         const result = await res.json();
         if (result.success) setProperties(result.data);
       } catch (error) {
-        console.error('Error fetching properties:', error);
         setLoadError('Failed to load properties');
         toast({ title: 'Error', description: 'Failed to load checklists. Properties could not be fetched.', variant: 'destructive' });
       }
@@ -1193,7 +1190,6 @@ function InspectTab() {
           setRooms(allRooms);
         }
       } catch (error) {
-        console.error('Error fetching rooms:', error);
         setLoadError('Failed to load rooms');
       }
     };
@@ -1211,7 +1207,6 @@ function InspectTab() {
           setTemplates(result.data);
         }
       } catch (error) {
-        console.error('Error fetching templates:', error);
         toast({ title: 'Error', description: 'Failed to load checklists', variant: 'destructive' });
       }
     };
@@ -1308,7 +1303,6 @@ function InspectTab() {
         toast({ title: 'Error', description: result.error?.message || 'Failed to submit inspection', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error submitting inspection:', error);
       toast({ title: 'Error', description: 'Failed to submit inspection', variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
@@ -1607,8 +1601,7 @@ function HistoryTab() {
         const result = await res.json();
         if (result.success) setProperties(result.data);
       } catch (error) {
-        console.error('Error fetching properties:', error);
-      }
+      console.error("Operation failed:", error);
     };
     fetchProperties();
   }, []);
@@ -1629,7 +1622,6 @@ function HistoryTab() {
         setStats(result.stats || { total: 0, passed: 0, failed: 0, avgScore: 0 });
       }
     } catch (error) {
-      console.error('Error fetching inspections:', error);
       toast({ title: 'Error', description: 'Failed to fetch inspections', variant: 'destructive' });
     } finally {
       setIsLoading(false);
@@ -1652,7 +1644,6 @@ function HistoryTab() {
         toast({ title: 'Error', description: 'Failed to load inspection details', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error fetching detail:', error);
       toast({ title: 'Error', description: 'Failed to load inspection details', variant: 'destructive' });
     } finally {
       setIsLoadingDetail(false);
@@ -1993,7 +1984,7 @@ function ReportsTab() {
         const result = await res.json();
         if (result.success) setProperties(result.data);
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        console.error('Failed to load properties:', error);
       }
     };
     fetchProperties();
@@ -2021,7 +2012,6 @@ function ReportsTab() {
         setTrendData(data.trendData || []);
       }
     } catch (error) {
-      console.error('Error fetching stats:', error);
       toast({ title: 'Error', description: 'Failed to fetch quality reports', variant: 'destructive' });
     } finally {
       setIsLoading(false);

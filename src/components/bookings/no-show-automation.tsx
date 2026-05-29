@@ -129,7 +129,6 @@ export default function NoShowAutomation() {
       // Fetch up to 100 for stats computation
       const res = await fetch('/api/bookings?status=no_show&limit=100');
       if (!res.ok) {
-        console.error('Failed to fetch no-show bookings:', res.status);
         return;
       }
       const json = await res.json();
@@ -180,7 +179,6 @@ export default function NoShowAutomation() {
       // For table, show up to 20
       setNoShowBookings(allBookings.slice(0, 20));
     } catch (err) {
-      console.error('Error fetching no-show bookings:', err);
     } finally {
       setLoadingStats(false);
       setLoadingBookings(false);
@@ -224,7 +222,6 @@ export default function NoShowAutomation() {
         }
       }
     } catch (err) {
-      console.error('Error fetching settings:', err);
     } finally {
       setLoadingSettings(false);
     }
@@ -268,7 +265,6 @@ export default function NoShowAutomation() {
         toast.error(err.error?.message || 'Failed to save settings');
       }
     } catch (err) {
-      console.error('Error saving settings:', err);
       toast.error('Network error saving settings');
     } finally {
       setSavingSettings(false);
@@ -306,7 +302,6 @@ export default function NoShowAutomation() {
         toast.error(result.message || 'Detection failed');
       }
     } catch (err) {
-      console.error('Error running detection:', err);
       toast.error('Network error running detection');
     } finally {
       if (!dryRun) setRunningDetection(false);

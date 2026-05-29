@@ -181,7 +181,6 @@ export default function VirtualInventory() {
         setStats(result.stats);
       }
     } catch (error) {
-      console.error('Error fetching virtual inventory:', error);
       toast.error('Failed to load virtual inventory');
     } finally {
       setLoading(false);
@@ -201,7 +200,7 @@ export default function VirtualInventory() {
         })));
       }
     } catch (error) {
-      console.error('Error fetching room types:', error);
+      console.error('Operation failed:', error);
     }
   }, []);
 

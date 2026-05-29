@@ -178,7 +178,6 @@ export function RatePlanComparisonWidget() {
         throw new Error(result.error?.message || t('failedToLoad'));
       }
     } catch (err) {
-      console.error('Rate plan fetch failed:', err);
       setError(err instanceof Error ? err.message : t('unknownError'));
       setData(null);
     } finally {

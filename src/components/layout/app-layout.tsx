@@ -84,7 +84,6 @@ export function AppLayout({ children }: AppLayoutProps) {
         }
       })
       .catch((err) => {
-        console.error('Failed to fetch properties:', err);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

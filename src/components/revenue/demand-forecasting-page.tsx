@@ -198,7 +198,6 @@ export default function DemandForecastingPage() {
         setData(null);
       }
     } catch (error) {
-      console.error('Failed to fetch demand forecast:', error);
       toast({
         title: 'Error',
         description: 'Failed to load demand forecast data',

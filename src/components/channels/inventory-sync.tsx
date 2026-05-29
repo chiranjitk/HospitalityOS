@@ -101,7 +101,6 @@ export default function InventorySync() {
         toast.error('Failed to load inventory sync status');
       }
     } catch (error) {
-      console.error('Error fetching inventory sync:', error);
       toast.error('Failed to load inventory sync status');
     } finally {
       setLoading(false);

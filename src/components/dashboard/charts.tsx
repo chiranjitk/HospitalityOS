@@ -145,7 +145,6 @@ function useDashboardData() {
       }
     } catch (err) {
       setError('Failed to load chart data');
-      console.error('Failed to fetch dashboard data:', err);
     } finally {
       setIsLoading(false);
     }

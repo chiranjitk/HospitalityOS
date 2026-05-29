@@ -322,7 +322,6 @@ export default function HelpCenterLanding() {
           }
         }
       } catch (err) {
-        console.error('Error fetching help articles:', err);
       } finally {
         setArticlesLoading(false);
       }

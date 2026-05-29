@@ -83,7 +83,6 @@ const t = useTranslations('revenue');
         toast.error('Failed to load AI suggestions');
       }
     } catch (error) {
-      console.error('Error fetching AI suggestions:', error);
       toast.error('Failed to load AI suggestions');
     } finally {
       setIsLoading(false);
@@ -125,7 +124,6 @@ const t = useTranslations('revenue');
         toast.error('Failed to apply suggestion');
       }
     } catch (error) {
-      console.error('Error applying suggestion:', error);
       toast.error('Failed to apply suggestion');
     }
   };
@@ -149,7 +147,6 @@ const t = useTranslations('revenue');
         toast.error('Failed to dismiss suggestion');
       }
     } catch (error) {
-      console.error('Error dismissing suggestion:', error);
       toast.error('Failed to dismiss suggestion');
     }
   };

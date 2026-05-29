@@ -213,7 +213,6 @@ export function ContentSync() {
         setConnections(Array.isArray(connList) ? connList : []);
       }
     } catch (err) {
-      console.error('Error fetching data:', err);
       toast.error('Failed to load content sync data');
     } finally {
       setLoading(false);

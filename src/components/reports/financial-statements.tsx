@@ -383,7 +383,6 @@ export default function FinancialStatements() {
         if (cfRes.success) setCashFlowData(cfRes.data);
       } catch (err) {
         if (!cancelled) {
-          console.error('Failed to load financial data:', err);
           setError('Failed to load financial data. Showing empty state.');
         }
       } finally {

@@ -181,7 +181,7 @@ export default function WorkOrders({ propertyId }: WorkOrdersProps) {
           }
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchProperties();
@@ -213,7 +213,6 @@ export default function WorkOrders({ propertyId }: WorkOrdersProps) {
         });
       }
     } catch (error) {
-      console.error('Error fetching work orders:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch work orders',
@@ -273,7 +272,6 @@ export default function WorkOrders({ propertyId }: WorkOrdersProps) {
         toast({ title: 'Error', description: result.error?.message || 'Failed to create work order', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error creating work order:', error);
       toast({ title: 'Error', description: 'Failed to create work order', variant: 'destructive' });
     } finally {
       setIsSaving(false);

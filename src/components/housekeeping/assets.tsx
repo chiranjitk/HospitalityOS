@@ -152,7 +152,6 @@ export default function Assets() {
         setAssets(assetsResult.data);
       }
     } catch (error) {
-      console.error('Error fetching assets:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch assets',
@@ -247,7 +246,6 @@ export default function Assets() {
         });
       }
     } catch (error) {
-      console.error('Error creating asset:', error);
       toast({
         title: 'Error',
         description: 'Failed to create asset',
@@ -304,7 +302,6 @@ export default function Assets() {
         });
       }
     } catch (error) {
-      console.error('Error updating asset:', error);
       toast({
         title: 'Error',
         description: 'Failed to update asset',
@@ -343,7 +340,6 @@ export default function Assets() {
         });
       }
     } catch (error) {
-      console.error('Error deleting asset:', error);
       toast({
         title: 'Error',
         description: 'Failed to delete asset',

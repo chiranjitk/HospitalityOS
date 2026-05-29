@@ -231,7 +231,6 @@ export function MealPlanMappingManager() {
       }
       if (connData.success) setConnections(connData.data || []);
     } catch (err) {
-      console.error('Error fetching data:', err);
       toast.error('Failed to load meal plan mapping data');
     } finally {
       setLoading(false);

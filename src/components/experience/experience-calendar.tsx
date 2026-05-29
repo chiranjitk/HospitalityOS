@@ -125,7 +125,6 @@ export default function ExperienceCalendar() {
         setData(result.data);
       }
     } catch (error) {
-      console.error('Error fetching calendar data:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch calendar data',

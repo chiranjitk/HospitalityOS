@@ -147,7 +147,6 @@ export default function Vendors() {
         setStats(data.stats);
       }
     } catch (error) {
-      console.error('Error fetching vendors:', error);
       toast.error('Failed to fetch vendors');
     } finally {
       setLoading(false);
@@ -225,7 +224,6 @@ export default function Vendors() {
         toast.error(data.error?.message || 'Failed to save vendor');
       }
     } catch (error) {
-      console.error('Error saving vendor:', error);
       toast.error('Failed to save vendor');
     } finally {
       setSaving(false);
@@ -252,7 +250,6 @@ export default function Vendors() {
         toast.error(data.error?.message || 'Failed to delete vendor');
       }
     } catch (error) {
-      console.error('Error deleting vendor:', error);
       toast.error('Failed to delete vendor');
     } finally {
       setSaving(false);

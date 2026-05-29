@@ -181,7 +181,6 @@ export default function ExperienceRevenue() {
         setData(result.data);
       }
     } catch (error) {
-      console.error('Error fetching revenue data:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch revenue data',

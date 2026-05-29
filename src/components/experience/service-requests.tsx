@@ -149,7 +149,6 @@ export default function ServiceRequests() {
         setSummary(result.summary);
       }
     } catch (error) {
-      console.error('Error fetching service requests:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch service requests',
@@ -220,7 +219,6 @@ export default function ServiceRequests() {
         });
       }
     } catch (error) {
-      console.error('Error creating service request:', error);
       toast({
         title: 'Error',
         description: 'Failed to create service request',
@@ -259,7 +257,6 @@ export default function ServiceRequests() {
         });
       }
     } catch (error) {
-      console.error('Error updating status:', error);
       toast({
         title: 'Error',
         description: 'Failed to update status',

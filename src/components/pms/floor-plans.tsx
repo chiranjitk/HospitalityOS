@@ -288,7 +288,6 @@ export default function FloorPlans() {
         });
       }
     } catch (error) {
-      console.error('Error saving room positions:', error);
       toast({
         title: 'Error',
         description: 'Failed to save room positions',
@@ -344,7 +343,7 @@ export default function FloorPlans() {
           }
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchProperties();
@@ -371,7 +370,6 @@ export default function FloorPlans() {
     } catch (error: any) {
       if (error?.name === 'AbortError') return;
       if (error instanceof Error && error.name === 'AbortError') return;
-      console.error('Error fetching floor plans:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch floor plans',
@@ -401,7 +399,7 @@ export default function FloorPlans() {
         setRooms(result.data);
       }
     } catch (error) {
-      console.error('Error fetching rooms:', error);
+      console.error('Operation failed:', error);
     }
   };
 
@@ -446,7 +444,6 @@ export default function FloorPlans() {
         });
       }
     } catch (error) {
-      console.error('Error creating floor plan:', error);
       toast({
         title: 'Error',
         description: 'Failed to create floor plan',
@@ -489,7 +486,6 @@ export default function FloorPlans() {
         });
       }
     } catch (error) {
-      console.error('Error updating floor plan:', error);
       toast({
         title: 'Error',
         description: 'Failed to update floor plan',
@@ -531,7 +527,6 @@ export default function FloorPlans() {
         });
       }
     } catch (error) {
-      console.error('Error deleting floor plan:', error);
       toast({
         title: 'Error',
         description: 'Failed to delete floor plan',

@@ -40,7 +40,7 @@ function getStoredTheme(): ThemeMode | null {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
-  } catch {}
+  } catch (error) { console.error('Context: reading stored theme:', error); }
   return null;
 }
 
@@ -131,7 +131,7 @@ export function ThemeProvider({
     // Persist
     try {
       localStorage.setItem(storageKey, newTheme);
-    } catch {}
+    } catch (error) { console.error('Context: persisting theme:', error); }
 
     // Apply to DOM
     applyThemeToDOM(resolved, attribute, disableTransitionOnChange);

@@ -128,7 +128,6 @@ export default function ChannelMapping() {
         toast.error('Failed to load channel mappings');
       }
     } catch (error) {
-      console.error('Error fetching mappings:', error);
       toast.error('Failed to load channel mappings');
     } finally {
       setLoading(false);
@@ -148,7 +147,7 @@ export default function ChannelMapping() {
         })));
       }
     } catch (error) {
-      console.error('Error fetching connections:', error);
+      console.error('Operation failed:', error);
     }
   };
 

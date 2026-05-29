@@ -40,7 +40,7 @@ const t = useTranslations('pos');
       const mData = await mRes.json();
       if (tData.success) setTables((tData.data || []).map((t: any) => ({ id: t.id, number: t.number, capacity: t.capacity, area: t.area, status: t.status })));
       if (mData.success) setMerges(mData.data || []);
-    } catch { } finally { setLoading(false); }
+    } catch (error) { console.error('Context: fetching table merge data:', error); } finally { setLoading(false); }
   }, [propertyId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);

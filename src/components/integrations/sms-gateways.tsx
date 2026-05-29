@@ -344,7 +344,6 @@ export default function SMSGateways() {
         toast.error('Failed to load SMS gateway data');
       }
     } catch (error) {
-      console.error('Failed to fetch SMS gateways:', error);
       setGateways([]);
       toast.error('Failed to fetch SMS gateways');
     } finally {

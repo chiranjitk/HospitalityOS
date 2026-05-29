@@ -41,7 +41,7 @@ const t = useTranslations('pos');
       if (sData.success) setStaff(sData.data || []);
       if (aData.success) setAssignments(aData.data?.assignments || []);
       if (tData.success) setTables((tData.data || []).map((t: any) => ({ id: t.id, number: t.number })));
-    } catch {} finally { setLoading(false); }
+    } catch (error) { console.error('Context: fetching staff assignment data:', error); } finally { setLoading(false); }
   }, [propertyId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -61,7 +61,7 @@ const t = useTranslations('pos');
       const res = await fetch('/api/pos-staff', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
       const data = await res.json();
       if (data.success) { toast.success('Assignment removed'); fetchData(); }
-    } catch {}
+    } catch (error) { console.error('Context: removing assignment:', error); }
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>;

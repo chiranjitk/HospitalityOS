@@ -47,10 +47,14 @@ interface Device {
   model?: string;
   roomName?: string;
   propertyName?: string;
-  currentState: Record<string, any>;
-  config: Record<string, any>;
+  currentState: Record<string, unknown>;
+  config: Record<string, unknown>;
   lastHeartbeat?: string;
   _count?: { readings: number; commands: number };
+  propertyId?: string;
+  roomId?: string;
+  serialNumber?: string;
+  macAddress?: string;
 }
 
 interface Stats {
@@ -61,7 +65,7 @@ interface Stats {
   byType: Record<string, number>;
 }
 
-const deviceTypeIcons: Record<string, any> = {
+const deviceTypeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   thermostat: Thermometer,
   light: Lightbulb,
   lock: Lock,
@@ -105,8 +109,8 @@ export default function DeviceManagement() {
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
   const [unlockDeviceId, setUnlockDeviceId] = useState<string | null>(null);
-  const [properties, setProperties] = useState<any[]>([]);
-  const [rooms, setRooms] = useState<any[]>([]);
+  const [properties, setProperties] = useState<Array<{ id: string; name: string }>>([]);
+  const [rooms, setRooms] = useState<Array<{ id: string; number: string }>>([]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -137,7 +141,6 @@ export default function DeviceManagement() {
         setStats(data.stats);
       }
     } catch (error) {
-      console.error('Error fetching devices:', error);
       toast.error('Failed to fetch devices');
     } finally {
       setLoading(false);
@@ -152,7 +155,7 @@ export default function DeviceManagement() {
         setProperties(data.properties || []);
       }
     } catch (error) {
-      console.error('Error fetching properties:', error);
+      console.error('Failed to fetch properties:', error);
     }
   };
 
@@ -164,7 +167,7 @@ export default function DeviceManagement() {
         setRooms(data.rooms || []);
       }
     } catch (error) {
-      console.error('Error fetching rooms:', error);
+      console.error('Failed to fetch rooms:', error);
     }
   };
 
@@ -186,7 +189,6 @@ export default function DeviceManagement() {
         toast.error(error.error || 'Failed to create device');
       }
     } catch (error) {
-      console.error('Error creating device:', error);
       toast.error('Failed to create device');
     }
   };
@@ -211,7 +213,6 @@ export default function DeviceManagement() {
         toast.error(error.error || 'Failed to update device');
       }
     } catch (error) {
-      console.error('Error updating device:', error);
       toast.error('Failed to update device');
     }
   };
@@ -236,14 +237,13 @@ export default function DeviceManagement() {
         toast.error(error.error || 'Failed to delete device');
       }
     } catch (error) {
-      console.error('Error deleting device:', error);
       toast.error('Failed to delete device');
     } finally {
       setDeleteItemId(null);
     }
   };
 
-  const handleSendCommand = async (deviceId: string, command: string, params: any = {}) => {
+  const handleSendCommand = async (deviceId: string, command: string, params: Record<string, unknown> = {}) => {
     try {
       const response = await fetch(`/api/iot/devices/${deviceId}/command`, {
         method: 'POST',
@@ -259,7 +259,6 @@ export default function DeviceManagement() {
         toast.error(error.error || 'Failed to send command');
       }
     } catch (error) {
-      console.error('Error sending command:', error);
       toast.error('Failed to send command');
     }
   };
@@ -285,17 +284,17 @@ export default function DeviceManagement() {
     setFormData({
       name: device.name,
       type: device.type,
-      propertyId: (device as any).propertyId || '',
-      roomId: (device as any).roomId || '',
+      propertyId: device.propertyId || '',
+      roomId: device.roomId || '',
       manufacturer: device.manufacturer || '',
       model: device.model || '',
-      serialNumber: (device as any).serialNumber || '',
+      serialNumber: device.serialNumber || '',
       protocol: device.protocol,
       ipAddress: device.ipAddress || '',
-      macAddress: (device as any).macAddress || ''
+      macAddress: device.macAddress || ''
     });
     // Fetch rooms for the device's property if propertyId exists
-    const propId = (device as any).propertyId;
+    const propId = device.propertyId;
     if (propId) {
       fetchRooms(propId);
     }

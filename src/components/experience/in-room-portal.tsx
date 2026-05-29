@@ -138,7 +138,6 @@ export default function InRoomPortal() {
         toast({ title: 'Error', description: 'Failed to load portal data', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error fetching portal data:', error);
       toast({ title: 'Error', description: 'Failed to load room portal data', variant: 'destructive' });
     } finally {
       setIsLoading(false);
@@ -191,7 +190,6 @@ export default function InRoomPortal() {
         toast({ title: 'Error', description: 'Failed to update control', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error updating control:', error);
       // Revert on failure using captured original state
       setPortalData({
         ...portalData,
@@ -229,7 +227,7 @@ export default function InRoomPortal() {
           }),
         });
       } catch (error) {
-        console.error('Error updating control value:', error);
+        console.error('Operation failed:', error);
       }
     }, 400);
   };
@@ -265,7 +263,6 @@ export default function InRoomPortal() {
         throw new Error(result.error?.message || 'Failed to place order');
       }
     } catch (error) {
-      console.error('Error placing order:', error);
       toast({ title: 'Error', description: 'Failed to place order', variant: 'destructive' });
     } finally {
       setIsSubmitting(false);

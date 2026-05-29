@@ -163,7 +163,6 @@ export function ESignature({ token, hasSigned, signedAt, onComplete }: ESignatur
         setTerms(result.data);
       }
     } catch (error) {
-      console.error('Error fetching terms:', error);
     } finally {
       setIsLoadingTerms(false);
     }
@@ -220,7 +219,6 @@ export function ESignature({ token, hasSigned, signedAt, onComplete }: ESignatur
         });
       }
     } catch (error) {
-      console.error('Error saving signature:', error);
       toast({
         title: 'Error',
         description: 'Failed to save signature',

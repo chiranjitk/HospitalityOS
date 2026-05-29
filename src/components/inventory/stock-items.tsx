@@ -158,7 +158,6 @@ export default function StockItems() {
         setStats(data.stats);
       }
     } catch (error) {
-      console.error('Error fetching stock items:', error);
       toast.error('Failed to fetch stock items');
     } finally {
       setLoading(false);
@@ -281,7 +280,6 @@ export default function StockItems() {
         toast.error(data.error?.message || 'Failed to save stock item');
       }
     } catch (error) {
-      console.error('Error saving stock item:', error);
       toast.error('Failed to save stock item');
     } finally {
       setSaving(false);
@@ -308,7 +306,6 @@ export default function StockItems() {
         toast.error(data.error?.message || 'Failed to delete stock item');
       }
     } catch (error) {
-      console.error('Error deleting stock item:', error);
       toast.error('Failed to delete stock item');
     } finally {
       setSaving(false);

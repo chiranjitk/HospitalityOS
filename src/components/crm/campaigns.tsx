@@ -162,7 +162,6 @@ export default function Campaigns() {
         setStats(data.data.stats);
       }
     } catch (error) {
-      console.error('Error fetching campaigns:', error);
       toast.error('Failed to fetch campaigns');
     } finally {
       setLoading(false);
@@ -177,7 +176,7 @@ export default function Campaigns() {
         setSegments(data.data.segments);
       }
     } catch (error) {
-      console.error('Error fetching segments:', error);
+      console.error('Operation failed:', error);
     }
   };
 
@@ -282,7 +281,6 @@ export default function Campaigns() {
         toast.error(data.error.message);
       }
     } catch (error) {
-      console.error('Error saving campaign:', error);
       toast.error('Failed to save campaign');
     }
   };
@@ -316,7 +314,6 @@ export default function Campaigns() {
         toast.error(data.error.message);
       }
     } catch (error) {
-      console.error('Error deleting campaign:', error);
       toast.error('Failed to delete campaign');
     } finally {
       setDeleteItemId(null);
@@ -340,7 +337,6 @@ export default function Campaigns() {
         toast.error(data.error.message);
       }
     } catch (error) {
-      console.error('Error updating campaign:', error);
       toast.error('Failed to update campaign');
     }
   };

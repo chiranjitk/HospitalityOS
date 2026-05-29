@@ -228,7 +228,6 @@ export default function SettlementReconciliation() {
         setDiscrepancyStats(discData.stats || { totalItems: 0, totalDiscrepancy: 0 });
       }
     } catch (error) {
-      console.error('Error fetching settlement data:', error);
       toast.error('Failed to load settlement data');
     } finally {
       setLoading(false);

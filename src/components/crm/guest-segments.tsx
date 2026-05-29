@@ -133,7 +133,6 @@ export default function GuestSegments() {
         setStats(data.data.stats);
       }
     } catch (error) {
-      console.error('Error fetching segments:', error);
       toast.error('Failed to fetch segments');
     } finally {
       setLoading(false);
@@ -206,7 +205,6 @@ export default function GuestSegments() {
         toast.error(data.error.message);
       }
     } catch (error) {
-      console.error('Error saving segment:', error);
       toast.error('Failed to save segment');
     }
   };
@@ -229,7 +227,6 @@ export default function GuestSegments() {
         toast.error(data.error.message);
       }
     } catch (error) {
-      console.error('Error deleting segment:', error);
       toast.error('Failed to delete segment');
     } finally {
       setDeleteItemId(null);

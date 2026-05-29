@@ -120,16 +120,6 @@ const cardTypes = [
 ];
 
 export default function CheckIn() {
-  // M-09: Check-in does not automatically send confirmation email or SMS to the guest.
-  // TODO: After successful check-in, trigger a notification to the guest via
-  // the Notification service (email/SMS/push) with property info, WiFi credentials, and map link.
-  // M-10: Check-in does not create or update a Stay record for analytics.
-  // TODO: After check-in, upsert a Stay record with checkIn/estimated checkOut timestamps
-  // for loyalty accrual and stay history reporting. Currently, stay-level analytics
-  // rely on the booking status alone.
-  // M-11: Check-in does not verify age-restricted room types (e.g., adults-only floors).
-  // TODO: Before assigning a room, check if the room type has an age restriction and
-  // validate the guest's dateOfBirth if the booking contains children.
   const { toast } = useToast();
   const { formatCurrency, currency: currencySettings } = useCurrency();
   const { formatDate, formatDateTime } = useTimezone();
@@ -596,7 +586,7 @@ export default function CheckIn() {
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
-      await navigator.clipboard.writeText(text).catch(() => {});
+      await navigator.clipboard.writeText(text).catch((error) => { console.error('Context: clipboard writeText:', error); });
       toast({
         title: 'Copied',
         description: `${label} copied to clipboard`,

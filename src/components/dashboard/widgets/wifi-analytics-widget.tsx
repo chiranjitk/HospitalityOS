@@ -580,7 +580,6 @@ export function WiFiAnalyticsWidget() {
       setAuthSuccessRate(totalAuths > 0 ? Math.round((accepts / totalAuths) * 1000) / 10 : 0);
 
     } catch (err) {
-      console.error('Error fetching WiFi analytics:', err);
       setError('Failed to load WiFi analytics');
     } finally {
       setLoading(false);

@@ -149,7 +149,6 @@ export function GDPRManager({ tenantId }: GDPRManagerProps) {
       }
     } catch (err) {
       setError('Failed to fetch GDPR data');
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -230,7 +229,6 @@ export function GDPRManager({ tenantId }: GDPRManagerProps) {
       }
     } catch (err) {
       setError('Failed to export data');
-      console.error(err);
     } finally {
       setProcessing(null);
     }
@@ -268,7 +266,6 @@ export function GDPRManager({ tenantId }: GDPRManagerProps) {
       }
     } catch (err) {
       setError('Failed to delete data');
-      console.error(err);
     } finally {
       setProcessing(null);
     }
@@ -306,7 +303,6 @@ export function GDPRManager({ tenantId }: GDPRManagerProps) {
       }
     } catch (err) {
       setError('Failed to anonymize data');
-      console.error(err);
     } finally {
       setProcessing(null);
     }

@@ -428,7 +428,6 @@ export default function CashFlowForecast() {
       setForecastData([]);
       setLoading(false);
     } catch (err) {
-      console.error('Failed to fetch cash flow data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load cash flow forecast');
       setLoading(false);
     }

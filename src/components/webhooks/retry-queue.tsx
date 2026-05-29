@@ -43,7 +43,6 @@ export default function RetryQueue() {
         setStats(data.data.stats);
       }
     } catch {
-      console.error('Failed to fetch retry queue');
     } finally {
       setLoading(false);
     }

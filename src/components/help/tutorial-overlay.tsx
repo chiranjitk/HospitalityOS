@@ -243,7 +243,6 @@ export function TutorialOverlay({
         }
       }
     } catch (error) {
-      console.error('Error fetching progress:', error);
     } finally {
       setLoading(false);
     }
@@ -274,7 +273,7 @@ export function TutorialOverlay({
         });
       }
     } catch (error) {
-      console.error('Error updating progress:', error);
+      console.error('Operation failed:', error);
     }
   }, [userId, tutorialKey, tutorial?.steps.length]);
 
@@ -322,7 +321,7 @@ export function TutorialOverlay({
       setCurrentStep(0);
       await updateProgress(0);
     } catch (error) {
-      console.error('Error resetting progress:', error);
+      console.error('Update operation failed:', error);
     }
   };
 

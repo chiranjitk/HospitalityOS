@@ -173,7 +173,6 @@ export default function AdCampaigns() {
         setStats(data.data.stats);
       }
     } catch (error) {
-      console.error('Error fetching campaigns:', error);
       toast.error('Failed to load campaigns');
     } finally {
       setLoading(false);
@@ -251,7 +250,6 @@ export default function AdCampaigns() {
         toast.error(data.error?.message || 'Failed to save campaign');
       }
     } catch (error) {
-      console.error('Error saving campaign:', error);
       toast.error('Failed to save campaign');
     } finally {
       setSaving(false);
@@ -275,7 +273,6 @@ export default function AdCampaigns() {
         toast.error(data.error?.message || 'Failed to update status');
       }
     } catch (error) {
-      console.error('Error updating status:', error);
       toast.error('Failed to update status');
     }
   };
@@ -298,7 +295,6 @@ export default function AdCampaigns() {
         toast.error(data.error?.message || 'Failed to delete campaign');
       }
     } catch (error) {
-      console.error('Error deleting campaign:', error);
       toast.error('Failed to delete campaign');
     } finally {
       setDeleteCampaignId(null);

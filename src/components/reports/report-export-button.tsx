@@ -89,7 +89,6 @@ export function ReportExportButton({
         toast.success(`Exported as ${format.toUpperCase()} successfully`);
       }
     } catch (error) {
-      console.error('Export error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to export report');
     } finally {
       setExporting(false);

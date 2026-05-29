@@ -312,7 +312,6 @@ export default function IntegrationHub() {
         })));
       }
     } catch (err) {
-      console.error('Failed to fetch integration data:', err);
     } finally {
     setLoading(false);
   }

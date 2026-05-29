@@ -139,7 +139,6 @@ export function HelpCenter({ onSelectArticle }: HelpCenterProps) {
         setStats(data.data.stats);
       }
     } catch (error) {
-      console.error('Error fetching help articles:', error);
       toast.error('Failed to fetch help articles');
     } finally {
       setLoading(false);
@@ -154,7 +153,7 @@ export function HelpCenter({ onSelectArticle }: HelpCenterProps) {
         setCategories(data.data);
       }
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      console.error('Operation failed:', error);
     }
   };
 
@@ -221,7 +220,6 @@ export function HelpCenter({ onSelectArticle }: HelpCenterProps) {
         toast.error(data.error.message);
       }
     } catch (error) {
-      console.error('Error saving article:', error);
       toast.error('Failed to save article');
     }
   };
@@ -244,7 +242,6 @@ export function HelpCenter({ onSelectArticle }: HelpCenterProps) {
         toast.error(data.error.message);
       }
     } catch (error) {
-      console.error('Error deleting article:', error);
       toast.error('Failed to delete article');
     } finally {
       setDeleteArticleId(null);
@@ -264,7 +261,7 @@ export function HelpCenter({ onSelectArticle }: HelpCenterProps) {
         fetchArticles();
       }
     } catch (error) {
-      console.error('Error submitting feedback:', error);
+      console.error('Failed to fetch articles:', error);
     }
   };
 

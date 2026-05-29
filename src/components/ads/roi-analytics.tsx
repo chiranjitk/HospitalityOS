@@ -138,7 +138,6 @@ export default function ROIAnalytics() {
         toast.error('Failed to load ROI analytics');
       }
     } catch (error) {
-      console.error('Error fetching ROI data:', error);
       toast.error('Failed to load ROI analytics');
     } finally {
       setLoading(false);

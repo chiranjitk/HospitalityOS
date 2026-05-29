@@ -155,7 +155,6 @@ export function PreferenceSelection({
       onUpdate(preferences);
       onComplete();
     } catch (error) {
-      console.error('Error saving preferences:', error);
       toast({
         title: 'Error',
         description: 'Failed to save preferences',

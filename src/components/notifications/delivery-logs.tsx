@@ -56,7 +56,6 @@ export default function DeliveryLogs() {
         setStats(data.data.stats);
       }
     } catch (error) {
-      console.error('Failed to fetch delivery logs');
     } finally {
       setLoading(false);
     }

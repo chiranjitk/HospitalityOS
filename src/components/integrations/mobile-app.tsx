@@ -396,7 +396,6 @@ export function MobileAppManagement() {
         if (deliveryJson.success) setDeliveryLogsData(deliveryJson);
       }
     } catch (err) {
-      console.error('Error fetching mobile app data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
       setLoading(false);

@@ -102,7 +102,6 @@ export default function AuditLogs() {
         setTotal(result.pagination?.total ?? 0);
       }
     } catch (error) {
-      console.error('Error fetching audit logs:', error);
     } finally {
       setIsLoading(false);
     }

@@ -251,7 +251,6 @@ export function ChannelCommissionConfigPanel() {
       if (connData.success) setConnections(connData.data || []);
       if (summaryData.success) setSummaries(summaryData.data || []);
     } catch (err) {
-      console.error('Error fetching data:', err);
       toast.error('Failed to load commission config data');
     } finally {
       setLoading(false);

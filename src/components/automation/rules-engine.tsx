@@ -115,7 +115,6 @@ export default function RulesEngine() {
         setTriggerEvents(data.data.triggerEvents);
       }
     } catch (error) {
-      console.error('Error fetching rules:', error);
       toast.error('Failed to fetch automation rules');
     } finally {
       setLoading(false);
@@ -230,7 +229,6 @@ export default function RulesEngine() {
         toast.error(getErrorMessage(data.error));
       }
     } catch (error) {
-      console.error('Error saving rule:', error);
       toast.error('Failed to save rule');
     } finally {
       setIsSaving(false);
@@ -256,7 +254,6 @@ export default function RulesEngine() {
         toast.error(getErrorMessage(data.error));
       }
     } catch (error) {
-      console.error('Error toggling rule:', error);
       toast.error('Failed to update rule');
     } finally {
       setIsToggling(null);
@@ -283,7 +280,6 @@ export default function RulesEngine() {
         toast.error(getErrorMessage(data.error));
       }
     } catch (error) {
-      console.error('Error deleting rule:', error);
       toast.error('Failed to delete rule');
     } finally {
       setIsDeleting(false);
@@ -316,7 +312,6 @@ export default function RulesEngine() {
         toast.error(getErrorMessage(data.error));
       }
     } catch (error) {
-      console.error('Error duplicating rule:', error);
       toast.error('Failed to duplicate rule');
     }
   };

@@ -474,7 +474,6 @@ export default function OTAConnections() {
         setOtaStats(data.otaStats);
       }
     } catch (error) {
-      console.error('Error fetching connections:', error);
       toast.error('Failed to load channel connections');
     } finally {
       setLoading(false);

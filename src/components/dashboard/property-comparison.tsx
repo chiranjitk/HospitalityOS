@@ -74,7 +74,6 @@ export function PropertyComparison() {
         setProperties(result.data);
       }
     } catch (error) {
-      console.error('Error fetching property comparison:', error);
     } finally {
       setIsLoading(false);
     }

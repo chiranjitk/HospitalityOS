@@ -200,7 +200,6 @@ export default function TaskAssignment() {
         setStaff(staffData.users || []);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
       toast.error('Failed to load task data');
     } finally {
       setIsLoading(false);

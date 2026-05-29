@@ -301,7 +301,6 @@ export default function GDSConnectivity() {
           });
         }
       } else {
-        console.error('Failed to fetch connections');
       }
 
       // ── FIX (M-2): Rate Distributions ───────────────────────────────
@@ -330,7 +329,6 @@ export default function GDSConnectivity() {
           setRateDistributions(rateDistData);
         }
       } else {
-        console.error('Failed to fetch rate distributions from /api/channels/rate-sync');
       }
 
       // ── FIX (M-2): GDS Bookings ────────────────────────────────────
@@ -357,7 +355,6 @@ export default function GDSConnectivity() {
           setBookings(bookingData);
         }
       } else {
-        console.error('Failed to fetch GDS bookings from /api/bookings?source=gds');
       }
 
       // ── FIX (M-2): Rate Codes (derived from connections metadata) ──

@@ -360,7 +360,6 @@ export default function KPIDashboardEnhanced() {
           });
         }
       } catch (err) {
-        console.error('Failed to fetch KPI stats:', err);
       } finally {
         setIsLoading(false);
       }

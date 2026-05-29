@@ -177,7 +177,7 @@ export default function RoomTypeChange() {
           }
         }
       } catch (error) {
-        console.error('Error fetching properties:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchProperties();
@@ -203,7 +203,6 @@ export default function RoomTypeChange() {
         }
       }
     } catch (error) {
-      console.error('Error fetching room type changes:', error);
       toast.error('Failed to fetch room type changes');
     } finally {
       setLoading(false);
@@ -274,7 +273,6 @@ export default function RoomTypeChange() {
         toast.error(data.error || 'Failed to create request');
       }
     } catch (error) {
-      console.error('Error creating room type change:', error);
       toast.error('Failed to create room type change request');
     } finally {
       setSaving(false);

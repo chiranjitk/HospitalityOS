@@ -613,7 +613,7 @@ export default function WalkIn() {
             }
           }
         } catch (refreshError) {
-          console.warn('[Walk-in] Room refresh failed after booking (non-blocking):', refreshError);
+          console.error('Refresh operation failed:', refreshError);
         }
       } else {
         // Extract error message — handle both { error: { message } } and { error: 'string' }
@@ -628,7 +628,6 @@ export default function WalkIn() {
       }
     } catch (error) {
       // Log the actual error for debugging
-      console.error('[Walk-in] Booking creation error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       toast({
         title: 'Error',

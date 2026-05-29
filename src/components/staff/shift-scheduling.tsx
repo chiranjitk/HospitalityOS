@@ -142,7 +142,6 @@ export default function ShiftScheduling() {
         setStaff(data.users || []);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
       toast.error('Failed to load schedule');
     } finally {
       setIsLoading(false);
@@ -167,7 +166,6 @@ export default function ShiftScheduling() {
           setAttendanceRecords(data.records || []);
         }
       } catch (error) {
-        console.error('Error fetching attendance:', error);
       } finally {
         setAttendanceLoading(false);
       }

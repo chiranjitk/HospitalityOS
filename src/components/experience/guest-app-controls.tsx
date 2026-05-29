@@ -228,7 +228,6 @@ export default function GuestAppControls() {
         },
       });
     } catch (error) {
-      console.error('Error fetching app data:', error);
       toast({
         title: 'Error',
         description: 'Failed to load guest app controls',
@@ -264,7 +263,6 @@ export default function GuestAppControls() {
         description: `Notification setting ${enabled ? 'enabled' : 'disabled'}`,
       });
     } catch (error) {
-      console.error('Error updating notification setting:', error);
       toast({
         title: 'Error',
         description: 'Failed to update notification setting',
@@ -294,7 +292,6 @@ export default function GuestAppControls() {
         description: `Feature ${enabled ? 'enabled' : 'disabled'}`,
       });
     } catch (error) {
-      console.error('Error updating feature flag:', error);
       toast({
         title: 'Error',
         description: 'Failed to update feature',
@@ -329,7 +326,6 @@ export default function GuestAppControls() {
         throw new Error(result.error?.message || 'Failed to regenerate key');
       }
     } catch (error) {
-      console.error('Error regenerating key:', error);
       toast({
         title: 'Error',
         description: 'Failed to regenerate key',
@@ -363,7 +359,6 @@ export default function GuestAppControls() {
         throw new Error(result.error?.message || 'Failed to update key');
       }
     } catch (error) {
-      console.error('Error updating key:', error);
       toast({
         title: 'Error',
         description: 'Failed to update key status',

@@ -134,7 +134,6 @@ export default function EventSpaces() {
       setSpaces(data.spaces || []);
       setStats(data.stats || { total: 0, active: 0, inactive: 0, maintenance: 0, totalEvents: 0 });
     } catch (error) {
-      console.error('Error fetching event spaces:', error);
       toast.error('Failed to load event spaces');
     } finally {
       setLoading(false);
@@ -149,7 +148,7 @@ export default function EventSpaces() {
       const data = await response.json();
       setProperties(data.properties || []);
     } catch (error) {
-      console.error('Error fetching properties:', error);
+      console.error('Operation failed:', error);
     }
   };
 
@@ -176,7 +175,6 @@ export default function EventSpaces() {
       resetForm();
       fetchSpaces();
     } catch (error: any) {
-      console.error('Error creating event space:', error);
       toast.error(error.message || 'Failed to create event space');
     } finally {
       setSaving(false);
@@ -205,7 +203,6 @@ export default function EventSpaces() {
       resetForm();
       fetchSpaces();
     } catch (error: any) {
-      console.error('Error updating event space:', error);
       toast.error(error.message || 'Failed to update event space');
     } finally {
       setSaving(false);
@@ -231,7 +228,6 @@ export default function EventSpaces() {
       setSelectedSpace(null);
       fetchSpaces();
     } catch (error: any) {
-      console.error('Error deleting event space:', error);
       toast.error(error.message || 'Failed to delete event space');
     } finally {
       setSaving(false);

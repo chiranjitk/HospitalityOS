@@ -203,7 +203,6 @@ export default function GoogleHotelAds() {
         }
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
       toast.error('Failed to load Google Hotel Ads data');
     } finally {
       setLoading(false);
@@ -228,7 +227,6 @@ export default function GoogleHotelAds() {
         toast.error(data.error?.message || 'Failed to connect');
       }
     } catch (error) {
-      console.error('Error connecting:', error);
       toast.error('Failed to connect Google Hotel Ads');
     } finally {
       setSaving(false);
@@ -253,7 +251,6 @@ export default function GoogleHotelAds() {
         toast.error(data.error?.message || 'Failed to update settings');
       }
     } catch (error) {
-      console.error('Error updating settings:', error);
       toast.error('Failed to update settings');
     } finally {
       setSaving(false);
@@ -283,7 +280,6 @@ export default function GoogleHotelAds() {
         toast.error(data.error?.message || 'Failed to disconnect');
       }
     } catch (error) {
-      console.error('Error disconnecting:', error);
       toast.error('Failed to disconnect');
     } finally {
       setShowDisconnectConfirm(false);

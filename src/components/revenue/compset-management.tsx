@@ -226,7 +226,6 @@ export default function CompSetManagement() {
       if (!json.success) throw new Error(json.error?.message || 'Failed to fetch');
       return json.data as CompSetSummary[];
     } catch (err) {
-      console.error('Error fetching compsets:', err);
       throw err;
     }
   }, []);
@@ -239,7 +238,6 @@ export default function CompSetManagement() {
       if (!json.success) throw new Error(json.error?.message || 'Failed to fetch');
       return json.data as CompSetMember[];
     } catch (err) {
-      console.error('Error fetching members:', err);
       throw err;
     }
   }, []);
@@ -253,7 +251,6 @@ export default function CompSetManagement() {
       if (!json.success) throw new Error(json.error?.message || 'Failed to fetch');
       return json.data.metrics as MetricData[];
     } catch (err) {
-      console.error('Error fetching metrics:', err);
       throw err;
     }
   }, [startDate, endDate]);
@@ -266,7 +263,6 @@ export default function CompSetManagement() {
       if (!json.success) throw new Error(json.error?.message || 'Failed to fetch');
       return json.data;
     } catch (err) {
-      console.error('Error fetching ranking:', err);
       throw err;
     }
   }, []);

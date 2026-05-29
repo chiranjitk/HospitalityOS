@@ -329,7 +329,6 @@ export default function RateShopping() {
       setApiStats(json.data.stats);
       return json.data;
     } catch (err) {
-      console.error('Error fetching competitors:', err);
       throw err;
     }
   }, []);
@@ -346,7 +345,6 @@ export default function RateShopping() {
       setResults(json.data.results);
       setResultsStats(json.data.stats);
     } catch (err) {
-      console.error('Error fetching results:', err);
       throw err;
     }
   }, [startDate, endDate]);

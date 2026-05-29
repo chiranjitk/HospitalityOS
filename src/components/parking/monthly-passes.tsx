@@ -124,7 +124,6 @@ export default function MonthlyPasses() {
         setStats(data.stats || { total: 0, active: 0, expired: 0, suspended: 0, cancelled: 0, totalRevenue: 0 });
       }
     } catch (error) {
-      console.error('Error fetching passes:', error);
     } finally {
       setLoading(false);
     }
@@ -138,7 +137,7 @@ export default function MonthlyPasses() {
         setSlots(data.data || []);
       }
     } catch (error) {
-      console.error('Error fetching slots:', error);
+      console.error('Operation failed:', error);
     }
   };
 

@@ -110,7 +110,6 @@ export default function ChatAttachmentButton({
         onAttachmentUploaded?.(attachment);
       }, 500);
     } catch (error) {
-      console.error('Upload error:', error);
       setIsUploading(false);
       setUploadProgress(0);
       setPreview(null);

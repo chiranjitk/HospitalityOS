@@ -175,7 +175,6 @@ export default function SkillsManagement() {
         setStaff(staffData.users || []);
       }
     } catch (error) {
-      console.error('Error fetching skills data:', error);
       toast.error('Failed to load skills');
     } finally {
       setIsLoading(false);

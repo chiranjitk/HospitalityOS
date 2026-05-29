@@ -87,7 +87,6 @@ export default function RateSync() {
         toast.error('Failed to load rate sync status');
       }
     } catch (error) {
-      console.error('Error fetching rate sync:', error);
       toast.error('Failed to load rate sync status');
     } finally {
       setLoading(false);

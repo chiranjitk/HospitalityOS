@@ -153,7 +153,6 @@ export default function DirectBookingEngine() {
         }));
       }
     } catch (error) {
-      console.error('Error fetching settings:', error);
       toast.error('Failed to load booking engine settings');
       setStats(emptyStats);
     } finally {
@@ -195,7 +194,6 @@ export default function DirectBookingEngine() {
 
       toast.success('Settings saved successfully');
     } catch (error) {
-      console.error('Error saving settings:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to save settings');
     } finally {
       setSaving(false);

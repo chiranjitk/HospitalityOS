@@ -42,7 +42,6 @@ export default function WebhookDelivery() {
         setStats(data.data.stats);
       }
     } catch {
-      console.error('Failed to fetch webhook deliveries');
     } finally {
       setLoading(false);
     }

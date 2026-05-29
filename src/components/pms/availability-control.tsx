@@ -152,7 +152,6 @@ export default function AvailabilityControl() {
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         if (error instanceof Error && error.name === 'AbortError') return;
-        console.error('Error fetching properties:', error);
         toast({
           title: 'Error',
           description: 'Failed to fetch properties',
@@ -219,7 +218,6 @@ export default function AvailabilityControl() {
         }
       } catch { /* ignore lock fetch errors */ }
     } catch (error) {
-      console.error('Error fetching data:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch availability data',

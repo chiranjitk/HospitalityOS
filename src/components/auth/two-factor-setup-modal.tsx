@@ -68,7 +68,6 @@ export function TwoFactorSetupModal({ open, onOpenChange, onSuccess }: TwoFactor
         toast.error(data.error || 'Failed to setup 2FA');
       }
     } catch (error) {
-      console.error('Error fetching 2FA setup:', error);
       toast.error('Failed to setup 2FA');
     } finally {
       setLoading(false);
@@ -98,7 +97,6 @@ export function TwoFactorSetupModal({ open, onOpenChange, onSuccess }: TwoFactor
         toast.error(data.error || 'Invalid verification code');
       }
     } catch (error) {
-      console.error('Error verifying 2FA:', error);
       toast.error('Failed to verify code');
     } finally {
       setLoading(false);

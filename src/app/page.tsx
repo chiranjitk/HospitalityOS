@@ -6,7 +6,7 @@ import { useUIStore } from '@/store';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, AlertTriangle, HomeIcon, RefreshCw } from 'lucide-react';
 import { AppLayout } from '@/components/layout/app-layout';
-import { ErrorBoundary } from '@/components/common/error-boundary';
+import { SectionErrorBoundary } from '@/components/ui/section-error-boundary';
 import { SectionHeader } from '@/components/common/section-header';
 import { SectionLoadingSkeleton } from '@/components/sections/section-loading-skeleton';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -106,6 +106,7 @@ function SectionLoadError({
 function SectionContent({ section }: { section: string }) {
   const [Comp, setComp] = useState<React.ComponentType<any> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
   const tCommon = useTranslations('common');
   const tDash = useTranslations('dashboard');
 
@@ -164,9 +165,12 @@ function SectionContent({ section }: { section: string }) {
   return (
     <div className="space-y-4">
       <SectionHeader sectionId={section} />
-      <ErrorBoundary section={section}>
-        <Comp />
-      </ErrorBoundary>
+      <SectionErrorBoundary
+        section={section}
+        onRetry={() => setRetryKey((k) => k + 1)}
+      >
+        <Comp key={retryKey} />
+      </SectionErrorBoundary>
     </div>
   );
 }

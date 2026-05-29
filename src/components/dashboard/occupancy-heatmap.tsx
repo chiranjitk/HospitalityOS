@@ -81,7 +81,6 @@ export function OccupancyHeatmap() {
 
         setHeatmapData(grid);
       } catch (err) {
-        console.error('Failed to fetch occupancy forecast:', err);
         setError(true);
       } finally {
         setLoading(false);

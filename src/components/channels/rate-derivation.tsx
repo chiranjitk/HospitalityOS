@@ -243,7 +243,6 @@ export function RateDerivationRules() {
       if (rpData.success) setRatePlans(rpData.data || []);
       if (connData.success) setConnections(connData.data || []);
     } catch (err) {
-      console.error('Error fetching data:', err);
       toast.error('Failed to load rate derivation data');
     } finally {
       setLoading(false);

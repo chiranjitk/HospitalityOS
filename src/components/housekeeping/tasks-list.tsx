@@ -202,7 +202,7 @@ export default function TasksList() {
           setUsers(usersResult.data);
         }
       } catch (error) {
-        console.error('Error fetching initial data:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchInitialData();
@@ -222,7 +222,7 @@ export default function TasksList() {
           setRooms(result.data);
         }
       } catch (error) {
-        console.error('Error fetching rooms:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchRooms();
@@ -247,7 +247,6 @@ export default function TasksList() {
         setSummary(result.summary);
       }
     } catch (error) {
-      console.error('Error fetching tasks:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch tasks',
@@ -315,7 +314,6 @@ export default function TasksList() {
         });
       }
     } catch (error) {
-      console.error('Error creating task:', error);
       toast({
         title: 'Error',
         description: 'Failed to create task',
@@ -368,7 +366,6 @@ export default function TasksList() {
         });
       }
     } catch (error) {
-      console.error('Error updating task:', error);
       toast({
         title: 'Error',
         description: 'Failed to update task',
@@ -407,7 +404,6 @@ export default function TasksList() {
         });
       }
     } catch (error) {
-      console.error('Error deleting task:', error);
       toast({
         title: 'Error',
         description: 'Failed to cancel task',
@@ -443,7 +439,6 @@ export default function TasksList() {
         });
       }
     } catch (error) {
-      console.error('Error updating status:', error);
       toast({
         title: 'Error',
         description: 'Failed to update status',

@@ -141,7 +141,6 @@ export function DemandForecasting() {
         toast.error('Failed to load demand forecast');
       }
     } catch (error) {
-      console.error('Error fetching demand forecast:', error);
       toast.error('Failed to load demand forecast');
     } finally {
       setIsLoading(false);

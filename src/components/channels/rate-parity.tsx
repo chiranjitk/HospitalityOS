@@ -231,7 +231,6 @@ export default function RateParityDashboard() {
         }
       } catch (err) {
         if (!cancelled && err instanceof Error && err.name !== 'AbortError') {
-          console.error('Error fetching properties:', err);
         }
       } finally {
         if (!cancelled) setPropertiesLoading(false);

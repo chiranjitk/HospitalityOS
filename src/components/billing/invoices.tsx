@@ -412,9 +412,11 @@ const t = useTranslations('billing');
       const url = URL.createObjectURL(blob);
       const printWindow = window.open(url, '_blank');
       if (printWindow) {
-        printWindow.addEventListener('load', () => {
+        const printAndCleanup = () => {
           printWindow.print();
-        });
+          printWindow.removeEventListener('load', printAndCleanup);
+        };
+        printWindow.addEventListener('load', printAndCleanup);
       }
       toast({ title: 'Printing', description: `Invoice ${invoice.invoiceNumber} sent to printer` });
     } catch (error) {

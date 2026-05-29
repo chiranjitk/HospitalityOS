@@ -93,7 +93,6 @@ export default function AbTestManager({ campaignId, campaignName }: AbTestManage
         setData(json.data);
       }
     } catch (error) {
-      console.error('Error fetching A/B test:', error);
     } finally {
       setLoading(false);
     }

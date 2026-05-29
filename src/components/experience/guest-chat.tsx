@@ -125,7 +125,6 @@ export default function GuestChat() {
         throw new Error(result.error?.message || 'Failed to fetch conversations');
       }
     } catch (error) {
-      console.error('Error fetching conversations:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch conversations',
@@ -153,7 +152,6 @@ export default function GuestChat() {
         throw new Error(result.error?.message || 'Failed to fetch messages');
       }
     } catch (error) {
-      console.error('Error fetching messages:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch messages',
@@ -251,7 +249,6 @@ export default function GuestChat() {
         throw new Error(result.error?.message || 'Failed to send message');
       }
     } catch (error) {
-      console.error('Error sending message:', error);
       toast({
         title: 'Error',
         description: 'Failed to send message',

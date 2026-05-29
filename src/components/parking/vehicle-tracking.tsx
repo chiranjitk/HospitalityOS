@@ -120,7 +120,6 @@ export default function VehicleTracking() {
           setVehicles(result.data);
         }
       } catch (error) {
-        console.error('Error fetching vehicles:', error);
         toast({
           title: 'Error',
           description: 'Failed to fetch vehicles',
@@ -196,7 +195,6 @@ export default function VehicleTracking() {
         });
       }
     } catch (error) {
-      console.error('Error logging vehicle entry:', error);
       toast({
         title: 'Error',
         description: 'Failed to log vehicle entry',
@@ -236,7 +234,6 @@ export default function VehicleTracking() {
         });
       }
     } catch (error) {
-      console.error('Error recording vehicle exit:', error);
       toast({
         title: 'Error',
         description: 'Failed to record vehicle exit',

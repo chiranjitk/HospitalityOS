@@ -122,7 +122,6 @@ export default function InventoryCalendar() {
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         if (error instanceof Error && error.name === 'AbortError') return;
-        console.error('Error fetching properties:', error);
       }
     };
     fetchProperties();
@@ -188,7 +187,6 @@ export default function InventoryCalendar() {
         }
       } catch (error) {
         if (cancelled) return;
-        console.error('Error fetching inventory:', error);
         toast({
           title: 'Error',
           description: 'Failed to fetch inventory data',
@@ -223,7 +221,6 @@ export default function InventoryCalendar() {
         }
       } catch (error) {
         if (cancelled) return;
-        console.error('Error fetching rate plans:', error);
       }
     };
     fetchRatePlans();
@@ -439,7 +436,6 @@ export default function InventoryCalendar() {
         }
       }
     } catch (error) {
-      console.error('Error updating inventory:', error);
       toast({ title: 'Error', description: 'Failed to update', variant: 'destructive' });
     } finally {
       setIsSaving(false);

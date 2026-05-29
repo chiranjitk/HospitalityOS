@@ -150,7 +150,6 @@ export default function AttendanceTracking() {
         setStats(attendanceData.stats || null);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
       toast.error('Failed to load attendance data');
     } finally {
       setIsLoading(false);

@@ -150,7 +150,6 @@ export default function SurveillanceSettings() {
         const data = await fetchAllSettings();
         setSettings(data);
       } catch (error) {
-        console.error('Failed to load surveillance settings:', error);
         toast.error('Failed to load settings from server. Using defaults.');
       } finally {
         setIsLoading(false);
@@ -186,7 +185,6 @@ export default function SurveillanceSettings() {
       setHasChanges(false);
       toast.success('Surveillance settings saved successfully');
     } catch (error) {
-      console.error('Failed to save surveillance settings:', error);
       toast.error('Failed to save some settings. Please try again.');
     } finally {
       setSaving(false);

@@ -97,7 +97,6 @@ export default function AICopilot() {
         setConversations(data.conversations || []);
       }
     } catch (error) {
-      console.error('Error fetching conversations:', error);
     } finally {
       setConversationsLoading(false);
     }
@@ -131,7 +130,6 @@ export default function AICopilot() {
         setCurrentConversationId(conversationId);
       }
     } catch (error) {
-      console.error('Error loading conversation:', error);
       toast.error('Failed to load conversation');
     } finally {
       setLoadingConversation(false);
@@ -184,7 +182,7 @@ export default function AICopilot() {
         return data.conversation?.id || convId;
       }
     } catch (error) {
-      console.error('Error saving message:', error);
+      console.error('Refresh operation failed:', error);
     }
     return convId;
   };
@@ -237,7 +235,6 @@ export default function AICopilot() {
         throw new Error(data.error || 'Failed to get AI response');
       }
     } catch (error) {
-      console.error('Error calling AI API:', error);
       toast.error('Failed to get AI response. Please try again.');
       
       const errorMessage: Message = {

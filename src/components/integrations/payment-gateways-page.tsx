@@ -158,7 +158,6 @@ export default function PaymentGatewaysPage() {
         toast.error('Failed to load payment gateway data');
       }
     } catch (error) {
-      console.error('Failed to fetch payment gateways:', error);
       setData({
         gateways: [],
         stats: {

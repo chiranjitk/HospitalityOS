@@ -134,7 +134,6 @@ export default function ConsumptionLogs() {
         setStockItems(stockData.data);
       }
     } catch (error) {
-      console.error('Error fetching consumption logs:', error);
       toast.error('Failed to fetch consumption logs');
     } finally {
       setLoading(false);
@@ -193,7 +192,6 @@ export default function ConsumptionLogs() {
         toast.error(data.error?.message || 'Failed to create log');
       }
     } catch (error) {
-      console.error('Error creating consumption log:', error);
       toast.error('Failed to create consumption log');
     } finally {
       setSaving(false);

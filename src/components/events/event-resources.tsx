@@ -200,7 +200,6 @@ export default function EventResources() {
         setSelectedEvent(filteredEvents[0]);
       }
     } catch (error) {
-      console.error('Error fetching events:', error);
       toast.error('Failed to load events');
     } finally {
       setLoading(false);
@@ -236,7 +235,6 @@ export default function EventResources() {
         categoryTotals: {}
       });
     } catch (error) {
-      console.error('Error fetching resources:', error);
       toast.error('Failed to load resources');
     } finally {
       setLoading(false);
@@ -276,7 +274,6 @@ export default function EventResources() {
       resetForm();
       fetchResources(selectedEvent.id);
     } catch (error: unknown) {
-      console.error('Error adding resource:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to add resource');
     } finally {
       setSaving(false);
@@ -319,7 +316,6 @@ export default function EventResources() {
       resetForm();
       fetchResources(selectedEvent.id);
     } catch (error: unknown) {
-      console.error('Error updating resource:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to update resource');
     } finally {
       setSaving(false);
@@ -345,7 +341,6 @@ export default function EventResources() {
       setSelectedResource(null);
       fetchResources(selectedEvent.id);
     } catch (error: unknown) {
-      console.error('Error deleting resource:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to delete resource');
     } finally {
       setSaving(false);

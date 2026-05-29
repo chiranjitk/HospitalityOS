@@ -190,7 +190,6 @@ export function ParkingBilling() {
         setSummary(result.summary);
       }
     } catch (error) {
-      console.error('Error fetching billing records:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch billing records',
@@ -252,7 +251,6 @@ export function ParkingBilling() {
         );
       }
     } catch (error) {
-      console.error('Error fetching available slots:', error);
     } finally {
       setIsLoadingSlots(false);
     }
@@ -291,7 +289,6 @@ export function ParkingBilling() {
         });
       }
     } catch (error) {
-      console.error('Error checking out vehicle:', error);
       toast({
         title: 'Error',
         description: 'Failed to check out vehicle',
@@ -337,7 +334,6 @@ export function ParkingBilling() {
         });
       }
     } catch (error) {
-      console.error('Error recording payment:', error);
       toast({
         title: 'Error',
         description: 'Failed to record payment',
@@ -417,7 +413,6 @@ export function ParkingBilling() {
         });
       }
     } catch (error) {
-      console.error('Error checking in vehicle:', error);
       toast({
         title: 'Error',
         description: 'Failed to check in vehicle',

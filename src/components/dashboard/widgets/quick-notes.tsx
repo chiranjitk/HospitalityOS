@@ -56,7 +56,7 @@ export function QuickNotesWidget() {
         const note: SavedNote = JSON.parse(stored);
         return note.text;
       }
-    } catch {}
+    } catch (error) { console.error('Context: reading stored note text:', error); }
     return '';
   });
   const [category, setCategory] = useState<NoteCategory>(() => {
@@ -67,7 +67,7 @@ export function QuickNotesWidget() {
         const note: SavedNote = JSON.parse(stored);
         return note.category;
       }
-    } catch {}
+    } catch (error) { console.error('Context: reading stored note category:', error); }
     return 'general';
   });
   const [savedAt, setSavedAt] = useState<string | null>(() => {
@@ -78,7 +78,7 @@ export function QuickNotesWidget() {
         const note: SavedNote = JSON.parse(stored);
         return note.savedAt;
       }
-    } catch {}
+    } catch (error) { console.error('Context: reading stored note savedAt:', error); }
     return null;
   });
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -99,7 +99,7 @@ export function QuickNotesWidget() {
       setSavedAt(now);
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 2000);
-    } catch {}
+    } catch (error) { console.error('Context: saving note:', error); }
   }, []);
 
   const handleTextChange = useCallback((value: string) => {
@@ -120,7 +120,7 @@ export function QuickNotesWidget() {
     setText('');
     setCategory('general');
     setSavedAt(null);
-    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    try { localStorage.removeItem(STORAGE_KEY); } catch (error) { console.error('Context: removing stored note:', error); }
   }, []);
 
   const handleManualSave = useCallback(() => {

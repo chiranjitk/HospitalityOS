@@ -281,7 +281,6 @@ export function DerivedRatePlans() {
       if (rpData.success) setRatePlans(rpData.data || []);
       if (connData.success) setConnections(connData.data || []);
     } catch (err) {
-      console.error('Error fetching data:', err);
       toast.error('Failed to load derived rate plans');
     } finally {
       setLoading(false);

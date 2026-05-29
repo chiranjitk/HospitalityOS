@@ -255,7 +255,7 @@ export function Breadcrumb() {
     >
       {/* Home icon — first item with hover effect */}
       <button
-        onClick={() => {}}
+        onClick={() => window.location.hash = '#dashboard-overview'}
         className={cn(
           'breadcrumb-link flex items-center gap-1 rounded-md px-1.5 py-0.5',
           'text-muted-foreground/60 hover:text-primary transition-colors duration-200',

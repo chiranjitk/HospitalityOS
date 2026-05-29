@@ -17,7 +17,6 @@ export function UIStyleProvider({ children }: UIStyleProviderProps) {
       if (rawTheme) {
         const validIds = ['hospitality-sunrise', 'gradient-modern', 'neumorphism', 'slate-enterprise', 'terra-corporate', 'arctic-steel', 'noir-executive'];
         if (!validIds.includes(rawTheme)) {
-          console.warn(`[StaySuite] Cleaning stale theme "${rawTheme}" from localStorage, falling back to hospitality-sunrise`);
           localStorage.setItem('staysuite-ui-style', 'hospitality-sunrise');
         }
       }

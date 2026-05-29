@@ -124,7 +124,6 @@ export default function WaitlistDashboard() {
         setStats(result.stats);
       }
     } catch (error) {
-      console.error('Error fetching waitlist:', error);
       toast({
         title: 'Error',
         description: 'Failed to load waitlist data',
@@ -181,7 +180,6 @@ export default function WaitlistDashboard() {
         });
       }
     } catch (error) {
-      console.error('Auto-process error:', error);
       toast({
         title: 'Error',
         description: 'Failed to auto-process waitlist',

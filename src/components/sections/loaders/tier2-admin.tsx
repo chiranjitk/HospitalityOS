@@ -4,8 +4,6 @@ export default async function loadAdmin(section: string): Promise<{ default: Rea
   switch (prefix) {
     case 'admin':
       return (await import('./load-admin')).default(section);
-    case 'staff':
-      return (await import('./load-admin')).default(section);
     case 'settings':
       return (await import('./load-settings')).default(section);
     case 'security':

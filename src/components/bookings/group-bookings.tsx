@@ -139,6 +139,10 @@ interface GroupBooking {
   property: { id: string; name: string };
   bookings?: Booking[];
   createdAt: string;
+  blockRoomCount?: number;
+  blockCutOffDate?: string;
+  blockRoomTypeId?: string;
+  blockStatus?: string;
 }
 
 interface Stats {
@@ -233,10 +237,8 @@ export default function GroupBookings() {
             setFormData(prev => ({ ...prev, propertyId: result.data[0].id }));
           }
         }
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+      } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return;
-        console.error('Error fetching properties:', err);
       }
     };
     fetchProperties();
@@ -258,10 +260,8 @@ export default function GroupBookings() {
         if (result.success) {
           setRoomTypes(result.data);
         }
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+      } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return;
-        console.error('Error fetching room types:', err);
       }
     };
     fetchRoomTypes();
@@ -285,10 +285,8 @@ export default function GroupBookings() {
             setSelectedGuest(result.data[0].id);
           }
         }
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+      } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return;
-        console.error('Error fetching guests:', err);
       }
     };
     fetchGuests();
@@ -316,7 +314,6 @@ export default function GroupBookings() {
         setStats(result.stats || { total: 0, inquiry: 0, confirmed: 0, cancelled: 0, totalValue: 0 });
       }
     } catch (error) {
-      console.error('Error fetching group bookings:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch group bookings',
@@ -362,7 +359,7 @@ export default function GroupBookings() {
         setAvailableRooms(result.data || []);
       }
     } catch (error) {
-      console.error('Error fetching available rooms:', error);
+      console.error('Failed to fetch available rooms:', error);
     } finally {
       setIsLoadingRooms(false);
     }
@@ -409,7 +406,6 @@ export default function GroupBookings() {
         });
       }
     } catch (error) {
-      console.error('Error creating group booking:', error);
       toast({
         title: 'Error',
         description: 'Failed to create group booking',
@@ -529,7 +525,6 @@ export default function GroupBookings() {
         });
       }
     } catch (error) {
-      console.error('Error booking rooms:', error);
       toast({
         title: 'Error',
         description: 'Failed to book rooms',
@@ -575,7 +570,6 @@ export default function GroupBookings() {
         });
       }
     } catch (error) {
-      console.error('Error updating group booking:', error);
       toast({
         title: 'Error',
         description: 'Failed to update group booking',
@@ -620,7 +614,6 @@ export default function GroupBookings() {
         });
       }
     } catch (error) {
-      console.error('Error deleting group booking:', error);
       toast({
         title: 'Error',
         description: 'Failed to delete group booking',
@@ -672,10 +665,10 @@ export default function GroupBookings() {
       depositPaid: group.depositPaid,
       status: group.status,
       notes: group.notes || '',
-      blockRoomCount: (group as any).blockRoomCount || 0,
-      blockCutOffDate: (group as any).blockCutOffDate ? format(new Date((group as any).blockCutOffDate), 'yyyy-MM-dd') : '',
-      blockRoomTypeId: (group as any).blockRoomTypeId || '',
-      blockStatus: (group as any).blockStatus || 'active',
+      blockRoomCount: group.blockRoomCount || 0,
+      blockCutOffDate: group.blockCutOffDate ? format(new Date(group.blockCutOffDate), 'yyyy-MM-dd') : '',
+      blockRoomTypeId: group.blockRoomTypeId || '',
+      blockStatus: group.blockStatus || 'active',
     });
     setIsEditOpen(true);
   };
@@ -700,7 +693,7 @@ export default function GroupBookings() {
         setIsDetailsOpen(true);
       }
     } catch (error) {
-      console.error('Error fetching group details:', error);
+      console.error('Failed to load group booking details:', error);
     }
   };
 
@@ -745,13 +738,13 @@ export default function GroupBookings() {
 
   // Check if cut-off date is reached for a group
   const isCutOffReached = (group: GroupBooking) => {
-    const cutOff = (group as any).blockCutOffDate;
+    const cutOff = group.blockCutOffDate;
     if (!cutOff) return false;
     return new Date(cutOff) <= new Date();
   };
 
   const getBlockRemaining = (group: GroupBooking) => {
-    const blocked = (group as any).blockRoomCount || group.totalRooms;
+    const blocked = group.blockRoomCount || group.totalRooms;
     return blocked - group.bookedRooms;
   };
 
@@ -893,22 +886,22 @@ export default function GroupBookings() {
                 <Progress value={roomProgress} className="h-2 [&>div]:bg-gradient-to-r [&>div]:from-emerald-500 [&>div]:to-teal-500" />
               </div>
               {/* Block Progress for Mobile */}
-              {Number((group as any).blockRoomCount) > 0 && (
+              {Number(group.blockRoomCount) > 0 && (
                 <div className="p-2 rounded-lg bg-muted/50 border">
                   <div className="flex items-center gap-1.5 text-xs font-medium mb-1">
                     <ShieldCheck className="h-3 w-3 text-emerald-500" />
-                    Room Block: {group.bookedRooms}/{(group as any).blockRoomCount} rooms booked
+                    Room Block: {group.bookedRooms}/{group.blockRoomCount} rooms booked
                   </div>
-                  {(group as any).blockCutOffDate && (
+                  {group.blockCutOffDate && (
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Timer className="h-3 w-3" />
-                      {getBlockRemaining(group)} remaining until {format(new Date((group as any).blockCutOffDate), 'MMM d, yyyy')}
+                      {getBlockRemaining(group)} remaining until {format(new Date(group.blockCutOffDate), 'MMM d, yyyy')}
                       {isCutOffReached(group) && (
                         <Badge variant="outline" className="text-xs ml-1 text-amber-600 border-amber-500">Cut-off reached</Badge>
                       )}
                     </div>
                   )}
-                  {(group as any).blockStatus === 'active' && isCutOffReached(group) && (
+                  {group.blockStatus === 'active' && isCutOffReached(group) && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -920,7 +913,7 @@ export default function GroupBookings() {
                       Release Rooms
                     </Button>
                   )}
-                  {(group as any).blockStatus === 'released' && (
+                  {group.blockStatus === 'released' && (
                     <Badge variant="secondary" className="text-xs mt-1">Block Released</Badge>
                   )}
                 </div>
@@ -1049,25 +1042,25 @@ export default function GroupBookings() {
                           <div className="w-32">
                             <div className="flex justify-between text-xs mb-1">
                               <span>{group.bookedRooms}/{group.totalRooms}</span>
-                              {(group as any).blockRoomCount > 0 && (group as any).blockStatus === 'released' && (
+                              {group.blockRoomCount > 0 && group.blockStatus === 'released' && (
                                 <Badge variant="secondary" className="text-[10px] px-1">Released</Badge>
                               )}
                             </div>
                             <Progress value={roomProgress} className="h-2 [&>div]:bg-gradient-to-r [&>div]:from-emerald-500 [&>div]:to-teal-500" />
-                            {(group as any).blockRoomCount > 0 && (
+                            {group.blockRoomCount > 0 && (
                               <div className="mt-1 space-y-0.5">
                                 <div className="text-[10px] text-muted-foreground">
                                   <ShieldCheck className="h-2.5 w-2.5 inline mr-0.5" />
-                                  Block: {group.bookedRooms}/{(group as any).blockRoomCount} booked, {getBlockRemaining(group)} remaining
+                                  Block: {group.bookedRooms}/{group.blockRoomCount} booked, {getBlockRemaining(group)} remaining
                                 </div>
-                                {(group as any).blockCutOffDate && (
+                                {group.blockCutOffDate && (
                                   <div className="text-[10px] text-muted-foreground">
                                     <Timer className="h-2.5 w-2.5 inline mr-0.5" />
-                                    Until {format(new Date((group as any).blockCutOffDate), 'MMM d')}
+                                    Until {format(new Date(group.blockCutOffDate), 'MMM d')}
                                     {isCutOffReached(group) && <span className="text-amber-600 ml-1">(reached)</span>}
                                   </div>
                                 )}
-                                {(group as any).blockStatus === 'active' && isCutOffReached(group) && (
+                                {group.blockStatus === 'active' && isCutOffReached(group) && (
                                   <Button
                                     variant="outline"
                                     size="sm"

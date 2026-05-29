@@ -178,7 +178,6 @@ export default function BookingModifications() {
         toast.error('Failed to load booking modifications');
       }
     } catch (error) {
-      console.error('Error fetching booking modifications:', error);
       toast.error('Failed to load booking modifications');
     } finally {
       setLoading(false);

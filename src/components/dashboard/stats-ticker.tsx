@@ -155,7 +155,6 @@ export default function StatsTicker() {
         throw new Error('Invalid response');
       }
     } catch (err) {
-      console.error('[StatsTicker] Failed to fetch dashboard data:', err);
       setError(true);
     } finally {
       setIsLoading(false);

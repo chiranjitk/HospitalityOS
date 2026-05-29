@@ -420,7 +420,6 @@ export default function ConversionEngine() {
       const result = await fetchConversionData();
       dispatch({ type: 'SET_DATA', payload: result });
     } catch (err) {
-      console.error('Error fetching conversion data:', err);
       dispatch({ type: 'SET_ERROR', error: err instanceof Error ? err.message : 'Failed to load conversion data' });
     }
   }, []);

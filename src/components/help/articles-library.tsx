@@ -149,7 +149,6 @@ export default function ArticlesLibrary() {
         setStats(data.data.stats);
       }
     } catch (error) {
-      console.error('Error fetching articles:', error);
       toast.error('Failed to fetch articles');
     } finally {
       setLoading(false);
@@ -162,7 +161,7 @@ export default function ArticlesLibrary() {
       const data = await response.json();
       if (data.success) setCategories(data.data);
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      console.error('Operation failed:', error);
     }
   };
 

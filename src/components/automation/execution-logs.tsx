@@ -106,7 +106,6 @@ export default function ExecutionLogs() {
         });
       }
     } catch (error) {
-      console.error('Error fetching logs:', error);
       toast.error('Failed to fetch execution logs');
       if (reset) setLogs([]);
     } finally {

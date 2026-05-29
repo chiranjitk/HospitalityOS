@@ -48,7 +48,6 @@ function parseCompositeId(id: string): { connectionId: string; roomTypeId: strin
     return { connectionId: id.substring(0, idx), roomTypeId: id.substring(idx + 1) };
   }
   // Absolute fallback — return as-is (may not work for UUIDs)
-  console.error('Invalid composite ID format, no delimiter found:', id);
   return null;
 }
 
@@ -104,7 +103,6 @@ export default function Restrictions() {
         toast.error('Failed to load restrictions');
       }
     } catch (error) {
-      console.error('Error fetching restrictions:', error);
       toast.error('Failed to load restrictions');
     } finally {
       setLoading(false);

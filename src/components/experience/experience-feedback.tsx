@@ -160,7 +160,6 @@ export default function ExperienceFeedback() {
         setAvgByExp(result.stats.averageByExperience);
       }
     } catch (error) {
-      console.error('Error fetching feedback:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch feedback',

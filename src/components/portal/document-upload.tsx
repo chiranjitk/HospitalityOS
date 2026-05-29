@@ -196,7 +196,6 @@ export function DocumentUpload({ token, documents, kycComplete, onUpdate }: Docu
         });
       }
     } catch (error) {
-      console.error('Error uploading document:', error);
       toast({
         title: 'Error',
         description: 'Failed to upload document',

@@ -370,11 +370,9 @@ export default function RatePlansPricingRules() {
           }
         }
       } catch (e) {
-        // Non-critical, use defaults
-        console.warn('Failed to load deviation settings:', e);
+        console.error('Failed to load calendar deviation settings, using defaults:', e);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
       toast({ title: 'Error', description: 'Failed to load pricing data', variant: 'destructive' });
     } finally {
       setIsLoading(false);
@@ -558,7 +556,6 @@ export default function RatePlansPricingRules() {
         toast({ title: 'Error', description: data.error?.message || 'Failed to create rate plan', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error creating rate plan:', error);
       toast({ title: 'Error', description: 'Failed to create rate plan', variant: 'destructive' });
     } finally {
       setIsSaving(false);
@@ -588,7 +585,6 @@ export default function RatePlansPricingRules() {
         toast({ title: 'Error', description: 'Failed to update rate plan', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error updating rate plan:', error);
       toast({ title: 'Error', description: 'Failed to update rate plan', variant: 'destructive' });
     } finally {
       setIsSaving(false);
@@ -613,7 +609,6 @@ export default function RatePlansPricingRules() {
         toast({ title: 'Error', description: 'Failed to delete rate plan', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error deleting rate plan:', error);
       toast({ title: 'Error', description: 'Failed to delete rate plan', variant: 'destructive' });
     }
   };
@@ -642,7 +637,6 @@ export default function RatePlansPricingRules() {
         toast({ title: 'Error', description: data.error?.message || 'Failed to create rule', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error creating rule:', error);
       toast({ title: 'Error', description: 'Failed to create rule', variant: 'destructive' });
     } finally {
       setIsSaving(false);
@@ -672,7 +666,6 @@ export default function RatePlansPricingRules() {
         toast({ title: 'Error', description: 'Failed to update rule', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error updating rule:', error);
       toast({ title: 'Error', description: 'Failed to update rule', variant: 'destructive' });
     } finally {
       setIsSaving(false);
@@ -704,7 +697,6 @@ export default function RatePlansPricingRules() {
         toast({ title: 'Error', description: 'Failed to update rule', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error updating rule:', error);
       toast({ title: 'Error', description: 'Failed to update rule', variant: 'destructive' });
     }
   };
@@ -728,7 +720,6 @@ export default function RatePlansPricingRules() {
         toast({ title: 'Error', description: 'Failed to delete rule', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error deleting rule:', error);
       toast({ title: 'Error', description: 'Failed to delete rule', variant: 'destructive' });
     }
     }});
@@ -756,7 +747,6 @@ export default function RatePlansPricingRules() {
         toast({ title: 'Error', description: 'Failed to duplicate rule', variant: 'destructive' });
       }
     } catch (error) {
-      console.error('Error duplicating rule:', error);
       toast({ title: 'Error', description: 'Failed to duplicate rule', variant: 'destructive' });
     }
   };

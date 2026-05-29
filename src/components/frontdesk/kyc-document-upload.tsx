@@ -140,7 +140,6 @@ export function KYCDocumentUpload({
                   description: 'KYC document persisted to guest profile.',
                 });
               } else {
-                console.error('[KYC Upload] Failed to persist document:', result.error);
                 toast({
                   title: 'Save Warning',
                   description: 'Document added locally but failed to save to server.',
@@ -149,7 +148,6 @@ export function KYCDocumentUpload({
               }
             })
             .catch(err => {
-              console.error('[KYC Upload] Network error:', err);
               toast({
                 title: 'Save Warning',
                 description: 'Document added locally but failed to reach server.',

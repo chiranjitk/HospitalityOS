@@ -293,7 +293,6 @@ export default function GuestHub() {
           }
         }
       } catch (err) {
-        console.error('Error fetching messages:', err);
       } finally {
         if (!cancelled) setMessagesLoading(false);
       }
@@ -506,7 +505,6 @@ export default function GuestHub() {
           }
         }
       } catch (err) {
-        console.error('Error fetching guest hub data:', err);
         setDataError(err instanceof Error ? err.message : 'Failed to load data');
       } finally {
         setDataLoading(false);

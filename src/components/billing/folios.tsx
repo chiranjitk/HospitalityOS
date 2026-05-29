@@ -182,7 +182,7 @@ const t = useTranslations('billing');
         setConversionCache(prev => { const next = new Map(prev); next.set(cacheKey, { rate, timestamp: now }); return next; });
         return convertedAmount;
       }
-    } catch { /* silent */ }
+    } catch (error) { console.error("Currency conversion failed:", error); }
     return null;
   }, [conversionCache]);
 
@@ -302,7 +302,7 @@ const t = useTranslations('billing');
           }
         }
       } catch (error) {
-
+        console.error('Operation failed:', error);
       }
     };
     fetchBookings();
@@ -353,7 +353,7 @@ const t = useTranslations('billing');
         setAuditEntries(result.data || []);
       }
     } catch (error) {
-
+      console.error('Context: fetching folio audit entries:', error);
     } finally {
       setIsLoadingAudit(false);
     }
@@ -377,7 +377,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-
+      console.error('Operation failed:', error);
     }
   };
 
@@ -536,7 +536,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-
+      console.error('Operation failed:', error);
     }
   };
 
@@ -697,7 +697,7 @@ const t = useTranslations('billing');
         });
       }
     } catch (error) {
-
+      console.error('Operation failed:', error);
     }
   };
 
@@ -732,7 +732,7 @@ const t = useTranslations('billing');
           setAutoPostingStatus(result.data);
         }
       } catch (error) {
-
+        console.error('Operation failed:', error);
       }
     };
     fetchAutoPostingStatus();

@@ -92,7 +92,6 @@ export default function LowStockAlerts() {
         setVendors(vendorsData.data);
       }
     } catch (error) {
-      console.error('Error fetching low stock items:', error);
       toast.error('Failed to fetch low stock items');
     } finally {
       setLoading(false);
@@ -152,7 +151,6 @@ export default function LowStockAlerts() {
         toast.error(data.error?.message || 'Failed to create purchase order');
       }
     } catch (error) {
-      console.error('Error creating purchase order:', error);
       toast.error('Failed to create purchase order');
     } finally {
       setSaving(false);

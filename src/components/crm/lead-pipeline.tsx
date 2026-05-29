@@ -54,6 +54,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { useTranslations } from 'next-intl';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -178,7 +179,7 @@ const formatDate = (dateStr?: string) => {
 const timeAgo = (dateStr: string) => {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 60) return mins <= 1 ? 'Just now' : `${mins}m ago`;
+  if (mins < 60) return mins <= 1 ? t('lpJustNow') : `${mins}m ago`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
@@ -188,6 +189,7 @@ const timeAgo = (dateStr: string) => {
 // ─── Component ──────────────────────────────────────────────────
 
 export default function LeadPipeline() {
+  const t = useTranslations('crm');
   const { toast } = useToast();
   const { user } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -242,7 +244,7 @@ export default function LeadPipeline() {
           setPropertyId(result.data[0].id);
         }
       })
-      .catch(() => {});
+      .catch((error) => { console.error('Context: fetching initial property:', error); });
     return () => { cancelled = true; };
   }, []);
 
@@ -281,17 +283,17 @@ export default function LeadPipeline() {
         setSelectedLead(result.data);
         setLeadActivities(result.activities || []);
       }
-    } catch {}
+    } catch (error) { console.error('Context: fetching lead detail:', error); }
   };
 
   // Create lead
   const handleCreateLead = async () => {
     if (!addForm.contactName || !addForm.contactEmail || !addForm.contactPhone) {
-      toast({ title: 'Validation Error', description: 'Name, email, and phone are required', variant: 'destructive' });
+      toast({ title: t('lpValidationError'), description: t('lpNameEmailPhoneRequired'), variant: 'destructive' });
       return;
     }
     if (!propertyId) {
-      toast({ title: 'Error', description: 'No property selected', variant: 'destructive' });
+      toast({ title: 'Error', description: t('lpNoPropertySelected'), variant: 'destructive' });
       return;
     }
 
@@ -320,15 +322,15 @@ export default function LeadPipeline() {
       });
       const result = await res.json();
       if (result.success) {
-        toast({ title: 'Lead Created', description: `${addForm.contactName} added to pipeline` });
+        toast({ title: t('lpLeadCreated'), description: t('lpAddedToPipeline', { name: addForm.contactName }) });
         setIsAddOpen(false);
         setAddForm({ contactName: '', contactEmail: '', contactPhone: '', contactCompany: '', source: 'website', type: 'general', priority: 'warm', estimatedRevenue: '', roomCount: '', guestCount: '', estimatedArrival: '', estimatedDeparture: '', notes: '', followUpDate: '' });
         fetchLeads();
       } else {
-        toast({ title: 'Error', description: result.error?.message || 'Failed to create lead', variant: 'destructive' });
+        toast({ title: 'Error', description: result.error?.message || t('lpFailedToCreate'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to create lead', variant: 'destructive' });
+      toast({ title: 'Error', description: t('lpFailedToCreate'), variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -346,17 +348,17 @@ export default function LeadPipeline() {
       });
       const result = await res.json();
       if (result.success) {
-        toast({ title: 'Lead Updated', description: `Moved to ${STATUS_CONFIG.find(s => s.key === moveToStatus)?.label || moveToStatus}` });
+        toast({ title: t('lpLeadUpdated'), description: `Moved to ${STATUS_CONFIG.find(s => s.key === moveToStatus)?.label || moveToStatus}` });
         setIsMoveStageOpen(false);
         setMoveToStatus('');
         setLossReason('');
         fetchLeads();
         if (isDetailOpen) fetchLeadDetail(selectedLead.id);
       } else {
-        toast({ title: 'Error', description: result.error?.message || 'Failed to update lead', variant: 'destructive' });
+        toast({ title: 'Error', description: result.error?.message || t('lpFailedToUpdate'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to update lead', variant: 'destructive' });
+      toast({ title: 'Error', description: t('lpFailedToUpdate'), variant: 'destructive', variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -364,17 +366,17 @@ export default function LeadPipeline() {
 
   // Archive lead
   const handleArchive = async (leadId: string) => {
-    if (!confirm('Archive this lead? It will be marked as lost.')) return;
+    if (!confirm(t('lpArchiveConfirm'))) return;
     try {
       const res = await fetch(`/api/crm/leads?id=${leadId}`, { method: 'DELETE' });
       const result = await res.json();
       if (result.success) {
-        toast({ title: 'Lead Archived' });
+        toast({ title: t('lpLeadArchived') });
         setIsDetailOpen(false);
         setSelectedLead(null);
         fetchLeads();
       } else {
-        toast({ title: 'Error', description: result.error?.message || 'Failed to archive', variant: 'destructive' });
+        toast({ title: 'Error', description: result.error?.message || t('lpFailedToArchive'), variant: 'destructive' });
       }
     } catch {
       toast({ title: 'Error', description: 'Failed to archive lead', variant: 'destructive' });
@@ -384,7 +386,7 @@ export default function LeadPipeline() {
   // Add activity
   const handleAddActivity = async () => {
     if (!selectedLead || !activityForm.content.trim()) {
-      toast({ title: 'Validation', description: 'Activity content is required', variant: 'destructive' });
+      toast({ title: 'Validation', description: t('lpActivityRequired'), variant: 'destructive' });
       return;
     }
     setIsSaving(true);
@@ -396,12 +398,12 @@ export default function LeadPipeline() {
       });
       const result = await res.json();
       if (result.success) {
-        toast({ title: 'Activity Added' });
+        toast({ title: t('lpActivityAdded') });
         setActivityForm({ type: 'note', content: '' });
         fetchLeadDetail(selectedLead.id);
         fetchLeads();
       } else {
-        toast({ title: 'Error', description: result.error?.message || 'Failed to add activity', variant: 'destructive' });
+        toast({ title: 'Error', description: result.error?.message || t('lpFailedToAddActivity'), variant: 'destructive' });
       }
     } catch {
       toast({ title: 'Error', description: 'Failed to add activity', variant: 'destructive' });
@@ -457,7 +459,7 @@ export default function LeadPipeline() {
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-1">
               <Flame className="h-4 w-4 text-red-500" />
-              <p className="text-xs font-medium text-muted-foreground">Hot</p>
+              <p className="text-xs font-medium text-muted-foreground">{t('lpHot')}</p>
             </div>
             <p className="text-xl font-bold">{hotLeads}</p>
           </CardContent>
@@ -466,7 +468,7 @@ export default function LeadPipeline() {
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-1">
               <Thermometer className="h-4 w-4 text-amber-500" />
-              <p className="text-xs font-medium text-muted-foreground">Warm</p>
+              <p className="text-xs font-medium text-muted-foreground">{t('lpWarm')}</p>
             </div>
             <p className="text-xl font-bold">{warmLeads}</p>
           </CardContent>
@@ -475,7 +477,7 @@ export default function LeadPipeline() {
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-1">
               <Snowflake className="h-4 w-4 text-cyan-500" />
-              <p className="text-xs font-medium text-muted-foreground">Cold</p>
+              <p className="text-xs font-medium text-muted-foreground">{t('lpCold')}</p>
             </div>
             <p className="text-xl font-bold">{coldLeads}</p>
           </CardContent>
@@ -484,7 +486,7 @@ export default function LeadPipeline() {
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-1">
               <Target className="h-4 w-4 text-violet-500" />
-              <p className="text-xs font-medium text-muted-foreground">Pipeline</p>
+              <p className="text-xs font-medium text-muted-foreground">{t('lpPipeline')}</p>
             </div>
             <p className="text-xl font-bold">{formatCurrency(totalPipelineValue)}</p>
           </CardContent>
@@ -493,7 +495,7 @@ export default function LeadPipeline() {
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-1">
               <Star className="h-4 w-4 text-emerald-500" />
-              <p className="text-xs font-medium text-muted-foreground">Won</p>
+              <p className="text-xs font-medium text-muted-foreground">{t('lpWon')}</p>
             </div>
             <p className="text-xl font-bold">{formatCurrency(wonValue)}</p>
           </CardContent>
@@ -502,7 +504,7 @@ export default function LeadPipeline() {
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-1">
               <Users className="h-4 w-4 text-teal-500" />
-              <p className="text-xs font-medium text-muted-foreground">Total</p>
+              <p className="text-xs font-medium text-muted-foreground">{t('lpTotal')}</p>
             </div>
             <p className="text-xl font-bold">{leads.length}</p>
           </CardContent>
@@ -513,7 +515,7 @@ export default function LeadPipeline() {
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1 relative">
           <Input
-            placeholder="Search leads by name, email, company..."
+            placeholder={t('lpSearchPlaceholder')}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="pl-4"
@@ -556,8 +558,8 @@ export default function LeadPipeline() {
         <Card className="p-12">
           <div className="flex flex-col items-center text-center text-muted-foreground">
             <Users className="h-12 w-12 mb-4 opacity-30" />
-            <p className="font-medium">No leads yet</p>
-            <p className="text-sm mt-1">Click &quot;Add Lead&quot; to create your first sales lead</p>
+            <p className="font-medium">{t('lpNoLeadsYet')}</p>
+            <p className="text-sm mt-1">{t('lpNoLeadsHint')}</p>
           </div>
         </Card>
       ) : (
@@ -583,7 +585,7 @@ export default function LeadPipeline() {
                 </CardHeader>
                 <CardContent>
                   {stage.leads.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">No leads in this stage</p>
+                    <p className="text-sm text-muted-foreground text-center py-4">{t('lpNoLeadsInStage')}</p>
                   ) : (
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       {stage.leads.map((lead) => {
@@ -651,32 +653,32 @@ export default function LeadPipeline() {
               <UserPlus className="h-5 w-5" />
               Add New Lead
             </DialogTitle>
-            <DialogDescription>Enter lead contact details and information</DialogDescription>
+            <DialogDescription>{t('lpEnterLeadDetails')}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 flex-1 min-h-0 overflow-y-auto pr-2 -mr-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Contact Name *</Label>
+                <Label>{t('lpContactName')}</Label>
                 <Input value={addForm.contactName} onChange={e => setAddForm(p => ({ ...p, contactName: e.target.value }))} placeholder="John Doe" />
               </div>
               <div className="space-y-1.5">
-                <Label>Company</Label>
+                <Label>{t('lpCompany')}</Label>
                 <Input value={addForm.contactCompany} onChange={e => setAddForm(p => ({ ...p, contactCompany: e.target.value }))} placeholder="Acme Corp" />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Email *</Label>
+                <Label>{t('lpEmail')}</Label>
                 <Input type="email" value={addForm.contactEmail} onChange={e => setAddForm(p => ({ ...p, contactEmail: e.target.value }))} placeholder="john@acme.com" />
               </div>
               <div className="space-y-1.5">
-                <Label>Phone *</Label>
+                <Label>{t('lpPhone')}</Label>
                 <Input value={addForm.contactPhone} onChange={e => setAddForm(p => ({ ...p, contactPhone: e.target.value }))} placeholder="+1 555-0123" />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <Label>Source</Label>
+                <Label>{t('lpSource')}</Label>
                 <Select value={addForm.source} onValueChange={v => setAddForm(p => ({ ...p, source: v as LeadSource }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -685,7 +687,7 @@ export default function LeadPipeline() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Type</Label>
+                <Label>{t('lpType')}</Label>
                 <Select value={addForm.type} onValueChange={v => setAddForm(p => ({ ...p, type: v as LeadType }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -694,7 +696,7 @@ export default function LeadPipeline() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Priority</Label>
+                <Label>{t('lpPriority')}</Label>
                 <Select value={addForm.priority} onValueChange={v => setAddForm(p => ({ ...p, priority: v as LeadPriority }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -705,39 +707,39 @@ export default function LeadPipeline() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <Label>Est. Revenue</Label>
+                <Label>{t('lpEstRevenue')}</Label>
                 <Input type="number" value={addForm.estimatedRevenue} onChange={e => setAddForm(p => ({ ...p, estimatedRevenue: e.target.value }))} placeholder="5000" />
               </div>
               <div className="space-y-1.5">
-                <Label>Rooms</Label>
+                <Label>{t('lpRooms')}</Label>
                 <Input type="number" value={addForm.roomCount} onChange={e => setAddForm(p => ({ ...p, roomCount: e.target.value }))} placeholder="5" />
               </div>
               <div className="space-y-1.5">
-                <Label>Guests</Label>
+                <Label>{t('lpGuests')}</Label>
                 <Input type="number" value={addForm.guestCount} onChange={e => setAddForm(p => ({ ...p, guestCount: e.target.value }))} placeholder="10" />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Est. Arrival</Label>
+                <Label>{t('lpEstArrival')}</Label>
                 <Input type="date" value={addForm.estimatedArrival} onChange={e => setAddForm(p => ({ ...p, estimatedArrival: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label>Est. Departure</Label>
+                <Label>{t('lpEstDeparture')}</Label>
                 <Input type="date" value={addForm.estimatedDeparture} onChange={e => setAddForm(p => ({ ...p, estimatedDeparture: e.target.value }))} />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Follow-up Date</Label>
+              <Label>{t('lpFollowUpDate')}</Label>
               <Input type="date" value={addForm.followUpDate} onChange={e => setAddForm(p => ({ ...p, followUpDate: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
-              <Label>Notes</Label>
-              <Textarea value={addForm.notes} onChange={e => setAddForm(p => ({ ...p, notes: e.target.value }))} placeholder="Additional notes..." rows={3} />
+              <Label>{t('lpNotes')}</Label>
+              <Textarea value={addForm.notes} onChange={e => setAddForm(p => ({ ...p, notes: e.target.value }))} placeholder={t('lpAdditionalNotes')} rows={3} />
             </div>
           </div>
           <DialogFooter className="mt-4 shrink-0">
-            <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setIsAddOpen(false)}>{t('lpCancel')}</Button>
             <Button onClick={handleCreateLead} disabled={isSaving} className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white">
               {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <UserPlus className="h-4 w-4 mr-2" />}
               Create Lead
@@ -815,7 +817,7 @@ export default function LeadPipeline() {
                       <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
                       <span>Follow-up: {formatDate(selectedLead.followUpDate)}</span>
                       {new Date(selectedLead.followUpDate) < new Date() && selectedLead.status !== 'converted' && selectedLead.status !== 'lost' && (
-                        <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">Overdue</Badge>
+                        <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">{t('lpOverdue')}</Badge>
                       )}
                     </div>
                   )}
@@ -825,7 +827,7 @@ export default function LeadPipeline() {
               {/* Notes */}
               {selectedLead.notes && (
                 <Card className="p-4">
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Notes</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">{t('lpNotesLabel')}</p>
                   <p className="text-sm whitespace-pre-wrap">{selectedLead.notes}</p>
                 </Card>
               )}
@@ -833,7 +835,7 @@ export default function LeadPipeline() {
               {/* Move Stage */}
               {selectedLead.status !== 'converted' && selectedLead.status !== 'lost' && (
                 <Card className="p-4">
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Move to Next Stage</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">{t('lpMoveToNextStage')}</p>
                   <div className="flex flex-wrap gap-2">
                     {VALID_TRANSITIONS[selectedLead.status]?.map(nextStatus => {
                       const cfg = STATUS_CONFIG.find(s => s.key === nextStatus);
@@ -858,7 +860,7 @@ export default function LeadPipeline() {
                                 });
                                 const result = await res.json();
                                 if (result.success) {
-                                  toast({ title: 'Updated', description: `Moved to ${cfg.label}` });
+                                  toast({ title: t('lpLeadUpdated'), description: t('lpMovedTo', { status: cfg.label }) });
                                   fetchLeadDetail(selectedLead.id);
                                   fetchLeads();
                                 } else {
@@ -886,14 +888,14 @@ export default function LeadPipeline() {
               {/* Activity Log */}
               <Card className="p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-medium text-muted-foreground">Activity Log</p>
+                  <p className="text-xs font-medium text-muted-foreground">{t('lpActivityLog')}</p>
                   <Button variant="outline" size="sm" onClick={() => setIsActivityOpen(true)}>
                     <MessageSquare className="h-3 w-3 mr-1" />
-                    Add Activity
+                    {t('lpAddActivity')}
                   </Button>
                 </div>
                 {leadActivities.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-3">No activities yet</p>
+                  <p className="text-sm text-muted-foreground text-center py-3">{t('lpNoActivitiesYet')}</p>
                 ) : (
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {leadActivities.slice(0, 10).map(act => (
@@ -914,13 +916,13 @@ export default function LeadPipeline() {
                 {selectedLead.status === 'confirmed' && (
                   <Button className="flex-1 bg-gradient-to-r from-emerald-500 to-green-500 text-white" disabled>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Convert to Booking
+                    {t('lpConvertToBooking')}
                   </Button>
                 )}
                 {selectedLead.status !== 'lost' && selectedLead.status !== 'converted' && (
                   <Button variant="outline" className="text-red-600 hover:text-red-700" onClick={() => handleArchive(selectedLead.id)}>
                     <Trash2 className="h-4 w-4 mr-2" />
-                    Archive
+                    {t('lpArchive')}
                   </Button>
                 )}
               </div>
@@ -937,35 +939,35 @@ export default function LeadPipeline() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5" />
-              Log Activity
+              {t('lpLogActivity')}
             </DialogTitle>
-            <DialogDescription>Add a call, email, meeting, or note for this lead</DialogDescription>
+            <DialogDescription>{t('lpLogActivityDesc')}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4">
             <div className="space-y-1.5">
-              <Label>Type</Label>
+              <Label>{t('lpType')}</Label>
               <Select value={activityForm.type} onValueChange={v => setActivityForm(p => ({ ...p, type: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="note">Note</SelectItem>
-                  <SelectItem value="call">Call</SelectItem>
-                  <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="meeting">Meeting</SelectItem>
-                  <SelectItem value="proposal">Proposal Sent</SelectItem>
-                  <SelectItem value="follow_up">Follow-up</SelectItem>
+                  <SelectItem value="note">{t('lpNote')}</SelectItem>
+                  <SelectItem value="call">{t('lpCall')}</SelectItem>
+                  <SelectItem value="email">{t('lpEmailAct')}</SelectItem>
+                  <SelectItem value="meeting">{t('lpMeeting')}</SelectItem>
+                  <SelectItem value="proposal">{t('lpProposalSent')}</SelectItem>
+                  <SelectItem value="follow_up">{t('lpFollowUpAct')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Content *</Label>
-              <Textarea value={activityForm.content} onChange={e => setActivityForm(p => ({ ...p, content: e.target.value }))} placeholder="Describe the activity..." rows={3} />
+              <Label>{t('lpContentRequired')}</Label>
+              <Textarea value={activityForm.content} onChange={e => setActivityForm(p => ({ ...p, content: e.target.value }))} placeholder={t('lpDescribeActivity')} rows={3} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsActivityOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setIsActivityOpen(false)}>{t('lpCancel')}</Button>
             <Button onClick={handleAddActivity} disabled={isSaving}>
               {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              Save Activity
+              {t('lpSaveActivity')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -979,31 +981,31 @@ export default function LeadPipeline() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <XCircle className="h-5 w-5 text-red-500" />
-              Mark as Lost
+              {t('lpMarkAsLost')}
             </DialogTitle>
-            <DialogDescription>Please provide a reason for losing this lead</DialogDescription>
+            <DialogDescription>{t('lpMarkAsLostDesc')}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4">
             <div className="space-y-1.5">
               <Label>Loss Reason</Label>
               <Select value={lossReason} onValueChange={setLossReason}>
-                <SelectTrigger><SelectValue placeholder="Select reason..." /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t('lpSelectReason')} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="No response">No Response</SelectItem>
-                  <SelectItem value="Budget mismatch">Budget Mismatch</SelectItem>
-                  <SelectItem value="Chose competitor">Chose Competitor</SelectItem>
-                  <SelectItem value="Dates unavailable">Dates Unavailable</SelectItem>
-                  <SelectItem value="Project cancelled">Project Cancelled</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
+                  <SelectItem value="No response">{t('lpNoResponse')}</SelectItem>
+                  <SelectItem value="Budget mismatch">{t('lpBudgetMismatch')}</SelectItem>
+                  <SelectItem value="Chose competitor">{t('lpChoseCompetitor')}</SelectItem>
+                  <SelectItem value="Dates unavailable">{t('lpDatesUnavailable')}</SelectItem>
+                  <SelectItem value="Project cancelled">{t('lpProjectCancelled')}</SelectItem>
+                  <SelectItem value="Other">{t('lpOther')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setIsMoveStageOpen(false); setMoveToStatus(''); setLossReason(''); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setIsMoveStageOpen(false); setMoveToStatus(''); setLossReason(''); }}>{t('lpCancel')}</Button>
             <Button variant="destructive" onClick={handleMoveStage} disabled={isSaving}>
               {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <XCircle className="h-4 w-4 mr-2" />}
-              Mark as Lost
+              {t('lpMarkAs Lost')}
             </Button>
           </DialogFooter>
         </DialogContent>

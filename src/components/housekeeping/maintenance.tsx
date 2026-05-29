@@ -204,7 +204,7 @@ export default function Maintenance() {
           setPreventiveItems(preventiveResult.data);
         }
       } catch (error) {
-        console.error('Error fetching initial data:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchInitialData();
@@ -229,7 +229,7 @@ export default function Maintenance() {
           setAssetList(list);
         }
       } catch (error) {
-        console.error('Error fetching assets:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchAssets();
@@ -249,7 +249,7 @@ export default function Maintenance() {
           setRooms(result.data);
         }
       } catch (error) {
-        console.error('Error fetching rooms:', error);
+        console.error('Operation failed:', error);
       }
     };
     fetchRooms();
@@ -272,7 +272,6 @@ export default function Maintenance() {
         setTasks(result.data);
       }
     } catch (error) {
-      console.error('Error fetching tasks:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch maintenance requests',
@@ -338,7 +337,6 @@ export default function Maintenance() {
         });
       }
     } catch (error) {
-      console.error('Error creating request:', error);
       toast({
         title: 'Error',
         description: 'Failed to create maintenance request',
@@ -377,7 +375,6 @@ export default function Maintenance() {
         });
       }
     } catch (error) {
-      console.error('Error updating status:', error);
       toast({
         title: 'Error',
         description: 'Failed to update status',
@@ -445,7 +442,6 @@ export default function Maintenance() {
         });
       }
     } catch (error) {
-      console.error('Error updating request:', error);
       toast({
         title: 'Error',
         description: 'Failed to update maintenance request',
@@ -484,7 +480,6 @@ export default function Maintenance() {
         });
       }
     } catch (error) {
-      console.error('Error cancelling request:', error);
       toast({
         title: 'Error',
         description: 'Failed to cancel request',
@@ -586,7 +581,6 @@ export default function Maintenance() {
         });
       }
     } catch (error) {
-      console.error('Error creating PM schedule:', error);
       toast({
         title: 'Error',
         description: 'Failed to create preventive maintenance schedule',

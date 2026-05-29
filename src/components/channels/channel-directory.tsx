@@ -662,7 +662,6 @@ export default function ChannelDirectory() {
       if (data.categories) setCategories(data.categories);
       if (data.regions) setRegions(data.regions);
     } catch (error) {
-      console.error('Error fetching channels:', error);
       toast.error('Failed to load channel directory');
     } finally {
       setLoading(false);

@@ -283,7 +283,6 @@ export function ChannelRateOverrides() {
       if (rtData.success) setRoomTypes(rpData.data || []);
       if (rpData.success) setRatePlans(rpData.data || []);
     } catch (err) {
-      console.error('Error fetching data:', err);
       toast.error('Failed to load rate overrides');
     } finally {
       setLoading(false);

@@ -135,7 +135,6 @@ export function GlobalSearch() {
           setResults(data);
         }
       } catch (error) {
-        console.error('Search error:', error);
       } finally {
         setIsLoading(false);
       }

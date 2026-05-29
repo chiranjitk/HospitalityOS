@@ -255,10 +255,8 @@ function CalendarViewTab() {
             setQuickBookData(prev => ({ ...prev, propertyId: result.data[0].id }));
           }
         }
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+      } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return;
-        console.error('Error fetching properties:', err);
       }
     };
     fetchProperties();
@@ -290,10 +288,8 @@ function CalendarViewTab() {
             }));
           }
         }
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+      } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return;
-        console.error('Error fetching room types:', err);
       }
     };
     fetchRoomTypes();
@@ -317,10 +313,8 @@ function CalendarViewTab() {
             setQuickBookData(prev => ({ ...prev, primaryGuestId: result.data[0].id }));
           }
         }
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+      } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return;
-        console.error('Error fetching guests:', err);
       }
     };
     fetchGuests();
@@ -407,10 +401,10 @@ function CalendarViewTab() {
           setRoomTypeStats(stats);
         }
       } catch (e) {
-        // Availability API not available, using empty data
+        console.error('Availability API not available, using empty data:', e);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Failed to fetch bookings data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -555,7 +549,6 @@ function CalendarViewTab() {
         });
       }
     } catch (error) {
-      console.error('Error creating booking:', error);
       toast({
         title: 'Error',
         description: 'Failed to create booking',
@@ -1190,10 +1183,8 @@ function BookingsListTab() {
             setFormData(prev => ({ ...prev, propertyId: result.data[0].id }));
           }
         }
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+      } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return;
-        console.error('Error fetching properties:', err);
       }
     };
     fetchProperties();
@@ -1222,10 +1213,8 @@ function BookingsListTab() {
             }));
           }
         }
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+      } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return;
-        console.error('Error fetching room types:', err);
       }
     };
     fetchRoomTypes();
@@ -1249,10 +1238,8 @@ function BookingsListTab() {
             setFormData(prev => ({ ...prev, primaryGuestId: result.data[0].id }));
           }
         }
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+      } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return;
-        console.error('Error fetching guests:', err);
       }
     };
     fetchGuests();
@@ -1279,7 +1266,6 @@ function BookingsListTab() {
         setBookings(result.data);
       }
     } catch (error) {
-      console.error('Error fetching bookings:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch bookings',
@@ -1335,7 +1321,6 @@ function BookingsListTab() {
         });
       }
     } catch (error) {
-      console.error('Error updating booking:', error);
       toast({
         title: 'Error',
         description: 'Failed to update booking',
@@ -1397,7 +1382,6 @@ function BookingsListTab() {
         });
       }
     } catch (error) {
-      console.error('Error creating booking:', error);
       toast({
         title: 'Error',
         description: 'Failed to create booking',

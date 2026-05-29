@@ -164,7 +164,6 @@ export default function Conflicts() {
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
         if (err instanceof Error && err.name === 'AbortError') return;
-        console.error('Error fetching properties:', err);
       }
     };
     fetchProperties();
@@ -201,7 +200,6 @@ export default function Conflicts() {
         });
       }
     } catch (error) {
-      console.error('Error fetching conflicts:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch booking conflicts',
@@ -236,7 +234,6 @@ export default function Conflicts() {
         } catch (err: any) {
           if (err?.name === 'AbortError') return;
           if (err instanceof Error && err.name === 'AbortError') return;
-          console.error('Error fetching rooms:', err);
         }
       };
       fetchRooms();
@@ -374,7 +371,6 @@ export default function Conflicts() {
         });
       }
     } catch (error) {
-      console.error('Error resolving conflict:', error);
       toast({
         title: 'Error',
         description: 'Failed to resolve conflict',

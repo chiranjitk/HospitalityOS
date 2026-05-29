@@ -240,7 +240,7 @@ const t = useTranslations('pos');
         setMenuItems(data.data);
       }
     } catch (error) {
-
+      console.error('Operation failed:', error);
     }
   };
 
@@ -258,7 +258,7 @@ const t = useTranslations('pos');
         })));
       }
     } catch (error) {
-
+      console.error('Operation failed:', error);
     }
   };
 
@@ -277,7 +277,7 @@ const t = useTranslations('pos');
         );
       }
     } catch (error) {
-
+      console.error('Operation failed:', error);
     }
   };
 

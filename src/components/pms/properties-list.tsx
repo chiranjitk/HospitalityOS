@@ -464,7 +464,6 @@ export default function PropertiesList() {
         setProperties(result.data);
       }
     } catch (error) {
-      console.error('Error fetching properties:', error);
       toast({ title: 'Error', description: 'Failed to fetch properties', variant: 'destructive' });
     } finally {
       setIsLoading(false);
@@ -657,7 +656,6 @@ export default function PropertiesList() {
           });
           if (response.ok) { successCount++; } else { failCount++; }
         } catch (e) {
-          console.error('Failed to import item:', e);
           failCount++;
         }
       }

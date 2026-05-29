@@ -159,7 +159,6 @@ export default function WorkflowBuilder() {
         setSavedWorkflows(workflows);
       }
     } catch (error) {
-      console.error('Error fetching workflows:', error);
       toast.error('Failed to fetch workflows');
     } finally {
       setLoading(false);
@@ -297,7 +296,6 @@ export default function WorkflowBuilder() {
         toast.error(data.error?.message || data.message || 'Failed to save workflow');
       }
     } catch (error) {
-      console.error('Error saving workflow:', error);
       toast.error('Failed to save workflow');
     } finally {
       setSaving(false);

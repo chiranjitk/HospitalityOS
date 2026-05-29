@@ -360,7 +360,6 @@ export default function UpsellEngine() {
         avgUpsellValue: ps?.avgOrderValue || 0,
       });
     } catch (err) {
-      console.error('Error fetching upsell data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
       setLoading(false);

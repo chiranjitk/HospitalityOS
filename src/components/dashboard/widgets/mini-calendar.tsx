@@ -38,7 +38,7 @@ function mapApiEventsToCalendar(apiEvents: ApiEvent[], year: number, month: numb
         const existing = dayMap.get(calType);
         dayMap.set(calType, { count: (existing?.count || 0) + 1, label: evt.name || calType });
       }
-    } catch {}
+    } catch (error) { console.error('Context: parsing calendar events:', error); }
   });
   const events: CalendarEvent[] = [];
   eventMap.forEach((typeMap, day) => { typeMap.forEach((info, type) => { events.push({ day, type: type as CalendarEvent['type'], count: info.count, label: info.label }); }); });

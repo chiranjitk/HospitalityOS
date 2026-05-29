@@ -122,7 +122,6 @@ export function ConsentForm({ tenantId, guestId: initialGuestId, onSuccess, onEr
       }
     } catch (err) {
       onError?.('Failed to record consent');
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -297,7 +296,6 @@ export function ConsentBanner({
       await Promise.all(promises);
       onConsent?.();
     } catch (err) {
-      console.error('Failed to record consent:', err);
     } finally {
       setLoading(false);
     }

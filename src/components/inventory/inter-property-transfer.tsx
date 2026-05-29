@@ -134,7 +134,7 @@ export default function InterPropertyTransfer() {
         setProperties(data.properties || []);
       }
     } catch (error) {
-      console.error('Error fetching properties:', error);
+      console.error('Operation failed:', error);
     }
   };
 
@@ -149,7 +149,6 @@ export default function InterPropertyTransfer() {
         setTransfers(data.data || []);
       }
     } catch (error) {
-      console.error('Error fetching transfers:', error);
     } finally {
       setLoading(false);
     }
@@ -163,7 +162,7 @@ export default function InterPropertyTransfer() {
         setStockItems(data.data || []);
       }
     } catch (error) {
-      console.error('Error fetching stock items:', error);
+      console.error('Operation failed:', error);
     }
   };
 

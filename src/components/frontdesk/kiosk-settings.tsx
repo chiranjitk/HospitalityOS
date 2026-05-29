@@ -106,7 +106,6 @@ export default function KioskSettingsPage() {
         setOriginalSettings(data);
       } catch (err) {
         if (!cancelled) {
-          console.error('Error loading kiosk settings:', err);
           toast({
             title: 'Error',
             description: 'Failed to load kiosk settings.',
@@ -135,7 +134,6 @@ export default function KioskSettingsPage() {
         setOriginalSettings(data);
       }
     } catch (err) {
-      console.error('Error loading kiosk settings:', err);
       toast({
         title: 'Error',
         description: 'Failed to load kiosk settings.',
@@ -175,7 +173,6 @@ export default function KioskSettingsPage() {
         throw new Error(result.error || 'Unknown error');
       }
     } catch (err) {
-      console.error('Error saving kiosk settings:', err);
       toast({
         title: 'Error',
         description: 'Failed to save kiosk settings. Please try again.',

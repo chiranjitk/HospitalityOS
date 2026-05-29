@@ -203,7 +203,6 @@ export default function Waitlist() {
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
         if (err instanceof Error && err.name === 'AbortError') return;
-        console.error('Error fetching properties:', err);
       }
     };
     fetchProperties();
@@ -231,7 +230,6 @@ export default function Waitlist() {
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
         if (err instanceof Error && err.name === 'AbortError') return;
-        console.error('Error fetching room types:', err);
       }
     };
     fetchRoomTypes();
@@ -258,7 +256,6 @@ export default function Waitlist() {
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
         if (err instanceof Error && err.name === 'AbortError') return;
-        console.error('Error fetching guests:', err);
       }
     };
     fetchGuests();
@@ -285,7 +282,6 @@ export default function Waitlist() {
         setStats(result.stats || { total: 0, waiting: 0, notified: 0, converted: 0, expired: 0 });
       }
     } catch (error) {
-      console.error('Error fetching waitlist:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch waitlist',
@@ -408,7 +404,6 @@ export default function Waitlist() {
         });
       }
     } catch (error) {
-      console.error('Error creating waitlist entry:', error);
       toast({
         title: 'Error',
         description: 'Failed to add to waitlist',
@@ -448,7 +443,6 @@ export default function Waitlist() {
         });
       }
     } catch (error) {
-      console.error('Error updating status:', error);
       toast({
         title: 'Error',
         description: 'Failed to update status',
@@ -491,7 +485,6 @@ export default function Waitlist() {
         });
       }
     } catch (error) {
-      console.error('Error deleting entry:', error);
       toast({
         title: 'Error',
         description: 'Failed to remove entry',
@@ -519,7 +512,6 @@ export default function Waitlist() {
         setConvertRooms(result.data || []);
       }
     } catch (error) {
-      console.error('Error fetching available rooms for conversion:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch available rooms',
@@ -608,7 +600,6 @@ export default function Waitlist() {
       setSelectedEntry(null);
       fetchEntries();
     } catch (error) {
-      console.error('Error converting to booking:', error);
       toast({
         title: 'Error',
         description: 'Failed to convert to booking',

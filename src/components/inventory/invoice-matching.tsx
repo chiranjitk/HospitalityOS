@@ -176,7 +176,6 @@ export default function InvoiceMatching() {
         });
       }
     } catch (error) {
-      console.error('Error fetching invoice matches:', error);
       toast.error('Failed to fetch invoice matches');
     } finally {
       setLoading(false);
@@ -267,7 +266,6 @@ export default function InvoiceMatching() {
         toast.error(data.error || 'Failed to create invoice match');
       }
     } catch (error) {
-      console.error('Error creating invoice match:', error);
       toast.error('Failed to create invoice match');
     } finally {
       setSaving(false);

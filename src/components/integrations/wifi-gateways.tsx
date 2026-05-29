@@ -284,7 +284,6 @@ export default function WifiGateways() {
         toast.error('Sync failed');
       }
     } catch (error) {
-      console.error('Sync error:', error);
       toast.error('Sync failed');
     }
   };

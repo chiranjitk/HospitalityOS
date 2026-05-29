@@ -192,7 +192,6 @@ export default function InventoryLocking() {
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         if (error instanceof Error && error.name === 'AbortError') return;
-        console.error('Error fetching properties:', error);
         toast({
           title: 'Error',
           description: 'Failed to fetch properties',
@@ -252,7 +251,6 @@ export default function InventoryLocking() {
         setPagination(locksResult.pagination || { total: locksResult.data?.length || 0 });
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
       toast({
         title: 'Error',
         description: 'Failed to fetch inventory locks',
@@ -341,7 +339,6 @@ export default function InventoryLocking() {
         });
       }
     } catch (error) {
-      console.error('Error creating lock:', error);
       toast({
         title: 'Error',
         description: 'Failed to create inventory lock',
@@ -390,7 +387,6 @@ export default function InventoryLocking() {
         });
       }
     } catch (error) {
-      console.error('Error updating lock:', error);
       toast({
         title: 'Error',
         description: 'Failed to update inventory lock',
@@ -432,7 +428,6 @@ export default function InventoryLocking() {
         });
       }
     } catch (error) {
-      console.error('Error deleting lock:', error);
       toast({
         title: 'Error',
         description: 'Failed to remove inventory lock',
@@ -470,7 +465,6 @@ export default function InventoryLocking() {
         });
       }
     } catch (error) {
-      console.error('Error unlocking:', error);
       toast({
         title: 'Error',
         description: 'Failed to remove lock',
@@ -541,7 +535,6 @@ export default function InventoryLocking() {
         });
       }
     } catch (error) {
-      console.error('Error bulk deleting locks:', error);
       toast({
         title: 'Error',
         description: 'Failed to remove locks',

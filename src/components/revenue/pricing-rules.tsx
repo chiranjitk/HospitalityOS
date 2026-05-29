@@ -716,7 +716,6 @@ export function PricingRules() {
         toast.error('Failed to load pricing rules');
       }
     } catch (error) {
-      console.error('Error fetching pricing rules:', error);
       toast.error('Failed to load pricing rules');
     } finally {
       setIsLoading(false);
