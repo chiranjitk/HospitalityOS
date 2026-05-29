@@ -817,8 +817,6 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
     setSingleDeleteMfaError('');
   };
 
-  const originalSessionTimeout = useRef<number | undefined>(undefined);
-
   /** Strip the 'plan_' prefix that the backend prepends to RADIUS group names */
   const stripPlanPrefix = (group: string) => group.replace(/^plan_/, '');
 
