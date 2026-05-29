@@ -352,6 +352,7 @@ export default function RoomsManager() {
           roomTypeId: formData.roomTypeId,
           rooms: roomNumbers.map(num => ({
             number: num,
+            name: formData.name || undefined,
             floor: bulkFloor,
           })),
           isAccessible: formData.isAccessible,
@@ -1378,7 +1379,7 @@ export default function RoomsManager() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="bulkFloor">Floor (overrides room floor field above)</Label>
+                  <Label htmlFor="bulkFloor">Floor *</Label>
                   <Input
                     id="bulkFloor"
                     type="number"
@@ -1733,7 +1734,7 @@ interface RoomFormData {
   hasMountainView: boolean;
   status: string;
   digitalKeyEnabled: boolean;
-  images: string[];
+  images: RoomImage[];
 }
 
 interface RoomFormProps {
@@ -1790,6 +1791,7 @@ function RoomForm({ formData, setFormData, properties, roomTypes, hideNumberFiel
         </div>
       </div>
 
+      {/* Room Number - hidden in bulk mode (auto-generated from prefix) */}
       {!hideNumberFields && (
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -1813,7 +1815,24 @@ function RoomForm({ formData, setFormData, properties, roomTypes, hideNumberFiel
       </div>
       )}
 
+      {/* Name field shown in bulk mode (applies to all bulk rooms) */}
+      {hideNumberFields && (
+      <div className="grid grid-cols-1 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="bulkName">Room Name (Optional)</Label>
+          <Input
+            id="bulkName"
+            value={formData.name as string}
+            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+            placeholder="Applies to all rooms (e.g. Deluxe Room)"
+          />
+          <p className="text-xs text-muted-foreground">Common name for all bulk rooms being created</p>
+        </div>
+      </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {!hideNumberFields && (
         <div className="space-y-2">
           <Label htmlFor="floor">Floor</Label>
           <Input
@@ -1825,7 +1844,8 @@ function RoomForm({ formData, setFormData, properties, roomTypes, hideNumberFiel
             onChange={(e) => setFormData(prev => ({ ...prev, floor: parseInt(e.target.value) || 1 }))}
           />
         </div>
-        <div className="space-y-2">
+        )}
+        <div className={cn("space-y-2", hideNumberFields && "sm:col-span-2")}>
           <Label htmlFor="status">Status</Label>
           <Select 
             value={formData.status as string} 

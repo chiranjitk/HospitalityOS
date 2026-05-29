@@ -3,6 +3,16 @@ import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { logRoom } from '@/lib/audit';
 
+// Valid RoomStatus enum values from Prisma schema
+const VALID_ROOM_STATUSES = [
+  'available',
+  'occupied',
+  'maintenance',
+  'out_of_service',
+  'reserved',
+  'cleaning',
+] as const;
+
 interface BulkRoomData {
   number: string;
   name?: string;
@@ -43,6 +53,9 @@ export async function POST(request: NextRequest) {
       digitalKeyEnabled = false,
     } = body;
 
+    // Validate status is a valid RoomStatus enum value
+    const safeStatus = VALID_ROOM_STATUSES.includes(status) ? status : 'available';
+
     // Validate required fields
     if (!propertyId || !roomTypeId || !rooms || !Array.isArray(rooms) || rooms.length === 0) {
       return NextResponse.json(
@@ -71,7 +84,7 @@ export async function POST(request: NextRequest) {
     // Verify property belongs to user's tenant
     const property = await db.property.findUnique({
       where: { id: propertyId, deletedAt: null },
-      select: { tenantId: true },
+      select: { tenantId: true, totalRooms: true },
     });
     if (!property || property.tenantId !== user.tenantId) {
       return NextResponse.json(
@@ -87,6 +100,7 @@ export async function POST(request: NextRequest) {
         propertyId,
         deletedAt: null,
       },
+      select: { id: true, totalRooms: true },
     });
 
     if (!roomType) {
@@ -138,10 +152,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Create all rooms in a single transaction
-    const createdRooms = await db.$transaction(async (tx) => {
-      const created = [];
+    const createdCount = await db.$transaction(async (tx) => {
+      let count = 0;
       for (const roomData of roomsToCreate) {
-        const newRoom = await tx.room.create({
+        await tx.room.create({
           data: {
             propertyId,
             roomTypeId,
@@ -153,29 +167,11 @@ export async function POST(request: NextRequest) {
             hasBalcony,
             hasSeaView,
             hasMountainView,
-            status,
+            status: safeStatus,
             digitalKeyEnabled,
           },
-          include: {
-            roomType: {
-              select: {
-                id: true,
-                name: true,
-                code: true,
-                basePrice: true,
-                currency: true,
-              },
-            },
-            property: {
-              select: {
-                id: true,
-                name: true,
-                currency: true,
-              },
-            },
-          },
         });
-        created.push(newRoom);
+        count++;
       }
 
       // Update totalRooms counters
@@ -183,7 +179,7 @@ export async function POST(request: NextRequest) {
         where: { id: roomTypeId },
         data: {
           totalRooms: {
-            increment: created.length,
+            increment: count,
           },
         },
       });
@@ -192,24 +188,23 @@ export async function POST(request: NextRequest) {
         where: { id: propertyId },
         data: {
           totalRooms: {
-            increment: created.length,
+            increment: count,
           },
         },
       });
 
-      return created;
+      return count;
     });
 
     // Audit logging (non-blocking, just log a summary)
     try {
-      await logRoom(request, 'create', createdRooms[0]?.id, undefined, {
+      await logRoom(request, 'create', '', undefined, {
         bulk: true,
-        count: createdRooms.length,
-        numbers: createdRooms.map(r => r.number),
+        count: createdCount,
+        numbers: roomsToCreate.map(r => r.number),
         floor: roomsToCreate[0]?.floor,
-        roomTypeName: createdRooms[0]?.roomType?.name,
         propertyId,
-        status,
+        status: safeStatus,
       }, { tenantId: user.tenantId, userId: user.id });
     } catch (auditError) {
       console.error('Audit log failed (non-blocking):', auditError);
@@ -220,17 +215,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        created: createdRooms.length,
+        created: createdCount,
         skipped,
         duplicates: skipped,
-        rooms: createdRooms,
         errors: [],
       },
     }, { status: 201 });
   } catch (error) {
     console.error('Error bulk creating rooms:', error);
+    const message = error instanceof Error ? error.message : 'Failed to create rooms';
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create rooms' } },
+      { success: false, error: { code: 'INTERNAL_ERROR', message } },
       { status: 500 }
     );
   }
