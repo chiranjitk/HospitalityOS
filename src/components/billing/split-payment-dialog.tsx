@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import {
   Dialog,
@@ -109,6 +110,7 @@ export default function SplitPaymentDialog({
   onSuccess,
 }: SplitPaymentDialogProps) {
   const { formatCurrency } = useCurrency();
+  const t = useTranslations('billing');
   const [methods, setMethods] = useState<SplitMethodEntry[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -214,15 +216,15 @@ export default function SplitPaymentDialog({
 
       if (result.success) {
         toast.success(
-          `Split payment of ${formatCurrency(allocatedTotal)} processed across ${methods.length} methods`
+          t('splitPaymentSuccess', { amount: formatCurrency(allocatedTotal), count: methods.length })
         );
         onOpenChange(false);
         onSuccess?.();
       } else {
-        toast.error(result.error?.message || 'Failed to process split payment');
+        toast.error(result.error?.message || t('splitPaymentFailed'));
       }
     } catch {
-      toast.error('Network error. Please try again.');
+      toast.error(t('splitNetworkError'));
     } finally {
       setSaving(false);
     }
@@ -244,10 +246,10 @@ export default function SplitPaymentDialog({
         <DialogHeader>
           <DialogTitle className="text-lg flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
-            Split Payment
+            {t('splitPaymentTitle')}
           </DialogTitle>
           <DialogDescription>
-            Split payment of {formatCurrency(totalBalance)} across multiple methods for folio{' '}
+            {t('splitPaymentDesc', { amount: formatCurrency(totalBalance) })}{' '}
             <span className="font-mono font-medium">{folio.folioNumber}</span>
           </DialogDescription>
         </DialogHeader>
@@ -256,7 +258,7 @@ export default function SplitPaymentDialog({
           {/* Balance Summary */}
           <div className="rounded-xl bg-muted/50 p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Total Balance Due</span>
+              <span className="text-sm font-medium">{t('totalBalanceDue')}</span>
               <span className="text-lg font-bold">{formatCurrency(totalBalance)}</span>
             </div>
 
@@ -302,7 +304,7 @@ export default function SplitPaymentDialog({
             )}
 
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Remaining</span>
+              <span className="text-sm text-muted-foreground">{t('splitRemaining')}</span>
               <span
                 className={cn(
                   'text-sm font-semibold',
@@ -314,7 +316,7 @@ export default function SplitPaymentDialog({
                 )}
               >
                 {isOverBalance
-                  ? `Over by ${formatCurrency(allocatedTotal - totalBalance)}`
+                  ? t('splitOverBy', { amount: formatCurrency(allocatedTotal - totalBalance) })
                   : formatCurrency(remaining)}
               </span>
             </div>
@@ -322,14 +324,14 @@ export default function SplitPaymentDialog({
             {isFullyAllocated && !isOverBalance && (
               <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>Fully allocated — ready to submit</span>
+                <span>{t('splitFullyAllocated')}</span>
               </div>
             )}
 
             {isOverBalance && (
               <div className="flex items-center gap-2 text-xs text-red-600 dark:text-red-400">
                 <AlertCircle className="h-3.5 w-3.5" />
-                <span>Total exceeds the folio balance</span>
+                <span>{t('splitTotalExceedsBalance')}</span>
               </div>
             )}
           </div>
@@ -362,7 +364,7 @@ export default function SplitPaymentDialog({
                         <Icon className="h-3.5 w-3.5 text-white" />
                       </div>
                       <span className="text-sm font-medium">
-                        Method #{index + 1}
+                        {t('splitMethodNumber', { number: index + 1 })}
                       </span>
                     </div>
                     {methods.length > 2 && (
@@ -379,7 +381,7 @@ export default function SplitPaymentDialog({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Method</Label>
+                      <Label className="text-xs">{t('splitMethod')}</Label>
                       <Select
                         value={entry.method}
                         onValueChange={(v) => updateMethod(entry.id, 'method', v)}
@@ -398,7 +400,7 @@ export default function SplitPaymentDialog({
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Amount</Label>
+                      <Label className="text-xs">{t('splitAmount')}</Label>
                       <div className="relative">
                         <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                         <Input
@@ -418,13 +420,13 @@ export default function SplitPaymentDialog({
                   {entry.method === 'card' && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">Card Type</Label>
+                        <Label className="text-[10px] text-muted-foreground">{t('splitCardType')}</Label>
                         <Select
                           value={entry.cardType}
                           onValueChange={(v) => updateMethod(entry.id, 'cardType', v)}
                         >
                           <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Type" />
+                            <SelectValue placeholder={t('splitCardTypePlaceholder')} />
                           </SelectTrigger>
                           <SelectContent>
                             {CARD_TYPES.map((ct) => (
@@ -436,7 +438,7 @@ export default function SplitPaymentDialog({
                         </Select>
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">Last 4</Label>
+                        <Label className="text-[10px] text-muted-foreground">{t('splitLast4')}</Label>
                         <Input
                           placeholder="4242"
                           maxLength={4}
@@ -452,9 +454,9 @@ export default function SplitPaymentDialog({
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground">Reference</Label>
+                        <Label className="text-[10px] text-muted-foreground">{t('splitReference')}</Label>
                         <Input
-                          placeholder="Optional"
+                          placeholder={t('splitReferenceOptional')}
                           value={entry.reference}
                           onChange={(e) => updateMethod(entry.id, 'reference', e.target.value)}
                           className="h-8 text-xs"
@@ -467,10 +469,10 @@ export default function SplitPaymentDialog({
                   {entry.method !== 'card' && (
                     <div className="space-y-1">
                       <Label className="text-[10px] text-muted-foreground">
-                        Reference / Note (optional)
+                        {t('splitReferenceNote')}
                       </Label>
                       <Input
-                        placeholder="Transaction reference, check number, etc."
+                        placeholder={t('splitReferencePlaceholder')}
                         value={entry.reference}
                         onChange={(e) => updateMethod(entry.id, 'reference', e.target.value)}
                         className="h-8 text-xs"
@@ -490,13 +492,13 @@ export default function SplitPaymentDialog({
             disabled={methods.length >= 5}
           >
             <Plus className="h-4 w-4 mr-2" />
-            Add Payment Method ({methods.length}/5)
+            {t('splitAddMethod', { count: methods.length })}
           </Button>
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
+            {t('splitCancel')}
           </Button>
           <Button
             onClick={handleSubmit}
@@ -504,7 +506,7 @@ export default function SplitPaymentDialog({
             className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-md hover:shadow-lg transition-all"
           >
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {saving ? 'Processing...' : `Pay ${formatCurrency(allocatedTotal)}`}
+            {saving ? t('splitProcessing') : t('splitPay', { amount: formatCurrency(allocatedTotal) })}
           </Button>
         </DialogFooter>
       </DialogContent>

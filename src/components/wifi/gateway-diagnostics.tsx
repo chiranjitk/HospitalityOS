@@ -2646,9 +2646,9 @@ function ServerConsoleTool() {
       // Import xterm CSS
       await import('@xterm/xterm/css/xterm.css');
 
-      // Clear existing terminal
+      // Clear existing terminal content via React-safe DOM method
       if (termRef.current) {
-        termRef.current.innerHTML = '';
+        termRef.current.replaceChildren();
       }
 
       // Create terminal

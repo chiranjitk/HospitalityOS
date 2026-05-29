@@ -84,6 +84,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useTranslations } from 'next-intl';
 
 // =====================================================
 // TYPES
@@ -227,6 +228,7 @@ function getCurrencyIcon(currency: string) {
 
 export default function PlanBuilder() {
   const { toast } = useToast();
+  const t = useTranslations('billing');
 
   // ── Data State ──
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -275,10 +277,10 @@ export default function PlanBuilder() {
       if (data.success) {
         setPlans(data.data);
       } else {
-        toast({ title: 'Error', description: data.error || 'Failed to fetch plans', variant: 'destructive' });
+        toast({ title: t('pbError'), description: data.error || t('pbFailedToFetchPlans'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Network error fetching plans', variant: 'destructive' });
+      toast({ title: t('pbError'), description: t('pbNetworkErrorFetchingPlans'), variant: 'destructive' });
     }
   }, [toast]);
 
@@ -313,8 +315,8 @@ export default function PlanBuilder() {
             if (cfg.dependencies?.includes(featureId) && next.has(cfg.id)) {
               next.delete(cfg.id);
               toast({
-                title: 'Dependency removed',
-                description: `"${cfg.name}" was disabled because it requires "${featureConfig.name}"`,
+                title: t('pbDependencyRemoved'),
+                description: t('pbDependencyDisabled', { name: cfg.name, required: featureConfig.name }),
               });
             }
           }
@@ -337,8 +339,8 @@ export default function PlanBuilder() {
             next.add(dep);
             const depCfg = catalog.addonFeatures.find((f) => f.id === dep);
             toast({
-              title: 'Dependency enabled',
-              description: `"${depCfg?.name || dep}" was auto-enabled because "${featureConfig.name}" requires it`,
+              title: t('pbDependencyEnabled'),
+              description: t('pbDependencyAutoEnabled', { name: depCfg?.name || dep, feature: featureConfig.name }),
             });
           }
         }
@@ -466,7 +468,7 @@ export default function PlanBuilder() {
   // ── Save Plan ──
   const handleSave = async () => {
     if (!form.displayName.trim()) {
-      toast({ title: 'Validation Error', description: 'Display name is required', variant: 'destructive' });
+      toast({ title: t('pbValidationError'), description: t('pbDisplayNameRequired'), variant: 'destructive' });
       return;
     }
     setIsSaving(true);
@@ -530,18 +532,18 @@ export default function PlanBuilder() {
 
       if (data.success) {
         toast({
-          title: editingPlan ? 'Plan Updated' : 'Plan Created',
-          description: data.message || `Successfully ${editingPlan ? 'updated' : 'created'} "${form.displayName}"`,
+          title: editingPlan ? t('pbPlanUpdated') : t('pbPlanCreated'),
+          description: data.message || t(editingPlan ? 'pbPlanUpdatedDesc' : 'pbPlanCreatedDesc', { name: form.displayName }),
         });
         setIsEditorOpen(false);
         resetForm();
         await fetchPlans();
         setActiveTab('all-plans');
       } else {
-        toast({ title: 'Error', description: data.error || `Failed to ${editingPlan ? 'update' : 'create'} plan`, variant: 'destructive' });
+        toast({ title: t('pbError'), description: data.error || t(editingPlan ? 'pbFailedToUpdatePlan' : 'pbFailedToCreatePlan'), variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Network error saving plan', variant: 'destructive' });
+      toast({ title: t('pbError'), description: t('pbNetworkErrorSavingPlan'), variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -553,13 +555,13 @@ export default function PlanBuilder() {
       const res = await fetch(`/api/admin/plan-builder/${plan.id}/duplicate`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        toast({ title: 'Duplicated', description: data.message });
+        toast({ title: t('pbDuplicated'), description: data.message });
         await fetchPlans();
       } else {
-        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+        toast({ title: t('pbError'), description: data.error, variant: 'destructive' });
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to duplicate plan', variant: 'destructive' });
+      toast({ title: t('pbError'), description: t('pbFailedToDuplicatePlan'), variant: 'destructive' });
     }
   };
 
@@ -570,13 +572,13 @@ export default function PlanBuilder() {
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          toast({ title: 'Deleted', description: data.message });
+          toast({ title: t('pbDeleted'), description: data.message });
           fetchPlans();
         } else {
-          toast({ title: 'Error', description: data.error, variant: 'destructive' });
+          toast({ title: t('pbError'), description: data.error, variant: 'destructive' });
         }
       })
-      .catch(() => toast({ title: 'Error', description: 'Failed to delete plan', variant: 'destructive' }))
+      .catch(() => toast({ title: t('pbError'), description: t('pbFailedToDeletePlan'), variant: 'destructive' }))
       .finally(() => {
         setDeleteDialogOpen(false);
         setPlanToDelete(null);
@@ -593,11 +595,11 @@ export default function PlanBuilder() {
       });
       const data = await res.json();
       if (data.success) {
-        toast({ title: plan.isActive ? 'Plan Deactivated' : 'Plan Activated', description: `"${plan.displayName}" is now ${plan.isActive ? 'inactive' : 'active'}` });
+        toast({ title: plan.isActive ? t('pbPlanDeactivated') : t('pbPlanActivated'), description: t(plan.isActive ? 'pbPlanNowInactive' : 'pbPlanNowActive', { name: plan.displayName }) });
         await fetchPlans();
       }
     } catch {
-      toast({ title: 'Error', description: 'Failed to toggle plan status', variant: 'destructive' });
+      toast({ title: t('pbError'), description: t('pbFailedToToggleStatus'), variant: 'destructive' });
     }
   };
 
@@ -641,20 +643,20 @@ export default function PlanBuilder() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Crown className="h-6 w-6 text-amber-500" />
-            Plan Builder
+            {t('pbTitle')}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Create, edit, and manage subscription plans for StaySuite HospitalityOS
+            {t('pbDesc')}
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => { fetchPlans(); fetchCatalog(); }}>
             <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+            {t('pbRefresh')}
           </Button>
           <Button size="sm" onClick={openCreateEditor} className="gap-2">
             <Plus className="h-4 w-4" />
-            Create New Plan
+            {t('pbCreateNewPlan')}
           </Button>
         </div>
       </div>
@@ -668,7 +670,7 @@ export default function PlanBuilder() {
             </div>
             <div>
               <div className="text-2xl font-bold">{plans.length}</div>
-              <div className="text-xs text-muted-foreground">Total Plans</div>
+              <div className="text-xs text-muted-foreground">{t('pbTotalPlans')}</div>
             </div>
           </div>
         </Card>
@@ -679,7 +681,7 @@ export default function PlanBuilder() {
             </div>
             <div>
               <div className="text-2xl font-bold">{plans.filter((p) => p.isActive).length}</div>
-              <div className="text-xs text-muted-foreground">Active Plans</div>
+              <div className="text-xs text-muted-foreground">{t('pbActivePlans')}</div>
             </div>
           </div>
         </Card>
@@ -690,7 +692,7 @@ export default function PlanBuilder() {
             </div>
             <div>
               <div className="text-2xl font-bold">{plans.reduce((s, p) => s + p.subscriberCount, 0)}</div>
-              <div className="text-xs text-muted-foreground">Total Subscribers</div>
+              <div className="text-xs text-muted-foreground">{t('pbTotalSubscribers')}</div>
             </div>
           </div>
         </Card>
@@ -701,7 +703,7 @@ export default function PlanBuilder() {
             </div>
             <div>
               <div className="text-2xl font-bold">{catalog?.totalAddonFeatures ?? 0}</div>
-              <div className="text-xs text-muted-foreground">Addon Modules</div>
+              <div className="text-xs text-muted-foreground">{t('pbAddonModules')}</div>
             </div>
           </div>
         </Card>
@@ -712,7 +714,7 @@ export default function PlanBuilder() {
         <TabsList className="h-auto p-1 bg-muted/50">
           <TabsTrigger value="all-plans" className="gap-2 data-[state=active]:bg-amber-500 data-[state=active]:text-white">
             <Package className="h-4 w-4" />
-            All Plans
+            {t('pbAllPlans')}
           </TabsTrigger>
           <TabsTrigger
             value="editor"
@@ -720,7 +722,7 @@ export default function PlanBuilder() {
             disabled={!isEditorOpen}
           >
             <Edit className="h-4 w-4" />
-            {editingPlan ? `Edit: ${editingPlan.displayName}` : 'Create New Plan'}
+            {editingPlan ? t('pbEditPlan', { name: editingPlan.displayName }) : t('pbCreateNewPlan')}
           </TabsTrigger>
         </TabsList>
 
@@ -733,12 +735,12 @@ export default function PlanBuilder() {
                   <Package className="h-8 w-8 text-muted-foreground" />
                 </div>
                 <div className="text-center">
-                  <h3 className="text-lg font-semibold">No Plans Yet</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Create your first subscription plan to get started</p>
+                  <h3 className="text-lg font-semibold">{t('pbNoPlansYet')}</h3>
+                  <p className="text-sm text-muted-foreground mt-1">{t('pbNoPlansYetDesc')}</p>
                 </div>
                 <Button onClick={openCreateEditor} className="gap-2">
                   <Plus className="h-4 w-4" />
-                  Create First Plan
+                  {t('pbCreateFirstPlan')}
                 </Button>
               </CardContent>
             </Card>
@@ -760,7 +762,7 @@ export default function PlanBuilder() {
                     {plan.isPopular && (
                       <div className="absolute top-0 right-0">
                         <div className="bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl rounded-tr-2xl flex items-center gap-1">
-                          <Star className="h-3 w-3 fill-current" /> Popular
+                          <Star className="h-3 w-3 fill-current" /> {t('pbPopular')}
                         </div>
                       </div>
                     )}
@@ -773,7 +775,7 @@ export default function PlanBuilder() {
                         : 'bg-slate-500/10 text-slate-500'
                     )}>
                       <div className={cn('w-1.5 h-1.5 rounded-full', plan.isActive ? 'bg-emerald-500' : 'bg-slate-400')} />
-                      {plan.isActive ? 'Active' : 'Inactive'}
+                      {plan.isActive ? t('pbActive') : t('pbInactive')}
                     </div>
 
                     <CardHeader className="text-center pb-2 pt-6">
@@ -795,19 +797,19 @@ export default function PlanBuilder() {
                       <div className="text-center">
                         <div className="flex items-baseline justify-center gap-1">
                           <span className="text-3xl font-bold">{formatCurrency(plan.monthlyPrice, plan.currency)}</span>
-                          <span className="text-muted-foreground">/mo</span>
+                          <span className="text-muted-foreground">{t('pbPerMonth')}</span>
                         </div>
                         {plan.yearlyPrice > 0 && (
                           <p className="text-xs text-muted-foreground mt-1">
-                            Annual: {formatCurrency(plan.yearlyPrice, plan.currency)}/yr
+                            {t('pbAnnual', { price: formatCurrency(plan.yearlyPrice, plan.currency) })}
                             <Badge variant="secondary" className="text-[10px] ml-1 bg-emerald-500/10 text-emerald-600">
-                              Save 2mo
+                              {t('pbSave2mo')}
                             </Badge>
                           </p>
                         )}
                         {plan.setupFee > 0 && (
                           <p className="text-xs text-muted-foreground">
-                            + {formatCurrency(plan.setupFee, plan.currency)} setup
+                            {t('pbPlusSetup', { amount: formatCurrency(plan.setupFee, plan.currency) })}
                           </p>
                         )}
                       </div>
@@ -818,19 +820,19 @@ export default function PlanBuilder() {
                       <div className="grid grid-cols-2 gap-2">
                         <div className="text-center p-2 rounded-lg bg-muted/50">
                           <p className="text-sm font-bold">{plan.maxProperties === 9999 ? '∞' : plan.maxProperties}</p>
-                          <p className="text-[10px] text-muted-foreground uppercase">Properties</p>
+                          <p className="text-[10px] text-muted-foreground uppercase">{t('pbProperties')}</p>
                         </div>
                         <div className="text-center p-2 rounded-lg bg-muted/50">
                           <p className="text-sm font-bold">{plan.maxUsers === 999 ? '∞' : plan.maxUsers}</p>
-                          <p className="text-[10px] text-muted-foreground uppercase">Users</p>
+                          <p className="text-[10px] text-muted-foreground uppercase">{t('pbUsers')}</p>
                         </div>
                         <div className="text-center p-2 rounded-lg bg-muted/50">
                           <p className="text-sm font-bold">{plan.maxRoomsPerProperty === 9999 ? '∞' : plan.maxRoomsPerProperty}</p>
-                          <p className="text-[10px] text-muted-foreground uppercase">Rooms</p>
+                          <p className="text-[10px] text-muted-foreground uppercase">{t('pbRooms')}</p>
                         </div>
                         <div className="text-center p-2 rounded-lg bg-muted/50">
                           <p className="text-sm font-bold">{featureCount}</p>
-                          <p className="text-[10px] text-muted-foreground uppercase">Modules</p>
+                          <p className="text-[10px] text-muted-foreground uppercase">{t('pbModules')}</p>
                         </div>
                       </div>
 
@@ -847,11 +849,11 @@ export default function PlanBuilder() {
                         </Badge>
                         {plan.trialDays && plan.trialDays > 0 && (
                           <Badge variant="outline" className="text-[10px]">
-                            {plan.trialDays}d trial
+                            {t('pbDaysTrial', { days: plan.trialDays })}
                           </Badge>
                         )}
                         <Badge variant="secondary" className="text-[10px]">
-                          {plan.subscriberCount} subscribers
+                          {t('pbSubscribers', { count: plan.subscriberCount })}
                         </Badge>
                       </div>
                     </CardContent>
@@ -865,7 +867,7 @@ export default function PlanBuilder() {
                         onClick={() => openEditEditor(plan)}
                       >
                         <Edit className="h-3.5 w-3.5" />
-                        Edit
+                        {t('pbEdit')}
                       </Button>
                       <Button
                         variant="ghost"
@@ -874,7 +876,7 @@ export default function PlanBuilder() {
                         onClick={() => handleDuplicate(plan)}
                       >
                         <Copy className="h-3.5 w-3.5" />
-                        Duplicate
+                        {t('pbDuplicate')}
                       </Button>
                       <Button
                         variant="ghost"
@@ -882,17 +884,17 @@ export default function PlanBuilder() {
                         className="flex-1 gap-1.5 text-xs h-8 text-red-500 hover:text-red-600 hover:bg-red-500/10"
                         onClick={() => { setPlanToDelete(plan); setDeleteDialogOpen(true); }}
                         disabled={plan.subscriberCount > 0}
-                        title={plan.subscriberCount > 0 ? 'Cannot delete: has subscribers' : 'Delete plan'}
+                        title={plan.subscriberCount > 0 ? t('pbCannotDeleteSubscribers') : t('pbDeletePlan')}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                        Delete
+                        {t('pbDelete')}
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0"
                         onClick={() => handleToggleActive(plan)}
-                        title={plan.isActive ? 'Deactivate' : 'Activate'}
+                        title={plan.isActive ? t('pbDeactivate') : t('pbActivate')}
                       >
                         {plan.isActive ? (
                           <EyeOff className="h-3.5 w-3.5 text-slate-500" />
@@ -917,12 +919,12 @@ export default function PlanBuilder() {
                   <Edit className="h-8 w-8 text-muted-foreground" />
                 </div>
                 <div className="text-center">
-                  <h3 className="text-lg font-semibold">No Plan Selected</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Create a new plan or select an existing one to edit</p>
+                  <h3 className="text-lg font-semibold">{t('pbNoPlanSelected')}</h3>
+                  <p className="text-sm text-muted-foreground mt-1">{t('pbNoPlanSelectedDesc')}</p>
                 </div>
                 <Button onClick={openCreateEditor} className="gap-2">
                   <Plus className="h-4 w-4" />
-                  Create New Plan
+                  {t('pbCreateNewPlan')}
                 </Button>
               </CardContent>
             </Card>
@@ -933,10 +935,10 @@ export default function PlanBuilder() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
                     {editingPlan ? <Edit className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-                    {editingPlan ? `Editing: ${editingPlan.displayName}` : 'Create New Plan'}
+                    {editingPlan ? t('pbEditingPlan', { name: editingPlan.displayName }) : t('pbCreateNewPlan')}
                   </CardTitle>
                   <CardDescription>
-                    {editingPlan ? 'Modify plan details, modules, and pricing' : 'Configure a new subscription plan from scratch'}
+                    {editingPlan ? t('pbModifyPlanDetails') : t('pbConfigureNewPlan')}
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -947,13 +949,13 @@ export default function PlanBuilder() {
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Info className="h-4 w-4 text-blue-500" />
-                    Basic Information
+                    {t('pbBasicInformation')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="displayName">Display Name *</Label>
+                      <Label htmlFor="displayName">{t('pbDisplayNameLabel')}</Label>
                       <Input
                         id="displayName"
                         placeholder="e.g. Professional Plan"
@@ -968,7 +970,7 @@ export default function PlanBuilder() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="slug">Plan Slug</Label>
+                      <Label htmlFor="slug">{t('pbPlanSlug')}</Label>
                       <Input
                         id="slug"
                         placeholder="auto-generated-slug"
@@ -979,7 +981,7 @@ export default function PlanBuilder() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
+                    <Label htmlFor="description">{t('pbDescription')}</Label>
                     <Textarea
                       id="description"
                       placeholder="Brief description of this plan..."
@@ -991,7 +993,7 @@ export default function PlanBuilder() {
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="space-y-2">
-                      <Label>Currency</Label>
+                      <Label>{t('pbCurrency')}</Label>
                       <Select value={form.currency} onValueChange={(v) => setForm((p) => ({ ...p, currency: v }))}>
                         <SelectTrigger>
                           <SelectValue />
@@ -1006,7 +1008,7 @@ export default function PlanBuilder() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Deployment</Label>
+                      <Label>{t('pbDeployment')}</Label>
                       <Select value={form.deploymentType} onValueChange={(v: 'cloud' | 'onprem' | 'both') => setForm((p) => ({ ...p, deploymentType: v }))}>
                         <SelectTrigger>
                           <SelectValue />
@@ -1021,7 +1023,7 @@ export default function PlanBuilder() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Trial Days</Label>
+                      <Label>{t('pbTrialDays')}</Label>
                       <Input
                         type="number"
                         min={0}
@@ -1030,7 +1032,7 @@ export default function PlanBuilder() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Setup Fee</Label>
+                      <Label>{t('pbSetupFee')}</Label>
                       <Input
                         type="number"
                         min={0}
@@ -1044,7 +1046,7 @@ export default function PlanBuilder() {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label>Monthly Price</Label>
+                      <Label>{t('pbMonthlyPrice')}</Label>
                       <Input
                         type="number"
                         min={0}
@@ -1056,7 +1058,7 @@ export default function PlanBuilder() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Yearly Price</Label>
+                      <Label>{t('pbYearlyPrice')}</Label>
                       <Input
                         type="number"
                         min={0}
@@ -1072,7 +1074,7 @@ export default function PlanBuilder() {
                         />
                         <Label className="text-sm flex items-center gap-1">
                           <Star className="h-3.5 w-3.5 text-amber-500" />
-                          Popular
+                          {t('pbPopular')}
                         </Label>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1082,7 +1084,7 @@ export default function PlanBuilder() {
                         />
                         <Label className="text-sm flex items-center gap-1">
                           <Settings className="h-3.5 w-3.5 text-violet-500" />
-                          Custom
+                          {t('pbCustom')}
                         </Label>
                       </div>
                     </div>
@@ -1095,18 +1097,18 @@ export default function PlanBuilder() {
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Building2 className="h-4 w-4 text-emerald-500" />
-                    Base Limits
+                    {t('pbBaseLimits')}
                   </CardTitle>
-                  <CardDescription>Core resource limits for this plan</CardDescription>
+                  <CardDescription>{t('pbBaseLimitsDesc')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     {[
-                      { key: 'maxProperties' as const, label: 'Properties', icon: Building2, min: 1 },
-                      { key: 'maxUsers' as const, label: 'Users', icon: Users, min: 1 },
-                      { key: 'maxRoomsPerProperty' as const, label: 'Rooms / Property', icon: DoorOpen, min: 1 },
-                      { key: 'maxStaff' as const, label: 'Staff', icon: Users, min: 1 },
-                      { key: 'storageLimitMb' as const, label: 'Storage (MB)', icon: HardDrive, min: 100 },
+                      { key: 'maxProperties' as const, label: t('pbProperties'), icon: Building2, min: 1 },
+                      { key: 'maxUsers' as const, label: t('pbUsers'), icon: Users, min: 1 },
+                      { key: 'maxRoomsPerProperty' as const, label: t('pbRoomsPerProperty'), icon: DoorOpen, min: 1 },
+                      { key: 'maxStaff' as const, label: t('pbStaff'), icon: Users, min: 1 },
+                      { key: 'storageLimitMb' as const, label: t('pbStorageMb'), icon: HardDrive, min: 100 },
                     ].map(({ key, label, icon: Icon, min }) => (
                       <div key={key} className="space-y-2">
                         <Label className="text-xs flex items-center gap-1">
@@ -1132,16 +1134,16 @@ export default function PlanBuilder() {
                     <div>
                       <CardTitle className="text-base flex items-center gap-2">
                         <Blocks className="h-4 w-4 text-violet-500" />
-                        Module Selection
+                        {t('pbModuleSelection')}
                       </CardTitle>
-                      <CardDescription className="mt-1">Choose which modules are included in this plan</CardDescription>
+                      <CardDescription className="mt-1">{t('pbModuleSelectionDesc')}</CardDescription>
                     </div>
                     <div className="flex gap-2 text-xs">
                       <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600">
-                        Included: {includedCount.base + includedCount.addons} modules
+                        {t('pbIncludedModules', { count: includedCount.base + includedCount.addons })}
                       </Badge>
                       <Badge variant="outline">
-                        Available: {excludedAddons.length} add-ons
+                        {t('pbAvailableAddons', { count: excludedAddons.length })}
                       </Badge>
                     </div>
                   </div>
@@ -1153,9 +1155,9 @@ export default function PlanBuilder() {
                       <div>
                         <div className="flex items-center gap-2 mb-3">
                           <Lock className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm font-semibold">Base Modules (Always Enabled)</span>
+                          <span className="text-sm font-semibold">{t('pbBaseModulesAlwaysEnabled')}</span>
                           <Badge variant="secondary" className="text-[10px]">
-                            {catalog.baseFeatures.length} modules
+                            {t('pbModulesCount', { count: catalog.baseFeatures.length })}
                           </Badge>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -1181,9 +1183,9 @@ export default function PlanBuilder() {
                       <div>
                         <div className="flex items-center gap-2 mb-3">
                           <Sparkles className="h-4 w-4 text-violet-500" />
-                          <span className="text-sm font-semibold">Addon Modules</span>
+                          <span className="text-sm font-semibold">{t('pbAddonModules')}</span>
                           <Badge variant="secondary" className="text-[10px]">
-                            {catalog.addonFeatures.length} available
+                            {t('pbAvailable', { count: catalog.addonFeatures.length })}
                           </Badge>
                         </div>
                         <Accordion type="multiple" className="space-y-2">
@@ -1203,7 +1205,7 @@ export default function PlanBuilder() {
                                   </div>
                                   {group.features.filter((f) => enabledFeatures.has(f.id)).length === group.features.length && (
                                     <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600">
-                                      All included
+                                      {t('pbAllIncluded')}
                                     </Badge>
                                   )}
                                 </div>
@@ -1250,7 +1252,7 @@ export default function PlanBuilder() {
                                             )}
                                             {depMissing && (
                                               <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/30">
-                                                Needs: {feature.dependencies?.filter(d => !enabledFeatures.has(d) && !catalog.baseFeatures.find(b => b.id === d)).join(', ')}
+                                                {t('pbNeeds')}: {feature.dependencies?.filter(d => !enabledFeatures.has(d) && !catalog.baseFeatures.find(b => b.id === d)).join(', ')}
                                               </Badge>
                                             )}
                                           </div>
@@ -1260,13 +1262,13 @@ export default function PlanBuilder() {
                                         {/* Price */}
                                         <div className="text-right shrink-0">
                                           {isEnabled ? (
-                                            <span className="text-xs font-medium text-emerald-600">Included</span>
+                                            <span className="text-xs font-medium text-emerald-600">{t('pbIncluded')}</span>
                                           ) : (
                                             <span className="text-xs text-muted-foreground">
                                               {addonPricing[feature.id]?.monthlyPrice
                                                 ? formatCurrency(addonPricing[feature.id].monthlyPrice, form.currency)
                                                 : formatCurrency(999, form.currency)}
-                                              /mo
+                                              {t('pbPerMonth')}
                                             </span>
                                           )}
                                         </div>
@@ -1285,7 +1287,7 @@ export default function PlanBuilder() {
                                         <div className="ml-8 p-3 bg-muted/30 rounded-lg border border-border/50 space-y-3">
                                           <div className="grid grid-cols-2 gap-3">
                                             <div className="space-y-1">
-                                              <Label className="text-xs">Add-on Monthly Price</Label>
+                                              <Label className="text-xs">{t('pbAddonMonthlyPrice')}</Label>
                                               <div className="flex items-center gap-1">
                                                 <span className="text-xs text-muted-foreground">{CURRENCIES.find(c => c.value === form.currency)?.symbol}</span>
                                                 <Input
@@ -1305,10 +1307,10 @@ export default function PlanBuilder() {
                                                   onClick={(e) => e.stopPropagation()}
                                                 />
                                               </div>
-                                              <p className="text-[10px] text-muted-foreground">0 = included in plan price</p>
+                                              <p className="text-[10px] text-muted-foreground">{t('pbIncludedInPlanPrice')}</p>
                                             </div>
                                             <div className="space-y-1">
-                                              <Label className="text-xs">Add-on Setup Fee</Label>
+                                              <Label className="text-xs">{t('pbAddonSetupFee')}</Label>
                                               <div className="flex items-center gap-1">
                                                 <span className="text-xs text-muted-foreground">{CURRENCIES.find(c => c.value === form.currency)?.symbol}</span>
                                                 <Input
@@ -1334,7 +1336,7 @@ export default function PlanBuilder() {
                                             <div className="flex items-start gap-2 p-2 rounded bg-amber-500/5 border border-amber-500/10">
                                               <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
                                               <div className="text-[11px] text-muted-foreground">
-                                                <span className="font-medium text-amber-700">Dependencies:</span>{' '}
+                                                <span className="font-medium text-amber-700">{t('pbDependenciesLabel')}:</span>{' '}
                                                 {feature.dependencies.map((d) => {
                                                   const depCfg = catalog.addonFeatures.find((f) => f.id === d) || catalog.baseFeatures.find((f) => f.id === d);
                                                   return depCfg?.name || d;
@@ -1362,15 +1364,15 @@ export default function PlanBuilder() {
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <BarChart3 className="h-4 w-4 text-blue-500" />
-                    Module Limits Configuration
+                    {t('pbModuleLimitsConfig')}
                   </CardTitle>
-                  <CardDescription>Configure limits for each enabled module</CardDescription>
+                  <CardDescription>{t('pbModuleLimitsConfigDesc')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {moduleLimits.length === 0 ? (
                     <div className="flex items-center gap-2 p-4 rounded-lg bg-muted/30 text-sm text-muted-foreground">
                       <Info className="h-4 w-4" />
-                      Enable addon modules above to configure their limits here
+                      {t('pbEnableAddonsToConfigure')}
                     </div>
                   ) : (
                     <ScrollArea className="max-h-96">
@@ -1383,7 +1385,7 @@ export default function PlanBuilder() {
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                               <div className="space-y-1">
-                                <Label className="text-xs">Limit Type</Label>
+                                <Label className="text-xs">{t('pbLimitType')}</Label>
                                 <Select
                                   value={ml.limitType}
                                   onValueChange={(v) => updateModuleLimit(ml.moduleKey, 'limitType', v)}
@@ -1401,7 +1403,7 @@ export default function PlanBuilder() {
                                 </Select>
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs">Limit Value (0=unlimited)</Label>
+                                <Label className="text-xs">{t('pbLimitValue')}</Label>
                                 <Input
                                   type="number"
                                   min={0}
@@ -1416,11 +1418,11 @@ export default function PlanBuilder() {
                                     checked={ml.hardLimit}
                                     onCheckedChange={(v) => updateModuleLimit(ml.moduleKey, 'hardLimit', v)}
                                   />
-                                  <Label className="text-xs">Hard Limit</Label>
+                                  <Label className="text-xs">{t('pbHardLimit')}</Label>
                                 </div>
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs">Warning: {ml.warningThreshold}%</Label>
+                                <Label className="text-xs">{t('pbWarningThreshold', { threshold: ml.warningThreshold })}</Label>
                                 <Slider
                                   value={[ml.warningThreshold]}
                                   onValueChange={([v]) => updateModuleLimit(ml.moduleKey, 'warningThreshold', v)}
@@ -1444,17 +1446,17 @@ export default function PlanBuilder() {
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-orange-500" />
-                    Add-on Pricing
+                    {t('pbAddonPricing')}
                   </CardTitle>
                   <CardDescription>
-                    Prices tenants pay when adding modules not included in the base plan
+                    {t('pbAddonPricingDesc')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {excludedAddons.length === 0 ? (
                     <div className="flex items-center gap-2 p-4 rounded-lg bg-muted/30 text-sm text-muted-foreground">
                       <Info className="h-4 w-4" />
-                      All modules are included in the plan — no add-ons available
+                      {t('pbAllModulesIncluded')}
                     </div>
                   ) : (
                     <ScrollArea className="max-h-96">
@@ -1467,7 +1469,7 @@ export default function PlanBuilder() {
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                               <div className="space-y-1 w-28">
-                                <Label className="text-[10px] text-muted-foreground">Monthly Price</Label>
+                                <Label className="text-[10px] text-muted-foreground">{t('pbMonthlyPriceLabel')}</Label>
                                 <Input
                                   type="number"
                                   min={0}
@@ -1485,7 +1487,7 @@ export default function PlanBuilder() {
                                 />
                               </div>
                               <div className="space-y-1 w-28">
-                                <Label className="text-[10px] text-muted-foreground">Setup Fee</Label>
+                                <Label className="text-[10px] text-muted-foreground">{t('pbSetupFeeLabel')}</Label>
                                 <Input
                                   type="number"
                                   min={0}
@@ -1523,7 +1525,7 @@ export default function PlanBuilder() {
                     setActiveTab('all-plans');
                   }}
                 >
-                  Cancel
+                  {t('pbCancel')}
                 </Button>
                 <Button
                   onClick={handleSave}
@@ -1533,12 +1535,12 @@ export default function PlanBuilder() {
                   {isSaving ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Saving...
+                      {t('pbSaving')}
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="h-4 w-4" />
-                      {editingPlan ? 'Update Plan' : 'Create Plan'}
+                      {editingPlan ? t('pbUpdatePlan') : t('pbCreatePlan')}
                     </>
                   )}
                 </Button>
@@ -1552,24 +1554,24 @@ export default function PlanBuilder() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Plan</AlertDialogTitle>
+            <AlertDialogTitle>{t('pbDeletePlan')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>&ldquo;{planToDelete?.displayName}&rdquo;</strong>?
+              {t('pbDeletePlanConfirm', { name: planToDelete?.displayName ?? '' })}
               {planToDelete && planToDelete.subscriberCount > 0 && (
                 <span className="block mt-2 text-red-600 font-medium">
-                  This plan has {planToDelete.subscriberCount} active subscriber(s) and cannot be deleted.
+                  {t('pbCannotDeleteHasSubscribers', { count: planToDelete.subscriberCount })}
                 </span>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('pbCancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
               disabled={planToDelete ? planToDelete.subscriberCount > 0 : false}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              Delete Plan
+              {t('pbDeletePlan')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

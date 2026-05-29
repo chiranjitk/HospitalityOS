@@ -46,6 +46,7 @@ import {
 import { toast } from 'sonner';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { format } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface Property {
   id: string;
@@ -77,15 +78,31 @@ interface Transfer {
   items: TransferItem[];
 }
 
-const statusConfig: Record<string, { color: string; icon: React.ElementType; label: string }> = {
-  requested: { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300', icon: Clock, label: 'Requested' },
-  approved: { color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300', icon: CheckCircle2, label: 'Approved' },
-  in_transit: { color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300', icon: Truck, label: 'In Transit' },
-  completed: { color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300', icon: CheckCircle2, label: 'Completed' },
-  rejected: { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', icon: XCircle, label: 'Rejected' },
+const statusConfig: Record<string, { color: string; icon: React.ElementType }> = {
+  requested: { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300', icon: Clock },
+  approved: { color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300', icon: CheckCircle2 },
+  in_transit: { color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300', icon: Truck },
+  completed: { color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300', icon: CheckCircle2 },
+  rejected: { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', icon: XCircle },
+};
+
+const statusLabelKeys: Record<string, string> = {
+  requested: 'statusRequested',
+  approved: 'statusApproved',
+  in_transit: 'statusInTransit',
+  completed: 'statusCompleted',
+  rejected: 'statusRejected',
+};
+
+const statusActionMessages: Record<string, string> = {
+  approved: 'transferApproved',
+  in_transit: 'transferShipped',
+  completed: 'transferCompleted',
+  rejected: 'transferRejected',
 };
 
 export default function InterPropertyTransfer() {
+  const t = useTranslations('inventory');
   const { formatCurrency } = useCurrency();
   const [properties, setProperties] = useState<Property[]>([]);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
@@ -159,7 +176,7 @@ export default function InterPropertyTransfer() {
 
   const handleAddItem = () => {
     if (stockItems.length === 0) {
-      toast.error('Select a source property first');
+      toast.error(t('selectSourcePropertyFirst'));
       return;
     }
     setTransferItems([...transferItems, {
@@ -196,15 +213,15 @@ export default function InterPropertyTransfer() {
 
   const handleSubmit = async () => {
     if (!fromProperty || !toProperty) {
-      toast.error('Select both source and destination properties');
+      toast.error(t('selectBothProperties'));
       return;
     }
     if (transferItems.length === 0) {
-      toast.error('Add at least one item to transfer');
+      toast.error(t('addAtLeastOneItem'));
       return;
     }
     if (transferItems.some(i => !i.stockItemId || i.quantity <= 0)) {
-      toast.error('Fill in all item fields with valid quantities');
+      toast.error(t('fillAllItemFields'));
       return;
     }
 
@@ -224,15 +241,15 @@ export default function InterPropertyTransfer() {
 
       const data = await res.json();
       if (data.success) {
-        toast.success('Transfer request created successfully');
+        toast.success(t('transferCreatedSuccess'));
         setDialogOpen(false);
         resetForm();
         fetchTransfers();
       } else {
-        toast.error(data.error || 'Failed to create transfer');
+        toast.error(data.error || t('failedToCreateTransfer'));
       }
     } catch (error) {
-      toast.error('Failed to create transfer');
+      toast.error(t('failedToCreateTransfer'));
     } finally {
       setSaving(false);
     }
@@ -262,13 +279,13 @@ export default function InterPropertyTransfer() {
 
       const data = await res.json();
       if (data.success) {
-        toast.success(`Transfer ${status}`);
+        toast.success(t(statusActionMessages[status] || 'transferCompleted'));
         fetchTransfers();
       } else {
-        toast.error(data.error || 'Failed to update transfer');
+        toast.error(data.error || t('failedToUpdateTransfer'));
       }
     } catch (error) {
-      toast.error('Failed to update transfer');
+      toast.error(t('failedToUpdateTransfer'));
     } finally {
       setRejectionDialogOpen(false);
       setRejectingTransferId(null);
@@ -282,29 +299,29 @@ export default function InterPropertyTransfer() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <ArrowRightLeft className="h-5 w-5" />
-            Inter-Property Transfers
+            {t('interPropertyTransfers')}
           </h2>
           <p className="text-sm text-muted-foreground">
-            Manage inventory transfers between properties
+            {t('manageTransfersDesc')}
           </p>
         </div>
         <div className="flex gap-2">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-40">
-              <SelectValue placeholder="Status" />
+              <SelectValue placeholder={t('status')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="requested">Requested</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="in_transit">In Transit</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
+              <SelectItem value="all">{t('allStatus')}</SelectItem>
+              <SelectItem value="requested">{t('statusRequested')}</SelectItem>
+              <SelectItem value="approved">{t('statusApproved')}</SelectItem>
+              <SelectItem value="in_transit">{t('statusInTransit')}</SelectItem>
+              <SelectItem value="completed">{t('statusCompleted')}</SelectItem>
+              <SelectItem value="rejected">{t('statusRejected')}</SelectItem>
             </SelectContent>
           </Select>
           <Button onClick={() => setDialogOpen(true)} className="bg-emerald-500 hover:bg-emerald-600">
             <Plus className="h-4 w-4 mr-2" />
-            New Transfer
+            {t('newTransfer')}
           </Button>
         </div>
       </div>
@@ -312,7 +329,7 @@ export default function InterPropertyTransfer() {
       {/* Transfer List */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Transfer Requests</CardTitle>
+          <CardTitle className="text-lg">{t('transferRequests')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -322,7 +339,7 @@ export default function InterPropertyTransfer() {
           ) : transfers.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No transfer requests found</p>
+              <p>{t('noTransferRequestsFound')}</p>
             </div>
           ) : (
             <ScrollArea className="max-h-[500px]">
@@ -336,7 +353,7 @@ export default function InterPropertyTransfer() {
                         <div className="flex items-center gap-2">
                           <Badge className={config.color}>
                             <StatusIcon className="h-3 w-3 mr-1" />
-                            {config.label}
+                            {t(statusLabelKeys[transfer.status] || 'statusRequested')}
                           </Badge>
                           <span className="text-sm text-muted-foreground">
                             {format(new Date(transfer.createdAt), 'MMM d, yyyy')}
@@ -347,24 +364,24 @@ export default function InterPropertyTransfer() {
                             <>
                               <Button size="sm" variant="outline" className="text-emerald-600 border-emerald-300 hover:bg-emerald-50"
                                 onClick={() => handleAction(transfer.id, 'approved')}>
-                                <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
+                                <CheckCircle2 className="h-4 w-4 mr-1" /> {t('approve')}
                               </Button>
                               <Button size="sm" variant="outline" className="text-red-600 border-red-300 hover:bg-red-50"
                                 onClick={() => { setRejectingTransferId(transfer.id); setRejectionDialogOpen(true); }}>
-                                <XCircle className="h-4 w-4 mr-1" /> Reject
+                                <XCircle className="h-4 w-4 mr-1" /> {t('reject')}
                               </Button>
                             </>
                           )}
                           {transfer.status === 'approved' && (
                             <Button size="sm" variant="outline"
                               onClick={() => handleAction(transfer.id, 'in_transit')}>
-                              <Truck className="h-4 w-4 mr-1" /> Ship
+                              <Truck className="h-4 w-4 mr-1" /> {t('ship')}
                             </Button>
                           )}
                           {transfer.status === 'in_transit' && (
                             <Button size="sm" variant="outline" className="text-emerald-600 border-emerald-300 hover:bg-emerald-50"
                               onClick={() => handleAction(transfer.id, 'completed')}>
-                              <CheckCircle2 className="h-4 w-4 mr-1" /> Complete
+                              <CheckCircle2 className="h-4 w-4 mr-1" /> {t('complete')}
                             </Button>
                           )}
                         </div>
@@ -390,12 +407,12 @@ export default function InterPropertyTransfer() {
                       )}
 
                       {transfer.reason && (
-                        <p className="text-sm text-muted-foreground">Reason: {transfer.reason}</p>
+                        <p className="text-sm text-muted-foreground">{t('reason')}: {transfer.reason}</p>
                       )}
                       {transfer.status === 'rejected' && transfer.rejectionReason && (
                         <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
                           <AlertTriangle className="h-4 w-4" />
-                          <span>Rejection: {transfer.rejectionReason}</span>
+                          <span>{t('rejectionLabel')}: {transfer.rejectionReason}</span>
                         </div>
                       )}
                     </div>
@@ -411,15 +428,15 @@ export default function InterPropertyTransfer() {
       <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>New Transfer Request</DialogTitle>
-            <DialogDescription>Create a new inter-property inventory transfer</DialogDescription>
+            <DialogTitle>{t('newTransferRequest')}</DialogTitle>
+            <DialogDescription>{t('newTransferRequestDesc')}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>From Property *</Label>
+                <Label>{t('fromProperty')}</Label>
                 <Select value={fromProperty} onValueChange={handleFromPropertyChange}>
-                  <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('selectSource')} /></SelectTrigger>
                   <SelectContent>
                     {properties.map(p => (
                       <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
@@ -428,9 +445,9 @@ export default function InterPropertyTransfer() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>To Property *</Label>
+                <Label>{t('toProperty')}</Label>
                 <Select value={toProperty} onValueChange={setToProperty}>
-                  <SelectTrigger><SelectValue placeholder="Select destination" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('selectDestination')} /></SelectTrigger>
                   <SelectContent>
                     {properties.filter(p => p.id !== fromProperty).map(p => (
                       <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
@@ -440,16 +457,16 @@ export default function InterPropertyTransfer() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Reason</Label>
-              <Input placeholder="Reason for transfer" value={reason} onChange={e => setReason(e.target.value)} />
+              <Label>{t('reason')}</Label>
+              <Input placeholder={t('reasonPlaceholder')} value={reason} onChange={e => setReason(e.target.value)} />
             </div>
 
             {/* Items */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label>Items *</Label>
+                <Label>{t('itemsRequired')}</Label>
                 <Button type="button" size="sm" variant="outline" onClick={handleAddItem}>
-                  <Plus className="h-4 w-4 mr-1" /> Add Item
+                  <Plus className="h-4 w-4 mr-1" /> {t('addItem')}
                 </Button>
               </div>
               {transferItems.length > 0 ? (
@@ -458,7 +475,7 @@ export default function InterPropertyTransfer() {
                     <div key={index} className="flex gap-2 items-end">
                       <div className="flex-1">
                         <Select value={item.stockItemId} onValueChange={v => handleItemChange(index, 'stockItemId', v)}>
-                          <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                          <SelectTrigger><SelectValue placeholder={t('selectItem')} /></SelectTrigger>
                           <SelectContent>
                             {stockItems.filter(si => !transferItems.some(ti => ti.stockItemId === si.id && ti.stockItemId !== item.stockItemId)).map(si => (
                               <SelectItem key={si.id} value={si.id}>{si.name} ({si.quantity} {si.unit})</SelectItem>
@@ -477,21 +494,21 @@ export default function InterPropertyTransfer() {
                 </div>
               ) : (
                 <div className="text-center py-4 text-muted-foreground border rounded-lg">
-                  Select a source property, then add items
+                  {t('selectSourceThenAddItems')}
                 </div>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea placeholder="Additional notes..." value={notes} onChange={e => setNotes(e.target.value)} rows={2} />
+              <Label>{t('notes')}</Label>
+              <Textarea placeholder={t('additionalNotes')} value={notes} onChange={e => setNotes(e.target.value)} rows={2} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('cancel')}</Button>
             <Button onClick={handleSubmit} disabled={saving} className="bg-emerald-500 hover:bg-emerald-600">
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create Transfer
+              {t('createTransfer')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -501,15 +518,15 @@ export default function InterPropertyTransfer() {
       <Dialog open={rejectionDialogOpen} onOpenChange={setRejectionDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Reject Transfer</DialogTitle>
-            <DialogDescription>Please provide a reason for rejection</DialogDescription>
+            <DialogTitle>{t('rejectTransfer')}</DialogTitle>
+            <DialogDescription>{t('provideRejectionReason')}</DialogDescription>
           </DialogHeader>
-          <Textarea placeholder="Reason for rejection..." value={rejectionReason} onChange={e => setRejectionReason(e.target.value)} rows={3} />
+          <Textarea placeholder={t('rejectionReasonPlaceholder')} value={rejectionReason} onChange={e => setRejectionReason(e.target.value)} rows={3} />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectionDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setRejectionDialogOpen(false)}>{t('cancel')}</Button>
             <Button onClick={() => rejectingTransferId && handleAction(rejectingTransferId, 'rejected')}
               className="bg-red-500 hover:bg-red-600">
-              Reject Transfer
+              {t('rejectTransfer')}
             </Button>
           </DialogFooter>
         </DialogContent>

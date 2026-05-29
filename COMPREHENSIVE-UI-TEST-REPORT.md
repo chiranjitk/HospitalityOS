@@ -26,9 +26,9 @@
 | 🔴 CRITICAL | 1 | Fixed during test |
 | 🟠 HIGH | 6 | Documented |
 | 🟡 MEDIUM | 9 | Documented |
-| 🔵 LOW | 5 | Documented |
+| 🔵 LOW | 5 | All Fixed ✅ |
 | ✅ PASS | 151 | No issues found |
-| **Total** | **172** | **168 PASS, 4 issues found (1 fixed)** |
+| **Total** | **172** | **168 PASS, 9 issues found (6 fixed)** |
 
 ---
 
@@ -168,27 +168,35 @@
 
 ## 4. LOW SEVERITY ISSUES
 
-### 🔵 LOW-01: WiFi Diagnostic Output to innerHTML
+### 🔵 LOW-01: WiFi Diagnostic Output to innerHTML `[FIXED]`
 - `src/components/wifi/gateway-diagnostics.tsx:2651` — `termRef.current.innerHTML = ''`
 - **Impact**: Minor — direct DOM manipulation bypasses React's virtual DOM
-- **Recommendation**: Use React state to clear terminal output
+- **Fix Applied**: Replaced `innerHTML = ''` with `termRef.current.replaceChildren()` — React-safe DOM API
+- **Status**: ✅ Fixed
 
-### 🔵 LOW-02: WiFi Print Card Uses innerHTML
+### 🔵 LOW-02: WiFi Print Card Uses innerHTML `[FIXED]`
 - `src/components/wifi/print-card.tsx:92` — template literal with innerHTML
 - **Impact**: Minor — print card template injection
-- **Recommendation**: Use React rendering instead
+- **Fix Applied**: Replaced `innerHTML` with `cloneNode(true)` + `document.adoptNode()` + `appendChild()` — pure DOM API without innerHTML; added separate `cardContentRef` to target card content only (excluding print button)
+- **Status**: ✅ Fixed
 
-### 🔵 LOW-03: Billing Split Payment Dialog Not i18n'd
+### 🔵 LOW-03: Billing Split Payment Dialog Not i18n'd `[FIXED]`
 - `src/components/billing/split-payment-dialog.tsx` (513 lines) — no translations
 - **Impact**: Minor — billing staff in non-English locales see English text
+- **Fix Applied**: Added `useTranslations('billing')` hook + 24 translation keys to both `en.json` and `fr.json`; all user-facing strings (titles, labels, buttons, error messages, status text) now use `t()` calls
+- **Status**: ✅ Fixed
 
-### 🔵 LOW-04: Billing Plan Builder Not i18n'd
+### 🔵 LOW-04: Billing Plan Builder Not i18n'd `[FIXED]`
 - `src/components/billing/plan-builder.tsx` (1,579 lines) — no translations
 - **Impact**: Plan configuration shows English-only text
+- **Fix Applied**: Added `useTranslations('billing')` hook + 111 translation keys (prefixed `pb`) to both `en.json` and `fr.json`; all user-facing strings (headers, stats, plan cards, editor sections, toasts, dialogs, buttons) now use `t()` calls
+- **Status**: ✅ Fixed
 
-### 🔵 LOW-05: Inventory Inter-Property Transfer Not i18n'd
+### 🔵 LOW-05: Inventory Inter-Property Transfer Not i18n'd `[FIXED]`
 - `src/components/inventory/inter-property-transfer.tsx` (519 lines) — no translations
 - **Impact**: Inventory transfer workflow shows English-only text
+- **Fix Applied**: Added `useTranslations('inventory')` hook + 40 translation keys to both `en.json` and `fr.json`; all user-facing strings (headers, status labels, buttons, dialog titles, form labels, toast messages) now use `t()` calls
+- **Status**: ✅ Fixed
 
 ---
 

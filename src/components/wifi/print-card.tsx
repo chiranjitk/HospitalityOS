@@ -41,6 +41,7 @@ export const PrintCard = forwardRef<PrintCardHandle, PrintCardProps>(({
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const cardContentRef = useRef<HTMLDivElement>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const isGeneratingRef = useRef(false);
 
@@ -66,7 +67,7 @@ export const PrintCard = forwardRef<PrintCardHandle, PrintCardProps>(({
 
   useImperativeHandle(ref, () => ({
     print: () => {
-      if (cardRef.current) {
+      if (cardContentRef.current) {
         const printWindow = window.open('', '_blank');
         if (printWindow) {
           printWindow.document.write(`
@@ -76,24 +77,18 @@ export const PrintCard = forwardRef<PrintCardHandle, PrintCardProps>(({
               <title>WiFi Credentials</title>
               <style>
                 body { margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #fff; }
-                .card { width: 400px; border: 2px solid #1a1a2e; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-                .hotel-name { font-size: 20px; font-weight: 700; text-align: center; color: #1a1a2e; margin-bottom: 4px; }
-                .divider { height: 2px; background: linear-gradient(to right, #0d9488, #14b8a6); margin: 12px 0; }
-                .label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
-                .value { font-size: 16px; font-weight: 600; color: #1a1a2e; margin-top: 2px; font-family: 'Courier New', monospace; }
-                .row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-                .qr-section { text-align: center; margin-top: 16px; }
-                .qr-img { width: 120px; height: 120px; margin: 0 auto; }
-                .footer { text-align: center; font-size: 10px; color: #999; margin-top: 12px; }
-                .credentials { font-size: 18px; font-weight: 700; letter-spacing: 1px; }
+                .print-card { width: 400px; border: 2px solid #1a1a2e; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+                .print-card img { width: 120px; height: 120px; }
               </style>
             </head>
-            <body>
-              ${cardRef.current.innerHTML}
-            </body>
+            <body></body>
             </html>
           `);
           printWindow.document.close();
+          // Use DOM cloneNode + adoptNode instead of innerHTML for React safety
+          const clone = cardContentRef.current.cloneNode(true) as HTMLElement;
+          clone.className = 'print-card';
+          printWindow.document.body.appendChild(printWindow.document.adoptNode(clone));
           printWindow.print();
         }
       }
@@ -117,6 +112,7 @@ export const PrintCard = forwardRef<PrintCardHandle, PrintCardProps>(({
 
       {/* Card */}
       <div
+        ref={cardContentRef}
         className="border-2 border-gray-800 rounded-xl p-6 bg-white text-black max-w-[400px] mx-auto"
         style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}
       >
