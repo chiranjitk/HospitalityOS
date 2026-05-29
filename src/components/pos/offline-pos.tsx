@@ -90,6 +90,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -343,9 +344,8 @@ export default function OfflinePOS() {
     toast.success('Settings Saved', { description: 'Offline POS settings updated successfully' });
   };
 
-  const formatAmount = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(amount);
-  };
+  // L-40: formatAmount removed — uses formatCurrency from CurrencyContext (tenant-configured currency)
+  const { formatCurrency } = useCurrency();
 
   const formatTimeAgo = (isoString: string) => {
     const diff = Date.now() - new Date(isoString).getTime();
@@ -675,7 +675,7 @@ export default function OfflinePOS() {
                             <Badge variant="outline" className="text-xs">{item.tableNo}</Badge>
                           </TableCell>
                           <TableCell>
-                            <span className="font-semibold text-sm">{formatAmount(item.amount)}</span>
+                            <span className="font-semibold text-sm">{formatCurrency(item.amount)}</span>
                           </TableCell>
                           <TableCell className="hidden lg:table-cell">
                             <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -1237,7 +1237,7 @@ export default function OfflinePOS() {
                 <div className="flex justify-between"><span className="text-sm text-muted-foreground">Customer</span><span className="text-sm">{viewingItem.customerName}</span></div>
                 <div className="flex justify-between"><span className="text-sm text-muted-foreground">Table</span><span className="text-sm">{viewingItem.tableNo}</span></div>
                 <div className="flex justify-between"><span className="text-sm text-muted-foreground">Items</span><span className="text-sm">{viewingItem.items}</span></div>
-                <div className="flex justify-between"><span className="text-sm text-muted-foreground">Amount</span><span className="text-sm font-bold">{formatAmount(viewingItem.amount)}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-muted-foreground">Amount</span><span className="text-sm font-bold">{formatCurrency(viewingItem.amount)}</span></div>
                 <div className="flex justify-between"><span className="text-sm text-muted-foreground">Payment</span><span className="text-sm">{viewingItem.paymentMethod}</span></div>
                 <div className="flex justify-between"><span className="text-sm text-muted-foreground">Time</span><span className="text-sm">{viewingItem.time}</span></div>
                 <div className="flex justify-between"><span className="text-sm text-muted-foreground">Data Size</span><span className="text-sm">{viewingItem.dataSize}</span></div>

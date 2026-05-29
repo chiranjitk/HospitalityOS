@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useTax } from '@/contexts/TaxContext';
 import { usePropertyId } from '@/hooks/use-property';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -137,6 +138,8 @@ export default function Orders() {
 const t = useTranslations('pos');
   const { propertyId } = usePropertyId();
   const { formatCurrency } = useCurrency();
+  // L-44: Use TaxContext for accurate tax preview matching server-side calculation
+  const { calculateTax } = useTax();
   const [orders, setOrders] = useState<Order[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,7 +152,7 @@ const t = useTranslations('pos');
     totalRevenue: 0,
   });
 
-  // Property tax rate
+  // Property tax rate (flat fallback used for display alongside TaxContext)
   const [taxRate, setTaxRate] = useState<number>(0);
 
   // New order dialog state
@@ -417,13 +420,20 @@ const t = useTranslations('pos');
     );
   };
 
+  // L-44: Use TaxContext.calculateTax for accurate preview matching server-side logic.
+  // The server iterates over property taxComponents (e.g., CGST + SGST + cess) and sums
+  // them, falling back to a flat defaultTaxRate. The TaxContext mirrors this by loading
+  // all enabled tax rules from /api/settings/tax-currency and applying them with proper
+  // compound/non-compound handling. This replaces the previous flat `subtotal * (taxRate / 100)`.
   const calculateTotal = () => {
     const subtotal = selectedItems.reduce((sum, item) => {
       const menuItem = menuItems.find(m => m.id === item.menuItemId);
       return sum + (menuItem?.price || 0) * item.quantity;
     }, 0);
-    const taxes = subtotal * (taxRate / 100);
-    return { subtotal, taxes, total: subtotal + taxes };
+    // Use TaxContext for multi-component tax calculation (matches server behavior)
+    const taxResult = calculateTax(subtotal, 'food');
+    const taxes = Math.round(taxResult.totalTax * 100) / 100; // match server rounding
+    return { subtotal, taxes, total: Math.round((subtotal + taxes) * 100) / 100 };
   };
 
   const getStatusIcon = (status: string) => {
@@ -538,8 +548,10 @@ const t = useTranslations('pos');
   };
 
   const editSubtotal = editItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-  const editTaxes = editSubtotal * (taxRate / 100);
-  const editTotal = editSubtotal + editTaxes;
+  // L-44: Use TaxContext for edit tax preview (same logic as calculateTotal above)
+  const editTaxResult = calculateTax(editSubtotal, 'food');
+  const editTaxes = Math.round(editTaxResult.totalTax * 100) / 100;
+  const editTotal = Math.round((editSubtotal + editTaxes) * 100) / 100;
   const editHasChanges = editItems.length !== editOrder?.items.length ||
     editItems.some((item, i) => {
       const orig = editOrder?.items[i];

@@ -93,6 +93,7 @@ import {
   Tag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { toast } from 'sonner';
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -163,6 +164,8 @@ const analyticsConfig: ChartConfig = {
 // ── Component ──────────────────────────────────────────────────────────
 
 export default function DigitalMenuBoards() {
+  // L-40: Use tenant-configured currency instead of hardcoded INR
+  const { formatCurrency } = useCurrency();
   const [activeTab, setActiveTab] = useState('boards');
   const [selectedBoard, setSelectedBoard] = useState<MenuBoard | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -178,8 +181,7 @@ export default function DigitalMenuBoards() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const formatAmount = (amount: number) =>
-    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(amount);
+  // L-40: formatAmount removed — uses formatCurrency from CurrencyContext
 
   // Fetch data from APIs
   const fetchAllData = useCallback(async () => {
@@ -381,7 +383,7 @@ export default function DigitalMenuBoards() {
                         </div>
                       </div>
                     </div>
-                    <span className="font-semibold text-sm shrink-0 ml-2">{formatAmount(item.price)}</span>
+                    <span className="font-semibold text-sm shrink-0 ml-2">{formatCurrency(item.price)}</span>
                   </div>
                 ))}
               </div>
@@ -568,7 +570,7 @@ export default function DigitalMenuBoards() {
                     </div>
                     <p className="font-medium text-sm truncate">{item.name}</p>
                     <div className="flex items-center justify-between mt-1">
-                      <span className="text-sm font-bold text-amber-700">{formatAmount(item.price)}</span>
+                      <span className="text-sm font-bold text-amber-700">{formatCurrency(item.price)}</span>
                       <div className="flex gap-1">
                         {item.dietary.map(d => (
                           <Badge key={d} variant="secondary" className={cn('text-[9px] px-1 py-0', DIETARY_CONFIG[d]?.badgeClass)}>
@@ -630,7 +632,7 @@ export default function DigitalMenuBoards() {
                           </div>
                         </div>
                         <div className="flex items-center gap-3 shrink-0 ml-2">
-                          <span className="font-bold text-sm">{formatAmount(item.price)}</span>
+                          <span className="font-bold text-sm">{formatCurrency(item.price)}</span>
                           <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
                             <Button variant="ghost" size="sm" className="h-7 w-7 p-0"><Edit className="h-3 w-3" /></Button>
                             <Button variant="ghost" size="sm" className="h-7 w-7 p-0"><Trash2 className="h-3 w-3" /></Button>
@@ -886,7 +888,7 @@ export default function DigitalMenuBoards() {
                             <p className="text-xs text-muted-foreground">{item.description}</p>
                           </div>
                         </div>
-                        <span className="font-bold text-sm shrink-0">{formatAmount(item.price)}</span>
+                        <span className="font-bold text-sm shrink-0">{formatCurrency(item.price)}</span>
                       </div>
                     ))}
                   </div>

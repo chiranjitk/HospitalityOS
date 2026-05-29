@@ -64,6 +64,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { format, formatDistanceToNow } from 'date-fns';
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -218,6 +219,7 @@ const CONFLICT_STATUS_COLORS: Record<string, string> = {
 
 export default function OfflinePOSMode() {
   const { toast } = useToast();
+  const { formatCurrency } = useCurrency();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [queueFilter, setQueueFilter] = useState('all');
@@ -391,8 +393,18 @@ export default function OfflinePOSMode() {
   // ── Computed ─────────────────────────────────────────────────────
 
   const filteredQueue = useMemo(() => {
-    return [];
-  }, [searchQuery, queueFilter]);
+    let result = queueItems;
+    // Filter by status
+    if (queueFilter && queueFilter !== 'all') {
+      result = result.filter(item => item.status === queueFilter);
+    }
+    // Filter by search query (order ID)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(item => item.orderId.toLowerCase().includes(q));
+    }
+    return result;
+  }, [searchQuery, queueFilter, queueItems]);
 
   const unresolvedConflicts = useMemo(() =>
     (queueStatus?.conflicts ?? []).filter((c: SyncConflict) => !c.resolution),
@@ -458,11 +470,11 @@ export default function OfflinePOSMode() {
     }
   };
 
-  // ── Helper: format currency without useCurrency (POS specific) ───
+  // ── Helper: format currency using tenant's configured currency ───
 
-  const formatAmount = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0 }).format(amount);
-  };
+  // NOTE: Removed in L-40 — previously hardcoded INR via Intl.NumberFormat('en-IN', { currency: 'INR' })
+  // Now uses the tenant-configured currency from CurrencyContext.
+  // formatCurrency is available from useCurrency() above.
 
   // ── Render: Stat cards ───────────────────────────────────────────
 
@@ -805,7 +817,7 @@ export default function OfflinePOSMode() {
                         <span className="text-sm">{item.items} items</span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-semibold text-sm">{formatAmount(item.amount)}</span>
+                        <span className="font-semibold text-sm">{formatCurrency(item.amount)}</span>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         <span className="text-xs text-muted-foreground">{item.dataSize}</span>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,6 +71,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { useTranslations } from 'next-intl';
+import { useDebounce } from '@/hooks/use-debounce';
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -173,6 +174,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
   const [allGuests, setAllGuests] = useState<Guest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [activeFilter, setActiveFilter] = useState<QuickFilter>('all');
 
   // Dialog states
@@ -250,8 +252,8 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
     }
 
     // Search
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
+    if (debouncedSearchQuery.trim()) {
+      const q = debouncedSearchQuery.toLowerCase().trim();
       result = result.filter(
         (g) =>
           g.firstName.toLowerCase().includes(q) ||
@@ -263,7 +265,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
     }
 
     return result;
-  }, [allGuests, activeFilter, searchQuery]);
+  }, [allGuests, activeFilter, debouncedSearchQuery]);
 
   // ─── Stats computed from all guests ─────────────────────────────
   const stats = useMemo(() => {

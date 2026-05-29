@@ -137,7 +137,10 @@ export async function GET(request: NextRequest) {
     const avgStayLength = bookings.length > 0 ? totalNights / bookings.length : 0;
 
     // Get top guests by total spend
-    const topGuests = await db.guest.findMany({
+    // L-42: Fetch a broader candidate set (50) to ensure top-5 by totalSpent are correct.
+    // Prisma cannot orderBy an aggregated relation field, so we compute totalSpent in-memory
+    // and sort. Without a sufficient take, the original take(5) returned an arbitrary subset.
+    const topGuestCandidates = await db.guest.findMany({
       where: { tenantId, deletedAt: null },
       include: {
         bookings: {
@@ -148,17 +151,20 @@ export async function GET(request: NextRequest) {
           select: { bookings: true },
         },
       },
-      take: 5,
+      take: 50,
     });
 
-    const guestsWithSpend = topGuests.map(g => ({
-      id: g.id,
-      name: `${g.firstName} ${g.lastName}`,
-      email: g.email,
-      loyaltyTier: g.loyaltyTier,
-      totalStays: g._count.bookings,
-      totalSpent: g.bookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0),
-    })).sort((a, b) => b.totalSpent - a.totalSpent);
+    const guestsWithSpend = topGuestCandidates
+      .map(g => ({
+        id: g.id,
+        name: `${g.firstName} ${g.lastName}`,
+        email: g.email,
+        loyaltyTier: g.loyaltyTier,
+        totalStays: g._count.bookings,
+        totalSpent: g.bookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0),
+      }))
+      .sort((a, b) => b.totalSpent - a.totalSpent)
+      .slice(0, 5);
 
     return NextResponse.json({
       success: true,

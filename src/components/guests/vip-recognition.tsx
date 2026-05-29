@@ -620,11 +620,11 @@ export default function VipRecognition() {
               <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
                 {todaysArrivals.map(guest => {
                   const config = TIER_CONFIG[guest.tier];
-                  const isToday = guest.checkInDate === format(new Date(), 'yyyy-MM-dd');
+                  // L-43: Removed redundant isToday check — todaysArrivals is already filtered to today's check-ins
                   return (
                     <div
                       key={guest.id}
-                      className={`rounded-lg border-2 p-4 cursor-pointer transition-shadow hover:shadow-md ${isToday ? 'border-emerald-300' : 'border'} bg-gradient-to-br ${config.gradientFrom} ${config.gradientTo}`}
+                      className={`rounded-lg border-2 p-4 cursor-pointer transition-shadow hover:shadow-md border-emerald-300 bg-gradient-to-br ${config.gradientFrom} ${config.gradientTo}`}
                       onClick={() => handleOpenGuest(guest)}
                     >
                       <div className="flex items-start gap-3">
