@@ -3,17 +3,44 @@
  *
  * Consolidated folio management for group bookings.
  * Aggregates totals from child booking folios into a single master GroupFolio.
- * Supports payment application and distribution to child folios, plus recalculation.
+ * Supports line item management, payment application, and distribution to child folios.
  */
 
 import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
-// recalcGroupFolio — Re-aggregate totals from all child booking folios
+// Types
 // ---------------------------------------------------------------------------
 
-export async function recalcGroupFolio(groupFolioId: string) {
+export interface GroupFolioItemInput {
+  description: string;
+  category?: string;
+  quantity?: number;
+  unitPrice?: number;
+  taxRate?: number;
+  serviceDate?: Date | string;
+  referenceType?: string;
+  referenceId?: string;
+  postedBy?: string;
+}
+
+export interface GroupFolioPaymentInput {
+  tenantId: string;
+  propertyId: string;
+  amount: number;
+  method: string;
+  reference?: string;
+  description?: string;
+  processedBy?: string;
+  distributeToChildFolios?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// recalculateFolioTotals — Re-aggregate totals from all child booking folios
+// ---------------------------------------------------------------------------
+
+export async function recalculateFolioTotals(groupFolioId: string) {
   const groupFolio = await db.groupFolio.findUnique({
     where: { id: groupFolioId },
     select: { id: true, groupBookingId: true },
@@ -95,6 +122,9 @@ export async function recalcGroupFolio(groupFolioId: string) {
   return updated;
 }
 
+/** Backward-compatible alias */
+export const recalcGroupFolio = recalculateFolioTotals;
+
 // ---------------------------------------------------------------------------
 // createGroupFolio — Create a new GroupFolio for a group booking
 // ---------------------------------------------------------------------------
@@ -115,7 +145,7 @@ export async function createGroupFolio(params: {
 
   if (existing) {
     // Recalculate and return existing
-    return recalcGroupFolio(existing.id);
+    return recalculateFolioTotals(existing.id);
   }
 
   // Determine currency from property
@@ -141,28 +171,103 @@ export async function createGroupFolio(params: {
   });
 
   // Initial recalculation from child folios
-  const recalculated = await recalcGroupFolio(groupFolio.id);
+  const recalculated = await recalculateFolioTotals(groupFolio.id);
 
   return recalculated;
 }
 
 // ---------------------------------------------------------------------------
-// applyPaymentToGroupFolio — Record a payment and distribute to child folios
+// addItemToFolio — Add a supplementary line item to the group folio
 // ---------------------------------------------------------------------------
 
-export async function applyPaymentToGroupFolio(params: {
-  groupFolioId: string;
-  tenantId: string;
-  propertyId: string;
-  amount: number;
-  method: string;
-  reference?: string;
-  description?: string;
-  processedBy?: string;
-  distributeToChildFolios?: boolean;
-}) {
+export async function addItemToFolio(folioId: string, item: GroupFolioItemInput) {
+  const groupFolio = await db.groupFolio.findUnique({
+    where: { id: folioId },
+    select: { id: true, status: true },
+  });
+
+  if (!groupFolio) {
+    throw new Error('GROUP_FOLIO_NOT_FOUND');
+  }
+
+  if (groupFolio.status === 'closed') {
+    throw new Error('FOLIO_CLOSED');
+  }
+
+  const quantity = Math.max(1, item.quantity ?? 1);
+  const unitPrice = Math.max(0, item.unitPrice ?? 0);
+  const taxRate = Math.max(0, item.taxRate ?? 0);
+  const totalAmount = Math.round(quantity * unitPrice * 100) / 100;
+  const taxAmount = Math.round(totalAmount * (taxRate / 100) * 100) / 100;
+
+  const folioItem = await db.groupFolioItem.create({
+    data: {
+      groupFolioId: folioId,
+      description: item.description,
+      category: item.category || 'miscellaneous',
+      quantity,
+      unitPrice,
+      totalAmount,
+      taxRate,
+      taxAmount,
+      serviceDate: item.serviceDate ? new Date(item.serviceDate) : new Date(),
+      referenceType: item.referenceType || null,
+      referenceId: item.referenceId || null,
+      postedBy: item.postedBy || null,
+    },
+  });
+
+  // Recalculate folio totals
+  await recalculateFolioTotals(folioId);
+
+  return folioItem;
+}
+
+// ---------------------------------------------------------------------------
+// removeItemFromFolio — Remove a line item and recalculate
+// ---------------------------------------------------------------------------
+
+export async function removeItemFromFolio(folioId: string, itemId: string) {
+  const groupFolio = await db.groupFolio.findUnique({
+    where: { id: folioId },
+    select: { id: true, status: true },
+  });
+
+  if (!groupFolio) {
+    throw new Error('GROUP_FOLIO_NOT_FOUND');
+  }
+
+  if (groupFolio.status === 'closed') {
+    throw new Error('FOLIO_CLOSED');
+  }
+
+  const item = await db.groupFolioItem.findFirst({
+    where: { id: itemId, groupFolioId: folioId },
+  });
+
+  if (!item) {
+    throw new Error('ITEM_NOT_FOUND');
+  }
+
+  await db.groupFolioItem.delete({
+    where: { id: itemId },
+  });
+
+  // Recalculate folio totals
+  const recalculated = await recalculateFolioTotals(folioId);
+
+  return { deletedItemId: itemId, folio: recalculated };
+}
+
+// ---------------------------------------------------------------------------
+// recordPayment — Record a payment and distribute to child folios
+// ---------------------------------------------------------------------------
+
+export async function recordPayment(
+  folioId: string,
+  payment: GroupFolioPaymentInput
+) {
   const {
-    groupFolioId,
     tenantId,
     propertyId,
     amount,
@@ -171,7 +276,7 @@ export async function applyPaymentToGroupFolio(params: {
     description,
     processedBy,
     distributeToChildFolios = true,
-  } = params;
+  } = payment;
 
   const safeAmount = Math.round(amount * 100) / 100;
   if (safeAmount <= 0) {
@@ -179,7 +284,7 @@ export async function applyPaymentToGroupFolio(params: {
   }
 
   const groupFolio = await db.groupFolio.findUnique({
-    where: { id: groupFolioId },
+    where: { id: folioId },
     select: { id: true, groupBookingId: true, status: true, balance: true },
   });
 
@@ -192,11 +297,11 @@ export async function applyPaymentToGroupFolio(params: {
   }
 
   // Create the payment record on the group folio
-  await db.groupFolioPayment.create({
+  const paymentRecord = await db.groupFolioPayment.create({
     data: {
       tenantId,
       propertyId,
-      groupFolioId,
+      groupFolioId: folioId,
       amount: safeAmount,
       method,
       status: 'completed',
@@ -229,7 +334,10 @@ export async function applyPaymentToGroupFolio(params: {
       orderBy: { balance: 'desc' },
     });
 
-    const totalChildBalance = childFolios.reduce((sum, f) => sum + Math.max(0, f.balance), 0);
+    const totalChildBalance = childFolios.reduce(
+      (sum, f) => sum + Math.max(0, f.balance),
+      0
+    );
 
     if (totalChildBalance > 0 && childFolios.length > 0) {
       let remaining = safeAmount;
@@ -239,8 +347,14 @@ export async function applyPaymentToGroupFolio(params: {
         if (folioBalance <= 0) continue;
 
         // Proportional distribution
-        const proportionalShare = Math.round((safeAmount * folioBalance) / totalChildBalance * 100) / 100;
-        const allocation = Math.min(proportionalShare, remaining, folioBalance);
+        const proportionalShare =
+          Math.round((safeAmount * folioBalance) / totalChildBalance * 100) /
+          100;
+        const allocation = Math.min(
+          proportionalShare,
+          remaining,
+          folioBalance
+        );
 
         if (allocation > 0) {
           await db.folio.update({
@@ -248,7 +362,8 @@ export async function applyPaymentToGroupFolio(params: {
             data: {
               paidAmount: { increment: allocation },
               balance: { decrement: allocation },
-              status: (folio.balance - allocation) <= 0 ? 'paid' : 'partially_paid',
+              status:
+                folio.balance - allocation <= 0 ? 'paid' : 'partially_paid',
             },
           });
 
@@ -259,16 +374,26 @@ export async function applyPaymentToGroupFolio(params: {
   }
 
   // Recalculate the group folio totals
-  return recalcGroupFolio(groupFolioId);
+  const recalculated = await recalculateFolioTotals(folioId);
+
+  return { payment: paymentRecord, folio: recalculated };
+}
+
+/** Backward-compatible alias */
+export async function applyPaymentToGroupFolio(
+  params: GroupFolioPaymentInput & { groupFolioId: string }
+) {
+  const { groupFolioId, ...payment } = params;
+  return recordPayment(groupFolioId, payment);
 }
 
 // ---------------------------------------------------------------------------
-// closeGroupFolio — Close the group folio and settle all child folios
+// closeFolio — Close the group folio and settle all child folios
 // ---------------------------------------------------------------------------
 
-export async function closeGroupFolio(groupFolioId: string) {
+export async function closeFolio(folioId: string) {
   const groupFolio = await db.groupFolio.findUnique({
-    where: { id: groupFolioId },
+    where: { id: folioId },
     select: { id: true, groupBookingId: true, status: true, balance: true },
   });
 
@@ -281,14 +406,14 @@ export async function closeGroupFolio(groupFolioId: string) {
   }
 
   // Recalculate to get final totals
-  const recalculated = await recalcGroupFolio(groupFolioId);
+  const recalculated = await recalculateFolioTotals(folioId);
 
   // If there's a remaining balance, mark as partially_paid (not fully settled)
   // Otherwise close it
   const finalStatus = recalculated.balance > 0.01 ? 'partially_paid' : 'paid';
 
   const closed = await db.groupFolio.update({
-    where: { id: groupFolioId },
+    where: { id: folioId },
     data: {
       status: finalStatus === 'paid' ? 'closed' : 'partially_paid',
       closedAt: finalStatus === 'paid' ? new Date() : null,
@@ -298,13 +423,16 @@ export async function closeGroupFolio(groupFolioId: string) {
   return closed;
 }
 
+/** Backward-compatible alias */
+export const closeGroupFolio = closeFolio;
+
 // ---------------------------------------------------------------------------
-// getGroupFolioWithBreakdown — Full consolidated view with child folio details
+// getGroupFolioSummary — Full consolidated view with child folio details
 // ---------------------------------------------------------------------------
 
-export async function getGroupFolioWithBreakdown(groupFolioId: string) {
+export async function getGroupFolioSummary(folioId: string) {
   const groupFolio = await db.groupFolio.findUnique({
-    where: { id: groupFolioId },
+    where: { id: folioId },
     include: {
       folioItems: {
         orderBy: { createdAt: 'desc' },
@@ -369,3 +497,6 @@ export async function getGroupFolioWithBreakdown(groupFolioId: string) {
     })),
   };
 }
+
+/** Backward-compatible alias */
+export const getGroupFolioWithBreakdown = getGroupFolioSummary;
