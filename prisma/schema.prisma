@@ -1827,6 +1827,7 @@ model CompetitorPrice {
   roomTypeName   String?
   ratePlanName   String?
   source         String    @default("manual")
+  synthetic      Boolean   @default(false)
   createdAt      DateTime  @default(now()) @db.Timestamptz
   updatedAt      DateTime  @updatedAt @db.Timestamptz
   roomType       RoomType? @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
@@ -5025,6 +5026,8 @@ model Property {
   wifiFloorPlans             WiFiFloorPlan[]
   userAssignments           UserProperty[]
   groupFolios               GroupFolio[]
+  emergencyAlerts           EmergencyAlert[]
+  visitorLogs               VisitorLog[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -7021,6 +7024,8 @@ model Tenant {
   purchaseOrders            PurchaseOrder[]
   roles                     Role[]
   securityIncidents         SecurityIncident[]
+  emergencyAlerts           EmergencyAlert[]
+  visitorLogs               VisitorLog[]
   shiftTemplates            ShiftTemplate[]
   staffLeaves               StaffLeave[]
   staffPerformances         StaffPerformance[]
@@ -13453,4 +13458,79 @@ model GroupFolioPayment {
 
   @@index([tenantId])
   @@index([groupFolioId])
+}
+
+// ============================================================
+// SECURITY MODULE — Emergency Alerts & Visitor Management
+// ============================================================
+
+/// EmergencyAlert - Emergency alert management for hotel security
+model EmergencyAlert {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String    @db.Uuid
+  title           String
+  description     String?
+  type            String    @default("other") // fire, medical, security, natural_disaster, utility_failure, bomb_threat, evacuation, other
+  severity        String    @default("medium") // critical, high, medium, low
+  status          String    @default("active") // active, acknowledged, escalated, resolved, false_alarm
+  location        String?
+  affectedRooms   String    @default("[]") // JSON array of room numbers
+  reportedBy      String?
+  assignedTo      String?   @db.Uuid
+  responseActions String    @default("[]") // JSON array of actions taken
+  resolvedAt      DateTime? @db.Timestamptz
+  resolution      String?
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  deletedAt       DateTime? @db.Timestamptz
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([type])
+  @@index([severity])
+  @@index([status])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+/// VisitorLog - Visitor management and tracking
+model VisitorLog {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  propertyId      String    @db.Uuid
+  firstName       String
+  lastName        String
+  email           String?
+  phone           String?
+  idType          String    @default("other") // national_id, passport, driving_license, company_id, other
+  idNumber        String
+  purpose         String    @default("other") // business, personal, delivery, contractor, government, other
+  hostGuestId     String?   @db.Uuid
+  hostGuestName   String?
+  hostRoomNumber  String?
+  company         String?
+  vehiclePlate    String?
+  checkIn         DateTime  @default(now()) @db.Timestamptz
+  checkOut        DateTime? @db.Timestamptz
+  badgeNumber     String?
+  status          String    @default("checked_in") // checked_in, checked_out, blacklisted, expected
+  notes           String?
+  photoUrl        String?
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  deletedAt       DateTime? @db.Timestamptz
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([checkIn])
+  @@index([checkOut])
+  @@index([purpose])
+  @@index([hostGuestId])
+  @@index([deletedAt])
 }

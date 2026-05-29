@@ -14,6 +14,13 @@ export async function GET(request: NextRequest) {
     const roomType = searchParams.get('roomType') || 'standard';
     const dateStr = searchParams.get('date') || new Date().toISOString().split('T')[0];
     const date = new Date(dateStr);
+    const includeSyntheticParam = searchParams.get('includeSynthetic');
+    const includeSynthetic = includeSyntheticParam === null || includeSyntheticParam === 'true';
+
+    // If includeSynthetic=false, also exclude records with source='demo'
+    const sourceFilter = !includeSynthetic
+      ? { source: { notIn: ['scraper', 'demo'] } }
+      : {};
 
     // Get our rate plans and prices
     const ratePlans = await db.ratePlan.findMany({
@@ -37,6 +44,7 @@ export async function GET(request: NextRequest) {
           gte: new Date(dateStr),
           lt: new Date(new Date(dateStr).getTime() + 24 * 60 * 60 * 1000),
         },
+        ...sourceFilter,
       },
       orderBy: { competitorName: 'asc' },
     });
@@ -49,13 +57,21 @@ export async function GET(request: NextRequest) {
       rating: number;
       prices: number[];
       lastUpdated: string;
+      sources: string[];
+      synthetic: boolean;
     }>();
 
     for (const cp of competitorPrices) {
       const existing = competitorMap.get(cp.competitorName);
       if (existing) {
         existing.prices.push(cp.price);
+        existing.sources.push(cp.source);
+        // Mark as synthetic if this record is synthetic or source is scraper/demo
+        if (cp.synthetic || cp.source === 'scraper' || cp.source === 'demo') {
+          existing.synthetic = true;
+        }
       } else {
+        const isSynthetic = cp.synthetic || cp.source === 'scraper' || cp.source === 'demo';
         competitorMap.set(cp.competitorName, {
           id: cp.id,
           name: cp.competitorName,
@@ -63,21 +79,28 @@ export async function GET(request: NextRequest) {
           rating: cp.rating || 0,
           prices: [cp.price],
           lastUpdated: cp.updatedAt.toISOString(),
+          sources: [cp.source],
+          synthetic: isSynthetic,
         });
       }
     }
 
     // Convert to array and calculate averages
-    const competitors = Array.from(competitorMap.values()).map(c => ({
-      id: c.id,
-      name: c.name,
-      type: c.type,
-      rating: c.rating,
-      distance: 0, // Would need location data
-      priceIndex: ourPrice > 0 ? Math.round((c.prices.reduce((a, b) => a + b, 0) / c.prices.length / ourPrice) * 100) : 100,
-      avgPrice: Math.round(c.prices.reduce((a, b) => a + b, 0) / c.prices.length),
-      lastUpdated: c.lastUpdated,
-    }));
+    // Mark a competitor as synthetic if ALL of its prices come from 'scraper' or 'demo' sources
+    const competitors = Array.from(competitorMap.values()).map(c => {
+      const allSourcesAreSynthetic = c.sources.length > 0 && c.sources.every(s => s === 'scraper' || s === 'demo');
+      return {
+        id: c.id,
+        name: c.name,
+        type: c.type,
+        rating: c.rating,
+        distance: 0, // Would need location data
+        priceIndex: ourPrice > 0 ? Math.round((c.prices.reduce((a, b) => a + b, 0) / c.prices.length / ourPrice) * 100) : 100,
+        avgPrice: Math.round(c.prices.reduce((a, b) => a + b, 0) / c.prices.length),
+        lastUpdated: c.lastUpdated,
+        synthetic: allSourcesAreSynthetic,
+      };
+    });
 
     // Get historical price data for the last 14 days
     const startDate = subDays(new Date(), 13);
@@ -208,6 +231,7 @@ export async function POST(request: NextRequest) {
       roomTypeName,
       ratePlanName,
       source = 'manual',
+      synthetic = false,
     } = body;
 
     // Validate required fields
@@ -256,6 +280,7 @@ export async function POST(request: NextRequest) {
         roomTypeName,
         ratePlanName,
         source,
+        synthetic,
       },
     });
 
