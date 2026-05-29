@@ -3048,10 +3048,9 @@ function PortalContent() {
     const mutedColor = getMutedTextColor(design);
     const accent = design.accentColor;
 
-    // Helper: format method name into a nice full-word label
     const formatMethodLabel = (method: string, fallbackLabel?: string): string => {
       if (fallbackLabel) return fallbackLabel;
-      const labelMap: Record<string, string> = {
+      const m: Record<string, string> = {
         voucher: 'Voucher Code',
         room_number: 'Room Number',
         pms_credentials: 'PMS Login',
@@ -3063,16 +3062,12 @@ function PortalContent() {
         ldap: 'LDAP / RADIUS',
         password: 'Password',
       };
-      return labelMap[method] || method.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      return m[method] || method.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     };
 
-    // Determine grid columns based on method count
     const total = authMethods.length;
-    const gridClass = total <= 3
-      ? 'grid-cols-3'
-      : total <= 6
-        ? 'grid-cols-3'
-        : 'grid-cols-4';
+    // ≤3: single row; 4-6: 2 rows × 3 cols; 7+: 2 cols wide tabs
+    const cols = total <= 3 ? 3 : total <= 6 ? 3 : 2;
 
     return (
       <div className="space-y-2">
@@ -3082,29 +3077,24 @@ function PortalContent() {
             Choose your authentication method
           </span>
         </div>
-        {/* Tab bar container — matches /portal/captive TabsList style */}
         <div
-          className="relative w-full rounded-xl p-1"
+          className="w-full rounded-xl p-1"
           style={{
             backgroundColor: dark ? 'rgba(255,255,255,0.05)' : accent + '08',
             border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : accent + '15'}`,
           }}
         >
-          {/* Grid layout: all tabs visible at once */}
-          <div className={`grid ${gridClass} gap-1`}>
+          <div className={`grid ${cols === 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-1`}>
             {authMethods.map((am) => {
               const isActive = effectiveAuthMethod === am.method;
               return (
                 <button
                   key={am.method}
                   onClick={() => setSelectedMethod(am.method)}
-                  className={cn(
-                    'relative flex items-center justify-center gap-1.5 px-2 h-9 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap cursor-pointer',
-                    'transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]'
-                  )}
+                  className="flex items-center justify-center gap-2 px-3 h-10 rounded-lg text-sm font-medium cursor-pointer transition-all duration-200 hover:opacity-80 active:scale-[0.97]"
                   style={{
                     color: isActive ? '#ffffff' : (dark ? 'rgba(255,255,255,0.5)' : accent + '99'),
-                    boxShadow: isActive ? `0 4px 14px ${accent}50` : 'none',
+                    boxShadow: isActive ? `0 4px 14px ${accent}40` : 'none',
                     background: isActive
                       ? `linear-gradient(135deg, ${accent}, ${accent}cc)`
                       : 'transparent',
@@ -3114,15 +3104,6 @@ function PortalContent() {
                     {METHOD_ICONS[am.method] || <Shield className="w-3.5 h-3.5" />}
                   </span>
                   <span>{formatMethodLabel(am.method, am.label)}</span>
-                  {/* Active indicator bar */}
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeTabIndicator"
-                      className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full"
-                      style={{ backgroundColor: '#ffffff' }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                    />
-                  )}
                 </button>
               );
             })}
