@@ -1380,6 +1380,9 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
+        let voucherSessionId: string | null = null;
+        voucherSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, resolvedPropertyId);
+
         logIdentityVerification({
           tenantId: voucher.tenantId,
           propertyId: resolvedPropertyId,
@@ -1391,8 +1394,6 @@ export async function POST(request: NextRequest) {
           ipAddress: getClientIpString(request),
           macAddress: effectiveMac,
         });
-        let voucherSessionId: string | null = null;
-        voucherSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, resolvedPropertyId);
 
         // Activate firewall (internal NAS) or skip (external gateway handles firewall)
         if (!externalGateway) {
@@ -1625,6 +1626,8 @@ export async function POST(request: NextRequest) {
           const pmsBwUp = pmsUser.plan?.uploadSpeed || bwUp;
 
           await logAuthAttempt(pmsUser.username, 'Access-Accept', request, `pool:${pool.poolName} reuse:pms plan:${pmsUser.plan?.name || 'none'}`);
+          pmsReuseSessionId = await createAccountingSession(pmsUser.username, request, 'portal', effectiveMac, pool, match.propertyId);
+
           logIdentityVerification({
             tenantId: pmsUser.tenantId,
             propertyId: match.propertyId,
@@ -1638,7 +1641,6 @@ export async function POST(request: NextRequest) {
             ipAddress: getClientIpString(request),
             macAddress: effectiveMac,
           });
-          pmsReuseSessionId = await createAccountingSession(pmsUser.username, request, 'portal', effectiveMac, pool, match.propertyId);
 
           // Activate firewall (internal NAS) or skip (external gateway handles firewall)
           if (!externalGateway) {
@@ -1764,6 +1766,9 @@ export async function POST(request: NextRequest) {
         }
 
         await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName} fallback:room_user`);
+        let roomSessionId: string | null = null;
+        roomSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, match.propertyId);
+
         logIdentityVerification({
           tenantId: match.tenantId,
           propertyId: match.propertyId,
@@ -1777,8 +1782,6 @@ export async function POST(request: NextRequest) {
           ipAddress: getClientIpString(request),
           macAddress: effectiveMac,
         });
-        let roomSessionId: string | null = null;
-        roomSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, match.propertyId);
 
         // Activate firewall (internal NAS) or skip (external gateway handles firewall)
         if (!externalGateway) {
@@ -2208,6 +2211,8 @@ export async function POST(request: NextRequest) {
             }
 
             await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${smsPool.poolName}${smsPlanId ? ' plan:aaa' : ''}`);
+            smsSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, smsPool, fallbackPropertyId);
+
             logIdentityVerification({
               tenantId: portal?.tenantId || '',
               propertyId: fallbackPropertyId,
@@ -2219,7 +2224,6 @@ export async function POST(request: NextRequest) {
               ipAddress: getClientIpString(request),
               macAddress: effectiveMac,
             });
-            smsSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, smsPool, fallbackPropertyId);
 
             // Activate firewall (internal NAS) or skip (external gateway handles firewall)
             if (!externalGateway) {
@@ -2440,6 +2444,8 @@ export async function POST(request: NextRequest) {
               }
 
               await logAuthAttempt(wifiUsername, 'Access-Accept', request, `pool:${pool.poolName}`);
+              openAccessSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, resolvedPropertyId);
+
               logIdentityVerification({
                 tenantId: portal?.tenantId || '',
                 propertyId: resolvedPropertyId,
@@ -2450,7 +2456,6 @@ export async function POST(request: NextRequest) {
                 ipAddress: getClientIpString(request),
                 macAddress: effectiveMac,
               });
-              openAccessSessionId = await createAccountingSession(wifiUsername, request, 'portal', effectiveMac, pool, resolvedPropertyId);
 
               // Activate firewall (internal NAS) or skip (external gateway handles firewall)
               if (!externalGateway) {
