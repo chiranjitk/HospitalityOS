@@ -177,8 +177,8 @@ function getAutoFields(category: CredentialCategory): AutoFields {
 
 // Auth flow → default field configuration (auto-suggests when admin changes auth flow)
 const AUTH_FLOW_FIELD_DEFAULTS: Record<string, AutoFields> = {
-  pms_credentials: { firstName: false, lastName: true,  roomNumber: true,  phone: false, email: false, passport: false, bookingId: false, username: false, password: false, voucherCode: false, terms: true },
-  room_number:     { firstName: false, lastName: false, roomNumber: true,  phone: false, email: false, passport: false, bookingId: false, username: false, password: false, voucherCode: false, terms: true },
+  pms_credentials: { firstName: false, lastName: false, roomNumber: false, phone: false, email: false, passport: false, bookingId: false, username: true,  password: true,  voucherCode: false, terms: true },
+  room_number:     { firstName: false, lastName: true,  roomNumber: true,  phone: false, email: false, passport: false, bookingId: false, username: false, password: false, voucherCode: false, terms: true },
   voucher:         { firstName: false, lastName: false, roomNumber: false, phone: false, email: false, passport: false, bookingId: false, username: false, password: false, voucherCode: true, terms: true },
   sms_otp:         { firstName: false, lastName: false, roomNumber: false, phone: true,  email: false, passport: false, bookingId: false, username: false, password: false, voucherCode: false, terms: true },
   open_access:     { firstName: false, lastName: false, roomNumber: false, phone: false, email: false, passport: false, bookingId: false, username: false, password: false, voucherCode: false, terms: true },
