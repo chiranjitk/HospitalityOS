@@ -40,6 +40,8 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = {
       tenantId: currentUser.tenantId,
+      // H-45 FIX: Exclude soft-deleted tasks from list results
+      deletedAt: null,
     };
 
     if (propertyId) {

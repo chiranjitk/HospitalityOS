@@ -234,14 +234,15 @@ class ContentFilterService {
    * Returns the generated rules for audit purposes.
    */
   async enforceFilter(propertyId: string): Promise<{ enforced: boolean; domains: number; rules: string[] }> {
+    // CRITICAL-11 FIX: Use correct schema fields (enabled, not isActive; domains, not blockedDomains)
     const filters = await db.contentFilter.findMany({
-      where: { propertyId, isActive: true },
-      select: { blockedDomains: true, allowedDomains: true, name: true },
+      where: { propertyId, enabled: true },
+      select: { domains: true, name: true, category: true },
     });
 
     const blockedDomains = new Set<string>();
     for (const f of filters) {
-      for (const d of this.parseDomains(f.blockedDomains || '[]')) {
+      for (const d of this.parseDomains(f.domains || '[]')) {
         if (d) blockedDomains.add(d);
       }
     }

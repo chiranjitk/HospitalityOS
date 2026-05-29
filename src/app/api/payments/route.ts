@@ -172,6 +172,10 @@ export async function GET(request: NextRequest) {
 
 // POST /api/payments - Create a new payment using gateway router
 export async function POST(request: NextRequest) {
+  // CRITICAL-03 FIX: Declare idempotencyKey before try block so it's accessible
+  // in the catch block when handling P2002 race condition
+  let idempotencyKey: string | undefined;
+
   try {
     const user = await getUserFromRequest(request);
     if (!user) {
@@ -185,7 +189,6 @@ export async function POST(request: NextRequest) {
     const data = nullifyEmptyStrings(body);
     const tenantId = user.tenantId;
 
-    let idempotencyKey: string | undefined;
     const {
       folioId,
       guestId,

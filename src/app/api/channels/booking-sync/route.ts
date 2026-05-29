@@ -280,6 +280,8 @@ export async function POST(request: NextRequest) {
       });
 
       if (connection) {
+        // H-25 FIX: Track OTA push success to set accurate sync log status
+        let pushSucceeded = true;
         // Try to push booking status via OTA client
         try {
           const { OTAClientFactory } = await import('@/lib/ota/client-factory');
@@ -303,16 +305,16 @@ export async function POST(request: NextRequest) {
           }
         } catch (error) {
           console.error(`Failed to push booking ${bookingId} to ${connection.channel}:`, error);
-          // Still log locally even if OTA push fails
+          pushSucceeded = false;
         }
 
-        // Create sync log
+        // H-25 FIX: Log sync status based on actual OTA push result
         await db.channelSyncLog.create({
           data: {
             connectionId: connection.id,
             syncType: 'bookings',
             direction: 'outbound',
-            status: 'success',
+            status: pushSucceeded ? 'success' : 'failed',
             requestPayload: JSON.stringify({
               bookingId,
               externalRef: booking.externalRef,

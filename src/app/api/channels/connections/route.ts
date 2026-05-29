@@ -502,9 +502,86 @@ export async function PUT(request: NextRequest) {    const user = await requireP
           });
         }
 
-        // Sync inventory and rates for the connection using static methods
-        await OTASyncService.syncInventoryToChannel(id, []);
-        await OTASyncService.syncRatesToChannel(id, []);
+        // CRITICAL-07 FIX: Build real inventory and rate updates before syncing
+        // Previously passed empty arrays [] which resulted in no data being pushed to OTAs
+        const connectionWithProperty = await db.channelConnection.findUnique({
+          where: { id },
+          include: { property: true },
+        });
+        const propId = connectionWithProperty?.property?.id || connection.propertyId || '';
+
+        if (propId) {
+          // Build inventory updates with real availability calculation
+          const roomTypes = await db.roomType.findMany({
+            where: { propertyId: propId, deletedAt: null },
+            include: { rooms: { select: { id: true, status: true } } },
+          });
+          const today = new Date();
+          const inventoryUpdates: Array<{ roomTypeId: string; date: string; availableRooms: number; totalRooms: number }> = [];
+
+          for (const roomType of roomTypes) {
+            const totalRooms = roomType.rooms.length;
+            for (let d = 0; d < 30; d++) {
+              const date = new Date(today);
+              date.setDate(date.getDate() + d);
+              const dateStr = date.toISOString().split('T')[0];
+              const nextDay = new Date(date);
+              nextDay.setDate(nextDay.getDate() + 1);
+
+              const bookedRoomIds = await db.booking.findMany({
+                where: {
+                  propertyId: propId,
+                  roomTypeId: roomType.id,
+                  status: { in: ['confirmed', 'checked_in'] },
+                  cancelledAt: null,
+                  checkIn: { lt: nextDay },
+                  OR: [{ checkOut: null }, { checkOut: { gt: date } }],
+                },
+                select: { roomId: true },
+                distinct: ['roomId'],
+              });
+              const bookedCount = new Set(bookedRoomIds.map(b => b.roomId).filter(Boolean)).size;
+              inventoryUpdates.push({
+                roomTypeId: roomType.id,
+                date: dateStr,
+                availableRooms: Math.max(0, totalRooms - bookedCount),
+                totalRooms,
+              });
+            }
+          }
+
+          // Build rate updates
+          const ratePlans = await db.ratePlan.findMany({
+            where: { roomType: { propertyId: propId, deletedAt: null }, deletedAt: null },
+            include: { roomType: { select: { id: true } } },
+          });
+          const rateUpdates: Array<{ roomTypeId: string; ratePlanId: string; date: string; baseRate: number; currency: string }> = [];
+
+          for (const ratePlan of ratePlans) {
+            for (let d = 0; d < 30; d++) {
+              const date = new Date(today);
+              date.setDate(date.getDate() + d);
+              const dateStr = date.toISOString().split('T')[0];
+              const priceOverride = await db.priceOverride.findFirst({
+                where: { ratePlanId: ratePlan.id, date: new Date(dateStr + 'T00:00:00.000Z') },
+              });
+              rateUpdates.push({
+                roomTypeId: ratePlan.roomTypeId,
+                ratePlanId: ratePlan.id,
+                date: dateStr,
+                baseRate: priceOverride?.price ?? ratePlan.basePrice,
+                currency: ratePlan.currency || 'USD',
+              });
+            }
+          }
+
+          await OTASyncService.syncInventoryToChannel(id, inventoryUpdates as any);
+          await OTASyncService.syncRatesToChannel(id, rateUpdates as any);
+        } else {
+          // Fallback: sync with empty data if no property linked
+          await OTASyncService.syncInventoryToChannel(id, []);
+          await OTASyncService.syncRatesToChannel(id, []);
+        }
 
         // Update last sync timestamp
         const updatedConnection = await db.channelConnection.update({

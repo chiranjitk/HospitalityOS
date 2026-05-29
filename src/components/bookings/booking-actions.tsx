@@ -154,6 +154,9 @@ export default function BookingActions({ booking, onActionComplete }: BookingAct
   const [roomMoveReason, setRoomMoveReason] = useState('guest_request');
   const [roomMoveNotes, setRoomMoveNotes] = useState('');
   const [guaranteePaid, setGuaranteePaid] = useState(false);
+  const [earlyCheckoutDate, setEarlyCheckoutDate] = useState('');
+  const [earlyCheckoutReason, setEarlyCheckoutReason] = useState('');
+  const [isSubmittingEarlyCheckout, setIsSubmittingEarlyCheckout] = useState(false);
 
   const canCheckIn = booking.status === 'confirmed';
   const canCheckOut = booking.status === 'checked_in';
@@ -471,16 +474,65 @@ export default function BookingActions({ booking, onActionComplete }: BookingAct
             </div>
             <div className="space-y-2">
               <Label>Requested Check-Out Date</Label>
-              <Input type="date" min={new Date().toISOString().split('T')[0]} max={booking.checkOut.split('T')[0]} />
+              <Input
+                type="date"
+                min={new Date().toISOString().split('T')[0]}
+                max={booking.checkOut.split('T')[0]}
+                value={earlyCheckoutDate}
+                onChange={(e) => setEarlyCheckoutDate(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label>Reason</Label>
-              <Textarea placeholder="Change of plans, early flight..." rows={2} />
+              <Textarea
+                placeholder="Change of plans, early flight..."
+                rows={2}
+                value={earlyCheckoutReason}
+                onChange={(e) => setEarlyCheckoutReason(e.target.value)}
+              />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setActiveDialog(null)}>Cancel</Button>
-            <Button onClick={async () => { toast({ title: 'Submitted', description: 'Early checkout request submitted for review' }); setActiveDialog(null); }}>
+            <Button
+              disabled={!earlyCheckoutDate || isSubmittingEarlyCheckout}
+              onClick={async () => {
+                setIsSubmittingEarlyCheckout(true);
+                try {
+                  const res = await fetch('/api/bookings/early-checkout-request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      bookingId: booking.id,
+                      requestedCheckoutDate: earlyCheckoutDate,
+                      reason: earlyCheckoutReason,
+                    }),
+                  });
+                  const result = await res.json();
+                  if (result.success) {
+                    toast({
+                      title: 'Request Submitted',
+                      description: 'Early checkout request has been submitted for review',
+                    });
+                    setActiveDialog(null);
+                    setEarlyCheckoutDate('');
+                    setEarlyCheckoutReason('');
+                    onActionComplete?.();
+                  } else {
+                    toast({
+                      title: 'Error',
+                      description: result.error?.message || 'Failed to submit early checkout request',
+                      variant: 'destructive',
+                    });
+                  }
+                } catch {
+                  toast({ title: 'Error', description: 'Network error', variant: 'destructive' });
+                } finally {
+                  setIsSubmittingEarlyCheckout(false);
+                }
+              }}
+            >
+              {isSubmittingEarlyCheckout && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Submit Request
             </Button>
           </DialogFooter>

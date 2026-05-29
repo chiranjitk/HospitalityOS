@@ -198,6 +198,12 @@ export default function BookingsList() {
   // Dialog states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // BW-01 FIX: Cancel confirmation dialog state
+  const [cancelDialogBooking, setCancelDialogBooking] = useState<Booking | null>(null);
+  const [cancelPreviewData, setCancelPreviewData] = useState<any>(null);
+  const [isLoadingCancelPreview, setIsLoadingCancelPreview] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -337,6 +343,66 @@ export default function BookingsList() {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
     return filteredBookings.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredBookings, currentPage]);
+
+  // BW-01 FIX: Handle cancel by showing preview dialog instead of immediately updating
+  const handleStatusChange = async (bookingId: string, newStatus: string) => {
+    if (newStatus === 'cancelled') {
+      const booking = bookings.find(b => b.id === bookingId);
+      if (!booking) return;
+      setCancelDialogBooking(booking);
+      setCancelPreviewData(null);
+      setIsLoadingCancelPreview(true);
+      try {
+        const previewRes = await fetch(`/api/bookings/${bookingId}/cancel`);
+        const previewResult = await previewRes.json();
+        if (previewResult.success) {
+          setCancelPreviewData(previewResult.data);
+        } else {
+          // If preview fails, still show the confirmation dialog with a generic warning
+          setCancelPreviewData(null);
+        }
+      } catch {
+        setCancelPreviewData(null);
+      } finally {
+        setIsLoadingCancelPreview(false);
+      }
+      return;
+    }
+    await updateBookingStatus(bookingId, newStatus);
+  };
+
+  // BW-01 FIX: Execute the cancellation after user confirms
+  const confirmCancellation = async () => {
+    if (!cancelDialogBooking) return;
+    setIsCancelling(true);
+    try {
+      const res = await fetch(`/api/bookings/${cancelDialogBooking.id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Cancelled by staff' }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast({
+          title: 'Booking Cancelled',
+          description: `Refund: ${formatCurrency(result.data?.financials?.refundAmount || 0)} | Penalty: ${formatCurrency(result.data?.penalty?.amount || 0)}`,
+        });
+        setCancelDialogBooking(null);
+        setCancelPreviewData(null);
+        fetchBookings();
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error?.message || 'Failed to cancel booking',
+          variant: 'destructive',
+        });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Network error', variant: 'destructive' });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   // Quick status update
   const updateBookingStatus = async (bookingId: string, newStatus: string) => {
@@ -798,7 +864,7 @@ export default function BookingsList() {
                           <TableCell>
                             <Select
                               value={booking.status}
-                              onValueChange={(value) => updateBookingStatus(booking.id, value)}
+                              onValueChange={(value) => handleStatusChange(booking.id, value)}
                             >
                               <SelectTrigger className="w-28 h-7">
                                 {getStatusBadge(booking.status)}
@@ -949,6 +1015,86 @@ export default function BookingsList() {
           )}
         </CardContent>
       </Card>
+
+      {/* BW-01 FIX: Cancel Confirmation Dialog with Penalty Preview */}
+      <Dialog open={!!cancelDialogBooking} onOpenChange={(open) => { if (!open) { setCancelDialogBooking(null); setCancelPreviewData(null); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <XCircle className="h-5 w-5" />
+              Cancel Booking
+            </DialogTitle>
+            <DialogDescription>
+              {cancelDialogBooking?.confirmationCode} — {cancelDialogBooking?.primaryGuest?.firstName} {cancelDialogBooking?.primaryGuest?.lastName}
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingCancelPreview ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">Checking cancellation policy...</span>
+            </div>
+          ) : cancelPreviewData ? (
+            <div className="space-y-4">
+              {/* Policy info */}
+              <div className="p-3 bg-muted/50 rounded-lg space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Policy</span>
+                  <span className="font-medium">{cancelPreviewData.policy?.name || 'Default Policy'}</span>
+                </div>
+                {cancelPreviewData.policy?.description && (
+                  <p className="text-xs text-muted-foreground">{cancelPreviewData.policy.description}</p>
+                )}
+                {cancelPreviewData.evaluation?.isWithinFreeWindow && (
+                  <p className="text-emerald-600 font-medium">✓ Free cancellation — within free window</p>
+                )}
+                {cancelPreviewData.evaluation?.isExempt && (
+                  <p className="text-emerald-600 font-medium">✓ Penalty exempted: {cancelPreviewData.evaluation.exemptReason}</p>
+                )}
+              </div>
+
+              {/* Financial breakdown */}
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg space-y-2 text-sm">
+                <p className="font-medium">Financial Summary</p>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Paid</span>
+                  <span className="font-medium">{formatCurrency(cancelPreviewData.preview?.totalPaid || 0)}</span>
+                </div>
+                <div className="flex justify-between text-red-600">
+                  <span>Cancellation Penalty</span>
+                  <span className="font-medium">{formatCurrency(cancelPreviewData.preview?.penaltyAmount || 0)}</span>
+                </div>
+                <Separator />
+                <div className="flex justify-between text-emerald-600">
+                  <span>Estimated Refund</span>
+                  <span className="font-bold text-base">{formatCurrency(cancelPreviewData.preview?.refundAmount || 0)}</span>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Are you sure you want to cancel this booking? This action cannot be undone.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-sm">
+                <p className="font-medium text-amber-700 dark:text-amber-300">Cancellation Policy Notice</p>
+                <p className="mt-1">Are you sure you want to cancel? A cancellation penalty may apply per the property's cancellation policy.</p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setCancelDialogBooking(null); setCancelPreviewData(null); }} disabled={isCancelling}>
+              Keep Booking
+            </Button>
+            <Button variant="destructive" onClick={confirmCancellation} disabled={isLoadingCancelPreview || isCancelling || !cancelDialogBooking?.status || cancelDialogBooking.status === 'cancelled'}>
+              {isCancelling && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Confirm Cancellation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

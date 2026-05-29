@@ -576,6 +576,25 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
         const penaltyPercent = policy?.noShowPenaltyPercent ?? 100;
         const penaltyAmount = booking.totalAmount * (penaltyPercent / 100);
 
+        // H-48 FIX: Send guest notification before marking as no-show
+        if (booking.guestId) {
+          try {
+            await tx.notification.create({
+              data: {
+                guestId: booking.guestId,
+                bookingId: booking.id,
+                type: 'no_show',
+                title: 'Booking Marked as No-Show',
+                message: `Your booking (${booking.confirmationCode || booking.id}) has been marked as a no-show. A penalty of ${penaltyPercent}% (${booking.currency || 'INR'} ${penaltyAmount.toFixed(2)}) has been applied to your folio. Please contact the front desk if you believe this is an error.`,
+                isRead: false,
+                channel: 'in_app',
+              },
+            });
+          } catch (notifyErr) {
+            console.warn('[NightAudit] Failed to create no-show notification:', notifyErr);
+          }
+        }
+
         if (penaltyAmount > 0 && booking.folios[0]) {
           await tx.folioLineItem.create({
             data: {

@@ -26,6 +26,8 @@ import {
   Hourglass,
   XCircle,
   CreditCard,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -128,6 +130,7 @@ export default function ExpressKiosk() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [timeLeft, setTimeLeft] = useState(TIMEOUT_SECONDS);
+  const [showWifiPassword, setShowWifiPassword] = useState(false);
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
@@ -921,7 +924,25 @@ export default function ExpressKiosk() {
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Password</p>
-                          <p className="font-mono font-medium text-sm">{checkInResult.wifiCredentials.password}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-mono font-medium text-sm">
+                              {showWifiPassword
+                                ? checkInResult.wifiCredentials.password
+                                : '••••••••••'}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setShowWifiPassword(!showWifiPassword)}
+                              className="p-1 rounded-md hover:bg-muted transition-colors"
+                              aria-label={showWifiPassword ? 'Hide password' : 'Show password'}
+                            >
+                              {showWifiPassword ? (
+                                <EyeOff className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <Eye className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </div>
                       <p className="text-xs text-blue-600 dark:text-blue-400">
