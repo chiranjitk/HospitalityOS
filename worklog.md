@@ -481,3 +481,36 @@ Stage Summary:
 - L-43 fixed: removed redundant per-render isToday check in VIP todaysArrivals map
 - L-44 fixed: tax preview uses TaxContext.calculateTax matching server multi-component tax logic
 - Commit: 43cf4070 — pushed to main
+
+---
+Task ID: 1
+Agent: Main Setup Agent
+Task: Full StaySuite-HospitalityOS setup from scratch on fresh sandbox
+
+Work Log:
+- Cloned repo from GitHub (StaySuite-HospitalityOS) into /home/z/my-project
+- Installed all npm dependencies with bun (1060 packages)
+- Installed PM2 v7.0.1 globally
+- Initialized PostgreSQL 17.4 data directory (pgsql-runtime/data)
+- Configured pg_hba.conf for scram-sha-256 auth and postgresql.conf to listen on all interfaces
+- Started PostgreSQL on port 5432
+- Created staysuite superuser (password: Staysuite2025) and staysuite database
+- Enabled citext extension, ran prisma db push (477 tables created), then loaded complete-database.sql
+- All 6 reporting views and 8 DB functions created successfully
+- Granted ALL PRIVILEGES to staysuite user on all tables, sequences, functions
+- FreeRADIUS v3.2.7 already compiled at freeradius-install/ — fixed LD_LIBRARY_PATH issue
+- FreeRADIUS config verified: SQL module enabled, PostgreSQL connection configured, dictionary path corrected with -D flag
+- PM2 ecosystem.config.cjs already existed with correct LD_LIBRARY_PATH and -D flag
+- Created .env file with DATABASE_URL, APP_SECRET, NEXTAUTH_SECRET, RADIUS_SECRET, PORT
+- Ran main seed (prisma/seed.ts) — all demo data loaded including admin users, properties, rooms, etc.
+- WiFi seed data already populated (6 plans, 8 users, 7 radcheck, 33 radgroupcheck)
+- Started FreeRADIUS via PM2 (staysuite-freeradius) — online
+- Started Next.js via PM2 (staysuite-nextjs) — online, compiling, serving on port 3000
+- PM2 config saved
+
+Stage Summary:
+- ✅ PostgreSQL 17.4: Running on port 5432 (477 tables, 6 views, 8 functions)
+- ✅ FreeRADIUS 3.2.7: Running via PM2 (ports 1812/1813)
+- ✅ Next.js 16: Running via PM2 on port 3000 (HTTP 200 verified)
+- ✅ All seed data loaded (admin users, properties, WiFi plans, RADIUS groups)
+- Demo credentials: admin@royalstay.in / admin123
