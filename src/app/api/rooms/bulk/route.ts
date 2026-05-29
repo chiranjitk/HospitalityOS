@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
         where: { id: roomTypeId },
         data: {
           totalRooms: {
-            increment: createdRooms.length,
+            increment: created.length,
           },
         },
       });
@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
         where: { id: propertyId },
         data: {
           totalRooms: {
-            increment: createdRooms.length,
+            increment: created.length,
           },
         },
       });

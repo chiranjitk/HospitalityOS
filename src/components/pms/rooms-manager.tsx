@@ -1302,6 +1302,7 @@ export default function RoomsManager() {
               setFormData={setFormData}
               properties={properties}
               roomTypes={roomTypes}
+              hideNumberFields={createMode === 'bulk'}
             />
 
             {createMode === 'single' ? (
@@ -1740,9 +1741,10 @@ interface RoomFormProps {
   setFormData: React.Dispatch<React.SetStateAction<RoomFormData>>;
   properties: Property[];
   roomTypes: RoomType[];
+  hideNumberFields?: boolean;
 }
 
-function RoomForm({ formData, setFormData, properties, roomTypes }: RoomFormProps) {
+function RoomForm({ formData, setFormData, properties, roomTypes, hideNumberFields = false }: RoomFormProps) {
   const { formatCurrency } = useCurrency();
   const t = useTranslations('pms');
   const selectedProperty = properties.find(p => p.id === formData.propertyId);
@@ -1788,6 +1790,7 @@ function RoomForm({ formData, setFormData, properties, roomTypes }: RoomFormProp
         </div>
       </div>
 
+      {!hideNumberFields && (
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="number">Room Number *</Label>
@@ -1808,6 +1811,7 @@ function RoomForm({ formData, setFormData, properties, roomTypes }: RoomFormProp
           />
         </div>
       </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
