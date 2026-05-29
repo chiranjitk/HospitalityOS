@@ -339,9 +339,10 @@ post-auth {
                 &Pool-Name := "%{sql:SELECT fn_get_pool_attr('%{User-Name}', 'pool_name')}"
         }
 
-        #  StaySuite: MikroTik FUP rate limit via PostgreSQL function
+        #  StaySuite: Cryptsk FUP rate limit via PostgreSQL function
+        #  Cryptsk-Rate-Limit uses the same "D/U" format as MikroTik for compatibility
         update reply {
-                Mikrotik-Rate-Limit := "%{sql:SELECT fn_get_mikrotik_rate_limit('%{User-Name}')}"
+                Cryptsk-Rate-Limit := "%{sql:SELECT fn_get_mikrotik_rate_limit('%{User-Name}')}"
         }
 
         #

@@ -784,12 +784,13 @@ cat > "$POST_AUTH_PATCH" << 'PAEOF'
         }
 
         # -- StaySuite: FUP Switch-Over Bandwidth Override ----------------------
-        # Sets BOTH Mikrotik-Rate-Limit AND Cryptsk-Rate-Limit for dual-mode.
+        # Sets Cryptsk-Rate-Limit via PostgreSQL function.
+        # In gateway/multimode, Cryptsk IS the NAS — only Cryptsk VSA is needed.
+        # For external NAS (MikroTik/Cisco), per-user radreply attrs + CoA handle FUP.
         update control {
             &Tmp-String-2 := "%{sql:SELECT fn_get_mikrotik_rate_limit('%{User-Name}')}"
         }
         update reply {
-            &Mikrotik-Rate-Limit := "%{control:Tmp-String-2}"
             &Cryptsk-Rate-Limit := "%{control:Tmp-String-2}"
         }
 
