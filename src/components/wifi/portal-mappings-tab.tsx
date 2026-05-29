@@ -223,15 +223,25 @@ export default function PortalMappingsTab() {
   // Primary match: ipPoolId (direct FK, most reliable)
   // Fallback match: subnet string comparison (for legacy mappings without ipPoolId)
 
+  // ── Join Pools + Mappings ──
+  // Each pool can only have ONE active mapping. When creating a new mapping,
+  // the server auto-deletes any existing mapping for the same pool.
+  // If somehow duplicates exist (legacy bug), show the most recently updated one.
   const joined: PoolWithMapping[] = pools.map(pool => {
-    const mapping = mappings.find(m => {
+    const poolMappings = mappings.filter(m => {
       // Primary: direct ipPoolId match (created by updated UI)
       if (m.ipPoolId && m.ipPoolId === pool.id) return true;
       // Fallback: subnet match (for legacy mappings created before ipPoolId was added)
       if (m.subnet && pool.subnet &&
           m.subnet.replace(/\/32$/, '') === pool.subnet.replace(/\/32$/, '')) return true;
       return false;
-    }) || null;
+    });
+    // Pick the most recently created/updated mapping if duplicates exist
+    const mapping = poolMappings.sort((a, b) => {
+      // Prefer enabled over disabled
+      if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+      return 0; // keep DB order (already sorted by priority DESC, createdAt DESC)
+    })[0] || null;
     return { pool, mapping };
   });
 
@@ -315,7 +325,22 @@ export default function PortalMappingsTab() {
       };
 
       if (editingMapping) {
-        // Update existing mapping
+        // ── Update existing mapping ──
+        // If the portal changed, delete all other mappings for this pool first.
+        const existingMapping = mappings.find(m => m.id === editingMapping.id);
+        if (existingMapping && existingMapping.portalId !== form.portalId && editingPool) {
+          // Portal changed — delete ALL existing mappings for this pool, then create fresh
+          const ghostMappings = mappings.filter(m => {
+            if (m.id === editingMapping.id) return false;
+            if (m.ipPoolId && m.ipPoolId === editingPool.id) return true;
+            if (m.subnet && editingPool.subnet &&
+                m.subnet.replace(/\/32$/, '') === editingPool.subnet.replace(/\/32$/, '')) return true;
+            return false;
+          });
+          for (const ghost of ghostMappings) {
+            await fetch(`/api/wifi/portal/mappings/${ghost.id}`, { method: 'DELETE' });
+          }
+        }
         const { propertyId: _, portalId: __, ipPoolId: ___, subnet: ____, ...updatePayload } = payload;
         res = await fetch(`/api/wifi/portal/mappings/${editingMapping.id}`, {
           method: 'PUT',
@@ -323,7 +348,22 @@ export default function PortalMappingsTab() {
           body: JSON.stringify(updatePayload),
         });
       } else {
-        // Create new mapping
+        // ── Create new mapping ──
+        // Auto-delete any existing mappings for this pool to prevent duplicates.
+        if (editingPool) {
+          const existingForPool = mappings.filter(m => {
+            if (m.ipPoolId && m.ipPoolId === editingPool.id) return true;
+            if (m.subnet && editingPool.subnet &&
+                m.subnet.replace(/\/32$/, '') === editingPool.subnet.replace(/\/32$/, '')) return true;
+            return false;
+          });
+          if (existingForPool.length > 0) {
+            console.log(`[PoolMappings] Auto-cleaning ${existingForPool.length} old mapping(s) for pool ${editingPool.id}`);
+            for (const old of existingForPool) {
+              await fetch(`/api/wifi/portal/mappings/${old.id}`, { method: 'DELETE' });
+            }
+          }
+        }
         res = await fetch('/api/wifi/portal/mappings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -772,32 +812,23 @@ export default function PortalMappingsTab() {
             {/* Portal Instance Select */}
             <div className="space-y-2">
               <Label>Portal Instance *</Label>
-              {editingMapping ? (
-                <Input
-                  value={portals.find(p => p.id === form.portalId)?.name || 'Assigned Portal'}
-                  disabled
-                  className="bg-muted"
-                />
-              ) : (
-                <Select value={form.portalId} onValueChange={(v) => setForm(prev => ({ ...prev, portalId: v }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a portal instance" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {portals.length === 0 ? (
-                      <SelectItem value="_none" disabled>No portal instances available</SelectItem>
-                    ) : (
-                      portals.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              )}
+              <Select value={form.portalId} onValueChange={(v) => setForm(prev => ({ ...prev, portalId: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a portal instance" />
+                </SelectTrigger>
+                <SelectContent>
+                  {portals.length === 0 ? (
+                    <SelectItem value="_none" disabled>No portal instances available</SelectItem>
+                  ) : (
+                    portals.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
               <p className="text-[10px] text-muted-foreground">
-                {editingMapping
-                  ? 'Portal cannot be changed after creation'
-                  : 'The captive portal to serve for clients in this pool'}
+                The captive portal to serve for clients in this pool.
+                {editingMapping && ' Changing the portal will replace the existing mapping.'}
               </p>
             </div>
 
@@ -813,29 +844,17 @@ export default function PortalMappingsTab() {
               <p className="text-[10px] text-muted-foreground">WiFi network name (optional)</p>
             </div>
 
-            {/* VLAN + Priority Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>VLAN ID</Label>
-                <Input
-                  type="number"
-                  value={form.vlanId}
-                  onChange={(e) => setForm(prev => ({ ...prev, vlanId: e.target.value }))}
-                  placeholder="e.g. 100"
-                  className="font-mono"
-                />
-                <p className="text-[10px] text-muted-foreground">VLAN tag (optional)</p>
-              </div>
-              <div className="space-y-2">
-                <Label>Priority</Label>
-                <Input
-                  type="number"
-                  value={form.priority}
-                  onChange={(e) => setForm(prev => ({ ...prev, priority: parseInt(e.target.value) || 0 }))}
-                  placeholder="0"
-                />
-                <p className="text-[10px] text-muted-foreground">Higher = matched first</p>
-              </div>
+            {/* VLAN ID */}
+            <div className="space-y-2">
+              <Label>VLAN ID</Label>
+              <Input
+                type="number"
+                value={form.vlanId}
+                onChange={(e) => setForm(prev => ({ ...prev, vlanId: e.target.value }))}
+                placeholder="e.g. 100"
+                className="font-mono"
+              />
+              <p className="text-[10px] text-muted-foreground">VLAN tag (optional)</p>
             </div>
           </div>
           <DialogFooter>

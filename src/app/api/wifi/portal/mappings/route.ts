@@ -139,26 +139,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Auto-disable existing mappings for the same IP pool ──
-    // When a new mapping is created with an ipPoolId, any previously enabled mapping
-    // for the same pool is automatically disabled to prevent resolve-zone ambiguity.
-    // This ensures only one portal is active per IP pool at any time.
+    // ── Auto-DELETE existing mappings for the same IP pool ──
+    // When a new mapping is created with an ipPoolId, any previously existing mapping
+    // for the same pool is automatically DELETED to prevent resolve-zone ambiguity.
+    // Rule: 1 IP Pool = 1 Portal mapping (no duplicates, no ghost mappings).
     if (ipPoolId) {
       const existingMappings = await db.portalMapping.findMany({
         where: {
           ipPoolId,
-          enabled: true,
           tenantId,
-          id: { not: undefined }, // will filter in query
         },
       });
       if (existingMappings.length > 0) {
-        console.log(`[PortalMapping] Auto-disabling ${existingMappings.length} existing mapping(s) for pool ${ipPoolId} (new mapping for portal ${portalId})`);
-        await db.portalMapping.updateMany({
+        console.log(`[PortalMapping] Auto-deleting ${existingMappings.length} existing mapping(s) for pool ${ipPoolId} (new mapping for portal ${portalId})`);
+        await db.portalMapping.deleteMany({
           where: {
             id: { in: existingMappings.map(m => m.id) },
           },
-          data: { enabled: false },
         });
       }
     }
