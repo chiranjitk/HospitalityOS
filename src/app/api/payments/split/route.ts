@@ -2,7 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { auditLogService } from '@/lib/services/audit-service';
+import { evaluateTransaction } from '@/lib/fraud-detection';
 import crypto from 'crypto';
+
+// ── Split Payment Fraud Detection Thresholds ───────────────────────────
+// Configurable limits for split-payment-specific fraud detection.
+// These guard against abuse patterns unique to split payments (e.g., structuring
+// many small amounts to evade per-transaction limits).
+
+/** Maximum allowed amount for any single segment in a split payment */
+const SPLIT_MAX_INDIVIDUAL_AMOUNT = 10_000;
+
+/** Maximum number of payment segments allowed in a single split */
+const SPLIT_MAX_COUNT = 10;
+
+/** If a split has ≥ this many segments, check for structuring */
+const SPLIT_STRUCTURING_MIN_COUNT = 5;
+
+/** Per-segment amount threshold for structuring detection */
+const SPLIT_STRUCTURING_MAX_AMOUNT = 200;
 
 // Generate a transaction ID
 function generateTransactionId(): string {
@@ -101,17 +119,97 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: Add fraud detection check for split payments. Split payments across multiple
-    // methods can be used to circumvent per-method limits. Consider calling
-    // evaluateTransaction() from @/lib/fraud-detection before processing, similar to
-    // the single payment flow in /api/payments.
-    // H-19: Fraud detection is intentionally skipped here — this is a known gap.
-    // Split payments across multiple methods can be used to circumvent per-method limits
-    // and should be evaluated before processing.
-    console.warn(
-      `[Split Payment] H-19: Fraud detection not implemented for split payments. ` +
-      `folioId=${folioId}, splitCount=${splitPayments.length}, totalAmount=${totalSplitAmount}`
-    );
+    // ── Fraud Detection for Split Payments (H-19 fix) ────────────────────
+    // Split payments are a higher-risk vector because they can circumvent
+    // per-method limits and per-transaction caps. We run both split-specific
+    // structural checks and the standard fraud detection engine on every
+    // individual segment. If ANY check fails, the entire split is rejected.
+
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0].trim()
+      || request.headers.get('x-real-ip')?.trim()
+      || undefined;
+    const guestId = folio.booking?.primaryGuest?.id;
+
+    // 1. Excessive split count — more than SPLIT_MAX_COUNT segments is suspicious
+    if (splitPayments.length > SPLIT_MAX_COUNT) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'FRAUD_DETECTED',
+            message: `Split payment rejected: too many payment segments (${splitPayments.length}, maximum ${SPLIT_MAX_COUNT}). This may indicate structuring.`,
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    // 2. Per-segment amount cap — no single segment may exceed the threshold
+    for (const p of splitPayments) {
+      if (p.amount > SPLIT_MAX_INDIVIDUAL_AMOUNT) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'FRAUD_DETECTED',
+              message: `Split payment rejected: individual segment of $${p.amount.toFixed(2)} exceeds the per-segment limit of $${SPLIT_MAX_INDIVIDUAL_AMOUNT.toLocaleString()}.`,
+            },
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    // 3. Structuring detection — many small equal/near-equal amounts to evade caps
+    if (splitPayments.length >= SPLIT_STRUCTURING_MIN_COUNT) {
+      const allSmall = splitPayments.every((p: { amount: number }) => p.amount <= SPLIT_STRUCTURING_MAX_AMOUNT);
+      if (allSmall) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'FRAUD_DETECTED',
+              message: 'Split payment rejected: unusual pattern of many small-amount segments detected. This is consistent with structuring to avoid transaction limits.',
+            },
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    // 4. Per-segment fraud engine evaluation — reuse the same evaluateTransaction()
+    //    that the single-payment route uses. If any segment triggers a block or
+    //    high risk score, reject the entire split.
+    for (const p of splitPayments) {
+      const fraudResult = await evaluateTransaction({
+        tenantId: user.tenantId,
+        amount: p.amount,
+        currency: folio.currency || 'USD',
+        userId: guestId || user.id,
+        ip: clientIp,
+        paymentMethod: p.method,
+      });
+
+      if (fraudResult.action === 'block' || fraudResult.riskScore >= 70) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'FRAUD_DETECTED',
+              message: 'Split payment rejected: fraud detection triggered on an individual payment segment.',
+            },
+            fraudDetails: {
+              riskScore: fraudResult.riskScore,
+              alerts: fraudResult.alerts,
+              triggeredMethod: p.method,
+              triggeredAmount: p.amount,
+              splitCount: splitPayments.length,
+            },
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     // Process all payments in a transaction
     const createdPayments = await db.$transaction(async (tx) => {

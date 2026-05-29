@@ -73,7 +73,7 @@ const MANGLE_TABLE_CHECK_TTL = 60_000; // Re-detect every 60 seconds
  *
  * The result is cached for MANGLE_TABLE_CHECK_TTL to avoid repeated exec calls.
  */
-function getMangleTableName(): string {
+export function getMangleTableName(): string {
   const now = Date.now();
   if (_mangleTableName !== null && (now - _mangleTableCheckedAt) < MANGLE_TABLE_CHECK_TTL) {
     return _mangleTableName;

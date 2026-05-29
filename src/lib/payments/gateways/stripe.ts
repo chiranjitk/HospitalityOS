@@ -24,6 +24,7 @@ interface StripePaymentIntent {
   amount: number;
   currency: string;
   metadata: Record<string, string>;
+  client_secret?: string;
   charges: {
     data: Array<{
       id: string;
@@ -183,6 +184,7 @@ export class StripeGateway implements PaymentGateway {
         processedAt: new Date(),
         metadata: {
           stripeChargeId: charge?.id || '',
+          client_secret: intent.client_secret || '',
           processingTimeMs: processingTime.toString(),
         },
       };

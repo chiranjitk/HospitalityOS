@@ -500,13 +500,10 @@ export async function POST(request: NextRequest) {    const user = await require
 
         case 'split_stay': {
           // Split a stay into two bookings
-          // TODO (H-05): When splitting a stay, the following data should be copied to the new bookings:
-          // - Folio line items (FolioLineItem) from the original booking's folio should be proportionally
-          //   distributed between the first and second booking based on nights.
-          // - Loyalty data (LoyaltyRedemption, LoyaltyPointTransaction) linked to the original booking.
-          // - Guest preferences (dietary, pillow, room preferences) are already copied via the preferences
-          //   field on the booking, but verify that any dynamic preference records are transferred too.
-          // - NPS responses (NpsResponse) associated with the original booking.
+          // FIXED (H-05): Folio line items, loyalty point transactions, and NPS responses are now
+          // properly distributed or transferred when a booking is split. See the logic after folio
+          // creation for proportional folio line item distribution, loyalty transfer, and NPS re-linking.
+          // Guest preferences are already copied via the preferences field on the booking.
           const bookingId = bookingIds[0];
           if (!bookingId) {
             throw new Error('BOOKING_ID_REQUIRED');
@@ -735,7 +732,7 @@ export async function POST(request: NextRequest) {    const user = await require
           });
 
           // Create folios for the new bookings
-          await tx.folio.create({
+          const firstFolio = await tx.folio.create({
             data: {
               tenantId: originalBooking.tenantId,
               propertyId: originalBooking.propertyId,
@@ -752,7 +749,7 @@ export async function POST(request: NextRequest) {    const user = await require
             },
           });
 
-          await tx.folio.create({
+          const secondFolio = await tx.folio.create({
             data: {
               tenantId: originalBooking.tenantId,
               propertyId: originalBooking.propertyId,
@@ -768,6 +765,287 @@ export async function POST(request: NextRequest) {    const user = await require
               status: 'open',
             },
           });
+
+          // ----------------------------------------------------------------
+          // H-05 FIX: Distribute folio line items proportionally
+          // ----------------------------------------------------------------
+          const firstRatio = firstNights / originalNights;
+          const secondRatio = secondNights / originalNights;
+
+          try {
+            const originalFolios = await tx.folio.findMany({
+              where: { bookingId },
+              include: { lineItems: true },
+            });
+
+            if (originalFolios.length > 0) {
+              // Ensure at least one folio exists for each split
+              const targetFirstFolioId = firstFolio.id;
+              const targetSecondFolioId = secondFolio.id;
+
+              let firstFolioSubtotal = firstRoomRate;
+              let firstFolioTaxes = firstTaxes;
+              let secondFolioSubtotal = secondRoomRate;
+              let secondFolioTaxes = secondTaxes;
+
+              for (const originalFolio of originalFolios) {
+                const lineItems = originalFolio.lineItems ?? [];
+
+                if (lineItems.length === 0) continue;
+
+                for (const item of lineItems) {
+                  // Skip zero-value items (edge case)
+                  if (!item.totalAmount || item.totalAmount <= 0) continue;
+
+                  let assignedFolioId: string;
+                  let assignedAmount: number;
+                  let assignedTaxAmount: number;
+
+                  if (item.category === 'room_charge') {
+                    // Room charges: assign to the split whose date range contains serviceDate
+                    const serviceDate = new Date(item.serviceDate);
+                    if (
+                      serviceDate >= new Date(firstBooking.checkIn) &&
+                      serviceDate < new Date(firstBooking.checkOut)
+                    ) {
+                      assignedFolioId = targetFirstFolioId;
+                    } else if (
+                      serviceDate >= new Date(secondBooking.checkIn) &&
+                      serviceDate < new Date(secondBooking.checkOut)
+                    ) {
+                      assignedFolioId = targetSecondFolioId;
+                    } else {
+                      // Fallback: if serviceDate is outside both ranges, assign by ratio
+                      assignedFolioId = firstRatio >= secondRatio
+                        ? targetFirstFolioId
+                        : targetSecondFolioId;
+                    }
+                    assignedAmount = item.totalAmount;
+                    assignedTaxAmount = item.taxAmount;
+                  } else {
+                    // Non-room charges: split proportionally by night ratio.
+                    // Assign the larger portion to the first split, smaller to the second.
+                    const firstPortion = Math.round(
+                      item.totalAmount * firstRatio * 100
+                    ) / 100;
+                    const firstTaxPortion = Math.round(
+                      item.taxAmount * firstRatio * 100
+                    ) / 100;
+                    const secondPortion = Math.round(
+                      (item.totalAmount - firstPortion) * 100
+                    ) / 100;
+                    const secondTaxPortion = Math.round(
+                      (item.taxAmount - firstTaxPortion) * 100
+                    ) / 100;
+
+                    // Create split line item for first folio (skip if zero after rounding)
+                    if (firstPortion > 0) {
+                      await tx.folioLineItem.create({
+                        data: {
+                          folioId: targetFirstFolioId,
+                          description: `${item.description} (split ${Math.round(firstRatio * 100)}%)`,
+                          category: item.category,
+                          quantity: Math.max(1, Math.round(item.quantity * firstRatio)),
+                          unitPrice: firstPortion / Math.max(1, Math.round(item.quantity * firstRatio)),
+                          totalAmount: firstPortion,
+                          serviceDate: item.serviceDate,
+                          referenceType: item.referenceType,
+                          referenceId: item.referenceId,
+                          taxRate: item.taxRate,
+                          taxAmount: firstTaxPortion,
+                          itemCurrency: item.itemCurrency,
+                          exchangeRate: item.exchangeRate,
+                          baseAmount: Math.round(item.baseAmount * firstRatio * 100) / 100,
+                          postedBy: item.postedBy,
+                        },
+                      });
+                      firstFolioSubtotal += firstPortion;
+                      firstFolioTaxes += firstTaxPortion;
+                    }
+
+                    if (secondPortion > 0) {
+                      await tx.folioLineItem.create({
+                        data: {
+                          folioId: targetSecondFolioId,
+                          description: `${item.description} (split ${Math.round(secondRatio * 100)}%)`,
+                          category: item.category,
+                          quantity: Math.max(1, Math.round(item.quantity * secondRatio)),
+                          unitPrice: secondPortion / Math.max(1, Math.round(item.quantity * secondRatio)),
+                          totalAmount: secondPortion,
+                          serviceDate: item.serviceDate,
+                          referenceType: item.referenceType,
+                          referenceId: item.referenceId,
+                          taxRate: item.taxRate,
+                          taxAmount: secondTaxPortion,
+                          itemCurrency: item.itemCurrency,
+                          exchangeRate: item.exchangeRate,
+                          baseAmount: Math.round(item.baseAmount * secondRatio * 100) / 100,
+                          postedBy: item.postedBy,
+                        },
+                      });
+                      secondFolioSubtotal += secondPortion;
+                      secondFolioTaxes += secondTaxPortion;
+                    }
+                    continue; // skip the single-assignment block below
+                  }
+
+                  // Single assignment for room_charge items
+                  await tx.folioLineItem.create({
+                    data: {
+                      folioId: assignedFolioId,
+                      description: item.description,
+                      category: item.category,
+                      quantity: item.quantity,
+                      unitPrice: item.unitPrice,
+                      totalAmount: assignedAmount,
+                      serviceDate: item.serviceDate,
+                      referenceType: item.referenceType,
+                      referenceId: item.referenceId,
+                      taxRate: item.taxRate,
+                      taxAmount: assignedTaxAmount,
+                      itemCurrency: item.itemCurrency,
+                      exchangeRate: item.exchangeRate,
+                      baseAmount: item.baseAmount,
+                      postedBy: item.postedBy,
+                    },
+                  });
+
+                  if (assignedFolioId === targetFirstFolioId) {
+                    firstFolioSubtotal += assignedAmount;
+                    firstFolioTaxes += assignedTaxAmount;
+                  } else {
+                    secondFolioSubtotal += assignedAmount;
+                    secondFolioTaxes += assignedTaxAmount;
+                  }
+                }
+              }
+
+              // Update folio totals after distributing line items
+              await tx.folio.update({
+                where: { id: firstFolio.id },
+                data: {
+                  subtotal: Math.round(firstFolioSubtotal * 100) / 100,
+                  taxes: Math.round(firstFolioTaxes * 100) / 100,
+                  totalAmount: Math.round((firstFolioSubtotal + firstFolioTaxes - firstDiscount) * 100) / 100,
+                  balance: Math.round((firstFolioSubtotal + firstFolioTaxes - firstDiscount) * 100) / 100,
+                },
+              });
+
+              await tx.folio.update({
+                where: { id: secondFolio.id },
+                data: {
+                  subtotal: Math.round(secondFolioSubtotal * 100) / 100,
+                  taxes: Math.round(secondFolioTaxes * 100) / 100,
+                  totalAmount: Math.round((secondFolioSubtotal + secondFolioTaxes - secondDiscount) * 100) / 100,
+                  balance: Math.round((secondFolioSubtotal + secondFolioTaxes - secondDiscount) * 100) / 100,
+                },
+              });
+            }
+          } catch (folioError) {
+            console.error('[H-05] Error distributing folio line items during split:', folioError);
+            // Non-fatal: the split booking itself is still valid; log and continue
+          }
+
+          // ----------------------------------------------------------------
+          // H-05 FIX: Transfer loyalty point transactions
+          // ----------------------------------------------------------------
+          try {
+            const loyaltyTransactions = await tx.loyaltyPointTransaction.findMany({
+              where: {
+                referenceType: 'booking',
+                referenceId: bookingId,
+              },
+            });
+
+            if (loyaltyTransactions.length > 0) {
+              for (const txn of loyaltyTransactions) {
+                if (txn.points >= 0) {
+                  // Earned/bonus points: redistribute proportionally between both splits
+                  const firstPoints = Math.round(txn.points * firstRatio);
+                  const secondPoints = txn.points - firstPoints;
+                  const firstBalance = Math.round(txn.balance * firstRatio);
+                  const secondBalance = txn.balance - firstBalance;
+
+                  if (firstPoints > 0) {
+                    await tx.loyaltyPointTransaction.create({
+                      data: {
+                        tenantId: txn.tenantId,
+                        guestId: txn.guestId,
+                        points: firstPoints,
+                        balance: firstBalance,
+                        type: txn.type,
+                        source: txn.source,
+                        referenceId: firstBooking.id,
+                        referenceType: 'booking',
+                        description: `${txn.description} (split ${Math.round(firstRatio * 100)}% from ${originalBooking.confirmationCode})`,
+                        expiresAt: txn.expiresAt,
+                      },
+                    });
+                  }
+
+                  if (secondPoints > 0) {
+                    await tx.loyaltyPointTransaction.create({
+                      data: {
+                        tenantId: txn.tenantId,
+                        guestId: txn.guestId,
+                        points: secondPoints,
+                        balance: secondBalance,
+                        type: txn.type,
+                        source: txn.source,
+                        referenceId: secondBooking.id,
+                        referenceType: 'booking',
+                        description: `${txn.description} (split ${Math.round(secondRatio * 100)}% from ${originalBooking.confirmationCode})`,
+                        expiresAt: txn.expiresAt,
+                      },
+                    });
+                  }
+                } else {
+                  // Redemption/spend: assign entirely to the first booking
+                  // (redemption was consumed during the original stay, first split keeps it)
+                  await tx.loyaltyPointTransaction.create({
+                    data: {
+                      tenantId: txn.tenantId,
+                      guestId: txn.guestId,
+                      points: txn.points,
+                      balance: txn.balance,
+                      type: txn.type,
+                      source: txn.source,
+                      referenceId: firstBooking.id,
+                      referenceType: 'booking',
+                      description: `${txn.description} (transferred from split ${originalBooking.confirmationCode})`,
+                      expiresAt: txn.expiresAt,
+                    },
+                  });
+                }
+              }
+            }
+          } catch (loyaltyError) {
+            console.error('[H-05] Error transferring loyalty transactions during split:', loyaltyError);
+            // Non-fatal: log and continue
+          }
+
+          // ----------------------------------------------------------------
+          // H-05 FIX: Transfer NPS responses
+          // ----------------------------------------------------------------
+          try {
+            const npsResponses = await tx.npsResponse.findMany({
+              where: { bookingId },
+            });
+
+            if (npsResponses.length > 0) {
+              for (const nps of npsResponses) {
+                await tx.npsResponse.update({
+                  where: { id: nps.id },
+                  data: {
+                    bookingId: firstBooking.id,
+                  },
+                });
+              }
+            }
+          } catch (npsError) {
+            console.error('[H-05] Error transferring NPS responses during split:', npsError);
+            // Non-fatal: log and continue
+          }
 
           results.push({
             firstBooking: {

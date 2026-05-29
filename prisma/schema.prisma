@@ -1113,6 +1113,8 @@ model ChannelDeadLetterQueue {
   payload           String   @default("{}")
   error             String
   attemptCount      Int      @default(0)
+  nextRetryAt       DateTime? @db.Timestamptz
+  status            String   @default("pending") // pending, resolved, permanently_failed
   originalCreatedAt DateTime @db.Timestamptz
   createdAt         DateTime @default(now()) @db.Timestamptz
   updatedAt         DateTime @updatedAt @db.Timestamptz
@@ -1120,6 +1122,8 @@ model ChannelDeadLetterQueue {
 
   @@index([tenantId])
   @@index([channelCode])
+  @@index([status])
+  @@index([nextRetryAt])
   @@index([createdAt])
 }
 
@@ -2866,6 +2870,7 @@ model GroupBooking {
   createdAt        DateTime  @default(now()) @db.Timestamptz
   updatedAt        DateTime  @updatedAt @db.Timestamptz
   bookings         Booking[]
+  groupFolios      GroupFolio[] // @deprecated — model removed, kept for forward-compat
 
   @@index([tenantId])
   @@index([propertyId])
@@ -5016,6 +5021,7 @@ model Property {
   heatmapReadings           WiFiHeatmapReading[]
   wifiFloorPlans             WiFiFloorPlan[]
   userAssignments           UserProperty[]
+  groupFolios               GroupFolio[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -7242,6 +7248,7 @@ model Tenant {
   corporateAccounts         CorporateAccount[]
   npsSurveys                NpsSurvey[]
   npsResponses              NpsResponse[]
+  npsSurveyDeliveries       NpsSurveyDelivery[]
   onlineReviews             OnlineReview[]
   automationTemplates       AutomationTemplate[]
   cancellationPredictions   CancellationPredictionLog[]
@@ -7274,6 +7281,7 @@ model Tenant {
   systemAlertRules           SystemAlertRule[]
   systemAlertEvents          SystemAlertEvent[]
   roomConnections           RoomConnection[]
+  groupFolios                GroupFolio[]
 }
 
 // ============================================================
@@ -12523,6 +12531,7 @@ model NpsSurvey {
   createdAt       DateTime  @default(now()) @db.Timestamptz
   updatedAt       DateTime  @updatedAt @db.Timestamptz
   responses       NpsResponse[]
+  deliveries      NpsSurveyDelivery[]
   tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
@@ -12551,6 +12560,33 @@ model NpsResponse {
   @@index([guestId])
   @@index([bookingId])
   @@index([category])
+}
+
+/// NpsSurveyDelivery - Tracks survey delivery per guest across channels
+model NpsSurveyDelivery {
+  id              String    @id @default(uuid()) @db.Uuid
+  surveyId        String    @db.Uuid
+  tenantId        String    @db.Uuid
+  guestId         String    @db.Uuid
+  bookingId       String?   @db.Uuid
+  channel         String    @default("in_app") // email, sms, in_app
+  token           String    @unique // unique token for secure survey access without login
+  status          String    @default("pending") // pending, sent, delivered, failed, bounced
+  sentAt          DateTime? @db.Timestamptz
+  deliveredAt     DateTime? @db.Timestamptz
+  errorMessage    String?
+  respondedAt     DateTime? @db.Timestamptz
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  survey          NpsSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([surveyId])
+  @@index([tenantId])
+  @@index([guestId])
+  @@index([token])
+  @@index([channel])
+  @@index([status])
+  @@unique([surveyId, guestId]) // one delivery record per guest per survey
 }
 
 /// OnlineReview - Guest review management and response tracking
@@ -13159,4 +13195,77 @@ model LeaveCarryForward {
   @@index([tenantId])
   @@index([userId])
   @@index([toYear])
+}
+
+// ============================================================
+// GROUP FOLIO MODULE - Consolidated folio for group bookings (H-02)
+// ============================================================
+
+/// GroupFolio - Consolidated folio aggregating all child booking folios for a group booking
+model GroupFolio {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String   @db.Uuid
+  groupBookingId  String   @db.Uuid
+  organizerGuestId String? @db.Uuid
+  status          String   @default("open") // open, partially_paid, paid, closed
+  subtotal        Float    @default(0)
+  taxes           Float    @default(0)
+  totalAmount     Float    @default(0)
+  paidAmount      Float    @default(0)
+  balance         Float    @default(0)
+  currency        String   @default("USD")
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  closedAt        DateTime? @db.Timestamptz
+  groupBooking    GroupBooking @relation(fields: [groupBookingId], references: [id], onDelete: Cascade)
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property        Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  folioItems      GroupFolioItem[]
+  payments        GroupFolioPayment[]
+
+  @@index([tenantId])
+  @@index([groupBookingId])
+}
+
+/// GroupFolioItem - Line items in the group folio (supplementary charges beyond per-room folios)
+model GroupFolioItem {
+  id            String   @id @default(uuid()) @db.Uuid
+  groupFolioId  String   @db.Uuid
+  description   String
+  category      String   @default("miscellaneous") // room_charge, food_beverage, function, miscellaneous, adjustment
+  quantity      Int      @default(1)
+  unitPrice     Float    @default(0)
+  totalAmount   Float    @default(0)
+  taxRate       Float    @default(0)
+  taxAmount     Float    @default(0)
+  serviceDate   DateTime @default(now()) @db.Timestamptz
+  referenceType String?  // booking_id, event_id
+  referenceId   String?  @db.Uuid
+  postedBy      String?
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  updatedAt     DateTime @updatedAt @db.Timestamptz
+  groupFolio    GroupFolio @relation(fields: [groupFolioId], references: [id], onDelete: Cascade)
+
+  @@index([groupFolioId])
+}
+
+/// GroupFolioPayment - Payments applied to the group folio
+model GroupFolioPayment {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  propertyId      String   @db.Uuid
+  groupFolioId    String   @db.Uuid
+  amount          Float    @default(0)
+  method          String   @default("bank_transfer") // cash, credit_card, bank_transfer, corporate, complementary
+  status          String   @default("completed") // pending, completed, failed, refunded
+  reference       String?
+  description     String?
+  processedBy     String?  @db.Uuid
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+  groupFolio      GroupFolio @relation(fields: [groupFolioId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([groupFolioId])
 }

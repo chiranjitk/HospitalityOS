@@ -6,6 +6,7 @@
  */
 
 import { db } from '@/lib/db';
+import { performImmediateDisconnect } from '@/lib/wifi/utils/immediate-disconnect';
 
 // Types
 export interface DataLimitCheck {
@@ -241,6 +242,77 @@ export async function enforceDataLimit(sessionId: string): Promise<{
       `;
     }
   });
+
+  // ═══════════════════════════════════════════════════════════
+  // CRITICAL-15: Immediate Network-Level Disconnect
+  // ═══════════════════════════════════════════════════════════
+  // DB enforcement is done above. Now perform belt-and-suspenders
+  // network disconnect so the user's traffic is cut IMMEDIATELY
+  // instead of waiting up to 60 seconds for Session-Timeout=1.
+  //
+  // Two methods run in parallel:
+  //   1. RADIUS Disconnect-Message (DM) → targets external NAS
+  //   2. nftables removal               → cuts local gateway access
+  //
+  // Errors are logged but do NOT block — the DB enforcement is
+  // the primary mechanism. Network disconnect is the safety net.
+  // ═══════════════════════════════════════════════════════════
+  try {
+    // Look up the user's active radacct session to get IP and NAS info
+    // (the one we just closed, or the last known one)
+    const activeSession = await db.$queryRaw<Array<{
+      framedipaddress: string;
+      nasipaddress: string;
+      nasportid: string | null;
+    }>>`
+      SELECT framedipaddress, nasipaddress, nasportid
+      FROM radacct
+      WHERE username = ${session.username || undefined}
+      ORDER BY radacctid DESC
+      LIMIT 1
+    `;
+
+    if (activeSession.length > 0) {
+      const radSession = activeSession[0];
+      const userIp = radSession.framedipaddress;
+      const nasIp = radSession.nasipaddress || '127.0.0.1';
+
+      if (userIp && userIp !== '' && userIp !== '0.0.0.0') {
+        const disconnectResults = await performImmediateDisconnect(
+          session.username || '',
+          userIp,
+          nasIp,
+          radSession.nasportid,
+        );
+
+        const dmOk = disconnectResults.find(r => r.method === 'radclient-dm')?.success;
+        const nftOk = disconnectResults.find(r => r.method === 'nftables-removal')?.success;
+
+        console.log(
+          `[DataLimit] CRITICAL-15 immediate disconnect for ${session.username || 'unknown'} ` +
+          `at ${userIp}: DM=${dmOk ? 'OK' : 'FAIL'}, nftables=${nftOk ? 'OK' : 'FAIL'}`
+        );
+      } else {
+        console.warn(
+          `[DataLimit] CRITICAL-15: No valid IP for immediate disconnect ` +
+          `(username=${session.username || 'unknown'}, ip=${userIp})`
+        );
+      }
+    } else {
+      console.warn(
+        `[DataLimit] CRITICAL-15: No radacct record found for immediate disconnect ` +
+        `(username=${session.username || 'unknown'})`
+      );
+    }
+  } catch (disconnectError) {
+    // Network disconnect failed — this is non-fatal
+    // DB enforcement already happened, user will be disconnected
+    // on the next session engine cycle or Session-Timeout expiry
+    console.error(
+      `[DataLimit] CRITICAL-15 immediate disconnect error (non-fatal): ` +
+      `${disconnectError instanceof Error ? disconnectError.message : String(disconnectError)}`
+    );
+  }
 
   return {
     terminated: true,

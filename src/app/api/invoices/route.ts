@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { logBillingEvent } from '@/lib/services/audit-service';
@@ -62,26 +63,89 @@ export async function GET(request: NextRequest) {
       return { ...inv, lineItems };
     });
 
-    // Calculate stats
-    // H-20: Limit the stats query to prevent unbounded fetch on tenants with many invoices.
-    // We only need aggregated counts/totals, not individual invoice data.
-    const allInvoices = await db.invoice.findMany({
-      where: { tenantId: user.tenantId },
-      select: { status: true, totalAmount: true, taxes: true, subtotal: true },
-      take: 10000,
+    // H-20 FIX: Use aggregate and groupBy queries instead of loading individual rows.
+    // This eliminates unbounded row-fetching (previously capped at 10K) for stats computation.
+    const statsWhere = { tenantId: user.tenantId };
+
+    // 1. Overall aggregate: total count, totalAmount, totalTax
+    const overall = await db.invoice.aggregate({
+      where: statsWhere,
+      _count: true,
+      _sum: { totalAmount: true, taxes: true },
     });
 
+    // 2. Status breakdown via groupBy
+    const statusGroups = await db.invoice.groupBy({
+      by: ['status'],
+      where: statsWhere,
+      _count: true,
+      _sum: { totalAmount: true },
+    });
+
+    // 3. Paid amount aggregate
+    const paidResult = await db.invoice.aggregate({
+      where: { ...statsWhere, status: 'paid' },
+      _sum: { totalAmount: true },
+    });
+
+    // 4. Outstanding amount aggregate (status not in ['paid', 'cancelled'])
+    const outstandingResult = await db.invoice.aggregate({
+      where: { ...statsWhere, status: { notIn: ['paid', 'cancelled'] } },
+      _sum: { totalAmount: true },
+    });
+
+    // 5. Monthly trend (last 12 months) via raw query for date truncation
+    const monthlyTrend = await db.$queryRaw<
+      { month: string; count: bigint; totalAmount: number; totalTax: number }[]
+    >(Prisma.sql`
+      SELECT
+        TO_CHAR("createdAt", 'YYYY-MM') as month,
+        COUNT(*) as count,
+        COALESCE(SUM("totalAmount"), 0) as "totalAmount",
+        COALESCE(SUM("taxes"), 0) as "totalTax"
+      FROM "Invoice"
+      WHERE "tenantId" = ${user.tenantId}
+      GROUP BY TO_CHAR("createdAt", 'YYYY-MM')
+      ORDER BY month DESC
+      LIMIT 12
+    `);
+
+    // Build status map from groupBy results
+    const statusMap: Record<string, { count: number; totalAmount: number }> = {};
+    for (const group of statusGroups) {
+      statusMap[group.status] = {
+        count: group._count,
+        totalAmount: group._sum.totalAmount ?? 0,
+      };
+    }
+
+    // Payment status breakdown (paid vs unpaid)
+    const paymentStatusBreakdown = {
+      paid: statusMap['paid']?.count ?? 0,
+      paidAmount: paidResult._sum.totalAmount ?? 0,
+      unpaid: (overall._count ?? 0) - (statusMap['paid']?.count ?? 0) - (statusMap['cancelled']?.count ?? 0),
+      unpaidAmount: outstandingResult._sum.totalAmount ?? 0,
+    };
+
     const stats = {
-      total: allInvoices.length,
-      draft: allInvoices.filter(i => i.status === 'draft').length,
-      issued: allInvoices.filter(i => i.status === 'issued' || i.status === 'sent').length,
-      paid: allInvoices.filter(i => i.status === 'paid').length,
-      overdue: allInvoices.filter(i => i.status === 'overdue').length,
-      cancelled: allInvoices.filter(i => i.status === 'cancelled').length,
-      totalAmount: allInvoices.reduce((sum, i) => sum + i.totalAmount, 0),
-      paidAmount: allInvoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.totalAmount, 0),
-      outstandingAmount: allInvoices.filter(i => !['paid', 'cancelled'].includes(i.status)).reduce((sum, i) => sum + i.totalAmount, 0),
-      totalTax: allInvoices.reduce((sum, i) => sum + (i.taxes || 0), 0),
+      total: overall._count ?? 0,
+      totalAmount: overall._sum.totalAmount ?? 0,
+      totalTax: overall._sum.taxes ?? 0,
+      draft: statusMap['draft']?.count ?? 0,
+      issued: (statusMap['issued']?.count ?? 0) + (statusMap['sent']?.count ?? 0),
+      paid: statusMap['paid']?.count ?? 0,
+      overdue: statusMap['overdue']?.count ?? 0,
+      cancelled: statusMap['cancelled']?.count ?? 0,
+      paidAmount: paidResult._sum.totalAmount ?? 0,
+      outstandingAmount: outstandingResult._sum.totalAmount ?? 0,
+      statusBreakdown: statusMap,
+      paymentStatusBreakdown,
+      monthlyTrend: monthlyTrend.map(row => ({
+        month: row.month,
+        count: Number(row.count),
+        totalAmount: Number(row.totalAmount),
+        totalTax: Number(row.totalTax),
+      })),
     };
 
     return NextResponse.json({
