@@ -35,6 +35,44 @@ const TOKEN_ENDPOINTS: Record<SocialProvider, string> = {
 const DEFAULT_REDIRECT_BASE = '/connect';
 
 /**
+ * Generate Apple Sign-In client_secret JWT.
+ * Apple requires the client_secret to be a signed JWT using the ES256 algorithm,
+ * containing the team ID, key ID, and service ID (client ID).
+ */
+async function generateAppleClientSecret(
+  privateKeyPem: string,
+  teamId: string,
+  keyId: string,
+  clientId: string,
+): Promise<string> {
+  // Use dynamic import to avoid bundling issues with crypto
+  const { createSign } = await import('crypto');
+
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({ alg: 'ES256', kid: keyId, typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    iss: teamId,
+    iat: now,
+    exp: now + 15777000, // ~6 months
+    aud: 'https://appleid.apple.com',
+    sub: clientId,
+  })).toString('base64url');
+
+  const sign = createSign('SHA256');
+  sign.update(`${header}.${payload}`);
+
+  // Handle both PEM with newlines and raw key
+  const key = privateKeyPem.includes('-----')
+    ? privateKeyPem
+    : `-----BEGIN PRIVATE KEY-----\n${privateKeyPem}\n-----END PRIVATE KEY-----`;
+
+  sign.end(key);
+  const signature = sign.sign(key).toString('base64url');
+
+  return `${header}.${payload}.${signature}`;
+}
+
+/**
  * Decode a JWT id_token without verifying the signature.
  * For WiFi captive portal auth, we trust the token was obtained via
  * a direct server-to-server code exchange (not client-supplied), so
@@ -110,6 +148,14 @@ export async function GET(request: NextRequest) {
     }
 
     const providerConfig = oauthConfig[provider] as Record<string, unknown> | undefined;
+
+    // Check if provider is disabled
+    if (providerConfig && providerConfig.enabled === false) {
+      const redirectUrl = new URL(DEFAULT_REDIRECT_BASE, request.url);
+      redirectUrl.searchParams.set('social_error', 'provider_disabled');
+      return NextResponse.redirect(redirectUrl);
+    }
+
     const clientId = (providerConfig?.clientId as string) || (oauthConfig.clientId as string);
     const clientSecret = (providerConfig?.clientSecret as string) || (oauthConfig.clientSecret as string);
 
@@ -135,12 +181,24 @@ export async function GET(request: NextRequest) {
       client_secret: clientSecret,
     });
 
-    // Apple requires client_secret as a JWT, not the raw secret.
-    // For demo/standard flow, we send the secret as-is. Production would
-    // generate an Apple client_secret JWT signed with the private key.
-    if (provider === 'apple') {
-      // Apple expects client_secret to be a signed JWT; for now pass through
-      // and handle errors gracefully
+    // Apple requires client_secret to be a JWT signed with the private key.
+    // Generate it if privateKey, teamId, and keyId are configured.
+    if (provider === 'apple' && providerConfig) {
+      const applePrivateKey = providerConfig.privateKey as string | undefined;
+      const appleTeamId = providerConfig.teamId as string | undefined;
+      const appleKeyId = providerConfig.keyId as string | undefined;
+
+      if (applePrivateKey && appleTeamId && appleKeyId) {
+        try {
+          const jwtSecret = await generateAppleClientSecret(applePrivateKey, appleTeamId, appleKeyId, clientId);
+          tokenBody.set('client_secret', jwtSecret);
+        } catch (jwtErr) {
+          console.error('[Social Callback] Apple JWT generation failed:', jwtErr);
+          const redirectUrl = new URL(DEFAULT_REDIRECT_BASE, request.url);
+          redirectUrl.searchParams.set('social_error', 'apple_jwt_failed');
+          return NextResponse.redirect(redirectUrl);
+        }
+      }
     }
 
     let tokenRes: Response;

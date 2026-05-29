@@ -2854,8 +2854,16 @@ function PortalContent() {
         no_code: 'Social login authorization was cancelled.',
         no_config: 'Social login is not configured.',
         no_credentials: 'Social login credentials are missing.',
+        provider_disabled: 'This social login method is currently disabled.',
         token_exchange_failed: 'Failed to exchange authorization code. Please try again.',
+        token_endpoint_unreachable: 'Could not reach the social provider. Please try again.',
+        token_parse_error: 'Invalid response from social provider.',
+        graph_api_failed: 'Could not retrieve profile from Facebook.',
+        graph_api_error: 'Error retrieving Facebook profile.',
+        id_token_decode_failed: 'Could not read social login identity.',
         no_id_token: 'Failed to get identity from social provider.',
+        no_user_identity: 'Could not identify you from the social provider.',
+        apple_jwt_failed: 'Apple Sign-In configuration error. Please contact support.',
         internal: 'An error occurred during social login. Please try again.',
       };
       setErrorMessage(errorMessages[socialErrorParam] || 'Social login failed. Please try again or use a different method.');

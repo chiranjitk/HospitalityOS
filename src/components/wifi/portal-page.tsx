@@ -3103,6 +3103,11 @@ function AuthMethodsTab() {
   const [selectedMethod, setSelectedMethod] = useState('voucher');
   const [addPriority, setAddPriority] = useState(0);
   const [addLabel, setAddLabel] = useState('');
+  // Social auth config dialog state
+  const [socialConfigOpen, setSocialConfigOpen] = useState(false);
+  const [socialConfigId, setSocialConfigId] = useState('');
+  const [socialConfigLabel, setSocialConfigLabel] = useState('');
+  const [socialConfigSaving, setSocialConfigSaving] = useState(false);
 
   const fetchEntries = useCallback(async () => {
     setLoading(true);
@@ -3172,6 +3177,12 @@ function AuthMethodsTab() {
     return m.label;
   };
 
+  const openSocialConfig = (entry: any) => {
+    setSocialConfigId(entry.id);
+    setSocialConfigLabel(entry.captivePortal?.name || 'Portal');
+    setSocialConfigOpen(true);
+  };
+
   // Group entries by portal
   const grouped = useMemo(() => {
     const map = new Map<string, { portalName: string; methods: any[] }>();
@@ -3237,7 +3248,7 @@ function AuthMethodsTab() {
                   <TableHead className="text-xs">Label</TableHead>
                   <TableHead className="text-xs w-24">Priority</TableHead>
                   <TableHead className="text-xs w-20">Status</TableHead>
-                  <TableHead className="text-xs w-16"></TableHead>
+                  <TableHead className="text-xs w-16">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -3267,9 +3278,16 @@ function AuthMethodsTab() {
                         />
                       </TableCell>
                       <TableCell>
-                        <button onClick={() => deleteEntry(entry.id, getMethodBadge(entry.method))} className="text-muted-foreground hover:text-destructive transition-colors">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          {entry.method === 'social' && (
+                            <button onClick={() => openSocialConfig(entry)} className="text-muted-foreground hover:text-primary transition-colors p-0.5" title="Configure OAuth">
+                              <Settings className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          <button onClick={() => deleteEntry(entry.id, getMethodBadge(entry.method))} className="text-muted-foreground hover:text-destructive transition-colors p-0.5">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -3341,7 +3359,350 @@ function AuthMethodsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Social Auth OAuth Config Dialog */}
+      {socialConfigOpen && socialConfigId && (
+        <SocialAuthConfigDialog
+          authMethodId={socialConfigId}
+          portalName={socialConfigLabel}
+          open={socialConfigOpen}
+          onOpenChange={setSocialConfigOpen}
+          saving={socialConfigSaving}
+          setSaving={setSocialConfigSaving}
+          onSaved={() => { void fetchEntries(); }}
+          toast={toast}
+        />
+      )}
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Social Auth OAuth Configuration Dialog
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function SocialAuthConfigDialog({
+  authMethodId,
+  portalName,
+  open,
+  onOpenChange,
+  saving,
+  setSaving,
+  onSaved,
+  toast,
+}: {
+  authMethodId: string;
+  portalName: string;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  saving: boolean;
+  setSaving: (v: boolean) => void;
+  onSaved: () => void;
+  toast: any;
+}) {
+  const [activeTab, setActiveTab] = useState<'google' | 'facebook' | 'apple'>('google');
+  const [loaded, setLoaded] = useState(false);
+
+  // Per-provider config
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [googleClientId, setGoogleClientId] = useState('');
+  const [googleClientSecret, setGoogleClientSecret] = useState('');
+  const [googleRedirectUri, setGoogleRedirectUri] = useState('');
+
+  const [facebookEnabled, setFacebookEnabled] = useState(false);
+  const [facebookClientId, setFacebookClientId] = useState('');
+  const [facebookClientSecret, setFacebookClientSecret] = useState('');
+  const [facebookRedirectUri, setFacebookRedirectUri] = useState('');
+
+  const [appleEnabled, setAppleEnabled] = useState(false);
+  const [appleClientId, setAppleClientId] = useState('');
+  const [appleTeamId, setAppleTeamId] = useState('');
+  const [appleKeyId, setAppleKeyId] = useState('');
+  const [applePrivateKey, setApplePrivateKey] = useState('');
+  const [appleRedirectUri, setAppleRedirectUri] = useState('');
+
+  // Load existing config
+  useEffect(() => {
+    if (!open || !authMethodId) return;
+    (async () => {
+      const data = await apiFetch<any>(`/api/wifi/portal/auth-methods/${authMethodId}`);
+      if (data) {
+        let cfg: Record<string, any> = {};
+        try { cfg = data.config ? JSON.parse(data.config) : {}; } catch {}
+
+        const g = cfg.google || {};
+        setGoogleEnabled(!!g.enabled);
+        setGoogleClientId(g.clientId || '');
+        setGoogleClientSecret(g.clientSecret || '');
+        setGoogleRedirectUri(g.redirectUri || '');
+
+        const f = cfg.facebook || {};
+        setFacebookEnabled(!!f.enabled);
+        setFacebookClientId(f.clientId || '');
+        setFacebookClientSecret(f.clientSecret || '');
+        setFacebookRedirectUri(f.redirectUri || '');
+
+        const a = cfg.apple || {};
+        setAppleEnabled(!!a.enabled);
+        setAppleClientId(a.clientId || '');
+        setAppleTeamId(a.teamId || '');
+        setAppleKeyId(a.keyId || '');
+        setApplePrivateKey(a.privateKey || '');
+        setAppleRedirectUri(a.redirectUri || '');
+      }
+      setLoaded(true);
+    })();
+  }, [open, authMethodId]);
+
+  const buildConfigJson = () => {
+    const existingCfg: Record<string, any> = {};
+    // Preserve any non-social keys that might be in the config
+    return {
+      ...existingCfg,
+      label: portalName,
+      google: googleEnabled ? { enabled: true, clientId: googleClientId, clientSecret: googleClientSecret, redirectUri: googleRedirectUri } : { enabled: false },
+      facebook: facebookEnabled ? { enabled: true, clientId: facebookClientId, clientSecret: facebookClientSecret, redirectUri: facebookRedirectUri } : { enabled: false },
+      apple: appleEnabled ? { enabled: true, clientId: appleClientId, teamId: appleTeamId, keyId: appleKeyId, privateKey: applePrivateKey, redirectUri: appleRedirectUri } : { enabled: false },
+    };
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const config = buildConfigJson();
+    const { error } = await apiMutate(`/api/wifi/portal/auth-methods/${authMethodId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ config }),
+    });
+    setSaving(false);
+    if (!error) {
+      toast({ title: 'OAuth Config Saved', description: 'Social login credentials updated successfully' });
+      onSaved();
+      onOpenChange(false);
+    } else {
+      toast({ title: 'Error', description: error || 'Failed to save OAuth config', variant: 'destructive' });
+    }
+  };
+
+  const PROV_TABS = [
+    { id: 'google' as const, label: 'Google', color: '#4285F4' },
+    { id: 'facebook' as const, label: 'Facebook', color: '#1877F2' },
+    { id: 'apple' as const, label: 'Apple', color: '#000000' },
+  ];
+
+  if (!loaded) return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div></DialogContent></Dialog>;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            Social Login — OAuth Configuration
+          </DialogTitle>
+          <DialogDescription>
+            Configure OAuth credentials for {portalName}. Each provider requires a Client ID and Client Secret from the respective developer console.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Provider tabs */}
+        <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
+          {PROV_TABS.map((pt) => (
+            <button
+              key={pt.id}
+              onClick={() => setActiveTab(pt.id)}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-md transition-all',
+                activeTab === pt.id
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <div className="w-4 h-4 rounded-full border-2" style={{ borderColor: pt.color, backgroundColor: activeTab === pt.id ? pt.color : 'transparent' }} />
+              {pt.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Google Config */}
+        {activeTab === 'google' && (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30">
+              <div className="flex items-center gap-3">
+                <svg className="w-6 h-6" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                <div>
+                  <p className="text-sm font-semibold">Google OAuth 2.0</p>
+                  <p className="text-[11px] text-muted-foreground">Google Cloud Console → APIs & Services → Credentials</p>
+                </div>
+              </div>
+              <Switch checked={googleEnabled} onCheckedChange={setGoogleEnabled} />
+            </div>
+            {googleEnabled && (
+              <div className="space-y-4 pl-1">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Client ID</Label>
+                  <Input placeholder="xxxx.apps.googleusercontent.com" value={googleClientId} onChange={e => setGoogleClientId(e.target.value)} className="font-mono text-xs" />
+                  <p className="text-[10px] text-muted-foreground">From Google Cloud Console OAuth 2.0 Client ID</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Client Secret</Label>
+                  <Input type="password" placeholder="GOCSPX-xxxx..." value={googleClientSecret} onChange={e => setGoogleClientSecret(e.target.value)} className="font-mono text-xs" />
+                  <p className="text-[10px] text-muted-foreground">Secret key from Google Cloud Console</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Redirect URI</Label>
+                  <Input placeholder="https://your-domain.com/api/wifi/social/callback" value={googleRedirectUri} onChange={e => setGoogleRedirectUri(e.target.value)} className="font-mono text-xs" />
+                  <p className="text-[10px] text-muted-foreground">Must match the authorized redirect URI in Google Console. Leave blank to auto-detect.</p>
+                </div>
+                <Card className="bg-muted/50 border-dashed">
+                  <CardContent className="p-3">
+                    <p className="text-[11px] font-medium text-muted-foreground mb-1">Setup Steps:</p>
+                    <ol className="text-[10px] text-muted-foreground space-y-0.5 list-decimal pl-4">
+                      <li>Go to <span className="font-mono text-primary">console.cloud.google.com</span></li>
+                      <li>Create OAuth 2.0 Client ID (Web application)</li>
+                      <li>Set authorized redirect URI to <span className="font-mono text-primary">/api/wifi/social/callback</span></li>
+                      <li>Copy Client ID and Secret above</li>
+                    </ol>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Facebook Config */}
+        {activeTab === 'facebook' && (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30">
+              <div className="flex items-center gap-3">
+                <svg className="w-6 h-6" fill="#1877F2" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
+                <div>
+                  <p className="text-sm font-semibold">Facebook Login</p>
+                  <p className="text-[11px] text-muted-foreground">Meta for Developers → My Apps → Facebook Login</p>
+                </div>
+              </div>
+              <Switch checked={facebookEnabled} onCheckedChange={setFacebookEnabled} />
+            </div>
+            {facebookEnabled && (
+              <div className="space-y-4 pl-1">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">App ID</Label>
+                  <Input placeholder="123456789012345" value={facebookClientId} onChange={e => setFacebookClientId(e.target.value)} className="font-mono text-xs" />
+                  <p className="text-[10px] text-muted-foreground">Facebook App ID from Meta Developer Console</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">App Secret</Label>
+                  <Input type="password" placeholder="abcdef1234567890..." value={facebookClientSecret} onChange={e => setFacebookClientSecret(e.target.value)} className="font-mono text-xs" />
+                  <p className="text-[10px] text-muted-foreground">Facebook App Secret</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Redirect URI</Label>
+                  <Input placeholder="https://your-domain.com/api/wifi/social/callback" value={facebookRedirectUri} onChange={e => setFacebookRedirectUri(e.target.value)} className="font-mono text-xs" />
+                  <p className="text-[10px] text-muted-foreground">Valid OAuth Redirect URI in Facebook App settings</p>
+                </div>
+                <Card className="bg-muted/50 border-dashed">
+                  <CardContent className="p-3">
+                    <p className="text-[11px] font-medium text-muted-foreground mb-1">Setup Steps:</p>
+                    <ol className="text-[10px] text-muted-foreground space-y-0.5 list-decimal pl-4">
+                      <li>Go to <span className="font-mono text-primary">developers.facebook.com</span></li>
+                      <li>Create a new app or select existing</li>
+                      <li>Add Facebook Login product</li>
+                      <li>Set Valid OAuth Redirect URI to <span className="font-mono text-primary">/api/wifi/social/callback</span></li>
+                      <li>Copy App ID and Secret above</li>
+                    </ol>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Apple Config */}
+        {activeTab === 'apple' && (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800">
+              <div className="flex items-center gap-3">
+                <svg className="w-6 h-6" fill="#000000" viewBox="0 0 24 24"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" /></svg>
+                <div>
+                  <p className="text-sm font-semibold">Sign in with Apple</p>
+                  <p className="text-[11px] text-muted-foreground">Apple Developer → Certificates, Identifiers & Profiles</p>
+                </div>
+              </div>
+              <Switch checked={appleEnabled} onCheckedChange={setAppleEnabled} />
+            </div>
+            {appleEnabled && (
+              <div className="space-y-4 pl-1">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Services ID (Client ID)</Label>
+                  <Input placeholder="com.yourapp.signin" value={appleClientId} onChange={e => setAppleClientId(e.target.value)} className="font-mono text-xs" />
+                  <p className="text-[10px] text-muted-foreground">The Service ID registered in Apple Developer portal</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Team ID</Label>
+                  <Input placeholder="XXXXXXXXXX" value={appleTeamId} onChange={e => setAppleTeamId(e.target.value)} className="font-mono text-xs" />
+                  <p className="text-[10px] text-muted-foreground">Your Apple Developer Team ID</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Key ID</Label>
+                  <Input placeholder="XXXXXXXXXX" value={appleKeyId} onChange={e => setAppleKeyId(e.target.value)} className="font-mono text-xs" />
+                  <p className="text-[10px] text-muted-foreground">Sign in with Apple Key ID</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Private Key (.p8 content)</Label>
+                  <Textarea placeholder="-----BEGIN PRIVATE KEY-----&#10;MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg&#10;...&#10;-----END PRIVATE KEY-----" value={applePrivateKey} onChange={e => setApplePrivateKey(e.target.value)} className="font-mono text-xs min-h-[80px]" />
+                  <p className="text-[10px] text-muted-foreground">Contents of the .p8 private key file downloaded from Apple Developer</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Redirect URI</Label>
+                  <Input placeholder="https://your-domain.com/api/wifi/social/callback" value={appleRedirectUri} onChange={e => setAppleRedirectUri(e.target.value)} className="font-mono text-xs" />
+                  <p className="text-[10px] text-muted-foreground">Registered redirect URL for the Services ID</p>
+                </div>
+                <Card className="bg-muted/50 border-dashed">
+                  <CardContent className="p-3">
+                    <p className="text-[11px] font-medium text-muted-foreground mb-1">Setup Steps:</p>
+                    <ol className="text-[10px] text-muted-foreground space-y-0.5 list-decimal pl-4">
+                      <li>Go to <span className="font-mono text-primary">developer.apple.com</span></li>
+                      <li>Create a Services ID under Identifiers</li>
+                      <li>Register the Sign in with Apple key and download .p8</li>
+                      <li>Configure redirect URL under Services ID</li>
+                      <li>Copy Services ID, Team ID, Key ID, and Private Key content above</li>
+                    </ol>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Summary bar */}
+        <div className="flex items-center justify-between pt-2 border-t">
+          <div className="flex items-center gap-2">
+            {PROV_TABS.map(pt => {
+              const isEnabled = pt.id === 'google' ? googleEnabled : pt.id === 'facebook' ? facebookEnabled : appleEnabled;
+              return isEnabled ? (
+                <Badge key={pt.id} variant="secondary" className="text-[10px] gap-1">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: pt.color }} />
+                  {pt.label}
+                </Badge>
+              ) : null;
+            })}
+            {!(googleEnabled || facebookEnabled || appleEnabled) && (
+              <span className="text-[11px] text-muted-foreground">No providers enabled</span>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleSave} disabled={saving || !(googleEnabled || facebookEnabled || appleEnabled)} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+              {saving ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />Saving...</> : 'Save Configuration'}
+            </Button>
+          </DialogFooter>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

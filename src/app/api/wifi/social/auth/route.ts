@@ -120,8 +120,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Resolve provider-specific clientId, then fall back to a top-level clientId
+    // Resolve provider-specific config, then fall back to a top-level clientId
     const providerConfig = oauthConfig[provider] as Record<string, unknown> | undefined;
+
+    // Check if this specific provider is enabled in the config
+    if (providerConfig && providerConfig.enabled === false) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'PROVIDER_DISABLED',
+            message: `${provider} login is currently disabled for this portal.`,
+          },
+        },
+        { status: 403 },
+      );
+    }
+
     const clientId = (providerConfig?.clientId as string) || (oauthConfig.clientId as string);
 
     if (!clientId) {
