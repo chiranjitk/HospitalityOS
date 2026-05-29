@@ -1,0 +1,22 @@
+{
+  "apps": [
+    {
+      "name": "staysuite-nextjs",
+      "script": "npx",
+      "args": "next dev -p 3000",
+      "cwd": "/home/z/my-project",
+      "env": {
+        "NODE_OPTIONS": "--max-old-space-size=4096",
+        "DATABASE_URL": "postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30",
+        "NEXTAUTH_SECRET": "dev-secret-key-staysuite-2025-sandbox",
+        "NEXTAUTH_URL": "http://localhost:3000"
+      },
+      "error_file": "/home/z/my-project/logs/pm2-nextjs-error.log",
+      "out_file": "/home/z/my-project/logs/pm2-nextjs-out.log",
+      "max_memory_restart": "4G",
+      "restart_delay": 5000,
+      "max_restarts": 10,
+      "kill_timeout": 10000
+    }
+  ]
+}

@@ -32,7 +32,7 @@ import { generateFingerprint, getStorageToken, saveStorageToken, clearStorageTok
  * States: loading → auth_form → authenticating → success → error
  */
 
-import { useState, useEffect, Suspense, useCallback, Fragment, createContext, useContext } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense, Fragment, createContext, useContext } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -2564,15 +2564,19 @@ function PortalContent() {
     [portalSlug, preGeneratedFingerprint]
   );
 
+  // Use a ref for authenticate to avoid TDZ issues in useEffect dependency arrays
+  // during React Fast Refresh / hot-reload scenarios.
+  const authenticateRef = useRef(authenticate);
+  authenticateRef.current = authenticate;
+
   // ── Handle social OAuth callback params ──
   // When the OAuth provider redirects back to /connect with social_token, auto-authenticate.
-  // This must be placed AFTER the authenticate callback definition to avoid "Cannot access before initialization".
   useEffect(() => {
     if (socialTokenParam && socialProviderParam && portalConfig?.slug && !autoAuthAttempted) {
       console.log(`[Portal] Social OAuth callback detected: provider=${socialProviderParam}`);
       setAutoAuthAttempted(true);
       setSelectedMethod('social');
-      authenticate('social', {
+      authenticateRef.current('social', {
         socialProvider: socialProviderParam,
         socialToken: socialTokenParam,
       });
@@ -2592,7 +2596,7 @@ function PortalContent() {
       };
       setErrorMessage(errorMessages[socialErrorParam] || 'Social login failed. Please try again or use a different method.');
     }
-  }, [socialTokenParam, socialProviderParam, socialErrorParam, portalConfig?.slug, autoAuthAttempted, authenticate]);
+  }, [socialTokenParam, socialProviderParam, socialErrorParam, portalConfig?.slug, autoAuthAttempted]);
 
   // ── Disconnect handler: ends session, resets portal ──
   // IMPORTANT: We do NOT delete the DeviceProfile and do NOT clear the storageToken.
