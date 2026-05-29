@@ -124,3 +124,67 @@ Stage Summary:
 - M-36 fixed: booking pace snapshots can be cleaned up via DELETE ?action=cleanup (cron-ready)
 - M-43 fixed: VIP recognition rules now persisted to database via existing API routes
 - Commit: a5a2c84e — pushed to main
+---
+Task ID: M-46, M-47, M-48
+Agent: Fix Agent
+Task: Pricing config storage, RevPAR optimizer, WiFi route validation
+
+Work Log:
+- M-46: Replaced AuditLog-based storage with SystemConfig table for linear pricing config
+  - getLinearPricingConfig now uses db.systemConfig.findUnique with key `linear_pricing_config:{propertyId}`
+  - setLinearPricingConfig now uses db.systemConfig.upsert (unique constraint on tenantId+key)
+  - Removed TODO comment about AuditLog risks — config is now independent of log retention
+- M-47: Verified RevPAR optimizer already uses single-query approach (fixed as H-47 previously)
+  - getCurrentMetrics fetches all bookings in one db.booking.findMany call
+  - Day-by-day processing is done in-memory, no per-day DB queries
+  - No code changes needed
+- M-48: Added Zod input validation schemas to 4 main WiFi API routes
+  - vouchers/route.ts: createVoucherSchema (POST), updateVoucherSchema (PUT with refine for id|code)
+  - plans/route.ts: createPlanSchema (POST with speed/price validation), updatePlanSchema (PUT)
+  - sessions/route.ts: createSessionSchema (POST), updateSessionSchema (PUT)
+  - radius/route.ts: radiusPostSchema (action required), radiusTestAuthSchema (username+password)
+  - All schemas follow existing codebase patterns (safeParse → 400 on error)
+- ESLint: All 6 changed files pass with zero errors
+
+Stage Summary:
+- 6 files changed (5 modified + 1 verified), 279 insertions, 92 deletions
+- M-46 fixed: pricing config now in SystemConfig table, immune to audit log pruning
+- M-47 verified: already optimized to single-query approach (H-47 fix confirmed)
+- M-48 fixed: Zod validation added to vouchers, plans, sessions, and radius routes
+- Commit: 1d7710b4 — pushed to main
+---
+Task ID: M-51, M-54, M-55, M-56
+Agent: Fix Agent
+Task: Batch order edit, recipe-inventory link, stock deduction, room service per-item folio
+
+Work Log:
+- M-51: Extended order edit PUT handler to accept arrays of items to add/remove
+  - Added `addItems` (array) and `removeItems` (array) fields alongside existing `addItem`/`removeItem` (singular)
+  - Backward compatible: singular fields are wrapped into arrays automatically
+  - Batch add validates all menu items in a single DB query, then creates order items in loop
+  - Batch remove fetches all target items in one query, then deletes in loop
+- M-54: Added `inventoryItemId` optional field to RecipeIngredient model in Prisma schema
+  - Added column to database and created index for lookup performance
+  - Updated recipes API POST/PUT routes to accept `inventoryItemId` per ingredient
+  - Updated recipes component TypeScript interface to include `inventoryItemId`
+- M-55: Created shared stock deduction helper `src/lib/recipe-stock-deduction.ts`
+  - Looks up recipes by menuItemId, finds ingredients with linked inventoryItemId
+  - Deducts ingredient quantity × order quantity from InventoryItem.currentStock
+  - Creates InventoryMovement records with reason 'order_consumption' for audit trail
+  - Integrated into orders PUT handler (status → served/completed) — both explicit and M-52 auto-advance paths
+  - Integrated into room-service PUT handler (status → delivered) within auto-folio transaction
+  - Best-effort: failures logged but don't block order status update
+- M-56: Changed room service auto-folio posting from single combined line item to per-item line items
+  - Each order item now creates a separate FolioLineItem with its own name, quantity, unit price, tax
+  - referenceType changed from 'order' to 'order_item' for per-item granularity
+  - Service charge remains as a separate line item
+  - Updated audit log to include lineItemCount instead of combined description
+- ESLint: All 7 changed files pass with zero errors
+
+Stage Summary:
+- 7 files changed (6 modified + 1 new), 287 insertions, 71 deletions
+- M-51 fixed: order edit now supports batch add/remove of items in single API call
+- M-54 fixed: recipe ingredients can be linked to inventory items via inventoryItemId field
+- M-55 fixed: inventory stock is deducted when orders are completed/delivered (with movement audit)
+- M-56 fixed: room service auto-folio creates individual line items per menu item
+- Commit: 653b083a — pushed to main
