@@ -6445,6 +6445,7 @@ model StaffLeave {
   startDate       DateTime  @db.Timestamptz
   endDate         DateTime  @db.Timestamptz
   totalDays       Float
+  duration        String    @default("full_day") // "full_day", "half_day_am", "half_day_pm"
   reason          String?
   status          String    @default("pending")
   approvedBy      String?
@@ -6968,6 +6969,8 @@ model Tenant {
   staffLeaves               StaffLeave[]
   staffPerformances         StaffPerformance[]
   staffSchedules            StaffSchedule[]
+  payrollRecords            PayrollRecord[]
+  leaveCarryForwards        LeaveCarryForward[]
   stockItems                StockItem[]
   users                     User[]
   userPropertyAssignments  UserProperty[]
@@ -7640,6 +7643,8 @@ model User {
   sessions                Session[]
   attendance              StaffAttendance[]
   leaves                  StaffLeave[]
+  payrollRecords          PayrollRecord[]
+  leaveCarryForwards      LeaveCarryForward[]
   performances            StaffPerformance[]
   schedules               StaffSchedule[]
   shifts                  StaffShift[]
@@ -13061,4 +13066,73 @@ model SystemConfig {
   @@unique([tenantId, key])
   @@index([tenantId])
   @@index([key])
+}
+
+// ============================================================
+// Payroll Record — persisted payroll calculations per employee/month
+// ============================================================
+model PayrollRecord {
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @db.Uuid
+  userId            String    @db.Uuid
+  month             String    // YYYY-MM
+  currency          String    @default("USD")
+  basicSalary       Float
+  hra               Float     @default(0)
+  da                Float     @default(0)
+  specialAllowance  Float     @default(0)
+  overtime          Float     @default(0)
+  bonus             Float     @default(0)
+  conveyance        Float     @default(0)
+  medical           Float     @default(0)
+  totalEarnings     Float
+  pf                Float     @default(0)
+  esi               Float     @default(0)
+  tds               Float     @default(0)
+  profTax           Float     @default(0)
+  loanEmi           Float     @default(0)
+  advanceRecovery   Float     @default(0)
+  lateDeduction     Float     @default(0)
+  leaveAdjustment   Float     @default(0)
+  totalDeductions   Float
+  netPay            Float
+  daysWorked        Int
+  totalWorkingDays  Int
+  status            String    @default("pending") // "pending", "processed", "on_hold"
+  processedBy       String?
+  processedAt       DateTime? @db.Timestamptz
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, month])
+  @@index([tenantId])
+  @@index([userId])
+  @@index([month])
+  @@index([status])
+}
+
+// ============================================================
+// Leave Carry Forward — tracks unused leave rolled over to next year
+// ============================================================
+model LeaveCarryForward {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  userId        String   @db.Uuid
+  leaveType     String
+  fromYear      Int
+  toYear        Int
+  carriedDays   Float
+  maxCap        Float    // configurable cap per tenant/leave type
+  usedDays      Float    @default(0)
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  updatedAt     DateTime @updatedAt @db.Timestamptz
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, leaveType, fromYear])
+  @@index([tenantId])
+  @@index([userId])
+  @@index([toYear])
 }

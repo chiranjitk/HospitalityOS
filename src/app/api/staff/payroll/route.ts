@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { getWorkingDaysForMonth } from '@/lib/staff/working-days';
 
-// Salary base rates by designation (INR)
+// Salary base rates by designation — used as defaults when no persisted salary exists
 const DESIGNATION_SALARIES: Record<string, number> = {
   'Front Desk Manager': 45000,
   'Receptionist': 22000,
@@ -30,6 +31,7 @@ function calculatePayroll(
   user: { id: string; firstName: string; lastName: string; jobTitle: string | null; department: string | null; preferences: string },
   attendance: { daysWorked: number; totalDays: number; lateMinutes: number },
   month: string,
+  totalWorkingDays: number,
   status: 'processed' | 'pending' | 'on_hold'
 ) {
   const designation = user.jobTitle || 'Staff';
@@ -53,7 +55,7 @@ function calculatePayroll(
   const lateDeduction = attendance.lateMinutes > 30 ? 200 : 0;
   // Multiply leave deduction by actual absent days
   const absentDays = attendance.totalDays - attendance.daysWorked;
-  const leaveAdjustment = absentDays > 0 ? Math.round(base / 30) * absentDays : 0;
+  const leaveAdjustment = absentDays > 0 ? Math.round(base / totalWorkingDays) * absentDays : 0;
   const totalDeductions = pf + esi + tds + profTax + loanEmi + advanceRecovery + lateDeduction + leaveAdjustment;
   const netPay = Math.round((totalEarnings - totalDeductions) * 100) / 100;
 
@@ -75,7 +77,7 @@ function calculatePayroll(
       bankAccount: prefs.bankAccount || '',
     },
     daysWorked: attendance.daysWorked,
-    totalDays: attendance.totalDays,
+    totalDays: totalWorkingDays,
     basicSalary: base,
     hra,
     da,
@@ -124,7 +126,128 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(sp.get('limit') || '50', 10), 200);
     const offset = parseInt(sp.get('offset') || '0', 10);
 
-    // Fetch active staff users
+    // M-72: Calculate dynamic working days for the month
+    const [yearStr, monthStr] = month.split('-').map(Number);
+    const totalWorkingDays = await getWorkingDaysForMonth(yearStr, monthStr, user.tenantId);
+
+    // M-69: First check for persisted payroll records in DB
+    const persistedWhere: Record<string, unknown> = {
+      tenantId: user.tenantId,
+      month,
+    };
+    if (status && status !== 'all') persistedWhere.status = status;
+
+    const persistedRecords = await db.payrollRecord.findMany({
+      where: persistedWhere,
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            department: true,
+            jobTitle: true,
+          },
+        },
+      },
+    });
+
+    // If persisted records exist, return them (M-69: payroll persistence)
+    if (persistedRecords.length > 0) {
+      let filtered = persistedRecords;
+
+      // Apply department and search filters on persisted records
+      if (department && department !== 'all') {
+        filtered = filtered.filter(r => r.user.department === department);
+      }
+      if (search) {
+        const s = search.toLowerCase();
+        filtered = filtered.filter(r =>
+          r.user.firstName.toLowerCase().includes(s) ||
+          r.user.lastName.toLowerCase().includes(s) ||
+          r.user.email.toLowerCase().includes(s)
+        );
+      }
+
+      const total = filtered.length;
+      const paginated = filtered.slice(offset, offset + limit);
+
+      const payrollRecords = paginated.map(r => {
+        const prefsStr = (r.user as unknown as { preferences?: string }).preferences || '{}';
+        let prefs: Record<string, string> = {};
+        try { prefs = JSON.parse(prefsStr); } catch { prefs = {}; }
+
+        return {
+          id: r.id,
+          userId: r.userId,
+          month: r.month,
+          currency: r.currency,
+          employee: {
+            id: r.user.id,
+            name: `${r.user.firstName} ${r.user.lastName}`,
+            employeeId: `EMP-${r.user.id.substring(0, 6).toUpperCase()}`,
+            department: r.user.department || 'General',
+            designation: r.user.jobTitle || 'Staff',
+            pan: prefs.pan || '',
+            bankAccount: prefs.bankAccount || '',
+          },
+          daysWorked: r.daysWorked,
+          totalDays: r.totalWorkingDays,
+          basicSalary: r.basicSalary,
+          hra: r.hra,
+          da: r.da,
+          specialAllowance: r.specialAllowance,
+          overtime: r.overtime,
+          bonus: r.bonus,
+          conveyance: r.conveyance,
+          medical: r.medical,
+          totalEarnings: r.totalEarnings,
+          pf: r.pf,
+          esi: r.esi,
+          tds: r.tds,
+          profTax: r.profTax,
+          loanEmi: r.loanEmi,
+          advanceRecovery: r.advanceRecovery,
+          totalDeductions: r.totalDeductions,
+          netPay: r.netPay,
+          leaveAdjustment: r.leaveAdjustment,
+          lateDeduction: r.lateDeduction,
+          status: r.status,
+          processedAt: r.processedAt?.toISOString(),
+        };
+      });
+
+      const allForStats = status && status !== 'all' ? filtered : persistedRecords;
+      const summary = {
+        totalGross: allForStats.reduce((s, r) => s + r.totalEarnings, 0),
+        totalDeductions: allForStats.reduce((s, r) => s + r.totalDeductions, 0),
+        totalNet: allForStats.reduce((s, r) => s + r.netPay, 0),
+        processedCount: persistedRecords.filter((r) => r.status === 'processed').length,
+        pendingCount: persistedRecords.filter((r) => r.status === 'pending').length,
+        onHoldCount: persistedRecords.filter((r) => r.status === 'on_hold').length,
+        totalEmployees: persistedRecords.length,
+      };
+
+      const deptBreakdown: Record<string, { total: number; count: number }> = {};
+      for (const r of payrollRecords) {
+        const dept = r.employee.department;
+        if (!deptBreakdown[dept]) deptBreakdown[dept] = { total: 0, count: 0 };
+        deptBreakdown[dept].total += r.netPay;
+        deptBreakdown[dept].count += 1;
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: payrollRecords,
+        pagination: { total, limit, offset },
+        summary,
+        departmentBreakdown: deptBreakdown,
+        source: 'persisted',
+      });
+    }
+
+    // No persisted records — compute on the fly (preview mode)
     const userWhere: Record<string, unknown> = {
       tenantId: user.tenantId,
       deletedAt: null,
@@ -163,9 +286,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch attendance for the given month
     const monthStart = new Date(`${month}-01T00:00:00.000Z`);
-    const monthEnd = new Date(monthStart);
-    monthEnd.setMonth(monthEnd.getMonth() + 1);
-    monthEnd.setDate(0, 23, 59, 59, 999);
+    const monthEnd = new Date(yearStr, monthStr, 0, 23, 59, 59, 999);
 
     const userIds = staff.map((s) => s.id);
 
@@ -196,14 +317,11 @@ export async function GET(request: NextRequest) {
       attendanceMap[a.userId].lateMinutes += a.lateMinutes;
     }
 
-    // Calculate total working days in the month
-    const totalWorkingDays = 26; // Standard working days per month
-
     // Generate payroll records
     const payrollRecords = staff.map((s) => {
       const att = attendanceMap[s.id] || { daysWorked: totalWorkingDays, totalDays: totalWorkingDays, lateMinutes: 0 };
       const recordStatus: 'processed' | 'pending' | 'on_hold' = status === 'processed' ? 'processed' : status === 'on_hold' ? 'on_hold' : 'pending';
-      return calculatePayroll(s, att, month, recordStatus);
+      return calculatePayroll(s, att, month, totalWorkingDays, recordStatus);
     });
 
     // Compute summary stats
@@ -236,6 +354,7 @@ export async function GET(request: NextRequest) {
       pagination: { total: totalStaff, limit, offset },
       summary,
       departmentBreakdown: deptBreakdown,
+      source: 'computed',
     });
   } catch (error) {
     console.error('GET /api/staff/payroll:', error);

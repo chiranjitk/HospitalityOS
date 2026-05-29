@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { differenceInCalendarDays, startOfDay, endOfDay, parseISO } from 'date-fns';
+import { getLeaveBalanceConfig, getUserLeaveBalance, DEFAULT_LEAVE_BALANCES } from '@/lib/staff/leave-config';
+
+// Valid leave durations
+const VALID_DURATIONS = ['full_day', 'half_day_am', 'half_day_pm'] as const;
+type LeaveDuration = (typeof VALID_DURATIONS)[number];
 
 // GET /api/staff/leave - List leave requests
 export async function GET(request: NextRequest) {
@@ -80,45 +85,26 @@ export async function GET(request: NextRequest) {
       approvers = Object.fromEntries(approverUsers.map(u => [u.id, u]));
     }
 
-    // Calculate leave balances for the requesting user (or all users if manager)
+    // Calculate leave balances from DB config (M-70: configurable limits, M-71: carry-forward)
     const isManager = hasPermission(user, 'staff.manage') || hasPermission(user, 'leaves.approve');
     const balanceTargetUserId = isManager && !userId ? null : (userId || user.id);
 
-    let leaveBalances: Record<string, Record<string, { total: number; used: number; remaining: number }>> = {};
+    let leaveBalances: Record<string, Record<string, { total: number; used: number; remaining: number; carried: number }>> = {};
 
     if (balanceTargetUserId) {
       const now = new Date();
-      const yearStart = new Date(now.getFullYear(), 0, 1);
-      const yearEnd = new Date(now.getFullYear(), 11, 31);
+      const year = now.getFullYear();
+      const balances = await getUserLeaveBalance(user.tenantId, balanceTargetUserId, year);
 
-      const userLeaves = await db.staffLeave.findMany({
-        where: {
-          tenantId: user.tenantId,
-          userId: balanceTargetUserId,
-          status: { in: ['approved'] },
-          startDate: { gte: yearStart, lte: yearEnd },
-        },
-      });
-
-      const typeBalances: Record<string, { total: number; used: number }> = {
-        vacation: { total: 20, used: 0 },
-        sick: { total: 12, used: 0 },
-        personal: { total: 5, used: 0 },
-        maternity: { total: 180, used: 0 },
-        other: { total: 3, used: 0 },
-      };
-
-      userLeaves.forEach(leave => {
-        if (typeBalances[leave.leaveType]) {
-          typeBalances[leave.leaveType].used += leave.totalDays;
-        }
-      });
-
-      for (const [type, balance] of Object.entries(typeBalances)) {
-        balance.remaining = Math.max(0, balance.total - balance.used);
+      leaveBalances[balanceTargetUserId] = {};
+      for (const [type, bal] of Object.entries(balances)) {
+        leaveBalances[balanceTargetUserId][type] = {
+          total: bal.total,
+          used: bal.used,
+          carried: bal.carried,
+          remaining: bal.remaining,
+        };
       }
-
-      leaveBalances[balanceTargetUserId] = typeBalances;
     }
 
     // Stats
@@ -142,6 +128,7 @@ export async function GET(request: NextRequest) {
         startDate: l.startDate.toISOString(),
         endDate: l.endDate.toISOString(),
         totalDays: l.totalDays,
+        duration: (l as Record<string, unknown>).duration || 'full_day',
         reason: l.reason,
         status: l.status,
         rejectionReason: l.rejectionReason,
@@ -181,7 +168,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/staff/leave - Create a leave request
+// POST /api/staff/leave - Create a leave request (supports half-day and carry-forward)
 export async function POST(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
@@ -193,7 +180,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { leaveType, startDate, endDate, reason, notes } = body;
+    const { leaveType, startDate, endDate, reason, notes, duration } = body;
 
     if (!leaveType || !startDate || !endDate) {
       return NextResponse.json(
@@ -209,6 +196,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Validate duration (M-71: half-day support)
+    const leaveDuration: LeaveDuration = duration && VALID_DURATIONS.includes(duration)
+      ? (duration as LeaveDuration)
+      : 'full_day';
 
     const start = parseISO(startDate);
     const end = parseISO(endDate);
@@ -229,8 +221,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate total days
-    const totalDays = differenceInCalendarDays(end, start) + 1;
+    // Calculate total days — half-day leaves deduct 0.5
+    let totalDays: number;
+    if (leaveDuration !== 'full_day') {
+      // Half-day leave: must be a single day, deducts 0.5
+      totalDays = 0.5;
+    } else {
+      totalDays = differenceInCalendarDays(end, start) + 1;
+    }
 
     // Check for overlapping leave
     const overlapping = await db.staffLeave.findFirst({
@@ -250,10 +248,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Auto-check leave balance deduction
+    // Check leave balance using DB config (M-70: configurable limits)
     const now = new Date();
-    const yearStart = new Date(now.getFullYear(), 0, 1);
-    const yearEnd = new Date(now.getFullYear(), 11, 31);
+    const year = now.getFullYear();
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year, 11, 31);
 
     const existingLeaves = await db.staffLeave.findMany({
       where: {
@@ -266,19 +265,33 @@ export async function POST(request: NextRequest) {
     });
 
     const usedDays = existingLeaves.reduce((sum, l) => sum + l.totalDays, 0);
-    const balanceLimits: Record<string, number> = {
-      vacation: 20,
-      sick: 12,
-      personal: 5,
-      maternity: 180,
-      other: 3,
-    };
 
-    const balanceLimit = balanceLimits[leaveType] || 0;
+    // Load balance from DB config with carry-forward (M-70, M-71)
+    const balanceConfig = await getLeaveBalanceConfig(user.tenantId);
+    const balanceLimit = balanceConfig.balances[leaveType] || DEFAULT_LEAVE_BALANCES[leaveType] || 0;
 
-    if (usedDays + totalDays > balanceLimit) {
+    // Account for carry-forward (M-71)
+    let carryForwardAvailable = 0;
+    if (balanceConfig.carryForwardEnabled) {
+      const carryForwards = await db.leaveCarryForward.findMany({
+        where: {
+          tenantId: user.tenantId,
+          userId: user.id,
+          leaveType,
+          toYear: year,
+        },
+      });
+      for (const cf of carryForwards) {
+        const available = cf.carriedDays - cf.usedDays;
+        if (available > 0) carryForwardAvailable += available;
+      }
+    }
+
+    const effectiveLimit = balanceLimit + carryForwardAvailable;
+
+    if (usedDays + totalDays > effectiveLimit) {
       return NextResponse.json(
-        { success: false, error: { code: 'INSUFFICIENT_BALANCE', message: `Insufficient leave balance. You have ${Math.max(0, balanceLimit - usedDays)} days remaining for ${leaveType} leave` } },
+        { success: false, error: { code: 'INSUFFICIENT_BALANCE', message: `Insufficient leave balance. You have ${Math.max(0, effectiveLimit - usedDays).toFixed(1)} days remaining for ${leaveType} leave (includes ${(carryForwardAvailable).toFixed(1)} carried forward)` } },
         { status: 400 }
       );
     }
@@ -291,6 +304,7 @@ export async function POST(request: NextRequest) {
         startDate: startOfDay(start),
         endDate: endOfDay(end),
         totalDays,
+        duration: leaveDuration,
         reason: reason || null,
         notes: notes || null,
         status: 'pending',
@@ -319,6 +333,7 @@ export async function POST(request: NextRequest) {
         startDate: leave.startDate.toISOString(),
         endDate: leave.endDate.toISOString(),
         totalDays: leave.totalDays,
+        duration: (leave as Record<string, unknown>).duration || 'full_day',
         reason: leave.reason,
         status: leave.status,
         createdAt: leave.createdAt.toISOString(),
@@ -331,7 +346,7 @@ export async function POST(request: NextRequest) {
           avatar: leave.user.avatar,
         },
         balanceDeduction: totalDays,
-        remainingBalance: Math.max(0, balanceLimit - usedDays - totalDays),
+        remainingBalance: Math.max(0, effectiveLimit - usedDays - totalDays),
       },
     }, { status: 201 });
   } catch (error) {
@@ -411,12 +426,12 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Use transaction to re-check balance before approval
+    // Use transaction to re-check balance before approval (M-70: DB-configurable limits)
     const updated = await db.$transaction(async (tx) => {
-      // Re-check leave balance within transaction
       const now = new Date();
-      const yearStart = new Date(now.getFullYear(), 0, 1);
-      const yearEnd = new Date(now.getFullYear(), 11, 31);
+      const year = now.getFullYear();
+      const yearStart = new Date(year, 0, 1);
+      const yearEnd = new Date(year, 11, 31);
       const usedDays = await tx.staffLeave.aggregate({
         where: {
           tenantId: user.tenantId,
@@ -428,11 +443,33 @@ export async function PUT(request: NextRequest) {
         },
         _sum: { totalDays: true },
       });
-      const balanceLimits: Record<string, number> = { vacation: 20, sick: 12, personal: 5, maternity: 180, other: 3 };
-      const balanceLimit = balanceLimits[leave.leaveType] || 0;
+
+      // Load from DB config (M-70)
+      const config = await getLeaveBalanceConfig(user.tenantId);
+      const balanceLimit = config.balances[leave.leaveType] || 0;
       const currentUsed = usedDays._sum.totalDays || 0;
-      if (action === 'approve' && currentUsed + leave.totalDays > balanceLimit) {
-        throw new Error(`Insufficient leave balance. Only ${Math.max(0, balanceLimit - currentUsed)} days remaining.`);
+
+      // Account for carry-forward (M-71)
+      let carryForwardAvailable = 0;
+      if (config.carryForwardEnabled) {
+        const carryForwards = await tx.leaveCarryForward.findMany({
+          where: {
+            tenantId: user.tenantId,
+            userId: leave.userId,
+            leaveType: leave.leaveType,
+            toYear: year,
+          },
+        });
+        for (const cf of carryForwards) {
+          const available = cf.carriedDays - cf.usedDays;
+          if (available > 0) carryForwardAvailable += available;
+        }
+      }
+
+      const effectiveLimit = balanceLimit + carryForwardAvailable;
+
+      if (action === 'approve' && currentUsed + leave.totalDays > effectiveLimit) {
+        throw new Error(`Insufficient leave balance. Only ${Math.max(0, effectiveLimit - currentUsed).toFixed(1)} days remaining.`);
       }
 
       return tx.staffLeave.update({
@@ -479,6 +516,7 @@ export async function PUT(request: NextRequest) {
         startDate: updated.startDate.toISOString(),
         endDate: updated.endDate.toISOString(),
         totalDays: updated.totalDays,
+        duration: (updated as Record<string, unknown>).duration || 'full_day',
         status: updated.status,
         rejectionReason: updated.rejectionReason,
         approvedAt: updated.approvedAt?.toISOString(),
