@@ -956,7 +956,10 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
     const cleanGroup = stripPlanPrefix(group);
     const matchingPlan = wifiPlans.find(p => {
       const groupName = p.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-      return groupName === cleanGroup || groupName === group;
+      // Generate the RADIUS group name with plan ID suffix (same as planNameToGroupName)
+      const shortId = p.id.replace(/-/g, '').substring(0, 8);
+      const groupWithId = `${groupName}_${shortId}`;
+      return groupName === cleanGroup || groupName === group || groupWithId === cleanGroup || groupWithId === group;
     });
     if (matchingPlan) {
       const downMbps = matchingPlan.downloadSpeed;

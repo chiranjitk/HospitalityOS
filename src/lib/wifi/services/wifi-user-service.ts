@@ -330,6 +330,7 @@ export class WiFiUserService {
         return await db.$transaction(async (tx) => {
           // Resolve plan group name (radusergroup maps username → groupname)
           let groupName: string | null = null;
+          let resolvedPlanName: string | null = null; // Human-readable plan name (for Cryptsk-Plan-Name)
           let planIdleTimeoutSec = 0;
           if (input.planId) {
             const plan = await tx.wiFiPlan.findUnique({
@@ -337,6 +338,7 @@ export class WiFiUserService {
               select: { name: true, idleTimeoutSec: true, sessionTimeoutSec: true },
             });
             if (plan) {
+              resolvedPlanName = plan.name;
               // Convert plan name to a RADIUS-safe group name (lowercase, underscores)
               groupName = planNameToGroupName(plan.name, input.planId);
               // Auto-read idle timeout from plan if not explicitly provided
@@ -456,7 +458,7 @@ export class WiFiUserService {
             // Cryptsk-User-Profile: plan group name (for policy matching)
             userReplies.push({ attribute: 'Cryptsk-User-Profile', value: groupName });
             // Cryptsk-Plan-Name: human-readable plan name (for display/audit)
-            userReplies.push({ attribute: 'Cryptsk-Plan-Name', value: input.planName || groupName });
+            userReplies.push({ attribute: 'Cryptsk-Plan-Name', value: input.planName || resolvedPlanName || groupName });
           }
 
           // Create user-level reply entries
