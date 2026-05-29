@@ -134,8 +134,15 @@ export async function GET(request: NextRequest) {
         COALESCE(uc.cnt, 0)::int as _userCount,
         COALESCE(rc.cnt, 0)::int as _rangeCount
       FROM "IpPool" ip
-      LEFT JOIN (SELECT "ipPoolId", COUNT(*)::int as cnt FROM "WiFiPlan" WHERE "ipPoolId" IS NOT NULL GROUP BY "ipPoolId") pc ON pc."ipPoolId" = ip.id
-      LEFT JOIN (SELECT "ipPoolId", COUNT(*)::int as cnt FROM "WiFiUser" WHERE "ipPoolId" IS NOT NULL GROUP BY "ipPoolId") uc ON uc."ipPoolId" = ip.id
+      -- Plans: count via WiFiPlanIPPool junction table (the primary plan↔pool link)
+      LEFT JOIN (SELECT pp."poolId", COUNT(*)::int as cnt FROM "WiFiPlanIPPool" pp GROUP BY pp."poolId") pc ON pc."poolId" = ip.id
+      -- Users: count WiFiUsers whose plan is linked to this pool via WiFiPlanIPPool
+      LEFT JOIN (
+        SELECT pp."poolId", COUNT(*)::int as cnt
+        FROM "WiFiPlanIPPool" pp
+        JOIN "WiFiUser" wu ON wu."planId" = pp."planId" AND wu.status = 'active'
+        GROUP BY pp."poolId"
+      ) uc ON uc."poolId" = ip.id
       LEFT JOIN (SELECT "poolId", COUNT(*)::int as cnt FROM "IpPoolRange" GROUP BY "poolId") rc ON rc."poolId" = ip.id
       WHERE ip."tenantId" = $3::uuid
       AND ($1::text = '' OR ip.name ILIKE '%' || $1 || '%' OR ip.description ILIKE '%' || $1 || '%')
@@ -410,8 +417,10 @@ export async function DELETE(request: NextRequest) {
     // Check if pool is assigned to any plans or users
     const assignments = await db.$queryRawUnsafe(`
       SELECT 
-        (SELECT COUNT(*)::int FROM "WiFiPlan" WHERE "ipPoolId" = $1::uuid) as plan_count,
-        (SELECT COUNT(*)::int FROM "WiFiUser" WHERE "ipPoolId" = $1::uuid) as user_count
+        (SELECT COUNT(*)::int FROM "WiFiPlanIPPool" WHERE "poolId" = $1::uuid) as plan_count,
+        (SELECT COUNT(*)::int FROM "WiFiUser" wu
+         JOIN "WiFiPlanIPPool" pp ON pp."planId" = wu."planId" AND pp."poolId" = $1::uuid
+         WHERE wu.status = 'active') as user_count
     `, id) as any[];
 
     if (assignments[0].plan_count > 0 || assignments[0].user_count > 0) {

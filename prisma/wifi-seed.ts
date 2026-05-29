@@ -2866,6 +2866,23 @@ export async function seedWiFiData() {
   console.log('✓ 4 IP Pools seeded with ranges');
 
   // ═══════════════════════════════════════════════════════════════
+  // 41b. WiFi Plan ↔ IP Pool Assignments (Junction)
+  // ═══════════════════════════════════════════════════════════════
+  // Link plans to IP pools so the Pool Mappings page shows correct
+  // plan/user counts and auth flow can resolve pool from plan.
+  console.log('Seeding Plan ↔ Pool assignments...');
+  const ALL_PLAN_IDS = Object.values(PLAN_IDS);
+  // All plans → Guest VLAN Pool (default captive portal pool)
+  for (const planId of ALL_PLAN_IDS) {
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "WiFiPlanIPPool" (id, "planId", "poolId", priority, "createdAt")
+      VALUES (gen_random_uuid(), $1::uuid, $2::uuid, 0, $3)
+      ON CONFLICT ("planId", "poolId") DO NOTHING
+    `, planId, POOL_IDS.guest, now);
+  }
+  console.log(`✓ ${ALL_PLAN_IDS.length} plans linked to Guest VLAN Pool`);
+
+  // ═══════════════════════════════════════════════════════════════
   // 42. CAPTIVE PORTAL INSTANCES (2)
   // ═══════════════════════════════════════════════════════════════
   console.log('Seeding Captive Portal Instances (2)...');
