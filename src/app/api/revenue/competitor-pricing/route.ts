@@ -1,24 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { hasPermission, getUserFromRequest } from '@/lib/auth-helpers';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import { format, subDays, eachDayOfInterval } from 'date-fns';
 
 // GET /api/revenue/competitor-pricing - Get competitor pricing data
-export async function GET(request: NextRequest) {    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } }, { status: 401 });
-    }
-
-
+export async function GET(request: NextRequest) {
   try {
-    if (!hasPermission(user, 'revenue:read')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-        { status: 403 }
-      );
-    }
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
-    const tenantId = user.tenantId;
+    const tenantId = ctx.tenantId;
     const searchParams = request.nextUrl.searchParams;
     const roomType = searchParams.get('roomType') || 'standard';
     const dateStr = searchParams.get('date') || new Date().toISOString().split('T')[0];
@@ -197,21 +188,12 @@ export async function GET(request: NextRequest) {    const user = await getUserF
 }
 
 // POST /api/revenue/competitor-pricing - Add competitor price entry
-export async function POST(request: NextRequest) {    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } }, { status: 401 });
-    }
-
-
+export async function POST(request: NextRequest) {
   try {
-    if (!hasPermission(user, 'revenue:write')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-        { status: 403 }
-      );
-    }
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
-    const tenantId = user.tenantId;
+    const tenantId = ctx.tenantId;
     const body = await request.json();
     const {
       propertyId,
@@ -291,21 +273,12 @@ export async function POST(request: NextRequest) {    const user = await getUser
 }
 
 // DELETE /api/revenue/competitor-pricing - Delete competitor price entries
-export async function DELETE(request: NextRequest) {    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } }, { status: 401 });
-    }
-
-
+export async function DELETE(request: NextRequest) {
   try {
-    if (!hasPermission(user, 'revenue:write')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-        { status: 403 }
-      );
-    }
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
-    const tenantId = user.tenantId;
+    const tenantId = ctx.tenantId;
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get('id');
     const competitorName = searchParams.get('competitorName');

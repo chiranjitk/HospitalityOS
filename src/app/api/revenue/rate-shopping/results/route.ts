@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // GET /api/revenue/rate-shopping/results — Query rate comparison results
 export async function GET(request: NextRequest) {
-  const user = await getUserFromRequest(request);
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
-  if (!hasAnyPermission(user, ['revenue.view', 'revenue.manage', 'revenue.*', '*'])) {
-    return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
-  }
-
   try {
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const { searchParams } = request.nextUrl;
     const competitorId = searchParams.get('competitorId');
     const dateFrom = searchParams.get('dateFrom');
@@ -20,7 +15,7 @@ export async function GET(request: NextRequest) {
     const roomTypeId = searchParams.get('roomTypeId');
     const parityStatus = searchParams.get('parityStatus');
 
-    const where: Record<string, unknown> = { tenantId: user.tenantId };
+    const where: Record<string, unknown> = { tenantId: ctx.tenantId };
     if (competitorId) where.competitorId = competitorId;
     if (roomTypeId) where.roomTypeId = roomTypeId;
     if (parityStatus) where.parityStatus = parityStatus;

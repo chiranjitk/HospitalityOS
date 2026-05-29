@@ -1,23 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
+import { requirePermission } from '@/lib/auth/tenant-context';
 
 // GET /api/revenue/rate-shopping — List competitors + trigger rate comparison summary
 export async function GET(request: NextRequest) {
-  const user = await getUserFromRequest(request);
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
-  if (!hasAnyPermission(user, ['revenue.view', 'revenue.manage', 'revenue.*', '*'])) {
-    return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
-  }
-
   try {
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const { searchParams } = request.nextUrl;
     const propertyId = searchParams.get('propertyId');
     const channel = searchParams.get('channel');
 
-    const where: Record<string, unknown> = { tenantId: user.tenantId };
+    const where: Record<string, unknown> = { tenantId: ctx.tenantId };
     if (propertyId) where.propertyId = propertyId;
     if (channel) where.channel = channel;
 
@@ -28,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     // Get latest results summary per competitor
     const recentResults = await db.rateShoppingResult.findMany({
-      where: { tenantId: user.tenantId },
+      where: { tenantId: ctx.tenantId },
       orderBy: { fetchedAt: 'desc' },
       take: 200,
     });
@@ -59,15 +54,10 @@ export async function GET(request: NextRequest) {
 
 // POST /api/revenue/rate-shopping — Create competitor
 export async function POST(request: NextRequest) {
-  const user = await getUserFromRequest(request);
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
-  if (!hasAnyPermission(user, ['revenue.manage', 'revenue.*', '*'])) {
-    return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
-  }
-
   try {
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const body = await request.json();
     const { name, channel, propertyId, url } = body;
 
@@ -77,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     const competitor = await db.rateShoppingCompetitor.create({
       data: {
-        tenantId: user.tenantId,
+        tenantId: ctx.tenantId,
         name,
         channel,
         propertyId: propertyId || null,
@@ -94,22 +84,17 @@ export async function POST(request: NextRequest) {
 
 // DELETE /api/revenue/rate-shopping — Remove competitor
 export async function DELETE(request: NextRequest) {
-  const user = await getUserFromRequest(request);
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
-  if (!hasAnyPermission(user, ['revenue.manage', 'revenue.*', '*'])) {
-    return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
-  }
-
   try {
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const { searchParams } = request.nextUrl;
     const id = searchParams.get('id');
     if (!id) {
       return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400 });
     }
 
-    const existing = await db.rateShoppingCompetitor.findFirst({ where: { id, tenantId: user.tenantId } });
+    const existing = await db.rateShoppingCompetitor.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Competitor not found' }, { status: 404 });
     }
@@ -126,15 +111,10 @@ export async function DELETE(request: NextRequest) {
 
 // PUT /api/revenue/rate-shopping — Update competitor
 export async function PUT(request: NextRequest) {
-  const user = await getUserFromRequest(request);
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
-  if (!hasAnyPermission(user, ['revenue.manage', 'revenue.*', '*'])) {
-    return NextResponse.json({ success: false, error: 'Insufficient permissions' }, { status: 403 });
-  }
-
   try {
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
     const body = await request.json();
     const { id, name, channel, propertyId, url, isActive } = body;
 
@@ -142,7 +122,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400 });
     }
 
-    const existing = await db.rateShoppingCompetitor.findFirst({ where: { id, tenantId: user.tenantId } });
+    const existing = await db.rateShoppingCompetitor.findFirst({ where: { id, tenantId: ctx.tenantId } });
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Competitor not found' }, { status: 404 });
     }

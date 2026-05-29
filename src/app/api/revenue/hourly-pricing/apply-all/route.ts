@@ -1,42 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import {
   runHourlyPricingCycle,
   clearRateCache,
   getLinearPricingConfig,
   calculateLinearOccupancyPrice,
 } from '@/lib/revenue/hourly-pricing-engine';
-import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
 // POST /api/revenue/hourly-pricing/apply-all — Apply all suggested prices for a property
 export async function POST(request: NextRequest) {
-  const user = await getUserFromRequest(request);
-  if (!user) {
-    return NextResponse.json(
-      { success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } },
-      { status: 401 }
-    );
-  }
-
-  if (!hasPermission(user, 'revenue:write')) {
-    return NextResponse.json(
-      { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-      { status: 403 }
-    );
-  }
-
-  const tenantId = user.tenantId;
-  const body = await request.json();
-  const { propertyId } = body;
-
-  if (!propertyId) {
-    return NextResponse.json(
-      { success: false, error: { code: 'VALIDATION_ERROR', message: 'Property ID is required' } },
-      { status: 400 }
-    );
-  }
-
   try {
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
+    const tenantId = ctx.tenantId;
+    const body = await request.json();
+    const { propertyId } = body;
+
+    if (!propertyId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Property ID is required' } },
+        { status: 400 }
+      );
+    }
+
     // Verify property belongs to tenant
     const property = await db.property.findFirst({
       where: { id: propertyId, tenantId },

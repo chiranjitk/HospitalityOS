@@ -1,25 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { hasPermission, getUserFromRequest } from '@/lib/auth-helpers';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import { subDays, getDay, getMonth } from 'date-fns';
 import ZAI from 'z-ai-web-dev-sdk';
 
 // GET /api/revenue/ai-suggestions - Get AI revenue suggestions
-export async function GET(request: NextRequest) {    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } }, { status: 401 });
-    }
-
-
+export async function GET(request: NextRequest) {
   try {
-    if (!hasPermission(user, 'revenue:read')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-        { status: 403 }
-      );
-    }
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
-    const tenantId = user.tenantId;
+    const tenantId = ctx.tenantId;
 
     // Get recent booking trends (last 30 days)
     const thirtyDaysAgo = subDays(new Date(), 30);
@@ -425,21 +416,12 @@ function generateHeuristicSuggestions(
 }
 
 // PUT /api/revenue/ai-suggestions - Update suggestion status
-export async function PUT(request: NextRequest) {    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } }, { status: 401 });
-    }
-
-
+export async function PUT(request: NextRequest) {
   try {
-    if (!hasPermission(user, 'revenue:write')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-        { status: 403 }
-      );
-    }
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
-    const tenantId = user.tenantId;
+    const tenantId = ctx.tenantId;
     const body = await request.json();
     const { id, status } = body;
 
@@ -490,21 +472,12 @@ export async function PUT(request: NextRequest) {    const user = await getUserF
 }
 
 // POST /api/revenue/ai-suggestions - Create a new AI suggestion (for external integrations)
-export async function POST(request: NextRequest) {    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } }, { status: 401 });
-    }
-
-
+export async function POST(request: NextRequest) {
   try {
-    if (!hasPermission(user, 'revenue:write')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-        { status: 403 }
-      );
-    }
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
-    const tenantId = user.tenantId;
+    const tenantId = ctx.tenantId;
     const body = await request.json();
     const {
       type,

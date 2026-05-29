@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import {
   getLinearPricingConfig,
   setLinearPricingConfig,
@@ -10,33 +11,21 @@ import {
 
 // GET /api/revenue/linear-pricing — Get linear pricing configuration for a property
 export async function GET(request: NextRequest) {
-  const user = await requireAuth(request);
-  if (!user) {
-    return NextResponse.json(
-      { success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } },
-      { status: 401 }
-    );
-  }
-
-  if (!hasPermission(user, 'revenue:read')) {
-    return NextResponse.json(
-      { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-      { status: 403 }
-    );
-  }
-
-  const tenantId = user.tenantId;
-  const { searchParams } = new URL(request.url);
-  const propertyId = searchParams.get('propertyId');
-
-  if (!propertyId) {
-    return NextResponse.json(
-      { success: false, error: { code: 'VALIDATION_ERROR', message: 'Property ID is required' } },
-      { status: 400 }
-    );
-  }
-
   try {
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
+    const tenantId = ctx.tenantId;
+    const { searchParams } = new URL(request.url);
+    const propertyId = searchParams.get('propertyId');
+
+    if (!propertyId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Property ID is required' } },
+        { status: 400 }
+      );
+    }
+
     // Verify property belongs to tenant
     const property = await db.property.findFirst({
       where: { id: propertyId, tenantId },
@@ -91,75 +80,63 @@ export async function GET(request: NextRequest) {
 
 // PUT /api/revenue/linear-pricing — Update linear pricing settings
 export async function PUT(request: NextRequest) {
-  const user = await requireAuth(request);
-  if (!user) {
-    return NextResponse.json(
-      { success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } },
-      { status: 401 }
-    );
-  }
+  try {
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
 
-  if (!hasPermission(user, 'revenue:write')) {
-    return NextResponse.json(
-      { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-      { status: 403 }
-    );
-  }
+    const tenantId = ctx.tenantId;
+    const body = await request.json();
+    const { propertyId, floorMultipliers, ceilingMultipliers, sensitivity, enabled, perRoomIncrement } = body;
 
-  const tenantId = user.tenantId;
-  const body = await request.json();
-  const { propertyId, floorMultipliers, ceilingMultipliers, sensitivity, enabled, perRoomIncrement } = body;
-
-  if (!propertyId) {
-    return NextResponse.json(
-      { success: false, error: { code: 'VALIDATION_ERROR', message: 'Property ID is required' } },
-      { status: 400 }
-    );
-  }
-
-  // Validate floor multipliers if provided
-  if (floorMultipliers) {
-    const validation = validateMultipliers(floorMultipliers, 'floor');
-    if (!validation.valid) {
+    if (!propertyId) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: validation.error } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Property ID is required' } },
         { status: 400 }
       );
     }
-  }
 
-  // Validate ceiling multipliers if provided
-  if (ceilingMultipliers) {
-    const validation = validateMultipliers(ceilingMultipliers, 'ceiling');
-    if (!validation.valid) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: validation.error } },
-        { status: 400 }
-      );
-    }
-  }
-
-  // Validate ceiling > floor for each tier if both are provided
-  if (floorMultipliers && ceilingMultipliers) {
-    for (const tier of ['low', 'medium', 'high', 'premium', 'lastRoom'] as const) {
-      if (ceilingMultipliers[tier] <= floorMultipliers[tier]) {
+    // Validate floor multipliers if provided
+    if (floorMultipliers) {
+      const validation = validateMultipliers(floorMultipliers, 'floor');
+      if (!validation.valid) {
         return NextResponse.json(
-          { success: false, error: { code: 'VALIDATION_ERROR', message: `Ceiling must be greater than floor for tier "${tier}"` } },
+          { success: false, error: { code: 'VALIDATION_ERROR', message: validation.error } },
           { status: 400 }
         );
       }
     }
-  }
 
-  // Validate sensitivity if provided
-  if (sensitivity && !['conservative', 'moderate', 'aggressive'].includes(sensitivity)) {
-    return NextResponse.json(
-      { success: false, error: { code: 'VALIDATION_ERROR', message: 'Sensitivity must be conservative, moderate, or aggressive' } },
-      { status: 400 }
-    );
-  }
+    // Validate ceiling multipliers if provided
+    if (ceilingMultipliers) {
+      const validation = validateMultipliers(ceilingMultipliers, 'ceiling');
+      if (!validation.valid) {
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: validation.error } },
+          { status: 400 }
+        );
+      }
+    }
 
-  try {
+    // Validate ceiling > floor for each tier if both are provided
+    if (floorMultipliers && ceilingMultipliers) {
+      for (const tier of ['low', 'medium', 'high', 'premium', 'lastRoom'] as const) {
+        if (ceilingMultipliers[tier] <= floorMultipliers[tier]) {
+          return NextResponse.json(
+            { success: false, error: { code: 'VALIDATION_ERROR', message: `Ceiling must be greater than floor for tier "${tier}"` } },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    // Validate sensitivity if provided
+    if (sensitivity && !['conservative', 'moderate', 'aggressive'].includes(sensitivity)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Sensitivity must be conservative, moderate, or aggressive' } },
+        { status: 400 }
+      );
+    }
+
     // Verify property belongs to tenant
     const property = await db.property.findFirst({
       where: { id: propertyId, tenantId },
@@ -217,19 +194,6 @@ export async function PUT(request: NextRequest) {
 // ============================================================
 // Helper Functions
 // ============================================================
-
-import { getUserFromRequest } from '@/lib/auth-helpers';
-
-async function requireAuth(request: NextRequest) {
-  return getUserFromRequest(request);
-}
-
-function hasPermission(user: Awaited<ReturnType<typeof getUserFromRequest>>, permission: string): boolean {
-  if (!user) return false;
-  if (user.isPlatformAdmin) return true;
-  if (user.roleName === 'admin' || user.permissions.includes('*')) return true;
-  return user.permissions.includes(permission);
-}
 
 function validateMultipliers(
   multipliers: Record<string, number>,

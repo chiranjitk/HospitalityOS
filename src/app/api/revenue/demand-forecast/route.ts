@@ -31,12 +31,32 @@ export async function GET(request: NextRequest) {
 
     const totalRooms = rooms.length || 1; // Avoid division by zero
 
-    // Get historical booking data for analysis (last 90 days)
+    // M-66: Determine actual data availability for confidence scoring
     const ninetyDaysAgo = subDays(new Date(), 90);
+    const earliestBooking = await db.booking.findFirst({
+      where: { tenantId, status: { notIn: ['cancelled', 'no_show'] } },
+      orderBy: { createdAt: 'asc' },
+      select: { createdAt: true },
+    });
+    const earliestCheckin = await db.booking.findFirst({
+      where: { tenantId, status: { notIn: ['cancelled', 'no_show'] }, checkIn: { not: null } },
+      orderBy: { checkIn: 'asc' },
+      select: { checkIn: true },
+    });
+
+    const now = new Date();
+    const dataStartDate = earliestBooking?.createdAt || earliestCheckin?.checkIn || now;
+    const availableDays = Math.max(0, Math.ceil((now.getTime() - dataStartDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const dataAvailableRatio = Math.min(1, availableDays / 90);
+
+    // Use the earlier of 90 days ago or actual data start for queries
+    const effectiveStartDate = dataStartDate > ninetyDaysAgo ? dataStartDate : ninetyDaysAgo;
+
+    // Get historical booking data for analysis
     const bookingWhere: Record<string, unknown> = {
       tenantId,
       status: { notIn: ['cancelled', 'no_show'] },
-      createdAt: { gte: ninetyDaysAgo },
+      createdAt: { gte: effectiveStartDate },
     };
     if (roomTypeFilter) bookingWhere.roomTypeId = roomTypeFilter;
     const bookings = await db.booking.findMany({
@@ -50,7 +70,7 @@ export async function GET(request: NextRequest) {
     const checkInWhere: Record<string, unknown> = {
       tenantId,
       status: { notIn: ['cancelled', 'no_show'] },
-      checkIn: { gte: ninetyDaysAgo },
+      checkIn: { gte: effectiveStartDate },
     };
     if (roomTypeFilter) checkInWhere.roomTypeId = roomTypeFilter;
     const checkIns = await db.booking.findMany({
@@ -61,6 +81,23 @@ export async function GET(request: NextRequest) {
         roomId: true,
       },
     });
+
+    // M-66: Property-type default occupancy factors for new properties with insufficient data
+    const PROPERTY_TYPE_DEFAULTS: Record<string, number[]> = {
+      hotel:       [65, 60, 55, 55, 60, 80, 85],
+      resort:      [55, 50, 50, 50, 55, 90, 92],
+      hostel:      [70, 65, 60, 65, 70, 90, 88],
+      apartment:   [50, 50, 50, 50, 50, 60, 60],
+      villa:       [40, 40, 40, 40, 45, 70, 75],
+      guesthouse:  [60, 55, 55, 55, 60, 75, 80],
+    };
+
+    // Detect property type from first property
+    const firstProperty = propertyIds.length > 0
+      ? await db.property.findFirst({ where: { id: propertyIds[0].id }, select: { type: true } })
+      : null;
+    const propertyType = firstProperty?.type || 'hotel';
+    const defaultDowFactors = PROPERTY_TYPE_DEFAULTS[propertyType] || PROPERTY_TYPE_DEFAULTS.hotel;
 
     // Calculate day-of-week patterns
     const dayOfWeekOccupancy: Record<number, { total: number; occupied: number }> = {};
@@ -89,14 +126,20 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate average occupancy per day of week
+    // M-66: Blend actual data with defaults based on data availability
     const dayOfWeekFactors: number[] = [];
+    const daysOfWeekWithData = dayOfWeekOccupancy.filter(d => d.total > 0).length;
     for (let i = 0; i < 7; i++) {
       const data = dayOfWeekOccupancy[i];
       if (data.total > 0) {
         const avgOccupied = data.occupied / data.total;
-        dayOfWeekFactors[i] = (avgOccupied / totalRooms) * 100;
+        const actualFactor = (avgOccupied / totalRooms) * 100;
+        // Blend: use weighted average of actual data and defaults
+        const blendWeight = Math.min(1, availableDays / 30);
+        dayOfWeekFactors[i] = Math.round((actualFactor * blendWeight + defaultDowFactors[i] * (1 - blendWeight)) * 10) / 10;
       } else {
-        dayOfWeekFactors[i] = 50; // Default if no data
+        // No data for this day of week — use defaults
+        dayOfWeekFactors[i] = defaultDowFactors[i];
       }
     }
 
@@ -114,12 +157,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate overall average for normalization
+    const effectiveDays = Math.max(30, Math.ceil((now.getTime() - effectiveStartDate.getTime()) / (1000 * 60 * 60 * 24)));
     const overallAvgOccupancy = bookings.length > 0
-      ? (checkIns.length / totalRooms) * (90 / 30) // Approximate monthly occupancy
-      : 50;
+      ? (checkIns.length / totalRooms) * (effectiveDays / 30)
+      : defaultDowFactors.reduce((a, b) => a + b, 0) / 7;
 
     // Calculate monthly factors (relative to overall average)
+    // M-66: For months without data, default to 1.0 (neutral)
     const monthlyFactors: number[] = [];
+    const monthsWithData = monthlyOccupancy.filter(m => m.total > 0).length;
     for (let i = 0; i < 12; i++) {
       const data = monthlyOccupancy[i];
       if (data.total > 0) {
@@ -131,7 +177,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Calculate booking velocity trend (bookings per day in recent period vs earlier)
+    // M-66: Calculate booking velocity trend (bookings per day in recent period vs earlier)
+    // Only compute trend when we have enough data for meaningful comparison
     const thirtyDaysAgo = subDays(new Date(), 30);
     const sixtyDaysAgo = subDays(new Date(), 60);
 
@@ -141,7 +188,9 @@ export async function GET(request: NextRequest) {
       return date >= sixtyDaysAgo && date < thirtyDaysAgo;
     }).length;
 
-    const trendFactor = earlierBookings > 0
+    // Only use trend if we have at least 30 days of data for comparison
+    const canComputeTrend = availableDays >= 60 && earlierBookings > 0;
+    const trendFactor = canComputeTrend
       ? Math.min(1.5, Math.max(0.5, (recentBookings / 30) / (earlierBookings / 30)))
       : 1;
 
@@ -251,8 +300,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Calculate forecast accuracy estimate
-    const historicalAccuracy = bookings.length > 30 ? 85 : 70; // Higher accuracy with more data
+    // M-66: Calculate forecast accuracy estimate based on data availability
+    const dataConfidence = Math.min(95, Math.round(40 + (dataAvailableRatio * 55)));
+    const historicalAccuracy = dataConfidence;
 
     // Build seasonal trends from monthly factors
     const seasonalTrends = [
@@ -311,6 +361,18 @@ export async function GET(request: NextRequest) {
           seasonalFactor: Math.round((monthlyFactors[getMonth(new Date())] || 1) * 10) / 10,
           bookingPace: trendFactor > 1 ? Math.round(trendFactor * 10) / 10 : 0.8,
           pickupRate: Math.round(recentBookings / 30),
+        },
+        // M-66: Data availability metadata for consumers to gauge forecast reliability
+        dataAvailability: {
+          availableDays,
+          targetDays: 90,
+          ratio: Math.round(dataAvailableRatio * 100) / 100,
+          confidence: dataConfidence,
+          model: availableDays >= 90 ? 'full_historical' : availableDays >= 30 ? 'partial_with_defaults' : 'property_type_defaults',
+          propertyType,
+          daysOfWeekWithData,
+          monthsWithData,
+          trendAvailable: canComputeTrend,
         },
       },
     });

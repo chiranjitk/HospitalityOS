@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { runScheduledPricingUpdate } from '@/lib/revenue/pricing-scheduler';
+import { runScheduledPricingUpdate, rollbackToLastSnapshot } from '@/lib/revenue/pricing-scheduler';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 
@@ -33,9 +33,26 @@ export async function GET(request: NextRequest) {
       nextScheduledRun = next.toISOString();
     }
 
+    // M-68: Check if rollback is available (latest pricing snapshot)
+    const latestSnapshot = await db.auditLog.findFirst({
+      where: {
+        tenantId,
+        module: 'revenue',
+        action: 'pricing_snapshot',
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, createdAt: true },
+    });
+
     return NextResponse.json({
       success: true,
-      data: { runs, lastRun, nextScheduledRun },
+      data: {
+        runs,
+        lastRun,
+        nextScheduledRun,
+        rollbackAvailable: !!latestSnapshot,
+        latestSnapshotAt: latestSnapshot?.createdAt?.toISOString() ?? null,
+      },
     });
   } catch (error) {
     console.error('Error fetching auto-apply status:', error);
@@ -52,11 +69,19 @@ export async function POST(request: NextRequest) {
     if (ctx instanceof NextResponse) return ctx;
 
     const tenantId = ctx.tenantId;
-
     const body = await request.json();
-    const propertyId = body.propertyId;
+    const { action } = body;
 
-    // Run the scheduler
+    // M-68: Rollback endpoint
+    if (action === 'rollback') {
+      const result = await rollbackToLastSnapshot(tenantId);
+      return NextResponse.json({
+        success: result.success,
+        data: result,
+      });
+    }
+
+    // Default: run the scheduler
     const result = await runScheduledPricingUpdate(tenantId);
 
     return NextResponse.json({

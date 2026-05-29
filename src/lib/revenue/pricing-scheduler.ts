@@ -17,6 +17,7 @@ export interface SchedulerRunResult {
   startedAt: Date;
   completedAt: Date;
   errorDetails?: string;
+  snapshotId?: string;
   details: Array<{
     ruleId: string;
     ruleName: string;
@@ -24,6 +25,16 @@ export interface SchedulerRunResult {
     reason: string;
     rateChange?: { roomTypeId: string; oldRate: number; newRate: number };
   }>;
+}
+
+/** Snapshot of room type and rate plan prices before a scheduled run */
+export interface PricingSnapshot {
+  id: string;
+  tenantId: string;
+  createdAt: Date;
+  schedulerRunId: string;
+  roomTypes: Array<{ id: string; name: string; basePrice: number }>;
+  ratePlans: Array<{ id: string; name: string; basePrice: number; roomTypeId: string }>;
 }
 
 /**
@@ -52,6 +63,9 @@ export async function runScheduledPricingUpdate(
   let rulesApplied = 0;
   let rulesSkipped = 0;
   let totalRevenueImpact = 0;
+
+  // M-68: Snapshot current prices before applying any changes
+  const snapshotId = await createPricingSnapshot(tenantId, runId);
 
   try {
     // Get all active pricing rules with autoApply condition
@@ -290,6 +304,7 @@ export async function runScheduledPricingUpdate(
       totalRevenueImpact: Math.round(totalRevenueImpact * 100) / 100,
       startedAt,
       completedAt: new Date(),
+      snapshotId,
       details,
     };
   } catch (error) {
@@ -399,4 +414,156 @@ async function evaluateRuleConditions(
   }
 
   return true;
+}
+
+// ============================================================
+// M-68: Pricing Snapshot & Rollback
+// ============================================================
+
+/**
+ * Create a snapshot of all room type and rate plan prices for the tenant.
+ * Stored as an AuditLog entry so it can be used for rollback.
+ * Returns the audit log entry ID.
+ */
+async function createPricingSnapshot(
+  tenantId: string,
+  schedulerRunId: string
+): Promise<string> {
+  // Collect current room type prices
+  const roomTypes = await db.roomType.findMany({
+    where: { property: { tenantId }, deletedAt: null },
+    select: { id: true, name: true, basePrice: true },
+  });
+
+  // Collect current rate plan prices
+  const ratePlans = await db.ratePlan.findMany({
+    where: { tenantId, deletedAt: null },
+    select: { id: true, name: true, basePrice: true, roomTypeId: true },
+  });
+
+  const snapshot: Omit<PricingSnapshot, 'id'> = {
+    tenantId,
+    createdAt: new Date(),
+    schedulerRunId,
+    roomTypes: roomTypes.map(rt => ({ id: rt.id, name: rt.name, basePrice: rt.basePrice })),
+    ratePlans: ratePlans.map(rp => ({ id: rp.id, name: rp.name, basePrice: rp.basePrice, roomTypeId: rp.roomTypeId })),
+  };
+
+  const auditEntry = await db.auditLog.create({
+    data: {
+      tenantId,
+      module: 'revenue',
+      action: 'pricing_snapshot',
+      entityType: 'SchedulerRun',
+      entityId: schedulerRunId,
+      newValue: JSON.stringify(snapshot),
+    },
+  });
+
+  return auditEntry.id;
+}
+
+/**
+ * Find the latest pricing snapshot for a tenant.
+ */
+async function getLatestSnapshot(
+  tenantId: string
+): Promise<{ snapshot: PricingSnapshot; auditId: string } | null> {
+  const auditEntry = await db.auditLog.findFirst({
+    where: {
+      tenantId,
+      module: 'revenue',
+      action: 'pricing_snapshot',
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (!auditEntry || !auditEntry.newValue) return null;
+
+  try {
+    const snapshot = JSON.parse(auditEntry.newValue) as PricingSnapshot;
+    return { snapshot, auditId: auditEntry.id };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Rollback prices to the latest snapshot for a tenant.
+ * Restores room type base prices and rate plan base prices.
+ */
+export async function rollbackToLastSnapshot(
+  tenantId: string
+): Promise<{
+  success: boolean;
+  snapshotId: string;
+  roomTypesRestored: number;
+  ratePlansRestored: number;
+  error?: string;
+}> {
+  const result = await getLatestSnapshot(tenantId);
+
+  if (!result) {
+    return {
+      success: false,
+      snapshotId: '',
+      roomTypesRestored: 0,
+      ratePlansRestored: 0,
+      error: 'No pricing snapshot found for rollback',
+    };
+  }
+
+  const { snapshot, auditId } = result;
+  let roomTypesRestored = 0;
+  let ratePlansRestored = 0;
+
+  // Restore room type prices
+  for (const rt of snapshot.roomTypes) {
+    try {
+      await db.roomType.update({
+        where: { id: rt.id },
+        data: { basePrice: rt.basePrice },
+      });
+      roomTypesRestored++;
+    } catch (err) {
+      console.warn(`[Rollback] Failed to restore room type ${rt.id}:`, err);
+    }
+  }
+
+  // Restore rate plan prices
+  for (const rp of snapshot.ratePlans) {
+    try {
+      await db.ratePlan.update({
+        where: { id: rp.id },
+        data: { basePrice: rp.basePrice },
+      });
+      ratePlansRestored++;
+    } catch (err) {
+      console.warn(`[Rollback] Failed to restore rate plan ${rp.id}:`, err);
+    }
+  }
+
+  // Log the rollback action
+  await db.auditLog.create({
+    data: {
+      tenantId,
+      module: 'revenue',
+      action: 'pricing_rollback',
+      entityType: 'AuditLog',
+      entityId: auditId,
+      newValue: JSON.stringify({
+        snapshotId: auditId,
+        roomTypesRestored,
+        ratePlansRestored,
+        timestamp: new Date().toISOString(),
+      }),
+    },
+  });
+
+  return {
+    success: true,
+    snapshotId: auditId,
+    roomTypesRestored,
+    ratePlansRestored,
+  };
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import {
   calculateHourlyRate,
   runHourlyPricingCycle,
@@ -15,35 +16,23 @@ import {
 // GET /api/revenue/hourly-pricing — Get current hourly rates for a property
 // Supports ?detail=rooms to get per-room pricing data
 export async function GET(request: NextRequest) {
-  const user = await requireAuth(request);
-  if (!user) {
-    return NextResponse.json(
-      { success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } },
-      { status: 401 }
-    );
-  }
-
-  if (!hasPermission(user, 'revenue:read')) {
-    return NextResponse.json(
-      { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-      { status: 403 }
-    );
-  }
-
-  const tenantId = user.tenantId;
-  const { searchParams } = new URL(request.url);
-  const propertyId = searchParams.get('propertyId');
-  const roomTypeId = searchParams.get('roomTypeId');
-  const detail = searchParams.get('detail');
-
-  if (!propertyId) {
-    return NextResponse.json(
-      { success: false, error: { code: 'VALIDATION_ERROR', message: 'Property ID is required' } },
-      { status: 400 }
-    );
-  }
-
   try {
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
+    const tenantId = ctx.tenantId;
+    const { searchParams } = new URL(request.url);
+    const propertyId = searchParams.get('propertyId');
+    const roomTypeId = searchParams.get('roomTypeId');
+    const detail = searchParams.get('detail');
+
+    if (!propertyId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Property ID is required' } },
+        { status: 400 }
+      );
+    }
+
     // Verify property belongs to tenant
     const property = await db.property.findFirst({
       where: { id: propertyId, tenantId },
@@ -128,33 +117,21 @@ export async function GET(request: NextRequest) {
 
 // PUT /api/revenue/hourly-pricing — Update pricing for a specific room
 export async function PUT(request: NextRequest) {
-  const user = await requireAuth(request);
-  if (!user) {
-    return NextResponse.json(
-      { success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } },
-      { status: 401 }
-    );
-  }
-
-  if (!hasPermission(user, 'revenue:write')) {
-    return NextResponse.json(
-      { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-      { status: 403 }
-    );
-  }
-
-  const tenantId = user.tenantId;
-  const body = await request.json();
-  const { roomId, price, suggestedPrice, propertyId } = body;
-
-  if (!roomId || price === undefined) {
-    return NextResponse.json(
-      { success: false, error: { code: 'VALIDATION_ERROR', message: 'roomId and price are required' } },
-      { status: 400 }
-    );
-  }
-
   try {
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
+    const tenantId = ctx.tenantId;
+    const body = await request.json();
+    const { roomId, price, suggestedPrice, propertyId } = body;
+
+    if (!roomId || price === undefined) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'roomId and price are required' } },
+        { status: 400 }
+      );
+    }
+
     // Find the room and verify it belongs to the tenant's property
     const room = await db.room.findUnique({
       where: { id: roomId, deletedAt: null },
@@ -222,26 +199,14 @@ export async function PUT(request: NextRequest) {
 
 // POST /api/revenue/hourly-pricing — Trigger hourly pricing cycle or configure settings
 export async function POST(request: NextRequest) {
-  const user = await requireAuth(request);
-  if (!user) {
-    return NextResponse.json(
-      { success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } },
-      { status: 401 }
-    );
-  }
-
-  if (!hasPermission(user, 'revenue:write')) {
-    return NextResponse.json(
-      { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-      { status: 403 }
-    );
-  }
-
-  const tenantId = user.tenantId;
-  const body = await request.json();
-  const { propertyId, roomTypeId, sensitivity, enabled, action } = body;
-
   try {
+    const ctx = await requirePermission(request, 'revenue.manage');
+    if (ctx instanceof NextResponse) return ctx;
+
+    const tenantId = ctx.tenantId;
+    const body = await request.json();
+    const { propertyId, roomTypeId, sensitivity, enabled, action } = body;
+
     // Determine action
     if (action === 'configure') {
       if (!propertyId) {
@@ -435,21 +400,4 @@ async function handleRoomDetail(
     success: true,
     data: roomPricingData,
   });
-}
-
-// ============================================================
-// Auth & Permission Helpers (inlined to avoid circular deps)
-// ============================================================
-
-import { getUserFromRequest, hasPermission as checkPermission } from '@/lib/auth-helpers';
-
-async function requireAuth(request: NextRequest) {
-  return getUserFromRequest(request);
-}
-
-function hasPermission(user: Awaited<ReturnType<typeof getUserFromRequest>>, permission: string): boolean {
-  if (!user) return false;
-  if (user.isPlatformAdmin) return true;
-  if (user.roleName === 'admin' || user.permissions.includes('*')) return true;
-  return user.permissions.includes(permission);
 }
