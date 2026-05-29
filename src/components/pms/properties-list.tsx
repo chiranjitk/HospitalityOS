@@ -474,7 +474,7 @@ export default function PropertiesList() {
   useEffect(() => {
     const controller = new AbortController();
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [statusFilter, typeFilter]);
 
   const generateSlug = (name: string) => {

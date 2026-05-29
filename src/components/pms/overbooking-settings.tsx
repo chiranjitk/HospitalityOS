@@ -118,6 +118,7 @@ export default function OverbookingSettings() {
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Error fetching properties:', error);
         toast({
           title: 'Error',
@@ -127,14 +128,14 @@ export default function OverbookingSettings() {
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch room types when property changes
   useEffect(() => {
     const controller = new AbortController();
     fetchRoomTypes();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [selectedProperty]);
 
   // Open edit dialog

@@ -151,6 +151,7 @@ export default function WiFiRevenueDashboard() {
       } catch (error: unknown) {
         if (cancelled) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Failed to fetch revenue dashboard:', error);
         toast({ title: 'Error', description: 'Failed to load revenue data', variant: 'destructive' });
       } finally {
@@ -158,7 +159,7 @@ export default function WiFiRevenueDashboard() {
       }
     })();
 
-    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort('Component cleanup'); };
   }, [fetchKey, toast]);
 
   const refresh = () => setFetchKey(k => k + 1);

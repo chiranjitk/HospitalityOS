@@ -348,7 +348,7 @@ export default function FloorPlans() {
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch floor plans
@@ -370,6 +370,7 @@ export default function FloorPlans() {
       }
     } catch (error: any) {
       if (error?.name === 'AbortError') return;
+      if (error instanceof Error && error.name === 'AbortError') return;
       console.error('Error fetching floor plans:', error);
       toast({
         title: 'Error',
@@ -384,7 +385,7 @@ export default function FloorPlans() {
   useEffect(() => {
     const controller = new AbortController();
     fetchFloorPlans(controller.signal);
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [propertyFilter]);
 
   // Fetch rooms when property changes in editor

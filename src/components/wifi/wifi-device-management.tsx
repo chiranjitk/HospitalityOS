@@ -353,7 +353,7 @@ export default function WiFiDeviceManagement() {
       }
     })();
 
-    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort('Component cleanup'); };
   }, [searchQuery, deviceTypeFilter, statusFilter, propertyFilter, fetchKey, toast]);
 
   // Trigger a manual refresh (bump fetchKey to re-run the effect)

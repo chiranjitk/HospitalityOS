@@ -286,7 +286,7 @@ function WeatherWidget({ design }: { design: PortalDesignConfig }) {
     if (weatherCache.has(location)) return;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => controller.abort('Weather fetch timeout'), 5000);
 
     // Fetch via server-side proxy — captive portal blocks direct external access
     fetch(`/api/wifi/portal/weather?location=${encodeURIComponent(location)}`, {
@@ -307,7 +307,7 @@ function WeatherWidget({ design }: { design: PortalDesignConfig }) {
 
     return () => {
       clearTimeout(timeoutId);
-      controller.abort();
+      controller.abort('Component cleanup');
     };
   }, [location]);
 

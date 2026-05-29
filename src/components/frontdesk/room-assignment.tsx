@@ -143,11 +143,12 @@ export default function RoomAssignment() {
         }
       } catch (error) {
         if (error?.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         toast({ title: 'Error', description: 'Failed to fetch properties', variant: 'destructive' });
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch unassigned bookings
@@ -169,6 +170,7 @@ export default function RoomAssignment() {
       }
     } catch (error) {
       if (error?.name === 'AbortError') return;
+      if (error instanceof Error && error.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch bookings',
@@ -197,6 +199,7 @@ export default function RoomAssignment() {
       }
     } catch (error) {
       if (error?.name === 'AbortError') return;
+      if (error instanceof Error && error.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch rooms',
@@ -264,6 +267,7 @@ export default function RoomAssignment() {
       }
     } catch (error) {
       if (error?.name === 'AbortError') return;
+      if (error instanceof Error && error.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to assign room',
@@ -453,6 +457,7 @@ export default function RoomAssignment() {
       }
     } catch (error) {
       if (error?.name === 'AbortError') return;
+      if (error instanceof Error && error.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to assign room',

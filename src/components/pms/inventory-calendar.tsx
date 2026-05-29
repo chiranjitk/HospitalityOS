@@ -121,11 +121,12 @@ export default function InventoryCalendar() {
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Error fetching properties:', error);
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch inventory data when property changes

@@ -199,6 +199,7 @@ export default function CheckOut() {
       }
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch departures',
@@ -212,7 +213,7 @@ export default function CheckOut() {
   useEffect(() => {
     const controller = new AbortController();
     fetchDepartures(controller.signal);
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [searchQuery]);
 
   // Fetch booking details with folio
@@ -236,6 +237,7 @@ export default function CheckOut() {
       }
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch booking details',
@@ -350,6 +352,7 @@ export default function CheckOut() {
       }
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to process payment',
@@ -419,6 +422,7 @@ export default function CheckOut() {
       }
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to process deposit refund',
@@ -514,6 +518,7 @@ export default function CheckOut() {
       }
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') return;
+      if (err instanceof Error && err.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to process check-out',

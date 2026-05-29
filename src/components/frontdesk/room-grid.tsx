@@ -221,11 +221,12 @@ export default function RoomGrid() {
         }
       } catch (error) {
         if (error?.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         toast({ title: 'Error', description: 'Failed to fetch properties', variant: 'destructive' });
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch rooms
@@ -245,6 +246,7 @@ export default function RoomGrid() {
       }
     } catch (error) {
       if (error?.name === 'AbortError') return;
+      if (error instanceof Error && error.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to fetch rooms',
@@ -281,6 +283,7 @@ export default function RoomGrid() {
       }
     } catch (error) {
       if (error?.name === 'AbortError') return;
+      if (error instanceof Error && error.name === 'AbortError') return;
       toast({ title: 'Error', description: 'Failed to fetch room booking', variant: 'destructive' });
       setRoomBooking(null);
     } finally {
@@ -339,6 +342,7 @@ export default function RoomGrid() {
       }
     } catch (error) {
       if (error?.name === 'AbortError') return;
+      if (error instanceof Error && error.name === 'AbortError') return;
       toast({
         title: 'Error',
         description: 'Failed to update room status',

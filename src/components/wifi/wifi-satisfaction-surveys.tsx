@@ -212,6 +212,7 @@ export default function WiFiSatisfactionSurveys() {
       } catch (error: unknown) {
         if (cancelled) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Failed to fetch satisfaction data:', error);
         toast({ title: 'Error', description: 'Failed to load survey data', variant: 'destructive' });
       } finally {
@@ -219,7 +220,7 @@ export default function WiFiSatisfactionSurveys() {
       }
     })();
 
-    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort('Component cleanup'); };
   }, [fetchKey, toast]);
 
   // ─── Filter surveys ───────────────────────────────────────────────

@@ -277,6 +277,7 @@ export default function FrontDeskDashboard() {
         }
       } catch (err) {
         if (err?.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return;
         setError('Failed to fetch dashboard data');
         setStats(EMPTY_FRONTDESK_STATS);
       } finally {
@@ -284,7 +285,7 @@ export default function FrontDeskDashboard() {
       }
     };
     fetchStats();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Retry fetch

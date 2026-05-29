@@ -235,11 +235,12 @@ export default function GroupBookings() {
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Error fetching properties:', err);
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch room types when property changes
@@ -259,11 +260,12 @@ export default function GroupBookings() {
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Error fetching room types:', err);
       }
     };
     fetchRoomTypes();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [formData.propertyId]);
 
   // Fetch guests
@@ -285,11 +287,12 @@ export default function GroupBookings() {
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Error fetching guests:', err);
       }
     };
     fetchGuests();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch group bookings
@@ -327,7 +330,7 @@ export default function GroupBookings() {
   useEffect(() => {
     const controller = new AbortController();
     fetchGroups();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [statusFilter, propertyFilter]);
 
   useEffect(() => {
@@ -337,7 +340,7 @@ export default function GroupBookings() {
         fetchGroups();
       }
     }, 300);
-    return () => { clearTimeout(timer); controller.abort(); };
+    return () => { clearTimeout(timer); controller.abort('Component cleanup'); };
   }, [searchQuery]);
 
   // Fetch available rooms for booking

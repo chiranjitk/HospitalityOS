@@ -91,7 +91,7 @@ export default function RevenueDashboard() {
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Calculate metrics from bookings
@@ -187,7 +187,7 @@ export default function RevenueDashboard() {
     };
 
     fetchMetrics();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [selectedProperty, period, properties]);
 
   // Calculate summary stats

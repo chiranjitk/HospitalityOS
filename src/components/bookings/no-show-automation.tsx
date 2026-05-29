@@ -190,7 +190,7 @@ export default function NoShowAutomation() {
   useEffect(() => {
     const controller = new AbortController();
     fetchNoShowBookings();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [fetchNoShowBookings]);
 
   // =====================================================
@@ -233,7 +233,7 @@ export default function NoShowAutomation() {
   useEffect(() => {
     const controller = new AbortController();
     fetchSettings();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [fetchSettings]);
 
   // =====================================================

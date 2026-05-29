@@ -170,7 +170,7 @@ export function PricingManager() {
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch room types when property changes
@@ -196,7 +196,7 @@ export function PricingManager() {
       }
     };
     fetchRoomTypes();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [selectedProperty]);
 
   // Fetch rate plans and overrides
@@ -245,7 +245,7 @@ export function PricingManager() {
     };
 
     fetchData();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [selectedProperty, selectedRoomType]);
 
   const openRatePlanDialog = (plan?: RatePlan) => {

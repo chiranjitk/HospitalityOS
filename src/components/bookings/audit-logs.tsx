@@ -111,7 +111,7 @@ export default function AuditLogs() {
   useEffect(() => {
     const controller = new AbortController();
     fetchLogs();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [actionFilter]);
 
   useEffect(() => {
@@ -121,7 +121,7 @@ export default function AuditLogs() {
         fetchLogs();
       }
     }, 300);
-    return () => { clearTimeout(timer); controller.abort(); };
+    return () => { clearTimeout(timer); controller.abort('Component cleanup'); };
   }, [searchQuery]);
 
   const getActionBadge = (action: string) => {

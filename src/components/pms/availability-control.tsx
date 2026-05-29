@@ -151,6 +151,7 @@ export default function AvailabilityControl() {
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Error fetching properties:', error);
         toast({
           title: 'Error',
@@ -160,7 +161,7 @@ export default function AvailabilityControl() {
       }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   // Fetch data when property or date range changes
@@ -232,7 +233,7 @@ export default function AvailabilityControl() {
   useEffect(() => {
     const controller = new AbortController();
     fetchData();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, [fetchData]);
 
   // Pre-index bookings by roomTypeId for O(1) lookup (Fix 5-D1)

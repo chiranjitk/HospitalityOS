@@ -263,6 +263,7 @@ export default function WiFiSLAMonitoring() {
       } catch (error: unknown) {
         if (cancelled) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof Error && error.name === 'AbortError') return;
         console.error('Failed to fetch SLA data:', error);
         toast({ title: 'Error', description: 'Failed to load SLA data', variant: 'destructive' });
       } finally {
@@ -270,7 +271,7 @@ export default function WiFiSLAMonitoring() {
       }
     })();
 
-    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort(); };
+    return () => { cancelled = true; if (!controller.signal.aborted) controller.abort('Component cleanup'); };
   }, [fetchKey, toast]);
 
   // ─── Latest metrics for overall compliance cards ──────────────────

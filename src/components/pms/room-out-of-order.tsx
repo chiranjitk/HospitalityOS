@@ -161,7 +161,7 @@ export default function RoomOutOfOrder() {
       } catch { /* ignore */ }
     };
     fetchProperties();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   const fetchRooms = useCallback(async () => {

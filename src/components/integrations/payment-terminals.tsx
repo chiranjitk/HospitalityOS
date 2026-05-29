@@ -653,7 +653,7 @@ export function PaymentTerminals() {
         }
       }
     })();
-    return () => controller.abort();
+    return () => controller.abort('Component cleanup');
   }, []);
 
   const handleRefresh = () => {
