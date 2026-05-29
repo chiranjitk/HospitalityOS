@@ -35,6 +35,7 @@ import { generateFingerprint, getStorageToken, saveStorageToken, clearStorageTok
 import { useState, useEffect, useCallback, useRef, Suspense, Fragment, createContext, useContext } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Wifi,
   Loader2,
@@ -2337,6 +2338,10 @@ function PortalContent() {
   // This avoids generating the fingerprint twice and ensures consistency.
   const [preGeneratedFingerprint, setPreGeneratedFingerprint] = useState<string | null>(null);
 
+  // Tab switch animation direction tracking
+  const [tabDirection, setTabDirection] = useState(0);
+  const tabMethodRef = useRef('');
+
   // Pre-generate fingerprint as soon as the component mounts (runs in background)
   useEffect(() => {
     generateFingerprint().then((fp) => {
@@ -2567,7 +2572,23 @@ function PortalContent() {
   // Use a ref for authenticate to avoid TDZ issues in useEffect dependency arrays
   // during React Fast Refresh / hot-reload scenarios.
   const authenticateRef = useRef(authenticate);
-  authenticateRef.current = authenticate;
+  useEffect(() => {
+    authenticateRef.current = authenticate;
+  }, [authenticate]);
+
+  // ── Track tab direction for animated transitions ──
+  useEffect(() => {
+    const methods = portalConfig?.authMethods?.length
+      ? portalConfig.authMethods.map((m: { method: string }) => m.method)
+      : DEFAULT_AUTH_METHODS.map(m => m.method);
+    const current = selectedMethod || methods[0] || 'voucher';
+    if (tabMethodRef.current && tabMethodRef.current !== current) {
+      const oldIdx = methods.indexOf(tabMethodRef.current);
+      const newIdx = methods.indexOf(current);
+      setTabDirection(newIdx > oldIdx ? 1 : -1);
+    }
+    tabMethodRef.current = current;
+  }, [selectedMethod, portalConfig?.authMethods]);
 
   // ── Handle social OAuth callback params ──
   // When the OAuth provider redirects back to /connect with social_token, auto-authenticate.
@@ -2985,37 +3006,81 @@ function PortalContent() {
   const renderMethodTabs = () => {
     if (!hasMultipleMethods || authMethods.length <= 1) return null;
     const mutedColor = getMutedTextColor(design);
+    const accent = design.accentColor;
+
     return (
-      <div className="space-y-1.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-center" style={{ color: mutedColor }}>
-          Sign in with
-        </p>
-        <div className="flex flex-wrap gap-1.5 justify-center">
-          {authMethods.map((am) => {
-            const isActive = effectiveAuthMethod === am.method;
-            return (
-              <button
-                key={am.method}
-                onClick={() => setSelectedMethod(am.method)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all',
-                  isActive
-                    ? 'text-white shadow-sm'
-                    : 'hover:opacity-80'
-                )}
-                style={isActive
-                  ? { backgroundColor: design.accentColor, color: '#ffffff' }
-                  : { backgroundColor: design.accentColor + '15', color: design.accentColor }
-                }
-              >
-                {METHOD_ICONS[am.method] || null}
-                <span>{am.label || am.method}</span>
-              </button>
-            );
-          })}
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5">
+          <Wifi className="w-3.5 h-3.5" style={{ color: mutedColor }} />
+          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: mutedColor }}>
+            {getUIString(effectiveLanguage, 'signInWith') || 'Sign in with'}
+          </span>
+        </div>
+        {/* Tab bar container */}
+        <div
+          className="relative w-full rounded-xl p-1"
+          style={{
+            backgroundColor: dark ? 'rgba(255,255,255,0.06)' : accent + '08',
+            border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : accent + '15'}`,
+          }}
+        >
+          {/* Scrollable tab row — hide scrollbar */}
+          <div
+            className="flex gap-1 overflow-x-auto"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {authMethods.map((am) => {
+              const isActive = effectiveAuthMethod === am.method;
+              return (
+                <button
+                  key={am.method}
+                  onClick={() => setSelectedMethod(am.method)}
+                  className={cn(
+                    'relative flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-xs font-medium transition-all duration-300 whitespace-nowrap cursor-pointer',
+                    isActive && 'shadow-lg'
+                  )}
+                  style={{
+                    backgroundColor: isActive ? accent : 'transparent',
+                    color: isActive ? '#ffffff' : (dark ? 'rgba(255,255,255,0.5)' : accent + '99'),
+                    boxShadow: isActive ? `0 2px 10px ${accent}40` : 'none',
+                  }}
+                >
+                  <span className="flex-shrink-0">
+                    {METHOD_ICONS[am.method] || <Shield className="w-3.5 h-3.5" />}
+                  </span>
+                  <span className="truncate">{am.label || am.method.replace('_', ' ')}</span>
+                  {/* Active indicator bar */}
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeTabIndicator"
+                      className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full"
+                      style={{ backgroundColor: '#ffffff' }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     );
+  };
+
+  // ── Form content animation variants ──
+  const formVariants = {
+    enter: (direction: number) => ({
+      opacity: 0,
+      x: direction > 0 ? 20 : -20,
+    }),
+    center: {
+      opacity: 1,
+      x: 0,
+    },
+    exit: (direction: number) => ({
+      opacity: 0,
+      x: direction < 0 ? 20 : -20,
+    }),
   };
 
   // ── Render the card content (shared across layouts) ──
@@ -3024,28 +3089,146 @@ function PortalContent() {
       return <SuccessScreen authResult={authResult} design={design} onDisconnect={handleDisconnect} tenantId={portalConfig?.tenantId} propertyId={portalConfig?.propertyId} />;
     }
 
+    // ══════════════════════════════════════════════════════════
+    // SPECIAL METHODS — social and mac_auth always use their own
+    // dedicated forms (even when unified form mode is active)
+    // ══════════════════════════════════════════════════════════
+    if (effectiveAuthMethod === 'social') {
+      return (
+        <>
+          {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
+          {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} />}
+          {renderMethodTabs()}
+          <AnimatePresence mode="wait" custom={tabDirection}>
+            <motion.div
+              key="social-form"
+              custom={tabDirection}
+              variants={formVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <SocialLoginForm
+                design={design}
+                portalSlug={portalConfig?.slug}
+                onAuthenticate={async (method, payload) => {
+                  const gi = buildGuestInfoPayload();
+                  return authenticate(method, gi ? { ...payload, guestInfo: gi } : payload);
+                }}
+                loading={state === 'authenticating'}
+                termsRequired={portalConfig?.termsRequired}
+                termsAccepted={termsAccepted}
+                setTermsAccepted={setTermsAccepted}
+              />
+            </motion.div>
+          </AnimatePresence>
+        </>
+      );
+    }
+
+    if (effectiveAuthMethod === 'mac_auth') {
+      return (
+        <>
+          {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
+          {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} />}
+          {renderMethodTabs()}
+          <AnimatePresence mode="wait" custom={tabDirection}>
+            <motion.div
+              key="mac-auth-form"
+              custom={tabDirection}
+              variants={formVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <MacAuthForm
+                design={design}
+                onAuthenticate={async (method, payload) => {
+                  const gi = buildGuestInfoPayload();
+                  return authenticate(method, gi ? { ...payload, guestInfo: gi } : payload);
+                }}
+                loading={state === 'authenticating'}
+              />
+            </motion.div>
+          </AnimatePresence>
+        </>
+      );
+    }
+
+    if (effectiveAuthMethod === 'open_access' && !useUnifiedForm) {
+      return (
+        <>
+          {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
+          {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} />}
+          {renderMethodTabs()}
+          <AnimatePresence mode="wait" custom={tabDirection}>
+            <motion.div
+              key="open-access-form"
+              custom={tabDirection}
+              variants={formVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {renderGuestInfoFields()}
+              <OpenAccessForm
+                design={design}
+                onConnect={() => authenticate('open_access', { ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })}
+                loading={state === 'authenticating'}
+              />
+            </motion.div>
+          </AnimatePresence>
+          {portalConfig?.termsRequired && (
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-0.5" style={{ accentColor: design.accentColor }} />
+              <span style={{ color: getMutedTextColor(design) }}>
+                {getUIString(effectiveLanguage, 'iAgreeToThe')}{' '}
+                <span style={{ color: design.accentColor }} className="font-medium">{getUIString(effectiveLanguage, 'termsAndConditions')}</span>
+              </span>
+            </label>
+          )}
+        </>
+      );
+    }
+
     if (useUnifiedForm && formFields) {
       // ══════════════════════════════════════════════════════════
       // UNIFIED DESIGNER FORM — matches PortalPreviewContent
+      // Key prop forces re-mount when method changes so fields update
       // ══════════════════════════════════════════════════════════
       return (
         <>
           {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
           {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} />}
           {renderMethodTabs()}
-          <UnifiedDesignerForm
-            design={design}
-            formFields={effectiveFormFields || formFields}
-            authMethod={effectiveAuthMethod}
-            codeParam={codeParam}
-            authenticate={authenticate}
-            loading={state === 'authenticating'}
-            termsRequired={portalConfig?.termsRequired ?? false}
-            termsAccepted={termsAccepted}
-            setTermsAccepted={setTermsAccepted}
-            debugOtp={debugOtp}
-            onClearDebugOtp={() => setDebugOtp(null)}
-          />
+          <AnimatePresence mode="wait" custom={tabDirection}>
+            <motion.div
+              key={`unified-${effectiveAuthMethod}`}
+              custom={tabDirection}
+              variants={formVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <UnifiedDesignerForm
+                design={design}
+                formFields={effectiveFormFields || formFields}
+                authMethod={effectiveAuthMethod}
+                codeParam={codeParam}
+                authenticate={authenticate}
+                loading={state === 'authenticating'}
+                termsRequired={portalConfig?.termsRequired ?? false}
+                termsAccepted={termsAccepted}
+                setTermsAccepted={setTermsAccepted}
+                debugOtp={debugOtp}
+                onClearDebugOtp={() => setDebugOtp(null)}
+              />
+            </motion.div>
+          </AnimatePresence>
         </>
       );
     }
@@ -3059,14 +3242,23 @@ function PortalContent() {
         {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} />}
         {renderMethodTabs()}
 
-        {/* Auth Form */}
-        <div
-          className="transition-opacity duration-200"
-          style={{ opacity: canSubmit ? 1 : 0.5, pointerEvents: canSubmit ? 'auto' : 'none' }}
-        >
-          {renderGuestInfoFields()}
-          {renderFallbackAuthForm()}
-        </div>
+        {/* Auth Form with animated transitions */}
+        <AnimatePresence mode="wait" custom={tabDirection}>
+          <motion.div
+            key={`fallback-${effectiveAuthMethod}`}
+            custom={tabDirection}
+            variants={formVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="transition-opacity duration-200"
+            style={{ opacity: canSubmit ? 1 : 0.5, pointerEvents: canSubmit ? 'auto' : 'none' }}
+          >
+            {renderGuestInfoFields()}
+            {renderFallbackAuthForm()}
+          </motion.div>
+        </AnimatePresence>
 
         {/* Terms checkbox (fallback mode, when terms not in formFields) */}
         {portalConfig?.termsRequired && (
