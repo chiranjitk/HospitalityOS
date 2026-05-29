@@ -213,6 +213,13 @@ interface RadiusUser {
   ipPoolSource?: string;
   totalBytesIn?: number;
   totalBytesOut?: number;
+  // Enriched fields from v_wifi_users view
+  guest_first_name?: string;
+  guest_last_name?: string;
+  room_number?: string;
+  property_name?: string;
+  plan_name?: string;
+  sessionCount?: number;
 }
 
 interface WiFiPlan {
@@ -951,7 +958,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
 
   // ─── Display Helpers ──────────────────────────────────────────────────────
 
-  const getGroupBadge = (group: string) => {
+  const getGroupBadge = (group: string, fallbackPlanName?: string) => {
     // Strip 'plan_' prefix for matching (backend stores groups as plan_xxx)
     const cleanGroup = stripPlanPrefix(group);
     const matchingPlan = wifiPlans.find(p => {
@@ -968,7 +975,20 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
       if (downMbps >= 20) return <Badge className="bg-sky-500 hover:bg-sky-600 text-white border-0">{matchingPlan.name}</Badge>;
       return <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0">{matchingPlan.name}</Badge>;
     }
+    // Fallback: use plan_name from WiFiUser table (available even after RADIUS records are deleted on revoke)
+    if (fallbackPlanName) {
+      const fbPlan = wifiPlans.find(p => p.name === fallbackPlanName);
+      if (fbPlan) {
+        const downMbps = fbPlan.downloadSpeed;
+        if (downMbps >= 100) return <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0">{fbPlan.name}</Badge>;
+        if (downMbps >= 50) return <Badge className="bg-violet-500 hover:bg-violet-600 text-white border-0">{fbPlan.name}</Badge>;
+        if (downMbps >= 20) return <Badge className="bg-sky-500 hover:bg-sky-600 text-white border-0">{fbPlan.name}</Badge>;
+        return <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0">{fbPlan.name}</Badge>;
+      }
+      return <Badge variant="outline">{fallbackPlanName}</Badge>;
+    }
     // No matching plan — display cleaned-up name (without plan_ prefix, title-cased)
+    if (cleanGroup === 'none') return <Badge variant="outline" className="text-muted-foreground">No Plan</Badge>;
     const displayName = cleanGroup.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     return <Badge variant="outline">{displayName}</Badge>;
   };
@@ -1040,7 +1060,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
       case 'active': return <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-xs">Active</Badge>;
       case 'suspended': return <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-xs">Suspended</Badge>;
       case 'deactivated': return <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 text-xs">Deactivated</Badge>;
-      case 'revoked': return <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 text-xs">Revoked</Badge>;
+      case 'revoked': return <Badge className="bg-rose-700 hover:bg-rose-800 text-white border-0 text-xs flex items-center gap-1"><Ban className="h-3 w-3" /> Revoked</Badge>;
       case 'expired': return <Badge className="bg-gray-500 hover:bg-gray-600 text-white border-0 text-xs">Expired</Badge>;
       default: return null;
     }
@@ -1182,6 +1202,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                 <SelectItem value="active">🟢 Active</SelectItem>
                 <SelectItem value="suspended">🟡 Suspended</SelectItem>
                 <SelectItem value="deactivated">🔴 Deactivated</SelectItem>
+                <SelectItem value="revoked">🚫 Revoked</SelectItem>
                 <SelectItem value="expired">⚪ Expired</SelectItem>
               </SelectContent>
             </Select>
@@ -1294,7 +1315,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                         <TableCell>
                           {getUserStatusBadge(user) || <span className="text-xs text-muted-foreground">—</span>}
                         </TableCell>
-                        <TableCell>{getGroupBadge(user.group || 'none')}</TableCell>
+                        <TableCell>{getGroupBadge(user.group || 'none', user.plan_name)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <span className="font-mono text-xs">
