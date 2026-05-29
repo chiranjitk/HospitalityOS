@@ -343,6 +343,7 @@ export async function POST(request: NextRequest) {
             tags: JSON.stringify([]),
           },
         });
+        } // close inner if (!guest) — guest was created
       } else {
         // M-02: Check if existing guest is blacklisted
         const guestTags: string[] = [];
@@ -422,11 +423,11 @@ export async function POST(request: NextRequest) {
         throw new Error('NO_ROOMS_AVAILABLE');
       }
 
-    // M-08: Determine if this is a walk-in booking (same-day check-in)
-    // Walk-in bookings should auto-check-in: set status to checked_in and actualCheckIn to now
-    const isWalkIn = walkIn === true;
-    const isTodayCheckIn = checkInDate.toDateString() === new Date().toDateString();
-    const initialStatus = (isWalkIn && isTodayCheckIn) ? 'checked_in' : 'confirmed';
+      // M-08: Determine if this is a walk-in booking (same-day check-in)
+      // Walk-in bookings should auto-check-in: set status to checked_in and actualCheckIn to now
+      const isWalkIn = walkIn === true;
+      const isTodayCheckIn = checkInDate.toDateString() === new Date().toDateString();
+      const initialStatus = (isWalkIn && isTodayCheckIn) ? 'checked_in' : 'confirmed';
 
       // Create the booking
       const newBooking = await tx.booking.create({

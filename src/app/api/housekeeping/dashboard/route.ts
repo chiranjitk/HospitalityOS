@@ -79,10 +79,7 @@ export async function GET(request: NextRequest) {
       where: {
         propertyId: { in: propertyIds },
         deletedAt: null,
-        OR: [
-          { status: 'cleaning' },
-          { housekeepingStatus: 'cleaning', status: { not: 'occupied' } },
-        ],
+        housekeepingStatus: 'in_progress',
       },
     });
 
@@ -90,10 +87,7 @@ export async function GET(request: NextRequest) {
       where: {
         propertyId: { in: propertyIds },
         deletedAt: null,
-        OR: [
-          { status: 'inspected' },
-          { housekeepingStatus: 'inspected', status: { not: 'occupied' } },
-        ],
+        housekeepingStatus: 'inspected',
       },
     });
 
@@ -103,7 +97,6 @@ export async function GET(request: NextRequest) {
         propertyId: { in: propertyIds },
         category: 'maintenance',
         status: { in: ['pending', 'in_progress'] },
-        deletedAt: null,
       },
     });
 
@@ -114,7 +107,6 @@ export async function GET(request: NextRequest) {
           propertyId: { in: propertyIds },
           category: 'checkout',
           status: { in: ['pending', 'in_progress'] },
-          deletedAt: null,
         },
       }),
       db.task.count({
@@ -122,7 +114,6 @@ export async function GET(request: NextRequest) {
           propertyId: { in: propertyIds },
           category: 'stayover',
           status: { in: ['pending', 'in_progress'] },
-          deletedAt: null,
         },
       }),
       db.task.count({
@@ -130,7 +121,6 @@ export async function GET(request: NextRequest) {
           propertyId: { in: propertyIds },
           category: 'touchup',
           status: { in: ['pending', 'in_progress'] },
-          deletedAt: null,
         },
       }),
     ]);
@@ -140,7 +130,6 @@ export async function GET(request: NextRequest) {
       where: {
         propertyId: { in: propertyIds },
         category: { in: ['cleaning', 'housekeeping'] },
-        deletedAt: null,
         createdAt: { gte: today },
       },
       include: {

@@ -428,6 +428,8 @@ async function executeFullNightAudit(audit: AuditContext, userId: string) {
             username: true,
             totalBytesIn: true,
             totalBytesOut: true,
+            lastBilledBytesIn: true,
+            lastBilledBytesOut: true,
             lastAccountingAt: true,
             planId: true,
           },

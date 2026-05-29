@@ -148,16 +148,16 @@ export async function POST(
                 feeFixed: gatewayConfig.feeFixed,
               });
 
-              const result = await gateway.refund({
+              const result = await gateway.refundPayment({
+                transactionId: lastPayment.gatewayRef,
+                gatewayRef: lastPayment.gatewayRef,
                 amount: refundAmount,
-                currency: folio.currency || 'INR',
-                originalTransactionId: lastPayment.gatewayRef,
                 reason: `Cancellation refund for booking ${booking.confirmationCode}`,
               });
 
               refundResult = {
                 success: !!result.success,
-                gatewayRef: result.gatewayRef || undefined,
+                gatewayRef: result.refundId || undefined,
                 error: result.errorMessage || undefined,
               };
             } else {

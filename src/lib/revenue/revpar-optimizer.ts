@@ -197,7 +197,7 @@ export async function optimizeRevPAR(
   const suggestions: RevPARSuggestion[] = [];
 
   for (const metric of metrics) {
-    const { date, occupancy, adr, revpar, dayOfWeek, totalRevenue } = metric;
+    const { date, occupancy, adr, revpar, dayOfWeek, totalRevenue, totalRooms } = metric;
     const factors: string[] = [];
     let suggestedChange = 0;
     let reasoning = '';

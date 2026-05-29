@@ -40,7 +40,6 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = {
       tenantId: currentUser.tenantId,
-      deletedAt: null,
     };
 
     if (propertyId) {

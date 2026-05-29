@@ -204,6 +204,19 @@ export async function POST(request: NextRequest) {    const user = await require
       propertyId,
     } = parsed.data;
 
+    // Resolve targetPropertyId before the transaction so it's available inside.
+    // H-34 FIX: moved here from after the transaction to avoid ReferenceError.
+    let targetPropertyId = propertyId;
+    if (!targetPropertyId && bookingId) {
+      const booking = await db.booking.findUnique({
+        where: { id: bookingId },
+        select: { propertyId: true },
+      });
+      if (booking) {
+        targetPropertyId = booking.propertyId;
+      }
+    }
+
     // H-34 FIX: Wrap session existence check + creation in a transaction
     // to prevent TOCTOU race condition where two concurrent requests
     // with the same MAC address both pass the findFirst check.
@@ -266,18 +279,6 @@ export async function POST(request: NextRequest) {    const user = await require
         { success: false, error: { code: 'SESSION_EXISTS', message: 'An active session already exists for this device' } },
         { status: 400 }
       );
-    }
-
-    // Get property ID for AAA config lookup
-    let targetPropertyId = propertyId;
-    if (!targetPropertyId && bookingId) {
-      const booking = await db.booking.findUnique({
-        where: { id: bookingId },
-        select: { propertyId: true },
-      });
-      if (booking) {
-        targetPropertyId = booking.propertyId;
-      }
     }
 
     // Check concurrent session limits if we have guest or plan info

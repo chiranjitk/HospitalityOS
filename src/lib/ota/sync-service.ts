@@ -51,7 +51,7 @@ export class OTASyncService {
       return;
     }
 
-    const correlationId = `inv-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').substring(0, 8)}`;
+    const correlationId = crypto.randomUUID();
     const startedAt = new Date();
 
     try {
@@ -91,10 +91,7 @@ export class OTASyncService {
       await this.updateSyncLog(correlationId, {
         status: result.success ? 'success' : 'partial',
         statusCode: 200,
-        recordsProcessed: updates.length,
-        recordsFailed: result.results?.[0]?.failed || 0,
         errorMessage: result.errors?.map(e => e.message).join('; '),
-        completedAt: new Date(),
         responsePayload: JSON.stringify(result),
       });
 
@@ -111,8 +108,6 @@ export class OTASyncService {
       await this.updateSyncLog(correlationId, {
         status: 'failed',
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        completedAt: new Date(),
-        recordsFailed: updates.length,
       });
 
       // Update connection error
@@ -158,7 +153,7 @@ export class OTASyncService {
       return;
     }
 
-    const correlationId = `rate-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').substring(0, 8)}`;
+    const correlationId = crypto.randomUUID();
     const startedAt = new Date();
 
     try {
@@ -192,10 +187,7 @@ export class OTASyncService {
       await this.updateSyncLog(correlationId, {
         status: result.success ? 'success' : 'partial',
         statusCode: 200,
-        recordsProcessed: updates.length,
-        recordsFailed: result.results?.[0]?.failed || 0,
         errorMessage: result.errors?.map(e => e.message).join('; '),
-        completedAt: new Date(),
         responsePayload: JSON.stringify(result),
       });
 
@@ -210,8 +202,6 @@ export class OTASyncService {
       await this.updateSyncLog(correlationId, {
         status: 'failed',
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        completedAt: new Date(),
-        recordsFailed: updates.length,
       });
 
       await db.channelConnection.update({
@@ -256,7 +246,7 @@ export class OTASyncService {
       return;
     }
 
-    const correlationId = `rest-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').substring(0, 8)}`;
+    const correlationId = crypto.randomUUID();
     const startedAt = new Date();
 
     try {
@@ -290,10 +280,7 @@ export class OTASyncService {
       await this.updateSyncLog(correlationId, {
         status: result.success ? 'success' : 'partial',
         statusCode: 200,
-        recordsProcessed: updates.length,
-        recordsFailed: result.results?.[0]?.failed || 0,
         errorMessage: result.errors?.map(e => e.message).join('; '),
-        completedAt: new Date(),
         responsePayload: JSON.stringify(result),
       });
 
@@ -308,8 +295,6 @@ export class OTASyncService {
       await this.updateSyncLog(correlationId, {
         status: 'failed',
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        completedAt: new Date(),
-        recordsFailed: updates.length,
       });
 
       await db.channelConnection.update({
@@ -357,7 +342,7 @@ export class OTASyncService {
       return;
     }
 
-    const correlationId = `book-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').substring(0, 8)}`;
+    const correlationId = crypto.randomUUID();
     const startedAt = new Date();
 
     try {
@@ -402,9 +387,6 @@ export class OTASyncService {
       await this.updateSyncLog(correlationId, {
         status: failed > 0 ? 'partial' : 'success',
         statusCode: 200,
-        recordsProcessed: processed,
-        recordsFailed: failed,
-        completedAt: new Date(),
         responsePayload: JSON.stringify({ totalBookings: bookings.length }),
       });
 
@@ -418,8 +400,6 @@ export class OTASyncService {
       await this.updateSyncLog(correlationId, {
         status: 'failed',
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        completedAt: new Date(),
-        recordsFailed: 0,
       });
 
       throw error;
@@ -617,10 +597,7 @@ export class OTASyncService {
     data: Partial<{
       status: string;
       statusCode: number;
-      recordsProcessed: number;
-      recordsFailed: number;
       errorMessage: string;
-      completedAt: Date;
       responsePayload: string;
     }>
   ) {

@@ -492,11 +492,19 @@ export async function PUT(request: NextRequest) {    const user = await requireP
 
       try {
         const { OTASyncService } = await import('@/lib/ota/sync-service');
-        const syncService = new OTASyncService();
 
-        // Sync inventory and rates for the connection
-        await syncService.syncInventoryToChannel(id, []);
-        await syncService.syncRatesToChannel(id, []);
+        // If connection is not active, sync is a no-op — return early
+        if (connection.status !== 'active') {
+          return NextResponse.json({
+            success: true,
+            message: `Sync skipped — connection status is '${connection.status}', must be 'active' to sync`,
+            data: connection,
+          });
+        }
+
+        // Sync inventory and rates for the connection using static methods
+        await OTASyncService.syncInventoryToChannel(id, []);
+        await OTASyncService.syncRatesToChannel(id, []);
 
         // Update last sync timestamp
         const updatedConnection = await db.channelConnection.update({
@@ -504,30 +512,9 @@ export async function PUT(request: NextRequest) {    const user = await requireP
           data: { lastSyncAt: new Date() },
         });
 
-        // Log successful sync
-        await db.channelSyncLog.create({
-          data: {
-            connectionId: id,
-            syncType: 'full',
-            direction: 'outbound',
-            status: 'success',
-            message: 'Manual sync completed (inventory + rates)',
-          },
-        });
-
         return NextResponse.json({ success: true, data: updatedConnection, message: 'Sync completed successfully' });
       } catch (syncError) {
         console.error('[Channel Sync] Sync failed:', syncError);
-        // Log failed sync
-        await db.channelSyncLog.create({
-          data: {
-            connectionId: id,
-            syncType: 'full',
-            direction: 'outbound',
-            status: 'failed',
-            message: syncError instanceof Error ? syncError.message : 'Sync failed',
-          },
-        });
         return NextResponse.json(
           { success: false, error: { code: 'SYNC_FAILED', message: syncError instanceof Error ? syncError.message : 'Sync failed' } },
           { status: 500 }

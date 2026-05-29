@@ -90,6 +90,7 @@ import {
 import { runLogoutScript } from '@/lib/network/script-runner';
 import * as SELog from './session-engine-logger';
 import { getLocalNasConfig } from '@/lib/wifi/local-nas-config';
+import { Prisma } from '@prisma/client';
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -152,13 +153,13 @@ const lastActivityMap = new Map<string, number>();
  */
 async function restoreActivityMapFromDb(): Promise<void> {
   try {
-    const sessions = await db.$queryRawUnsafe<Array<{ framedipaddress: string; acctupdatetime: Date }>>(`
+    const sessions = await db.$queryRaw<Array<{ framedipaddress: string; acctupdatetime: Date }>>`
       SELECT framedipaddress, acctupdatetime
       FROM radacct
       WHERE acctstoptime IS NULL
         AND framedipaddress IS NOT NULL
         AND framedipaddress != '' AND framedipaddress != '0.0.0.0'
-    `);
+    `;
     for (const s of sessions) {
       const ip = normalizeIPv4(s.framedipaddress);
       if (ip) {
@@ -191,8 +192,11 @@ function safeGetTime(date: Date | unknown): number {
 }
 
 /**
- * CRITICAL-04 FIX: Strict SQL escape for ALL user-controlled values.
- * Defense-in-depth: removes semicolons, double-dashes, block comments.
+ * DEPRECATED: No longer used for queries — kept for backward compatibility.
+ * All raw SQL queries now use Prisma parameterized queries ($executeRaw tagged template).
+ *
+ * Legacy SQL escape for string values. Defense-in-depth: removes semicolons,
+ * double-dashes, block comments. Prefer parameterized queries instead.
  */
 function sqlEscape(val: string | null | undefined): string {
   if (val == null) return '';
@@ -212,7 +216,7 @@ function sqlEscape(val: string | null | undefined): string {
 }
 
 /**
- * Safely convert a numeric value for raw SQL. Returns '0' for invalid numbers.
+ * DEPRECATED: No longer used — all numeric values now use Prisma parameterized queries.
  */
 function sqlNum(val: number | null | undefined): string {
   const n = Number(val);
@@ -220,7 +224,8 @@ function sqlNum(val: number | null | undefined): string {
 }
 
 /**
- * Safely escape a timestamp for raw SQL.
+ * DEPRECATED: No longer used — timestamps now use TO_TIMESTAMP(${epochSeconds})
+ * in Prisma parameterized queries.
  */
 function sqlTimestamp(ms: number | null | undefined): string {
   if (!ms || !Number.isFinite(ms)) return "TO_TIMESTAMP(0)";
@@ -509,41 +514,41 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
 
             // Update radacct for normal sessions
             if (toUpdate.length > 0) {
-              const values = toUpdate.map(u => `(${sqlNum(u.session.radacctid)}, ${sqlNum(u.newUl)}, ${sqlNum(u.newDl)}, ${sqlNum(u.sessionTime)})`);
-              await db.$executeRawUnsafe(`
+              const values = toUpdate.map(u => Prisma.sql`(${u.session.radacctid}, ${u.newUl}, ${u.newDl}, ${u.sessionTime})`);
+              await db.$executeRaw`
                 UPDATE radacct r SET
                   acctinputoctets = v.input_octets,
                   acctoutputoctets = v.output_octets,
                   acctsessiontime = v.session_time,
                   acctupdatetime = NOW()
-                FROM (VALUES ${values.join(',')}) AS v(radacct_id, input_octets, output_octets, session_time)
+                FROM (VALUES ${Prisma.join(values)}) AS v(radacct_id, input_octets, output_octets, session_time)
                 WHERE r.radacctid = v.radacct_id::bigint
                   AND r.acctstoptime IS NULL
                   AND (r.acctstatus IS NULL OR r.acctstatus = '' OR r.acctstatus = 'start')
-              `);
+              `;
 
               // Handle counter resets separately (update baseline)
               if (counterResetIds.size > 0) {
-                const resetIds = Array.from(counterResetIds);
-                await db.$executeRawUnsafe(`
+                const counterResetSessions = toUpdate.filter(u => counterResetIds.has(u.session.radacctid));
+                const resetRows = counterResetSessions.map(u =>
+                  Prisma.sql`(${u.session.radacctid}, ${u.newUl}, ${u.newDl})`
+                );
+                await db.$executeRaw`
                   UPDATE radacct SET
                     acctinputoctets = v.input_octets,
                     acctoutputoctets = v.output_octets
-                  FROM (SELECT unnest(ARRAY[${resetIds.map((_, i) => `$${i + 1}`).join(',')}])::bigint as id,
-                               unnest(ARRAY[${toUpdate.filter(u => counterResetIds.has(u.session.radacctid)).map(u => u.newUl).join(',')}])::bigint as input_octets,
-                               unnest(ARRAY[${toUpdate.filter(u => counterResetIds.has(u.session.radacctid)).map(u => u.newDl).join(',')}])::bigint as output_octets) v
-                  WHERE radacctid = v.id AND acctstoptime IS NULL
-                `, ...resetIds);
+                  FROM (VALUES ${Prisma.join(resetRows)}) AS v(radacct_id, input_octets, output_octets)
+                  WHERE radacctid = v.radacct_id::bigint AND acctstoptime IS NULL
+                `;
               }
 
               // ── Batch INSERT interim-update rows (1 query) ──
               // Use the configured Called-Station-Id from the system NAS entry
               const localNasForInterim = await getLocalNasConfigFromFirstProperty();
               const interimValues = toUpdate.map(u =>
-                `('${sqlEscape(u.session.acctsessionid)}', '${sqlEscape(u.session.username)}', '${sqlEscape(u.session.framedipaddress)}', '${sqlEscape(u.session.callingstationid)}', ` +
-                `${sqlTimestamp(safeGetTime(u.session.acctstarttime))}, ${sqlNum(u.newUl)}, ${sqlNum(u.newDl)}, ${sqlNum(u.sessionTime)})`
+                Prisma.sql`(${u.session.acctsessionid}, ${u.session.username}, ${u.session.framedipaddress}, ${u.session.callingstationid}, TO_TIMESTAMP(${Math.floor(safeGetTime(u.session.acctstarttime) / 1000)}), ${u.newUl}, ${u.newDl}, ${u.sessionTime})`
               );
-              await db.$executeRawUnsafe(`
+              await db.$executeRaw`
                 INSERT INTO radacct (
                   acctuniqueid, acctsessionid, username,
                   nasipaddress, nasporttype, acctstarttime, acctupdatetime,
@@ -556,9 +561,9 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
                   '127.0.0.1', 'Wireless-802.11', v.acctstarttime, NOW(),
                   'PAP', v.framedipaddress, 'interim-update',
                   v.input_octets, v.output_octets, v.session_time,
-                  '${localNasForInterim.calledStationId}', v.callingstationid, '${localNasForInterim.nasIdentifier}',
+                  ${localNasForInterim.calledStationId}, v.callingstationid, ${localNasForInterim.nasIdentifier},
                   COALESCE(r0."loginType", 'portal'), NOW(), NOW()
-                FROM (VALUES ${interimValues.join(',')}) AS v(
+                FROM (VALUES ${Prisma.join(interimValues)}) AS v(
                   acctsessionid, username, framedipaddress, callingstationid,
                   acctstarttime, input_octets, output_octets, session_time
                 )
@@ -567,42 +572,42 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
                   WHERE r0.acctsessionid = v.acctsessionid AND r0.acctstatus = 'start'
                   ORDER BY r0.radacctid ASC LIMIT 1
                 ) r0 ON true
-              `);
+              `;
 
               // ── Batch UPDATE WiFiUser cumulative totals (1 query) ──
               const usersWithDeltas = toUpdate.filter(u => u.downloadDelta > 0 || u.uploadDelta > 0);
               if (usersWithDeltas.length > 0) {
                 const userValues = usersWithDeltas.map(u =>
-                  `('${sqlEscape(u.session.username)}', ${sqlNum(u.uploadDelta)}, ${sqlNum(u.downloadDelta)})`
+                  Prisma.sql`(${u.session.username}, ${u.uploadDelta}, ${u.downloadDelta})`
                 );
-                await db.$executeRawUnsafe(`
+                await db.$executeRaw`
                   UPDATE "WiFiUser" w SET
                     "totalBytesIn" = w."totalBytesIn" + v.ul_delta,
                     "totalBytesOut" = w."totalBytesOut" + v.dl_delta,
                     "lastAccountingAt" = NOW()
-                  FROM (VALUES ${userValues.join(',')}) AS v(username, ul_delta, dl_delta)
+                  FROM (VALUES ${Prisma.join(userValues)}) AS v(username, ul_delta, dl_delta)
                   WHERE w.username = v.username
-                `);
+                `;
               }
 
               // ── Batch UPDATE WiFiSession (1 query per batch of 500) ──
               const CHUNK_SIZE = 500;
               for (let i = 0; i < toUpdate.length; i += CHUNK_SIZE) {
                 const chunk = toUpdate.slice(i, i + CHUNK_SIZE);
-            const sessionValues = chunk.map(u => {
-              const dataUsedMB = Math.floor((u.newDl + u.newUl) / (1024 * 1024));
-              return `('${sqlEscape(u.session.username)}', '${sqlEscape(u.session.callingstationid)}', ${sqlNum(u.newDl)}, ${sqlNum(u.newUl)}, ${sqlNum(u.sessionTime)}, ${sqlNum(dataUsedMB)})`;
-            });
-            await db.$executeRawUnsafe(`
-              UPDATE "WiFiSession" s SET
-                "dataUsed" = v.data_used,
-                "duration" = v.session_time,
-                "updatedAt" = NOW()
-              FROM (VALUES ${sessionValues.join(',')}) AS v(username, mac, dl, ul, session_time, data_used)
-              WHERE s.username = v.username
-                AND s.status = 'active'
-                AND (v.mac = '' OR v.mac = 'unknown' OR s."macAddress" = v.mac)
-            `);
+                const sessionValues = chunk.map(u => {
+                  const dataUsedMB = Math.floor((u.newDl + u.newUl) / (1024 * 1024));
+                  return Prisma.sql`(${u.session.username}, ${u.session.callingstationid}, ${u.newDl}, ${u.newUl}, ${u.sessionTime}, ${dataUsedMB})`;
+                });
+                await db.$executeRaw`
+                  UPDATE "WiFiSession" s SET
+                    "dataUsed" = v.data_used,
+                    "duration" = v.session_time,
+                    "updatedAt" = NOW()
+                  FROM (VALUES ${Prisma.join(sessionValues)}) AS v(username, mac, dl, ul, session_time, data_used)
+                  WHERE s.username = v.username
+                    AND s.status = 'active'
+                    AND (v.mac = '' OR v.mac = 'unknown' OR s."macAddress" = v.mac)
+                `;
               }
 
               result.interimUpdated = toUpdate.length;
@@ -624,18 +629,18 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
             }
 
             // Batch update session time only
-            const noCounterValues = noCounterSessions.map(s => {
+            const noCounterRows = noCounterSessions.map(s => {
               const sessionTime = Math.floor((Date.now() - safeGetTime(s.acctstarttime)) / 1000);
-              return `('${s.radacctid}', ${sessionTime})`;
+              return Prisma.sql`(${s.radacctid}, ${sessionTime})`;
             });
-            if (noCounterValues.length > 0) {
-              await db.$executeRawUnsafe(`
+            if (noCounterRows.length > 0) {
+              await db.$executeRaw`
                 UPDATE radacct r SET
-                  acctsessiontime = v.session_time${nftablesAvailable ? ', acctupdatetime = NOW()' : ''}
-                FROM (VALUES ${noCounterValues.join(',')}) AS v(radacct_id, session_time)
+                  acctsessiontime = v.session_time${nftablesAvailable ? Prisma.sql`, acctupdatetime = NOW()` : Prisma.sql``}
+                FROM (VALUES ${Prisma.join(noCounterRows)}) AS v(radacct_id, session_time)
                 WHERE r.radacctid = v.radacct_id::bigint
                   AND r.acctstoptime IS NULL
-              `);
+              `;
 
               // Batch update WiFiSession for no-counter sessions
               const CHUNK_SIZE = 500;
@@ -644,16 +649,16 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
                 const ncValues = chunk.map(s => {
                   const sessionTime = Math.floor((Date.now() - safeGetTime(s.acctstarttime)) / 1000);
                   const dataUsedMB = Math.floor((Number(s.acctoutputoctets) + Number(s.acctinputoctets)) / (1024 * 1024));
-                  return `('${sqlEscape(s.username)}', '${sqlEscape(s.callingstationid)}', ${sqlNum(sessionTime)}, ${sqlNum(dataUsedMB)})`;
+                  return Prisma.sql`(${s.username}, ${s.callingstationid}, ${sessionTime}, ${dataUsedMB})`;
                 });
-                await db.$executeRawUnsafe(`
+                await db.$executeRaw`
                   UPDATE "WiFiSession" s SET
                     "dataUsed" = v.data_used,
                     "duration" = v.duration,
                     "updatedAt" = NOW()
-                  FROM (VALUES ${ncValues.join(',')}) AS v(username, mac, duration, data_used)
+                  FROM (VALUES ${Prisma.join(ncValues)}) AS v(username, mac, duration, data_used)
                   WHERE s.username = v.username AND s.status = 'active'
-                `);
+                `;
               }
 
               // FALLBACK: check policies for sessions without counters
@@ -728,7 +733,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
 
         // ── Step 5: Close orphan interim-update rows (1 query) ──
         try {
-          const orphanResult = await db.$executeRawUnsafe(`
+          const orphanResult = await db.$executeRaw`
             UPDATE radacct
             SET acctstoptime = NOW(),
                 acctterminatecause = 'Orphan-Cleanup',
@@ -742,7 +747,7 @@ export async function runSessionEngine(): Promise<SessionEngineResult> {
                   AND r2.acctstoptime IS NULL
                   AND (r2.acctstatus IS NULL OR r2.acctstatus = '' OR r2.acctstatus = 'start')
               )
-          `);
+          `;
           const orphanCount = typeof orphanResult === 'number' ? orphanResult : 0;
           if (orphanCount > 0) {
             SELog.info(`Cleaned ${orphanCount} orphan interim-update rows`);
@@ -852,14 +857,14 @@ async function bulkLoadUserPolicies(usernames: string[]): Promise<Map<string, Us
   if (usernames.length === 0) return policyMap;
 
   try {
-    const rows = await db.$queryRawUnsafe<Array<{
+    const rows = await db.$queryRaw<Array<{
       username: string;
       attribute: string;
       value: string;
-    }>>(`
+    }>>`
       SELECT username, attribute, value
       FROM radreply
-      WHERE username = ANY($1::text[])
+      WHERE username = ANY(${usernames}::text[])
         AND attribute IN (
           'Session-Timeout',
           'Cryptsk-Idle-Timeout',
@@ -870,7 +875,7 @@ async function bulkLoadUserPolicies(usernames: string[]): Promise<Map<string, Us
           'ChilliSpot-Max-Total-Octets'
         )
         AND "isActive" = true
-    `, usernames);
+    `;
 
     // Build policy map from all rows
     for (const row of rows) {
@@ -913,7 +918,7 @@ async function bulkLoadUserPolicies(usernames: string[]): Promise<Map<string, Us
 // ────────────────────────────────────────────────────────────
 
 async function getActiveSessions(): Promise<ActiveSession[]> {
-  const records = await db.$queryRawUnsafe<ActiveSession[]>(`
+  const records = await db.$queryRaw<ActiveSession[]>`
     SELECT
       radacctid, acctuniqueid, acctsessionid, username,
       framedipaddress, callingstationid,
@@ -929,7 +934,7 @@ async function getActiveSessions(): Promise<ActiveSession[]> {
       AND framedipaddress != ''
       AND framedipaddress != '0.0.0.0'
     ORDER BY acctstarttime ASC
-  `);
+  `;
   return records;
 }
 
@@ -966,15 +971,15 @@ async function disconnectSessionFallback(
 ): Promise<void> {
   SELog.info(`[FALLBACK] Disconnecting ${session.username}: ${reason}`);
 
-  await db.$executeRawUnsafe(`
+  await db.$executeRaw`
     UPDATE radacct SET
       acctstoptime = NOW(),
-      acctterminatecause = $1,
-      acctsessiontime = $2,
-      acctinputoctets = $3,
-      acctoutputoctets = $4
-    WHERE radacctid = $5 AND acctstoptime IS NULL
-  `, reason, Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000), uploadBytes, downloadBytes, session.radacctid);
+      acctterminatecause = ${reason},
+      acctsessiontime = ${Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000)},
+      acctinputoctets = ${uploadBytes},
+      acctoutputoctets = ${downloadBytes}
+    WHERE radacctid = ${session.radacctid} AND acctstoptime IS NULL
+  `;
 
   try {
     await db.wiFiSession.updateMany({
@@ -1049,21 +1054,21 @@ async function disconnectSession(
   const localNasForStop = await getLocalNasConfigFromFirstProperty();
 
   await db.$transaction(async (tx) => {
-    const updateResult = await tx.$executeRawUnsafe(`
+    const updateResult = await tx.$executeRaw`
       UPDATE radacct SET
         acctstoptime = NOW(),
-        acctinputoctets = $1,
-        acctoutputoctets = $2,
-        acctsessiontime = $3,
-        acctterminatecause = $4,
+        acctinputoctets = ${uploadBytes},
+        acctoutputoctets = ${downloadBytes},
+        acctsessiontime = ${sessionTime},
+        acctterminatecause = ${reason},
         acctupdatetime = NOW()
-      WHERE radacctid = $5
+      WHERE radacctid = ${session.radacctid}
         AND acctstoptime IS NULL
-    `, uploadBytes, downloadBytes, sessionTime, reason, session.radacctid);
+    `;
 
     const rowsAffected = Number(updateResult);
 
-    await tx.$executeRawUnsafe(`
+    await tx.$executeRaw`
       INSERT INTO radacct (
         acctuniqueid, acctsessionid, username,
         nasipaddress, nasporttype, acctstarttime, acctstoptime, acctupdatetime,
@@ -1072,21 +1077,19 @@ async function disconnectSession(
         calledstationid, callingstationid, nasidentifier,
         "loginType", createdat, updatedat
       ) SELECT
-        gen_random_uuid(), $1, $2,
-        '127.0.0.1', 'Wireless-802.11', $3, NOW(), NOW(),
-        'PAP', $4, 'stop',
-        $5, $6, $7, $8,
-        $10, $9, $11,
+        gen_random_uuid(), ${session.acctsessionid}, ${session.username},
+        '127.0.0.1', 'Wireless-802.11', ${session.acctstarttime}, NOW(), NOW(),
+        'PAP', ${ip}, 'stop',
+        ${uploadBytes}, ${downloadBytes}, ${sessionTime}, ${reason},
+        ${localNasForStop.calledStationId}, ${session.callingstationid}, ${localNasForStop.nasIdentifier},
         COALESCE(r0."loginType", 'portal'), NOW(), NOW()
       FROM (SELECT 1) AS dummy
       LEFT JOIN LATERAL (
         SELECT "loginType" FROM radacct r0
-        WHERE r0.acctsessionid = $1 AND r0.acctstatus = 'start'
+        WHERE r0.acctsessionid = ${session.acctsessionid} AND r0.acctstatus = 'start'
         ORDER BY r0.radacctid ASC LIMIT 1
       ) r0 ON true
-    `, session.acctsessionid, session.username, session.acctstarttime, ip,
-       uploadBytes, downloadBytes, sessionTime, reason, session.callingstationid,
-       localNasForStop.calledStationId, localNasForStop.nasIdentifier);
+    `;
 
     try {
       const wifiSession = await tx.wiFiSession.findFirst({
@@ -1156,17 +1159,17 @@ async function closeSession(
   removeUserCounter(ip);
   lastActivityMap.delete(ip);
 
-  await db.$executeRawUnsafe(`
+  await db.$executeRaw`
     UPDATE radacct SET
       acctstoptime = NOW(),
-      acctinputoctets = COALESCE(acctinputoctets, $1),
-      acctoutputoctets = COALESCE(acctoutputoctets, $2),
-      acctsessiontime = $3,
-      acctterminatecause = $4,
+      acctinputoctets = COALESCE(acctinputoctets, ${uploadBytes}),
+      acctoutputoctets = COALESCE(acctoutputoctets, ${downloadBytes}),
+      acctsessiontime = ${sessionTime},
+      acctterminatecause = ${reason},
       acctupdatetime = NOW()
-    WHERE radacctid = $5
+    WHERE radacctid = ${session.radacctid}
       AND acctstoptime IS NULL
-  `, uploadBytes, downloadBytes, sessionTime, reason, session.radacctid);
+  `;
 
   try {
     const wifiSession = await db.wiFiSession.findFirst({
@@ -1230,12 +1233,12 @@ export async function forceDisconnect(params: {
 }): Promise<{ success: boolean; message?: string }> {
   const reason = params.reason || 'Admin-Request';
 
-  const session = await db.$queryRawUnsafe<ActiveSession[] | undefined>(`
+  const session = await db.$queryRaw<ActiveSession[]>`
     SELECT * FROM radacct
     WHERE acctstoptime IS NULL
-      AND (username = $1 ${params.ip ? `OR framedipaddress = $2` : ''})
+      AND (username = ${params.username || ''}${params.ip ? Prisma.sql` OR framedipaddress = ${params.ip}` : Prisma.sql``})
     LIMIT 1
-  `, params.username || '', ...(params.ip ? [params.ip] : []));
+  `;
 
   if (!session || !Array.isArray(session) || session.length === 0) {
     return { success: false, message: 'No active session found' };

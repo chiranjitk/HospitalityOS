@@ -357,11 +357,12 @@ export async function runDailyWiFiBilling(tenantId?: string): Promise<BillingRes
         const message = err instanceof Error ? err.message : 'Unknown error';
         result.errors.push(`User ${user.username}: ${message}`);
       }
+    })
+  );
 
       // Process batch results - count failures from settled promises
       for (const r of batchResults) {
         if (r.status === 'rejected') {
-          result.failed++;
           result.errors.push(`Unexpected error: ${r.reason}`);
         }
       }
