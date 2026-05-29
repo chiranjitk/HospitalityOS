@@ -73,6 +73,13 @@
 --       radgroupcheck (was only on conference_plan).
 --       Fixes: live-sessions-list API crashed on "property_id" IN (SELECT ...)
 --       Also added guest_phone to v_user_usage for consistency with v_wifi_users
+--   [21] WiFiPlan seed missing maxDevices — CRITICAL for fresh setups
+--       BUG: Prisma schema has maxDevices Int @default(1). Seed data only set
+--       sessionLimit (1,2,3,5,10,25) but never maxDevices. On fresh install,
+--       ALL plans got maxDevices=1 (default). fn_check_login_limit() reads
+--       wp."maxDevices" — so every user was limited to 1 device regardless of plan.
+--       FIX: Added maxDevices to all 6 plans in wifi-seed.ts matching sessionLimit.
+--       Also fixed: provisioning-service.ts uses plan.maxDevices||plan.sessionLimit.
 --   [20] Portal authMethod desync — voucher login showed "Please enter your username"
 --       BUG: Portal Designer saves authFlow to PortalPage but resolve-zone API
 --       reads authMethod from CaptivePortal (separate table). When admin set

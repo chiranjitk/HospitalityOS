@@ -200,6 +200,7 @@ export async function seedWiFiData() {
         uploadSpeed: 2,
         dataLimit: null, // unlimited
         sessionLimit: 1,
+        maxDevices: 1,
         price: 0,
         currency: 'INR',
         priority: 1,
@@ -215,6 +216,7 @@ export async function seedWiFiData() {
         uploadSpeed: 5,
         dataLimit: 2048, // 2GB in MB
         sessionLimit: 2,
+        maxDevices: 2,
         price: 99,
         currency: 'INR',
         priority: 2,
@@ -230,6 +232,7 @@ export async function seedWiFiData() {
         uploadSpeed: 10,
         dataLimit: 5120, // 5GB in MB
         sessionLimit: 3,
+        maxDevices: 3,
         price: 199,
         currency: 'INR',
         priority: 3,
@@ -245,6 +248,7 @@ export async function seedWiFiData() {
         uploadSpeed: 25,
         dataLimit: 15360, // 15GB in MB
         sessionLimit: 5,
+        maxDevices: 5,
         price: 399,
         currency: 'INR',
         priority: 4,
@@ -260,6 +264,7 @@ export async function seedWiFiData() {
         uploadSpeed: 50,
         dataLimit: null, // unlimited
         sessionLimit: 10,
+        maxDevices: 10,
         price: 599,
         currency: 'INR',
         priority: 5,
@@ -275,6 +280,7 @@ export async function seedWiFiData() {
         uploadSpeed: 15,
         dataLimit: 10240, // 10GB in MB
         sessionLimit: 25,
+        maxDevices: 25,
         price: 299,
         currency: 'INR',
         priority: 3,
