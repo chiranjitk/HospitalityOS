@@ -2,6 +2,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
+import { z } from 'zod';
+
+// ──────────────────────────────────────────────
+// M-48: Zod validation schemas
+// ──────────────────────────────────────────────
+
+const createSessionSchema = z.object({
+  planId: z.string().optional(),
+  guestId: z.string().optional(),
+  bookingId: z.string().optional(),
+  macAddress: z.string().min(1, 'macAddress is required'),
+  ipAddress: z.string().optional(),
+  deviceName: z.string().max(100).optional(),
+  deviceType: z.string().max(50).optional(),
+  authMethod: z.enum(['voucher', 'guest', 'staff', 'pap', 'chap']).optional().default('voucher'),
+  propertyId: z.string().optional(),
+});
+
+const updateSessionSchema = z.object({
+  id: z.string().min(1, 'Session id is required'),
+  status: z.enum(['active', 'ended', 'terminated']).optional(),
+  dataUsed: z.number().min(0).optional(),
+  duration: z.number().int().min(0).optional(),
+  endTime: z.string().optional(),
+});
 // GET /api/wifi/sessions - List all WiFi sessions with filtering and pagination
 export async function GET(request: NextRequest) {    const user = await requirePermission(request, 'wifi.view');
     if (user instanceof NextResponse) return user;
@@ -158,8 +183,16 @@ export async function POST(request: NextRequest) {    const user = await require
     const data = nullifyEmptyStrings(body);
     const tenantId = user.tenantId;
 
+    // M-48: Zod validation
+    const parsed = createSessionSchema.safeParse(data);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map(i => i.message).join(', ') } },
+        { status: 400 }
+      );
+    }
+
     const {
-      
       planId,
       guestId,
       bookingId,
@@ -169,15 +202,7 @@ export async function POST(request: NextRequest) {    const user = await require
       deviceType,
       authMethod = 'voucher',
       propertyId,
-    } = data;
-
-    // Validate required fields
-    if (!macAddress) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required field: macAddress' } },
-        { status: 400 }
-      );
-    }
+    } = parsed.data;
 
     // H-34 FIX: Wrap session existence check + creation in a transaction
     // to prevent TOCTOU race condition where two concurrent requests
@@ -347,14 +372,17 @@ export async function PUT(request: NextRequest) {    const user = await requireP
       try {
     const body = await request.json();
     const tenantId = user.tenantId;
-    const { id, status, dataUsed, duration, endTime } = body;
 
-    if (!id) {
+    // M-48: Zod validation
+    const parsed = updateSessionSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required field: id' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map(i => i.message).join(', ') } },
         { status: 400 }
       );
     }
+
+    const { id, status, dataUsed, duration, endTime } = parsed.data;
 
     const existingSession = await db.wiFiSession.findUnique({
       where: { id },

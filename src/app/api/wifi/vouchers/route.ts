@@ -3,7 +3,37 @@ import { db } from '@/lib/db';
 import { logWifi } from '@/lib/audit';
 import { wifiUserService } from '@/lib/wifi/services/wifi-user-service';
 import { requirePermission } from '@/lib/auth/tenant-context';
+import { z } from 'zod';
 import crypto from 'crypto';
+
+// ──────────────────────────────────────────────
+// M-48: Zod validation schemas
+// ──────────────────────────────────────────────
+
+const createVoucherSchema = z.object({
+  planId: z.string().min(1, 'planId is required'),
+  guestId: z.string().optional(),
+  bookingId: z.string().optional(),
+  quantity: z.number().int().min(1).max(100).optional().default(1),
+  validFrom: z.string().optional(),
+  validUntil: z.string().optional(),
+  validityDays: z.number().int().min(1).max(365).optional(),
+  notes: z.string().max(500).optional(),
+});
+
+const updateVoucherSchema = z.object({
+  id: z.string().optional(),
+  code: z.string().optional(),
+  action: z.enum(['use', 'issue']).optional(),
+  guestId: z.string().optional(),
+  bookingId: z.string().optional(),
+  status: z.string().optional(),
+  propertyId: z.string().optional(),
+  issuedTo: z.string().max(200).optional(),
+  notes: z.string().max(500).optional(),
+}).refine(d => d.id || d.code, {
+  message: 'Either id or code is required',
+});
 
 // M-49: In-memory rate limiter for voucher creation (max 20 per user per 15 minutes)
 const voucherRateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -185,8 +215,15 @@ export async function POST(request: NextRequest) {    const user = await require
     const body = await request.json();
     const tenantId = user.tenantId;
 
+    // M-48: Zod validation
+    const parsed = createVoucherSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map(i => i.message).join(', ') } },
+        { status: 400 }
+      );
+    }
     const {
-      
       planId,
       guestId,
       bookingId,
@@ -195,15 +232,7 @@ export async function POST(request: NextRequest) {    const user = await require
       validUntil,
       validityDays,
       notes,
-    } = body;
-
-    // Validate required fields
-    if (!planId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required field: planId' } },
-        { status: 400 }
-      );
-    }
+    } = parsed.data;
 
     // Verify plan exists
     const plan = await db.wiFiPlan.findFirst({
@@ -386,9 +415,18 @@ export async function PUT(request: NextRequest) {    const user = await requireP
       try {
     const body = await request.json();
     const tenantId = user.tenantId;
-    const { id, code, action, guestId, bookingId, status, propertyId } = body;
 
-    // Find voucher by ID or code
+    // M-48: Zod validation
+    const parsed = updateVoucherSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map(i => i.message).join(', ') } },
+        { status: 400 }
+      );
+    }
+    const { id, code, action, guestId, bookingId, status, propertyId } = parsed.data;
+
+    // Find voucher by ID or code (Zod ensures at least one is present)
     let voucher;
     if (id) {
       voucher = await db.wiFiVoucher.findFirst({
@@ -402,7 +440,7 @@ export async function PUT(request: NextRequest) {    const user = await requireP
       });
     } else {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required field: id or code' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Either id or code is required' } },
         { status: 400 }
       );
     }
@@ -423,7 +461,7 @@ export async function PUT(request: NextRequest) {    const user = await requireP
         );
       }
 
-      const { issuedTo: issueRecipient, notes: issueNotes } = body;
+      const { issuedTo: issueRecipient, notes: issueNotes } = parsed.data;
 
       if (!issueRecipient || !issueRecipient.trim()) {
         return NextResponse.json(

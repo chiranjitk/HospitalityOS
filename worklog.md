@@ -72,3 +72,55 @@ Stage Summary:
 - M-27 fixed: cron night audit now charges no-show penalties per policy (was silently skipping)
 - M-28 verified: cash book transaction persistence already working (CRITICAL-12), documented
 - Commit: f3ef59e5 — pushed to main
+---
+Task ID: M-30, M-31, M-32, M-33
+Agent: Fix Agent
+Task: OTA cache invalidation, rate parity fallback, channel pagination, event sync availability
+
+Work Log:
+- M-30: Refactored OTAClientFactory cache to use credentials-aware keys (hash-based) with 5-minute TTL
+- M-30: Added automatic cache cleanup interval to expire stale client instances
+- M-30: Added invalidateClient() method called from connections PUT route when credential fields change
+- M-31: Added last-known-good rate cache (2-hour TTL) in ota-rate-fetcher.ts
+- M-31: When live OTA API fails, returns stale-but-real data instead of fake variance multipliers
+- M-31: Added isStale flag to ChannelRateEntry, ChannelParityCheck, and ParityReport types
+- M-31: Rate parity engine detects stale data via source='fallback' from rate fetcher
+- M-32: Added limit/offset pagination to /api/channels/mapping GET endpoint
+- M-32: Added limit/offset pagination to /api/channels/restrictions GET endpoint
+- M-32: Both endpoints now return pagination metadata (total, limit, offset)
+- M-33: Verified H-25 fix — event-driven-sync already uses triggerInventorySync with calculateAvailability
+- ESLint: All 6 changed files pass with zero errors
+
+Stage Summary:
+- 6 files changed, 194 insertions, 14 deletions
+- M-30 fixed: OTA client cache now invalidates on credential changes and uses 5-minute TTL
+- M-31 fixed: Rate parity uses last-known-good data (2h cache) instead of fake variance values
+- M-32 fixed: Channel mapping and restrictions endpoints now support pagination (limit/offset)
+- M-33 verified: H-25 fix confirmed working — sends calculated availability, not 0
+- Commit: 87a723e0 — pushed to main
+---
+Task ID: M-35, M-36, M-43
+Agent: Fix Agent
+Task: Competitor data watermark, booking pace cleanup, VIP rules persistence
+
+Work Log:
+- M-35: Added `isDemoData` boolean flag to CompetitorRate interface
+- M-35: Added `COMPETITOR_PRICING_ALLOW_DEMO` env var to gate fake data generation (default: disabled)
+- M-35: When env is false, scrapeCompetitorRates returns empty array with warning log
+- M-35: When env is true, logs DEMO DATA warning and flags every rate with isDemoData: true
+- M-35: Added TODO comment explaining how to integrate real competitor data sources
+- M-35: API route /api/revenue/competitor-pricing now returns hasDemoData flag and prefixed warning in recommendedAction
+- M-36: Added DELETE handler to booking-pace route with action=cleanup
+- M-36: Cleanup deletes BookingPaceSnapshot records older than configurable retentionDays (default 365, min 30, max 1825)
+- M-36: Logs deleted count; intended for cron job integration
+- M-43: VIP recognition component now loads rules from /api/guests/vip/rules on mount
+- M-43: Falls back to DEFAULT_RECOGNITION_RULES when API returns empty; seeds defaults to DB automatically
+- M-43: handleToggleRule now persists toggle via PUT /api/guests/vip/rules/[id] with optimistic update and revert on failure
+- ESLint: All 4 changed files pass with zero errors
+
+Stage Summary:
+- 4 files changed, 191 insertions, 9 deletions
+- M-35 fixed: competitor pricing scraper now disabled by default, logs warnings, flags demo data
+- M-36 fixed: booking pace snapshots can be cleaned up via DELETE ?action=cleanup (cron-ready)
+- M-43 fixed: VIP recognition rules now persisted to database via existing API routes
+- Commit: a5a2c84e — pushed to main

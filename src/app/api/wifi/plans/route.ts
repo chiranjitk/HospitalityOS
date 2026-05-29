@@ -6,6 +6,64 @@ import { requirePermission } from '@/lib/auth/tenant-context';
 import { syncRadiusGroup, deleteRadiusGroup } from '@/lib/wifi/services/wifi-user-service';
 import { updatePlanBandwidthForActiveSessions } from '@/lib/network/tc-bw-update';
 import { RADCLIENT_BIN } from '@/lib/wifi/paths';
+import { z } from 'zod';
+
+// ──────────────────────────────────────────────
+// M-48: Zod validation schemas
+// ──────────────────────────────────────────────
+
+const createPlanSchema = z.object({
+  name: z.string().min(1, 'Plan name is required').max(100),
+  description: z.string().max(500).optional(),
+  downloadSpeed: z.number().positive('Download speed must be positive'),
+  uploadSpeed: z.number().positive('Upload speed must be positive'),
+  burstDownloadSpeed: z.number().positive().optional(),
+  burstUploadSpeed: z.number().positive().optional(),
+  dataLimit: z.number().int().min(0).optional(),
+  sessionLimit: z.number().int().min(0).optional(),
+  maxDevices: z.number().int().min(1).max(100).optional().default(1),
+  fupPolicyId: z.string().optional(),
+  ipPoolId: z.string().optional(),
+  ipPoolIds: z.array(z.object({
+    poolId: z.string(),
+    priority: z.number().optional(),
+  })).optional(),
+  price: z.number().min(0, 'Price must be non-negative').optional().default(0),
+  currency: z.string().min(3).max(3).optional().default('USD'),
+  priority: z.number().int().optional().default(0),
+  validityDays: z.number().int().min(1).optional().default(1),
+  validityMinutes: z.number().int().min(1).optional().default(1440),
+  sessionTimeoutSec: z.number().int().min(0).optional(),
+  idleTimeoutSec: z.number().int().min(0).optional(),
+  status: z.enum(['active', 'inactive']).optional().default('active'),
+});
+
+const updatePlanSchema = z.object({
+  id: z.string().min(1, 'Plan id is required'),
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).optional(),
+  downloadSpeed: z.number().positive().optional(),
+  uploadSpeed: z.number().positive().optional(),
+  burstDownloadSpeed: z.number().positive().nullable().optional(),
+  burstUploadSpeed: z.number().positive().nullable().optional(),
+  dataLimit: z.number().int().min(0).nullable().optional(),
+  sessionLimit: z.number().int().min(0).nullable().optional(),
+  maxDevices: z.number().int().min(1).max(100).optional(),
+  fupPolicyId: z.string().nullable().optional(),
+  ipPoolId: z.string().nullable().optional(),
+  ipPoolIds: z.array(z.object({
+    poolId: z.string(),
+    priority: z.number().optional(),
+  })).optional(),
+  price: z.number().min(0).optional(),
+  currency: z.string().min(3).max(3).optional(),
+  priority: z.number().int().optional(),
+  validityDays: z.number().int().min(1).optional(),
+  validityMinutes: z.number().int().min(1).optional(),
+  sessionTimeoutSec: z.number().int().min(0).nullable().optional(),
+  idleTimeoutSec: z.number().int().min(0).nullable().optional(),
+  status: z.string().optional(),
+});
 
 export async function GET(request: NextRequest) {
   const user = await requirePermission(request, 'wifi.manage');
@@ -118,8 +176,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const tenantId = user.tenantId;
 
+    // M-48: Zod validation
+    const parsed = createPlanSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map(i => i.message).join(', ') } },
+        { status: 400 }
+      );
+    }
+
     const {
-      
       name,
       description,
       downloadSpeed,
@@ -140,27 +206,11 @@ export async function POST(request: NextRequest) {
       sessionTimeoutSec,
       idleTimeoutSec,
       status = 'active',
-    } = body;
-
-    // Validate required fields
-    if (!name || downloadSpeed === undefined || uploadSpeed === undefined) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required fields: name, downloadSpeed, uploadSpeed' } },
-        { status: 400 }
-      );
-    }
+    } = parsed.data;
 
     // Sanitize validity values
     const sanitizedValidityDays = Math.max(1, parseInt(validityDays, 10) || 1);
     const sanitizedValidityMinutes = Math.max(1, parseInt(String(validityMinutes), 10) || 1440);
-
-    // Validate price >= 0 on create
-    if (price < 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'price must be non-negative' } },
-        { status: 400 }
-      );
-    }
 
     // Check for duplicate name
     const existingPlan = await db.wiFiPlan.findFirst({
@@ -250,14 +300,17 @@ export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
     const tenantId = user.tenantId;
-    const { id, ...updateData } = body;
 
-    if (!id) {
+    // M-48: Zod validation
+    const parsed = updatePlanSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required field: id' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map(i => i.message).join(', ') } },
         { status: 400 }
       );
     }
+
+    const { id, ...updateData } = parsed.data;
 
     const existingPlan = await db.wiFiPlan.findUnique({
       where: { id },
@@ -294,14 +347,6 @@ export async function PUT(request: NextRequest) {
           { status: 400 }
         );
       }
-    }
-
-    // Validate price >= 0 on update
-    if (updateData.price !== undefined && parseFloat(updateData.price) < 0) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'price must be non-negative' } },
-        { status: 400 }
-      );
     }
 
     const plan = await db.wiFiPlan.update({

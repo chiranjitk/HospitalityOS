@@ -21,8 +21,19 @@ import { wifiUserService, planNameToGroupName } from '@/lib/wifi/services/wifi-u
 import { updateUserBandwidthLive } from '@/lib/network/tc-bw-update';
 import { inferDeviceInfo } from '@/lib/mac-vendor-lookup';
 import { RADCLIENT_BIN } from '@/lib/wifi/paths';
+import { z } from 'zod';
 
 const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3010';
+
+// M-48: Zod validation schemas for RADIUS POST actions
+const radiusPostSchema = z.object({
+  action: z.string().min(1, 'action is required'),
+}).passthrough();
+
+const radiusTestAuthSchema = z.object({
+  username: z.string().min(1, 'Username is required'),
+  password: z.string().min(1, 'Password is required'),
+});
 
 /**
  * Fix radacct DateTime columns that FreeRADIUS fills with empty strings ""
@@ -1702,6 +1713,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+
+    // M-48: Validate top-level action field
+    const topLevelParse = radiusPostSchema.safeParse(body);
+    if (!topLevelParse.success) {
+      return NextResponse.json(
+        { success: false, error: { message: topLevelParse.error.issues.map(i => i.message).join(', ') } },
+        { status: 400 }
+      );
+    }
+
     const { action, ...data } = body;
 
     switch (action) {
@@ -1733,7 +1754,12 @@ export async function POST(request: NextRequest) {
       // Always logs the attempt to radpostauth for the Auth Logs tab.
       case 'test-auth': {
         try {
-          const { username: testUsername, password: testPassword } = data;
+          // M-48: Validate test-auth credentials
+          const authParse = radiusTestAuthSchema.safeParse(data);
+          if (!authParse.success) {
+            return NextResponse.json({ success: false, error: { message: authParse.error.issues.map(i => i.message).join(', ') } }, { status: 400 });
+          }
+          const { username: testUsername, password: testPassword } = authParse.data;
           if (!testUsername || !testPassword) {
             return NextResponse.json({ success: false, error: 'Username and password are required' }, { status: 400 });
           }

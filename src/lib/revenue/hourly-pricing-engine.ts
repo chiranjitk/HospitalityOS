@@ -1018,42 +1018,36 @@ async function recordPriceHistory(
 
 /**
  * Get the linear pricing configuration for a property.
- * TODO (H-46): Configuration is currently stored in the AuditLog table (using a special
- * entityType='Property' and action='linear_pricing_config' marker). This is a pragmatic
- * approach that avoids schema migrations, but has significant risks:
- * - AuditLog tables are append-only and grow unbounded; config lookups require findFirst
- *   ordered by createdAt desc, which degrades over time.
- * - AuditLog retention policies or purges could delete pricing configs.
- * - The newValue column stores JSON as text, so complex config schemas have no validation.
- * RECOMMENDATION: Create a dedicated PricingConfig table (id, tenantId, propertyId, config JSONB,
- * updatedAt) in a future migration. Until then, this works but should be monitored.
+ * M-46: Config is stored in the SystemConfig table (JSON column) keyed by
+ * `linear_pricing_config:${propertyId}`. This replaces the previous AuditLog-based
+ * storage which broke when logs were pruned. SystemConfig is purpose-built for
+ * key-value settings with a unique constraint on (tenantId, key).
  */
 export async function getLinearPricingConfig(
   tenantId: string,
   propertyId: string
 ): Promise<LinearPricingConfig> {
-  // Use a dedicated approach: store config in AuditLog with a specific entity type
-  // This is a pragmatic approach since we don't want to add schema migrations
-  const configEntry = await db.auditLog.findFirst({
-    where: {
-      tenantId,
-      module: 'revenue',
-      action: 'linear_pricing_config',
-      entityType: 'Property',
-      entityId: propertyId,
-    },
-    orderBy: { createdAt: 'desc' },
+  const configKey = `linear_pricing_config:${propertyId}`;
+
+  const configEntry = await db.systemConfig.findUnique({
+    where: { tenantId_key: { tenantId, key: configKey } },
   });
 
-  if (configEntry?.newValue) {
+  if (configEntry?.value) {
     try {
-      const parsed = JSON.parse(configEntry.newValue);
+      const parsed = configEntry.value as Record<string, unknown>;
       return {
-        enabled: parsed.enabled ?? true,
-        sensitivity: parsed.sensitivity ?? 'moderate',
-        floorMultipliers: { ...DEFAULT_LINEAR_CONFIG.floorMultipliers, ...parsed.floorMultipliers },
-        ceilingMultipliers: { ...DEFAULT_LINEAR_CONFIG.ceilingMultipliers, ...parsed.ceilingMultipliers },
-        perRoomIncrement: parsed.perRoomIncrement ?? true,
+        enabled: (parsed.enabled as boolean) ?? true,
+        sensitivity: (parsed.sensitivity as SensitivityLevel) ?? 'moderate',
+        floorMultipliers: {
+          ...DEFAULT_LINEAR_CONFIG.floorMultipliers,
+          ...(parsed.floorMultipliers as Partial<LinearPricingConfig['floorMultipliers']>),
+        },
+        ceilingMultipliers: {
+          ...DEFAULT_LINEAR_CONFIG.ceilingMultipliers,
+          ...(parsed.ceilingMultipliers as Partial<LinearPricingConfig['ceilingMultipliers']>),
+        },
+        perRoomIncrement: (parsed.perRoomIncrement as boolean) ?? true,
       };
     } catch {
       // Fall through to default
@@ -1065,6 +1059,8 @@ export async function getLinearPricingConfig(
 
 /**
  * Set/update the linear pricing configuration for a property.
+ * M-46: Uses SystemConfig upsert instead of AuditLog create.
+ * The unique constraint on (tenantId, key) ensures one config per property.
  */
 export async function setLinearPricingConfig(
   tenantId: string,
@@ -1079,15 +1075,17 @@ export async function setLinearPricingConfig(
     ceilingMultipliers: { ...current.ceilingMultipliers, ...config.ceilingMultipliers },
   };
 
-  await db.auditLog.create({
-    data: {
+  const configKey = `linear_pricing_config:${propertyId}`;
+
+  await db.systemConfig.upsert({
+    where: { tenantId_key: { tenantId, key: configKey } },
+    create: {
       tenantId,
-      module: 'revenue',
-      action: 'linear_pricing_config',
-      entityType: 'Property',
-      entityId: propertyId,
-      oldValue: JSON.stringify(current),
-      newValue: JSON.stringify(updated),
+      key: configKey,
+      value: updated as unknown as Record<string, unknown>,
+    },
+    update: {
+      value: updated as unknown as Record<string, unknown>,
     },
   });
 
