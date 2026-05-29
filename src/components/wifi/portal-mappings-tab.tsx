@@ -326,22 +326,8 @@ export default function PortalMappingsTab() {
 
       if (editingMapping) {
         // ── Update existing mapping ──
-        // If the portal changed, delete all other mappings for this pool first.
-        const existingMapping = mappings.find(m => m.id === editingMapping.id);
-        if (existingMapping && existingMapping.portalId !== form.portalId && editingPool) {
-          // Portal changed — delete ALL existing mappings for this pool, then create fresh
-          const ghostMappings = mappings.filter(m => {
-            if (m.id === editingMapping.id) return false;
-            if (m.ipPoolId && m.ipPoolId === editingPool.id) return true;
-            if (m.subnet && editingPool.subnet &&
-                m.subnet.replace(/\/32$/, '') === editingPool.subnet.replace(/\/32$/, '')) return true;
-            return false;
-          });
-          for (const ghost of ghostMappings) {
-            await fetch(`/api/wifi/portal/mappings/${ghost.id}`, { method: 'DELETE' });
-          }
-        }
-        const { propertyId: _, portalId: __, ipPoolId: ___, subnet: ____, ...updatePayload } = payload;
+        // Portal can now be changed (reassigned). Send portalId in the PUT payload.
+        const { propertyId: _, ipPoolId: __, subnet: ____, ...updatePayload } = payload;
         res = await fetch(`/api/wifi/portal/mappings/${editingMapping.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },

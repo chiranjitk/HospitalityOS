@@ -64,13 +64,26 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const {
-      vlanId, vlanConfigId, ssid, subnet, priority,
+      portalId, vlanId, vlanConfigId, ssid, subnet, priority,
       fallbackPortalId, enabled, ipPoolId,
     } = body;
 
+    // If portalId is being changed, validate the new portal belongs to same tenant
+    if (portalId !== undefined && portalId !== existing.portalId) {
+      const newPortal = await db.captivePortal.findFirst({
+        where: { id: portalId, tenantId: user.tenantId },
+      });
+      if (!newPortal) {
+        return NextResponse.json(
+          { success: false, error: { code: 'NOT_FOUND', message: 'Target portal not found' } },
+          { status: 404 }
+        );
+      }
+    }
+
     // Validate UUID format for all UUID fields to prevent DB type cast errors
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const uuidFields = { fallbackPortalId, vlanConfigId, ipPoolId };
+    const uuidFields = { portalId, fallbackPortalId, vlanConfigId, ipPoolId };
     for (const [field, value] of Object.entries(uuidFields)) {
       if (value !== undefined && value !== null && !UUID_REGEX.test(value)) {
         return NextResponse.json(
@@ -83,6 +96,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const mapping = await db.portalMapping.update({
       where: { id },
       data: {
+        ...(portalId !== undefined && { portalId }),
         ...(vlanId !== undefined && { vlanId: vlanId ? parseInt(vlanId, 10) : null }),
         ...(vlanConfigId !== undefined && { vlanConfigId }),
         ...(ssid !== undefined && { ssid }),
