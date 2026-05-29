@@ -300,7 +300,11 @@ export default function LDAPRadiusConfig() {
       const res = await fetch(`/api/wifi/radius-ldap?propertyId=${propertyId}`);
       const data = await res.json();
       if (data.success && data.data) {
-        setConfig(prev => ({ ...prev, ...dbToUiConfig(data.data) }));
+        setConfig(prev => ({
+          ...prev,
+          ...dbToUiConfig(data.data),
+          bindPassword: '', // Never populate bind password from API response
+        }));
         setDiagnostics(data.diagnostics ?? null);
       }
       // Even if no config exists, we show the setup form with defaults

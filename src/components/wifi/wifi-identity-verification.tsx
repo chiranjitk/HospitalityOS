@@ -18,6 +18,10 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { maskIP } from '@/lib/wifi/validation';
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
@@ -216,6 +220,8 @@ export default function WiFiIdentityVerification() {
   const [showFailDialog, setShowFailDialog] = useState(false);
   const [failReason, setFailReason] = useState('');
   const [showComplianceReport, setShowComplianceReport] = useState(false);
+  const [isVerifyConfirmOpen, setIsVerifyConfirmOpen] = useState(false);
+  const [verifyTargetId, setVerifyTargetId] = useState<string | null>(null);
 
   // Settings saving state
   const [savingSettings, setSavingSettings] = useState(false);
@@ -801,7 +807,7 @@ export default function WiFiIdentityVerification() {
                             </span>
                           </TableCell>
                           <TableCell>{getStatusBadge(log.verificationStatus)}</TableCell>
-                          <TableCell className="hidden md:table-cell text-sm font-mono text-muted-foreground">{log.ipAddress}</TableCell>
+                          <TableCell className="hidden md:table-cell text-sm font-mono text-muted-foreground">{maskIP(log.ipAddress)}</TableCell>
                           <TableCell className="hidden lg:table-cell">
                             {log.countryCode ? (
                               <span className="flex items-center gap-1 text-sm"><Globe className="h-3 w-3" />{log.countryCode}</span>
@@ -817,7 +823,7 @@ export default function WiFiIdentityVerification() {
                                 <Eye className="h-3.5 w-3.5" />
                               </Button>
                               {log.verificationStatus === 'pending' && (
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-primary hover:text-primary/80" title="Verify" onClick={() => handleVerify(log.id)}>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-primary hover:text-primary/80" title="Verify" onClick={() => { setVerifyTargetId(log.id); setIsVerifyConfirmOpen(true); }}>
                                   <CheckCircle2 className="h-3.5 w-3.5" />
                                 </Button>
                               )}
@@ -977,7 +983,7 @@ export default function WiFiIdentityVerification() {
                               <TableCell className="font-mono text-sm">{s.username}</TableCell>
                               <TableCell><Badge variant="outline" className="gap-1">{getMethodIcon(s.verificationMethod, 'h-3 w-3')}{getMethodLabel(s.verificationMethod)}</Badge></TableCell>
                               <TableCell>{getStatusBadge(s.verificationStatus)}</TableCell>
-                              <TableCell className="font-mono text-sm">{s.ipAddress}</TableCell>
+                              <TableCell className="font-mono text-sm">{maskIP(s.ipAddress)}</TableCell>
                               <TableCell className="text-sm text-muted-foreground">{format(new Date(s.createdAt), 'MMM d, HH:mm')}</TableCell>
                             </TableRow>
                           ))}
@@ -1133,7 +1139,7 @@ export default function WiFiIdentityVerification() {
                 <div><Label className="text-muted-foreground">Status</Label><div className="mt-0.5">{getStatusBadge(selectedLog.verificationStatus)}</div></div>
                 <div><Label className="text-muted-foreground">Verified Identity</Label><p className="font-mono mt-0.5">{maskIdentity(selectedLog.verifiedIdentity, selectedLog.verificationMethod)}</p></div>
                 <div><Label className="text-muted-foreground">ID Type</Label><p className="mt-0.5">{getIdTypeLabel(selectedLog.idType)}</p></div>
-                <div><Label className="text-muted-foreground">IP Address</Label><p className="font-mono mt-0.5">{selectedLog.ipAddress}</p></div>
+                <div><Label className="text-muted-foreground">IP Address</Label><p className="font-mono mt-0.5">{maskIP(selectedLog.ipAddress)}</p></div>
                 <div><Label className="text-muted-foreground">MAC Address</Label><p className="font-mono mt-0.5">{selectedLog.macAddress || '—'}</p></div>
                 <div><Label className="text-muted-foreground">Country</Label><p className="mt-0.5">{selectedLog.countryCode ? <span className="flex items-center gap-1"><Globe className="h-3 w-3" />{selectedLog.countryCode}</span> : '—'}</p></div>
                 <div><Label className="text-muted-foreground">Created</Label><p className="mt-0.5 text-sm">{format(new Date(selectedLog.createdAt), 'PPP p')}</p></div>
@@ -1145,7 +1151,7 @@ export default function WiFiIdentityVerification() {
               <Separator />
               <div className="flex justify-end gap-2">
                 {selectedLog.verificationStatus === 'pending' && (
-                  <Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => { handleVerify(selectedLog.id); setShowDetailsDialog(false); }}>
+                  <Button className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => { setVerifyTargetId(selectedLog.id); setIsVerifyConfirmOpen(true); setShowDetailsDialog(false); }}>
                     <CheckCircle2 className="h-4 w-4" />Verify Identity
                   </Button>
                 )}
@@ -1160,6 +1166,24 @@ export default function WiFiIdentityVerification() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ─── Verify Confirmation Dialog ─── */}
+      <AlertDialog open={isVerifyConfirmOpen} onOpenChange={setIsVerifyConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Identity Verification</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to mark this identity as verified? This is a regulatory compliance action.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (verifyTargetId) { handleVerify(verifyTargetId); setVerifyTargetId(null); } }}>
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ─── Fail Reason Dialog ─── */}
       <Dialog open={showFailDialog} onOpenChange={setShowFailDialog}>

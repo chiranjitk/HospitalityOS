@@ -113,7 +113,7 @@ import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
 import { useToast } from '@/hooks/use-toast';
 import { usePropertyId } from '@/hooks/use-property';
-import { csvSafeEscape } from '@/lib/wifi/validation';
+import { csvSafeEscape, maskIP } from '@/lib/wifi/validation';
 
 // ==================== LAZY-LOADED TAB COMPONENTS ====================
 
@@ -330,6 +330,8 @@ function BandwidthUsageTab() {
   const [property, setProperty] = useState('all');
   const [bandwidthData, setBandwidthData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [perPage] = useState(20);
   const { toast } = useToast();
   const { propertyId, properties } = usePropertyId();
 
@@ -568,6 +570,20 @@ function BandwidthUsageTab() {
           </div>
         </CardContent>
       </Card>
+      {filteredData.length > perPage && (
+        <div className="flex items-center justify-between px-4 py-3 border-t">
+          <span className="text-sm text-muted-foreground">
+            Showing {(page - 1) * perPage + 1}-{Math.min(page * perPage, filteredData.length)} of {filteredData.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+            {Array.from({ length: Math.ceil(filteredData.length / perPage) }, (_, i) => i + 1).map(p => (
+              <Button key={p} variant={p === page ? 'default' : 'outline'} size="sm" onClick={() => setPage(p)} className="w-8 h-8">{p}</Button>
+            ))}
+            <Button variant="outline" size="sm" disabled={page >= Math.ceil(filteredData.length / perPage)} onClick={() => setPage(p => p + 1)}>Next</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -948,6 +964,8 @@ function WebSurfingTab() {
   const [categories, setCategories] = useState<string[]>([]);
   const [dataSource, setDataSource] = useState<string>('demo');
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [perPage] = useState(20);
   const { toast } = useToast();
 
   const ALL_CATEGORIES = [
@@ -1000,7 +1018,7 @@ function WebSurfingTab() {
 
   const handleExportCSV = useCallback(() => {
     const headers = 'Domain,Source IP,Src Port,Dest IP,Dest Port,Interface,Guest Name,Category,Connections,Bytes,Last Accessed';
-    const rows = surfingLogs.map(l => [l.domain, l.sourceIp || l.source_ip, l.srcPort || '', l.destIp || '', l.destPort || '', l.inIface || '', l.guestName || '', l.category, l.connections, l.totalBytes, l.lastAccess || l.last_access].map(f => csvSafeEscape(f)).join(','));
+    const rows = surfingLogs.map(l => [l.domain, maskIP(l.sourceIp || l.source_ip), l.srcPort || '', maskIP(l.destIp || ''), l.destPort || '', l.inIface || '', l.guestName || '', l.category, l.connections, l.totalBytes, l.lastAccess || l.last_access].map(f => csvSafeEscape(f)).join(','));
     const csv = [headers, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1048,6 +1066,13 @@ function WebSurfingTab() {
     }
     return logs;
   }, [surfingLogs, domainSearch, categoryFilter]);
+
+  // Pagination
+  const totalSurfingLogs = filteredLogs.length;
+  const totalPagesSurfing = Math.ceil(totalSurfingLogs / perPage);
+  const startIdxSurfing = (page - 1) * perPage;
+  const endIdxSurfing = startIdxSurfing + perPage;
+  const paginatedSurfingLogs = filteredLogs.slice(startIdxSurfing, endIdxSurfing);
 
   const topDomains = useMemo(() => {
     const counts: Record<string, { domain: string; bytes: number; count: number }> = {};
@@ -1193,7 +1218,7 @@ function WebSurfingTab() {
                 <TableBody>
                   {filteredLogs.length === 0 ? (
                     <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground text-xs">{t('wrNoWebSurfingData')}</TableCell></TableRow>
-                  ) : filteredLogs.slice(0, 200).map((log, idx) => (
+                  ) : paginatedSurfingLogs.map((log, idx) => (
                     <TableRow key={log.id || `${log.domain}-${log.sourceIp || log.source_ip}-${idx}`} className="hover:bg-muted/30">
                       <TableCell className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">{new Date(log.timestamp || log.lastAccess || log.last_access).toLocaleString()}</TableCell>
                       <TableCell className="font-mono text-xs sm:text-sm max-w-[100px] sm:max-w-[180px] truncate">{log.domain}</TableCell>
@@ -1221,6 +1246,21 @@ function WebSurfingTab() {
           </div>
         </CardContent>
       </Card>
+      {totalPagesSurfing > 1 && (
+        <div className="flex items-center justify-between px-4 py-3 border-t">
+          <span className="text-sm text-muted-foreground">
+            Showing {startIdxSurfing + 1}-{Math.min(endIdxSurfing, totalSurfingLogs)} of {totalSurfingLogs}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+            {Array.from({ length: Math.min(totalPagesSurfing, 10) }, (_, i) => i + 1).map(p => (
+              <Button key={p} variant={p === page ? 'default' : 'outline'} size="sm" onClick={() => setPage(p)} className="w-8 h-8">{p}</Button>
+            ))}
+            {totalPagesSurfing > 10 && <span className="text-xs text-muted-foreground px-1">...</span>}
+            <Button variant="outline" size="sm" disabled={page >= totalPagesSurfing} onClick={() => setPage(p => p + 1)}>Next</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1237,6 +1277,8 @@ function NATLogsTab() {
   const [actionFilter, setActionFilter] = useState('all');
   const [guestOnly, setGuestOnly] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [perPage] = useState(20);
   const { toast } = useToast();
 
   const handleExportCSV = useCallback(() => {
@@ -1287,6 +1329,13 @@ function NATLogsTab() {
     if (actionFilter !== 'all') result = result.filter(l => l.action === actionFilter);
     return result;
   }, [logs, searchQuery, protocolFilter, actionFilter]);
+
+  // Pagination
+  const totalNatLogs = filteredLogs.length;
+  const totalPagesNat = Math.ceil(totalNatLogs / perPage);
+  const startIdxNat = (page - 1) * perPage;
+  const endIdxNat = startIdxNat + perPage;
+  const paginatedNatLogs = filteredLogs.slice(startIdxNat, endIdxNat);
 
   if (loading) return <LoadingSpinner message={t('wrLoadingNatLogs')} />;
 
@@ -1392,7 +1441,7 @@ function NATLogsTab() {
                 <TableBody>
                   {filteredLogs.length === 0 ? (
                     <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground text-xs">{t('wrNoNatLogData')}</TableCell></TableRow>
-                  ) : filteredLogs.slice(0, 200).map((log, idx) => (
+                  ) : paginatedNatLogs.map((log, idx) => (
                     <TableRow key={log.id || `nat-${idx}`} className={cn('hover:bg-muted/30', (log.action === 'deny') && 'bg-red-50/50 dark:bg-red-950/10')}>
                       <TableCell className="text-[10px] sm:text-xs text-muted-foreground font-mono whitespace-nowrap">
                         {formatTimestamp(log.timestamp)}
@@ -1434,6 +1483,21 @@ function NATLogsTab() {
           </div>
         </CardContent>
       </Card>
+      {totalPagesNat > 1 && (
+        <div className="flex items-center justify-between px-4 py-3 border-t">
+          <span className="text-sm text-muted-foreground">
+            Showing {startIdxNat + 1}-{Math.min(endIdxNat, totalNatLogs)} of {totalNatLogs}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+            {Array.from({ length: Math.min(totalPagesNat, 10) }, (_, i) => i + 1).map(p => (
+              <Button key={p} variant={p === page ? 'default' : 'outline'} size="sm" onClick={() => setPage(p)} className="w-8 h-8">{p}</Button>
+            ))}
+            {totalPagesNat > 10 && <span className="text-xs text-muted-foreground px-1">...</span>}
+            <Button variant="outline" size="sm" disabled={page >= totalPagesNat} onClick={() => setPage(p => p + 1)}>Next</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1492,6 +1556,8 @@ function VoucherReportTab() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [perPage] = useState(20);
   const { toast } = useToast();
 
   const fetchVouchers = useCallback(async () => {
@@ -1666,7 +1732,7 @@ function VoucherReportTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {vouchers.map((v) => (
+                {vouchers.slice((page - 1) * perPage, page * perPage).map((v) => (
                   <TableRow key={v.id} className="hover:bg-muted/30">
                     <TableCell>
                       <div className="flex items-center gap-1.5">
@@ -1727,6 +1793,20 @@ function VoucherReportTab() {
           </div>
         </CardContent>
       </Card>
+      {vouchers.length > perPage && (
+        <div className="flex items-center justify-between px-4 py-3 border-t">
+          <span className="text-sm text-muted-foreground">
+            Showing {(page - 1) * perPage + 1}-{Math.min(page * perPage, vouchers.length)} of {vouchers.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+            {Array.from({ length: Math.ceil(vouchers.length / perPage) }, (_, i) => i + 1).map(p => (
+              <Button key={p} variant={p === page ? 'default' : 'outline'} size="sm" onClick={() => setPage(p)} className="w-8 h-8">{p}</Button>
+            ))}
+            <Button variant="outline" size="sm" disabled={page >= Math.ceil(vouchers.length / perPage)} onClick={() => setPage(p => p + 1)}>Next</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1081,7 +1081,7 @@ export default function NetworkPage() {
   };
 
   const handleAddVlan = async () => {
-    console.log('[VLAN ADD] newVlan state:', JSON.stringify(newVlan));
+    // VLAN add state validated below
     if (!newVlan.vlanId || !newVlan.parentInterface) {
       toast({ title: 'Missing Fields', description: 'VLAN ID and Parent Interface are required.', variant: 'destructive' });
       return;
@@ -1090,7 +1090,7 @@ export default function NetworkPage() {
       toast({ title: 'Missing Description', description: 'Please enter a description for this VLAN.', variant: 'destructive' });
       return;
     }
-    console.log('[VLAN ADD] Validation passed, calling APIs...');
+    // Validation passed, proceeding to API calls
     try {
       // Create VLAN via OS API first (L3: interface + IP in one step)
       if (osDataLoaded) {

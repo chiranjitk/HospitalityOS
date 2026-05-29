@@ -344,7 +344,7 @@ export default function PortalMappingsTab() {
             return false;
           });
           if (existingForPool.length > 0) {
-            console.log(`[PoolMappings] Auto-cleaning ${existingForPool.length} old mapping(s) for pool ${editingPool.id}`);
+            // Auto-cleaning stale mappings for pool ${editingPool.id}
             for (const old of existingForPool) {
               await fetch(`/api/wifi/portal/mappings/${old.id}`, { method: 'DELETE' });
             }

@@ -477,6 +477,10 @@ export default function ContentFilterPage() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [seedInfo, setSeedInfo] = useState<{ totalAvailable: number; seededCategories: number; unseededCategories: number } | null>(null);
 
+  // ─── Whitelist State ────────────────────────────────────────────────────
+  const [whitelistedDomains, setWhitelistedDomains] = useState<string[]>([]);
+  const [whitelistInput, setWhitelistInput] = useState('');
+
   // Confirmation state for destructive sync action
   const [syncConfirm, setSyncConfirm] = useState(false);
 
@@ -1259,6 +1263,93 @@ export default function ContentFilterPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* ── Whitelisted Domains (Admin Override) ────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.28 }}
+        >
+          <Card className="border-border/50 border-primary/20">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Whitelisted Domains</span>
+                  <Badge variant="secondary" className="text-xs tabular-nums font-mono bg-primary/10 text-primary border-primary/20">
+                    {whitelistedDomains.length}
+                  </Badge>
+                </div>
+                <span className="text-[10px] text-muted-foreground">Whitelisted domains bypass all category blocklists</span>
+              </div>
+              <div className="flex gap-2 mb-3">
+                <div className="relative flex-1">
+                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="e.g. trusted-site.com"
+                    value={whitelistInput}
+                    onChange={(e) => setWhitelistInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const domain = whitelistInput.trim().toLowerCase();
+                        if (domain && !whitelistedDomains.includes(domain)) {
+                          setWhitelistedDomains(prev => [...prev, domain]);
+                          setWhitelistInput('');
+                          toast.success(`Domain "${domain}" added to whitelist`);
+                        } else if (whitelistedDomains.includes(domain)) {
+                          toast.error('Domain already in whitelist');
+                        }
+                      }
+                    }}
+                    className="pl-9 h-8 text-sm"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const domain = whitelistInput.trim().toLowerCase();
+                    if (!domain) return;
+                    if (whitelistedDomains.includes(domain)) {
+                      toast.error('Domain already in whitelist');
+                      return;
+                    }
+                    setWhitelistedDomains(prev => [...prev, domain]);
+                    setWhitelistInput('');
+                    toast.success(`Domain "${domain}" added to whitelist`);
+                  }}
+                  className="h-8 text-xs"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Add
+                </Button>
+              </div>
+              {whitelistedDomains.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {whitelistedDomains.map((domain) => (
+                    <div
+                      key={domain}
+                      className="inline-flex items-center gap-1.5 bg-primary/5 border border-primary/15 rounded-md px-2.5 py-1"
+                    >
+                      <Globe className="h-3 w-3 text-primary/60" />
+                      <span className="text-xs font-mono text-primary/80">{domain}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-4 w-4 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => {
+                          setWhitelistedDomains(prev => prev.filter(d => d !== domain));
+                          toast.success(`Domain "${domain}" removed from whitelist`);
+                        }}
+                      >
+                        <XCircle className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>

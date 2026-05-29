@@ -65,6 +65,7 @@ import {
   ChevronDown,
   ChevronRight,
   Eye,
+  EyeOff,
   XCircle,
   CheckCircle,
   Pause,
@@ -161,6 +162,22 @@ const AUTH_METHOD_LABELS: Record<string, string> = {
   deep_link: 'Deep Link',
 };
 
+/**
+ * Mask the apiKey field in a JSON config string, showing only the last 4 characters.
+ * Returns the original string if parsing fails.
+ */
+function maskApiKeyInConfig(configJson: string): string {
+  try {
+    const config = JSON.parse(configJson);
+    if (config.apiKey && typeof config.apiKey === 'string' && config.apiKey.length > 0) {
+      config.apiKey = '****' + config.apiKey.slice(-4);
+    }
+    return JSON.stringify(config, null, 2);
+  } catch {
+    return configJson;
+  }
+}
+
 function getStatusBadge(status: string) {
   switch (status) {
     case 'active':
@@ -225,6 +242,9 @@ export default function WifiPartners() {
   const [expandedAuths, setExpandedAuths] = useState<WiFiPartnerAuth[]>([]);
   const [expandedLoading, setExpandedLoading] = useState(false);
 
+  // ─── API Key visibility state ──────────────────────────────────────────
+  const [showApiKey, setShowApiKey] = useState(false);
+
   // ─── Action states ───────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -248,6 +268,7 @@ export default function WifiPartners() {
         params.set('limit', '100');
 
         const res = await fetch(`/api/wifi/partners?${params.toString()}`, { signal: controller.signal });
+        if (!res.ok) { if (!cancelled) setPartners([]); return; }
         const data = await res.json();
 
         if (cancelled) return;
@@ -281,6 +302,7 @@ export default function WifiPartners() {
         const params = new URLSearchParams();
         params.set('days', dateRange === 'all' ? '365' : dateRange);
         const res = await fetch(`/api/wifi/partners/stats?${params.toString()}`, { signal: controller.signal });
+        if (!res.ok) { if (!cancelled) setStats(null); return; }
         const data = await res.json();
 
         if (cancelled) return;
@@ -319,43 +341,39 @@ export default function WifiPartners() {
 
         // Fetch auth sessions across all partners
         const res = await fetch(`/api/wifi/partners/stats?${params.toString()}`, { signal: controller.signal });
+        if (!res.ok) { if (!cancelled) setAuthSessions([]); return; }
         const data = await res.json();
 
         if (cancelled) return;
 
         // Get auth sessions from each partner
         const authRes = await fetch(`/api/wifi/partners?limit=100`, { signal: controller.signal });
+        if (!authRes.ok) { if (!cancelled) setAuthSessions([]); return; }
         const authData = await authRes.json();
 
         if (cancelled) return;
 
-        // Collect auth sessions from all partners
+        // Collect auth sessions from all partners via batch fetch
         if (authData.success && Array.isArray(authData.data)) {
-          const allAuths: WiFiPartnerAuth[] = [];
           const partnerList = authData.data as WiFiPartner[];
 
           const filteredPartners = authPartnerFilter !== 'all'
             ? partnerList.filter((p) => p.id === authPartnerFilter)
             : partnerList;
 
-          for (const partner of filteredPartners.slice(0, 10)) {
-            try {
-              const pParams = new URLSearchParams();
-              pParams.set('limit', '20');
-              if (dateRange !== 'all') {
-                const start = new Date(Date.now() - parseInt(dateRange) * 86400000).toISOString();
-                pParams.set('startDate', start);
-              }
-              const pRes = await fetch(`/api/wifi/partners/${partner.id}/auths?${pParams.toString()}`, { signal: controller.signal });
-              const pData = await pRes.json();
-              if (pData.success && Array.isArray(pData.data)) {
-                allAuths.push(...pData.data);
-              }
-            } catch {
-              // Skip individual partner errors
+          const authPromises = filteredPartners.slice(0, 10).map(p => {
+            const pParams = new URLSearchParams();
+            pParams.set('limit', '5');
+            if (dateRange !== 'all') {
+              const start = new Date(Date.now() - parseInt(dateRange) * 86400000).toISOString();
+              pParams.set('startDate', start);
             }
-          }
-
+            return fetch(`/api/wifi/partners/${p.id}/auths?${pParams.toString()}`, { signal: controller.signal })
+              .then(r => r.ok ? r.json() : Promise.resolve({ data: [] }));
+          });
+          const results = await Promise.all(authPromises);
+          if (cancelled) return;
+          const allAuths = results.flatMap(r => r.data || []);
           setAuthSessions(allAuths);
         }
       } catch (error: unknown) {
@@ -384,6 +402,7 @@ export default function WifiPartners() {
     setExpandedLoading(true);
     try {
       const res = await fetch(`/api/wifi/partners/${partnerId}/auths?limit=10`);
+      if (!res.ok) { setExpandedAuths([]); return; }
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setExpandedAuths(data.data);
@@ -410,6 +429,7 @@ export default function WifiPartners() {
       maxDailyAuths: '',
       config: DEFAULT_CONFIG,
     });
+    setShowApiKey(false);
     setCreateDialogOpen(true);
   };
 
@@ -435,6 +455,7 @@ export default function WifiPartners() {
           config: formData.config,
         }),
       });
+      if (!res.ok) { toast({ title: 'Create Failed', description: 'Network error — please try again', variant: 'destructive' }); return; }
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Partner Created', description: `${formData.name} has been added successfully.` });
@@ -464,6 +485,7 @@ export default function WifiPartners() {
       maxDailyAuths: partner.maxDailyAuths ? String(partner.maxDailyAuths) : '',
       config: partner.config || DEFAULT_CONFIG,
     });
+    setShowApiKey(false);
     setEditDialogOpen(true);
   };
 
@@ -486,6 +508,7 @@ export default function WifiPartners() {
           config: formData.config,
         }),
       });
+      if (!res.ok) { toast({ title: 'Update Failed', description: 'Network error — please try again', variant: 'destructive' }); return; }
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Partner Updated', description: `${formData.name} has been updated.` });
@@ -512,6 +535,7 @@ export default function WifiPartners() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
+      if (!res.ok) { toast({ title: 'Update Failed', description: 'Network error — please try again', variant: 'destructive' }); return; }
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Status Updated', description: `${partner.name} is now ${newStatus}.` });
@@ -539,6 +563,7 @@ export default function WifiPartners() {
       const res = await fetch(`/api/wifi/partners/${selectedPartner.id}`, {
         method: 'DELETE',
       });
+      if (!res.ok) { toast({ title: 'Delete Failed', description: 'Network error — please try again', variant: 'destructive' }); return; }
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Partner Deleted', description: `${selectedPartner.name} has been removed.` });
@@ -1254,11 +1279,23 @@ export default function WifiPartners() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="create-config">Configuration (JSON)</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="create-config">Configuration (JSON)</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs gap-1"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  {showApiKey ? 'Hide API Key' : 'Show API Key'}
+                </Button>
+              </div>
               <Textarea
                 id="create-config"
                 className="font-mono text-xs min-h-[120px]"
-                value={formData.config}
+                value={showApiKey ? formData.config : maskApiKeyInConfig(formData.config)}
                 onChange={(e) => setFormData({ ...formData, config: e.target.value })}
                 autoComplete="off"
               />
@@ -1374,11 +1411,23 @@ export default function WifiPartners() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-config">Configuration (JSON)</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="edit-config">Configuration (JSON)</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs gap-1"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  {showApiKey ? 'Hide API Key' : 'Show API Key'}
+                </Button>
+              </div>
               <Textarea
                 id="edit-config"
                 className="font-mono text-xs min-h-[120px]"
-                value={formData.config}
+                value={showApiKey ? formData.config : maskApiKeyInConfig(formData.config)}
                 onChange={(e) => setFormData({ ...formData, config: e.target.value })}
                 autoComplete="off"
               />

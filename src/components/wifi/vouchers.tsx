@@ -113,6 +113,8 @@ export default function WifiVouchers() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [planFilter, setPlanFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const [perPage] = useState(20);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isQROpen, setIsQROpen] = useState(false);
@@ -140,16 +142,13 @@ export default function WifiVouchers() {
     const fetchPlans = async () => {
       try {
         const response = await fetch('/api/wifi/plans?status=active');
+        if (!response.ok) {
+          toast({ title: 'Error', description: `Request failed (${response.status})`, variant: 'destructive' });
+          return;
+        }
         const result = await response.json();
         if (result.success) {
           setPlans(result.data);
-          if (result.data.length > 0) {
-            setFormData(prev => ({
-              ...prev,
-              planId: result.data[0].id,
-              validityDays: result.data[0].validityDays,
-            }));
-          }
         }
       } catch (error) {
         console.error('Error fetching plans:', error);
@@ -169,6 +168,10 @@ export default function WifiVouchers() {
       if (planFilter !== 'all') params.append('planId', planFilter);
 
       const response = await fetch(`/api/wifi/vouchers?${params.toString()}`);
+      if (!response.ok) {
+        toast({ title: 'Error', description: `Request failed (${response.status})`, variant: 'destructive' });
+        return;
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -189,6 +192,16 @@ export default function WifiVouchers() {
   useEffect(() => {
     fetchVouchers();
   }, [statusFilter, planFilter]);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(1); }, [searchQuery, statusFilter, planFilter]);
+
+  // Pagination
+  const totalVouchersCount = vouchers.length;
+  const totalPagesVouchers = Math.ceil(totalVouchersCount / perPage);
+  const startIdxVouchers = (page - 1) * perPage;
+  const endIdxVouchers = startIdxVouchers + perPage;
+  const paginatedVouchers = vouchers.slice(startIdxVouchers, endIdxVouchers);
 
   // Debounced search
   const isInitialMount = useRef(true);
@@ -223,7 +236,10 @@ export default function WifiVouchers() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-
+      if (!response.ok) {
+        toast({ title: 'Error', description: `Request failed (${response.status})`, variant: 'destructive' });
+        return;
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -273,7 +289,10 @@ export default function WifiVouchers() {
           notes: issueForm.notes.trim() || undefined,
         }),
       });
-
+      if (!response.ok) {
+        toast({ title: 'Error', description: `Request failed (${response.status})`, variant: 'destructive' });
+        return;
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -316,7 +335,10 @@ export default function WifiVouchers() {
       const response = await fetch(`/api/wifi/vouchers?id=${voucherId}`, {
         method: 'DELETE',
       });
-
+      if (!response.ok) {
+        toast({ title: 'Error', description: `Request failed (${response.status})`, variant: 'destructive' });
+        return;
+      }
       const result = await response.json();
 
       if (result.success) {
@@ -367,6 +389,10 @@ export default function WifiVouchers() {
     const fetchPortalUrl = async () => {
       try {
         const res = await fetch('/api/wifi/aaa-config?field=voucherPortalUrl');
+        if (!res.ok) {
+          toast({ title: 'Error', description: `Request failed (${res.status})`, variant: 'destructive' });
+          return;
+        }
         const result = await res.json();
         if (result.success && result.data) {
           setPortalUrl(result.data);
@@ -387,6 +413,10 @@ export default function WifiVouchers() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ voucherPortalUrl: url, propertyId }),
       });
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Request failed (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const result = await res.json();
       if (result.success) {
         setPortalUrl(url);
@@ -443,9 +473,9 @@ export default function WifiVouchers() {
 
   const resetForm = () => {
     setFormData({
-      planId: plans[0]?.id || '',
+      planId: '',
       quantity: 1,
-      validityDays: plans[0]?.validityDays || 1,
+      validityDays: 1,
       notes: '',
     });
   };
@@ -625,7 +655,7 @@ export default function WifiVouchers() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {vouchers.map((voucher) => (
+                  {paginatedVouchers.map((voucher) => (
                     <TableRow key={voucher.id} className="transition-colors hover:bg-muted/60">
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -783,6 +813,20 @@ export default function WifiVouchers() {
               </Table>
               </div>
             </ScrollArea>
+          )}
+          {totalPagesVouchers > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <span className="text-sm text-muted-foreground">
+                Showing {startIdxVouchers + 1}-{Math.min(endIdxVouchers, totalVouchersCount)} of {totalVouchersCount}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+                {Array.from({ length: totalPagesVouchers }, (_, i) => i + 1).map(p => (
+                  <Button key={p} variant={p === page ? 'default' : 'outline'} size="sm" onClick={() => setPage(p)} className="w-8 h-8">{p}</Button>
+                ))}
+                <Button variant="outline" size="sm" disabled={page >= totalPagesVouchers} onClick={() => setPage(p => p + 1)}>Next</Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

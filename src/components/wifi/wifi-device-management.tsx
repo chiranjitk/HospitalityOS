@@ -85,7 +85,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow, format } from 'date-fns';
-import { maskIP, maskMAC, maskEmail } from '@/lib/wifi/validation';
+import { maskIP, maskMAC, maskEmail, debounce } from '@/lib/wifi/validation';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -205,9 +205,12 @@ export default function WiFiDeviceManagement() {
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSetSearch = useCallback(debounce((val: string) => setSearchQuery(val), 300), []);
   const [deviceTypeFilter, setDeviceTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [propertyFilter, setPropertyFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const [perPage] = useState(20);
 
   // Expanded row
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
@@ -698,7 +701,7 @@ export default function WiFiDeviceManagement() {
                   <Input
                     placeholder="Search by guest name, MAC, or device name..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => debouncedSetSearch(e.target.value)}
                     className="pl-9"
                   />
                 </div>
@@ -784,7 +787,7 @@ export default function WiFiDeviceManagement() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {devices.map((device) => (
+                      {devices.slice((page - 1) * perPage, page * perPage).map((device) => (
                         <React.Fragment key={device.id}>
                           <TableRow
                             className="cursor-pointer hover:bg-muted/50"
@@ -923,6 +926,20 @@ export default function WiFiDeviceManagement() {
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+              )}
+              {devices.length > perPage && (
+                <div className="flex items-center justify-between px-4 py-3 border-t">
+                  <span className="text-sm text-muted-foreground">
+                    Showing {(page - 1) * perPage + 1}-{Math.min(page * perPage, devices.length)} of {devices.length}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+                    {Array.from({ length: Math.ceil(devices.length / perPage) }, (_, i) => i + 1).map(p => (
+                      <Button key={p} variant={p === page ? 'default' : 'outline'} size="sm" onClick={() => setPage(p)} className="w-8 h-8">{p}</Button>
+                    ))}
+                    <Button variant="outline" size="sm" disabled={page >= Math.ceil(devices.length / perPage)} onClick={() => setPage(p => p + 1)}>Next</Button>
+                  </div>
                 </div>
               )}
             </CardContent>

@@ -65,6 +65,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { debounce } from '@/lib/wifi/validation';
 import { formatDistanceToNow } from 'date-fns';
 
 // ---------------------------------------------------------------------------
@@ -296,21 +297,31 @@ function FupSwitchLog() {
   const [isLoading, setIsLoading] = useState(true);
   const [actionFilter, setActionFilter] = useState<string>('all');
 
+  const fetchLogs = useCallback(async (usernameFilter = '') => {
+    try {
+      const params = new URLSearchParams({ limit: '20' });
+      if (actionFilter !== 'all') params.set('action', actionFilter);
+      if (usernameFilter) params.set('username', usernameFilter);
+      const res = await fetch(`/api/wifi/radius?action=fup-switch-log&${params}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) setLogs(data.data);
+    } catch { /* ignore */ }
+    finally { setIsLoading(false); }
+  }, [actionFilter]);
+
+  const debouncedFetchLogs = useRef(debounce((val: string) => {
+    if (!val) {
+      setActionFilter('all');
+      fetchLogs();
+    }
+  }, 300)).current;
+
   useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        const params = new URLSearchParams({ limit: '20' });
-        if (actionFilter !== 'all') params.set('action', actionFilter);
-        const res = await fetch(`/api/wifi/radius?action=fup-switch-log&${params}`);
-        const data = await res.json();
-        if (data.success && Array.isArray(data.data)) setLogs(data.data);
-      } catch { /* ignore */ }
-      finally { setIsLoading(false); }
-    };
     fetchLogs();
     const interval = setInterval(fetchLogs, 60000);
     return () => clearInterval(interval);
-  }, [actionFilter]);
+  }, [fetchLogs]);
 
   if (isLoading) {
     return (
@@ -350,18 +361,7 @@ function FupSwitchLog() {
                 className="pl-9"
                 onChange={(e) => {
                   const val = e.target.value;
-                  if (!val) {
-                    setActionFilter('all');
-                    // The server fetches without username filter when empty
-                    const fetchLogs = async () => {
-                      try {
-                        const res = await fetch(`/api/wifi/radius?action=fup-switch-log&limit=20`);
-                        const data = await res.json();
-                        if (data.success && Array.isArray(data.data)) setLogs(data.data);
-                      } catch { /* ignore */ }
-                    };
-                    fetchLogs();
-                  }
+                  debouncedFetchLogs(val);
                 }}
               />
             </div>
@@ -534,6 +534,8 @@ export default function FupDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [page, setPage] = useState(1);
+  const [perPage] = useState(20);
 
   // ─── Data Fetching ────────────────────────────────────────────────────
 
@@ -547,6 +549,17 @@ export default function FupDashboard() {
         fetch('/api/wifi/radius?action=live-sessions-list'),
         fetch('/api/wifi/plans'),
       ]);
+
+      if (!policyRes.ok || !sessionRes.ok || !planRes.ok) {
+        if (!isBackground) {
+          toast({
+            title: 'Error',
+            description: `Request failed (policy: ${policyRes.status}, sessions: ${sessionRes.status}, plans: ${planRes.status})`,
+            variant: 'destructive',
+          });
+        }
+        return;
+      }
 
       const [policyData, sessionData, planData] = await Promise.all([
         policyRes.json(),
@@ -593,7 +606,7 @@ export default function FupDashboard() {
     fetchAllData();
   }, [fetchAllData]);
 
-  // Auto-refresh every 30 seconds
+  // Auto-refresh every 30 seconds — pause when tab is hidden
   useEffect(() => {
     intervalRef.current = setInterval(() => {
       fetchAllData(true);
@@ -601,6 +614,27 @@ export default function FupDashboard() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
+  }, [fetchAllData]);
+
+  // Pause/resume polling on visibility change
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      } else {
+        if (!intervalRef.current) {
+          fetchAllData(true);
+          intervalRef.current = setInterval(() => {
+            fetchAllData(true);
+          }, REFRESH_INTERVAL_MS);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [fetchAllData]);
 
   // ─── Computed: Map plans to policies ──────────────────────────────────
@@ -1028,7 +1062,7 @@ export default function FupDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {topConsumers.map((user, index) => {
+                    {topConsumers.slice((page - 1) * perPage, page * perPage).map((user, index) => {
                       const clampedPercent = Math.min(user.usagePercent, 100);
                       return (
                         <TableRow
@@ -1134,6 +1168,20 @@ export default function FupDashboard() {
                 </Table>
                 </div>
               </ScrollArea>
+              {topConsumers.length > perPage && (
+                <div className="flex items-center justify-between px-4 py-3 border-t">
+                  <span className="text-sm text-muted-foreground">
+                    Showing {(page - 1) * perPage + 1}-{Math.min(page * perPage, topConsumers.length)} of {topConsumers.length}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+                    {Array.from({ length: Math.ceil(topConsumers.length / perPage) }, (_, i) => i + 1).map(p => (
+                      <Button key={p} variant={p === page ? 'default' : 'outline'} size="sm" onClick={() => setPage(p)} className="w-8 h-8">{p}</Button>
+                    ))}
+                    <Button variant="outline" size="sm" disabled={page >= Math.ceil(topConsumers.length / perPage)} onClick={() => setPage(p => p + 1)}>Next</Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

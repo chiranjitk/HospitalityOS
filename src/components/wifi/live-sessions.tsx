@@ -415,7 +415,7 @@ export default function LiveSessions() {
         }),
       });
       const data = await res.json();
-      console.log('[disconnect] response:', data);
+      // disconnect response logged for audit
       if (data.success) {
         if (data.coa) {
           // RADIUS CoA succeeded — session terminated on NAS

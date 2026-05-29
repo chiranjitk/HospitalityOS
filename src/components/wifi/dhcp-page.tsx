@@ -554,6 +554,10 @@ async function apiCall(url: string, options?: RequestInit) {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`HTTP ${response.status}: ${text.slice(0, 200)}`);
+  }
   return response.json();
 }
 
@@ -1069,6 +1073,8 @@ export default function DhcpPage() {
   // ══════════════════════════════════════════════════════════════════════════
 
   const [resSearch, setResSearch] = useState('');
+  const [resPage, setResPage] = useState(1);
+  const [resPerPage] = useState(20);
   const [resDialogOpen, setResDialogOpen] = useState(false);
   const [editingRes, setEditingRes] = useState<DhcpReservation | null>(null);
   const [deleteResOpen, setDeleteResOpen] = useState(false);
@@ -1094,6 +1100,13 @@ export default function DhcpPage() {
       r.subnetName.toLowerCase().includes(q)
     );
   });
+
+  // Pagination for reservations
+  const totalRes = filteredReservations.length;
+  const totalPagesRes = Math.ceil(totalRes / resPerPage);
+  const startIdxRes = (resPage - 1) * resPerPage;
+  const endIdxRes = startIdxRes + resPerPage;
+  const paginatedReservations = filteredReservations.slice(startIdxRes, endIdxRes);
 
   const openAddRes = () => {
     setEditingRes(null);
@@ -1925,6 +1938,7 @@ export default function DhcpPage() {
             actionLabel="Add Reservation"
           />
         ) : (
+          <>
           <Card>
             <CardContent className="p-0">
               <div className="max-h-96 overflow-auto">
@@ -1951,7 +1965,7 @@ export default function DhcpPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredReservations.map((r) => (
+                    {paginatedReservations.map((r) => (
                       <TableRow key={r.id} className={cn(selectedRes.has(r.id) && 'bg-primary/5 dark:bg-primary/5')}>
                         <TableCell>
                           <Checkbox checked={selectedRes.has(r.id)} onCheckedChange={() => toggleResSelect(r.id)} />
@@ -2000,6 +2014,21 @@ export default function DhcpPage() {
               </div>
             </CardContent>
           </Card>
+          {totalPagesRes > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <span className="text-sm text-muted-foreground">
+                Showing {startIdxRes + 1}-{Math.min(endIdxRes, totalRes)} of {totalRes}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" disabled={resPage <= 1} onClick={() => setResPage(p => p - 1)}>Previous</Button>
+                {Array.from({ length: totalPagesRes }, (_, i) => i + 1).map(p => (
+                  <Button key={p} variant={p === resPage ? 'default' : 'outline'} size="sm" onClick={() => setResPage(p)} className="w-8 h-8">{p}</Button>
+                ))}
+                <Button variant="outline" size="sm" disabled={resPage >= totalPagesRes} onClick={() => setResPage(p => p + 1)}>Next</Button>
+              </div>
+            </div>
+          )}
+          </>
         )}
 
         {/* Add/Edit Reservation Dialog */}
@@ -2288,6 +2317,7 @@ export default function DhcpPage() {
               : 'No DHCP leases recorded yet. Leases will appear here as devices connect to the network.'}
           />
         ) : (
+          <>
           <Card>
             <CardContent className="p-0">
               <div className="max-h-96 overflow-auto">
@@ -2314,7 +2344,7 @@ export default function DhcpPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredLeases.slice(0, 100).map((l) => (
+                    {paginatedLeases.slice(0, Math.min(100, leasePerPage)).map((l) => (
                       <TableRow
                         key={`${l.id}-${refreshKey}`}
                         className={cn(
@@ -2383,7 +2413,7 @@ export default function DhcpPage() {
                     {filteredLeases.length > 100 && (
                       <TableRow>
                         <TableCell colSpan={9} className="text-center py-3 text-sm text-muted-foreground">
-                          Showing 100 of {filteredLeases.length} leases. Use filters to narrow results.
+                          Showing {Math.min(100, filteredLeases.length)} of {filteredLeases.length} leases. Use pagination or filters to narrow results.
                         </TableCell>
                       </TableRow>
                     )}
@@ -2393,6 +2423,22 @@ export default function DhcpPage() {
               </div>
             </CardContent>
           </Card>
+          {totalPagesLeases > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <span className="text-sm text-muted-foreground">
+                Showing {startIdxLeases + 1}-{Math.min(endIdxLeases, totalLeases)} of {totalLeases}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" disabled={leasePage <= 1} onClick={() => setLeasePage(p => p - 1)}>Previous</Button>
+                {Array.from({ length: Math.min(totalPagesLeases, 10) }, (_, i) => i + 1).map(p => (
+                  <Button key={p} variant={p === leasePage ? 'default' : 'outline'} size="sm" onClick={() => setLeasePage(p)} className="w-8 h-8">{p}</Button>
+                ))}
+                {totalPagesLeases > 10 && <span className="text-xs text-muted-foreground px-1">...</span>}
+                <Button variant="outline" size="sm" disabled={leasePage >= totalPagesLeases} onClick={() => setLeasePage(p => p + 1)}>Next</Button>
+              </div>
+            </div>
+          )}
+          </>
         )}
       </div>
     );

@@ -255,6 +255,8 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
   const [groupFilter, setGroupFilter] = useState<string>('all');
   const [userTypeFilter, setUserTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
 
   // Import dialog state
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -579,6 +581,9 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
   const [admin2FAEnabled, setAdmin2FAEnabled] = useState<boolean | null>(null);
   const [showInline2FASetup, setShowInline2FASetup] = useState(false);
 
+  // Reset page when filters change
+  useEffect(() => { setPage(1); }, [searchQuery, groupFilter, userTypeFilter, statusFilter]);
+
   // ─── Filtering (must be before selection logic) ────────────────────────────
 
   const filteredUsers = users.filter(u => {
@@ -591,6 +596,13 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
     }
     return true;
   });
+
+  // Pagination
+  const totalUsers = filteredUsers.length;
+  const totalPagesUsers = Math.ceil(totalUsers / perPage);
+  const startIdxUsers = (page - 1) * perPage;
+  const endIdxUsers = startIdxUsers + perPage;
+  const paginatedUsers = filteredUsers.slice(startIdxUsers, endIdxUsers);
 
   const allFilteredSelected = filteredUsers.length > 0 && filteredUsers.every(u => selectedUserIds.has(u.id));
   const someFilteredSelected = filteredUsers.some(u => selectedUserIds.has(u.id)) && !allFilteredSelected;
@@ -1267,7 +1279,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((user) => {
+                  {paginatedUsers.map((user) => {
                     const validity = getUserValidityDisplay(user);
                     const typeLabel = getUserTypeLabel(user);
                     return (
@@ -1390,6 +1402,20 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                   })}
                 </TableBody>
               </Table>
+              </div>
+            </div>
+          )}
+          {totalPagesUsers > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <span className="text-sm text-muted-foreground">
+                Showing {startIdxUsers + 1}-{Math.min(endIdxUsers, totalUsers)} of {totalUsers}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+                {Array.from({ length: totalPagesUsers }, (_, i) => i + 1).map(p => (
+                  <Button key={p} variant={p === page ? 'default' : 'outline'} size="sm" onClick={() => setPage(p)} className="w-8 h-8">{p}</Button>
+                ))}
+                <Button variant="outline" size="sm" disabled={page >= totalPagesUsers} onClick={() => setPage(p => p + 1)}>Next</Button>
               </div>
             </div>
           )}

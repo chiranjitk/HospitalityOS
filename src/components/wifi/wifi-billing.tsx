@@ -192,6 +192,15 @@ export default function WiFiBillingDashboard() {
         fetch('/api/wifi/billing'),
       ]);
 
+      if (!summaryRes.ok) {
+        toast({ title: 'Error', description: `Summary request failed (${summaryRes.status})`, variant: 'destructive' });
+        return;
+      }
+      if (!linesRes.ok) {
+        toast({ title: 'Error', description: `Lines request failed (${linesRes.status})`, variant: 'destructive' });
+        return;
+      }
+
       const summaryJson = await summaryRes.json();
       const linesJson = await linesRes.json();
 
@@ -234,6 +243,10 @@ export default function WiFiBillingDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Billing run request failed (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const json = await res.json();
 
       if (json.success) {
@@ -279,6 +292,10 @@ export default function WiFiBillingDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bookingId: invoiceBookingId.trim() }),
       });
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Invoice request failed (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const json = await res.json();
 
       if (json.success) {

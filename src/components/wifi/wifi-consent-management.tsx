@@ -72,7 +72,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow, format } from 'date-fns';
-import { isSafeURL } from '@/lib/wifi/validation';
+import { isSafeURL, maskIP } from '@/lib/wifi/validation';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -167,7 +167,7 @@ export default function WiFiConsentManagement() {
     'security monitoring, and service improvement purposes. Your data will be retained for the duration of ' +
     'your stay plus 90 days, in compliance with applicable data protection regulations including the EU GDPR ' +
     'and India IT Act 2000. You have the right to access, correct, or delete your personal data at any time ' +
-    'by contacting our front desk or emailing privacy@hotel.com.'
+    'by contacting our front desk or emailing the property privacy officer.'
   );
   const [requiredTypes, setRequiredTypes] = useState({
     wifi_access: true,
@@ -592,7 +592,7 @@ export default function WiFiConsentManagement() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <span className="font-mono text-xs">{log.ipAddress}</span>
+                            <span className="font-mono text-xs">{maskIP(log.ipAddress)}</span>
                           </TableCell>
                           <TableCell>
                             {log.optInMarketing ? (
@@ -797,7 +797,7 @@ export default function WiFiConsentManagement() {
                 </div>
                 <div>
                   <span className="text-muted-foreground block text-xs mb-1">IP Address</span>
-                  <span className="font-mono">{selectedLog.ipAddress}</span>
+                  <span className="font-mono">{maskIP(selectedLog.ipAddress)}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground block text-xs mb-1">MAC Address</span>
@@ -855,7 +855,7 @@ export default function WiFiConsentManagement() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to revoke consent for{' '}
-              <span className="font-mono font-medium">{selectedLog?.ipAddress}</span>?
+              <span className="font-mono font-medium">{maskIP(selectedLog?.ipAddress)}</span>?
               This will mark the associated data for deletion per GDPR requirements.
               This action cannot be undone.
             </AlertDialogDescription>

@@ -253,16 +253,18 @@ export default function WiFiSatisfactionSurveys() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          rating: newSurvey.rating,
+          rating: Math.min(5, Math.max(1, Math.round(newSurvey.rating))),
           comment: newSurvey.comment || undefined,
           categories: {
-            speed: newSurvey.speed,
-            coverage: newSurvey.coverage,
-            easeOfConnect: newSurvey.easeOfConnect,
+            speed: Math.min(5, Math.max(1, Math.round(newSurvey.speed))),
+            coverage: Math.min(5, Math.max(1, Math.round(newSurvey.coverage))),
+            easeOfConnect: Math.min(5, Math.max(1, Math.round(newSurvey.easeOfConnect))),
           },
           roomNumber: newSurvey.roomNumber || undefined,
           apName: newSurvey.apName || undefined,
           deviceType: newSurvey.deviceType || undefined,
+          // TODO: Server-side validation should require guestId or sessionId binding
+          // to prevent anonymous or programmatic submission without a valid session context
         }),
       });
       const data = await res.json();

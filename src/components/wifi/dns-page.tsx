@@ -21,7 +21,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { isValidDomain, isValidIPv4 } from '@/lib/wifi/validation';
+import { isValidDomain, isValidIPv4, isValidDNSRecord } from '@/lib/wifi/validation';
 import {
   Network, Play, Square, RotateCw, RefreshCw, Plus, Trash2, Edit2,
   Globe, Server, ArrowUpDown, Activity, Database,
@@ -781,6 +781,8 @@ function RecordsTab() {
   const [filterZone, setFilterZone] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [perPage] = useState(20);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<DnsRecord | null>(null);
   const [form, setForm] = useState({ zoneId: '', name: '', type: 'A', value: '', ttl: 300, priority: '', enabled: true });
@@ -809,8 +811,26 @@ function RecordsTab() {
     return true;
   });
 
+  // Pagination
+  const totalRecords = filteredRecords.length;
+  const totalPagesRecords = Math.ceil(totalRecords / perPage);
+  const startIdxRecords = (page - 1) * perPage;
+  const endIdxRecords = startIdxRecords + perPage;
+  const paginatedRecords = filteredRecords.slice(startIdxRecords, endIdxRecords);
+
   const handleSave = async () => {
     try {
+      // Type-specific value validation
+      if (form.type && form.value) {
+        if (!isValidDNSRecord(form.type, form.value)) {
+          const typeHint = form.type === 'A' ? 'IPv4 address' :
+            form.type === 'AAAA' ? 'IPv6 address' :
+            form.type === 'CNAME' || form.type === 'NS' || form.type === 'MX' ? 'domain name' :
+            form.type === 'SRV' ? 'priority host port' : 'valid value';
+          toast({ title: 'Invalid Value', description: `Enter a valid ${typeHint} for ${form.type} record`, variant: 'destructive' });
+          return;
+        }
+      }
       const body = { ...form, priority: form.priority ? parseInt(form.priority) : null };
       if (editRecord) {
         await apiMutate(`/records/${editRecord.id}`, body, 'PUT');
@@ -955,7 +975,7 @@ function RecordsTab() {
                 </tr>
               </thead>
               <tbody>
-                {filteredRecords.map((record, idx) => (
+                {paginatedRecords.map((record, idx) => (
                   <tr key={record.id} className={`border-b hover:bg-muted/30 transition-colors ${idx % 2 === 1 ? 'bg-muted/10' : ''} ${selectedIds.has(record.id) ? 'bg-primary/5 dark:bg-primary/5' : ''}`}>
                     <td className="p-3"><Checkbox checked={selectedIds.has(record.id)} onCheckedChange={() => toggleSelect(record.id)} /></td>
                     <td className="p-3 font-mono text-xs">{record.name}</td>
@@ -977,6 +997,20 @@ function RecordsTab() {
               </tbody>
             </table>
           </div>
+          {totalPagesRecords > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <span className="text-sm text-muted-foreground">
+                Showing {startIdxRecords + 1}-{Math.min(endIdxRecords, totalRecords)} of {totalRecords}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+                {Array.from({ length: totalPagesRecords }, (_, i) => i + 1).map(p => (
+                  <Button key={p} variant={p === page ? 'default' : 'outline'} size="sm" onClick={() => setPage(p)} className="w-8 h-8">{p}</Button>
+                ))}
+                <Button variant="outline" size="sm" disabled={page >= totalPagesRecords} onClick={() => setPage(p => p + 1)}>Next</Button>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 

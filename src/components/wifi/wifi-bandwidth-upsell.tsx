@@ -70,6 +70,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { clampPositive } from '@/lib/wifi/validation';
 import { formatDistanceToNow, format } from 'date-fns';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
@@ -764,7 +765,7 @@ export default function WiFiBandwidthUpsell() {
                         type="number"
                         value={tier.price}
                         onChange={(e) => {
-                          const val = parseInt(e.target.value) || 0;
+                          const val = clampPositive(parseInt(e.target.value), 0, 99999, 0);
                           setTiers((prev) => prev.map((t, i) => i === index ? { ...t, price: val } : t));
                         }}
                         className="w-20 h-8 text-xs text-right"

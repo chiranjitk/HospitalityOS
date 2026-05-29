@@ -2328,6 +2328,66 @@ function PortalPreviewContent({ design, visibleFields }: { design: PortalPageDes
   const btnCls = getButtonClasses(s);
   const formCls = getFormClasses(s);
 
+  // ── Brute-force protection ──
+  const BRUTE_FORCE_KEY = 'portal_brute_force';
+  const [failedAttempts, setFailedAttempts] = useState(() => {
+    try {
+      const stored = localStorage.getItem(BRUTE_FORCE_KEY);
+      if (stored) { const parsed = JSON.parse(stored); return typeof parsed.count === 'number' ? parsed.count : 0; }
+    } catch { /* ignore */ }
+    return 0;
+  });
+  const [lockoutUntil, setLockoutUntil] = useState<number>(() => {
+    try {
+      const stored = localStorage.getItem(BRUTE_FORCE_KEY);
+      if (stored) { const parsed = JSON.parse(stored); return typeof parsed.lockoutUntil === 'number' ? parsed.lockoutUntil : 0; }
+    } catch { /* ignore */ }
+    return 0;
+  });
+
+  const persistAttempts = useCallback((count: number, lockout: number) => {
+    try { localStorage.setItem(BRUTE_FORCE_KEY, JSON.stringify({ count, lockoutUntil: lockout })); } catch { /* ignore */ }
+  }, []);
+
+  const now = Date.now();
+  const isLockedOut = lockoutUntil > now;
+  const remainingLockout = isLockedOut ? Math.ceil((lockoutUntil - now) / 1000) : 0;
+  const attemptsBeforeNextLockout = failedAttempts >= 20 ? 0 : failedAttempts >= 10 ? 10 : 5;
+  const showWarning = !isLockedOut && failedAttempts >= 3 && failedAttempts < 5;
+
+  const handleConnect = useCallback(() => {
+    if (isLockedOut) return;
+    const newCount = failedAttempts + 1;
+    let lockoutDuration = 0;
+    if (newCount >= 20) lockoutDuration = 300000;      // 5 min
+    else if (newCount >= 10) lockoutDuration = 60000;   // 1 min
+    else if (newCount >= 5) lockoutDuration = 30000;    // 30 sec
+    setFailedAttempts(newCount);
+    if (lockoutDuration > 0) {
+      const newLockout = Date.now() + lockoutDuration;
+      setLockoutUntil(newLockout);
+      persistAttempts(newCount, newLockout);
+    } else {
+      persistAttempts(newCount, 0);
+    }
+  }, [failedAttempts, isLockedOut, persistAttempts]);
+
+  // Countdown timer during lockout
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!isLockedOut) return;
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, [isLockedOut]);
+
+  // Clear lockout when it expires
+  useEffect(() => {
+    if (lockoutUntil > 0 && Date.now() >= lockoutUntil) {
+      setLockoutUntil(0);
+      persistAttempts(failedAttempts, 0);
+    }
+  }, [lockoutUntil, failedAttempts, persistAttempts]);
+
   return (
     <div className="flex flex-col items-center px-4 py-8 gap-4" style={{ fontFamily: s.fontFamily }}>
       {/* Promotion Banner */}
@@ -2424,10 +2484,29 @@ function PortalPreviewContent({ design, visibleFields }: { design: PortalPageDes
           </div>
         )}
 
+        {/* Brute-force Warning */}
+        {isLockedOut && (
+          <div className={cn('w-full rounded px-2 py-1.5 text-center text-[9px] font-medium', isGlass ? 'bg-red-500/20 text-red-300 border border-red-400/30' : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400')}>
+            Too many failed attempts. Please wait {remainingLockout} seconds.
+          </div>
+        )}
+        {!isLockedOut && failedAttempts >= 3 && (
+          <div className={cn('w-full rounded px-2 py-1.5 text-center text-[9px] font-medium', isGlass ? 'bg-amber-500/20 text-amber-300 border border-amber-400/30' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400')}>
+            {failedAttempts} failed attempt{failedAttempts !== 1 ? 's' : ''}. {attemptsBeforeNextLockout - failedAttempts} attempt{attemptsBeforeNextLockout - failedAttempts !== 1 ? 's' : ''} remaining before temporary lockout.
+          </div>
+        )}
+
         {/* Connect Button */}
-        <div className={cn(btnCls, 'w-full text-center cursor-pointer')} style={{ background: design.brandColor }}>
+        <div
+          className={cn(btnCls, 'w-full text-center', isLockedOut ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer')}
+          style={{ background: design.brandColor }}
+          onClick={isLockedOut ? undefined : handleConnect}
+          role="button"
+          aria-disabled={isLockedOut}
+          tabIndex={isLockedOut ? -1 : 0}
+        >
           <span className="flex items-center justify-center gap-1.5">
-            <Wifi className="h-3.5 w-3.5" />Connect
+            <Wifi className="h-3.5 w-3.5" />{isLockedOut ? 'Locked' : 'Connect'}
             <ArrowRight className="h-3 w-3 ml-1" />
           </span>
         </div>

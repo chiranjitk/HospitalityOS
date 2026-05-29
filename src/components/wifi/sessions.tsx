@@ -220,8 +220,8 @@ export default function WifiSessions() {
       socketCleanup = () => {
         socket.disconnect();
       };
-    }).catch(() => {
-      // WebSocket not available — polling fallback is fine
+    }).catch((err: unknown) => {
+      console.error('[sessions] WebSocket unavailable, using polling fallback:', err instanceof Error ? err.message : err);
     });
 
     return () => {
