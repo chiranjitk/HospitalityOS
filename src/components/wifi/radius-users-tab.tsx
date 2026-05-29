@@ -278,7 +278,6 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
   // Reset quota & reactivate dialog state
   const [resetQuotaUser, setResetQuotaUser] = useState<RadiusUser | null>(null);
   const [resetQuotaChanging, setResetQuotaChanging] = useState(false);
-  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const originalSessionTimeout = useRef<number | undefined>(undefined);
   const [guestInfoOpen, setGuestInfoOpen] = useState(false);
   const [form, setForm] = useState({
@@ -820,13 +819,47 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
     setSingleDeleteMfaError('');
   };
 
-  const togglePasswordVisibility = (id: string) => {
-    setVisiblePasswords(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, string>>({});
+  const [fetchingPasswords, setFetchingPasswords] = useState<Set<string>>(new Set());
+
+  const togglePasswordVisibility = async (id: string) => {
+    // If already revealed, hide it
+    if (revealedPasswords[id]) {
+      setRevealedPasswords(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+    // Fetch password from secure endpoint
+    setFetchingPasswords(prev => new Set(prev).add(id));
+    try {
+      const res = await fetch('/api/wifi/radius', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get-password', id }),
+      });
+      const data = await res.json();
+      if (data.success && data.data?.password) {
+        setRevealedPasswords(prev => ({ ...prev, [id]: data.data.password }));
+        // Auto-copy to clipboard
+        try {
+          await navigator.clipboard.writeText(data.data.password);
+          toast({ title: 'Copied', description: 'Password copied to clipboard', duration: 2000 });
+        } catch { /* clipboard not available */ }
+      } else {
+        toast({ title: 'Unavailable', description: data.error || 'Password not available (user may be deprovisioned)', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to fetch password', variant: 'destructive' });
+    } finally {
+      setFetchingPasswords(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -1318,17 +1351,31 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                         <TableCell>{getGroupBadge(user.group || 'none', user.plan_name)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
-                            <span className="font-mono text-xs">
-                              {visiblePasswords.has(user.id) ? user.password : '••••••••'}
-                            </span>
-                            <button
-                              onClick={() => togglePasswordVisibility(user.id)}
-                              className="text-muted-foreground hover:text-foreground p-0.5"
-                            >
-                              {visiblePasswords.has(user.id)
-                                ? <EyeOff className="h-3 w-3" />
-                                : <Eye className="h-3 w-3" />}
-                            </button>
+                            {fetchingPasswords.has(user.id) ? (
+                              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                            ) : revealedPasswords[user.id] ? (
+                              <>
+                                <span className="font-mono text-xs select-all">{revealedPasswords[user.id]}</span>
+                                <button
+                                  onClick={() => togglePasswordVisibility(user.id)}
+                                  className="text-muted-foreground hover:text-foreground p-0.5"
+                                  title="Hide password"
+                                >
+                                  <EyeOff className="h-3 w-3" />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <span className="font-mono text-xs text-muted-foreground">••••••••</span>
+                                <button
+                                  onClick={() => togglePasswordVisibility(user.id)}
+                                  className="text-muted-foreground hover:text-foreground p-0.5"
+                                  title="Reveal & copy password"
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>

@@ -4136,9 +4136,33 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(result);
       }
 
+      case 'get-password': {
+        const userId = data.id;
+        if (!userId) {
+          return NextResponse.json({ success: false, error: 'User ID is required' }, { status: 400 });
+        }
+        try {
+          // Fetch the password from radcheck for the given WiFiUser
+          const rows = await db.$queryRawUnsafe<{ username: string; value: string }[]>(`
+            SELECT rc.value
+            FROM radcheck rc
+            JOIN "WiFiUser" wu ON wu.username = rc.username
+            WHERE wu.id = $1::uuid AND rc.attribute = 'Cleartext-Password'
+            LIMIT 1
+          `, userId);
+          if (rows.length === 0) {
+            return NextResponse.json({ success: false, error: 'Password not found or user is deprovisioned' }, { status: 404 });
+          }
+          return NextResponse.json({ success: true, data: { password: rows[0].value } });
+        } catch (err) {
+          console.error('[get-password] Error:', err);
+          return NextResponse.json({ success: false, error: 'Failed to retrieve password' }, { status: 500 });
+        }
+      }
+
       default:
         return NextResponse.json(
-          { success: false, error: 'Invalid action. Supported: start, stop, restart, test, import, generate-secret, sync, sync-users, sync-clients, create-user, update-user, delete-user, change-user-status, reset-quota-reactivate, provision, deprovision, coa-disconnect, coa-bandwidth, coa-disconnect-all, data-cap-enforce, data-cap-check-all, mac-auth-add, mac-auth-check, event-users-bulk, event-revoke, portal-whitelist-add, auth-log-create' },
+          { success: false, error: 'Invalid action. Supported: start, stop, restart, test, import, generate-secret, sync, sync-users, sync-clients, create-user, update-user, delete-user, change-user-status, reset-quota-reactivate, provision, deprovision, coa-disconnect, coa-bandwidth, coa-disconnect-all, data-cap-enforce, data-cap-check-all, mac-auth-add, mac-auth-check, event-users-bulk, event-revoke, portal-whitelist-add, auth-log-create, get-password' },
           { status: 400 }
         );
     }
