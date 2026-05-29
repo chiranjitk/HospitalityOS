@@ -142,8 +142,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Look up DeviceProfile — two strategies ──
+    // ── Look up DeviceProfile — three strategies (each with propertyId fallback) ──
     let deviceProfile = null;
+
+    // Shared include for all strategies — avoids repeating the same select
+    const deviceProfileInclude = {
+      wifiUser: {
+        select: {
+          id: true,
+          username: true,
+          status: true,
+          validUntil: true,
+          validFrom: true,
+          password: true,
+          ipPoolId: true,
+          maxSessions: true,
+          plan: { select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, validityDays: true, validityMinutes: true, ipPoolId: true, maxDevices: true } },
+          property: { select: { id: true, name: true, tenantId: true } },
+        },
+      },
+    };
 
     // Strategy 1: Match by storageToken (most reliable — set via localStorage)
     if (storageToken) {
@@ -153,23 +171,16 @@ export async function POST(request: NextRequest) {
           isActive: true,
           ...(propertyId ? { propertyId } : {}),
         },
-        include: {
-          wifiUser: {
-            select: {
-              id: true,
-              username: true,
-              status: true,
-              validUntil: true,
-              validFrom: true,
-              password: true,
-              ipPoolId: true,
-              maxSessions: true,
-              plan: { select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, validityDays: true, validityMinutes: true, ipPoolId: true, maxDevices: true } },
-              property: { select: { id: true, name: true, tenantId: true } },
-            },
-          },
-        },
+        include: deviceProfileInclude,
       });
+      // Fallback: propertyId mismatch (portal propertyId ≠ WiFiUser propertyId)
+      if (!deviceProfile && propertyId) {
+        console.log(`[AutoAuth] Strategy 1 (token) no match with propertyId=${propertyId}, trying without propertyId`);
+        deviceProfile = await db.deviceProfile.findFirst({
+          where: { storageToken, isActive: true },
+          include: deviceProfileInclude,
+        });
+      }
     }
 
     // Strategy 2: Match by fingerprintHash (fallback when storage cleared)
@@ -181,23 +192,15 @@ export async function POST(request: NextRequest) {
           isActive: true,
           ...(propertyId ? { propertyId } : {}),
         },
-        include: {
-          wifiUser: {
-            select: {
-              id: true,
-              username: true,
-              status: true,
-              validUntil: true,
-              validFrom: true,
-              password: true,
-              ipPoolId: true,
-              maxSessions: true,
-              plan: { select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, validityDays: true, validityMinutes: true, ipPoolId: true, maxDevices: true } },
-              property: { select: { id: true, name: true, tenantId: true } },
-            },
-          },
-        },
+        include: deviceProfileInclude,
       });
+      if (!deviceProfile && propertyId) {
+        console.log(`[AutoAuth] Strategy 2 (fingerprint) no match with propertyId=${propertyId}, trying without propertyId`);
+        deviceProfile = await db.deviceProfile.findFirst({
+          where: { fingerprintHash, isActive: true },
+          include: deviceProfileInclude,
+        });
+      }
     }
 
     // Strategy 3: Match by MAC address (synthetic fingerprint for HTTP/no-crypto.subtle)
@@ -207,7 +210,6 @@ export async function POST(request: NextRequest) {
         ? normalizedMac.match(/.{2}/g)?.join(':') || null
         : null;
       if (formattedMac) {
-        // Match by macAddress directly on DeviceProfile
         console.log(`[AutoAuth] Strategy 2 (fingerprint) failed, trying Strategy 3 (MAC: ${formattedMac})`);
         deviceProfile = await db.deviceProfile.findFirst({
           where: {
@@ -215,23 +217,14 @@ export async function POST(request: NextRequest) {
             isActive: true,
             ...(propertyId ? { propertyId } : {}),
           },
-          include: {
-            wifiUser: {
-              select: {
-                id: true,
-                username: true,
-                status: true,
-                validUntil: true,
-                validFrom: true,
-                password: true,
-                ipPoolId: true,
-                maxSessions: true,
-                plan: { select: { id: true, name: true, downloadSpeed: true, uploadSpeed: true, validityDays: true, validityMinutes: true, ipPoolId: true, maxDevices: true } },
-                property: { select: { id: true, name: true, tenantId: true } },
-              },
-            },
-          },
+          include: deviceProfileInclude,
         });
+        if (!deviceProfile && propertyId) {
+          deviceProfile = await db.deviceProfile.findFirst({
+            where: { macAddress: formattedMac, isActive: true },
+            include: deviceProfileInclude,
+          });
+        }
         if (deviceProfile) {
           console.log(`[AutoAuth] Strategy 3 (MAC) matched: ${deviceProfile.fingerprintHash.substring(0, 16)}... for user ${deviceProfile.wifiUser?.username}`);
         }
