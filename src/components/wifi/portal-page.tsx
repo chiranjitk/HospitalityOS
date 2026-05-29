@@ -131,6 +131,7 @@ import {
   Music,
   Camera,
   Umbrella,
+  Key,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -181,6 +182,9 @@ const AUTH_FLOW_FIELD_DEFAULTS: Record<string, AutoFields> = {
   voucher:         { firstName: false, lastName: false, roomNumber: false, phone: false, email: false, passport: false, bookingId: false, username: false, password: false, voucherCode: true, terms: true },
   sms_otp:         { firstName: false, lastName: false, roomNumber: false, phone: true,  email: false, passport: false, bookingId: false, username: false, password: false, voucherCode: false, terms: true },
   open_access:     { firstName: false, lastName: false, roomNumber: false, phone: false, email: false, passport: false, bookingId: false, username: false, password: false, voucherCode: false, terms: true },
+  mac_auth:        { firstName: false, lastName: false, roomNumber: false, phone: false, email: false, passport: false, bookingId: false, username: false, password: false, voucherCode: false, terms: false },
+  social:          { firstName: false, lastName: false, roomNumber: false, phone: false, email: false, passport: false, bookingId: false, username: false, password: false, voucherCode: false, terms: true },
+  ldap:            { firstName: false, lastName: false, roomNumber: false, phone: false, email: false, passport: false, bookingId: false, username: true, password: true, voucherCode: false, terms: true },
 };
 
 const CREDENTIAL_CATEGORY_LABELS: Record<CredentialCategory, string> = {
@@ -590,6 +594,7 @@ const CONTENT_BLOCK_LABELS: Record<string, string> = {
 
 const TABS = [
   { id: 'portals', label: 'Portal Instances', icon: Monitor },
+  { id: 'auth-methods', label: 'Auth Methods', icon: Key },
   { id: 'mappings', label: 'Pool Mappings', icon: ArrowRightLeft },
   { id: 'designer', label: 'Portal Designer', icon: Palette },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
@@ -618,11 +623,14 @@ type DesignerSubTab = (typeof DESIGNER_SUBTABS)[number]['id'];
 // ── Auth Flow Options ─────────────────────────────────────────────────────────
 
 const AUTH_FLOW_OPTIONS = [
-  { value: 'pms_credentials', label: 'PMS Credentials', icon: User, color: 'text-primary' },
-  { value: 'room_number', label: 'Room Number', icon: Building, color: 'text-emerald-500 dark:text-emerald-400' },
-  { value: 'voucher', label: 'Voucher', icon: Ticket, color: 'text-amber-500 dark:text-amber-400' },
-  { value: 'sms_otp', label: 'SMS OTP', icon: Smartphone, color: 'text-rose-500 dark:text-rose-400' },
-  { value: 'open_access', label: 'Open Access', icon: Unlock, color: 'text-gray-500' },
+  { value: 'pms_credentials', label: 'PMS Credentials', icon: User, color: 'text-primary', desc: 'Username & password from PMS/WiFi user database' },
+  { value: 'room_number', label: 'Room Number', icon: Building, color: 'text-emerald-500 dark:text-emerald-400', desc: 'Guest enters room number + last name' },
+  { value: 'voucher', label: 'Voucher Code', icon: Ticket, color: 'text-amber-500 dark:text-amber-400', desc: 'Pre-generated voucher code (print or QR)' },
+  { value: 'sms_otp', label: 'SMS OTP', icon: Smartphone, color: 'text-rose-500 dark:text-rose-400', desc: 'One-time password sent via SMS' },
+  { value: 'open_access', label: 'Open Access', icon: Unlock, color: 'text-gray-500', desc: 'No credentials required — just accept terms' },
+  { value: 'mac_auth', label: 'MAC Authentication', icon: ShieldCheck, color: 'text-violet-500 dark:text-violet-400', desc: 'Auto-authenticate based on registered MAC address' },
+  { value: 'social', label: 'Social Login', icon: Globe, color: 'text-sky-500 dark:text-sky-400', desc: 'Login via Google, Facebook, Apple etc.' },
+  { value: 'ldap', label: 'LDAP / Corporate', icon: Lock, color: 'text-orange-500 dark:text-orange-400', desc: 'Corporate LDAP directory authentication' },
 ] as const;
 
 const VOUCHER_TEMPLATES = [
@@ -733,6 +741,7 @@ export default function PortalPage() {
       </div>
       <div className="mt-4">
         {activeTab === 'portals' && <PortalListTab onPortalsChanged={fetchPortalOptions} />}
+        {activeTab === 'auth-methods' && <AuthMethodsTab />}
         {activeTab === 'mappings' && <PoolMappingsTab />}
         {activeTab === 'designer' && <PortalDesignerTab portalOptions={portalOptions} />}
         {activeTab === 'analytics' && <AnalyticsTab />}
@@ -822,15 +831,16 @@ function ZoneFormContent({ form, setForm, zones, editZone, ssidInput, setSsidInp
         <Input placeholder="lobby" value={form.slug} onChange={e => setForm(f => ({ ...f, slug: e.target.value.replace(/[^a-z0-9_-]/gi, '').toLowerCase() }))} className="font-mono" />
         <p className="text-[10px] text-muted-foreground">Portal URL: connect.hotel.com/<span className="font-mono text-foreground">{form.slug || '...'}</span></p>
       </div>
+      <div className="rounded-lg border border-dashed p-3 bg-muted/30">
+        <div className="flex items-center gap-2">
+          <Key className="h-4 w-4 text-muted-foreground" />
+          <p className="text-xs text-muted-foreground">
+            Auth method is configured per portal in the <span className="font-medium text-foreground">Portal Designer → Layout</span> tab and managed in the <span className="font-medium text-foreground">Auth Methods</span> tab.
+          </p>
+        </div>
+      </div>
       <Separator />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Auth Method</Label>
-          <Select value={form.authMethod} onValueChange={v => setForm(f => ({ ...f, authMethod: v }))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{AUTH_METHODS.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
         <div className="space-y-2">
           <Label>Roaming Mode</Label>
           <Select value={form.roamingMode} onValueChange={v => setForm(f => ({ ...f, roamingMode: v }))}>
@@ -1018,7 +1028,7 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
     const { error } = await apiMutate('/api/wifi/portal/instances', {
       method: 'POST', body: JSON.stringify({
         propertyId: propertyId || 'default', name: form.name, slug: form.slug,
-        authMethod: form.authMethod, roamingMode: form.roamingMode,
+        roamingMode: form.roamingMode,
         allowsRoamingFrom: JSON.stringify(form.allowsRoamingFrom),
         maxBandwidthDown: form.maxBandwidthDown * 1048576,
         maxBandwidthUp: form.maxBandwidthUp * 1048576,
@@ -1040,7 +1050,7 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
     if (!editZone || !form.name || !form.slug) return;
     const { error } = await apiMutate(`/api/wifi/portal/instances/${editZone.id}`, {
       method: 'PUT', body: JSON.stringify({
-        name: form.name, slug: form.slug, authMethod: form.authMethod, roamingMode: form.roamingMode,
+        name: form.name, slug: form.slug, roamingMode: form.roamingMode,
         allowsRoamingFrom: JSON.stringify(form.allowsRoamingFrom),
         maxBandwidthDown: form.maxBandwidthDown * 1048576,
         maxBandwidthUp: form.maxBandwidthUp * 1048576,
@@ -1749,11 +1759,14 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                             updateDesign({ authFlow: af.value });
                             toast({ title: `${af.label} selected`, description: 'Form fields auto-configured. Customize in the Fields tab.', duration: 3000 });
                           }}
-                            className={cn('flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left',
+                            className={cn('flex items-start gap-3 p-3 rounded-lg border-2 transition-all text-left',
                               design.authFlow === af.value ? 'border-teal-500 bg-teal-50/50 dark:bg-teal-950/20' : 'border-border hover:border-teal-300'
                             )}>
-                            <Icon className={cn('h-5 w-5', af.color)} />
-                            <div><p className="text-sm font-medium">{af.label}</p></div>
+                            <Icon className={cn('h-5 w-5 mt-0.5 shrink-0', af.color)} />
+                            <div>
+                              <p className="text-sm font-medium">{af.label}</p>
+                              {'desc' in af && <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{af.desc as string}</p>}
+                            </div>
                           </button>
                         );
                       })}
@@ -2983,6 +2996,274 @@ function VoucherDesignerTab({ portalOptions }: { portalOptions: Array<{ id: stri
 // ═══════════════════════════════════════════════════════════════════════════════
 // Tab 5: Walled Garden / Portal Whitelist
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Auth Methods Tab — Manage PortalAuthentication entries per portal
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const ALL_AUTH_METHOD_OPTIONS = [
+  { value: 'voucher', label: 'Voucher Code', desc: 'Pre-generated code from front desk' },
+  { value: 'room_number', label: 'Room Number', desc: 'Room + last name validation' },
+  { value: 'pms_credentials', label: 'PMS Credentials', desc: 'Username/password from WiFi users' },
+  { value: 'sms_otp', label: 'SMS OTP', desc: 'One-time code via SMS' },
+  { value: 'open_access', label: 'Open Access', desc: 'No credentials — terms only' },
+  { value: 'mac_auth', label: 'MAC Auth', desc: 'Auto-login by MAC address' },
+  { value: 'social', label: 'Social Login', desc: 'Google, Facebook, Apple OAuth' },
+  { value: 'ldap', label: 'LDAP / Corporate', desc: 'Corporate directory authentication' },
+];
+
+function AuthMethodsTab() {
+  const { propertyId } = usePropertyId();
+  const { toast } = useToast();
+  const [entries, setEntries] = useState<any[]>([]);
+  const [portals, setPortals] = useState<Array<{ id: string; name: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [addOpen, setAddOpen] = useState(false);
+  const [selectedPortal, setSelectedPortal] = useState('');
+  const [selectedMethod, setSelectedMethod] = useState('voucher');
+  const [addPriority, setAddPriority] = useState(0);
+  const [addLabel, setAddLabel] = useState('');
+
+  const fetchEntries = useCallback(async () => {
+    setLoading(true);
+    const data = await apiFetch<any[]>('/api/wifi/portal/auth-methods');
+    if (data) setEntries(data);
+    setLoading(false);
+  }, []);
+
+  const fetchPortals = useCallback(async () => {
+    const data = await apiFetch<any[]>('/api/wifi/portal/instances');
+    if (data) setPortals(data.map((p: any) => ({ id: p.id, name: p.name })));
+  }, []);
+
+  useEffect(() => { void fetchPortals(); }, [fetchPortals]);
+  useEffect(() => { void fetchEntries(); }, [fetchEntries]);
+
+  const handleAdd = async () => {
+    if (!selectedPortal || !selectedMethod) return;
+    const methodLabel = ALL_AUTH_METHOD_OPTIONS.find(m => m.value === selectedMethod)?.label || selectedMethod;
+    const config = addLabel ? JSON.stringify({ label: addLabel }) : '{}';
+    const { error } = await apiMutate('/api/wifi/portal/auth-methods', {
+      method: 'POST', body: JSON.stringify({
+        propertyId: propertyId || 'default',
+        portalId: selectedPortal,
+        method: selectedMethod,
+        enabled: true,
+        priority: addPriority,
+        config,
+      }),
+    });
+    if (!error) {
+      toast({ title: 'Auth method added', description: `${methodLabel} added to portal` });
+      await fetchEntries();
+      setAddOpen(false);
+      setSelectedMethod('voucher');
+      setAddPriority(0);
+      setAddLabel('');
+    } else {
+      toast({ title: 'Error', description: error || 'Failed to add', variant: 'destructive' });
+    }
+  };
+
+  const toggleEnabled = async (id: string, current: boolean) => {
+    const { error } = await apiMutate(`/api/wifi/portal/auth-methods/${id}`, {
+      method: 'PUT', body: JSON.stringify({ enabled: !current }),
+    });
+    if (!error) { await fetchEntries(); }
+    else { toast({ title: 'Error', description: error, variant: 'destructive' }); }
+  };
+
+  const deleteEntry = async (id: string, methodLabel: string) => {
+    const { error } = await apiMutate(`/api/wifi/portal/auth-methods/${id}`, { method: 'DELETE' });
+    if (!error) { toast({ title: 'Removed', description: `${methodLabel} deleted` }); await fetchEntries(); }
+    else { toast({ title: 'Error', description: error, variant: 'destructive' }); }
+  };
+
+  const updatePriority = async (id: string, priority: number) => {
+    await apiMutate(`/api/wifi/portal/auth-methods/${id}`, {
+      method: 'PUT', body: JSON.stringify({ priority }),
+    });
+    await fetchEntries();
+  };
+
+  const getMethodBadge = (method: string) => {
+    const m = ALL_AUTH_METHOD_OPTIONS.find(o => o.value === method);
+    if (!m) return method;
+    return m.label;
+  };
+
+  // Group entries by portal
+  const grouped = useMemo(() => {
+    const map = new Map<string, { portalName: string; methods: any[] }>();
+    for (const e of entries) {
+      const pid = e.portalId;
+      if (!map.has(pid)) {
+        map.set(pid, { portalName: e.captivePortal?.name || pid, methods: [] });
+      }
+      map.get(pid)!.methods.push(e);
+    }
+    return Array.from(map.entries());
+  }, [entries]);
+
+  if (loading) {
+    return <div className="space-y-4"><Skeleton className="h-40 w-full" /><Skeleton className="h-40 w-full" /></div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            {entries.length} auth method{entries.length !== 1 ? 's' : ''} configured across {grouped.length} portal{grouped.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <Button onClick={() => setAddOpen(true)} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+          <Plus className="h-4 w-4 mr-2" />Add Auth Method
+        </Button>
+      </div>
+
+      {/* Empty state */}
+      {grouped.length === 0 && (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Key className="h-12 w-12 text-muted-foreground/30 mb-4" />
+            <p className="text-sm font-medium text-muted-foreground">No auth methods configured</p>
+            <p className="text-xs text-muted-foreground mt-1">Add auth methods to control how guests log in on each portal zone</p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={() => setAddOpen(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" />Add First Method
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Grouped by portal */}
+      {grouped.map(([portalId, group]) => (
+        <Card key={portalId}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Monitor className="h-4 w-4 text-primary" />
+                <CardTitle className="text-sm font-semibold">{group.portalName}</CardTitle>
+                <Badge variant="secondary" className="text-[10px]">{group.methods.length} method{group.methods.length !== 1 ? 's' : ''}</Badge>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Method</TableHead>
+                  <TableHead className="text-xs">Label</TableHead>
+                  <TableHead className="text-xs w-24">Priority</TableHead>
+                  <TableHead className="text-xs w-20">Status</TableHead>
+                  <TableHead className="text-xs w-16"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {group.methods.sort((a: any, b: any) => a.priority - b.priority).map((entry: any) => {
+                  let config: Record<string, string> = {};
+                  try { config = entry.config ? JSON.parse(entry.config) : {}; } catch {}
+                  return (
+                    <TableRow key={entry.id}>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">{getMethodBadge(entry.method)}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {config.label || entry.method}
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          value={entry.priority}
+                          onChange={e => updatePriority(entry.id, parseInt(e.target.value) || 0)}
+                          className="h-7 w-16 text-xs font-mono"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Switch
+                          checked={entry.enabled}
+                          onCheckedChange={() => toggleEnabled(entry.id, entry.enabled)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <button onClick={() => deleteEntry(entry.id, getMethodBadge(entry.method))} className="text-muted-foreground hover:text-destructive transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      ))}
+
+      {/* Add Dialog */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Auth Method</DialogTitle>
+            <DialogDescription>Add an authentication method to a portal zone. Guests can choose between enabled methods when logging in.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Portal Zone *</Label>
+              <Select value={selectedPortal} onValueChange={setSelectedPortal}>
+                <SelectTrigger><SelectValue placeholder="Select a portal..." /></SelectTrigger>
+                <SelectContent>
+                  {portals.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Auth Method *</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {ALL_AUTH_METHOD_OPTIONS.map(m => (
+                  <button
+                    key={m.value}
+                    onClick={() => setSelectedMethod(m.value)}
+                    className={cn(
+                      'flex flex-col items-start gap-0.5 p-2.5 rounded-lg border-2 transition-all text-left',
+                      selectedMethod === m.value
+                        ? 'border-primary bg-primary/5 dark:bg-primary/10'
+                        : 'border-border hover:border-muted-foreground/30'
+                    )}
+                  >
+                    <span className="text-xs font-medium">{m.label}</span>
+                    <span className="text-[10px] text-muted-foreground leading-tight">{m.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Display Label (optional)</Label>
+              <Input
+                placeholder="Custom label shown to guests..."
+                value={addLabel}
+                onChange={e => setAddLabel(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Priority (lower = shown first)</Label>
+              <Input
+                type="number"
+                value={addPriority}
+                onChange={e => setAddPriority(parseInt(e.target.value) || 0)}
+                className="font-mono"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button onClick={handleAdd} disabled={!selectedPortal || !selectedMethod} className="bg-primary hover:bg-primary/90 text-primary-foreground">Add Method</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
 function PoolMappingsTab() {
   return <PortalMappings />;

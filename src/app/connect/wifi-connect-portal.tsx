@@ -1551,6 +1551,8 @@ function UnifiedDesignerForm({
     : authMethod === 'voucher' ? getUIString(lang, 'enterVoucher')
     : authMethod === 'sms_otp' ? getUIString(lang, 'otpLogin')
     : authMethod === 'open_access' ? getUIString(lang, 'freeAccess')
+    : authMethod === 'mac_auth' ? 'MAC Auto-Login'
+    : authMethod === 'social' ? 'Social Login'
     : authMethod === 'ldap' ? 'Corporate Login'
     : getUIString(lang, 'signIn');
 
