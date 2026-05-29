@@ -252,7 +252,7 @@ export async function POST(request: NextRequest) {
       return note;
     });
 
-    // M-22: Audit log for credit note creation (moved before return — was dead code)
+    // Audit log for credit note creation
     try {
       await db.auditLog.create({
         data: {
@@ -263,13 +263,12 @@ export async function POST(request: NextRequest) {
           entityType: 'credit_note',
           entityId: creditNote.id,
           newValue: JSON.stringify({
-            creditNoteNumber,
+            creditNoteNumber: creditNote.creditNoteNumber,
             reason,
             subtotal,
             totalAmount,
             folioId,
           }),
-          description: `Created credit note ${creditNote.creditNoteNumber}: ${reason}`,
         },
       });
     } catch (auditError) {

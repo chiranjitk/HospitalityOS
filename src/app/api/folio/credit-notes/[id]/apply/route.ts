@@ -113,6 +113,28 @@ export async function POST(
       return { creditNote: updatedNote, folio: updatedFolio };
     });
 
+    // Audit log for credit note application
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'update',
+          entityType: 'credit_note',
+          entityId: id,
+          oldValue: JSON.stringify({ status: creditNote.status, remainingAmount: creditNote.remainingAmount }),
+          newValue: JSON.stringify({
+            status: 'applied',
+            appliedAmount: result.creditNote.appliedAmount,
+            folioId: creditNote.folioId,
+          }),
+        },
+      });
+    } catch (auditError) {
+      console.error('[CreditNotes apply] Audit log failed:', auditError);
+    }
+
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
     console.error('Error applying credit note:', error);

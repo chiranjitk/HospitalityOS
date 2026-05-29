@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // M-22: Audit log for city-ledger invoice creation (moved before return — was dead code)
+    // Audit log for city-ledger invoice creation
     try {
       await db.auditLog.create({
         data: {
@@ -232,7 +232,6 @@ export async function POST(request: NextRequest) {
             total,
             currency: data.currency,
           }),
-          description: `Created city ledger invoice: ${data.invoiceNumber}`,
         },
       });
     } catch (auditError) {

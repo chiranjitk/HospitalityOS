@@ -89,6 +89,24 @@ export async function POST(
         return updatedNote;
       });
 
+      // Audit log for credit note cancellation with reversal
+      try {
+        await db.auditLog.create({
+          data: {
+            tenantId,
+            userId: user.id,
+            module: 'billing',
+            action: 'cancel',
+            entityType: 'credit_note',
+            entityId: id,
+            oldValue: JSON.stringify({ status: creditNote.status, appliedAmount: creditNote.appliedAmount }),
+            newValue: JSON.stringify({ status: 'cancelled', reversedAmount: creditNote.appliedAmount }),
+          },
+        });
+      } catch (auditError) {
+        console.error('[CreditNotes cancel] Audit log failed:', auditError);
+      }
+
       return NextResponse.json({ success: true, data: result });
     }
 
@@ -96,6 +114,24 @@ export async function POST(
       where: { id },
       data: { status: 'cancelled', remainingAmount: creditNote.totalAmount },
     });
+
+    // Audit log for credit note cancellation (no reversal needed)
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'cancel',
+          entityType: 'credit_note',
+          entityId: id,
+          oldValue: JSON.stringify({ status: creditNote.status }),
+          newValue: JSON.stringify({ status: 'cancelled' }),
+        },
+      });
+    } catch (auditError) {
+      console.error('[CreditNotes cancel] Audit log failed:', auditError);
+    }
 
     return NextResponse.json({ success: true, data: updatedNote });
   } catch (error) {

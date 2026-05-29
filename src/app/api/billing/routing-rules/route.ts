@@ -130,6 +130,29 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Audit log for routing rule creation
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'create',
+          entityType: 'folio_routing_rule',
+          entityId: rule.id,
+          newValue: JSON.stringify({
+            name,
+            chargeCategory,
+            targetFolioType,
+            priority: priority ?? 0,
+            propertyId,
+          }),
+        },
+      });
+    } catch (auditError) {
+      console.error('[routing-rules POST] Audit log failed:', auditError);
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -208,6 +231,30 @@ export async function PUT(request: NextRequest) {
       data: updateData,
     });
 
+    // Audit log for routing rule update
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'update',
+          entityType: 'folio_routing_rule',
+          entityId: id,
+          oldValue: JSON.stringify({
+            name: existing.name,
+            chargeCategory: existing.chargeCategory,
+            targetFolioType: existing.targetFolioType,
+            priority: existing.priority,
+            isActive: existing.isActive,
+          }),
+          newValue: JSON.stringify(updateData),
+        },
+      });
+    } catch (auditError) {
+      console.error('[routing-rules PUT] Audit log failed:', auditError);
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -275,6 +322,28 @@ export async function DELETE(request: NextRequest) {
     await db.folioRoutingRule.delete({
       where: { id: ruleId },
     });
+
+    // Audit log for routing rule deletion
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'delete',
+          entityType: 'folio_routing_rule',
+          entityId: ruleId,
+          oldValue: JSON.stringify({
+            name: existing.name,
+            chargeCategory: existing.chargeCategory,
+            targetFolioType: existing.targetFolioType,
+            priority: existing.priority,
+          }),
+        },
+      });
+    } catch (auditError) {
+      console.error('[routing-rules DELETE] Audit log failed:', auditError);
+    }
 
     return NextResponse.json({
       success: true,

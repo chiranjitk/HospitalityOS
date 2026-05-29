@@ -98,6 +98,27 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       include: { items: true, travelAgent: { select: { id: true, agencyName: true, code: true } } },
     });
 
+    // Audit log for city-ledger invoice status update
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'update',
+          entityType: 'city_ledger_invoice',
+          entityId: id,
+          oldValue: JSON.stringify({ status: existing.status }),
+          newValue: JSON.stringify({
+            status: invoice.status,
+            ...(data.notes !== undefined && { notes: data.notes }),
+          }),
+        },
+      });
+    } catch (auditError) {
+      console.error('[CityLedger PATCH] Audit log failed:', auditError);
+    }
+
     return NextResponse.json({ success: true, data: invoice });
   } catch (error) {
     console.error('[PATCH /api/city-ledger/[id]]', error);
@@ -193,6 +214,29 @@ export async function POST(request: NextRequest, { params }: Params) {
         where: { id: invoice.travelAgentId },
         data: { currentBalance: (outstanding._sum.total || 0) - (outstanding._sum.paidAmount || 0) },
       });
+    }
+
+    // Audit log for city-ledger payment recording
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'payment',
+          entityType: 'city_ledger_invoice',
+          entityId: id,
+          newValue: JSON.stringify({
+            paymentAmount: data.amount,
+            paymentMethod: data.paymentMethod || null,
+            reference: data.reference || null,
+            newPaidAmount,
+            newStatus,
+          }),
+        },
+      });
+    } catch (auditError) {
+      console.error('[CityLedger POST payment] Audit log failed:', auditError);
     }
 
     return NextResponse.json({ success: true, data: { payment, invoice: updatedInvoice } });

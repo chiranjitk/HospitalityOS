@@ -91,6 +91,23 @@ export async function POST(request: NextRequest, { params }: Params) {
       }),
     ]);
 
+    // Audit log for adding item to city-ledger invoice
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'create',
+          entityType: 'city_ledger_item',
+          entityId: item.id,
+          newValue: JSON.stringify({ invoiceId: id, description, amount, quantity }),
+        },
+      });
+    } catch (auditError) {
+      console.error('[CityLedgerItems POST] Audit log failed:', auditError);
+    }
+
     return NextResponse.json({ success: true, data: { item, invoice: updatedInvoice } }, { status: 201 });
   } catch (error) {
     console.error('[POST /api/city-ledger/[id]/items]', error);
@@ -147,6 +164,23 @@ export async function DELETE(request: NextRequest, { params }: Params) {
         data: { subtotal: newSubtotal, tax, total },
       }),
     ]);
+
+    // Audit log for removing item from city-ledger invoice
+    try {
+      await db.auditLog.create({
+        data: {
+          tenantId: user.tenantId,
+          userId: user.id,
+          module: 'billing',
+          action: 'delete',
+          entityType: 'city_ledger_item',
+          entityId: itemId,
+          oldValue: JSON.stringify({ invoiceId: id, description: item.description, amount: item.amount, quantity: item.quantity }),
+        },
+      });
+    } catch (auditError) {
+      console.error('[CityLedgerItems DELETE] Audit log failed:', auditError);
+    }
 
     return NextResponse.json({ success: true, data: { id: itemId } });
   } catch (error) {
