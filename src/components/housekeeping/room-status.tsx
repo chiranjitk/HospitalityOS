@@ -182,7 +182,7 @@ export default function RoomStatus() {
     total: rooms.length,
     available: rooms.filter(r => r.status === 'available').length,
     occupied: rooms.filter(r => r.status === 'occupied').length,
-    dirty: rooms.filter(r => r.status === 'dirty').length,
+    dirty: rooms.filter(r => r.status === 'cleaning').length,
     cleaning: rooms.filter(r => r.status === 'cleaning').length,
     inspected: rooms.filter(r => r.status === 'inspected').length,
     maintenance: rooms.filter(r => r.status === 'maintenance').length,

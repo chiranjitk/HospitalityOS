@@ -761,7 +761,7 @@ export default function RoomsManager() {
     total: rooms.length,
     available: rooms.filter(r => r.status === 'available').length,
     occupied: rooms.filter(r => r.status === 'occupied').length,
-    dirty: rooms.filter(r => r.status === 'dirty').length,
+    dirty: rooms.filter(r => r.status === 'cleaning').length,
     maintenance: rooms.filter(r => r.status === 'maintenance').length,
     outOfOrder: rooms.filter(r => r.status === 'out_of_order').length,
   };

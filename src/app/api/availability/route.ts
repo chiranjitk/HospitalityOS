@@ -168,7 +168,7 @@ export async function GET(request: NextRequest) {
       const availableRooms = rt.rooms.filter(r => r.status === 'available').length;
       const occupiedRooms = rt.rooms.filter(r => r.status === 'occupied').length;
       const maintenanceRooms = rt.rooms.filter(r => r.status === 'maintenance').length;
-      const dirtyRooms = rt.rooms.filter(r => r.status === 'dirty').length;
+      const dirtyRooms = rt.rooms.filter(r => r.status === 'cleaning').length;
 
       // Bookings for this room type in date range
       const rtBookings = bookings.filter(b => b.roomTypeId === rt.id);
@@ -284,7 +284,7 @@ export async function GET(request: NextRequest) {
         maintenanceRooms: roomTypes.reduce((sum, rt) => 
           sum + rt.rooms.filter(r => r.status === 'maintenance').length, 0),
         dirtyRooms: roomTypes.reduce((sum, rt) => 
-          sum + rt.rooms.filter(r => r.status === 'dirty').length, 0),
+          sum + rt.rooms.filter(r => r.status === 'cleaning').length, 0),
         occupancyRate: totalRooms > 0 ? Math.round((totalOccupied / totalRooms) * 100) : 0,
         availabilityRate: totalRooms > 0 ? Math.round((totalAvailable / totalRooms) * 100) : 0,
         firstDayAvailable
