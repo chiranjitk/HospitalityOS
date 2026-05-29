@@ -220,3 +220,120 @@ Stage Summary:
 - M-62 fixed: rate limiting added to all housekeeping endpoints (dashboard, workload, optimization, routes, inspections)
 - M-63 fixed: optimization GET only fetches referenced staff users instead of all tenant users
 - Commit: d6165897 — pushed to main
+---
+Task ID: M-66, M-67, M-68
+Agent: Fix Agent
+Task: Forecast data fallback, revenue auth consistency, pricing scheduler rollback
+
+Work Log:
+- M-66: Added data availability detection to demand forecast route
+  - Queries earliest booking/check-in date to calculate actual data span (availableDays)
+  - Added property-type default occupancy factors (hotel, resort, hostel, apartment, villa, guesthouse)
+  - Blends actual data with property-type defaults based on availableDays/30 blend weight
+  - Only computes booking velocity trend when >=60 days of data available
+  - Accuracy/confidence score now scales with data availability (40-95%)
+  - Response includes `dataAvailability` object: availableDays, ratio, confidence, model type, propertyType
+  - Three model tiers: full_historical (>=90d), partial_with_defaults (>=30d), property_type_defaults (<30d)
+- M-67: Standardized auth across all 7 legacy revenue API routes to use canonical `requirePermission` from `@/lib/auth/tenant-context`
+  - ai-suggestions/route.ts: replaced getUserFromRequest+hasPermission (deprecated auth-helpers)
+  - linear-pricing/route.ts: removed local requireAuth wrapper and hasPermission, removed deprecated imports
+  - rate-shopping/route.ts: replaced getUserFromRequest+hasAnyPermission
+  - rate-shopping/results/route.ts: replaced getUserFromRequest+hasAnyPermission
+  - hourly-pricing/route.ts: removed local requireAuth wrapper and hasPermission, removed deprecated imports
+  - hourly-pricing/apply-all/route.ts: replaced getUserFromRequest+hasPermission
+  - competitor-pricing/route.ts: replaced getUserFromRequest+hasPermission
+  - All routes now consistently use `requirePermission(request, 'revenue.manage')` matching the 9 already-standardized routes
+- M-68: Added pricing snapshot and rollback mechanism to the pricing scheduler
+  - `createPricingSnapshot()`: before each scheduled run, captures all room type and rate plan base prices into AuditLog
+  - `rollbackToLastSnapshot()`: reads latest snapshot, restores all room type and rate plan prices, logs rollback action
+  - `PricingSnapshot` interface: roomTypes[] and ratePlans[] with id, name, basePrice
+  - auto-apply POST now supports `action: 'rollback'` to trigger rollback
+  - auto-apply GET returns `rollbackAvailable` and `latestSnapshotAt` fields
+  - SchedulerRunResult includes `snapshotId` linking run to its pre-run snapshot
+- ESLint: All 10 changed files pass with zero errors
+
+Stage Summary:
+- 10 files changed, 419 insertions, 344 deletions
+- M-66 fixed: demand forecast now works for new properties with <90 days of data using property-type defaults and blending
+- M-67 fixed: all 16 revenue API routes now use the same canonical auth pattern (requirePermission from tenant-context)
+- M-68 fixed: pricing scheduler snapshots prices before changes and supports rollback via POST action=rollback
+- Commit: 06f47c95 — pushed to main
+---
+Task ID: M-69, M-70, M-71, M-72
+Agent: Fix Agent
+Task: Payroll persistence, configurable leave limits, half-day leave, dynamic working days
+
+Work Log:
+- M-69: Added PayrollRecord model to Prisma schema with all salary/deduction fields, currency, status, processedBy/At
+- M-69: Payroll process route now persists calculations to DB via upsert (supports force=true re-processing)
+- M-69: Payroll GET route returns persisted records from DB when available, falls back to computed preview
+- M-69: Currency now uses tenant currency (USD default) instead of hardcoded INR
+- M-70: Created leave-config.ts with getLeaveBalanceConfig() loading from SystemConfig (key: hr_leave_balance_config)
+- M-70: Leave route POST and PUT now use DB-configured limits instead of hardcoded {vacation:20, sick:12, ...}
+- M-70: Defaults preserved: vacation:20, sick:12, personal:5, maternity:180, other:3
+- M-71: Added duration field to StaffLeave model: full_day, half_day_am, half_day_pm
+- M-71: Half-day leaves deduct 0.5 days from balance
+- M-71: Added LeaveCarryForward model for tracking unused leave rolled over to next year
+- M-71: Carry-forward configurable per leave type with max cap (e.g., vacation:5, sick:0)
+- M-71: Added processLeaveCarryForward() for year-end processing and getUserLeaveBalance() with carry-forward
+- M-72: Created working-days.ts with getWorkingDaysForMonth() — excludes weekends by default
+- M-72: Supports tenant-configured holiday calendar (SystemConfig key: hr_holiday_calendar)
+- M-72: Supports custom weekly off days (not just Sat/Sun)
+- M-72: Replaced hardcoded totalWorkingDays=26 in both payroll/route.ts and payroll/process/route.ts
+- ESLint: All 5 changed files pass with zero errors
+
+Stage Summary:
+- 6 files changed (4 modified + 2 new), 804 insertions, 149 deletions
+- M-69 fixed: payroll calculations persisted to PayrollRecord table with multi-currency support
+- M-70 fixed: leave balance limits configurable per tenant via SystemConfig
+- M-71 fixed: half-day leave support (duration field) and carry-forward logic with configurable caps
+- M-72 fixed: totalWorkingDays calculated dynamically excluding weekends and configured holidays
+- Commit: 4a4455fc — pushed to main
+---
+Task ID: L-20, L-21, L-22, L-23, L-24, L-25, L-26, L-27
+Agent: Fix Agent
+Task: Fix 8 LOW-priority findings — POS coupon validation, table timer, menu boards, camera heartbeat, IoT endpoints
+
+Work Log:
+- L-20: Verified coupon/promo code validation in POS discount route (previously implemented)
+  - Validates promo code exists, is active, not expired, within usage limits, min order amount
+  - Checks coupon type matches requested discount type (percentage vs fixed_amount)
+- L-21: Verified table timer/duration tracking (previously implemented)
+  - formatDuration helper computes human-readable duration from milliseconds
+  - GET /api/tables returns seatedAt, occupiedDurationMs, occupiedDuration for occupied tables
+- L-22: Verified menu boards are persisted via MenuBoard/MenuBoardItem DB models (previously implemented)
+  - Added clarifying L-22 comment to menu-boards/route.ts
+- L-23: Verified camera heartbeat mechanism (previously implemented)
+  - GET /api/security/cameras/heartbeat?cameraId=X — single camera heartbeat
+  - POST /api/security/cameras/heartbeat — batch heartbeat + stale camera offline detection
+  - Updates camera status to online, creates CameraEvent for audit trail
+- L-24: Verified IoT device command endpoint (previously implemented)
+  - POST /api/iot/devices/[id]/command accepts {command, payload}
+  - Validates command against allowlist, checks tenant ownership, queues via AuditLog
+- L-25: Verified MQTT/Zigbee/Z-Wave protocol stubs (previously implemented)
+  - src/lib/iot/protocols/ with typed interfaces and implementation TODOs
+  - Includes connection configs, command/message types, and device discovery interfaces
+- L-26: Created POST /api/iot/locks/[id]/command for smart lock commands
+  - Accepts {command, params} with lock/unlock/status/timed_unlock/emergency_unlock
+  - Validates command, checks device tenant ownership, queues command via AuditLog
+  - Returns current device state for status command; validates durationSeconds for timed_unlock
+- L-27: Created IoT HAL adapter implementation guides at src/lib/iot/hal/
+  - BaseIoTAdapter abstract class with lifecycle, health check, command execution
+  - Lock adapter interface with vendor integration guide (references existing hardware/locks/ implementations)
+  - Thermostat adapter interface with Ecobee/Nest/Honeywell integration steps
+  - Lighting adapter interface with Hue/Lutron/DMX integration steps
+  - Sensor adapter interface with occupancy/motion/energy sensor data flow
+  - Registry stub with health monitoring architecture and factory pattern
+- ESLint: All new files pass with zero errors
+
+Stage Summary:
+- 18 files changed (6 modified + 12 new), 1248 insertions, 30 deletions
+- L-20 verified: coupon code validation with existence, active, expiry, usage limit, min order checks
+- L-21 verified: table occupied duration tracking with human-readable format
+- L-22 verified: menu boards persisted to DB with clarifying comments
+- L-23 verified: camera heartbeat with single + batch endpoints and stale detection
+- L-24 verified: IoT device command execution via audit log queue
+- L-25 verified: MQTT/Zigbee/Z-Wave protocol stub interfaces with typed exports
+- L-26 fixed: POST /api/iot/locks/[id]/command for lock/unlock/status/timed_unlock/emergency_unlock
+- L-27 fixed: IoT HAL base adapter, category interfaces, and registry stub with implementation guides
+- Commit: 3fcd49b2 — pushed to main

@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 
+// L-21: Format elapsed milliseconds into human-readable duration string
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
 // GET /api/tables - List all restaurant tables with filtering and pagination
 export async function GET(request: NextRequest) {
   try {
@@ -135,7 +146,7 @@ export async function GET(request: NextRequest) {
               },
             },
           },
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: 'asc' },
           take: 1,
         },
         _count: {
@@ -158,9 +169,26 @@ export async function GET(request: NextRequest) {
 
     const total = await db.restaurantTable.count({ where });
 
+    // L-21: Compute seated duration for occupied tables
+    // The seatedAt time is derived from the earliest active order on the table.
+    const now = Date.now();
+    const tablesWithDuration = tables.map((table) => {
+      const activeOrders = table.orders || [];
+      const tableData: Record<string, unknown> = { ...table };
+      if (table.status === 'occupied' && activeOrders.length > 0) {
+        const seatedAt = activeOrders[0].createdAt.toISOString();
+        const seatedAtMs = new Date(seatedAt).getTime();
+        const elapsedMs = Math.max(0, now - seatedAtMs);
+        tableData.seatedAt = seatedAt;
+        tableData.occupiedDurationMs = elapsedMs;
+        tableData.occupiedDuration = formatDuration(elapsedMs);
+      }
+      return tableData;
+    });
+
     return NextResponse.json({
       success: true,
-      data: tables,
+      data: tablesWithDuration,
       pagination: {
         total,
         limit,

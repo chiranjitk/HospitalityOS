@@ -29,6 +29,57 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
+    // L-20: Validate coupon/promo code if provided
+    if (couponCode) {
+      const promo = await db.channelPromoCode.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          promoCode: couponCode.toUpperCase(),
+          isActive: true,
+          validFrom: { lte: new Date() },
+          validTo: { gte: new Date() },
+        },
+      });
+
+      if (!promo) {
+        return NextResponse.json(
+          { success: false, error: { code: 'INVALID_COUPON', message: `Coupon code "${couponCode}" is not found, inactive, or expired` } },
+          { status: 400 }
+        );
+      }
+
+      // Check usage limit
+      if (promo.usageLimit && promo.usageCount >= promo.usageLimit) {
+        return NextResponse.json(
+          { success: false, error: { code: 'COUPON_EXHAUSTED', message: `Coupon code "${couponCode}" has reached its usage limit (${promo.usageCount}/${promo.usageLimit})` } },
+          { status: 400 }
+        );
+      }
+
+      // Check minimum order amount requirement
+      if (promo.discountType === 'fixed_amount' && order.subtotal < promo.discountValue) {
+        return NextResponse.json(
+          { success: false, error: { code: 'MIN_ORDER_NOT_MET', message: `Order subtotal (${order.subtotal}) does not meet the minimum required for this coupon (${promo.discountValue})` } },
+          { status: 400 }
+        );
+      }
+
+      // For percentage coupons, verify the coupon discount type matches the requested type
+      if (promo.discountType === 'percentage' && type !== 'percentage') {
+        return NextResponse.json(
+          { success: false, error: { code: 'COUPON_TYPE_MISMATCH', message: `Coupon "${couponCode}" is a percentage coupon. Use type "percentage" with value ${promo.discountValue}.` } },
+          { status: 400 }
+        );
+      }
+
+      if (promo.discountType === 'fixed_amount' && type !== 'fixed') {
+        return NextResponse.json(
+          { success: false, error: { code: 'COUPON_TYPE_MISMATCH', message: `Coupon "${couponCode}" is a fixed-amount coupon. Use type "fixed" with value ${promo.discountValue}.` } },
+          { status: 400 }
+        );
+      }
+    }
+
     // Validate percentage discount doesn't exceed 100%
     if (type === 'percentage' && value > 100) {
       return NextResponse.json(

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, hasAnyPermission } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
+import { auditLogService } from '@/lib/services/audit-service';
 
 // GET /api/integrations/smart-locks/locks — list smart locks
 export async function GET(request: NextRequest) {
@@ -17,18 +18,37 @@ export async function GET(request: NextRequest) {
     const propertyId = searchParams.get('propertyId');
     const provider = searchParams.get('provider');
     const isActive = searchParams.get('isActive');
+    const status = searchParams.get('status');
 
     const where: Record<string, unknown> = { tenantId: user.tenantId };
     if (propertyId) where.propertyId = propertyId;
     if (provider) where.provider = provider;
     if (isActive !== null && isActive !== undefined) where.isActive = isActive === 'true';
+    if (status) where.lockStatus = status;
 
     const locks = await db.smartLock.findMany({
       where,
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json({ success: true, data: locks });
+    // Include recent access log count for each lock
+    const lockIds = locks.map(l => l.id);
+    const accessLogCounts = lockIds.length > 0
+      ? await db.smartLockAccessLog.groupBy({
+          by: ['lockId'],
+          where: { lockId: { in: lockIds } },
+          _count: true,
+        })
+      : [];
+
+    const accessLogMap = new Map(accessLogCounts.map((a) => [a.lockId, a._count]));
+
+    const enrichedLocks = locks.map(l => ({
+      ...l,
+      recentAccessEvents: accessLogMap.get(l.id) || 0,
+    }));
+
+    return NextResponse.json({ success: true, data: enrichedLocks });
   } catch (error) {
     console.error('Error listing smart locks:', error);
     return NextResponse.json({ success: false, error: 'Failed to list smart locks' }, { status: 500 });
