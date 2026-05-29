@@ -405,9 +405,12 @@ export async function DELETE(request: NextRequest) {    const user = await getUs
       );
     }
 
-    // M-05: After releasing rooms from a cancelled group booking, the waitlist auto-process
-    // should be triggered to fill newly available rooms. This is currently a manual step.
-    // TODO: Call /api/waitlist/auto-process after group cancellation to auto-fill waitlisted guests.
+    // M-05 FIX: Trigger waitlist auto-process after group cancellation to fill released rooms
+    fetch(`${process.env.NEXT_PUBLIC_APP_URL || ''}/api/cron/waitlist-auto-process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-cron-secret': process.env.CRON_SECRET || 'dev-only-cron-secret' },
+    }).catch(() => {});
+
     // Check if there are associated bookings
     const bookingsCount = await db.booking.count({
       where: { groupId: id },
