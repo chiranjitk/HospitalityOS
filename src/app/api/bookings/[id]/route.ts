@@ -33,10 +33,10 @@ async function autoCloseFolioAndGenerateInvoice(bookingId: string, tx: Parameter
     });
   }
 
-  // 2. Close the open or partially-paid folio
-  //    Payments may have already moved the folio to 'partially_paid', so we must
-  //    find folios that are still open OR partially paid to close them on checkout.
-  const folio = await tx.folio.findFirst({ where: { bookingId, status: { in: ['open', 'partially_paid'] } } });
+  // 2. Close the open, partially-paid, or paid folio
+  //    Payments may have already moved the folio to 'paid', so we must find folios
+  //    that are still open, partially_paid, or paid to close them on checkout.
+  const folio = await tx.folio.findFirst({ where: { bookingId, status: { in: ['open', 'partially_paid', 'paid'] } } });
   if (!folio) return;
 
   await tx.folio.update({
@@ -1519,6 +1519,74 @@ export async function PATCH(
       }
     }
 
+    // BUG-1 FIX: Check outstanding balance BEFORE any DB mutation for checkout.
+    // Previously, status='checked_out' was written to DB first, then balance was checked.
+    // On 400 error the booking was already mutated. Now we validate BEFORE mutating.
+    if (status === 'checked_out') {
+      const preCheckoutFolio = await db.folio.findFirst({
+        where: { bookingId: existingBooking.id, status: { in: ['open', 'partially_paid'] } },
+        select: { balance: true, totalAmount: true, paidAmount: true },
+      });
+      if (preCheckoutFolio && preCheckoutFolio.balance > 0) {
+        if (!patchForceCheckout) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'OUTSTANDING_BALANCE',
+                message: 'Cannot check out while the booking has an outstanding balance',
+                details: {
+                  balance: preCheckoutFolio.balance,
+                  totalAmount: preCheckoutFolio.totalAmount,
+                  paidAmount: preCheckoutFolio.paidAmount,
+                  confirmationCode: existingBooking.confirmationCode,
+                },
+              },
+            },
+            { status: 400 }
+          );
+        }
+        // Force checkout requires admin permission
+        if (!user.isPlatformAdmin && user.roleName !== 'admin' && !hasAnyPermission(user, ['admin.*', 'admin.bookings', 'bookings.force_checkout'])) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'INSUFFICIENT_PERMISSIONS',
+                message: 'Force checkout with outstanding balance requires admin permission',
+              },
+            },
+            { status: 403 }
+          );
+        }
+        // Force checkout requires reason
+        if (!patchForceCheckoutReason) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'FORCE_CHECKOUT_REASON_REQUIRED',
+                message: 'A reason is required when force-checking out with an outstanding balance',
+                details: { balance: preCheckoutFolio.balance },
+              },
+            },
+            { status: 400 }
+          );
+        }
+        console.warn(`[Checkout] Booking ${existingBooking.confirmationCode} force-checking out with outstanding balance: ${preCheckoutFolio.balance}. Reason: ${patchForceCheckoutReason}`);
+
+        // Create audit log for force checkout (pre-mutation, before DB write)
+        await db.bookingAuditLog.create({
+          data: {
+            bookingId: existingBooking.id,
+            action: 'force_checkout',
+            notes: `Force checkout with outstanding balance: ${preCheckoutFolio.balance}. Reason: ${patchForceCheckoutReason}`,
+            performedBy: user.id,
+          },
+        });
+      }
+    }
+
     // Build update data with only provided fields
     const updateData: Record<string, unknown> = {};
     if (roomId !== undefined) updateData.roomId = roomId || null;
@@ -1535,7 +1603,9 @@ export async function PATCH(
     if (totalAmount !== undefined) updateData.totalAmount = totalAmount;
     if (ratePlanId !== undefined) updateData.ratePlanId = ratePlanId || null;
     if (promoCode !== undefined) updateData.promoCode = promoCode;
-    if (status !== undefined) updateData.status = status;
+    // BUG-1 FIX: Do NOT write checked_out status here — it must be set inside the
+    // checkout transaction (after balance check) to prevent premature DB mutation.
+    if (status !== undefined && status !== 'checked_out') updateData.status = status;
     if (specialRequests !== undefined) updateData.specialRequests = specialRequests;
     if (notes !== undefined) updateData.notes = notes;
     if (internalNotes !== undefined) updateData.internalNotes = internalNotes;
@@ -1822,70 +1892,26 @@ export async function PATCH(
         },
       });
     } else if (status === 'checked_out' && effectivePatchRoomId) {
-      // Check for outstanding balance before checkout
-      const patchOpenFolio = await db.folio.findFirst({
-        where: { bookingId: booking.id, status: { in: ['open', 'partially_paid'] } },
-        select: { balance: true, totalAmount: true, paidAmount: true },
-      });
-      if (patchOpenFolio && patchOpenFolio.balance > 0) {
-        if (!patchForceCheckout) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: {
-                code: 'OUTSTANDING_BALANCE',
-                message: 'Cannot check out while the booking has an outstanding balance',
-                details: {
-                  balance: patchOpenFolio.balance,
-                  totalAmount: patchOpenFolio.totalAmount,
-                  paidAmount: patchOpenFolio.paidAmount,
-                  confirmationCode: booking.confirmationCode,
-                },
-              },
-            },
-            { status: 400 }
-          );
-        }
-        // BUG-020 FIX: Require reason for force checkout with outstanding balance
-        if (!patchForceCheckoutReason) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: {
-                code: 'FORCE_CHECKOUT_REASON_REQUIRED',
-                message: 'A reason is required when force-checking out with an outstanding balance',
-                details: { balance: patchOpenFolio.balance },
-              },
-            },
-            { status: 400 }
-          );
-        }
-        console.warn(`[Checkout] Booking ${booking.confirmationCode} force-checking out with outstanding balance: ${patchOpenFolio.balance}. Reason: ${patchForceCheckoutReason}`);
-
-        // Create audit log for force checkout
-        await db.bookingAuditLog.create({
-          data: {
-            bookingId: booking.id,
-            action: 'force_checkout',
-            notes: `Force checkout with outstanding balance: ${patchOpenFolio.balance}. Reason: ${patchForceCheckoutReason}`,
-            performedBy: user.id,
-          },
-        });
-      }
+      // NOTE: Balance check was already performed BEFORE the DB mutation (see above).
+      // This block only runs when checkout is approved (balance=0 or forceCheckout=true).
 
       // Wrap ALL checkout database side-effects in a single transaction for data integrity.
+      // BUG-1 FIX: Booking status update is now INSIDE the transaction (was outside before,
+      // causing mutation on error). BUG-3 FIX: WiFi fees are posted BEFORE folio close so
+      // they are included in the invoice.
       try {
         await db.$transaction(async (tx) => {
-          // 1. Update room status to 'cleaning'
-          await tx.room.update({
-            where: { id: effectivePatchRoomId },
-            data: { status: 'cleaning' },
+          // 0. Update booking status to checked_out (inside transaction for atomicity)
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: {
+              status: 'checked_out',
+              actualCheckOut: actualCheckOut ? new Date(actualCheckOut) : new Date(),
+              checkedOutBy: checkedOutBy || user.id,
+            },
           });
 
-          // 2. Auto-close folio and generate invoice
-          await autoCloseFolioAndGenerateInvoice(booking.id, tx);
-
-          // 3. Post WiFi usage fees to folio
+          // 1. Post WiFi usage fees to folio BEFORE closing it (BUG-3 FIX: was after close)
           const activeWifiSessions = await tx.wiFiSession.findMany({
             where: {
               OR: [
@@ -1914,17 +1940,27 @@ export async function PATCH(
                 data: { status: 'disconnected', endTime: new Date() },
               });
 
-              let wifiFolio = await tx.folio.findFirst({
+              const wifiFolio = await tx.folio.findFirst({
                 where: { bookingId: booking.id, tenantId: booking.tenantId, status: { in: ['open', 'partially_paid'] } },
               });
 
-              if (!wifiFolio) {
-                wifiFolio = await tx.folio.findFirst({
-                  where: { bookingId: booking.id, tenantId: booking.tenantId },
-                });
-              }
-
               if (wifiFolio) {
+                // Calculate tax on WiFi fees from property tax settings
+                let wifiTaxRate = 0;
+                const wifiProperty = await tx.property.findUnique({
+                  where: { id: booking.propertyId },
+                  select: { taxComponents: true, defaultTaxRate: true },
+                });
+                if (wifiProperty?.taxComponents) {
+                  try {
+                    const tc = JSON.parse(wifiProperty.taxComponents || '[]');
+                    if (Array.isArray(tc) && tc.length > 0) {
+                      wifiTaxRate = tc.reduce((s: number, c: { rate: number }) => s + (c.rate || 0), 0) / 100;
+                    } else { wifiTaxRate = (wifiProperty.defaultTaxRate || 0) / 100; }
+                  } catch { wifiTaxRate = (wifiProperty.defaultTaxRate || 0) / 100; }
+                }
+                const wifiTaxAmount = Math.round(totalWifiFee * wifiTaxRate * 100) / 100;
+
                 await tx.folioLineItem.create({
                   data: {
                     folioId: wifiFolio.id,
@@ -1933,35 +1969,60 @@ export async function PATCH(
                     quantity: 1,
                     unitPrice: totalWifiFee,
                     totalAmount: totalWifiFee,
+                    taxRate: wifiTaxRate,
+                    taxAmount: wifiTaxAmount,
                     serviceDate: new Date(),
                     postedBy: user.id,
                   },
                 });
 
+                // Recalculate folio totals including WiFi tax
                 const allLineItems = await tx.folioLineItem.findMany({ where: { folioId: wifiFolio.id } });
                 const newSubtotal = allLineItems.reduce((sum, li) => sum + li.totalAmount, 0);
+                const newTaxes = allLineItems.reduce((sum, li) => sum + (li.taxAmount || 0), 0);
                 await tx.folio.update({
                   where: { id: wifiFolio.id },
                   data: {
                     subtotal: newSubtotal,
-                    totalAmount: newSubtotal + wifiFolio.taxes - wifiFolio.discount,
-                    balance: Math.max(0, newSubtotal - wifiFolio.paidAmount),
+                    taxes: newTaxes,
+                    totalAmount: newSubtotal + newTaxes - wifiFolio.discount,
+                    balance: Math.max(0, newSubtotal + newTaxes - wifiFolio.paidAmount),
                   },
                 });
 
                 if (process.env.NODE_ENV !== 'production') {
-                  console.log(`[WiFi] Posted WiFi usage fee of ${totalWifiFee} to folio ${wifiFolio.id} for booking ${booking.confirmationCode} (PATCH)`);
+                  console.log(`[WiFi] Posted WiFi usage fee of ${totalWifiFee} (tax: ${wifiTaxAmount}) to folio ${wifiFolio.id} for booking ${booking.confirmationCode} (PATCH)`);
                 }
               }
             }
           }
+
+          // 2. Update room status to 'cleaning' with housekeeping status (BUG-2 FIX)
+          //    Previously only set status: 'cleaning' without housekeepingStatus: 'dirty',
+          //    leaving rooms inconsistent.
+          await tx.room.update({
+            where: { id: effectivePatchRoomId },
+            data: { status: 'cleaning', housekeepingStatus: 'dirty', currentTaskId: null },
+          });
+
+          // 3. Auto-close folio and generate invoice (AFTER WiFi fees are posted — BUG-3 FIX)
+          await autoCloseFolioAndGenerateInvoice(booking.id, tx);
+
+          // 3b. Update booking paymentStatus based on folio state after close
+          const bookingFolios = await tx.folio.findMany({
+            where: { bookingId: booking.id },
+            select: { status: true },
+          });
+          await tx.booking.update({
+            where: { id: booking.id },
+            data: { paymentStatus: derivePaymentStatus(bookingFolios) },
+          });
 
           // 4. Auto-award loyalty points (atomic increment to avoid TOCTOU race)
           const guest = await tx.guest.findUnique({ where: { id: booking.primaryGuestId } });
           if (guest) {
             const pointsToAward = Math.floor(booking.totalAmount / 100);
             if (pointsToAward > 0) {
-              // Atomic increment — avoids read-then-write race condition
               const updatedGuest = await tx.guest.update({
                 where: { id: guest.id },
                 data: { loyaltyPoints: { increment: pointsToAward } },
