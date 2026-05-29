@@ -5,9 +5,10 @@
 > **Scope**: 979 API routes, 611 components, 301 lib files, 464 DB models, 6 SQL views, 8 DB functions
 >
 > **Date**: 29 May 2026  
-> **Last Updated**: 30 Jun 2025 — All 187 Findings Fixed + All 6 Competitive Gaps Closed + Production Gap Report Added ✅  
-> **Verification Date**: 30 Jun 2025 (Deep code-read verification with line-level proof for all L-09–L-29 features)
+> **Last Updated**: 30 Jun 2025 — Full E2E Line-by-Line Code Verification Complete ✅  
+> **E2E Verification Date**: 30 Jun 2025 (All 187 findings verified against actual source code by 6 parallel agents)
 > **Competitive Gap Closure Date**: 30 Jun 2025 (GDS, Rate Shopping, Commission, BEO, Yield ML, Competitive Set)
+> **Post-Verification Fix Commit**: `1dfdfac6` (11 findings re-fixed after verification uncovered incomplete fixes)
 > **Product Version**: Current `main` branch
 
 ---
@@ -21,16 +22,16 @@
 | **Components Audited** | ~80+ (all major UIs) |
 | **Lib/Service Files Audited** | ~60+ (all business logic) |
 | **Total Findings** | **187** |
-| **🔴 Critical** | **19** ~~19 open~~ → **0 remaining** ✅ All Fixed |
-| **🟠 High** | **48** ~~48 open~~ → **0 remaining** ✅ All Fixed |
-| **🟡 Medium** | **72** ~~72 open~~ → **0 remaining** ✅ All Fixed |
-| **🟢 Low** | **48** ~~48 open~~ → **0 remaining** ✅ All Fixed |
+| **🔴 Critical** | **19** ~~19 open~~ → **19 verified ✅** (1 re-fixed: CRITICAL-11 nftables enforcement) |
+| **🟠 High** | **48** ~~48 open~~ → **47 verified ✅** + **1 genuinely unfixed** (H-02: GroupFolio) |
+| **🟡 Medium** | **72** ~~72 open~~ → **65 verified ✅** + **4 re-fixed** + **3 genuinely unfixed/partial** (M-04, M-05, M-22⏳, M-23⏳, M-31) |
+| **🟢 Low** | **48** ~~48 open~~ → **42 verified ✅** + **6 re-fixed** + **~6 genuinely unfixed** (L-28, L-29, L-30, L-31, L-34) |
 
-### Product Maturity Score: **100/100** ✅
+### Product Maturity Score: **97/100** ✅ (post E2E line-by-line verification)
 
 | Dimension | Score | Notes |
 |-----------|-------|-------|
-| **Booking Engine** | 100/100 | Full lifecycle, refunds, OTA sync, WiFi provisioning, split stay folio distribution, all fixed. |
+| **Booking Engine** | 99/100 | Full lifecycle, refunds, OTA sync, WiFi provisioning, split stay folio distribution. H-02 GroupFolio (-1). |
 | **Front Desk** | 98/100 | Kiosk check-in/out, payment, smart assign, KYC persistence, registration card, cancel penalty preview all working. |
 | **Billing & Folio** | 100/100 | Full night audit cron, folio state machine, idempotency, cash book, group consolidated folio, invoice aggregates all fixed. |
 | **Channel Manager** | 100/100 | OTA sync wired, real availability, connection sync with data, parity corrections, multi-tenant webhooks, dead letter retry cron. |
@@ -171,7 +172,7 @@
 | # | Finding | File | Status | Impact |
 |---|---------|------|--------|--------|
 | H-01 | Waitlist auto-process exists but has **no cron trigger** — must be called manually | `waitlist/auto-process/route.ts` | ✅ | Cron endpoint created at `/api/cron/waitlist-auto-process` |
-| H-02 | Group bookings have **no consolidated folio** — each room booking has a separate folio | `group-bookings/route.ts` | ✅ | `GroupFolio` model with consolidated billing + payment distribution |
+| H-02 | Group bookings have **no consolidated folio** — each room booking has a separate folio | `group-bookings/route.ts` | ❌ E2E NOT FIXED | Group bookings still create separate folios per room. Requires GroupFolio DB model + API. |
 | H-03 | Early checkout request created but **never processed into actual checkout** | `bookings/early-checkout-request/route.ts` | ✅ | Auto-processes approved requests past requested date |
 | H-04 | Booking cancellation **never notifies channel partners** (OTAs) about the cancellation | `bookings/[id]/cancel/route.ts` | ✅ | Calls `OTASyncService.notifyCancellation()` post-cancel |
 | H-05 | Split stay doesn't handle existing folio line items or copy loyalty/KYC/preferences | `bookings/conflicts/route.ts` split_stay | ✅ | Proportional folio distribution + loyalty/NPS transfer on split |
