@@ -783,8 +783,8 @@ async function getOrCreateEventFolio(
         where: { id: event.id },
         data: { organizerName: beo.clientName },
       });
-    } catch {
-      // Field might not be writable in this context, ignore
+    } catch (updateErr) {
+      console.warn(`[beo-folio] Could not update organizerName on event ${event.id}:`, updateErr);
     }
   }
 
@@ -808,7 +808,13 @@ async function getOrCreateEventFolio(
       where: { propertyId: event.propertyId, deletedAt: null },
       select: { id: true },
     });
-    const roomTypeId = roomType?.id || '00000000-0000-0000-0000-000000000000';
+    if (!roomType) {
+      throw new Error(
+        `Cannot create booking for event ${event.id}: no room type found for property ${event.propertyId}. ` +
+        `Please create at least one room type before posting events to folio.`
+      );
+    }
+    const roomTypeId = roomType.id;
 
     booking = await db.booking.create({
       data: {

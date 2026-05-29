@@ -536,8 +536,9 @@ export function arimaForecast(
           bestAIC = model.aic;
           bestModel = { ...model, p, q };
         }
-      } catch {
+      } catch (convergenceErr) {
         // Skip models that fail to converge
+        console.warn(`[timeseries] ARMA(${p},${q}) failed to converge:`, convergenceErr);
       }
     }
   }
@@ -548,7 +549,8 @@ export function arimaForecast(
     if (model) {
       bestModel = { ...model, p: 1, q: 0 };
     } else {
-      // Ultimate fallback: mean
+      // Ultimate fallback: flat mean — no model fit was possible
+      console.warn('[timeseries] All ARMA models failed, falling back to flat mean prediction');
       const avg = mean(data);
       return {
         predictions: Array(h).fill(avg),

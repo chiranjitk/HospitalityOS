@@ -98,21 +98,37 @@ const STR_ENDPOINT = process.env.STR_ENDPOINT || 'https://api.str.com/v1';
 const RATEGAIN_API_KEY = process.env.RATEGAIN_API_KEY;
 const RATEGAIN_ENDPOINT = process.env.RATEGAIN_ENDPOINT || 'https://api.rategain.com/v2';
 
-/** OTA-specific markup factors for synthetic fallback */
-const OTA_MARKUP: Record<string, number> = {
-  booking_com: 1.15,
-  booking: 1.15,
-  expedia: 1.10,
-  agoda: 1.08,
-  hotels_com: 1.12,
-  hotels: 1.12,
-  airbnb: 1.05,
-  tripadvisor: 1.07,
-  direct: 0.95,
-  corporate: 0.90,
-  walk_in: 1.00,
-};
-const DEFAULT_OTA_MARKUP = 1.12;
+/**
+ * OTA-specific markup factors for synthetic fallback.
+ * These can be overridden via COMPETITOR_MARKUP_* env vars (e.g. COMPETITOR_MARKUP_BOOKING_COM=1.15)
+ * or via a JSON string COMPETITOR_MARKUP_MAP='{"booking_com":1.15,"expedia":1.10}'
+ */
+const ENV_MARKUP_MAP = process.env.COMPETITOR_MARKUP_MAP;
+let OTA_MARKUP: Record<string, number> = {};
+if (ENV_MARKUP_MAP) {
+  try {
+    OTA_MARKUP = JSON.parse(ENV_MARKUP_MAP);
+    console.log('[rate-fetcher] Loaded OTA markup overrides from COMPETITOR_MARKUP_MAP env var');
+  } catch {
+    console.error('[rate-fetcher] Failed to parse COMPETITOR_MARKUP_MAP, using defaults');
+  }
+}
+if (Object.keys(OTA_MARKUP).length === 0) {
+  OTA_MARKUP = {
+    booking_com: parseFloat(process.env.COMPETITOR_MARKUP_BOOKING_COM || '1.15'),
+    booking: parseFloat(process.env.COMPETITOR_MARKUP_BOOKING || '1.15'),
+    expedia: parseFloat(process.env.COMPETITOR_MARKUP_EXPEDIA || '1.10'),
+    agoda: parseFloat(process.env.COMPETITOR_MARKUP_AGODA || '1.08'),
+    hotels_com: parseFloat(process.env.COMPETITOR_MARKUP_HOTELS_COM || '1.12'),
+    hotels: parseFloat(process.env.COMPETITOR_MARKUP_HOTELS || '1.12'),
+    airbnb: parseFloat(process.env.COMPETITOR_MARKUP_AIRBNB || '1.05'),
+    tripadvisor: parseFloat(process.env.COMPETITOR_MARKUP_TRIPADVISOR || '1.07'),
+    direct: parseFloat(process.env.COMPETITOR_MARKUP_DIRECT || '0.95'),
+    corporate: parseFloat(process.env.COMPETITOR_MARKUP_CORPORATE || '0.90'),
+    walk_in: parseFloat(process.env.COMPETITOR_MARKUP_WALK_IN || '1.00'),
+  };
+}
+const DEFAULT_OTA_MARKUP = parseFloat(process.env.COMPETITOR_MARKUP_DEFAULT || '1.12');
 
 // ============================================
 // MAIN ENTRY POINT
@@ -559,15 +575,17 @@ async function generateSyntheticRates(
 ): Promise<FetchedRate[]> {
   if (!ALLOW_DEMO_DATA) {
     console.warn(
-      `[rate-fetcher] Demo data disabled for competitor "${competitor.name}". ` +
-      `Set COMPETITOR_PRICING_ALLOW_DEMO=true to enable synthetic fallback.`
+      `[rate-fetcher] No real data source for competitor "${competitor.name}". ` +
+      `Configure OTA Insight/STR/RateGain API credentials or set COMPETITOR_PRICING_ALLOW_DEMO=true ` +
+      `for synthetic fallback (NOT recommended for production).`
     );
+    // Return empty — never silently produce fake data in production
     return [];
   }
 
   console.warn(
-    `[rate-fetcher] SYNTHETIC DATA: Generating demo rates for "${competitor.name}" — ` +
-    `this data is NOT from a real competitor source.`
+    `[rate-fetcher] ⚠️  SYNTHETIC DATA for "${competitor.name}" — this is NOT real competitor data. ` +
+    `Set COMPETITOR_PRICING_ALLOW_DEMO=false to disable.`
   );
 
   // Determine markup factor based on channel

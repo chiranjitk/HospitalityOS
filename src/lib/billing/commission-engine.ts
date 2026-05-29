@@ -196,12 +196,11 @@ async function accrueAgentCommission(booking: BookingRef): Promise<void> {
  */
 async function accrueFromCommissionRules(booking: BookingRef): Promise<void> {
   try {
-    // Skip if we already handled this via agent/channel paths
-    if (booking.source === 'travel_agent' || booking.channelId) {
-      // Still check for non-agent/channel rules (e.g., referral, corporate, direct)
-    }
-
+    // Check for additional rules that can stack with agent/channel commissions
+    // (e.g., referral bonus on top of travel agent commission, or corporate incentive)
     const sourceTypesToCheck = ['corporate', 'referral', 'direct'];
+    // Allow corporate/referral/direct rules even if booking source is travel_agent/OTA
+    // These represent supplementary commissions (e.g. referral bonus)
     if (!sourceTypesToCheck.includes(booking.source)) {
       return;
     }
