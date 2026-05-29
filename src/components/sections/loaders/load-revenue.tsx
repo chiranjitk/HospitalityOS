@@ -11,8 +11,9 @@ export default async function loadSection(section: string): Promise<{ default: R
     case 'revenue-forecasting':
       return import('@/components/revenue/demand-forecasting-page');
     case 'revenue-competitor':
-    case 'revenue-compset':
       return import('@/components/revenue/competitor-pricing');
+    case 'revenue-compset':
+      return import('@/components/revenue/compset-management');
     case 'revenue-ai':
     case 'revenue-suggestions':
       return import('@/components/revenue/ai-suggestions');

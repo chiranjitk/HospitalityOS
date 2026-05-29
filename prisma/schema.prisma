@@ -4876,6 +4876,8 @@ model Property {
   cameras                Camera[]
   cameraGroups           CameraGroup[]
   competitorPrices       CompetitorPrice[]
+  compSets               CompetitiveSet[]
+  compSetMetrics         CompSetMetric[]
   demandForecasts        DemandForecast[]
   energyMetrics          EnergyMetric[]
   events                 Event[]
@@ -7193,6 +7195,10 @@ model Tenant {
   financingInstallments     FinancingInstallment[]
   rateShoppingCompetitors   RateShoppingCompetitor[]
   rateShoppingResults       RateShoppingResult[]
+  competitiveSets           CompetitiveSet[]
+  compSetMembers            CompSetMember[]
+  compSetMetrics            CompSetMetric[]
+  compSetImports            CompSetImport[]
   journeyStages             JourneyStage[]
   journeyCampaigns          JourneyCampaign[]
   journeyActions            JourneyAction[]
@@ -10686,6 +10692,115 @@ model RateShoppingResult {
   @@index([competitorId])
   @@index([checkIn])
   @@index([fetchedAt])
+}
+
+// --- COMPETITIVE SET (COMPSET) MODULE ---
+
+model CompetitiveSet {
+  id             String           @id @default(uuid()) @db.Uuid
+  tenantId       String           @db.Uuid
+  propertyId     String           @db.Uuid
+  name           String
+  description    String?
+  segment        String           @default("primary") // primary, secondary, luxury, budget, resort, extended_stay
+  isActive       Boolean          @default(true)
+  members        CompSetMember[]
+  metrics        CompSetMetric[]
+  importHistory  CompSetImport[]
+  createdAt      DateTime         @default(now()) @db.Timestamptz
+  updatedAt      DateTime         @updatedAt @db.Timestamptz
+  property       Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([isActive])
+}
+
+model CompSetMember {
+  id               String         @id @default(uuid()) @db.Uuid
+  tenantId         String         @db.Uuid
+  competitiveSetId String         @db.Uuid
+  hotelName        String
+  hotelCode        String?        // chain code or OTA identifier
+  starRating       Float?         // 1-5
+  totalRooms       Int?           // for weighting
+  proximityKm      Float?         // distance from our property
+  channel          String         @default("direct") // direct, booking.com, expedia, etc.
+  competitorId     String?        @db.Uuid // link to RateShoppingCompetitor if exists
+  url              String?
+  isActive         Boolean        @default(true)
+  sortOrder        Int            @default(0)
+  createdAt        DateTime       @default(now()) @db.Timestamptz
+  updatedAt        DateTime       @updatedAt @db.Timestamptz
+  competitiveSet   CompetitiveSet @relation(fields: [competitiveSetId], references: [id], onDelete: Cascade)
+  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([competitiveSetId])
+  @@index([isActive])
+}
+
+model CompSetMetric {
+  id               String         @id @default(uuid()) @db.Uuid
+  tenantId         String         @db.Uuid
+  competitiveSetId String         @db.Uuid
+  propertyId       String         @db.Uuid
+  date             DateTime       @db.Timestamptz
+  period           String         @default("daily") // daily, weekly, monthly
+  // Our property metrics
+  ourAdr           Float          @default(0)
+  ourOccupancy     Float          @default(0) // 0-100
+  ourRevpar        Float          @default(0)
+  // Compset average metrics
+  compsetAdr       Float          @default(0)
+  compsetOccupancy Float          @default(0) // 0-100
+  compsetRevpar    Float          @default(0)
+  // Benchmarking indices (100 = at market average)
+  adrIndex         Float          @default(100) // (ourAdr / compsetAdr) * 100
+  mpi              Float          @default(100) // Market Penetration Index = (ourOccupancy / compsetOccupancy) * 100
+  rgi              Float          @default(100) // Revenue Generation Index = adrIndex * mpi / 100
+  revparIndex      Float          @default(100) // (ourRevpar / compsetRevpar) * 100
+  // Competitive position
+  compsetSize      Int            @default(0) // number of competitors in set
+  ourRank          Int?           // our ranking in compset by RevPAR (1 = best)
+  // Data quality
+  dataCompleteness Float          @default(0) // 0-1, fraction of compset with data
+  source           String         @default("auto") // auto, manual, imported
+  createdAt        DateTime       @default(now()) @db.Timestamptz
+  updatedAt        DateTime       @updatedAt @db.Timestamptz
+  competitiveSet  CompetitiveSet @relation(fields: [competitiveSetId], references: [id], onDelete: Cascade)
+  property         Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([competitiveSetId, date, period])
+  @@index([tenantId])
+  @@index([competitiveSetId])
+  @@index([propertyId])
+  @@index([date])
+  @@index([period])
+}
+
+model CompSetImport {
+  id               String          @id @default(uuid()) @db.Uuid
+  tenantId         String          @db.Uuid
+  competitiveSetId String          @db.Uuid
+  source           String          // str, ota_insight, rate_gain, manual_csv
+  fileName         String?
+  totalRows        Int             @default(0)
+  importedRows     Int             @default(0)
+  errorRows        Int             @default(0)
+  status           String          @default("pending") // pending, processing, completed, failed
+  errorMessage     String?
+  startedAt        DateTime?       @db.Timestamptz
+  completedAt      DateTime?       @db.Timestamptz
+  createdAt        DateTime        @default(now()) @db.Timestamptz
+  competitiveSet   CompetitiveSet  @relation(fields: [competitiveSetId], references: [id], onDelete: Cascade)
+  tenant           Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([competitiveSetId])
+  @@index([status])
 }
 
 // --- JOURNEY-BASED CAMPAIGN AUTOMATION ---

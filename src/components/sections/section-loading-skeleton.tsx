@@ -133,6 +133,7 @@ const sectionSkeletonMap: Record<string, SkeletonLayout> = {
   // Revenue
   'revenue-rate-shopping': 'dashboard',
   'revenue-competitor': 'table',
+  'revenue-compset': 'dashboard',
   'revenue-occupancy-forecast': 'dashboard',
   'revenue-demand-forecast': 'dashboard',
   'revenue-yield': 'dashboard',

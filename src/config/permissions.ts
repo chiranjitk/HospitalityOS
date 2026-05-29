@@ -691,6 +691,10 @@ export const menuPermissions: PermissionConfig = {
     permissions: ['revenue.view', 'revenue.*', '*'],
     description: 'View competitor pricing'
   },
+  'revenue-compset': {
+    permissions: ['revenue.view', 'revenue.manage', 'revenue.*', '*'],
+    description: 'Manage competitive set benchmarking, ADR Index, MPI, RGI'
+  },
   'revenue-ai': {
     permissions: ['revenue.view', 'ai.view', 'revenue.*', '*'],
     description: 'View AI suggestions'

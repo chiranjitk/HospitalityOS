@@ -421,6 +421,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'revenue-pricing', title: 'Dynamic Pricing', href: '#revenue-pricing', icon: DollarSign },
       { id: 'revenue-forecasting', title: 'Demand Forecasting', href: '#revenue-forecasting', icon: TrendingUp },
       { id: 'revenue-competitor', title: 'Competitor Pricing', href: '#revenue-competitor', icon: Target },
+      { id: 'revenue-compset', title: 'Compset Benchmarking', href: '#revenue-compset', icon: Trophy },
       // FIX (L-2): Renamed from "AI Suggestions" to "Smart Pricing Rules" to accurately
       // reflect the heuristic-based pricing logic instead of implying ML/AI.
       { id: 'revenue-ai', title: 'Smart Pricing Rules', href: '#revenue-ai', icon: Brain },

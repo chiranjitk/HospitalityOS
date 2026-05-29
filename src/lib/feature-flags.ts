@@ -259,7 +259,7 @@ export const FEATURES: Record<string, FeatureConfig> = {
     category: 'addons',
     subcategory: 'Revenue & Channels',
     menuItems: [
-      'revenue-pricing', 'revenue-forecasting', 'revenue-competitor', 'revenue-ai', 'revenue-rate-shopping',
+      'revenue-pricing', 'revenue-forecasting', 'revenue-competitor', 'revenue-compset', 'revenue-ai', 'revenue-rate-shopping',
       'revenue-hourly-pricing', 'revenue-linear-pricing', 'revenue-auto-overbooking', 'revenue-last-minute', 'revenue-automation',
     ],
     apiRoutes: ['/api/revenue', '/api/revenue/pricing', '/api/revenue/forecasting'],
