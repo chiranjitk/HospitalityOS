@@ -3063,6 +3063,9 @@ function PortalContent() {
     : DEFAULT_BLOCK_ORDER;
 
   // ── Method field defaults per auth method (for swapping formFields when guest switches) ──
+  // When the guest switches tabs, we replace ALL form fields with only the ones
+  // relevant to the selected method. No fields from the base (designer) authFlow
+  // leak through — each method gets exactly its own fields.
   const METHOD_FIELD_DEFAULTS: Record<string, Record<string, boolean>> = {
     pms_credentials: { username: true, password: true, terms: true },
     room_number: { lastName: true, roomNumber: true, terms: true },
@@ -3074,21 +3077,28 @@ function PortalContent() {
     mac_auth: {},
     social: { terms: true },
     ldap: { username: true, password: true, terms: true },
+    radius_ldap: { username: true, password: true, terms: true },
   };
 
-  // Compute effective formFields that adapts to the currently selected method
+  // Compute effective formFields that adapts to the currently selected method.
+  // 1) All keys from the original formFields that are NOT in the selected method's
+  //    defaults are forced to `false` (so they don't leak from the base authFlow).
+  // 2) All keys from the method defaults that are NOT in the original formFields
+  //    are added (e.g. voucherCode when switching from pms_credentials → voucher).
   const getEffectiveFormFields = (): Record<string, boolean> | null => {
     if (!formFields || typeof formFields !== 'object') return null;
     const methodDefaults = METHOD_FIELD_DEFAULTS[effectiveAuthMethod] || {};
     const merged: Record<string, boolean> = {};
+    // Step 1: go through original formFields — turn off anything not in method defaults
     for (const key of Object.keys(formFields)) {
-      const val = formFields[key];
-      if (typeof val === 'boolean') {
-        // Use method default: if key is in methodDefaults, use that value; otherwise keep original
-        merged[key] = key in methodDefaults ? methodDefaults[key] : val;
-      } else if (typeof val === 'object' && val !== null) {
-        const fc = val as FormFieldConfig;
-        merged[key] = key in methodDefaults ? methodDefaults[key] : (fc.visible ?? false);
+      if (typeof formFields[key] === 'boolean' || (typeof formFields[key] === 'object' && formFields[key] !== null)) {
+        merged[key] = key in methodDefaults ? methodDefaults[key] : false;
+      }
+    }
+    // Step 2: add any keys from methodDefaults that weren't in the original formFields
+    for (const key of Object.keys(methodDefaults)) {
+      if (!(key in merged)) {
+        merged[key] = methodDefaults[key];
       }
     }
     return merged;
