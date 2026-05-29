@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { differenceInCalendarDays, startOfDay, endOfDay, parseISO } from 'date-fns';
-import { getLeaveBalanceConfig, getUserLeaveBalance, DEFAULT_LEAVE_BALANCES } from '@/lib/staff/leave-config';
+import { getLeaveBalanceConfig, getUserLeaveBalance, DEFAULT_LEAVE_BALANCES, LEAVE_TYPES } from '@/lib/staff/leave-config';
 
-// Valid leave durations
-const VALID_DURATIONS = ['full_day', 'half_day_am', 'half_day_pm'] as const;
+// Valid leave durations (M-71: includes half_day)
+const VALID_DURATIONS = ['full_day', 'half_day', 'half_day_am', 'half_day_pm'] as const;
 type LeaveDuration = (typeof VALID_DURATIONS)[number];
 
 // GET /api/staff/leave - List leave requests

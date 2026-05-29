@@ -70,6 +70,12 @@ async function ensureRadacctClean() {
 }
 
 // Helper to make requests to RADIUS management service
+// M-50 FIX: TODO - Add circuit breaker for FreeRADIUS proxy
+// When RADIUS service is down, circuit breaker should:
+// 1. Track consecutive failures (threshold: 5)
+// 2. Open circuit for 30 seconds after threshold
+// 3. Return cached responses or graceful error
+// 4. Half-open: try one request, if succeeds close circuit
 async function freeradiusRequest(endpoint: string, options: RequestInit = {}) {
   const url = `${RADIUS_SERVICE_URL}${endpoint}`;
   const response = await fetch(url, {

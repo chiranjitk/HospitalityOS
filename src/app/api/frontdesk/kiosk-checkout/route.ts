@@ -4,19 +4,14 @@ import crypto from 'crypto';
 import { db } from '@/lib/db';
 import { emitBookingCheckedOut } from '@/lib/events/booking-events';
 import { markRoomDirtyAfterCheckout } from '@/lib/housekeeping-automation';
+import { requireAuth } from '@/lib/auth/tenant-context';
 
 // POST /api/frontdesk/kiosk-checkout - Process express check-out from kiosk
 export async function POST(request: NextRequest) {
   try {
-    // Basic authentication — kiosk should present a valid token
-    const { getUserFromRequest } = await import('@/lib/auth-helpers');
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
+    // Authentication — kiosk should present a valid token
+    const ctx = await requireAuth(request);
+    if (ctx instanceof NextResponse) return ctx;
 
     const body = await request.json();
 
@@ -45,7 +40,7 @@ export async function POST(request: NextRequest) {
     // Fetch booking with all needed relations — must be checked_in and not soft-deleted
     // Tenant isolation: ensure booking belongs to authenticated user's tenant
     const booking = await db.booking.findFirst({
-      where: { id: bookingId, tenantId: user.tenantId, status: 'checked_in', deletedAt: null },
+      where: { id: bookingId, tenantId: ctx.tenantId, status: 'checked_in', deletedAt: null },
       include: {
         primaryGuest: {
           select: { id: true, firstName: true, lastName: true, email: true, phone: true },

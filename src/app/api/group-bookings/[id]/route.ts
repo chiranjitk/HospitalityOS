@@ -114,9 +114,11 @@ export async function DELETE(
       where: { id },
     });
 
-    // TODO(M-05): When group booking is cancelled/deleted, released rooms should trigger
-    // waitlist auto-process to offer rooms to waitlisted guests. Call
-    // POST /api/waitlist/auto-process after room release to enable automatic waitlist processing.
+    // M-05 FIX: Trigger waitlist auto-process after group cancellation
+    fetch(`${process.env.NEXT_PUBLIC_APP_URL || ''}/api/cron/waitlist-auto-process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-cron-secret': process.env.CRON_SECRET || 'dev-only-cron-secret' },
+    }).catch(() => {});
 
     // Audit log
     try {

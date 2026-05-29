@@ -1,27 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { requirePermission } from '@/lib/auth/tenant-context';
 import { OTASyncService } from '@/lib/ota/sync-service';
 
 // GET /api/channels/booking-sync - Get booking sync status
 export async function GET(request: NextRequest) {
   try {
-    // Authentication check
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
-
-    // Permission check
-    if (!hasPermission(user, 'channels.view')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'You do not have permission to view booking sync' } },
-        { status: 403 }
-      );
-    }
+    // Authentication & permission check
+    const user = await requirePermission(request, 'channels.view');
+    if (user instanceof NextResponse) return user;
 
     const tenantId = user.tenantId;
 
@@ -120,22 +107,9 @@ export async function GET(request: NextRequest) {
 // POST /api/channels/booking-sync - Sync bookings from OTA channels
 export async function POST(request: NextRequest) {
   try {
-    // Authentication check
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
-      );
-    }
-
-    // Permission check
-    if (!hasPermission(user, 'channels.update')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'You do not have permission to sync bookings' } },
-        { status: 403 }
-      );
-    }
+    // Authentication & permission check
+    const user = await requirePermission(request, 'channels.update');
+    if (user instanceof NextResponse) return user;
 
     const body = await request.json();
     const { action, bookingId } = body;

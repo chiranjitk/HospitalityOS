@@ -499,6 +499,17 @@ export default function WalkIn() {
       let guestId = selectedGuestId;
 
       if (!useExistingGuest) {
+        // M-17 FIX: Check for duplicate guests before walk-in creation
+        const existingGuest = await fetch(`/api/guests?search=${encodeURIComponent(guestForm.firstName + ' ' + guestForm.lastName)}&limit=5`).then(r => r.json()).catch(() => []);
+        if (existingGuest?.data?.length > 0) {
+          // Show warning toast
+          toast({
+            title: 'Possible Duplicate Guest',
+            description: `Found ${existingGuest.data.length} existing guest(s) with similar name. Verify before creating new booking.`,
+            variant: 'destructive',
+          });
+        }
+
         const guestResponse = await fetch('/api/guests', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -548,7 +559,8 @@ export default function WalkIn() {
           fees: serviceCharge,
           currency: selectedProperty?.currency || 'INR',
           source: 'walk_in',
-          status: 'confirmed',
+          status: 'checked_in',
+          actualCheckIn: new Date().toISOString(),
           specialRequests: bookingForm.specialRequests || undefined,
         }),
       });

@@ -177,6 +177,10 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [activeFilter, setActiveFilter] = useState<QuickFilter>('all');
 
+  // M-37 FIX: Pagination state
+  const [paginationLimit] = useState(50);
+  const [paginationOffset, setPaginationOffset] = useState(0);
+
   // Dialog states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -212,7 +216,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
     setIsLoading(true);
     (async () => {
       try {
-        const response = await fetch('/api/guests', { signal: abortController.signal });
+        const response = await fetch(`/api/guests?limit=${paginationLimit}&offset=${paginationOffset}`, { signal: abortController.signal });
         if (!response.ok) {
           const text = await response.text().catch(() => 'Unknown error');
           throw new Error(text);
@@ -296,7 +300,7 @@ export default function GuestsList({ onSelectGuest }: GuestsListProps) {
   const fetchGuests = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/guests');
+      const response = await fetch(`/api/guests?limit=${paginationLimit}&offset=${paginationOffset}`);
       if (!response.ok) throw new Error('Failed');
       const result = await response.json();
       if (result.success) setAllGuests(result.data);

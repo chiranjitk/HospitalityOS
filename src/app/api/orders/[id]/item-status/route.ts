@@ -143,6 +143,21 @@ export async function PUT(
         console.error('Failed to create audit log:', auditError);
       }
 
+      // M-52 FIX: Auto-advance parent order when all items are terminal
+      const terminalStatuses = ['served', 'completed', 'cancelled'];
+      const allItems = await tx.orderItem.findMany({ where: { orderId } });
+      const allTerminal = allItems.length > 0 && allItems.every((item: { status: string }) => terminalStatuses.includes(item.status));
+      if (allTerminal && updated.order.status !== 'completed' && updated.order.status !== 'cancelled' && updated.order.status !== 'paid') {
+        await tx.order.update({
+          where: { id: orderId },
+          data: {
+            status: 'completed',
+            completedAt: new Date(),
+          },
+        });
+        console.log(`[M-52] Auto-advanced order ${updated.order.orderNumber} to completed (all ${allItems.length} items terminal)`);
+      }
+
       return updated;
     });
 

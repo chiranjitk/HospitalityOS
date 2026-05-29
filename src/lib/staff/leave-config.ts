@@ -1,5 +1,18 @@
 import { db } from '@/lib/db';
 
+// M-71 FIX: Half-day leave support
+export const LEAVE_TYPES = {
+  FULL_DAY: 'full_day',
+  HALF_DAY: 'half_day',
+  HALF_DAY_AM: 'half_day_am',
+  HALF_DAY_PM: 'half_day_pm',
+  VACATION: 'vacation',
+  SICK: 'sick',
+  PERSONAL: 'personal',
+  MATERNITY: 'maternity',
+  OTHER: 'other',
+} as const;
+
 /** Default leave balance limits per leave type */
 export const DEFAULT_LEAVE_BALANCES: Record<string, number> = {
   vacation: 20,

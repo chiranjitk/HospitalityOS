@@ -677,7 +677,17 @@ export default function RoomGrid() {
                   {selectedRoom.status === 'cleaning' && (
                     <Button 
                       size="sm" 
-                      onClick={() => updateRoomStatus(selectedRoom.id, 'available')}
+                      onClick={async () => {
+                        const roomId = selectedRoom.id;
+                        const roomNumber = selectedRoom.number;
+                        await updateRoomStatus(roomId, 'available');
+                        // M-12 FIX: Create HK task for cleaning verification
+                        fetch('/api/housekeeping/tasks', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ roomId, taskType: 'cleaning', priority: 'high', status: 'in_progress', title: `Clean verification - Room ${roomNumber}` })
+                        }).catch(() => { console.warn('Failed to create HK task') });
+                      }}
                       className="bg-emerald-600 hover:bg-emerald-700"
                     >
                       <CheckCircle2 className="h-4 w-4 mr-1" />

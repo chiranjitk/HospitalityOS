@@ -531,23 +531,4 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Helper: get previous room numbers for a guest
-async function getPreviousRoomNumbers(guestId: string, currentBookingId: string): Promise<string[]> {
-  const previousBookings = await db.booking.findMany({
-    where: {
-      primaryGuestId: guestId,
-      status: { in: ['checked_in', 'checked_out', 'completed'] },
-      roomId: { not: null },
-      id: { not: currentBookingId },
-    },
-    include: {
-      room: { select: { number: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 10,
-  });
 
-  return previousBookings
-    .map(b => b.room?.number)
-    .filter((n): n is string => !!n);
-}

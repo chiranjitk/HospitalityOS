@@ -6,6 +6,27 @@ import { logBooking } from '@/lib/audit';
 import { notifyBookingCancelled } from '@/lib/notify';
 import type { CancellationResult } from '@/lib/cancellation-policy-engine';
 
+// M-26 FIX: Multi-currency penalty support
+// Helper to get exchange rate between two currencies via SystemConfig or a simple lookup.
+// Penalty is applied in the booking's original currency.
+// For cross-currency bookings, the exchange rate from SystemConfig is used.
+async function getExchangeRate(fromCurrency: string, toCurrency: string): Promise<number> {
+  if (!fromCurrency || !toCurrency || fromCurrency === toCurrency) return 1;
+  try {
+    const config = await db.systemConfig.findFirst({
+      where: { key: `exchange_rate_${fromCurrency}_${toCurrency}` },
+    });
+    if (config?.value) {
+      const rate = parseFloat(String(config.value));
+      if (!isNaN(rate) && rate > 0) return rate;
+    }
+  } catch {
+    console.warn(`[Cancel] Exchange rate lookup failed for ${fromCurrency} -> ${toCurrency}`);
+  }
+  // Fallback: return 1 (same currency assumption)
+  return 1;
+}
+
 // POST /api/bookings/[id]/cancel — Cancel a booking with full policy enforcement
 export async function POST(
   request: NextRequest,
@@ -116,6 +137,18 @@ export async function POST(
     const totalPaid = folio?.paidAmount || 0;
     const penaltyAmount = evaluation.penaltyAmount;
     const refundAmount = Math.max(0, totalPaid - penaltyAmount);
+
+    // M-26 FIX: Multi-currency penalty support
+    // Penalty is applied in the booking's original currency.
+    // For cross-currency bookings, the exchange rate from SystemConfig is used.
+    const property = await db.property.findUnique({
+      where: { id: booking.propertyId },
+      select: { defaultCurrency: true },
+    });
+    const exchangeRate = booking.currency && booking.currency !== (property?.defaultCurrency || 'INR')
+      ? await getExchangeRate(booking.currency, property?.defaultCurrency || 'INR')
+      : 1;
+    const penaltyInPropertyCurrency = penaltyAmount * exchangeRate;
 
     // CRITICAL-01 FIX: Execute actual refund via payment gateway
     let refundResult: { success: boolean; gatewayRef?: string; error?: string } | null = null;
