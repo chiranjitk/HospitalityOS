@@ -113,6 +113,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'propertyId, bookingId, roomId, and itemId are required' }, { status: 400 });
     }
 
+    // M-61: Validate room belongs to the same tenant and property
+    const room = await db.room.findFirst({
+      where: { id: roomId, propertyId, deletedAt: null },
+      include: { property: { select: { tenantId: true } } },
+    });
+    if (!room || room.property.tenantId !== user.tenantId) {
+      return NextResponse.json({ success: false, error: 'Room not found or does not belong to this property/tenant' }, { status: 400 });
+    }
+
     // Look up MinibarItem from DB — never trust client-supplied name/price
     const minibarItem = await db.minibarItem.findFirst({
       where: { id: itemId, tenantId: user.tenantId, propertyId },

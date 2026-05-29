@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { taskOptimizationService } from '@/lib/services/task-optimization-service';
+import { applyHousekeepingRateLimit, rateLimitResponse } from '@/app/api/housekeeping/rate-limit';
 
 // GET /api/housekeeping/optimization - Get optimized task assignments
 export async function GET(request: NextRequest) {
@@ -31,6 +32,10 @@ export async function GET(request: NextRequest) {
       }, { status: 403 });
     }
 
+    // M-62: Rate limiting
+    const rlResult = await applyHousekeepingRateLimit(request, 'optimization_get');
+    if (!rlResult.allowed) return rateLimitResponse(rlResult.retryAfter);
+
     const { searchParams } = new URL(request.url);
     const propertyId = searchParams.get('propertyId') || undefined;
     const excludeAssigned = searchParams.get('excludeAssigned') !== 'false';
@@ -38,28 +43,27 @@ export async function GET(request: NextRequest) {
     // Use authenticated user's tenant
     const tenantId = user.tenantId;
 
-    // Get existing pending suggestions
+    // Get existing pending suggestions (without eager-loading all tenant users)
     const existingSuggestions = await db.taskAssignmentSuggestion.findMany({
       where: {
         tenantId,
         status: 'pending',
         expiresAt: { gte: new Date() },
       },
-      include: {
-        tenant: {
-          include: {
-            users: {
-              select: { id: true, firstName: true, lastName: true },
-            },
-          },
-        },
-      },
     });
 
     // If there are valid pending suggestions, return them
     if (existingSuggestions.length > 0) {
+      // M-63: Only fetch the specific users referenced by suggestions
+      const suggestedUserIds = [...new Set(existingSuggestions.map(s => s.suggestedUserId))];
+      const users = await db.user.findMany({
+        where: { id: { in: suggestedUserIds }, tenantId },
+        select: { id: true, firstName: true, lastName: true },
+      });
+      const userMap = new Map(users.map(u => [u.id, u]));
+
       const suggestions = existingSuggestions.map(s => {
-        const suggestionUser = s.tenant.users.find(u => u.id === s.suggestedUserId);
+        const suggestionUser = userMap.get(s.suggestedUserId);
         return {
           id: s.id,
           taskId: s.taskId,
@@ -122,6 +126,10 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
+    // M-62: Rate limiting
+    const rlPostResult = await applyHousekeepingRateLimit(request, 'optimization_post');
+    if (!rlPostResult.allowed) return rateLimitResponse(rlPostResult.retryAfter);
+
     const body = await request.json();
     const { propertyId } = body;
 
@@ -166,6 +174,10 @@ export async function PUT(request: NextRequest) {
         error: { code: 'FORBIDDEN', message: 'You do not have permission to apply suggestions' },
       }, { status: 403 });
     }
+
+    // M-62: Rate limiting
+    const rlPutResult = await applyHousekeepingRateLimit(request, 'optimization_put');
+    if (!rlPutResult.allowed) return rateLimitResponse(rlPutResult.retryAfter);
 
     const body = await request.json();
     const { suggestionIds, applyAll } = body;

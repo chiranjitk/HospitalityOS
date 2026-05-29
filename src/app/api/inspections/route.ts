@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { processInspectionResult } from '@/lib/inspection-engine';
+import { applyHousekeepingRateLimit, rateLimitResponse } from '@/app/api/housekeeping/rate-limit';
 
 // GET /api/inspections - List inspection results
 export async function GET(request: NextRequest) {
@@ -25,6 +26,10 @@ export async function GET(request: NextRequest) {
         { status: 403 }
       );
     }
+
+    // M-62: Rate limiting
+    const rlGetResult = await applyHousekeepingRateLimit(request, 'inspection_get');
+    if (!rlGetResult.allowed) return rateLimitResponse(rlGetResult.retryAfter);
 
     const searchParams = request.nextUrl.searchParams;
     const propertyId = searchParams.get('propertyId');
@@ -184,6 +189,10 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
+
+    // M-62: Rate limiting
+    const rlPostResult = await applyHousekeepingRateLimit(request, 'inspection_post');
+    if (!rlPostResult.allowed) return rateLimitResponse(rlPostResult.retryAfter);
 
     const body = await request.json();
     const {

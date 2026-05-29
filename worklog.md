@@ -188,3 +188,35 @@ Stage Summary:
 - M-55 fixed: inventory stock is deducted when orders are completed/delivered (with movement audit)
 - M-56 fixed: room service auto-folio creates individual line items per menu item
 - Commit: 653b083a — pushed to main
+---
+Task ID: M-58, M-61, M-62, M-63
+Agent: Fix Agent
+Task: Menu image save, tenant room validation, HK rate limiting, user lookup optimization
+
+Work Log:
+- M-58: Added `imageUrl` field to both POST (create) and PUT (update) request bodies in menu-management.tsx
+  - The `imageUrl` state was already tracked separately via MenuImageUpload component but never sent to the API
+  - Backend already supported `imageUrl` in both POST and PUT handlers — only the frontend was missing it
+- M-61: Added room tenant validation to laundry orders POST and minibar consumption POST
+  - Both routes now verify the specified roomId belongs to a room under the same property and tenant
+  - Room lookup includes property relation to check tenantId match
+  - Returns 400 if room not found or belongs to a different tenant
+- M-62: Created housekeeping rate limiting helper at `src/app/api/housekeeping/rate-limit.ts`
+  - Uses existing DB-persisted rate limiter from `@/lib/rate-limiter`
+  - IP-based rate limiting with configurable limits per endpoint type
+  - Read endpoints: 60-120 req/min; Write endpoints: 20-30 req/min
+  - Added rate limiting to 7 endpoints: dashboard, optimization (GET/POST/PUT), workload (GET/POST/PUT), routes (GET/POST), inspections (GET/POST)
+  - Standard 429 response with Retry-After header
+- M-63: Optimized user lookup in housekeeping optimization GET
+  - Previously included ALL tenant users via `tenant.users` eager-load on every suggestion query
+  - Now fetches only the specific users referenced by `suggestedUserId` in pending suggestions
+  - Uses `db.user.findMany` with `{ in: suggestedUserIds }` filter + Map for O(1) lookup
+- ESLint: All 9 changed files pass with zero errors
+
+Stage Summary:
+- 9 files changed (8 modified + 1 new), 168 insertions, 11 deletions
+- M-58 fixed: menu item image URL now sent with both create and update requests
+- M-61 fixed: laundry and minibar orders validate room belongs to current tenant before creation
+- M-62 fixed: rate limiting added to all housekeeping endpoints (dashboard, workload, optimization, routes, inspections)
+- M-63 fixed: optimization GET only fetches referenced staff users instead of all tenant users
+- Commit: d6165897 — pushed to main

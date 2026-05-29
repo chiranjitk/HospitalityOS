@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { taskOptimizationService, RouteOptimization } from '@/lib/services/task-optimization-service';
+import { applyHousekeepingRateLimit, rateLimitResponse } from '@/app/api/housekeeping/rate-limit';
 
 // GET /api/housekeeping/routes - Get optimal routes for staff
 export async function GET(request: NextRequest) {
@@ -30,6 +31,10 @@ export async function GET(request: NextRequest) {
         error: { code: 'FORBIDDEN', message: 'You do not have permission to view routes' },
       }, { status: 403 });
     }
+
+    // M-62: Rate limiting
+    const rlGetResult = await applyHousekeepingRateLimit(request, 'routes_get');
+    if (!rlGetResult.allowed) return rateLimitResponse(rlGetResult.retryAfter);
 
     const { searchParams } = new URL(request.url);
     const propertyId = searchParams.get('propertyId');
@@ -118,6 +123,10 @@ export async function POST(request: NextRequest) {
         error: { code: 'FORBIDDEN', message: 'You do not have permission to manage routes' },
       }, { status: 403 });
     }
+
+    // M-62: Rate limiting
+    const rlPostResult = await applyHousekeepingRateLimit(request, 'routes_post');
+    if (!rlPostResult.allowed) return rateLimitResponse(rlPostResult.retryAfter);
 
     const body = await request.json();
     const { propertyId, userIds, prioritizeBy } = body;

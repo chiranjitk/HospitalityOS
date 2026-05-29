@@ -120,6 +120,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'propertyId, roomId, and items array are required' }, { status: 400 });
     }
 
+    // M-61: Validate room belongs to the same tenant and property
+    const room = await db.room.findFirst({
+      where: { id: roomId, propertyId, deletedAt: null },
+      include: { property: { select: { tenantId: true } } },
+    });
+    if (!room || room.property.tenantId !== user.tenantId) {
+      return NextResponse.json({ success: false, error: 'Room not found or does not belong to this property/tenant' }, { status: 400 });
+    }
+
     // Validate all item IDs exist and look up their prices
     const itemIds = items.map((i: { itemId: string }) => i.itemId);
     const laundryItems = await db.laundryItem.findMany({

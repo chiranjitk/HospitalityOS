@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
+import { applyHousekeepingRateLimit, rateLimitResponse } from '@/app/api/housekeeping/rate-limit';
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,6 +21,10 @@ export async function GET(request: NextRequest) {
         { status: 403 }
       );
     }
+
+    // M-62: Rate limiting
+    const rlResult = await applyHousekeepingRateLimit(request, 'dashboard');
+    if (!rlResult.allowed) return rateLimitResponse(rlResult.retryAfter);
 
     const tenantId = user.tenantId;
 

@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { taskOptimizationService } from '@/lib/services/task-optimization-service';
+import { applyHousekeepingRateLimit, rateLimitResponse } from '@/app/api/housekeeping/rate-limit';
 
 // GET /api/housekeeping/workload - Get workload distribution
 export async function GET(request: NextRequest) {
@@ -30,6 +31,10 @@ export async function GET(request: NextRequest) {
         error: { code: 'FORBIDDEN', message: 'You do not have permission to view workload' },
       }, { status: 403 });
     }
+
+    // M-62: Rate limiting
+    const rlGetResult = await applyHousekeepingRateLimit(request, 'workload_get');
+    if (!rlGetResult.allowed) return rateLimitResponse(rlGetResult.retryAfter);
 
     const { searchParams } = new URL(request.url);
     const propertyId = searchParams.get('propertyId') || undefined;
@@ -119,6 +124,10 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
+    // M-62: Rate limiting
+    const rlPostResult = await applyHousekeepingRateLimit(request, 'workload_post');
+    if (!rlPostResult.allowed) return rateLimitResponse(rlPostResult.retryAfter);
+
     const body = await request.json();
     const { propertyId, maxUtilization, minUtilization } = body;
 
@@ -194,6 +203,10 @@ export async function PUT(request: NextRequest) {
         error: { code: 'FORBIDDEN', message: 'You do not have permission to update staff capacity' },
       }, { status: 403 });
     }
+
+    // M-62: Rate limiting
+    const rlPutResult = await applyHousekeepingRateLimit(request, 'workload_put');
+    if (!rlPutResult.allowed) return rateLimitResponse(rlPutResult.retryAfter);
 
     const body = await request.json();
     const { userId, capacityMinutes, date } = body;
