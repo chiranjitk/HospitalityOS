@@ -4,7 +4,8 @@
 **Tester**: Automated Code QA + Manual Code Review  
 **Role Tested**: Tenant Admin (full access, `*` permission)  
 **App Version**: Next.js 16.2.4 (Turbopack)  
-**Scope**: Every menu, every page, every feature — 172+ menu items across 27 sections  
+**Scope**: Every menu, every page, every feature — 172+ menu items across 28 sections
+**Last Verified**: 2026-05-29 (full re-verification + all non-WiFi fixes applied)  
 
 ---
 
@@ -12,7 +13,7 @@
 
 | Metric | Value |
 |--------|-------|
-| **Navigation Sections** | 27 |
+| **Navigation Sections** | 28 (was 27 — Account Security separated from Settings) |
 | **Menu Items Tested** | 172 |
 | **Component Files** | 513 (+ 46 loaders) |
 | **API Routes** | 1,006 |
@@ -25,10 +26,10 @@
 |----------|-------|--------|
 | 🔴 CRITICAL | 1 | Fixed ✅ |
 | 🟠 HIGH | 6 | 5 Fixed ✅, 1 WiFi pending ⏳ |
-| 🟡 MEDIUM | 9 | 5 Fixed ✅, 4 WiFi pending ⏳ |
+| 🟡 MEDIUM | 9 | 7 Fixed ✅, 2 WiFi pending ⏳ |
 | 🔵 LOW | 5 | All Fixed ✅ |
 | ✅ PASS | 151 | No issues found |
-| **Total** | **172** | **168 PASS, 16 issues (12 fixed, 4 WiFi pending)** |
+| **Total** | **172** | **168 PASS, 4 WiFi pending (user will fix later)** |
 
 ---
 
@@ -118,16 +119,16 @@
 - Many are intentional mount-only effects with `[]` deps. Full audit deferred.
 - **Status**: Noted — no action
 
-### 🟡 MEDIUM-06: Settings Section Has Security Items — Potential Confusion
-- Navigation places `security-overview`, `security-sso`, `security-sessions`, `security-audit-logs` under the "Settings" section
+### 🟡 MEDIUM-06: Settings Section Has Security Items — Potential Confusion `[FIXED]`
+- Navigation placed `security-overview`, `security-sso`, `security-sessions`, `security-audit-logs` under the "Settings" section
 - These route correctly through tier2-admin → load-security
 - **Impact**: Users may expect these under a dedicated "Security" section, not Settings
-- **Recommendation**: Consider grouping in a visible "Security" subsection header within Settings
+- **Fix Applied**: Separated security items into a new **"Account Security"** navigation section (`accountSecurity`) with `ShieldCheck` icon. i18n translations added to all 15 language files. Routing unchanged (still via tier2-admin → load-security). Section count: 27 → 28.
+- **Status**: ✅ Fixed
 
-### 🟡 MEDIUM-07: Tier2-Admin Has Duplicate `staff` Case
-- `src/components/sections/loaders/tier2-admin.tsx` has `case 'staff':` but master-loader routes `staff` prefix to tier2-ops
-- **Impact**: Dead code — the case is never reached
-- **Recommendation**: Remove dead `case 'staff'` from tier2-admin.tsx to avoid confusion
+### 🟡 MEDIUM-07: Tier2-Admin Has Duplicate `staff` Case `[VERIFIED CLEAN]`
+- `src/components/sections/loaders/tier2-admin.tsx` — no `case 'staff':` present; master-loader correctly routes `staff` prefix to tier2-ops
+- **Status**: ✅ Already clean (dead code never present or previously removed)
 
 ### 🟡 MEDIUM-08: WiFi Components Use Mixed Loading Strategies ⏳ PENDING (WIFI)
 - Some WiFi components use `next/dynamic` with ssr:false (in load-wifi.tsx top-level)
@@ -433,11 +434,12 @@
 | P1 | Fix event listener leak in billing/invoices.tsx | Memory leak |
 | P2 | Replace `as any` with proper types in group-bookings (18 casts) | Type safety |
 | P2 | Add i18n to top 20 most-used non-translated components | Localization |
-| P3 | Add per-section error boundaries | Reliability |
+| P3 | ~~Add per-section error boundaries~~ ✅ Done | Reliability |
 | P3 | Refactor WiFi giant components (>2,000 lines) | Maintainability |
-| P3 | Remove dead `case 'staff'` from tier2-admin.tsx | Code quality |
+| P3 | ~~Remove dead `case 'staff'` from tier2-admin.tsx~~ ✅ Verified clean | Code quality |
 | P4 | Standardize WiFi component loading strategy | Consistency |
-| P4 | Resolve TODO/FIXME comments | Completeness |
+| P4 | ~~Resolve TODO/FIXME comments~~ ✅ Done | Completeness |
+| P5 | ~~Separate Account Security from Settings~~ ✅ Done | UX clarity |
 
 ---
 

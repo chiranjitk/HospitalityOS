@@ -197,7 +197,7 @@ export async function GET(request: NextRequest) {
     // Transform bookings to include roomType, property, and paymentStatus
     const transformedBookings = bookings.map(booking => ({
       ...booking,
-      guestName: booking.primaryGuest ? `${booking.primaryGuest.firstName} ${booking.primaryGuest.lastName}`.trim() : '',
+      guestName: booking.primaryGuest ? (booking.primaryGuest.firstName + ' ' + booking.primaryGuest.lastName).trim() : '',
       roomType: roomTypeMap.get(booking.roomTypeId) || null,
       property: propertyMap.get(booking.propertyId) || null,
       paymentStatus: derivePaymentStatus(
@@ -357,7 +357,7 @@ export async function POST(request: NextRequest) {
             success: false, 
             error: { 
               code: 'MIN_STAY_NOT_MET', 
-              message: `Rate plan "${ratePlan.name}" requires a minimum stay of ${ratePlan.minStay} night(s). Your booking is for ${nights} night(s).` 
+              message: 'Rate plan "' + ratePlan.name + '" requires a minimum stay of ' + ratePlan.minStay + ' night(s). Your booking is for ' + nights + ' night(s).' 
             } 
           },
           { status: 400 }
@@ -541,7 +541,7 @@ export async function POST(request: NextRequest) {
             },
           });
 
-          console.log(`[Booking Create] Availability check: roomTypeId=${roomTypeId} (${roomType.name}), propertyId=${propertyId}, checkIn=${checkInDate.toISOString()}, checkOut=${checkOutDate.toISOString()}, overlapping=${overlappingBookings}, totalRooms=${totalRooms}`);
+          console.log('[Booking Create] Availability check: roomTypeId=' + roomTypeId + ' (' + roomType.name + '), propertyId=' + propertyId + ', checkIn=' + checkInDate.toISOString() + ', checkOut=' + checkOutDate.toISOString() + ', overlapping=' + overlappingBookings + ', totalRooms=' + totalRooms);
 
           if (overlappingBookings >= totalRooms) {
             const overlapDetails = await tx.booking.findMany({
@@ -558,11 +558,11 @@ export async function POST(request: NextRequest) {
               select: { id: true, confirmationCode: true, status: true, checkIn: true, checkOut: true, roomId: true },
               take: 10,
             });
-            console.error(`[Booking Create] SOLD_OUT: ${overlappingBookings}/${totalRooms} rooms booked for roomType=${roomType.name}. Overlapping:`, JSON.stringify(overlapDetails, null, 2));
+            console.error('[Booking Create] SOLD_OUT: ' + overlappingBookings + '/' + totalRooms + ' rooms booked for roomType=' + roomType.name + '. Overlapping:', JSON.stringify(overlapDetails, null, 2));
             throw new Error('SOLD_OUT');
           }
         } else {
-          console.log(`[Booking Create] Skipping availability check for roomType=${roomType.name} — no rooms configured (totalRooms=0). Room assignment will happen at check-in.`);
+          console.log('[Booking Create] Skipping availability check for roomType=' + roomType.name + ' — no rooms configured (totalRooms=0). Room assignment will happen at check-in.');
         }
       }
       
@@ -683,7 +683,7 @@ export async function POST(request: NextRequest) {
           bookingId: newBooking.id,
           guestId: primaryGuestId,
           // L-03 TODO: migrate to shared generateFolioNumber() from '@/lib/billing/number-generation'
-          folioNumber: `FOL-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()`},
+          folioNumber: 'FOL-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(2).toString('hex').toUpperCase(),
           currency: finalCurrency || currency,
           status: 'open',
         },
@@ -707,10 +707,11 @@ export async function POST(request: NextRequest) {
       const safeTaxes = Math.round((Number(finalTaxes) || 0) * 100) / 100;
       const safeTotal = Math.round((Number(finalTotalAmount) || 0) * 100) / 100;
 
+      const roomLabel = newBooking.room?.number || roomTypeId;
       await tx.folioLineItem.create({
         data: {
           folioId: folio.id,
-          description: `Room ${newBooking.room?.number || roomTypeId} - ${nights} night(s)`,
+          description: 'Room ' + roomLabel + ' - ' + nights + ' night(s)',
           category: 'room_charge',
           quantity: nights,
           unitPrice: Number(perNightRate) || 0,
@@ -763,7 +764,7 @@ export async function POST(request: NextRequest) {
         await tx.folioLineItem.create({
           data: {
             folioId: folio.id,
-            description: `Deposit Required (${calculatedDepositAmount} due)`,
+            description: 'Deposit Required (' + calculatedDepositAmount + ' due)',
             category: 'deposit',
             quantity: 1,
             unitPrice: calculatedDepositAmount,
@@ -794,7 +795,7 @@ export async function POST(request: NextRequest) {
             amount: paymentAmount,
             method: depositPayment.method || 'cash',
             status: 'completed',
-            reference: depositPayment.reference || `Deposit for ${newBooking.confirmationCode}`,
+            reference: depositPayment.reference || 'Deposit for ' + newBooking.confirmationCode,
             processedBy: user.id,
           },
         });
@@ -865,7 +866,7 @@ export async function POST(request: NextRequest) {
         roomId: booking.roomId || undefined,
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
-        guestName: `${booking.primaryGuest.firstName} ${booking.primaryGuest.lastName}`,
+        guestName: booking.primaryGuest.firstName + ' ' + booking.primaryGuest.lastName,
         confirmationCode: booking.confirmationCode,
       });
     } catch (wsError) {
@@ -893,7 +894,7 @@ export async function POST(request: NextRequest) {
     try {
       await logBooking(request, 'create', booking.id, undefined, {
         confirmationCode: booking.confirmationCode,
-        guestName: `${booking.primaryGuest.firstName} ${booking.primaryGuest.lastName}`,
+        guestName: booking.primaryGuest.firstName + ' ' + booking.primaryGuest.lastName,
         roomNumber: booking.room?.number,
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
@@ -911,7 +912,7 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       bookingId: booking.id,
       confirmationCode: booking.confirmationCode,
-      guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim() || 'Guest',
+      guestName: ((booking.primaryGuest?.firstName || '') + ' ' + (booking.primaryGuest?.lastName || '')).trim() || 'Guest',
       checkIn: booking.checkIn,
       checkOut: booking.checkOut,
       totalAmount: booking.totalAmount,
@@ -927,7 +928,7 @@ export async function POST(request: NextRequest) {
         bookingId: booking.id,
         confirmationCode: booking.confirmationCode,
         guestId: booking.primaryGuestId,
-        guestName: `${booking.primaryGuest?.firstName || ''} ${booking.primaryGuest?.lastName || ''}`.trim(),
+        guestName: ((booking.primaryGuest?.firstName || '') + ' ' + (booking.primaryGuest?.lastName || '')).trim(),
         checkIn: booking.checkIn,
         checkOut: booking.checkOut,
         totalAmount: booking.totalAmount,
@@ -1030,13 +1031,13 @@ export async function POST(request: NextRequest) {
       if (error.message === 'OCCUPANCY_EXCEEDED') {
         const totalGuests = (body.adults || 1) + (body.children || 0) + (body.infants || 0);
         return NextResponse.json(
-          { success: false, error: { code: 'OCCUPANCY_EXCEEDED', message: `Total guests (${totalGuests}) exceeds room type maximum occupancy` } },
+          { success: false, error: { code: 'OCCUPANCY_EXCEEDED', message: 'Total guests (' + totalGuests + ') exceeds room type maximum occupancy' } },
           { status: 400 }
         );
       }
       if (error.message === 'ADULT_OCCUPANCY_EXCEEDED') {
         return NextResponse.json(
-          { success: false, error: { code: 'ADULT_OCCUPANCY_EXCEEDED', message: `Number of adults (${body.adults}) exceeds maximum` } },
+          { success: false, error: { code: 'ADULT_OCCUPANCY_EXCEEDED', message: 'Number of adults (' + body.adults + ') exceeds maximum' } },
           { status: 400 }
         );
       }

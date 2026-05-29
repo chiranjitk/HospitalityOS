@@ -699,7 +699,15 @@ export const navigationConfig: NavSection[] = [
       { id: 'settings-gdpr', title: 'GDPR Compliance', href: '#settings-gdpr', icon: Shield },
       { id: 'settings-security', title: 'Security Settings', href: '#settings-security', icon: Settings },
       { id: 'settings-integrations', title: 'System Integrations', href: '#settings-integrations', icon: Plug },
-      // Security
+    ],
+  },
+  // ── Account Security (separated from Settings for clarity) ──
+  {
+    id: 'accountSecurity',
+    title: 'Account Security',
+    icon: ShieldCheck,
+    category: 'base',
+    items: [
       { id: 'security-overview', title: 'Security Overview', href: '#security-overview', icon: Shield },
       { id: 'security-sso', title: 'SSO Configuration', href: '#security-sso', icon: Key },
       { id: 'security-sessions', title: 'Device Sessions', href: '#security-sessions', icon: Smartphone },
@@ -722,10 +730,10 @@ export const navigationConfig: NavSection[] = [
 // =====================================================
 // MENU STATISTICS
 // =====================================================
-// Total Sections: 27 (Security & IoT split into Surveillance & CCTV + IoT & Smart Building,
-//                       Account Security items merged into Settings)
-// Base Modules: 8 (Dashboard, PMS, Bookings, Front Desk, Guests,
-//                        Housekeeping, Billing, Settings, Help)
+// Total Sections: 28 (Security & IoT split into Surveillance & CCTV + IoT & Smart Building,
+//                       Account Security separated from Settings for clarity)
+// Base Modules: 9 (Dashboard, PMS, Bookings, Front Desk, Guests,
+//                        Housekeeping, Billing, Settings, Account Security, Help)
 // Addon Modules: 19 (Experience, Restaurant, Inventory, Facilities, WiFi,
 //                       Revenue, Channels, CRM & Marketing, Ads, Reports,
 //                       Staff, Surveillance & CCTV, IoT & Smart Building,
@@ -733,7 +741,7 @@ export const navigationConfig: NavSection[] = [
 // Total Menu Items: ~172
 //
 // Latest changes:
-// - Merged Account Security into Settings (no separate section needed)
+// - Separated Account Security from Settings into dedicated section (MEDIUM-06 fix)
 // - Split Security & IoT → Surveillance & CCTV + IoT & Smart Building
 // - CRM + Marketing → CRM & Marketing (2→1)
 // - Parking + Events + Resort → Facilities (3→1)

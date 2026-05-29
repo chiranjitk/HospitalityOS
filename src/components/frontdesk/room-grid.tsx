@@ -686,7 +686,7 @@ export default function RoomGrid() {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ roomId, taskType: 'cleaning', priority: 'high', status: 'in_progress', title: `Clean verification - Room ${roomNumber}` })
-                        }).catch(() => { console.warn('Failed to create HK task') });
+                        }).catch(() => { /* HK task creation is non-critical */ });
                       }}
                       className="bg-emerald-600 hover:bg-emerald-700"
                     >
