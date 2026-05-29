@@ -540,7 +540,11 @@
     "userRoleManagement": "વપરાશકર્તા અને ભૂમિકા વ્યવસ્થાપન",
     "platformAdmin": "પ્લેટફોર્મ એડમિન",
     "surveillanceCctv": "Surveillance & CCTV",
-    "iotSmartBuilding": "IoT & Smart Building"
+    "iotSmartBuilding": "IoT & Smart Building",
+    "billing-group-folio": "Group Folio",
+    "iot-occupancy-triggers": "Occupancy Triggers",
+    "iot-energy-schedule": "Energy Scheduling",
+    "visitor-log": "Visitor Management"
   },
   "layout": {
     "searchNavigation": "નેવિગેશન શોધો...",

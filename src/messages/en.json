@@ -281,6 +281,7 @@
     "housekeeping-inspections": "Inspection Checklists",
     "housekeeping-automation": "Automation Rules",
     "billing-folios": "Folios",
+    "billing-group-folio": "Group Folio",
     "billing-invoices": "Invoices",
     "billing-payments": "Payments",
     "billing-refunds": "Refunds",
@@ -544,7 +545,10 @@
     "userRoleManagement": "User & Role Management",
     "platformAdmin": "Platform Admin",
     "surveillanceCctv": "Surveillance & CCTV",
-    "iotSmartBuilding": "IoT & Smart Building"
+    "iotSmartBuilding": "IoT & Smart Building",
+    "iot-occupancy-triggers": "Occupancy Triggers",
+    "iot-energy-schedule": "Energy Scheduling",
+    "visitor-log": "Visitor Management"
   },
   "layout": {
     "searchNavigation": "Search navigation...",

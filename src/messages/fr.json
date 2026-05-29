@@ -541,7 +541,11 @@
     "userRoleManagement": "Gestion des utilisateurs et des rôles",
     "platformAdmin": "Administrateur de plateforme",
     "surveillanceCctv": "Surveillance & CCTV",
-    "iotSmartBuilding": "IoT & Smart Building"
+    "iotSmartBuilding": "IoT & Smart Building",
+    "billing-group-folio": "Group Folio",
+    "iot-occupancy-triggers": "Occupancy Triggers",
+    "iot-energy-schedule": "Energy Scheduling",
+    "visitor-log": "Visitor Management"
   },
   "layout": {
     "searchNavigation": "Rechercher dans la navigation...",

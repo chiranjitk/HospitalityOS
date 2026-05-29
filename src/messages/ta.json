@@ -540,7 +540,11 @@
     "userRoleManagement": "பயனர் & பங்கு மேலாண்மை",
     "platformAdmin": "தள நிர்வாகி",
     "surveillanceCctv": "Surveillance & CCTV",
-    "iotSmartBuilding": "IoT & Smart Building"
+    "iotSmartBuilding": "IoT & Smart Building",
+    "billing-group-folio": "Group Folio",
+    "iot-occupancy-triggers": "Occupancy Triggers",
+    "iot-energy-schedule": "Energy Scheduling",
+    "visitor-log": "Visitor Management"
   },
   "layout": {
     "searchNavigation": "வழிசெலுத்தலைத் தேடு...",
