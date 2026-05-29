@@ -928,6 +928,52 @@ function RoomNumberForm({
   loading,
 }: {
   design: PortalDesignConfig;
+  onSubmit: (roomNumber: string) => void;
+  loading: boolean;
+}) {
+  const lang = usePortalLang();
+  const [room, setRoom] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = () => {
+    if (!room.trim()) { setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'roomNumber').toLowerCase()); return; }
+    setError('');
+    onSubmit(room.trim());
+  };
+
+  return (
+    <div className="space-y-4">
+      <DynamicInput
+        design={design}
+        label={getUIString(lang, 'roomNumber')}
+        value={room}
+        onChange={setRoom}
+        placeholder="e.g. 101"
+        disabled={loading}
+        autoFocus
+        icon={<DoorOpen className="w-4 h-4" />}
+      />
+      {error && <ErrorDisplay message={error} />}
+      <DynamicButton design={design} onClick={handleSubmit} disabled={!room.trim()} loading={loading}>
+        <>
+          <DoorOpen className="w-5 h-5" />
+          {getUIString(lang, 'connectToWiFi')}
+        </>
+      </DynamicButton>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// PMS Credentials Form (fallback mode)
+// ────────────────────────────────────────────────────────────
+
+function PmsCredentialsForm({
+  design,
+  onSubmit,
+  loading,
+}: {
+  design: PortalDesignConfig;
   onSubmit: (roomNumber: string, lastName: string) => void;
   loading: boolean;
 }) {
@@ -970,65 +1016,6 @@ function RoomNumberForm({
         <>
           <Key className="w-5 h-5" />
           {getUIString(lang, 'signInWithRoom')}
-        </>
-      </DynamicButton>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────
-// PMS Credentials Form (fallback mode)
-// ────────────────────────────────────────────────────────────
-
-function PmsCredentialsForm({
-  design,
-  onSubmit,
-  loading,
-}: {
-  design: PortalDesignConfig;
-  onSubmit: (username: string, password: string) => void;
-  loading: boolean;
-}) {
-  const lang = usePortalLang();
-  const [uname, setUname] = useState('');
-  const [pass, setPass] = useState('');
-  const [error, setError] = useState('');
-
-  const handleSubmit = () => {
-    if (!uname.trim()) { setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'username').toLowerCase()); return; }
-    if (!pass.trim()) { setError(getUIString(lang, 'pleaseEnter') + ' ' + getUIString(lang, 'password').toLowerCase()); return; }
-    setError('');
-    onSubmit(uname.trim(), pass.trim());
-  };
-
-  return (
-    <div className="space-y-4">
-      <DynamicInput
-        design={design}
-        label={getUIString(lang, 'username')}
-        value={uname}
-        onChange={setUname}
-        placeholder="Enter username"
-        disabled={loading}
-        autoFocus
-        icon={<User className="w-4 h-4" />}
-      />
-      <DynamicInput
-        design={design}
-        label={getUIString(lang, 'password')}
-        type="password"
-        value={pass}
-        onChange={setPass}
-        placeholder="Enter password"
-        disabled={loading}
-        onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-        icon={<Key className="w-4 h-4" />}
-      />
-      {error && <ErrorDisplay message={error} />}
-      <DynamicButton design={design} onClick={handleSubmit} disabled={!uname.trim() || !pass.trim()} loading={loading}>
-        <>
-          <Key className="w-5 h-5" />
-          {getUIString(lang, 'signIn')}
         </>
       </DynamicButton>
     </div>
@@ -1645,8 +1632,8 @@ function UnifiedDesignerForm({
 
     switch (authMethod) {
       case 'pms_credentials':
-        if (formData.username?.trim()) payload.username = formData.username.trim();
-        if (formData.password?.trim()) payload.password = formData.password.trim();
+        if (formData.roomNumber?.trim()) payload.roomNumber = formData.roomNumber.trim();
+        if (formData.lastName?.trim()) payload.lastName = formData.lastName.trim();
         break;
       case 'room_number':
         if (formData.roomNumber?.trim()) payload.roomNumber = formData.roomNumber.trim();
@@ -2871,8 +2858,8 @@ function PortalContent() {
         return (
           <RoomNumberForm
             design={design}
-            onSubmit={(room, name) =>
-              authenticate('room_number', { roomNumber: room, lastName: name, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
+            onSubmit={(room) =>
+              authenticate('room_number', { roomNumber: room, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
             }
             loading={state === 'authenticating'}
           />
@@ -2881,8 +2868,8 @@ function PortalContent() {
         return (
           <PmsCredentialsForm
             design={design}
-            onSubmit={(username, password) =>
-              authenticate('pms_credentials', { username, password, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
+            onSubmit={(roomNumber, lastName) =>
+              authenticate('pms_credentials', { roomNumber, lastName, ...(buildGuestInfoPayload() ? { guestInfo: buildGuestInfoPayload() } : {}) })
             }
             loading={state === 'authenticating'}
           />
@@ -3067,8 +3054,8 @@ function PortalContent() {
   // relevant to the selected method. No fields from the base (designer) authFlow
   // leak through — each method gets exactly its own fields.
   const METHOD_FIELD_DEFAULTS: Record<string, Record<string, boolean>> = {
-    pms_credentials: { username: true, password: true, terms: true },
-    room_number: { lastName: true, roomNumber: true, terms: true },
+    pms_credentials: { roomNumber: true, lastName: true, terms: true },
+    room_number: { roomNumber: true, terms: true },
     voucher: { voucherCode: true, terms: true },
     sms_otp: { phone: true, terms: true },
     email_otp: { email: true, terms: true },
