@@ -113,6 +113,7 @@ import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
 import { useToast } from '@/hooks/use-toast';
 import { usePropertyId } from '@/hooks/use-property';
+import { csvSafeEscape } from '@/lib/wifi/validation';
 
 // ==================== LAZY-LOADED TAB COMPONENTS ====================
 
@@ -350,7 +351,6 @@ function BandwidthUsageTab() {
         toast({ title: t('wrError'), description: typeof result.error === 'string' ? result.error : result.error?.message || t('wrFailedFetchBandwidth'), variant: 'destructive' });
       }
     } catch (e) {
-      console.error(e);
       toast({ title: t('wrError'), description: t('wrFailedFetchBandwidth'), variant: 'destructive' });
     } finally {
       setLoading(false);
@@ -420,7 +420,7 @@ function BandwidthUsageTab() {
             <div className="ml-auto flex gap-2">
               <Button variant="outline" size="sm" onClick={() => {
                 const headers = 'Date,Download (MB),Upload (MB),Total (MB),Users,Peak Time,Active Sessions';
-                const rows = filteredData.map(d => `${d.date},${d.download},${d.upload},${d.total},${d.users},${d.peakTime},${d.activeSessions}`);
+                const rows = filteredData.map(d => [d.date, d.download, d.upload, d.total, d.users, d.peakTime, d.activeSessions].map(f => csvSafeEscape(f)).join(','));
                 const csv = [headers, ...rows].join('\n');
                 const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
                 const url = URL.createObjectURL(blob);
@@ -643,7 +643,6 @@ function UserBandwidthTab() {
         toast({ title: t('wrError'), description: typeof result.error === 'string' ? result.error : result.error?.message || t('wrFailedFetchUserBw'), variant: 'destructive' });
       }
     } catch (e) {
-      console.error(e);
       toast({ title: t('wrError'), description: t('wrFailedFetchUserBw'), variant: 'destructive' });
     } finally {
       setLoading(false);
@@ -1001,7 +1000,7 @@ function WebSurfingTab() {
 
   const handleExportCSV = useCallback(() => {
     const headers = 'Domain,Source IP,Src Port,Dest IP,Dest Port,Interface,Guest Name,Category,Connections,Bytes,Last Accessed';
-    const rows = surfingLogs.map(l => `${l.domain},${l.sourceIp || l.source_ip},${l.srcPort || ''},${l.destIp || ''},${l.destPort || ''},${l.inIface || ''},${l.guestName || ''},${l.category},${l.connections},${l.totalBytes},${l.lastAccess || l.last_access}`);
+    const rows = surfingLogs.map(l => [l.domain, l.sourceIp || l.source_ip, l.srcPort || '', l.destIp || '', l.destPort || '', l.inIface || '', l.guestName || '', l.category, l.connections, l.totalBytes, l.lastAccess || l.last_access].map(f => csvSafeEscape(f)).join(','));
     const csv = [headers, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1028,7 +1027,6 @@ function WebSurfingTab() {
         setDataSource(result.dataSource || 'demo');
       }
     } catch (e) {
-      console.error(e);
       toast({ title: t('wrError'), description: t('wrFailedFetchWebSurfing'), variant: 'destructive' });
     } finally {
       setLoading(false);
@@ -1243,7 +1241,7 @@ function NATLogsTab() {
 
   const handleExportCSV = useCallback(() => {
     const headers = 'Timestamp,Source IP:Port,NAT IP:Port,Dest IP:Port,Proto,Event Type,Download,Upload,Packets,Duration(s),Domain,Guest Name,Action';
-    const rows = logs.map(l => `${l.timestamp},${l.source_ip}:${l.src_port},${l.nat_src_ip || ''}:${l.nat_src_port || ''},${l.dest_ip}:${l.dst_port},${l.proto},${l.event_type || '-'},${l.bytes_orig || 0},${l.bytes_reply || 0},${l.packets || 0},${l.duration || 0},${l.domain || ''},${l.guestName || ''},${l.action || 'allow'}`);
+    const rows = logs.map(l => [l.timestamp, `${l.source_ip}:${l.src_port}`, `${l.nat_src_ip || ''}:${l.nat_src_port || ''}`, `${l.dest_ip}:${l.dst_port}`, l.proto, l.event_type || '-', l.bytes_orig || 0, l.bytes_reply || 0, l.packets || 0, l.duration || 0, l.domain || '', l.guestName || '', l.action || 'allow'].map(f => csvSafeEscape(f)).join(','));
     const csv = [headers, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1271,7 +1269,6 @@ function NATLogsTab() {
         setDataSource(result.dataSource || 'demo');
       }
     } catch (e) {
-      console.error(e);
       toast({ title: t('wrError'), description: t('wrFailedFetchNatLogs'), variant: 'destructive' });
     } finally {
       setLoading(false);
@@ -1513,7 +1510,6 @@ function VoucherReportTab() {
         toast({ title: t('wrError'), description: typeof result.error === 'string' ? result.error : result.error?.message || t('wrFailedFetchVoucher'), variant: 'destructive' });
       }
     } catch (e) {
-      console.error(e);
       toast({ title: t('wrError'), description: t('wrFailedFetchVoucher'), variant: 'destructive' });
     } finally {
       setLoading(false);
@@ -1529,7 +1525,7 @@ function VoucherReportTab() {
     const rows = vouchers.map(v => [
       v.code, v.planName, v.guestName || '', v.status, v.isUsed ? 'Yes' : 'No',
       v.validFrom, v.validUntil, v.usedAt || '', v.issuedTo || '', v.issuedAt || '', v.notes || '',
-    ].map(f => `"${f}"`).join(','));
+    ].map(f => csvSafeEscape(f)).join(','));
     const csv = [headers, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);

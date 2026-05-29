@@ -55,6 +55,16 @@ import {
 } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Bell,
   AlertTriangle,
   CheckCircle2,
@@ -187,6 +197,9 @@ export default function WiFiHealthAlerts() {
   const [showRuleDialog, setShowRuleDialog] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [newRule, setNewRule] = useState<NewRuleForm>(DEFAULT_NEW_RULE);
+
+  // Delete confirmation
+  const [deleteConfirmRuleId, setDeleteConfirmRuleId] = useState<string | null>(null);
 
   // ─── Fetch alerts (rules + active + history + properties) ─────────────────
 
@@ -710,7 +723,7 @@ export default function WiFiHealthAlerts() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                                onClick={() => handleDeleteRule(rule.id)}
+                                onClick={() => setDeleteConfirmRuleId(rule.id)}
                                 title="Delete rule"
                               >
                                 <Trash2 className="h-3 w-3" />
@@ -1138,6 +1151,24 @@ export default function WiFiHealthAlerts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ─── Delete Confirmation Dialog ─── */}
+      <AlertDialog open={!!deleteConfirmRuleId} onOpenChange={(open) => { if (!open) setDeleteConfirmRuleId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Alert Rule?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove this monitoring rule. Systems will no longer be monitored by this rule.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (deleteConfirmRuleId) { handleDeleteRule(deleteConfirmRuleId); setDeleteConfirmRuleId(null); } }}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

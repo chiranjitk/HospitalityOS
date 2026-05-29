@@ -85,6 +85,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow, format } from 'date-fns';
+import { maskIP, maskMAC, maskEmail } from '@/lib/wifi/validation';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -214,6 +215,9 @@ export default function WiFiDeviceManagement() {
   // Guest group expansion state
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
+  // Race condition guard for toggle handlers
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
   // Dialog state
   const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -279,6 +283,10 @@ export default function WiFiDeviceManagement() {
           autoCleanupDays,
         }),
       });
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Settings update failed (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Settings Saved', description: 'Device management settings updated.' });
@@ -314,6 +322,11 @@ export default function WiFiDeviceManagement() {
         params.set('limit', '100');
 
         const res = await fetch(`/api/wifi/devices?${params.toString()}`, { signal: controller.signal });
+        if (!res.ok) {
+          if (cancelled) return;
+          toast({ title: 'Error', description: `Failed to fetch devices (${res.status})`, variant: 'destructive' });
+          return;
+        }
         const data = await res.json();
 
         if (cancelled) return;
@@ -385,12 +398,18 @@ export default function WiFiDeviceManagement() {
   // ─── Toggle Auto-Auth ───────────────────────────────────────────────────────
 
   const handleToggleAutoAuth = async (device: WiFiDevice) => {
+    if (togglingId === device.id) return; // Double-click guard
+    setTogglingId(device.id);
     try {
       const res = await fetch(`/api/wifi/devices/${device.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ autoAuth: !device.autoAuth }),
       });
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Failed to update auto-auth (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         toast({
@@ -403,18 +422,26 @@ export default function WiFiDeviceManagement() {
       }
     } catch {
       toast({ title: 'Error', description: 'Failed to update auto-auth', variant: 'destructive' });
+    } finally {
+      setTogglingId(null);
     }
   };
 
   // ─── Toggle Approval ────────────────────────────────────────────────────────
 
   const handleToggleApproval = async (device: WiFiDevice) => {
+    if (togglingId === device.id) return; // Double-click guard
+    setTogglingId(device.id);
     try {
       const res = await fetch(`/api/wifi/devices/${device.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isApproved: !device.isApproved }),
       });
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Failed to update device approval (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         toast({
@@ -427,6 +454,8 @@ export default function WiFiDeviceManagement() {
       }
     } catch {
       toast({ title: 'Error', description: 'Failed to update device status', variant: 'destructive' });
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -460,6 +489,10 @@ export default function WiFiDeviceManagement() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Device registration failed (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const data = await res.json();
 
       if (data.success) {
@@ -500,6 +533,10 @@ export default function WiFiDeviceManagement() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editForm),
       });
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Device update failed (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const data = await res.json();
 
       if (data.success) {
@@ -525,6 +562,10 @@ export default function WiFiDeviceManagement() {
       const res = await fetch(`/api/wifi/devices/${selectedDevice.id}`, {
         method: 'DELETE',
       });
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Device deletion failed (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const data = await res.json();
 
       if (data.success) {
@@ -755,12 +796,12 @@ export default function WiFiDeviceManagement() {
                               </p>
                               {device.guest.email && (
                                 <p className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[160px]">
-                                  {device.guest.email}
+                                  {maskEmail(device.guest.email)}
                                 </p>
                               )}
                             </TableCell>
                             <TableCell>
-                              <span className="font-mono text-xs">{device.macAddress}</span>
+                              <span className="font-mono text-xs">{maskMAC(device.macAddress)}</span>
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
                               <span className="text-sm text-muted-foreground truncate block max-w-[150px]">
@@ -798,6 +839,7 @@ export default function WiFiDeviceManagement() {
                                 checked={device.autoAuth}
                                 onCheckedChange={() => handleToggleAutoAuth(device)}
                                 size="sm"
+                                disabled={togglingId === device.id}
                                 onClick={(e) => e.stopPropagation()}
                               />
                             </TableCell>
@@ -820,6 +862,7 @@ export default function WiFiDeviceManagement() {
                                   variant="ghost"
                                   size="sm"
                                   className="h-8 w-8 p-0"
+                                  disabled={togglingId === device.id}
                                   onClick={(e) => { e.stopPropagation(); handleToggleApproval(device); }}
                                 >
                                   {device.isApproved ? (
@@ -922,7 +965,7 @@ export default function WiFiDeviceManagement() {
                           <div className="text-left">
                             <p className="text-sm font-medium">{group.guestName}</p>
                             {group.guestEmail && (
-                              <p className="text-[10px] text-muted-foreground">{group.guestEmail}</p>
+                              <p className="text-[10px] text-muted-foreground">{maskEmail(group.guestEmail)}</p>
                             )}
                           </div>
                         </div>

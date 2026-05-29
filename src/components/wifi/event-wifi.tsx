@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import {
   Select,
   SelectContent,
@@ -72,6 +71,8 @@ import {
   Mail,
   User,
   Info,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -129,6 +130,8 @@ interface SmartTableProps {
 }
 
 function SmartCredentialsTable({ users, onPrint, onRevoke, onCopy }: SmartTableProps) {
+  const [revealedPasswords, setRevealedPasswords] = useState<Set<string>>(new Set());
+
   // Determine which columns to show based on data
   const hasGuestName = users.some(u => u.guestName);
   const hasEmail = users.some(u => u.email);
@@ -165,7 +168,22 @@ function SmartCredentialsTable({ users, onPrint, onRevoke, onCopy }: SmartTableP
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1 whitespace-nowrap">
-                  <span className="font-mono text-sm">{user.password}</span>
+                  <span className="font-mono text-sm">
+                    {revealedPasswords.has(user.id) ? user.password : '••••••••'}
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (revealedPasswords.has(user.id)) {
+                        setRevealedPasswords(prev => { const next = new Set(prev); next.delete(user.id); return next; });
+                      } else {
+                        setRevealedPasswords(prev => new Set(prev).add(user.id));
+                      }
+                    }}
+                    className="text-muted-foreground hover:text-foreground p-0.5"
+                    title={revealedPasswords.has(user.id) ? 'Hide password' : 'Reveal password'}
+                  >
+                    {revealedPasswords.has(user.id) ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
                   <button
                     onClick={() => onCopy(user.password, 'Password')}
                     className="text-muted-foreground hover:text-foreground p-0.5"
@@ -272,7 +290,6 @@ export default function EventWifi() {
   // Bulk generation
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [bulkGenerating, setBulkGenerating] = useState(false);
-  const [bulkProgress, setBulkProgress] = useState(0);
   const [bulkForm, setBulkForm] = useState({
     eventId: '',
     count: 10,
@@ -504,11 +521,6 @@ export default function EventWifi() {
     }
 
     setBulkGenerating(true);
-    setBulkProgress(0);
-
-    const progressInterval = setInterval(() => {
-      setBulkProgress(prev => Math.min(prev + Math.random() * 15, 90));
-    }, 200);
 
     try {
       const res = await fetch('/api/wifi/radius', {
@@ -526,24 +538,18 @@ export default function EventWifi() {
         }),
       });
       const data = await res.json();
-      clearInterval(progressInterval);
-      setBulkProgress(100);
 
       if (data.success) {
         toast({ title: 'Users Generated', description: `Generated ${data.data?.created || bulkForm.count} event WiFi credentials` });
         setTimeout(() => {
           setBulkDialogOpen(false);
-          setBulkProgress(0);
           fetchEvents();
         }, 500);
       } else {
         toast({ title: 'Error', description: typeof data.error === 'string' ? data.error : data.error?.message || 'Failed to generate users', variant: 'destructive' });
-        setBulkProgress(0);
       }
     } catch {
-      clearInterval(progressInterval);
       toast({ title: 'Error', description: 'Failed to generate users', variant: 'destructive' });
-      setBulkProgress(0);
     } finally {
       setBulkGenerating(false);
     }
@@ -1170,10 +1176,9 @@ export default function EventWifi() {
               />
             </div>
             {bulkGenerating && (
-              <div className="space-y-2">
-                <Label className="text-sm">Generating...</Label>
-                <Progress value={bulkProgress} className="h-2" />
-                <p className="text-xs text-muted-foreground">{Math.round(bulkProgress)}%</p>
+              <div className="flex items-center gap-2 py-2">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                <Label className="text-sm text-muted-foreground">Generating {bulkForm.count} credentials…</Label>
               </div>
             )}
           </div>

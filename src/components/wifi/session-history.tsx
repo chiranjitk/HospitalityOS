@@ -295,6 +295,9 @@ export default function SessionHistory() {
       const res = await fetch(`/api/wifi/session-history?${params.toString()}`, {
         signal: controller.signal,
       });
+      if (!res.ok) {
+        throw new Error(`Session history fetch failed (${res.status})`);
+      }
       const data = await res.json();
 
       if (!controller.signal.aborted) {
@@ -320,6 +323,7 @@ export default function SessionHistory() {
       if (error.name !== 'AbortError') {
         console.error('Session history fetch error:', error);
         setSessions([]);
+        toast({ title: 'Error', description: error.message || 'Failed to load sessions', variant: 'destructive' });
       }
     } finally {
       if (!controller.signal.aborted) {

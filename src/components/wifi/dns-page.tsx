@@ -21,6 +21,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { isValidDomain, isValidIPv4 } from '@/lib/wifi/validation';
 import {
   Network, Play, Square, RotateCw, RefreshCw, Plus, Trash2, Edit2,
   Globe, Server, ArrowUpDown, Activity, Database,
@@ -1086,6 +1087,14 @@ function RedirectsTab() {
   useEffect(() => { fetchRedirects(); }, [fetchRedirects]);
 
   const handleSave = async () => {
+    if (form.domain && !isValidDomain(form.domain.replace(/^\*\./, 'test.'))) {
+      toast({ title: 'Invalid Domain', description: 'Enter a valid domain name (wildcards supported)', variant: 'destructive' });
+      return;
+    }
+    if (form.targetIp && !isValidIPv4(form.targetIp)) {
+      toast({ title: 'Invalid IP', description: 'Enter a valid IPv4 address', variant: 'destructive' });
+      return;
+    }
     try {
       if (editRedirect) {
         await apiMutate(`/redirects/${editRedirect.id}`, form, 'PUT');

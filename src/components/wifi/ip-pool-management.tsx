@@ -49,6 +49,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { isValidIPv4, isValidCIDR } from '@/lib/wifi/validation';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -378,6 +379,14 @@ export default function IpPoolManagement() {
       toast({ title: 'Validation Error', description: 'Subnet in CIDR format is required (e.g., 10.0.0.0/24)', variant: 'destructive' });
       return;
     }
+    if (!isValidCIDR(formData.subnet.trim())) {
+      toast({ title: 'Validation Error', description: 'Invalid CIDR format. Expected: 10.0.0.0/24', variant: 'destructive' });
+      return;
+    }
+    if (formData.gateway?.trim() && !isValidIPv4(formData.gateway.trim())) {
+      toast({ title: 'Validation Error', description: 'Invalid gateway IP address format', variant: 'destructive' });
+      return;
+    }
     const validRanges = formData.ranges.filter(r => r.startIp && r.endIp);
     if (validRanges.length === 0) {
       toast({ title: 'Validation Error', description: 'At least one IP range is required', variant: 'destructive' });
@@ -451,6 +460,14 @@ export default function IpPoolManagement() {
     }
     if (!formData.subnet?.trim() || !formData.subnet.includes('/')) {
       toast({ title: 'Validation Error', description: 'Subnet in CIDR format is required (e.g., 10.0.0.0/24)', variant: 'destructive' });
+      return;
+    }
+    if (!isValidCIDR(formData.subnet.trim())) {
+      toast({ title: 'Validation Error', description: 'Invalid CIDR format. Expected: 10.0.0.0/24', variant: 'destructive' });
+      return;
+    }
+    if (formData.gateway?.trim() && !isValidIPv4(formData.gateway.trim())) {
+      toast({ title: 'Validation Error', description: 'Invalid gateway IP address format', variant: 'destructive' });
       return;
     }
     const clientValidation = validateFormRanges(formData.ranges);

@@ -120,6 +120,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFeatureFlags } from '@/contexts/FeatureFlagsContext';
+import { isValidIPv4, isValidPort, clampPort, isValidMAC, isValidCIDR } from '@/lib/wifi/validation';
 
 // ─── Lazy-loaded tab components ─────────────────────────────────────
 
@@ -898,8 +899,25 @@ function RulesTab() {
       toast({ title: 'Validation Error', description: 'Rule name is required', variant: 'destructive' });
       return;
     }
-    if (form.sourceMac && !/^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/.test(form.sourceMac.trim())) {
+    if (form.sourceMac && !isValidMAC(form.sourceMac.trim())) {
       toast({ title: 'Validation Error', description: 'Invalid MAC address format (expected: AA:BB:CC:DD:EE:FF)', variant: 'destructive' });
+      return;
+    }
+    // Validate IP/CIDR fields if they look like IPs (not domains)
+    if (form.sourceIp && clientSideDetectType(form.sourceIp) === 'ip' && !isValidIPv4(form.sourceIp.trim())) {
+      toast({ title: 'Validation Error', description: 'Invalid source IP address format', variant: 'destructive' });
+      return;
+    }
+    if (form.sourceIp && clientSideDetectType(form.sourceIp) === 'cidr' && !isValidCIDR(form.sourceIp.trim())) {
+      toast({ title: 'Validation Error', description: 'Invalid source CIDR format', variant: 'destructive' });
+      return;
+    }
+    if (form.destIp && clientSideDetectType(form.destIp) === 'ip' && !isValidIPv4(form.destIp.trim())) {
+      toast({ title: 'Validation Error', description: 'Invalid destination IP address format', variant: 'destructive' });
+      return;
+    }
+    if (form.destIp && clientSideDetectType(form.destIp) === 'cidr' && !isValidCIDR(form.destIp.trim())) {
+      toast({ title: 'Validation Error', description: 'Invalid destination CIDR format', variant: 'destructive' });
       return;
     }
     const portRegex = /^(\d{1,5}(-\d{1,5})?)(,\d{1,5}(-\d{1,5})?)*$/;
@@ -907,9 +925,30 @@ function RulesTab() {
       toast({ title: 'Validation Error', description: 'Invalid source port format (expected: 80, 8000-9000)', variant: 'destructive' });
       return;
     }
+    // Validate individual port numbers are within 1-65535
+    if (form.sourcePort) {
+      const portParts = form.sourcePort.trim().split(/,/);
+      for (const part of portParts) {
+        const [lo, hi] = part.split('-').map(Number);
+        if (!isValidPort(lo) || (hi !== undefined && !isValidPort(hi))) {
+          toast({ title: 'Validation Error', description: `Source port ${part} is out of range (1-65535)`, variant: 'destructive' });
+          return;
+        }
+      }
+    }
     if (form.destPort && !portRegex.test(form.destPort.trim())) {
       toast({ title: 'Validation Error', description: 'Invalid destination port format', variant: 'destructive' });
       return;
+    }
+    if (form.destPort) {
+      const portParts = form.destPort.trim().split(/,/);
+      for (const part of portParts) {
+        const [lo, hi] = part.split('-').map(Number);
+        if (!isValidPort(lo) || (hi !== undefined && !isValidPort(hi))) {
+          toast({ title: 'Validation Error', description: `Destination port ${part} is out of range (1-65535)`, variant: 'destructive' });
+          return;
+        }
+      }
     }
     try {
       setSaving(true);
@@ -1606,19 +1645,22 @@ function PortForwardTab() {
       toast({ title: 'Validation Error', description: 'Name, ports, and internal IP are required', variant: 'destructive' });
       return;
     }
-    const extPort = parseInt(form.externalPort, 10);
-    const intPort = parseInt(form.internalPort, 10);
-    if (isNaN(extPort) || extPort < 1 || extPort > 65535) {
+    const extPort = clampPort(form.externalPort, 80);
+    const intPort = clampPort(form.internalPort, 80);
+    if (extPort < 1 || extPort > 65535) {
       toast({ title: 'Validation Error', description: 'External port must be between 1 and 65535', variant: 'destructive' });
       return;
     }
-    if (isNaN(intPort) || intPort < 1 || intPort > 65535) {
+    if (intPort < 1 || intPort > 65535) {
       toast({ title: 'Validation Error', description: 'Internal port must be between 1 and 65535', variant: 'destructive' });
       return;
     }
-    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
-    if (!ipRegex.test(form.internalIp)) {
-      toast({ title: 'Validation Error', description: 'Invalid internal IP format', variant: 'destructive' });
+    if (form.internalIp && !isValidIPv4(form.internalIp.trim())) {
+      toast({ title: 'Validation Error', description: 'Invalid internal IP address format', variant: 'destructive' });
+      return;
+    }
+    if (form.sourceIp && !isValidIPv4(form.sourceIp.trim()) && !isValidCIDR(form.sourceIp.trim())) {
+      toast({ title: 'Validation Error', description: 'Invalid source IP or CIDR format', variant: 'destructive' });
       return;
     }
     try {

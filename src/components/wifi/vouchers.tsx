@@ -55,6 +55,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { clampPositive } from '@/lib/wifi/validation';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { usePropertyId } from '@/hooks/use-property';
@@ -830,7 +831,7 @@ export default function WifiVouchers() {
                   min="1"
                   max="100"
                   value={formData.quantity}
-                  onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, quantity: clampPositive(parseInt(e.target.value), 1, 100, 1) }))}
                 />
               </div>
               <div className="space-y-2">
@@ -840,7 +841,7 @@ export default function WifiVouchers() {
                   type="number"
                   min="1"
                   value={formData.validityDays}
-                  onChange={(e) => setFormData(prev => ({ ...prev, validityDays: parseInt(e.target.value) || 1 }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, validityDays: clampPositive(parseInt(e.target.value), 1, 365, 1) }))}
                 />
               </div>
             </div>

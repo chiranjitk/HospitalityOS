@@ -79,6 +79,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { usePropertyId } from '@/hooks/use-property';
 import dynamic from 'next/dynamic';
+import { isValidCIDR, cidrOverlap, isGatewayInSubnet } from '@/lib/wifi/validation';
 
 const DhcpAdvancedTabs = dynamic(() => import('./dhcp-advanced-tabs').then(mod => ({ default: mod.DhcpAdvancedTabs })), {
   ssr: false,
@@ -953,6 +954,29 @@ export default function DhcpPage() {
   const saveSubnet = async () => {
     if (!subnetForm.name || !subnetForm.cidr || !subnetForm.gateway) {
       toast({ title: 'Validation Error', description: 'Name, CIDR, and Gateway are required.', variant: 'destructive' });
+      return;
+    }
+
+    // Validate CIDR format
+    if (!isValidCIDR(subnetForm.cidr)) {
+      toast({ title: 'Validation Error', description: 'Invalid CIDR format. Use format like 192.168.1.0/24', variant: 'destructive' });
+      return;
+    }
+
+    // Check for overlapping subnets
+    const existingSubnets = subnets.filter(s => s.id !== editingSubnet?.id);
+    const overlapping = existingSubnets.find(s => {
+      if (!isValidCIDR(s.cidr)) return false;
+      return cidrOverlap(subnetForm.cidr, s.cidr);
+    });
+    if (overlapping) {
+      toast({ title: 'Overlap Detected', description: `CIDR ${subnetForm.cidr} overlaps with existing subnet "${overlapping.name}" (${overlapping.cidr}). This will cause IP conflicts.`, variant: 'destructive' });
+      return;
+    }
+
+    // Validate gateway is within subnet
+    if (subnetForm.gateway && subnetForm.cidr && !isGatewayInSubnet(subnetForm.gateway, subnetForm.cidr)) {
+      toast({ title: 'Invalid Gateway', description: `Gateway ${subnetForm.gateway} is not within the subnet ${subnetForm.cidr}`, variant: 'destructive' });
       return;
     }
 

@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { clampPositive, isValidCIDR } from '@/lib/wifi/validation';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -207,6 +208,10 @@ export default function BandwidthPoolManagement() {
 
   const validateForm = (): string | null => {
     if (!formData.name.trim()) return 'Pool name is required.';
+
+    if (formData.subnet.trim() && !isValidCIDR(formData.subnet.trim())) {
+      return 'Invalid subnet format. Use CIDR notation (e.g., 192.168.100.0/24).';
+    }
 
     const downloadMbps = kbpsToMbps(formData.totalDownloadKbps);
     const uploadMbps = kbpsToMbps(formData.totalUploadKbps);
@@ -389,7 +394,8 @@ export default function BandwidthPoolManagement() {
       setFormData((prev) => ({ ...prev, totalDownloadKbps: 0 }));
       return;
     }
-    setFormData((prev) => ({ ...prev, totalDownloadKbps: mbpsToKbps(mbps) }));
+    const clamped = clampPositive(mbps, 0, 10000, 0);
+    setFormData((prev) => ({ ...prev, totalDownloadKbps: mbpsToKbps(clamped) }));
   };
 
   const handleUploadChange = (value: string) => {
@@ -398,7 +404,8 @@ export default function BandwidthPoolManagement() {
       setFormData((prev) => ({ ...prev, totalUploadKbps: 0 }));
       return;
     }
-    setFormData((prev) => ({ ...prev, totalUploadKbps: mbpsToKbps(mbps) }));
+    const clamped = clampPositive(mbps, 0, 10000, 0);
+    setFormData((prev) => ({ ...prev, totalUploadKbps: mbpsToKbps(clamped) }));
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────

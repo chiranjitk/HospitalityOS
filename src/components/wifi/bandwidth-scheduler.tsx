@@ -313,6 +313,9 @@ export default function BandwidthScheduler() {
   // Enforce Now state
   const [enforcing, setEnforcing] = useState(false);
 
+  // Confirmation state for destructive enforce action
+  const [enforceConfirm, setEnforceConfirm] = useState(false);
+
   // WiFi Plans list (for Specific Plan selector)
   const [wifiPlans, setWifiPlans] = useState<WifiPlan[]>([]);
 
@@ -682,7 +685,7 @@ export default function BandwidthScheduler() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={handleEnforceNow} disabled={enforcing}>
+          <Button variant="outline" size="sm" onClick={() => setEnforceConfirm(true)} disabled={enforcing}>
             <Zap className={`h-4 w-4 mr-2 ${enforcing ? 'animate-pulse' : ''}`} />
             {enforcing ? 'Enforcing...' : 'Enforce Now'}
           </Button>
@@ -1307,6 +1310,32 @@ export default function BandwidthScheduler() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ─── Enforce Now Confirmation ─────────────────────────────── */}
+      <AlertDialog open={enforceConfirm} onOpenChange={setEnforceConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enforce bandwidth schedules?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will immediately apply bandwidth schedules to all matching RADIUS users
+              via CoA (Change of Authorization). Users with a &quot;Deny&quot; schedule will be
+              disconnected. Users with a &quot;Limit&quot; schedule will have their bandwidth reduced.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleEnforceNow}
+              disabled={enforcing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {enforcing && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+              Enforce Now
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

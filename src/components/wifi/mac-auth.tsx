@@ -67,6 +67,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
+import { isSafeMAC } from '@/lib/wifi/validation';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -269,6 +270,16 @@ export default function MacAuth({ propertyId }: MacAuthProps) {
     const cleaned = form.macAddress.replace(/[^0-9a-fA-F]/g, '');
     if (cleaned.length !== 12) {
       toast({ title: 'Error', description: 'Invalid MAC address format', variant: 'destructive' });
+      return;
+    }
+
+    // Reject broadcast, multicast, and reserved MAC addresses
+    if (!isSafeMAC(form.macAddress)) {
+      toast({
+        title: 'Invalid MAC',
+        description: 'Broadcast, multicast, and reserved MAC addresses are not allowed',
+        variant: 'destructive',
+      });
       return;
     }
 

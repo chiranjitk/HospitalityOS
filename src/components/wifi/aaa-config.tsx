@@ -650,6 +650,9 @@ export default function AAAConfig() {
   });
   const [savingServerConfig, setSavingServerConfig] = useState(false);
 
+  // Confirmation state for destructive service actions
+  const [serviceActionConfirm, setServiceActionConfirm] = useState<'restart' | 'stop' | null>(null);
+
   // Fetch active WiFi plans AND all property AAA configs (for summary)
   const fetchPropertySummary = async (props: any[], plans: WifiPlan[]) => {
     if (!props || props.length === 0) return [];
@@ -1238,7 +1241,7 @@ export default function AAAConfig() {
                   Start
                 </Button>
                 <Button
-                  onClick={() => handleServiceAction('stop')}
+                  onClick={() => setServiceActionConfirm('stop')}
                   disabled={!serviceStatus?.running}
                   variant="destructive"
                   className="w-full"
@@ -1247,7 +1250,7 @@ export default function AAAConfig() {
                   Stop
                 </Button>
                 <Button
-                  onClick={() => handleServiceAction('restart')}
+                  onClick={() => setServiceActionConfirm('restart')}
                   variant="outline"
                   className="w-full"
                 >
@@ -2464,6 +2467,36 @@ export default function AAAConfig() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDeleteNas} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Service Action Confirmation ─────────────────────────────── */}
+      <AlertDialog open={!!serviceActionConfirm} onOpenChange={(open) => !open && setServiceActionConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {serviceActionConfirm === 'stop' ? 'Stop' : 'Restart'} RADIUS service?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {serviceActionConfirm === 'stop'
+                ? 'This will immediately stop the RADIUS server and disconnect ALL active WiFi sessions. Users will need to reconnect after the service is started again.'
+                : 'This will restart the RADIUS service, which will briefly disconnect ALL active WiFi sessions. Users will be able to reconnect automatically once the service is back up.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (serviceActionConfirm) {
+                  handleServiceAction(serviceActionConfirm);
+                  setServiceActionConfirm(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {serviceActionConfirm === 'stop' ? 'Stop' : 'Restart'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -576,7 +576,6 @@ export default function FupDashboard() {
 
       setLastUpdated(new Date());
     } catch (error) {
-      console.error('Failed to fetch FUP dashboard data:', error);
       if (!isBackground) {
         toast({
           title: 'Error',
@@ -1157,8 +1156,7 @@ export default function FupDashboard() {
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Activity className="h-3.5 w-3.5 shrink-0" />
         <span>
-          Auto-refreshes every 30 seconds. Usage is calculated client-side by comparing session byte
-          counters against the FUP policy data limit. Actual enforcement is handled by the RADIUS server.
+          Auto-refreshes every 30 seconds. This dashboard displays enforcement status. Actual FUP enforcement is performed server-side by the RADIUS server via CoA (Change of Authorization) — no admin dashboard needs to be open for enforcement to work.
         </span>
       </div>
     </div>

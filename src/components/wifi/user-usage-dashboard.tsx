@@ -10,7 +10,7 @@
  * Desktop: table view with inline actions.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,6 +63,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { debounce } from '@/lib/wifi/validation';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -221,6 +222,11 @@ export default function UserUsageDashboard() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [inputValue, setInputValue] = useState('');
+
+  const debouncedSearch = useMemo(() => debounce((val: string) => {
+    setSearchQuery(val);
+  }, 400), []);
   const [sortBy, setSortBy] = useState<SortKey>('download');
 
   // Detail dialog
@@ -752,8 +758,8 @@ export default function UserUsageDashboard() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by username..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={inputValue}
+                  onChange={(e) => { setInputValue(e.target.value); debouncedSearch(e.target.value); }}
                   className="pl-9"
                 />
               </div>
@@ -798,7 +804,7 @@ export default function UserUsageDashboard() {
           {/* Mobile: Card Layout */}
           <div className="space-y-3 sm:hidden">
             {filteredUsers.map((user, index) => (
-              <UserCard key={user.username} user={user} index={index} />
+              <UserCard key={`${user.username}-${index}`} user={user} index={index} />
             ))}
           </div>
 
@@ -824,7 +830,7 @@ export default function UserUsageDashboard() {
                     <TableBody>
                       {filteredUsers.map((user, index) => (
                         <TableRow
-                          key={user.username}
+                          key={`${user.username}-${index}`}
                           className={cn(
                             index === 0 && 'bg-amber-50/50 dark:bg-amber-950/10',
                             index === 1 && 'bg-slate-50/50 dark:bg-slate-950/10',

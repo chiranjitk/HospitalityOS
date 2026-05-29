@@ -428,6 +428,18 @@ export default function RoomVlanManager() {
       toast({ title: 'Validation Error', description: 'Room number is required', variant: 'destructive' });
       return;
     }
+    // Check for VLAN ID overlap on the same floor/zone
+    const overlap = roomVlans.find(
+      (rv) => rv.id !== editingId && rv.floor === form.floor && rv.vlanId === form.vlanId
+    );
+    if (overlap) {
+      toast({
+        title: 'VLAN ID Overlap',
+        description: `VLAN ID ${form.vlanId} is already assigned to room ${overlap.roomNumber} on floor ${form.floor}. Each VLAN ID must be unique per floor.`,
+        variant: 'destructive',
+      });
+      return;
+    }
     try {
       setSaving(true);
       if (editingId) {

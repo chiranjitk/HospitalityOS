@@ -72,6 +72,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow, format } from 'date-fns';
+import { isSafeURL } from '@/lib/wifi/validation';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -362,6 +363,10 @@ export default function WiFiConsentManagement() {
 
   const handleSaveSettings = async () => {
     try {
+      if (cookiePolicyUrl && !isSafeURL(cookiePolicyUrl)) {
+        toast({ title: 'Invalid URL', description: 'URL must start with http:// or https://', variant: 'destructive' });
+        return;
+      }
       setSavingSettings(true);
       const res = await fetch('/api/wifi/consent-logs/settings', {
         method: 'PUT',
@@ -748,6 +753,9 @@ export default function WiFiConsentManagement() {
                     placeholder="https://hotel.com/privacy/cookies"
                     className="text-sm"
                   />
+                  {cookiePolicyUrl && !isSafeURL(cookiePolicyUrl) && (
+                    <p className="text-xs text-destructive mt-1">URL must start with http:// or https://</p>
+                  )}
                 </div>
 
                 <Button
@@ -893,7 +901,7 @@ export default function WiFiConsentManagement() {
               <Checkbox checked disabled />
               <Label className="text-xs">I have read and agree to the terms and privacy policy</Label>
             </div>
-            {cookiePolicyUrl && (
+            {cookiePolicyUrl && isSafeURL(cookiePolicyUrl) && (
               <a href={cookiePolicyUrl} className="text-xs text-primary underline" target="_blank" rel="noopener noreferrer">
                 Read our Cookie Policy
               </a>

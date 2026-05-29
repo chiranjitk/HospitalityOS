@@ -141,6 +141,10 @@ export default function UsageLogs() {
     const fetchGuests = async () => {
       try {
         const response = await fetch('/api/guests?limit=100');
+        if (!response.ok) {
+          toast({ title: 'Error', description: `Failed to fetch guests (${response.status})`, variant: 'destructive' });
+          return;
+        }
         const result = await response.json();
         if (result.success) {
           setGuests(result.data);
@@ -169,6 +173,10 @@ export default function UsageLogs() {
       }
 
       const response = await fetch(`/api/wifi/sessions?${params.toString()}`);
+      if (!response.ok) {
+        toast({ title: 'Error', description: `Failed to fetch sessions (${response.status})`, variant: 'destructive' });
+        return;
+      }
       const result = await response.json();
 
       if (result.success) {

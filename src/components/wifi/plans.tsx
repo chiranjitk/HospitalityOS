@@ -51,6 +51,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { usePropertyId } from '@/hooks/use-property';
+import { clampPositive } from '@/lib/wifi/validation';
 
 interface PlanPool {
   id: string;
@@ -196,6 +197,7 @@ export default function WifiPlans() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<WiFiPlan | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [planUsageInfo, setPlanUsageInfo] = useState<{ activeUsers: number; activeVouchers: number } | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -313,6 +315,11 @@ export default function WifiPlans() {
       return;
     }
 
+    if (plans.some(p => p.name.toLowerCase() === formData.name.trim().toLowerCase())) {
+      toast({ title: 'Duplicate Plan', description: 'A plan with this name already exists', variant: 'destructive' });
+      return;
+    }
+
     setIsSaving(true);
     try {
       const response = await fetch('/api/wifi/plans', {
@@ -321,24 +328,24 @@ export default function WifiPlans() {
         body: JSON.stringify({
           name: formData.name,
           description: formData.description || null,
-          downloadSpeed: parseInt(formData.downloadSpeed),
-          uploadSpeed: parseInt(formData.uploadSpeed),
-          burstDownloadSpeed: formData.burstDownloadSpeed ? parseInt(formData.burstDownloadSpeed) : null,
-          burstUploadSpeed: formData.burstUploadSpeed ? parseInt(formData.burstUploadSpeed) : null,
-          dataLimit: formData.unlimitedData ? null : (formData.dataLimit ? parseInt(formData.dataLimit) : null),
-          sessionLimit: formData.unlimitedSession ? null : (formData.sessionLimit ? parseInt(formData.sessionLimit) : null),
-          maxDevices: parseInt(formData.maxDevices),
+          downloadSpeed: clampPositive(parseInt(formData.downloadSpeed), 1, 10000, 10),
+          uploadSpeed: clampPositive(parseInt(formData.uploadSpeed), 1, 10000, 5),
+          burstDownloadSpeed: formData.burstDownloadSpeed ? clampPositive(parseInt(formData.burstDownloadSpeed), 0, 10000, 0) : null,
+          burstUploadSpeed: formData.burstUploadSpeed ? clampPositive(parseInt(formData.burstUploadSpeed), 0, 10000, 0) : null,
+          dataLimit: formData.unlimitedData ? null : (formData.dataLimit ? clampPositive(parseInt(formData.dataLimit), 0, 1048576, 0) : null),
+          sessionLimit: formData.unlimitedSession ? null : (formData.sessionLimit ? clampPositive(parseInt(formData.sessionLimit), 0, 525600, 0) : null),
+          maxDevices: clampPositive(parseInt(formData.maxDevices), 1, 100, 1),
           fupPolicyId: formData.fupPolicyId && formData.fupPolicyId !== 'none' ? formData.fupPolicyId : undefined,
           ipPoolIds: selectedPoolIds.length > 0
             ? selectedPoolIds.map((poolId, index) => ({ poolId, priority: index }))
             : undefined,
-          price: parseFloat(formData.price),
+          price: clampPositive(parseFloat(formData.price), 0, 999999, 0),
           currency: formData.currency,
-          priority: parseInt(formData.priority),
-          validityDays: calcValidityDays(parseInt(formData.validityValue) || 1, formData.validityUnit),
-          validityMinutes: calcValidityMinutes(parseInt(formData.validityValue) || 1, formData.validityUnit),
-          sessionTimeoutSec: formData.sessionTimeout ? parseInt(formData.sessionTimeout) : null,
-          idleTimeoutSec: formData.idleTimeout ? parseInt(formData.idleTimeout) : null,
+          priority: clampPositive(parseInt(formData.priority), 0, 999, 0),
+          validityDays: calcValidityDays(clampPositive(parseInt(formData.validityValue), 1, 365, 1), formData.validityUnit),
+          validityMinutes: calcValidityMinutes(clampPositive(parseInt(formData.validityValue), 1, 365, 1), formData.validityUnit),
+          sessionTimeoutSec: formData.sessionTimeout ? clampPositive(parseInt(formData.sessionTimeout), 1, 10080, 1440) : null,
+          idleTimeoutSec: formData.idleTimeout ? clampPositive(parseInt(formData.idleTimeout), 1, 10080, 300) : null,
           status: formData.status,
         }),
       });
@@ -385,24 +392,24 @@ export default function WifiPlans() {
           id: selectedPlan.id,
           name: formData.name,
           description: formData.description || null,
-          downloadSpeed: parseInt(formData.downloadSpeed),
-          uploadSpeed: parseInt(formData.uploadSpeed),
-          burstDownloadSpeed: formData.burstDownloadSpeed ? parseInt(formData.burstDownloadSpeed) : null,
-          burstUploadSpeed: formData.burstUploadSpeed ? parseInt(formData.burstUploadSpeed) : null,
-          dataLimit: formData.unlimitedData ? null : (formData.dataLimit ? parseInt(formData.dataLimit) : null),
-          sessionLimit: formData.unlimitedSession ? null : (formData.sessionLimit ? parseInt(formData.sessionLimit) : null),
-          maxDevices: parseInt(formData.maxDevices),
+          downloadSpeed: clampPositive(parseInt(formData.downloadSpeed), 1, 10000, 10),
+          uploadSpeed: clampPositive(parseInt(formData.uploadSpeed), 1, 10000, 5),
+          burstDownloadSpeed: formData.burstDownloadSpeed ? clampPositive(parseInt(formData.burstDownloadSpeed), 0, 10000, 0) : null,
+          burstUploadSpeed: formData.burstUploadSpeed ? clampPositive(parseInt(formData.burstUploadSpeed), 0, 10000, 0) : null,
+          dataLimit: formData.unlimitedData ? null : (formData.dataLimit ? clampPositive(parseInt(formData.dataLimit), 0, 1048576, 0) : null),
+          sessionLimit: formData.unlimitedSession ? null : (formData.sessionLimit ? clampPositive(parseInt(formData.sessionLimit), 0, 525600, 0) : null),
+          maxDevices: clampPositive(parseInt(formData.maxDevices), 1, 100, 1),
           fupPolicyId: formData.fupPolicyId && formData.fupPolicyId !== 'none' ? formData.fupPolicyId : null,
           ipPoolIds: selectedPoolIds.length > 0
             ? selectedPoolIds.map((poolId, index) => ({ poolId, priority: index }))
             : [],
-          price: parseFloat(formData.price),
+          price: clampPositive(parseFloat(formData.price), 0, 999999, 0),
           currency: formData.currency,
-          priority: parseInt(formData.priority),
-          validityDays: calcValidityDays(parseInt(formData.validityValue) || 1, formData.validityUnit),
-          validityMinutes: calcValidityMinutes(parseInt(formData.validityValue) || 1, formData.validityUnit),
-          sessionTimeoutSec: formData.sessionTimeout ? parseInt(formData.sessionTimeout) : null,
-          idleTimeoutSec: formData.idleTimeout ? parseInt(formData.idleTimeout) : null,
+          priority: clampPositive(parseInt(formData.priority), 0, 999, 0),
+          validityDays: calcValidityDays(clampPositive(parseInt(formData.validityValue), 1, 365, 1), formData.validityUnit),
+          validityMinutes: calcValidityMinutes(clampPositive(parseInt(formData.validityValue), 1, 365, 1), formData.validityUnit),
+          sessionTimeoutSec: formData.sessionTimeout ? clampPositive(parseInt(formData.sessionTimeout), 1, 10080, 1440) : null,
+          idleTimeoutSec: formData.idleTimeout ? clampPositive(parseInt(formData.idleTimeout), 1, 10080, 300) : null,
           status: formData.status,
         }),
       });
@@ -455,6 +462,7 @@ export default function WifiPlans() {
         });
         setIsDeleteOpen(false);
         setSelectedPlan(null);
+        setPlanUsageInfo(null);
         fetchPlans();
       } else {
         toast({
@@ -464,7 +472,6 @@ export default function WifiPlans() {
         });
       }
     } catch (error) {
-      console.error('Error deleting plan:', error);
       toast({
         title: 'Error',
         description: 'Failed to delete plan',
@@ -510,8 +517,15 @@ export default function WifiPlans() {
     setIsEditOpen(true);
   };
 
-  const openDeleteDialog = (plan: WiFiPlan) => {
+  const openDeleteDialog = async (plan: WiFiPlan) => {
     setSelectedPlan(plan);
+    try {
+      const res = await fetch(`/api/wifi/plans?id=${plan.id}&includeUsage=true`);
+      const data = await res.json();
+      setPlanUsageInfo(data.usage || null);
+    } catch {
+      setPlanUsageInfo(null);
+    }
     setIsDeleteOpen(true);
   };
 
@@ -1256,7 +1270,7 @@ export default function WifiPlans() {
                 </Select>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                = {formatDuration(calcValidityMinutes(parseInt(formData.validityValue) || 1, formData.validityUnit))} total
+                = {formatDuration(calcValidityMinutes(clampPositive(parseInt(formData.validityValue), 1, 365, 1), formData.validityUnit))} total
               </p>
             </div>
             {/* Session Timeout & Idle Timeout */}
@@ -1346,19 +1360,32 @@ export default function WifiPlans() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => {
+        if (!open) {
+          setPlanUsageInfo(null);
+          setSelectedPlan(null);
+        }
+        setIsDeleteOpen(open);
+      }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Delete WiFi Plan</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete &quot;{selectedPlan?.name}&quot;?
-              {selectedPlan?._count && (selectedPlan._count.vouchers > 0 || selectedPlan._count.sessions > 0) && (
-                <p className="mt-2 text-amber-600 dark:text-amber-400">
-                  This plan has associated vouchers or sessions. It will be deactivated instead of deleted.
-                </p>
-              )}
             </DialogDescription>
           </DialogHeader>
+          {planUsageInfo && (planUsageInfo.activeUsers > 0 || planUsageInfo.activeVouchers > 0) && (
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mt-2">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                ⚠ This plan is currently in use
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                {planUsageInfo.activeUsers > 0 && `${planUsageInfo.activeUsers} active user(s) `}
+                {planUsageInfo.activeVouchers > 0 && `${planUsageInfo.activeVouchers} active voucher(s) `}
+                will be orphaned.
+              </p>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
               Cancel

@@ -256,6 +256,10 @@ export default function WiFiIdentityVerification() {
       params.append('offset', String((page - 1) * pageSize));
 
       const res = await fetch(`/api/wifi/identity-logs?${params}`);
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Failed to load identity logs (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const json = await res.json();
       if (json.success) {
         setLogs(json.data || []);
@@ -350,6 +354,10 @@ export default function WiFiIdentityVerification() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ verificationStatus: 'verified', verifiedAt: new Date().toISOString() }),
       });
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Verification request failed (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const json = await res.json();
       if (json.success) {
         toast({ title: 'Verified', description: 'Identity verified successfully' });
@@ -371,6 +379,10 @@ export default function WiFiIdentityVerification() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ verificationStatus: 'failed', failureReason: failReason }),
       });
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Update request failed (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const json = await res.json();
       if (json.success) {
         toast({ title: 'Marked as Failed', description: 'Record updated successfully' });
@@ -413,6 +425,10 @@ export default function WiFiIdentityVerification() {
       params.append('startDate', startDate);
       params.append('endDate', endDate);
       const res = await fetch(`/api/wifi/identity-logs/stats?${params}`);
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Failed to generate report (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const json = await res.json();
       if (json.success) {
         const d = json.data;
@@ -474,6 +490,10 @@ export default function WiFiIdentityVerification() {
           otpMaxRetries: settings.otpMaxRetries,
         }),
       });
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Failed to save settings (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Settings Saved', description: 'Identity verification settings updated.' });

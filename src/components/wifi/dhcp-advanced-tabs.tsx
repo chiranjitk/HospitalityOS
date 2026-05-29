@@ -67,6 +67,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { isSafeScriptPath, isSafeRegex } from '@/lib/wifi/validation';
 
 // ─── Exported Types ────────────────────────────────────────────────────────────
 
@@ -416,6 +417,10 @@ export function DhcpAdvancedTabs({
 
   const saveTr = async () => {
     if (!trForm.name || !trForm.matchPattern || !trForm.setTag) { toast({ title: 'Validation Error', description: 'Name, pattern, and tag are required.', variant: 'destructive' }); return; }
+    if (!isSafeRegex(trForm.matchPattern)) {
+      toast({ title: 'Unsafe Pattern', description: 'The match pattern contains nested quantifiers or other constructs that may cause ReDoS (Regular Expression Denial of Service). Please simplify the pattern.', variant: 'destructive' });
+      return;
+    }
     setTrSaving(true);
     try {
       const body: Record<string, unknown> = { ...trForm, subnetId: trForm.subnetId === '__all__' ? null : trForm.subnetId };
@@ -502,7 +507,10 @@ export function DhcpAdvancedTabs({
 
   const saveLs = async () => {
     if (!lsForm.name || !lsForm.scriptPath) { toast({ title: 'Validation Error', description: 'Name and script path are required.', variant: 'destructive' }); return; }
-    if (!lsForm.scriptPath.startsWith('/')) { toast({ title: 'Validation Error', description: 'Script path must be absolute (start with /).', variant: 'destructive' }); return; }
+    if (lsForm.scriptPath && !isSafeScriptPath(lsForm.scriptPath)) {
+      toast({ title: 'Invalid Path', description: 'Script path must be within /etc/staysuite/scripts/ or /tmp/. Path traversal (..) is not allowed.', variant: 'destructive' });
+      return;
+    }
     if (lsForm.events.length === 0) { toast({ title: 'Validation Error', description: 'Select at least one event.', variant: 'destructive' }); return; }
     setLsSaving(true);
     try {

@@ -38,6 +38,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { format } from 'date-fns';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
@@ -93,20 +94,27 @@ interface DashboardData {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
+function formatCurrencyFn(value: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  } catch {
+    return new Intl.NumberFormat(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
 }
 
-function formatCompact(value: number): string {
-  if (value >= 10000000) return `₹${(value / 10000000).toFixed(1)}Cr`;
-  if (value >= 100000) return `₹${(value / 100000).toFixed(1)}L`;
-  if (value >= 1000) return `₹${(value / 1000).toFixed(1)}K`;
-  return `₹${value.toFixed(0)}`;
+function formatCompact(value: number, currencySymbol: string): string {
+  if (value >= 10000000) return `${currencySymbol}${(value / 10000000).toFixed(1)}Cr`;
+  if (value >= 100000) return `${currencySymbol}${(value / 100000).toFixed(1)}L`;
+  if (value >= 1000) return `${currencySymbol}${(value / 1000).toFixed(1)}K`;
+  return `${currencySymbol}${value.toFixed(0)}`;
 }
 
 function getSourceIcon(source: string) {
@@ -133,6 +141,7 @@ function getSourceColor(source: string) {
 
 export default function WiFiRevenueDashboard() {
   const { toast } = useToast();
+  const { currency, currencySymbol } = useCurrency();
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchKey, setFetchKey] = useState(0);
@@ -212,7 +221,7 @@ export default function WiFiRevenueDashboard() {
                 <DollarSign className="h-3.5 w-3.5 text-primary" />
               </div>
             </div>
-            <p className="text-2xl font-bold tabular-nums">{formatCompact(data.kpis.totalRevenue)}</p>
+            <p className="text-2xl font-bold tabular-nums">{formatCompact(data.kpis.totalRevenue, currencySymbol)}</p>
             <div className="flex items-center gap-1 mt-1">
               {data.revenueForecast.growthRate >= 0 ? (
                 <TrendingUp className="h-3 w-3 text-primary" />
@@ -235,7 +244,7 @@ export default function WiFiRevenueDashboard() {
                 <CreditCard className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
-            <p className="text-2xl font-bold tabular-nums">{formatCompact(data.kpis.monthlyRecurringRevenue)}</p>
+            <p className="text-2xl font-bold tabular-nums">{formatCompact(data.kpis.monthlyRecurringRevenue, currencySymbol)}</p>
             <p className="text-xs text-muted-foreground mt-1">From active bandwidth upsells</p>
           </CardContent>
         </Card>
@@ -248,7 +257,7 @@ export default function WiFiRevenueDashboard() {
                 <Users className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
               </div>
             </div>
-            <p className="text-2xl font-bold tabular-nums">{formatCurrency(data.kpis.arpu)}</p>
+            <p className="text-2xl font-bold tabular-nums">{formatCurrencyFn(data.kpis.arpu, currency)}</p>
             <p className="text-xs text-muted-foreground mt-1">Avg revenue per user</p>
           </CardContent>
         </Card>
@@ -301,7 +310,7 @@ export default function WiFiRevenueDashboard() {
                       <span className="text-xs font-medium">{source.source}</span>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-semibold tabular-nums">{formatCompact(source.revenue)}</span>
+                      <span className="text-xs font-semibold tabular-nums">{formatCompact(source.revenue, currencySymbol)}</span>
                       <span className="text-[10px] text-muted-foreground ml-1.5">{source.percentage}%</span>
                     </div>
                   </div>
@@ -317,7 +326,7 @@ export default function WiFiRevenueDashboard() {
             <Separator className="my-3" />
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium">Total</span>
-              <span className="text-sm font-bold tabular-nums">{formatCurrency(data.kpis.totalRevenue)}</span>
+              <span className="text-sm font-bold tabular-nums">{formatCurrencyFn(data.kpis.totalRevenue, currency)}</span>
             </div>
           </CardContent>
         </Card>
@@ -342,7 +351,7 @@ export default function WiFiRevenueDashboard() {
                   <div
                     key={day.date}
                     className="flex-1 flex flex-col items-center justify-end group relative"
-                    title={`${day.date}: ${formatCurrency(day.revenue)}`}
+                    title={`${day.date}: ${formatCurrencyFn(day.revenue, currency)}`}
                   >
                     <div
                       className={`w-full rounded-t-sm min-h-[2px] transition-all duration-300 ${barColor} group-hover:opacity-80`}
@@ -409,10 +418,10 @@ export default function WiFiRevenueDashboard() {
                         <Badge variant="outline" className="text-xs">{plan.subscriptions}</Badge>
                       </TableCell>
                       <TableCell className="text-right text-sm font-semibold tabular-nums">
-                        {formatCurrency(plan.revenue)}
+                        {formatCurrencyFn(plan.revenue, currency)}
                       </TableCell>
                       <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
-                        {formatCurrency(plan.avgPerUser)}
+                        {formatCurrencyFn(plan.avgPerUser, currency)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -448,7 +457,7 @@ export default function WiFiRevenueDashboard() {
                       </Badge>
                       <span className="text-xs font-medium">{ph.hourLabel}</span>
                     </div>
-                    <span className="text-xs font-semibold tabular-nums">{formatCurrency(ph.revenue)}</span>
+                    <span className="text-xs font-semibold tabular-nums">{formatCurrencyFn(ph.revenue, currency)}</span>
                   </div>
                 ))
               )}
@@ -466,11 +475,11 @@ export default function WiFiRevenueDashboard() {
             <CardContent className="space-y-3">
               <div>
                 <p className="text-xs text-muted-foreground">Projected Monthly Revenue</p>
-                <p className="text-xl font-bold tabular-nums">{formatCurrency(data.revenueForecast.projectedMonthlyRevenue)}</p>
+                <p className="text-xl font-bold tabular-nums">{formatCurrencyFn(data.revenueForecast.projectedMonthlyRevenue, currency)}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Avg Daily Revenue</p>
-                <p className="text-lg font-semibold tabular-nums">{formatCurrency(data.revenueForecast.avgDailyRevenue)}</p>
+                <p className="text-lg font-semibold tabular-nums">{formatCurrencyFn(data.revenueForecast.avgDailyRevenue, currency)}</p>
               </div>
               <Separator />
               <div className="flex items-center gap-2">

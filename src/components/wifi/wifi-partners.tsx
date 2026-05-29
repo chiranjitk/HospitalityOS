@@ -1260,10 +1260,16 @@ export default function WifiPartners() {
                 className="font-mono text-xs min-h-[120px]"
                 value={formData.config}
                 onChange={(e) => setFormData({ ...formData, config: e.target.value })}
+                autoComplete="off"
               />
-              <p className="text-[10px] text-muted-foreground">
-                Include promoCode, apiEndpoint, apiKey, sessionDuration, bandwidthLimit
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] text-muted-foreground">
+                  Include promoCode, apiEndpoint, apiKey, sessionDuration, bandwidthLimit
+                </p>
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                  ⚠ API keys are sensitive — ensure proper access controls
+                </p>
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -1374,7 +1380,13 @@ export default function WifiPartners() {
                 className="font-mono text-xs min-h-[120px]"
                 value={formData.config}
                 onChange={(e) => setFormData({ ...formData, config: e.target.value })}
+                autoComplete="off"
               />
+              <div className="flex items-center justify-end">
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                  ⚠ API keys are sensitive — ensure proper access controls
+                </p>
+              </div>
             </div>
           </div>
           <DialogFooter>

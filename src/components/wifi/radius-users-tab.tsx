@@ -87,6 +87,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { TwoFactorSetupModal } from '@/components/auth/two-factor-setup-modal';
+import { csvSafeEscape } from '@/lib/wifi/validation';
 import { formatDistanceToNow } from 'date-fns';
 import {
   readBandwidthMbps,
@@ -403,7 +404,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
 
     setForm({
       username: user.username,
-      password: user.password || '',
+      password: '', // Never load existing password; use "Change Password" flow
       userType: (user.userType as 'guest' | 'staff' | 'admin' | 'service') || 'guest',
       group: user.group || '',
       downloadSpeed: downSpeed,
@@ -830,10 +831,9 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
       toast({ title: 'No data', description: 'No users to export', variant: 'destructive' });
       return;
     }
-    const headers = ['Username', 'Password', 'User Type', 'Group', 'Download (Mbps)', 'Upload (Mbps)', 'Session Timeout (min)', 'Data Limit (MB)', 'Valid Until', 'Status', 'Created'];
+    const headers = ['Username', 'User Type', 'Group', 'Download (Mbps)', 'Upload (Mbps)', 'Session Timeout (min)', 'Data Limit (MB)', 'Valid Until', 'Status', 'Created'];
     const rows = exportData.map(u => [
       u.username,
-      u.password,
       u.userType || 'guest',
       u.group || '',
       u.downloadSpeed ?? '',
@@ -844,14 +844,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
       u.status || 'active',
       u.createdAt || '',
     ]);
-    const csvContent = [headers, ...rows].map(row => row.map(cell => {
-      const str = String(cell);
-      // Escape CSV: wrap in quotes if contains comma, quote, or newline
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    }).join(',')).join('\n');
+    const csvContent = [headers, ...rows].map(row => row.map(cell => csvSafeEscape(cell)).join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -937,9 +930,6 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
       description: errors.length > 0 ? `${errors.length} errors — check details` : 'All users imported successfully',
       variant: errors.length > 0 ? 'destructive' : 'default',
     });
-    if (errors.length > 0) {
-      console.warn('CSV Import Errors:', errors);
-    }
   };
 
   // ─── Display Helpers ──────────────────────────────────────────────────────

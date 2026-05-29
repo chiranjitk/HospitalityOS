@@ -328,6 +328,10 @@ export default function WifiPreArrival() {
           autoGenerateCreds: true,
         }),
       });
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Failed to create config (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const result = await res.json();
       if (result.success) {
         toast({ title: 'Config Created', description: 'Pre-arrival delivery enabled for this property' });
@@ -350,6 +354,10 @@ export default function WifiPreArrival() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: !config.enabled }),
       });
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Failed to update config (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const result = await res.json();
       if (result.success) {
         setProperties((prev) =>
@@ -381,6 +389,10 @@ export default function WifiPreArrival() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Failed to save config (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const result = await res.json();
       if (result.success) {
         setProperties((prev) =>
@@ -416,6 +428,10 @@ export default function WifiPreArrival() {
 
     try {
       const res = await fetch(`/api/wifi/pre-arrival/eligible-bookings?propertyId=${config.propertyId}`);
+      if (!res.ok) {
+        toast({ title: 'Error', description: `Failed to load bookings (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const result = await res.json();
       if (result.success) {
         setEligibleBookings(result.data);
@@ -438,6 +454,10 @@ export default function WifiPreArrival() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bookingId, propertyId }),
       });
+      if (!res.ok) {
+        toast({ title: 'Send Failed', description: `Failed to send credentials (${res.status})`, variant: 'destructive' });
+        return;
+      }
       const result = await res.json();
 
       if (result.success) {

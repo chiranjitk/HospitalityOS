@@ -65,6 +65,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { sanitizeLDAPFilter } from '@/lib/wifi/validation';
 import {
   Network,
   Shield,
@@ -426,12 +427,19 @@ export default function LDAPRadiusConfig() {
       });
       return;
     }
+
+    // Sanitize LDAP search filter to prevent injection attacks
+    const sanitizedConfig = {
+      ...config,
+      searchFilter: config.searchFilter ? sanitizeLDAPFilter(config.searchFilter) : config.searchFilter,
+    };
+
     setSaving(true);
     try {
       const res = await fetch('/api/wifi/radius-ldap', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(uiToDbConfig(config, propertyId)),
+        body: JSON.stringify(uiToDbConfig(sanitizedConfig, propertyId)),
       });
       const data = await res.json();
       if (data.success) {

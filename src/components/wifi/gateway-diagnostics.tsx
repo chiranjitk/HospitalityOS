@@ -62,6 +62,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslations } from 'next-intl';
+import { isSafeScanCIDR, isValidCIDR, clampNonNegative } from '@/lib/wifi/validation';
 
 // ═══════════════════════════════════════════════════════════════════
 // Shared Types & Helpers
@@ -914,13 +915,25 @@ function NetworkScanTool() {
 
   const run = useCallback(async () => {
     if (!subnet.trim()) return;
+
+    // Validate CIDR — restrict to RFC 1918 private ranges, max /24
+    if (!isSafeScanCIDR(subnet)) {
+      toast({ title: 'Invalid Subnet', description: 'Only RFC 1918 private ranges (/24 or larger) are allowed (10.x, 172.16-31.x, 192.168.x)', variant: 'destructive' });
+      setState('done');
+      setResult({ success: false, duration_ms: 0, data: {}, error: 'Invalid subnet range' });
+      return;
+    }
+
+    // Validate timeout — 1-30 seconds
+    const timeoutSec = clampNonNegative(parseInt(timeout), 30, 2);
+
     setState('loading');
     setResult(null);
     try {
       const qs = new URLSearchParams({
         action: 'network-scan',
         subnet: subnet.trim(),
-        timeout,
+        timeout: String(timeoutSec),
       });
       const res = await fetch(`/api/wifi/diagnostics?${qs}`);
       const json = await res.json();

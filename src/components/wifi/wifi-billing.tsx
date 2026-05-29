@@ -53,6 +53,16 @@ import {
   Database,
   ArrowUpRight,
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -205,6 +215,17 @@ export default function WiFiBillingDashboard() {
 
   const refresh = () => setFetchKey((k) => k + 1);
 
+  // Billing run confirmation dialog
+  const [billingConfirmOpen, setBillingConfirmOpen] = useState(false);
+  const [billingCooldown, setBillingCooldown] = useState(0);
+
+  useEffect(() => {
+    if (billingCooldown > 0) {
+      const timer = setTimeout(() => setBillingCooldown(billingCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [billingCooldown]);
+
   // Handle manual billing run
   const handleRunBilling = async () => {
     setIsRunning(true);
@@ -221,9 +242,6 @@ export default function WiFiBillingDashboard() {
           title: 'Billing Run Complete',
           description: `${result.processed} processed, ${result.postedToFolio} posted, ${result.totalCharged.toFixed(2)} charged${result.errors.length > 0 ? ` (${result.errors.length} errors)` : ''}`,
         });
-        if (result.errors.length > 0) {
-          console.warn('[WiFiBilling] Errors:', result.errors);
-        }
         refresh();
       } else {
         toast({
@@ -355,8 +373,8 @@ export default function WiFiBillingDashboard() {
 
           <Button
             size="sm"
-            onClick={handleRunBilling}
-            disabled={isRunning}
+            onClick={() => setBillingConfirmOpen(true)}
+            disabled={isRunning || billingCooldown > 0}
             className="bg-primary hover:bg-primary/90"
           >
             {isRunning ? (
@@ -364,8 +382,25 @@ export default function WiFiBillingDashboard() {
             ) : (
               <Play className="h-4 w-4 mr-2" />
             )}
-            Run Billing
+            {billingCooldown > 0 ? `Run Billing (${billingCooldown}s)` : 'Run Billing'}
           </Button>
+
+          <AlertDialog open={billingConfirmOpen} onOpenChange={setBillingConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Run Billing Cycle?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will mass-charge all guest WiFi usage since the last billing run. Charges will be posted to guest folios. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => { setBillingConfirmOpen(false); setBillingCooldown(3); handleRunBilling(); }}>
+                  Yes, Run Billing
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           <Button variant="outline" size="sm" onClick={refresh}>
             <RefreshCw className="h-4 w-4" />

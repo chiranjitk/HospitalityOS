@@ -64,6 +64,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow, format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { maskIP, maskMAC } from '@/lib/wifi/validation';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -194,7 +195,11 @@ export default function AuthLogs() {
         fetch(`/api/wifi/radius?action=auth-logs-stats&${statsParams.toString()}`),
       ]);
       const logsData = await logsRes.json();
-      const statsData = await statsRes.json();
+
+      if (!statsRes.ok) {
+        console.error('[auth-logs] Stats API error: HTTP', statsRes.status);
+      }
+      const statsData = statsRes.ok ? await statsRes.json() : null;
 
       if (logsRes.ok && logsData.success && logsData.data) {
         setLogs(Array.isArray(logsData.data) ? logsData.data : []);
@@ -209,7 +214,7 @@ export default function AuthLogs() {
         }
       }
 
-      if (statsData.success && statsData.data) {
+      if (statsData?.success && statsData.data) {
         setStats(statsData.data);
       }
     } catch (error) {
@@ -496,7 +501,7 @@ export default function AuthLogs() {
                         return reqIp ? (
                           <div className="flex items-center gap-1.5">
                             <Server className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs font-mono">{reqIp}</span>
+                            <span className="text-xs font-mono">{maskIP(reqIp)}</span>
                           </div>
                         ) : <span />;
                       })()}
@@ -567,7 +572,7 @@ export default function AuthLogs() {
                         return reqIp ? (
                           <div className="flex items-center gap-1.5">
                             <Server className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs font-mono">{reqIp}</span>
+                            <span className="text-xs font-mono">{maskIP(reqIp)}</span>
                           </div>
                         ) : <span />;
                       })()}
@@ -650,7 +655,7 @@ export default function AuthLogs() {
                             {requestFromIp ? (
                               <Badge variant="outline" className="font-mono text-[11px] bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 whitespace-nowrap">
                                 <Server className="h-2.5 w-2.5 mr-1" />
-                                {requestFromIp}
+                                {maskIP(requestFromIp)}
                               </Badge>
                             ) : (
                               <span className="text-xs text-muted-foreground">—</span>
@@ -720,7 +725,7 @@ export default function AuthLogs() {
                                 {requestFromIp ? (
                                   <Badge variant="outline" className="font-mono text-[11px] bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 whitespace-nowrap">
                                     <Server className="h-2.5 w-2.5 mr-1" />
-                                    {requestFromIp}
+                                    {maskIP(requestFromIp)}
                                   </Badge>
                                 ) : (
                                   <span className="text-xs text-muted-foreground">—</span>

@@ -60,6 +60,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { clampPositive } from '@/lib/wifi/validation';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -849,7 +850,7 @@ export default function WiFiSLAMonitoring() {
                   min="90"
                   max="100"
                   value={formData.uptimeTarget}
-                  onChange={(e) => setFormData(prev => ({ ...prev, uptimeTarget: parseFloat(e.target.value) || 99.9 }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, uptimeTarget: clampPositive(parseFloat(e.target.value), 90, 100, 99.9) }))}
                 />
               </div>
               <div className="space-y-2">
@@ -860,7 +861,7 @@ export default function WiFiSLAMonitoring() {
                   min="1"
                   max="1000"
                   value={formData.latencyTarget}
-                  onChange={(e) => setFormData(prev => ({ ...prev, latencyTarget: parseInt(e.target.value) || 20 }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, latencyTarget: clampPositive(parseInt(e.target.value), 1, 1000, 20) }))}
                 />
               </div>
               <div className="space-y-2">
@@ -870,7 +871,7 @@ export default function WiFiSLAMonitoring() {
                   step="1"
                   min="1"
                   value={formData.speedTargetDown}
-                  onChange={(e) => setFormData(prev => ({ ...prev, speedTargetDown: parseFloat(e.target.value) || 50 }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, speedTargetDown: clampPositive(parseFloat(e.target.value), 1, 10000, 50) }))}
                 />
               </div>
               <div className="space-y-2">
@@ -880,7 +881,7 @@ export default function WiFiSLAMonitoring() {
                   step="1"
                   min="1"
                   value={formData.speedTargetUp}
-                  onChange={(e) => setFormData(prev => ({ ...prev, speedTargetUp: parseFloat(e.target.value) || 10 }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, speedTargetUp: clampPositive(parseFloat(e.target.value), 1, 10000, 10) }))}
                 />
               </div>
               <div className="space-y-2">
@@ -890,7 +891,7 @@ export default function WiFiSLAMonitoring() {
                   step="1"
                   min="1"
                   value={formData.measurementInterval}
-                  onChange={(e) => setFormData(prev => ({ ...prev, measurementInterval: parseInt(e.target.value) || 5 }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, measurementInterval: clampPositive(parseInt(e.target.value), 1, 1440, 5) }))}
                 />
               </div>
               <div className="space-y-2">
@@ -900,7 +901,7 @@ export default function WiFiSLAMonitoring() {
                   step="1"
                   min="1"
                   value={formData.breachDuration}
-                  onChange={(e) => setFormData(prev => ({ ...prev, breachDuration: parseInt(e.target.value) || 15 }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, breachDuration: clampPositive(parseInt(e.target.value), 1, 10080, 15) }))}
                 />
               </div>
             </div>
@@ -961,7 +962,7 @@ export default function WiFiSLAMonitoring() {
                   type="number"
                   step="0.1"
                   value={formData.uptimeTarget}
-                  onChange={(e) => setFormData(prev => ({ ...prev, uptimeTarget: parseFloat(e.target.value) || 99.9 }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, uptimeTarget: clampPositive(parseFloat(e.target.value), 90, 100, 99.9) }))}
                 />
               </div>
               <div className="space-y-2">
@@ -970,7 +971,7 @@ export default function WiFiSLAMonitoring() {
                   type="number"
                   step="1"
                   value={formData.latencyTarget}
-                  onChange={(e) => setFormData(prev => ({ ...prev, latencyTarget: parseInt(e.target.value) || 20 }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, latencyTarget: clampPositive(parseInt(e.target.value), 1, 1000, 20) }))}
                 />
               </div>
               <div className="space-y-2">
@@ -979,7 +980,7 @@ export default function WiFiSLAMonitoring() {
                   type="number"
                   step="1"
                   value={formData.speedTargetDown}
-                  onChange={(e) => setFormData(prev => ({ ...prev, speedTargetDown: parseFloat(e.target.value) || 50 }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, speedTargetDown: clampPositive(parseFloat(e.target.value), 1, 10000, 50) }))}
                 />
               </div>
               <div className="space-y-2">
@@ -988,7 +989,7 @@ export default function WiFiSLAMonitoring() {
                   type="number"
                   step="1"
                   value={formData.speedTargetUp}
-                  onChange={(e) => setFormData(prev => ({ ...prev, speedTargetUp: parseFloat(e.target.value) || 10 }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, speedTargetUp: clampPositive(parseFloat(e.target.value), 1, 10000, 10) }))}
                 />
               </div>
             </div>

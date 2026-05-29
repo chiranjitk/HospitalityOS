@@ -477,6 +477,9 @@ export default function ContentFilterPage() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [seedInfo, setSeedInfo] = useState<{ totalAvailable: number; seededCategories: number; unseededCategories: number } | null>(null);
 
+  // Confirmation state for destructive sync action
+  const [syncConfirm, setSyncConfirm] = useState(false);
+
   // ─── Derived Data ──────────────────────────────────────────────────────────
   const formDomainsCount = useMemo(() => parseDomainsFromText(formDomainsText).length, [formDomainsText]);
   const bulkDomainsCount = useMemo(() => parseDomainsFromText(bulkText).length, [bulkText]);
@@ -1107,7 +1110,7 @@ export default function ContentFilterPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleSync}
+              onClick={() => setSyncConfirm(true)}
               disabled={isSyncing}
             >
               {isSyncing ? (
@@ -1726,7 +1729,31 @@ export default function ContentFilterPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      {/* ── Sync Confirmation ──────────────────────────────────────────── */}
+      <AlertDialog open={syncConfirm} onOpenChange={setSyncConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sync blocklists to e2guardian?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will push all active content filter blocklists to the e2guardian service.
+              Filtering changes take effect immediately for all connected users.
+              {summaryStats.totalDomains > 0 && (
+                <span className="block mt-2 text-muted-foreground">
+                  {summaryStats.totalDomains} domains across {summaryStats.activeFilters} active filter{summaryStats.activeFilters !== 1 ? 's' : ''} will be synced.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSync} disabled={isSyncing}>
+              {isSyncing && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+              Sync Now
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
     </TooltipProvider>
   );
 }
