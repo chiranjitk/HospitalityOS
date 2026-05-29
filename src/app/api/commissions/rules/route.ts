@@ -11,6 +11,11 @@ import { transformRecords } from '@/lib/api-transform';
 
 const VALID_SOURCE_TYPES = ['ota', 'travel_agent', 'referral', 'corporate', 'direct'];
 
+const tieredBracketSchema = z.object({
+  upTo: z.number().min(0).nullable(), // null = unlimited (last bracket)
+  rate: z.number().min(0).max(100),
+});
+
 const createCommissionRuleSchema = z.object({
   propertyId: z.string().uuid('Invalid property ID'),
   name: z.string().min(1, 'Rule name is required'),
@@ -22,9 +27,45 @@ const createCommissionRuleSchema = z.object({
   fixedAmount: z.number().min(0).optional().default(0),
   minAmount: z.number().min(0).optional().default(0),
   maxAmount: z.number().min(0).optional(),
+  conditions: z.object({
+    tiers: z.array(tieredBracketSchema).min(1, 'At least one tier bracket is required for tiered commission'),
+  }).optional(),
   isActive: z.boolean().optional().default(true),
   validFrom: z.string().min(1, 'Valid from date is required'),
   validUntil: z.string().optional(),
+}).superRefine((data, ctx) => {
+  // If tiered, conditions with tiers must be provided
+  if (data.commissionType === 'tiered' && !data.conditions) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Tiered commission requires a "conditions" object with a "tiers" array',
+      path: ['conditions'],
+    });
+  }
+  // Validate tiered bracket ordering
+  if (data.commissionType === 'tiered' && data.conditions?.tiers) {
+    const tiers = data.conditions.tiers;
+    const lastTier = tiers[tiers.length - 1];
+    if (lastTier.upTo !== null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'The last tier bracket must have "upTo" set to null (unlimited)',
+        path: ['conditions', 'tiers', tiers.length - 1, 'upTo'],
+      });
+    }
+    for (let i = 1; i < tiers.length; i++) {
+      if (tiers[i - 1].upTo === null) {
+        break;
+      }
+      if (tiers[i].upTo !== null && tiers[i].upTo <= tiers[i - 1].upTo) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Tier brackets must have increasing "upTo" values',
+          path: ['conditions', 'tiers', i, 'upTo'],
+        });
+      }
+    }
+  }
 });
 
 // ──────────────────────────────────────────────
@@ -135,12 +176,23 @@ export async function POST(request: NextRequest) {
         isActive: data.isActive,
         validFrom: new Date(data.validFrom),
         validUntil: data.validUntil ? new Date(data.validUntil) : null,
+        // Store tiered conditions as JSON in description if provided
+        ...(data.commissionType === 'tiered' && data.conditions
+          ? { description: JSON.stringify({ tiered: data.conditions, originalDescription: data.description || '' }) }
+          : {}),
       },
     });
 
+    const enrichedRule = {
+      ...rule,
+      ...(data.commissionType === 'tiered' && data.conditions
+        ? { tieredConditions: data.conditions }
+        : {}),
+    };
+
     return NextResponse.json({
       success: true,
-      data: transformRecords([rule as unknown as Record<string, unknown>])[0],
+      data: transformRecords([enrichedRule as unknown as Record<string, unknown>])[0],
     }, { status: 201 });
   } catch (error) {
     console.error('[POST /api/commissions/rules]', error);

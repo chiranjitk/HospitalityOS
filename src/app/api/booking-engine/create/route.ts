@@ -639,6 +639,31 @@ export async function POST(request: NextRequest) {
       // Non-blocking: OTA sync failure should not break booking creation
     }
 
+    // ──────────────────────────────────────────────────────────
+    // COMMISSION AUTO-ACCRUAL HOOK
+    // Fire-and-forget: commission accrual failure must never block
+    // the booking creation response.
+    // ──────────────────────────────────────────────────────────
+    try {
+      const { accrueCommissionOnBooking } = await import('@/lib/billing/commission-engine');
+      accrueCommissionOnBooking({
+        id: booking.id,
+        tenantId: booking.tenantId,
+        propertyId: booking.propertyId,
+        totalAmount: booking.totalAmount,
+        roomRate: booking.roomRate,
+        source: booking.source,
+        channelId: booking.channelId,
+        roomTypeId: booking.roomTypeId,
+        ratePlanId: booking.ratePlanId,
+        status: booking.status,
+      }).catch((err) => {
+        console.error('[Commission] Auto-accrual failed (non-blocking):', err);
+      });
+    } catch {
+      // Non-blocking: commission engine import/execution failure
+    }
+
     return NextResponse.json({
       success: true,
       booking: {
