@@ -39,6 +39,10 @@ import {
   Phone,
   Mail,
   Car,
+  Shield,
+  Send,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { SignaturePad } from '@/components/frontdesk/signature-pad';
 import { cn } from '@/lib/utils';
@@ -107,6 +111,14 @@ interface RegistrationCardData {
   createdAt: string;
 }
 
+interface PoliceReportData {
+  id: string;
+  formNumber: string;
+  status: 'not_submitted' | 'submitted' | 'failed';
+  submittedAt: string | null;
+  createdAt: string;
+}
+
 const PURPOSE_OPTIONS = [
   { value: 'leisure', label: 'Leisure / Holiday' },
   { value: 'business', label: 'Business Travel' },
@@ -134,6 +146,13 @@ export default function RegistrationCard() {
   const [companions, setCompanions] = useState<Companion[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [signatureData, setSignatureData] = useState<string | null>(null);
+
+  // Police report state
+  const [policeReportStatus, setPoliceReportStatus] = useState<'not_submitted' | 'submitted' | 'failed'>('not_submitted');
+  const [policeSubmittedAt, setPoliceSubmittedAt] = useState<string | null>(null);
+  const [policeFormNumber, setPoliceFormNumber] = useState<string | null>(null);
+  const [isExportingCForm, setIsExportingCForm] = useState(false);
+  const [isSubmittingPolice, setIsSubmittingPolice] = useState(false);
 
   // Search bookings
   const searchBookings = async () => {
@@ -184,6 +203,9 @@ export default function RegistrationCard() {
     setCompanions([]);
     setTermsAccepted(false);
     setSignatureData(null);
+    setPoliceReportStatus('not_submitted');
+    setPoliceSubmittedAt(null);
+    setPoliceFormNumber(null);
 
     // Check for existing registration card
     try {
@@ -199,6 +221,21 @@ export default function RegistrationCard() {
         if (result.data.signature) {
           setSignatureData(result.data.signature);
         }
+      }
+      // Check for existing police report
+      try {
+        const policeResponse = await fetch(`/api/folio/police-report?bookingId=${booking.id}`);
+        if (!policeResponse.ok) { const text = await policeResponse.text().catch(() => 'Unknown error'); throw new Error(text); }
+        const policeResult = await policeResponse.json();
+        if (policeResult.success && policeResult.data) {
+          const pd = policeResult.data as PoliceReportData;
+          setPoliceReportStatus(pd.status as 'not_submitted' | 'submitted' | 'failed');
+          setPoliceSubmittedAt(pd.submittedAt);
+          setPoliceFormNumber(pd.formNumber);
+        }
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+        // Non-critical: don't block on police report fetch failure
       }
     } catch (err) {
       if (err?.name === 'AbortError') return;
@@ -286,6 +323,147 @@ export default function RegistrationCard() {
       toast({ title: 'Error', description: 'Failed to generate registration card', variant: 'destructive' });
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  // Export C-Form PDF
+  const exportCForm = async () => {
+    if (!selectedBooking) return;
+
+    if (!existingCard) {
+      toast({ title: 'Registration Card Required', description: 'Please generate the registration card first', variant: 'destructive' });
+      return;
+    }
+
+    setIsExportingCForm(true);
+    try {
+      const response = await fetch('/api/folio/police-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: selectedBooking.id,
+          action: 'export',
+        }),
+      });
+
+      if (response.ok) {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/pdf')) {
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const printWindow = window.open(url, '_blank');
+          if (printWindow) {
+            printWindow.onload = () => {
+              printWindow.print();
+            };
+          } else {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `c-form-${policeFormNumber || selectedBooking.confirmationCode}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }
+          toast({ title: 'C-Form Exported', description: 'Police registration form generated successfully' });
+        } else {
+          const result = await response.json();
+          if (result.success && result.data) {
+            setPoliceFormNumber(result.data.formNumber);
+          }
+          toast({ title: 'C-Form Ready', description: 'Form data prepared successfully' });
+        }
+
+        // Refresh police report data
+        const policeResponse = await fetch(`/api/folio/police-report?bookingId=${selectedBooking.id}`);
+        if (!policeResponse.ok) { const text = await policeResponse.text().catch(() => 'Unknown error'); throw new Error(text); }
+        const policeResult = await policeResponse.json();
+        if (policeResult.success && policeResult.data) {
+          const pd = policeResult.data as PoliceReportData;
+          setPoliceReportStatus(pd.status as 'not_submitted' | 'submitted' | 'failed');
+          setPoliceFormNumber(pd.formNumber);
+        }
+      } else {
+        const error = await response.json();
+        toast({ title: 'Error', description: error.error?.message || 'Failed to export C-Form', variant: 'destructive' });
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      toast({ title: 'Error', description: 'Failed to export C-Form', variant: 'destructive' });
+    } finally {
+      setIsExportingCForm(false);
+    }
+  };
+
+  // Submit C-Form to authorities
+  const submitToAuthorities = async () => {
+    if (!selectedBooking) return;
+
+    if (!existingCard) {
+      toast({ title: 'Registration Card Required', description: 'Please generate the registration card first', variant: 'destructive' });
+      return;
+    }
+
+    setIsSubmittingPolice(true);
+    try {
+      const response = await fetch('/api/folio/police-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: selectedBooking.id,
+          action: 'submit',
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          setPoliceReportStatus('submitted');
+          setPoliceSubmittedAt(result.data.submittedAt);
+          setPoliceFormNumber(result.data.formNumber);
+        }
+        toast({ title: 'C-Form Submitted', description: 'C-Form submitted successfully' });
+      } else {
+        setPoliceReportStatus('failed');
+        const error = await response.json();
+        toast({ title: 'Submission Failed', description: error.error?.message || 'Failed to submit C-Form', variant: 'destructive' });
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      setPoliceReportStatus('failed');
+      toast({ title: 'Submission Failed', description: 'Failed to submit C-Form to authorities', variant: 'destructive' });
+    } finally {
+      setIsSubmittingPolice(false);
+    }
+  };
+
+  // Print C-Form (re-export for printing)
+  const printCForm = async () => {
+    if (!selectedBooking) return;
+    setIsExportingCForm(true);
+    try {
+      const response = await fetch('/api/folio/police-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: selectedBooking.id,
+          action: 'export',
+        }),
+      });
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const printWindow = window.open(url, '_blank');
+        if (printWindow) {
+          printWindow.onload = () => {
+            printWindow.print();
+          };
+        }
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      toast({ title: 'Error', description: 'Failed to print C-Form', variant: 'destructive' });
+    } finally {
+      setIsExportingCForm(false);
     }
   };
 
@@ -599,6 +777,119 @@ export default function RegistrationCard() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Created</span>
                     <span>{formatDate(existingCard.createdAt)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Police Report / C-Form */}
+            {existingCard && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Police Registration / C-Form
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Status Indicator */}
+                  <div className="flex items-center gap-2">
+                    {policeReportStatus === 'submitted' && (
+                      <Badge className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400 border-green-200 dark:border-green-800">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Submitted
+                      </Badge>
+                    )}
+                    {policeReportStatus === 'failed' && (
+                      <Badge className="bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400 border-red-200 dark:border-red-800">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Failed
+                      </Badge>
+                    )}
+                    {policeReportStatus === 'not_submitted' && (
+                      <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400 border-amber-200 dark:border-amber-800">
+                        Not Submitted
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Form Number & Submitted Time */}
+                  {policeFormNumber && (
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Form No.</span>
+                        <span className="font-mono font-medium">{policeFormNumber}</span>
+                      </div>
+                    </div>
+                  )}
+                  {policeSubmittedAt && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Submitted</span>
+                      <span>{formatDate(policeSubmittedAt)}</span>
+                    </div>
+                  )}
+
+                  <Separator />
+
+                  {/* Action Buttons */}
+                  <div className="space-y-2">
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={exportCForm}
+                      disabled={isExportingCForm || isSubmittingPolice}
+                    >
+                      {isExportingCForm ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Exporting...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="h-4 w-4 mr-2" />
+                          Export C-Form
+                        </>
+                      )}
+                    </Button>
+
+                    <Button
+                      className="w-full"
+                      onClick={submitToAuthorities}
+                      disabled={isSubmittingPolice || isExportingCForm || policeReportStatus === 'submitted'}
+                    >
+                      {isSubmittingPolice ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4 mr-2" />
+                          {policeReportStatus === 'submitted' ? 'Already Submitted' : 'Submit to Authorities'}
+                        </>
+                      )}
+                    </Button>
+
+                    {(policeReportStatus === 'submitted' || policeFormNumber) && (
+                      <Button
+                        className="w-full"
+                        variant="outline"
+                        onClick={printCForm}
+                        disabled={isExportingCForm}
+                      >
+                        {isExportingCForm ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Loading...
+                          </>
+                        ) : (
+                          <>
+                            <Printer className="h-4 w-4 mr-2" />
+                            Print C-Form
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>

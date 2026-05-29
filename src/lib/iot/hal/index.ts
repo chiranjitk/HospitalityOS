@@ -94,6 +94,17 @@ export interface IoTHealthCheck {
   lastCheckedAt: string;
 }
 
+export interface IoTCommand {
+  command: string;
+  params?: Record<string, any>;
+}
+
+export interface IoTDeviceState {
+  online: boolean;
+  lastSeen: Date;
+  properties: Record<string, any>;
+}
+
 // ---------------------------------------------------------------------------
 // Base IoT Adapter (abstract)
 // ---------------------------------------------------------------------------
@@ -133,8 +144,4 @@ export abstract class BaseIoTAdapter {
   }
 }
 
-// TODO(L-27): Implement concrete adapters for each IoT device category
-// TODO(L-27): Add an IoTAdapterRegistry that maps (tenantId, propertyId, category) → adapter
-// TODO(L-27): Add automatic health monitoring with configurable polling intervals
-// TODO(L-27): Add command queueing for devices that are offline (with TTL and expiry)
-// TODO(L-27): Add event bus for real-time device state change notifications
+

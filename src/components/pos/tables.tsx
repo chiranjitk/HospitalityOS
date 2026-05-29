@@ -60,6 +60,8 @@ interface Table {
   floor: number;
   status: string;
   orders?: TableOrder[];
+ occupiedDuration?: string;
+  seatedAt?: string;
   _count?: {
     orders: number;
   };
@@ -611,6 +613,15 @@ const t = useTranslations('pos');
                       <p className="text-xs text-muted-foreground">
                         {table.orders[0].items.length} items
                       </p>
+                    </div>
+                  )}
+                  {/* L-21: Table duration timer */}
+                  {table.status === 'occupied' && table.occupiedDuration && (
+                    <div className="pt-2 border-t border-muted flex items-center gap-1.5">
+                      <Clock className="h-3 w-3 text-rose-500" />
+                      <span className="text-xs font-semibold tabular-nums text-rose-600 dark:text-rose-400">
+                        {table.occupiedDuration}
+                      </span>
                     </div>
                   )}
 

@@ -264,6 +264,17 @@ export function ChannelPromoCodes() {
     isActive: true,
   };
   const [formData, setFormData] = useState<PromoFormData>(emptyForm);
+  const [blackoutRanges, setBlackoutRanges] = useState<{ from: string; to: string }[]>([]);
+
+  const addBlackoutRange = () => {
+    setBlackoutRanges((prev) => [...prev, { from: '', to: '' }]);
+  };
+  const removeBlackoutRange = (index: number) => {
+    setBlackoutRanges((prev) => prev.filter((_, i) => i !== index));
+  };
+  const updateBlackoutRange = (index: number, field: 'from' | 'to', value: string) => {
+    setBlackoutRanges((prev) => prev.map((r, i) => (i === index ? { ...r, [field]: value } : r)));
+  };
 
   // ============================================
   // FETCH DATA
@@ -322,6 +333,7 @@ export function ChannelPromoCodes() {
   // ============================================
   const resetForm = () => {
     setFormData(emptyForm);
+    setBlackoutRanges([]);
     setEditingPromo(null);
   };
 
@@ -360,6 +372,12 @@ export function ChannelPromoCodes() {
       channelPromoCode: promo.channelPromoCode || '',
       isActive: promo.isActive,
     });
+    try {
+      const ranges = promo.blackoutDates ? JSON.parse(promo.blackoutDates) : [];
+      setBlackoutRanges(Array.isArray(ranges) ? ranges : []);
+    } catch {
+      setBlackoutRanges([]);
+    }
     setDialogOpen(true);
   };
 
@@ -409,6 +427,7 @@ export function ChannelPromoCodes() {
         usageLimit: formData.usageLimit ? parseInt(formData.usageLimit, 10) : null,
         channelPromoCode: formData.channelPromoCode.trim() || null,
         isActive: formData.isActive,
+        blackoutDates: blackoutRanges.filter((r) => r.from && r.to).length > 0 ? JSON.stringify(blackoutRanges.filter((r) => r.from && r.to)) : null,
       };
 
       const url = '/api/channels/promo-codes';
@@ -1461,6 +1480,57 @@ export function ChannelPromoCodes() {
                   <p className="text-xs text-muted-foreground">Latest check-out date</p>
                 </div>
               </div>
+            </div>
+
+            <Separator />
+
+            {/* Blackout Dates */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  Blackout Dates
+                </h3>
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={addBlackoutRange}>
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Range
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Block specific date ranges from promo eligibility</p>
+              {blackoutRanges.length > 0 ? (
+                <div className="space-y-3">
+                  {blackoutRanges.map((range, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        type="date"
+                        value={range.from}
+                        onChange={(e) => updateBlackoutRange(idx, 'from', e.target.value)}
+                        className="h-8 text-xs"
+                        placeholder="From"
+                      />
+                      <span className="text-xs text-muted-foreground">to</span>
+                      <Input
+                        type="date"
+                        value={range.to}
+                        onChange={(e) => updateBlackoutRange(idx, 'to', e.target.value)}
+                        className="h-8 text-xs"
+                        placeholder="To"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-red-500 hover:text-red-600"
+                        onClick={() => removeBlackoutRange(idx)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic py-2">No blackout dates set — promo is valid for all dates within the stay window</p>
+              )}
             </div>
 
             <Separator />

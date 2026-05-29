@@ -4911,6 +4911,7 @@ model Property {
   maintenanceBlocks      MaintenanceBlock[]
   roomMoveLogs           RoomMoveLog[]
   registrationCards      RegistrationCard[]
+  policeReports          PoliceReport[]
   assets                 Asset[]
   preventiveMaintenances PreventiveMaintenance[]
   workOrders             WorkOrder[]
@@ -5678,6 +5679,33 @@ model RegistrationCard {
   @@index([bookingId])
   @@index([guestId])
   @@index([cardNumber])
+}
+
+/// PoliceReport - Tracks police registration / C-Form submissions per registration card
+model PoliceReport {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @db.Uuid
+  propertyId       String    @db.Uuid
+  bookingId        String    @db.Uuid
+  registrationCardId String  @db.Uuid
+  formNumber       String    @unique   // C-Form reference number: CF-YYYYMMDD-NNN
+  status           String    @default("not_submitted") // not_submitted, submitted, failed
+  submittedAt      DateTime? @db.Timestamptz
+  submittedBy      String?   @db.Uuid
+  formData         String    @default("{}") // JSON snapshot of C-Form data
+  remarks          String?
+  createdAt        DateTime  @default(now()) @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @db.Timestamptz
+  property         Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  submittedByUser  User?             @relation("PoliceReportSubmitter", fields: [submittedBy], references: [id])
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([bookingId])
+  @@index([registrationCardId])
+  @@index([status])
+  @@index([formNumber])
 }
 
 model ReportCache {
@@ -7135,6 +7163,7 @@ model Tenant {
   maintenanceBlocks         MaintenanceBlock[]
   roomMoveLogs              RoomMoveLog[]
   registrationCards         RegistrationCard[]
+  policeReports            PoliceReport[]
   exchangeRates             ExchangeRate[]
   recipes                   Recipe[]
   tableMerges               TableMerge[]
@@ -7700,6 +7729,7 @@ model User {
   deliveredLaundryOrders  LaundryOrder[]       @relation("LaundryDeliveredBy")
   ipWhitelistRules        IpWhitelistRule[]
   reviewedFraudAlerts     FraudAlert[]             @relation("FraudAlertReviewer")
+  submittedPoliceReports  PoliceReport[]           @relation("PoliceReportSubmitter")
   role                    Role                     @relation(fields: [roleId], references: [id])
   tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userPropertyAssignments UserProperty[]

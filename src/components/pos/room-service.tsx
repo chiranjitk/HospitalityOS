@@ -12,11 +12,13 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import {
   Search, Plus, Loader2, ConciergeBell, Clock, BedDouble, User,
   ChevronRight, Minus, Send, AlertCircle, CheckCircle, UtensilsCrossed,
-  Coffee, Sun, Moon, Star, Package,
+  Coffee, Sun, Moon, Star, Package, Truck, MapPin,
 } from 'lucide-react';
 
 interface RoomWithGuest {
@@ -76,6 +78,15 @@ const statusColors: Record<string, string> = {
   cancelled: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border-red-200',
 };
 
+const availableDrivers = [
+  { id: '1', name: 'Raj K.', role: 'Driver' },
+  { id: '2', name: 'Priya S.', role: 'Driver' },
+  { id: '3', name: 'Amit M.', role: 'Bellboy' },
+  { id: '4', name: 'Sunita R.', role: 'Driver' },
+];
+
+type OrderType = RoomServiceOrder;
+
 export default function RoomService() {
 const t = useTranslations('pos');
   const { propertyId } = usePropertyId();
@@ -85,6 +96,14 @@ const t = useTranslations('pos');
   const [activeOrders, setActiveOrders] = useState<RoomServiceOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  // Driver assignment state
+  const [driverAssignments, setDriverAssignments] = useState<Record<string, { driverName: string; driverId: string; assignedAt: string; estimatedMinutes: number }>>({});
+  const [dispatchDialogOpen, setDispatchDialogOpen] = useState(false);
+  const [dispatchingOrder, setDispatchingOrder] = useState<OrderType | null>(null);
+  const [selectedDriverId, setSelectedDriverId] = useState('');
+  const [estimatedTime, setEstimatedTime] = useState('25');
+  const [assigningDriver, setAssigningDriver] = useState(false);
 
   // Selected room for ordering
   const [selectedRoom, setSelectedRoom] = useState<RoomWithGuest | null>(null);
@@ -229,6 +248,53 @@ const t = useTranslations('pos');
     }
   };
 
+  const openDispatchDialog = (order: OrderType) => {
+    setDispatchingOrder(order);
+    setSelectedDriverId('');
+    setEstimatedTime('25');
+    setDispatchDialogOpen(true);
+  };
+
+  const assignAndDispatch = async () => {
+    if (!dispatchingOrder || !selectedDriverId) return;
+    setAssigningDriver(true);
+    try {
+      const driver = availableDrivers.find(d => d.id === selectedDriverId);
+      if (!driver) return;
+      const res = await fetch('/api/room-service/driver-assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: dispatchingOrder.id,
+          driverId: selectedDriverId,
+          estimatedMinutes: parseInt(estimatedTime, 10),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDriverAssignments(prev => ({
+          ...prev,
+          [dispatchingOrder.id]: {
+            driverName: driver.name,
+            driverId: driver.id,
+            assignedAt: new Date().toISOString(),
+            estimatedMinutes: parseInt(estimatedTime, 10),
+          },
+        }));
+        toast.success(`Order dispatched to ${driver.name} (ETA: ${estimatedTime} min)`);
+        setDispatchDialogOpen(false);
+        setDispatchingOrder(null);
+        fetchActiveOrders();
+      } else {
+        toast.error(data.error?.message || 'Failed to assign driver');
+      }
+    } catch {
+      toast.error('Failed to assign driver');
+    } finally {
+      setAssigningDriver(false);
+    }
+  };
+
   if (!propertyId) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
@@ -269,12 +335,12 @@ const t = useTranslations('pos');
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="max-h-64">
+            <ScrollArea className="max-h-96">
               <div className="space-y-2">
                 {activeOrders.map(order => (
-                  <div key={order.id} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:shadow-sm transition-shadow">
+                  <div key={order.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border bg-card hover:shadow-sm transition-shadow gap-3">
                     <div className="flex items-center gap-3">
-                      <BedDouble className="h-4 w-4 text-muted-foreground" />
+                      <BedDouble className="h-4 w-4 text-muted-foreground shrink-0" />
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-medium">Room {order.roomNumber}</span>
@@ -285,9 +351,22 @@ const t = useTranslations('pos');
                           <Badge className={priorityColors[order.priority]} variant="outline">{order.priority}</Badge>
                           <span className="text-xs text-muted-foreground">{order.orderNumber}</span>
                         </div>
+                        {/* Driver assignment info for in_transit orders */}
+                        {order.status === 'in_transit' && driverAssignments[order.id] && (
+                          <div className="flex items-center gap-3 mt-1.5">
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <User className="h-3 w-3" />
+                              {driverAssignments[order.id].driverName}
+                            </span>
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              ETA ~{driverAssignments[order.id].estimatedMinutes} min
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 sm:flex-nowrap">
                       <div className="text-right">
                         <p className="font-semibold">{formatCurrency(order.totalAmount)}</p>
                         <p className="text-xs text-muted-foreground">{order.orderCategory} • ~{order.estimatedDelivery} min</p>
@@ -298,15 +377,22 @@ const t = useTranslations('pos');
                         </Button>
                       )}
                       {order.status === 'preparing' && (
-                        <Button size="sm" onClick={() => updateOrderStatus(order.id, 'in_transit')}>
+                        <Button size="sm" onClick={() => openDispatchDialog(order)}>
+                          <Truck className="h-4 w-4 mr-1" />
                           Dispatch
                         </Button>
                       )}
                       {order.status === 'in_transit' && (
-                        <Button size="sm" className="bg-emerald-600" onClick={() => updateOrderStatus(order.id, 'delivered')}>
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Delivered
-                        </Button>
+                        <>
+                          <Button size="sm" variant="outline" onClick={() => toast.info('Live tracking not available in demo')}>
+                            <MapPin className="h-4 w-4 mr-1" />
+                            Track
+                          </Button>
+                          <Button size="sm" className="bg-emerald-600" onClick={() => updateOrderStatus(order.id, 'delivered')}>
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Delivered
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -529,6 +615,101 @@ const t = useTranslations('pos');
           </CardContent>
         </Card>
       </div>
+
+      {/* Driver Assignment Dialog */}
+      <Dialog open={dispatchDialogOpen} onOpenChange={(open) => { setDispatchDialogOpen(open); if (!open) setDispatchingOrder(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Truck className="h-5 w-5" />
+              Assign Driver &amp; Dispatch
+            </DialogTitle>
+            <DialogDescription>
+              {dispatchingOrder && (
+                <>
+                  Order {dispatchingOrder.orderNumber} — Room {dispatchingOrder.roomNumber} ({dispatchingOrder.guestName})
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="driver-select">Select Driver / Courier</Label>
+              <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
+                <SelectTrigger id="driver-select">
+                  <SelectValue placeholder="Choose a driver..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableDrivers.map((driver) => (
+                    <SelectItem key={driver.id} value={driver.id}>
+                      <span className="flex items-center gap-2">
+                        <User className="h-3.5 w-3.5 text-muted-foreground" />
+                        {driver.name}
+                        <Badge variant="outline" className="text-xs ml-1">{driver.role}</Badge>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="eta-select">Estimated Delivery Time</Label>
+              <Select value={estimatedTime} onValueChange={setEstimatedTime}>
+                <SelectTrigger id="eta-select">
+                  <SelectValue placeholder="Select ETA" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">
+                    <span className="flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                      15 minutes
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="20">
+                    <span className="flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                      20 minutes
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="25">
+                    <span className="flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                      25 minutes
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="30">
+                    <span className="flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                      30 minutes
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedDriverId && (
+              <div className="rounded-lg border bg-muted/50 p-3 text-sm">
+                <p className="text-muted-foreground">
+                  <strong>{availableDrivers.find(d => d.id === selectedDriverId)?.name}</strong> will be assigned to deliver to{' '}
+                  <strong>Room {dispatchingOrder?.roomNumber}</strong> with an ETA of <strong>{estimatedTime} min</strong>.
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => { setDispatchDialogOpen(false); setDispatchingOrder(null); }}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700"
+              disabled={!selectedDriverId || assigningDriver}
+              onClick={assignAndDispatch}
+            >
+              {assigningDriver ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Truck className="h-4 w-4 mr-1" />}
+              Assign &amp; Dispatch
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

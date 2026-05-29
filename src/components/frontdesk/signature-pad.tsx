@@ -31,6 +31,9 @@ export function SignaturePad({
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width, height });
+  const [strokeCount, setStrokeCount] = useState(0);
+  const [signatureTimestamp, setSignatureTimestamp] = useState<Date | null>(null);
+  const MIN_STROKES = 3;
 
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const lastPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -159,6 +162,7 @@ export function SignaturePad({
       ctx.fill();
 
       setHasSignature(true);
+      setStrokeCount((prev) => prev + 1);
     },
     [disabled, getPos]
   );
@@ -198,6 +202,7 @@ export function SignaturePad({
     if (canvas && hasSignature) {
       const dataUrl = canvas.toDataURL('image/png');
       onChange(dataUrl);
+      setSignatureTimestamp(new Date());
     }
   }, [isDrawing, hasSignature, onChange]);
 
@@ -232,6 +237,8 @@ export function SignaturePad({
     ctx.fillText('✍ Sign above this line', 24, canvasSize.height * 0.92);
 
     setHasSignature(false);
+    setStrokeCount(0);
+    setSignatureTimestamp(null);
     onChange(null);
   }, [disabled, canvasSize, onChange]);
 
@@ -277,6 +284,17 @@ export function SignaturePad({
             <>
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
               <span className="text-emerald-600 dark:text-emerald-400">Signature captured</span>
+              {signatureTimestamp && (
+                <span className="text-muted-foreground">
+                  at {signatureTimestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+              )}
+              {strokeCount < MIN_STROKES && (
+                <span className="text-amber-600 dark:text-amber-400 ml-1 flex items-center gap-0.5">
+                  <AlertCircle className="h-3 w-3" />
+                  Too short
+                </span>
+              )}
             </>
           ) : required ? (
             <>

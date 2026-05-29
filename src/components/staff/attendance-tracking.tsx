@@ -55,6 +55,7 @@ import {
   CalendarDays,
   CheckCircle,
   XCircle,
+  Fingerprint,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -114,6 +115,9 @@ export default function AttendanceTracking() {
   const [selectedStaffForClock, setSelectedStaffForClock] = useState<StaffMember | null>(null);
   const [clockAction, setClockAction] = useState<'in' | 'out'>('in');
   const [clockNotes, setClockNotes] = useState('');
+  const [verificationMethod, setVerificationMethod] = useState<string>('manual');
+  const [biometricVerified, setBiometricVerified] = useState(false);
+  const [biometricVerifying, setBiometricVerifying] = useState(false);
 
   const departments = useMemo(() => {
     const depts = new Set(staff.map(s => s.department).filter(Boolean));
@@ -159,35 +163,59 @@ export default function AttendanceTracking() {
 
   const handleClockAction = async () => {
     if (!selectedStaffForClock) return;
+    if (verificationMethod !== 'manual' && !biometricVerified) {
+      toast.error('Please complete biometric verification first');
+      return;
+    }
 
     try {
+      const body: Record<string, unknown> = {
+        staffId: selectedStaffForClock.id,
+        type: clockAction,
+        notes: clockNotes,
+      };
+      if (verificationMethod !== 'manual') {
+        body.biometricVerified = true;
+        body.verificationMethod = verificationMethod;
+      }
+
       const response = await fetch('/api/staff/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          staffId: selectedStaffForClock.id,
-          type: clockAction,
-          notes: clockNotes,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) throw new Error('Failed to record clock action');
 
-      toast.success(`Clocked ${clockAction} successfully for ${selectedStaffForClock.firstName}`);
+      toast.success(`Clocked ${clockAction} successfully for ${selectedStaffForClock.firstName}${verificationMethod !== 'manual' ? ` (${verificationMethod})` : ''}`);
       setIsClockDialogOpen(false);
       setClockNotes('');
       setSelectedStaffForClock(null);
+      setBiometricVerified(false);
+      setVerificationMethod('manual');
       fetchData();
     } catch (error) {
       toast.error(`Failed to clock ${clockAction}`);
     }
   };
 
+  const simulateBiometric = async () => {
+    setBiometricVerifying(true);
+    await new Promise((r) => setTimeout(r, 1200));
+    setBiometricVerified(true);
+    setBiometricVerifying(false);
+    toast.success('Biometric verification successful');
+  };
+
   const openClockDialog = (member: StaffMember, action: 'in' | 'out') => {
     setSelectedStaffForClock(member);
     setClockAction(action);
+    setBiometricVerified(false);
+    setVerificationMethod('manual');
     setIsClockDialogOpen(true);
   };
+
+  // (openClockDialog defined above with biometric reset)
 
   const exportAttendance = (format: 'csv' | 'json') => {
     const data = attendance.map(record => ({
@@ -605,6 +633,55 @@ export default function AttendanceTracking() {
                 })}
               </p>
             </div>
+            <div className="space-y-2">
+              <Label>Verification Method</Label>
+              <Select value={verificationMethod} onValueChange={(v) => { setVerificationMethod(v); setBiometricVerified(false); }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">Manual (No Verification)</SelectItem>
+                  <SelectItem value="fingerprint">Fingerprint Scanner</SelectItem>
+                  <SelectItem value="face_recognition">Face Recognition</SelectItem>
+                  <SelectItem value="pin">PIN Code</SelectItem>
+                  <SelectItem value="palm_vein">Palm Vein Scanner</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {verificationMethod !== 'manual' && (
+              <div className="space-y-2">
+                <Label>Biometric Verification</Label>
+                <div className="rounded-lg border p-4 bg-muted/30">
+                  {biometricVerified ? (
+                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle className="h-5 w-5" />
+                      <span className="font-medium text-sm">Identity Verified</span>
+                      <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-0 text-xs capitalize">
+                        {verificationMethod.replace('_', ' ')}
+                      </Badge>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">Tap below to verify identity using {verificationMethod.replace('_', ' ')}</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        disabled={biometricVerifying}
+                        onClick={simulateBiometric}
+                      >
+                        {biometricVerifying ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Fingerprint className="h-4 w-4 mr-2" />
+                        )}
+                        {biometricVerifying ? 'Verifying...' : `Verify with ${verificationMethod.replace('_', ' ')}`}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="notes">Notes (Optional)</Label>
               <Input

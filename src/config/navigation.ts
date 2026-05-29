@@ -213,6 +213,7 @@ export const navigationConfig: NavSection[] = [
       { id: 'express-kiosk', title: 'Express Kiosk', href: '#express-kiosk', icon: Monitor },
       { id: 'kiosk-settings', title: 'Kiosk Settings', href: '#kiosk-settings', icon: Settings },
       { id: 'room-move', title: 'Room Move', href: '#room-move', icon: ArrowRightLeft },
+      { id: 'guest-instructions', title: 'Guest Instructions', href: '#guest-instructions', icon: FileText },
     ],
   },
   {
