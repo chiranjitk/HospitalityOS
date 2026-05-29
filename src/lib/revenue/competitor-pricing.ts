@@ -17,6 +17,7 @@ export interface CompetitorRate {
   source: 'direct' | 'ota' | 'scraper' | 'api';
   collectedAt: Date;
   available: boolean;
+  isDemoData?: boolean;
   restrictions?: {
     minStay?: number;
     maxStay?: number;
@@ -142,6 +143,13 @@ export async function fetchExpediaRates(
   }
 }
 
+// TODO: Integrate real competitor data sources. Replace the synthetic data generation
+// below with actual scraping/parsing of competitor websites or third-party rate
+// shopping APIs (e.g., STR, OTA Insight, RateGain). The current implementation
+// derives fake prices from the property's own rate plans and OTA markup factors.
+// To plug in a real data source, implement a new fetcher that calls the vendor API
+// and return CompetitorRate[] with isDemoData set to false.
+
 /**
  * Deterministic daily variation from a seed string.
  * Maps to [-0.05, +0.05] so the same competitor+date always yields the same tweak.
@@ -168,18 +176,42 @@ const OTA_MARKUP: Record<string, number> = {
 const DEFAULT_OTA_MARKUP = 1.12;
 
 /**
+ * Whether to allow returning synthetic demo data when real competitor sources are unavailable.
+ * Set the environment variable COMPETITOR_PRICING_ALLOW_DEMO=true to enable (default: false).
+ * When disabled, the scraper returns an empty array instead of fabricated data.
+ */
+const ALLOW_DEMO_DATA = process.env.COMPETITOR_PRICING_ALLOW_DEMO === 'true';
+
+/**
  * Fetch rates using web scraping (for competitors without API access).
  *
- * In the absence of a real headless browser / scraping service, this function
- * generates deterministic competitor rates derived from the property's own
- * rate plans combined with OTA-specific markup factors.  This produces
- * realistic, stable prices instead of empty results or random noise.
+ * **DEMO DATA WARNING**: In the absence of a real headless browser / scraping service,
+ * this function generates deterministic competitor rates derived from the property's
+ * own rate plans combined with OTA-specific markup factors. Every returned rate is
+ * flagged with `isDemoData: true` so consumers can display a watermark.
+ *
+ * When COMPETITOR_PRICING_ALLOW_DEMO is not set to "true", this function returns
+ * an empty array — preventing fabricated data from influencing decisions.
  */
 export async function scrapeCompetitorRates(
   url: string,
   checkIn: Date,
   checkOut: Date
 ): Promise<CompetitorRate[]> {
+  if (!ALLOW_DEMO_DATA) {
+    console.warn(
+      '[competitor-pricing] Demo data generation is disabled (COMPETITOR_PRICING_ALLOW_DEMO != true). ' +
+      'Returning empty results. Enable the env var or integrate a real competitor data source.'
+    );
+    return [];
+  }
+
+  console.warn(
+    '[competitor-pricing] DEMO DATA: Generating synthetic competitor rates for %s — ' +
+    'this data is NOT from a real competitor source and should not be used for pricing decisions.',
+    url
+  );
+
   try {
     // Derive markup from the URL pattern
     const urlLower = url.toLowerCase();
@@ -226,6 +258,7 @@ export async function scrapeCompetitorRates(
         source: 'scraper',
         collectedAt: new Date(),
         available: true,
+        isDemoData: true,
       });
     }
 
@@ -289,7 +322,16 @@ export async function fetchAllCompetitorRates(
         ...r,
         competitorId: competitor.id,
         competitorName: competitor.competitorName,
+        isDemoData: r.isDemoData,
       })));
+
+      if (rates.length > 0 && rates.some((r) => r.isDemoData)) {
+        console.warn(
+          '[competitor-pricing] DEMO DATA: %d rate(s) for competitor "%s" are synthetic.',
+          rates.length,
+          competitor.competitorName
+        );
+      }
 
       // No need to update lastCollected on CompetitorPrice — that's managed at write time
     } catch (error) {

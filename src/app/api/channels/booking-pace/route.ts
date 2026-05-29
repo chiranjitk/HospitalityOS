@@ -92,6 +92,59 @@ export async function PUT(request: NextRequest) {
 }
 
 // ============================================
+// DELETE handler (cleanup old snapshots)
+// ============================================
+export async function DELETE(request: NextRequest) {
+  const user = await requirePermission(request, 'channels.manage');
+  if (user instanceof NextResponse) return user;
+
+  const searchParams = request.nextUrl.searchParams;
+  const action = searchParams.get('action');
+
+  if (action === 'cleanup') {
+    try {
+      const retentionDays = Math.min(
+        Math.max(parseInt(searchParams.get('retentionDays') || '365', 10), 30),
+        1825 // max 5 years
+      );
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - retentionDays);
+
+      const result = await db.bookingPaceSnapshot.deleteMany({
+        where: {
+          tenantId: user.tenantId,
+          snapshotDate: { lt: cutoff },
+        },
+      });
+
+      console.log(
+        `[booking-pace] Cleanup: deleted ${result.count} snapshots older than ${retentionDays} days for tenant ${user.tenantId}`
+      );
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          deletedCount: result.count,
+          cutoff: cutoff.toISOString(),
+          retentionDays,
+        },
+      });
+    } catch (error) {
+      console.error('Booking pace cleanup error:', error);
+      return NextResponse.json(
+        { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to cleanup old snapshots' } },
+        { status: 500 }
+      );
+    }
+  }
+
+  return NextResponse.json(
+    { success: false, error: { code: 'INVALID_ACTION', message: 'Unknown action. Use ?action=cleanup&retentionDays=365' } },
+    { status: 400 }
+  );
+}
+
+// ============================================
 // Handle: Pace Data (main comparison view)
 // ============================================
 async function handlePaceData(request: NextRequest, tenantId: string) {
@@ -680,6 +733,41 @@ async function handleSnapshot(tenantId: string, body: Record<string, unknown>) {
       snapshotDate: now.toISOString(),
       snapshotsCreated: groupMap.size,
       lookbackDays,
+    },
+  });
+}
+
+// ============================================
+// Handle: Cleanup old snapshots (DELETE)
+// ============================================
+/**
+ * Cleanup helper — delete booking pace snapshots older than `retentionDays`.
+ * Defaults to 365 days. Call this from a cron job to prevent unbounded data growth.
+ *
+ * Recommended cron: run once daily (e.g., at 03:00 UTC)
+ *   DELETE /api/channels/booking-pace?action=cleanup&retentionDays=365
+ */
+async function handleCleanupSnapshots(tenantId: string, retentionDays: number) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - retentionDays);
+
+  const result = await db.bookingPaceSnapshot.deleteMany({
+    where: {
+      tenantId,
+      snapshotDate: { lt: cutoff },
+    },
+  });
+
+  console.log(
+    `[booking-pace] Cleanup: deleted ${result.count} snapshots older than ${retentionDays} days for tenant ${tenantId}`
+  );
+
+  return NextResponse.json({
+    success: true,
+    data: {
+      deletedCount: result.count,
+      cutoff: cutoff.toISOString(),
+      retentionDays,
     },
   });
 }

@@ -305,6 +305,7 @@ function getRatingStars(rating: number): React.ReactNode {
 export default function VipRecognition() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [rules, setRules] = useState<RecognitionRule[]>(DEFAULT_RECOGNITION_RULES);
+  const [rulesLoading, setRulesLoading] = useState(true);
   const [selectedTier, setSelectedTier] = useState<VipTier | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGuest, setSelectedGuest] = useState<VipGuest | null>(null);
@@ -324,9 +325,10 @@ export default function VipRecognition() {
       setAlertsLoading(true);
       setError(null);
       try {
-        const [guestsRes, alertsRes] = await Promise.allSettled([
+        const [guestsRes, alertsRes, rulesRes] = await Promise.allSettled([
           fetch('/api/guests/vip'),
           fetch('/api/guests/vip/alert-log'),
+          fetch('/api/guests/vip/rules'),
         ]);
         if (cancelled) return;
         // VIP guests
@@ -383,6 +385,26 @@ export default function VipRecognition() {
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load VIP data');
       } finally {
+        // Persisted rules from API (fall back to defaults if empty)
+        if (rulesRes.status === 'fulfilled' && rulesRes.value.ok) {
+          const rulesData = await rulesRes.value.json();
+          const items: RecognitionRule[] = Array.isArray(rulesData.data)
+            ? rulesData.data
+            : Array.isArray(rulesData) ? rulesData : [];
+          if (items.length > 0) {
+            setRules(items);
+          } else {
+            // No persisted rules yet — seed defaults to the database
+            for (const defaultRule of DEFAULT_RECOGNITION_RULES) {
+              fetch('/api/guests/vip/rules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(defaultRule),
+              }).catch(() => { /* seed failure is non-critical */ });
+            }
+          }
+        }
+        setRulesLoading(false);
         if (!cancelled) { setVipLoading(false); setAlertsLoading(false); }
       }
     }
@@ -426,10 +448,34 @@ export default function VipRecognition() {
     bronze: vipGuests.filter(g => g.tier === 'bronze').length,
   }), [vipGuests]);
 
-  const handleToggleRule = (ruleId: string) => {
-    setRules(prev => prev.map(r => r.id === ruleId ? { ...r, isActive: !r.isActive } : r));
+  const handleToggleRule = async (ruleId: string) => {
     const rule = rules.find(r => r.id === ruleId);
-    toast.success(`Rule "${rule?.name}" ${rule?.isActive ? 'disabled' : 'enabled'}`);
+    if (!rule) return;
+
+    const newActive = !rule.isActive;
+    // Optimistic update
+    setRules(prev => prev.map(r => r.id === ruleId ? { ...r, isActive: newActive } : r));
+
+    // Persist toggle to the database via API
+    try {
+      const res = await fetch(`/api/guests/vip/rules/${ruleId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: newActive }),
+      });
+      if (!res.ok) {
+        // Revert on failure
+        setRules(prev => prev.map(r => r.id === ruleId ? { ...r, isActive: !newActive } : r));
+        toast.error(`Failed to update rule "${rule.name}"`);
+        return;
+      }
+    } catch {
+      setRules(prev => prev.map(r => r.id === ruleId ? { ...r, isActive: !newActive } : r));
+      toast.error(`Failed to update rule "${rule.name}"`);
+      return;
+    }
+
+    toast.success(`Rule "${rule.name}" ${newActive ? 'disabled' : 'enabled'}`);
   };
 
   const handleOpenGuest = (guest: VipGuest) => {

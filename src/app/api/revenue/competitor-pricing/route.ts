@@ -169,6 +169,9 @@ export async function GET(request: NextRequest) {    const user = await getUserF
       recommendedAction = 'Opportunity to increase rates by 5-10% while remaining competitive.';
     }
 
+    // Check if any competitor data originates from the demo-data scraper
+    const hasDemoData = competitorPrices.some((cp) => cp.source === 'scraper');
+
     return NextResponse.json({
       success: true,
       data: {
@@ -177,8 +180,11 @@ export async function GET(request: NextRequest) {    const user = await getUserF
         ourPrice,
         marketPosition,
         priceDifference: Math.round(priceDiff * 10) / 10,
-        recommendedAction,
+        recommendedAction: hasDemoData
+          ? '⚠️ DEMO DATA: Some competitor prices were generated from the property\'s own rates (not real competitor sources). ' + recommendedAction
+          : recommendedAction,
         hasCompetitorData: competitors.length > 0,
+        hasDemoData,
       },
     });
   } catch (error) {
