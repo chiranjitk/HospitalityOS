@@ -61,6 +61,11 @@ import {
   RectangleHorizontal,
   ClipboardList,
   Copy,
+  Wallet,
+  CreditCard,
+  Receipt,
+  Package,
+  BookOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -303,6 +308,112 @@ export default function BEOManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+
+  // ─── Financial state for folio / deposit / settlement ─────────────
+  const [folioSummary, setFolioSummary] = useState<Record<string, unknown> | null>(null);
+  const [folioLoading, setFolioLoading] = useState(false);
+  const [depositAmount, setDepositAmount] = useState('');
+  const [depositMethod, setDepositMethod] = useState('bank_transfer');
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [settlementMethod, setSettlementMethod] = useState('bank_transfer');
+  const [settlementLoading, setSettlementLoading] = useState(false);
+  const [folioPostingLoading, setFolioPostingLoading] = useState(false);
+
+  // ─── Menu packages state ──────────────────────────────────────────
+  const [menuPackages, setMenuPackages] = useState<Array<Record<string, unknown>>>([]);
+  const [menuPkgLoading, setMenuPkgLoading] = useState(false);
+
+  // ─── Financial actions ───────────────────────────────────────────
+  const handlePostToFolio = async (beoId: string) => {
+    setFolioPostingLoading(true);
+    try {
+      const res = await fetch(`/api/events/beo/${beoId}/folio`, { method: 'POST' });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(`Posted ${json.data.lineItemsPosted} charges to folio ${json.data.folioNumber}`);
+        fetchFolioSummary(beoId);
+      } else {
+        toast.error(json.error || 'Failed to post to folio');
+      }
+    } catch { toast.error('Network error posting to folio'); }
+    finally { setFolioPostingLoading(false); }
+  };
+
+  const fetchFolioSummary = async (beoId: string) => {
+    setFolioLoading(true);
+    try {
+      const res = await fetch(`/api/events/beo/${beoId}/folio`);
+      const json = await res.json();
+      if (json.success) setFolioSummary(json.data);
+      else setFolioSummary(null);
+    } catch { setFolioSummary(null); }
+    finally { setFolioLoading(false); }
+  };
+
+  const handleDepositPayment = async (beoId: string) => {
+    const amount = parseFloat(depositAmount);
+    if (!amount || amount <= 0) { toast.error('Enter a valid deposit amount'); return; }
+    setDepositLoading(true);
+    try {
+      const res = await fetch(`/api/events/beo/${beoId}/deposit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, paymentMethod: depositMethod }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(`Deposit of ${formatCurrency(json.data.amount)} recorded`);
+        setDepositAmount('');
+        fetchFolioSummary(beoId);
+        fetchBeos();
+      } else { toast.error(json.error || 'Failed to process deposit'); }
+    } catch { toast.error('Network error processing deposit'); }
+    finally { setDepositLoading(false); }
+  };
+
+  const handleFinalSettlement = async (beoId: string) => {
+    setSettlementLoading(true);
+    try {
+      const res = await fetch(`/api/events/beo/${beoId}/settlement`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentMethod: settlementMethod }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(`Settlement complete. Folio ${json.data.folioNumber} closed.`);
+        fetchFolioSummary(beoId);
+        fetchBeos();
+      } else { toast.error(json.error || 'Failed to process settlement'); }
+    } catch { toast.error('Network error processing settlement'); }
+    finally { setSettlementLoading(false); }
+  };
+
+  const fetchMenuPackages = async () => {
+    setMenuPkgLoading(true);
+    try {
+      const res = await fetch('/api/events/menu-packages');
+      const json = await res.json();
+      if (json.success) setMenuPackages(json.data || []);
+      else setMenuPackages([]);
+    } catch { setMenuPackages([]); }
+    finally { setMenuPkgLoading(false); }
+  };
+
+  const handleApplyPackage = async (pkgId: string, beoId: string) => {
+    try {
+      const res = await fetch(`/api/events/menu-packages/${pkgId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ beoId }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(`Applied ${json.data.packageName} to BEO (${json.data.itemsCreated} items)`);
+        fetchBeos();
+      } else { toast.error(json.error || 'Failed to apply package'); }
+    } catch { toast.error('Network error applying package'); }
+  };
 
   // ─── Fetch BEOs from API ─────────────────────────────────────────────
   const fetchBeos = async () => {
@@ -843,7 +954,7 @@ export default function BEOManagement() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <TabsList>
+          <TabsList className="flex-wrap">
             <TabsTrigger value="list">
               <ClipboardList className="h-4 w-4 mr-1.5" />
               BEO List
@@ -851,6 +962,22 @@ export default function BEOManagement() {
             <TabsTrigger value="preview">
               <Eye className="h-4 w-4 mr-1.5" />
               Document Preview
+            </TabsTrigger>
+            <TabsTrigger value="folio">
+              <Wallet className="h-4 w-4 mr-1.5" />
+              Folio
+            </TabsTrigger>
+            <TabsTrigger value="deposit">
+              <CreditCard className="h-4 w-4 mr-1.5" />
+              Deposit
+            </TabsTrigger>
+            <TabsTrigger value="settlement">
+              <Receipt className="h-4 w-4 mr-1.5" />
+              Settlement
+            </TabsTrigger>
+            <TabsTrigger value="packages">
+              <Package className="h-4 w-4 mr-1.5" />
+              Packages
             </TabsTrigger>
           </TabsList>
 
@@ -1005,6 +1132,364 @@ export default function BEOManagement() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Folio Tab */}
+        <TabsContent value="folio" className="mt-4">
+          {selectedBEO ? (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                <div className="flex items-center gap-3">
+                  <CardTitle className="text-lg">Folio Charges</CardTitle>
+                  <Badge variant="outline">{folioSummary?.folioNumber || 'Not posted'}</Badge>
+                </div>
+                {folioSummary?.folioStatus && (
+                  <Badge className={folioSummary.folioStatus === 'closed' ? 'bg-gray-100 text-gray-600' : 'bg-emerald-100 text-emerald-700'}>
+                    {String(folioSummary.folioStatus)}
+                  </Badge>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {!folioSummary?.folioId && (
+                    <Button disabled={folioPostingLoading || !['confirmed', 'approved', 'completed'].includes(selectedBEO.status)} onClick={() => handlePostToFolio(selectedBEO.id)}>
+                      {folioPostingLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wallet className="h-4 w-4 mr-2" />}
+                      Post to Folio
+                    </Button>
+                  )}
+                  {folioSummary?.folioId && (
+                    <Button variant="outline" size="sm" onClick={() => { setSelectedBEO(selectedBEO); fetchFolioSummary(selectedBEO.id); }}>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Refresh
+                    </Button>
+                  )}
+                </div>
+
+                {folioLoading ? (
+                  <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+                ) : folioSummary ? (
+                  <div className="space-y-4">
+                    {/* Charges by Category */}
+                    <div className="rounded-lg border p-4">
+                      <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
+                        <DollarSign className="h-4 w-4 text-primary" /> Charges by Category
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {Object.entries(folioSummary.chargesByCategory || {}).map(([cat, amount]) => (
+                          <div key={cat} className="rounded-lg bg-muted/50 p-3">
+                            <div className="text-xs text-muted-foreground capitalize">{cat}</div>
+                            <div className="font-semibold">{formatCurrency(amount as number)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Service Charge + Tax */}
+                    <div className="rounded-lg border p-4">
+                      <h4 className="font-medium text-sm mb-3">Taxes & Service Charge</h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Subtotal</span>
+                          <span>{formatCurrency(folioSummary.totalCharges as number)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Service Charge (10%)</span>
+                          <span>{formatCurrency(folioSummary.serviceCharge as number)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Tax (18%)</span>
+                          <span>{formatCurrency(folioSummary.tax as number)}</span>
+                        </div>
+                        <Separator />
+                        <div className="flex justify-between text-sm font-bold">
+                          <span>Grand Total</span>
+                          <span className="text-primary">{formatCurrency(folioSummary.grandTotal as number)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Payment History */}
+                    {(folioSummary.payments as Array)?.length > 0 && (
+                      <div className="rounded-lg border p-4">
+                        <h4 className="font-medium text-sm mb-3">Payment History</h4>
+                        <div className="space-y-2">
+                          {(folioSummary.payments as Array).map((p: Record<string, unknown>, i: number) => (
+                            <div key={i} className="flex justify-between items-center text-sm">
+                              <div>
+                                <div className="font-medium">{p.description || p.method}</div>
+                                <div className="text-xs text-muted-foreground">{new Date(p.createdAt as string).toLocaleString()}</div>
+                              </div>
+                              <Badge variant={p.amount < 0 ? 'default' : 'secondary'}>
+                                {formatCurrency(p.amount as number)}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Outstanding Balance */}
+                    <div className={cn(
+                      'rounded-lg border p-4',
+                      (folioSummary.outstandingBalance as number) > 0 ? 'bg-amber-50 border-amber-200 dark:bg-amber-950/20' : 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20'
+                    )}>
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">Outstanding Balance</span>
+                        <span className={cn(
+                          'text-lg font-bold',
+                          (folioSummary.outstandingBalance as number) > 0 ? 'text-amber-700' : 'text-emerald-700'
+                        )}>
+                          {formatCurrency(folioSummary.outstandingBalance as number)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Wallet className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <h3 className="text-lg font-medium">Charges Not Yet Posted</h3>
+                    <p className="text-sm mt-1">Post BEO charges to a folio to track payments</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                <Wallet className="h-16 w-16 mb-4 opacity-30" />
+                <h3 className="text-lg font-medium">Select a BEO</h3>
+                <p className="text-sm mt-1">Click a BEO in the list to view its folio</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Deposit Tab */}
+        <TabsContent value="deposit" className="mt-4">
+          {selectedBEO ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Deposit Management</CardTitle>
+                <p className="text-sm text-muted-foreground">Track and record deposit payments for BEO {selectedBEO.beoNumber}</p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Deposit Status */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="rounded-lg border p-4 text-center">
+                    <div className="text-xs text-muted-foreground">Deposit Required</div>
+                    <div className="text-2xl font-bold">{folioSummary?.depositRequired ? formatCurrency(folioSummary.depositRequired as number) : '—'}</div>
+                  </div>
+                  <div className="rounded-lg border p-4 text-center">
+                    <div className="text-xs text-muted-foreground">Deposit Paid</div>
+                    <div className="text-2xl font-bold text-emerald-600">{folioSummary?.depositPaid ? formatCurrency(folioSummary.depositPaid as number) : formatCurrency(0)}</div>
+                  </div>
+                  <div className={cn(
+                    'rounded-lg border p-4 text-center',
+                    folioSummary && (folioSummary.outstandingDeposit as number) > 0 ? 'bg-amber-50 border-amber-200 dark:bg-amber-950/20' : 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20'
+                  )}>
+                    <div className="text-xs text-muted-foreground">Outstanding</div>
+                    <div className={cn(
+                      'text-2xl font-bold',
+                      folioSummary && (folioSummary.outstandingDeposit as number) > 0 ? 'text-amber-700' : 'text-emerald-700'
+                    )}>
+                      {folioSummary?.outstandingDeposit ? formatCurrency(folioSummary.outstandingDeposit as number) : formatCurrency(0)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Record Deposit */}
+                {folioSummary && (folioSummary.outstandingDeposit as number) > 0 && (
+                  <div className="rounded-lg border p-4">
+                    <h4 className="font-medium text-sm mb-3">Record Deposit Payment</h4>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="flex-1">
+                        <Label htmlFor="deposit-amount" className="mb-1.5">Amount</Label>
+                        <Input
+                          id="deposit-amount"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={depositAmount}
+                          onChange={(e) => setDepositAmount(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="deposit-method" className="mb-1.5">Payment Method</Label>
+                        <Select value={depositMethod} onValueChange={setDepositMethod}>
+                          <SelectTrigger id="deposit-method" className="w-[180px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                            <SelectItem value="credit_card">Credit Card</SelectItem>
+                            <SelectItem value="cash">Cash</SelectItem>
+                            <SelectItem value="cheque">Cheque</SelectItem>
+                            <SelectItem value="upi">UPI</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-end">
+                        <Button disabled={depositLoading || !depositAmount} onClick={() => handleDepositPayment(selectedBEO.id)}>
+                          {depositLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CreditCard className="h-4 w-4 mr-2" />}
+                          Record Deposit
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                <CreditCard className="h-16 w-16 mb-4 opacity-30" />
+                <h3 className="text-lg font-medium">Select a BEO</h3>
+                <p className="text-sm mt-1">Click a BEO in the list to manage deposits</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Settlement Tab */}
+        <TabsContent value="settlement" className="mt-4">
+          {selectedBEO ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Final Settlement</CardTitle>
+                <p className="text-sm text-muted-foreground">Process final payment and close the event folio</p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Settlement Overview */}
+                <div className="rounded-lg border p-4">
+                  <h4 className="font-medium text-sm mb-3">Settlement Overview</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Total Charges</span>
+                      <span className="font-medium">{folioSummary?.grandTotal ? formatCurrency(folioSummary.grandTotal as number) : '—'}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Deposit Paid</span>
+                      <span className="text-emerald-600 font-medium">{folioSummary?.depositPaid ? formatCurrency(folioSummary.depositPaid as number) : formatCurrency(0)}</span>
+                    </div>
+                    {(folioSummary?.payments as Array)?.length > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Payments Made</span>
+                        <span className="font-medium">{formatCurrency((folioSummary.payments as Array).reduce((s: number, p: Record<string, unknown>) => s + Math.abs(p.amount as number), 0))}</span>
+                      </div>
+                    )}
+                    <Separator />
+                    <div className="flex justify-between text-sm font-bold">
+                      <span>Outstanding Balance</span>
+                      <span className={folioSummary?.outstandingBalance !== undefined && (folioSummary.outstandingBalance as number) > 0 ? 'text-destructive' : 'text-emerald-600'}>
+                        {folioSummary?.outstandingBalance !== undefined ? formatCurrency(folioSummary.outstandingBalance as number) : '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Settlement Actions */}
+                {folioSummary?.outstandingBalance !== undefined && (folioSummary.outstandingBalance as number) > 0 ? (
+                  <div className="rounded-lg border border-primary/50 bg-primary/5 p-4">
+                    <h4 className="font-medium text-sm mb-3">Process Final Payment</h4>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      This will charge the remaining balance of <span className="font-bold">{formatCurrency(folioSummary.outstandingBalance as number)}</span> and close the folio.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3 items-end">
+                      <div>
+                        <Label htmlFor="settlement-method" className="mb-1.5">Payment Method</Label>
+                        <Select value={settlementMethod} onValueChange={setSettlementMethod}>
+                          <SelectTrigger id="settlement-method" className="w-[180px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                            <SelectItem value="credit_card">Credit Card</SelectItem>
+                            <SelectItem value="cash">Cash</SelectItem>
+                            <SelectItem value="cheque">Cheque</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button disabled={settlementLoading} onClick={() => handleFinalSettlement(selectedBEO.id)}>
+                        {settlementLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Receipt className="h-4 w-4 mr-2" />}
+                        Settle & Close
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 p-4 text-center">
+                    <CheckCircle2 className="h-5 w-5 mx-auto mb-2 text-emerald-600" />
+                    <div className="font-medium text-emerald-700">Fully Settled</div>
+                    <p className="text-xs text-muted-foreground mt-1">All charges have been paid and the folio is closed.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                <Receipt className="h-16 w-16 mb-4 opacity-30" />
+                <h3 className="text-lg font-medium">Select a BEO</h3>
+                <p className="text-sm mt-1">Click a BEO in the list to manage settlement</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Menu Packages Tab */}
+        <TabsContent value="packages" className="mt-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+              <div>
+                <CardTitle className="text-lg">Menu Package Templates</CardTitle>
+                <p className="text-sm text-muted-foreground">Reusable F&B packages for quick BEO creation</p>
+              </div>
+              <Button onClick={fetchMenuPackages} variant="outline" size="sm" disabled={menuPkgLoading}>
+                {menuPkgLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <BookOpen className="h-4 w-4 mr-2" />}
+                Refresh
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {menuPkgLoading ? (
+                <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+              ) : menuPackages.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto">
+                  {menuPackages.map((pkg: Record<string, unknown>) => (
+                    <Card key={pkg.id as string} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <h3 className="font-medium text-sm">{pkg.name as string}</h3>
+                            <Badge variant="outline" className="text-xs mt-1 capitalize">{pkg.category as string}</Badge>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{pkg.itemCount} items</span>
+                        </div>
+                        <div className="text-sm font-semibold mb-2">{formatCurrency(pkg.itemsTotal as number)}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-2 mb-3">{pkg.description as string}</div>
+                        {selectedBEO && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => handleApplyPackage(pkg.id as string, selectedBEO.id)}
+                          >
+                            <Plus className="h-3.5 w-3.5 mr-1" />
+                            Apply to BEO
+                          </Button>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Package className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                  <h3 className="text-lg font-medium">No Menu Packages</h3>
+                  <p className="text-sm mt-1">Create reusable F&B packages for quick BEO setup via the API</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

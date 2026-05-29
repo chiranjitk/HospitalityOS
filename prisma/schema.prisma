@@ -7233,6 +7233,8 @@ model Tenant {
   journeyActions            JourneyAction[]
   abandonedBookings         AbandonedBooking[]
   banquetEventOrders        BanquetEventOrder[]
+  menuPackages              MenuPackage[]
+  menuPackageItems          MenuPackageItem[]
   vipRules                  VipRule[]
   vipAlerts                 VipAlert[]
   roomTypeChanges           RoomTypeChange[]
@@ -10999,6 +11001,44 @@ model BEOItem {
 
   @@index([orderId])
   @@index([category])
+}
+
+model MenuPackage {
+  id                String             @id @default(uuid()) @db.Uuid
+  tenantId          String             @db.Uuid
+  name              String
+  category          String             @default("corporate") // wedding, corporate, birthday, conference, social, custom
+  description       String?
+  serviceChargeRate Float              @default(0.1) // 10% default
+  taxRate           Float              @default(0.18) // 18% GST
+  isActive          Boolean            @default(true)
+  items             MenuPackageItem[]
+  createdAt         DateTime           @default(now()) @db.Timestamptz
+  updatedAt         DateTime           @updatedAt @db.Timestamptz
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([category])
+  @@index([isActive])
+}
+
+model MenuPackageItem {
+  id             String       @id @default(uuid()) @db.Uuid
+  tenantId       String       @db.Uuid
+  menuPackageId  String       @db.Uuid
+  name           String
+  itemCategory   String       @default("food") // food, beverage, av, decoration, staffing, rental
+  unitPrice      Float        @default(0)
+  quantity       Int          @default(1)
+  notes          String?
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now()) @db.Timestamptz
+  updatedAt      DateTime     @updatedAt @db.Timestamptz
+  menuPackage    MenuPackage  @relation(fields: [menuPackageId], references: [id], onDelete: Cascade)
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([menuPackageId])
 }
 
 // --- VIP RECOGNITION ALERTS ---
