@@ -206,6 +206,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!folioId || !amount || !method) {
+      console.warn(`[payments] 400 VALIDATION_ERROR: folioId=${!!folioId} amount=${amount} method=${method} body=`, JSON.stringify(data).slice(0, 200));
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required fields: folioId, amount, method' } },
         { status: 400 }
@@ -214,6 +215,7 @@ export async function POST(request: NextRequest) {
 
     // Validate amount
     if (amount <= 0) {
+      console.warn(`[payments] 400 INVALID_AMOUNT: amount=${amount}`);
       return NextResponse.json(
         { success: false, error: { code: 'INVALID_AMOUNT', message: 'Amount must be greater than 0' } },
         { status: 400 }
@@ -229,12 +231,14 @@ export async function POST(request: NextRequest) {
             id: true,
             confirmationCode: true,
             tenantId: true,
+            status: true,
           },
         },
       },
     });
 
     if (!folio) {
+      console.warn(`[payments] 400 INVALID_FOLIO: folioId=${folioId} not found`);
       return NextResponse.json(
         { success: false, error: { code: 'INVALID_FOLIO', message: 'Folio not found' } },
         { status: 400 }
@@ -243,6 +247,7 @@ export async function POST(request: NextRequest) {
 
     // Verify tenant ownership — prevent cross-tenant payments
     if (folio.booking.tenantId !== tenantId) {
+      console.warn(`[payments] 403 FORBIDDEN: folio tenant=${folio.booking.tenantId} != user tenant=${tenantId}`);
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Folio does not belong to your tenant' } },
         { status: 403 }
@@ -255,7 +260,21 @@ export async function POST(request: NextRequest) {
     // SECURITY FIX (P-01): Overpayment guard. Prevent payments that exceed
     // the outstanding folio balance, which would make the balance deeply negative
     // and enable revenue leakage.
-    if (amount > folio.balance) {
+    // EXCEPTION: Allow payments when folio balance ≤ 0 (advance deposits,
+    // pre-authorizations) or when the folio booking is not yet checked in.
+    // This ensures check-in deposits work correctly.
+    const booking = folio.booking;
+    const isAdvancePayment = folio.balance <= 0 ||
+      !booking ||
+      booking.status === 'draft' ||
+      booking.status === 'confirmed' ||
+      description?.toLowerCase().includes('deposit') ||
+      description?.toLowerCase().includes('pre-auth') ||
+      reference?.toLowerCase().includes('deposit') ||
+      reference?.toLowerCase().includes('pre-auth');
+
+    if (!isAdvancePayment && amount > folio.balance) {
+      console.warn(`[payments] 400 OVERPAYMENT: amount=${amount} > balance=${folio.balance} folioId=${folioId}`);
       return NextResponse.json(
         {
           success: false,
