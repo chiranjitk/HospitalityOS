@@ -11,10 +11,15 @@ export default async function loadSection(section: string): Promise<{ default: R
     case 'security-playback':
       return import('@/components/security/camera-playback');
     case 'security-alerts':
+    case 'emergency-alerts':
+      return import('@/components/security/emergency-alerts');
     case 'security-events':
       return import('@/components/security/security-events');
     case 'security-incidents':
       return import('@/components/security/incidents');
+    case 'visitor-log':
+    case 'visitor-management':
+      return import('@/components/security/visitor-log');
     case 'security-overview':
       return import('@/components/security/security-overview');
     case 'security-audit-logs':
