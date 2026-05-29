@@ -177,6 +177,8 @@ const METHOD_ICONS: Record<string, React.ReactNode> = {
   room_number: <DoorOpen className="w-4 h-4" />,
   pms_credentials: <Key className="w-4 h-4" />,
   sms_otp: <Smartphone className="w-4 h-4" />,
+  email_otp: <Mail className="w-4 h-4" />,
+  password: <Lock className="w-4 h-4" />,
   open_access: <Globe className="w-4 h-4" />,
   mac_auth: <Shield className="w-4 h-4" />,
   social: <Share2 className="w-4 h-4" />,
@@ -3046,23 +3048,41 @@ function PortalContent() {
     const mutedColor = getMutedTextColor(design);
     const accent = design.accentColor;
 
+    // Helper: format method name into a nice full-word label
+    const formatMethodLabel = (method: string, fallbackLabel?: string): string => {
+      if (fallbackLabel) return fallbackLabel;
+      const labelMap: Record<string, string> = {
+        voucher: 'Voucher Code',
+        room_number: 'Room Number',
+        pms_credentials: 'PMS Login',
+        sms_otp: 'SMS OTP',
+        email_otp: 'Email OTP',
+        open_access: 'Open Access',
+        mac_auth: 'MAC Auth',
+        social: 'Social Login',
+        ldap: 'LDAP / RADIUS',
+        password: 'Password',
+      };
+      return labelMap[method] || method.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    };
+
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-1.5">
           <Wifi className="w-3.5 h-3.5" style={{ color: mutedColor }} />
-          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: mutedColor }}>
-            {getUIString(effectiveLanguage, 'signInWith') || 'Sign in with'}
+          <span className="text-xs font-medium" style={{ color: mutedColor }}>
+            Choose your authentication method
           </span>
         </div>
-        {/* Tab bar container */}
+        {/* Tab bar container — matches /portal/captive TabsList style */}
         <div
           className="relative w-full rounded-xl p-1"
           style={{
-            backgroundColor: dark ? 'rgba(255,255,255,0.06)' : accent + '08',
+            backgroundColor: dark ? 'rgba(255,255,255,0.05)' : accent + '08',
             border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : accent + '15'}`,
           }}
         >
-          {/* Scrollable tab row — hide scrollbar */}
+          {/* Scrollable tab row — hide scrollbar, each tab sizes to content */}
           <div
             className="flex gap-1 overflow-x-auto"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
@@ -3074,11 +3094,10 @@ function PortalContent() {
                   key={am.method}
                   onClick={() => setSelectedMethod(am.method)}
                   className={cn(
-                    'relative flex-1 min-w-0 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-xs font-medium whitespace-nowrap cursor-pointer',
+                    'relative shrink-0 flex items-center justify-center gap-2 px-4 h-9 rounded-lg text-sm font-medium whitespace-nowrap cursor-pointer',
                     'transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]'
                   )}
                   style={{
-                    backgroundColor: isActive ? accent : 'transparent',
                     color: isActive ? '#ffffff' : (dark ? 'rgba(255,255,255,0.5)' : accent + '99'),
                     boxShadow: isActive ? `0 4px 14px ${accent}50` : 'none',
                     background: isActive
@@ -3089,7 +3108,7 @@ function PortalContent() {
                   <span className="flex-shrink-0">
                     {METHOD_ICONS[am.method] || <Shield className="w-3.5 h-3.5" />}
                   </span>
-                  <span className="truncate">{am.label || am.method.replace('_', ' ')}</span>
+                  <span>{formatMethodLabel(am.method, am.label)}</span>
                   {/* Active indicator bar */}
                   {isActive && (
                     <motion.div
