@@ -11,13 +11,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePlatformAdmin } from '@/lib/auth/tenant-context';
+import { PLAN_PRICING, PLAN_PRICING_YEARLY, PLAN_LIMITS, type PlanName } from '@/lib/plan-pricing';
 
-// Plan-based pricing lookup (fallback if DB lookup fails)
+// Plan-based pricing lookup derived from canonical source (L-33)
 const planPricing: Record<string, { monthly: number; yearly: number }> = {
-  trial: { monthly: 0, yearly: 0 },
-  starter: { monthly: 99, yearly: 990 },
-  professional: { monthly: 499, yearly: 4990 },
-  enterprise: { monthly: 1999, yearly: 19990 },
+  trial:    { monthly: PLAN_PRICING.trial,      yearly: PLAN_PRICING_YEARLY.trial },
+  starter:  { monthly: PLAN_PRICING.starter,    yearly: PLAN_PRICING_YEARLY.starter },
+  professional: { monthly: PLAN_PRICING.professional, yearly: PLAN_PRICING_YEARLY.professional },
+  enterprise: { monthly: PLAN_PRICING.enterprise, yearly: PLAN_PRICING_YEARLY.enterprise },
 };
 
 // Overage rates (USD)
@@ -113,12 +114,9 @@ export async function POST(request: NextRequest) {
         );
         const pricing = planPricing[plan] || planPricing.trial;
         basePrice = billingPeriod === 'yearly' ? pricing.yearly / 12 : pricing.monthly;
-        apiCallsLimit = plan === 'enterprise' ? 500000 :
-                        plan === 'professional' ? 100000 :
-                        plan === 'starter' ? 25000 : 5000;
-        messagesLimit = plan === 'enterprise' ? 100000 :
-                        plan === 'professional' ? 50000 :
-                        plan === 'starter' ? 10000 : 2000;
+        const limits = PLAN_LIMITS[plan as PlanName] || PLAN_LIMITS.trial;
+        apiCallsLimit = limits.apiCalls;
+        messagesLimit = limits.messages;
       }
     } catch (error) {
       // DB lookup failed — fall back to hardcoded values
@@ -128,12 +126,9 @@ export async function POST(request: NextRequest) {
       );
       const pricing = planPricing[plan] || planPricing.trial;
       basePrice = billingPeriod === 'yearly' ? pricing.yearly / 12 : pricing.monthly;
-      apiCallsLimit = plan === 'enterprise' ? 500000 :
-                      plan === 'professional' ? 100000 :
-                      plan === 'starter' ? 25000 : 5000;
-      messagesLimit = plan === 'enterprise' ? 100000 :
-                      plan === 'professional' ? 50000 :
-                      plan === 'starter' ? 10000 : 2000;
+      const limits = PLAN_LIMITS[plan as PlanName] || PLAN_LIMITS.trial;
+      apiCallsLimit = limits.apiCalls;
+      messagesLimit = limits.messages;
     }
 
     // Usage charges (within limit)

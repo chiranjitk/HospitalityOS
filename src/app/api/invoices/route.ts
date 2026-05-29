@@ -234,9 +234,10 @@ export async function POST(request: NextRequest) {
 
     const invoiceNumber = generateInvoiceNumber();
 
-    // H-21 FIX: ALWAYS use server-calculated financial values from line items.
-    // Client-supplied subtotal/taxes/totalAmount are ignored to prevent
+    // H-21 FIX (verified L-31): ALWAYS use server-calculated financial values from line items.
+    // Client-supplied subtotal/taxes/totalAmount are IGNORED to prevent
     // tampering (e.g., sending totalAmount: 0 to create a free invoice).
+    // See commit e1664cae for the original fix.
     const calculatedSubtotal = Math.round(
       lineItems.reduce((sum: number, item: { totalAmount: number }) => sum + (Number(item.totalAmount) || 0), 0) * 100
     ) / 100;

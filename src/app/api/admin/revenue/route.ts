@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/tenant-context';
 import { subMonths, format, startOfMonth, endOfMonth } from 'date-fns';
+import { PLAN_PRICING, reconcilePlanPricing } from '@/lib/plan-pricing';
 
 // GET - Get platform revenue analytics
 export async function GET(request: NextRequest) {
@@ -95,12 +96,8 @@ export async function GET(request: NextRequest) {
       trial: { tenants: 0, revenue: 0 },
     };
 
-    const planPricing: Record<string, number> = {
-      enterprise: 1999,
-      professional: 499,
-      starter: 99,
-      trial: 0,
-    };
+    // Canonical plan pricing (L-33) — single source of truth from @/lib/plan-pricing
+    const planPricing = { ...PLAN_PRICING };
 
     tenants.forEach(tenant => {
       const plan = tenant.plan as keyof typeof planDistribution;
@@ -228,6 +225,23 @@ export async function GET(request: NextRequest) {
     const paidUsers = tenants.length - trialUsers;
     const conversionRate = tenants.length > 0 ? (paidUsers / tenants.length) * 100 : 0;
 
+    // L-33: Reconcile plan pricing with SubscriptionPlan DB table
+    let pricingReconciliation: Array<{ plan: string; source: string; expected: number; actual: number }> = [];
+    try {
+      const subPlans = await db.subscriptionPlan.findMany({
+        where: { isActive: true },
+        select: { name: true, monthlyPrice: true },
+      });
+      pricingReconciliation = reconcilePlanPricing(
+        subPlans.map((s) => ({ plan: s.name, monthlyPrice: s.monthlyPrice })),
+      );
+      if (pricingReconciliation.length > 0) {
+        console.warn('[revenue] Plan pricing mismatch detected:', pricingReconciliation);
+      }
+    } catch {
+      // SubscriptionPlan table may not exist; non-blocking
+    }
+
     const revenueData = {
       period,
       overview: {
@@ -258,6 +272,7 @@ export async function GET(request: NextRequest) {
           { source: 'Referral', count: 0 },
         ],
       },
+      pricingReconciliation: pricingReconciliation.length > 0 ? pricingReconciliation : undefined,
     };
 
     return NextResponse.json({

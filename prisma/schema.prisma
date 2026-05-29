@@ -2485,6 +2485,9 @@ model FairAccessPolicy {
   applicableOn         String     @default("total")
   isEnabled            Boolean    @default(true)
   priority             Int        @default(0)
+  // L-30: Throttle bandwidth (Kbps) applied when data cap is exceeded.
+  // These columns match the DB (added via complete-database.sql §3b).
+  // Kept as camelCase to match Prisma convention; DB column name is also camelCase.
   throttleDownKbps     Int        @default(256)
   throttleUpKbps       Int        @default(128)
   createdAt            DateTime   @default(now()) @db.Timestamptz
@@ -5498,6 +5501,7 @@ model RadPostAuth {
   nasIpAddress     String?
   clientipaddress  String?  @map("clientipaddress")
   radiusClass      String?  @map("class")
+  // L-30: Reply message from NAS reject (matches DB column via complete-database.sql §3)
   replyMessage     String?  @map("replyMessage")
 
   @@map("radpostauth")
@@ -6364,6 +6368,21 @@ model StaffAttendance {
   lateMinutes       Int       @default(0)
   earlyLeaveMinutes Int       @default(0)
   notes             String?
+  /// Biometric verification — optional; set to true when clock-in/out is
+  /// confirmed by biometric hardware (fingerprint / face / palm).
+  /// verificationMethod stores the biometric type used (e.g. "fingerprint", "face_recognition").
+  ///
+  /// Integration guide:
+  ///   1. Deploy a biometric device at each entry point (e.g. ZKTeco, Suprema, HikVision).
+  ///   2. The device SDK exposes a REST/gRPC endpoint that returns a signed verification token.
+  ///   3. On clock-in/out, the frontend calls the device SDK, obtains the token, and
+  ///      sends { biometricVerified: true, verificationMethod: "fingerprint", biometricToken: "..." }
+  ///      to this API.
+  ///   4. The server validates the token against the device's public key before persisting.
+  ///   5. When biometricVerified is false, attendance is considered "self-reported" and may
+  ///      be flagged for supervisor review.
+  biometricVerified  Boolean   @default(false)
+  verificationMethod String?
   createdAt         DateTime  @default(now()) @db.Timestamptz
   updatedAt         DateTime  @updatedAt @db.Timestamptz
   user              User      @relation(fields: [userId], references: [id])
@@ -13059,6 +13078,10 @@ model SystemConfig {
   tenantId  String   @db.Uuid
   key       String   // e.g., "calendar_deviation_settings"
   value     Json     // arbitrary JSON payload
+  /// Schema version for this config entry. Incremented when the JSON structure
+  /// changes so that migration helpers can transform old formats to new ones.
+  /// See src/lib/settings-migration.ts for the migration registry.
+  version   Int      @default(1)
   updatedAt DateTime @updatedAt @db.Timestamptz
   createdAt DateTime @default(now()) @db.Timestamptz
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)

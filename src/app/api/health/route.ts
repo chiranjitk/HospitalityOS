@@ -7,7 +7,7 @@
 
 import { NextResponse } from 'next/server';
 import { getConfig, getServiceStatus } from '@/lib/config/env';
-import { getAllServicesHealth, areCriticalServicesAvailable, getSandboxLimitations } from '@/lib/config/services';
+import { getAllServicesHealth, getAllServicesHealthWithLiveChecks, areCriticalServicesAvailable, getSandboxLimitations } from '@/lib/config/services';
 import { db } from '@/lib/db';
 
 // Simple cache for health check responses
@@ -28,7 +28,10 @@ export async function GET(request: Request) {
   try {
     // Basic health status
     const config = getConfig();
-    const servicesHealth = getAllServicesHealth();
+    // L-29: Use live health checks when detailed mode requested, else use config-based checks
+    const servicesHealth = detailed
+      ? await getAllServicesHealthWithLiveChecks()
+      : getAllServicesHealth();
     const criticalStatus = areCriticalServicesAvailable();
     
     // Database health check
@@ -57,11 +60,12 @@ export async function GET(request: Request) {
         database: config.database.type,
       },
       
-      // Database
+      // Database (L-29: real SELECT 1 check, not config flag)
       database: {
         status: dbHealth,
         type: config.database.type,
         latency: dbLatency,
+        reachable: dbHealth === 'healthy',
       },
       
       // Services

@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
 
     // Permission check - users can clock in/out for themselves, or managers for others
     const body = await request.json();
-    const { staffId, type, notes } = body;
+    const { staffId, type, notes, biometricVerified, verificationMethod } = body;
 
     // Determine target staff ID
     const targetStaffId = staffId || user.id;
@@ -223,6 +223,23 @@ export async function POST(request: NextRequest) {
     if (!type || !['clock_in', 'clock_out'].includes(type)) {
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Type must be either "clock_in" or "clock_out"' } },
+        { status: 400 }
+      );
+    }
+
+    // Validate biometric fields when provided (L-28)
+    const bioVerified = biometricVerified === true;
+    const bioMethod = typeof verificationMethod === 'string' && verificationMethod.trim() ? verificationMethod.trim() : null;
+    if (bioVerified && !bioMethod) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'verificationMethod is required when biometricVerified is true' } },
+        { status: 400 }
+      );
+    }
+    const allowedMethods = ['fingerprint', 'face_recognition', 'palm_vein', 'iris', 'voice', 'card', 'pin'];
+    if (bioMethod && !allowedMethods.includes(bioMethod)) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: `verificationMethod must be one of: ${allowedMethods.join(', ')}` } },
         { status: 400 }
       );
     }
@@ -276,12 +293,16 @@ export async function POST(request: NextRequest) {
           status: isLate ? 'late' : 'present',
           lateMinutes: Math.max(0, lateMinutes - shiftConfig.graceMinutes),
           notes,
+          biometricVerified: bioVerified,
+          verificationMethod: bioMethod,
         },
         update: {
           checkIn: now,
           status: isLate ? 'late' : 'present',
           lateMinutes: Math.max(0, lateMinutes - shiftConfig.graceMinutes),
           notes,
+          biometricVerified: bioVerified,
+          verificationMethod: bioMethod,
         },
       });
     } else if (type === 'clock_out') {
@@ -310,6 +331,8 @@ export async function POST(request: NextRequest) {
           checkOut: now,
           earlyLeaveMinutes: Math.max(0, earlyLeaveMinutes - shiftConfig.graceMinutes),
           notes: notes || record.notes,
+          biometricVerified: bioVerified,
+          verificationMethod: bioMethod,
         },
       });
     }
