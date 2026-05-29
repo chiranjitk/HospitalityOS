@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth/tenant-context';
-import { syncRadiusGroup, deleteRadiusGroup } from '@/lib/wifi/services/wifi-user-service';
+import { syncRadiusGroup, deleteRadiusGroup, planNameToGroupName } from '@/lib/wifi/services/wifi-user-service';
 import { updatePlanBandwidthForActiveSessions } from '@/lib/network/tc-bw-update';
 import { RADCLIENT_BIN } from '@/lib/wifi/paths';
 import { z } from 'zod';
@@ -417,6 +417,30 @@ export async function PUT(request: NextRequest) {
       await syncRadiusGroup(plan).catch(err => {
         console.error('[plans] Failed to sync RADIUS group on update:', err);
       });
+
+      // Migrate any radusergroup entries that use old suffixed group names (e.g. "business_class_c7c7c7aa")
+      // to the correct clean group name (e.g. "business_class"). This handles legacy data
+      // from before the planId suffix was removed from planNameToGroupName().
+      const correctGroupName = planNameToGroupName(plan.name);
+      try {
+        // Find all group names that start with the correct base but have extra suffixes
+        const staleGroups = await db.$queryRawUnsafe<{ groupname: string }[]>(
+          `SELECT DISTINCT groupname FROM radusergroup WHERE groupname LIKE $1 AND groupname != $2`,
+          `${correctGroupName}%`,
+          correctGroupName
+        );
+        for (const stale of staleGroups) {
+          const migrateResult = await db.radUserGroup.updateMany({
+            where: { groupname: stale.groupname },
+            data: { groupname: correctGroupName },
+          });
+          if (migrateResult.count > 0) {
+            console.log(`[plans] Migrated ${migrateResult.count} users from stale group "${stale.groupname}" to "${correctGroupName}"`);
+          }
+        }
+      } catch (migrateErr) {
+        console.error('[plans] Failed to migrate stale group names:', migrateErr);
+      }
     }
 
     // Push new bandwidth to active sessions on StaySuite NAS (127.0.0.1)

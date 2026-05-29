@@ -52,15 +52,14 @@ const RADIUS_SERVICE_URL = process.env.RADIUS_SERVICE_URL || 'http://127.0.0.1:3
  * Convert a WiFiPlan name to a RADIUS-safe group name.
  * "VIP Suite Plan" → "vip_suite_plan"
  * "Free WiFi" → "free_wifi"
+ * "Business Class" → "business_class"
+ *
+ * Plan names are unique per tenant (enforced by DB constraint), so the slug
+ * alone is a stable, collision-free group name. No ID suffix needed.
  */
-export function planNameToGroupName(planName: string, planId?: string): string {
+export function planNameToGroupName(planName: string, _planId?: string): string {
   const base = planName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
   if (!base) throw new Error(`Cannot generate group name from empty plan name: "${planName}"`);
-  // Include plan ID suffix to prevent collision between similar plan names
-  if (planId) {
-    const shortId = planId.replace(/-/g, '').substring(0, 8);
-    return `${base}_${shortId}`;
-  }
   return base;
 }
 
@@ -85,6 +84,7 @@ export async function syncRadiusGroup(plan: {
   burstUploadSpeed?: number | null;
   dataLimit?: number | null;
   sessionLimit?: number | null;
+  maxDevices?: number | null;
   sessionTimeoutSec?: number | null;
   idleTimeoutSec?: number | null;
 }, propertyId?: string, parentTx?: any): Promise<void> {
@@ -95,7 +95,8 @@ export async function syncRadiusGroup(plan: {
   const sessionTimeoutSec = plan.sessionTimeoutSec || 0;
   const idleTimeoutSec = plan.idleTimeoutSec || 0;
   const dataLimitMB = plan.dataLimit || 0;
-  const sessionLimit = plan.sessionLimit || 0;
+  // maxDevices takes priority over sessionLimit for Simultaneous-Use
+  const sessionLimit = plan.maxDevices || plan.sessionLimit || 0;
 
   const runInTx = parentTx
     ? async (fn: (tx: any) => Promise<void>) => fn(parentTx) // Reuse parent transaction (no nesting)
@@ -240,7 +241,11 @@ export async function deleteRadiusGroup(planName: string): Promise<void> {
     await tx.radGroupCheck.deleteMany({ where: { groupname: groupName } });
     await tx.radGroupReply.deleteMany({ where: { groupname: groupName } });
     await tx.radUserGroup.deleteMany({ where: { groupname: groupName } });
-    console.log(`[RADIUS Group] Deleted group "${groupName}"`);
+    // Also clean up any legacy suffixed group names (e.g. "business_class_c7c7c7aa")
+    await tx.radGroupCheck.deleteMany({ where: { groupname: { startsWith: groupName + '_' } } });
+    await tx.radGroupReply.deleteMany({ where: { groupname: { startsWith: groupName + '_' } } });
+    await tx.radUserGroup.deleteMany({ where: { groupname: { startsWith: groupName + '_' } } });
+    console.log(`[RADIUS Group] Deleted group "${groupName}" (including legacy suffixed variants)`);
   });
 }
 
