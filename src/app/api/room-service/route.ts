@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import { auditLogService } from '@/lib/services/audit-service';
+import { deductRecipeStockForOrder } from '@/lib/recipe-stock-deduction';
 import crypto from 'crypto';
 
 function generateOrderNumber(): string {
@@ -225,6 +226,27 @@ export async function PUT(request: NextRequest) {
           // 1. Update order status
           const updatedOrder = await tx.order.update({ where: { id }, data: updateData });
 
+          // M-55: Deduct recipe ingredient stock when room service order is delivered
+          if (existing.propertyId) {
+            try {
+              await deductRecipeStockForOrder(
+                tx,
+                existing.items.map((item) => ({
+                  menuItemId: item.menuItemId,
+                  quantity: item.quantity,
+                  itemName: item.menuItem?.name || null,
+                })),
+                existing.propertyId,
+                existing.id,
+                existing.orderNumber,
+                user.id,
+              );
+            } catch (stockError) {
+              console.error(`[RoomService] Stock deduction failed for order ${existing.orderNumber}:`, stockError);
+              // Don't fail the order update — stock deduction is best-effort
+            }
+          }
+
           // 2. Find the booking for this room number that is currently checked in
           const room = await tx.room.findFirst({
             where: {
@@ -295,18 +317,7 @@ export async function PUT(request: NextRequest) {
 
           if (!folioId) return updatedOrder;
 
-          // 4. Build item description
-          const itemNames = existing.items
-            .map((item: { menuItem?: { name: string } | null; quantity: number }) => {
-              const name = item.menuItem?.name || 'Unknown Item';
-              return item.quantity > 1 ? `${name} x${item.quantity}` : name;
-            })
-            .join(', ');
-          const description = `Room Service - ${itemNames || existing.orderNumber}`;
-
-          // 5. Calculate amounts
-          const baseAmount = existing.subtotal;
-
+          // M-56: Calculate tax rate for proportional tax distribution across line items
           let taxRate = 0;
           if (existing.property) {
             try {
@@ -320,27 +331,30 @@ export async function PUT(request: NextRequest) {
               taxRate = (existing.property.defaultTaxRate || 0) / 100;
             }
           }
-          const taxAmount = existing.taxes || Math.round(baseAmount * taxRate * 100) / 100;
           const serviceChargeAmt = existing.totalAmount - existing.subtotal - (existing.taxes || 0);
 
-          // 6. Create folio line items
-          await tx.folioLineItem.create({
-            data: {
+          // M-56: Create individual folio line items per menu item (instead of single combined line)
+          const perItemLineData = existing.items.map((item: { id: string; menuItem?: { name: string } | null; quantity: number; unitPrice: number; totalAmount: number; notes?: string | null }) => {
+            const name = item.menuItem?.name || 'Unknown Item';
+            const desc = item.notes ? `Room Service - ${name} (${item.notes})` : `Room Service - ${name}`;
+            return {
               folioId,
-              description,
-              category: 'room_service',
-              quantity: 1,
-              unitPrice: baseAmount,
-              totalAmount: baseAmount,
+              description: desc,
+              category: 'room_service' as const,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              totalAmount: item.totalAmount,
               serviceDate: new Date(),
-              referenceType: 'order',
-              referenceId: existing.id,
+              referenceType: 'order_item' as const,
+              referenceId: item.id,
               taxRate: taxRate * 100,
-              taxAmount,
-              postedBy: `system:room_service_delivered`,
+              taxAmount: Math.round(item.totalAmount * taxRate * 100) / 100,
+              postedBy: 'system:room_service_delivered' as const,
               itemCurrency: existing.property?.currency || 'USD',
-            },
+            };
           });
+
+          await tx.folioLineItem.createMany({ data: perItemLineData });
 
           if (serviceChargeAmt > 0) {
             await tx.folioLineItem.create({
@@ -402,7 +416,7 @@ export async function PUT(request: NextRequest) {
                   orderNumber: existing.orderNumber,
                   folioId,
                   amount: existing.totalAmount,
-                  description,
+                  lineItemCount: perItemLineData.length,
                 }),
                 performedBy: 'system:room_service',
               },
@@ -411,7 +425,7 @@ export async function PUT(request: NextRequest) {
             console.warn('[RoomService] Could not create booking audit log');
           }
 
-          console.log(`[RoomService] Auto-posted order ${existing.orderNumber} ($${existing.totalAmount}) to folio ${folioId}`);
+          console.log(`[RoomService] Auto-posted order ${existing.orderNumber} ($${existing.totalAmount}, ${perItemLineData.length} line items) to folio ${folioId}`);
           return updatedOrder;
         });
 

@@ -29,11 +29,17 @@ export async function PUT(
 
     const {
       addItem,
+      addItems,
       removeItem,
+      removeItems,
       updateQuantity,
       updateNotes,
       notes,
     } = body;
+
+    // M-51: Support batch add/remove via arrays, with backward compatibility for singular fields
+    const itemsToAdd = addItems || (addItem ? [addItem] : []);
+    const itemsToRemove = removeItems || (removeItem ? [removeItem] : []);
 
     // Fetch the order with items
     const existingOrder = await db.order.findFirst({
@@ -88,54 +94,66 @@ export async function PUT(
 
     // Process modifications in a transaction
     const updatedOrder = await db.$transaction(async (tx) => {
-      // 1. Add new item
-      if (addItem) {
-        const { menuItemId, quantity, notes: itemNotes } = addItem;
+      // 1. Add new items (M-51: supports batch via addItems array)
+      if (itemsToAdd.length > 0) {
+        // Validate all menu items exist and are available
+        const menuItemIds = itemsToAdd.map((item: { menuItemId?: string }) => item.menuItemId).filter(Boolean);
+        const menuItems = menuItemIds.length > 0
+          ? await tx.menuItem.findMany({
+              where: { id: { in: menuItemIds }, propertyId: existingOrder.propertyId, deletedAt: null },
+            })
+          : [];
+        const menuItemMap = new Map(menuItems.map((mi) => [mi.id, mi]));
 
-        // Validate menu item exists and is available
-        const menuItem = await tx.menuItem.findFirst({
-          where: { id: menuItemId, propertyId: existingOrder.propertyId, deletedAt: null },
-        });
+        for (const addItemEntry of itemsToAdd) {
+          const { menuItemId, quantity, notes: itemNotes } = addItemEntry as { menuItemId: string; quantity?: number; notes?: string };
 
-        if (!menuItem) {
-          throw new Error(`Menu item not found: ${menuItemId}`);
+          const menuItem = menuItemMap.get(menuItemId);
+          if (!menuItem) {
+            throw new Error(`Menu item not found: ${menuItemId}`);
+          }
+
+          if (!menuItem.isAvailable) {
+            throw new Error(`Menu item is not available: ${menuItem.name}`);
+          }
+
+          const qty = quantity || 1;
+          await tx.orderItem.create({
+            data: {
+              orderId: id,
+              menuItemId,
+              quantity: qty,
+              unitPrice: menuItem.price,
+              totalAmount: menuItem.price * qty,
+              notes: itemNotes,
+              status: 'pending',
+            },
+          });
+
+          changes.push(`Added ${menuItem.name} x${qty}`);
         }
-
-        if (!menuItem.isAvailable) {
-          throw new Error(`Menu item is not available: ${menuItem.name}`);
-        }
-
-        await tx.orderItem.create({
-          data: {
-            orderId: id,
-            menuItemId,
-            quantity: quantity || 1,
-            unitPrice: menuItem.price,
-            totalAmount: menuItem.price * (quantity || 1),
-            notes: itemNotes,
-            status: 'pending',
-          },
-        });
-
-        changes.push(`Added ${menuItem.name} x${quantity || 1}`);
       }
 
-      // 2. Remove item
-      if (removeItem) {
-        const itemToRemove = await tx.orderItem.findFirst({
-          where: { id: removeItem, orderId: id },
+      // 2. Remove items (M-51: supports batch via removeItems array)
+      if (itemsToRemove.length > 0) {
+        const itemsToFetch = await tx.orderItem.findMany({
+          where: { id: { in: itemsToRemove as string[] }, orderId: id },
           include: { menuItem: { select: { name: true } } },
         });
+        const foundItemsMap = new Map(itemsToFetch.map((item) => [item.id, item]));
 
-        if (!itemToRemove) {
-          throw new Error(`Order item not found: ${removeItem}`);
+        for (const removeItemId of itemsToRemove) {
+          const itemToRemove = foundItemsMap.get(removeItemId as string);
+          if (!itemToRemove) {
+            throw new Error(`Order item not found: ${removeItemId}`);
+          }
+
+          await tx.orderItem.delete({
+            where: { id: removeItemId as string },
+          });
+
+          changes.push(`Removed ${itemToRemove.menuItem?.name || 'Item'} x${itemToRemove.quantity}`);
         }
-
-        await tx.orderItem.delete({
-          where: { id: removeItem },
-        });
-
-        changes.push(`Removed ${itemToRemove.menuItem.name} x${itemToRemove.quantity}`);
       }
 
       // 3. Update quantity

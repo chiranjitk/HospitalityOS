@@ -28,7 +28,7 @@ import {
 import { usePropertyId } from '@/hooks/use-property';
 import { cn } from '@/lib/utils';
 
-interface Ingredient { name: string; quantity: number; unit: string; costPerUnit: number; sortOrder: number; }
+interface Ingredient { name: string; quantity: number; unit: string; costPerUnit: number; sortOrder: number; inventoryItemId?: string | null; }
 interface Recipe {
   id: string; menuItemId: string; instructions?: string; prepTime: number; cookTime: number; yield: number; costPerServing: number;
   menuItem: { id: string; name: string; price: number; category?: { id: string; name: string } };
@@ -52,7 +52,7 @@ const t = useTranslations('pos');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const [form, setForm] = useState({ menuItemId: '', instructions: '', prepTime: 0, cookTime: 0, yield: 1, ingredients: [{ name: '', quantity: 0, unit: 'g', costPerUnit: 0, sortOrder: 0 }] });
+  const [form, setForm] = useState({ menuItemId: '', instructions: '', prepTime: 0, cookTime: 0, yield: 1, ingredients: [{ name: '', quantity: 0, unit: 'g', costPerUnit: 0, sortOrder: 0, inventoryItemId: null as string | null }] });
 
   const fetchData = useCallback(async () => {
     if (!propertyId) return;
@@ -71,14 +71,14 @@ const t = useTranslations('pos');
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const resetForm = () => {
-    setForm({ menuItemId: '', instructions: '', prepTime: 0, cookTime: 0, yield: 1, ingredients: [{ name: '', quantity: 0, unit: 'g', costPerUnit: 0, sortOrder: 0 }] });
+    setForm({ menuItemId: '', instructions: '', prepTime: 0, cookTime: 0, yield: 1, ingredients: [{ name: '', quantity: 0, unit: 'g', costPerUnit: 0, sortOrder: 0, inventoryItemId: null as string | null }] });
     setEditingRecipe(null);
   };
 
   const openCreate = () => { resetForm(); setDialogOpen(true); };
   const openEdit = (r: Recipe) => {
     setEditingRecipe(r);
-    setForm({ menuItemId: r.menuItemId, instructions: r.instructions || '', prepTime: r.prepTime, cookTime: r.cookTime, yield: r.yield, ingredients: r.ingredients.length > 0 ? r.ingredients : [{ name: '', quantity: 0, unit: 'g', costPerUnit: 0, sortOrder: 0 }] });
+    setForm({ menuItemId: r.menuItemId, instructions: r.instructions || '', prepTime: r.prepTime, cookTime: r.cookTime, yield: r.yield, ingredients: r.ingredients.length > 0 ? r.ingredients : [{ name: '', quantity: 0, unit: 'g', costPerUnit: 0, sortOrder: 0, inventoryItemId: null as string | null }] });
     setDialogOpen(true);
   };
 

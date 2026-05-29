@@ -4,6 +4,7 @@ import { getUserFromRequest, hasPermission } from '@/lib/auth-helpers';
 import crypto from 'crypto';
 import { nullifyEmptyStrings } from '@/lib/nullify-empty-strings';
 import { auditLogService } from '@/lib/services/audit-service';
+import { deductRecipeStockForOrder } from '@/lib/recipe-stock-deduction';
 
 // Helper function to generate order number
 function generateOrderNumber(): string {
@@ -673,6 +674,25 @@ export async function PUT(request: NextRequest) {
               data: { status: 'cleaning' },
             });
           }
+          // M-55: Deduct recipe ingredient stock when auto-advanced to completed
+          if (autoAdvanced.propertyId) {
+            try {
+              await deductRecipeStockForOrder(
+                tx,
+                autoAdvanced.items.map((item) => ({
+                  menuItemId: item.menuItemId,
+                  quantity: item.quantity,
+                  itemName: item.menuItem?.name || null,
+                })),
+                autoAdvanced.propertyId,
+                autoAdvanced.id,
+                autoAdvanced.orderNumber,
+                user.id,
+              );
+            } catch (stockError) {
+              console.error(`[Orders PUT] Stock deduction failed for auto-advanced order ${autoAdvanced.orderNumber}:`, stockError);
+            }
+          }
           return autoAdvanced;
         }
       }
@@ -683,6 +703,28 @@ export async function PUT(request: NextRequest) {
           where: { id: updated.tableId },
           data: { status: status === 'served' ? 'cleaning' : 'available' },
         });
+      }
+
+      // M-55: Deduct recipe ingredient stock when order is served or completed
+      const newStatus = updated.status;
+      if ((newStatus === 'served' || newStatus === 'completed') && updated.propertyId) {
+        try {
+          await deductRecipeStockForOrder(
+            tx,
+            updated.items.map((item) => ({
+              menuItemId: item.menuItemId,
+              quantity: item.quantity,
+              itemName: item.menuItem?.name || null,
+            })),
+            updated.propertyId,
+            updated.id,
+            updated.orderNumber,
+            user.id,
+          );
+        } catch (stockError) {
+          console.error(`[Orders PUT] Stock deduction failed for order ${updated.orderNumber}:`, stockError);
+          // Don't fail the order status update — stock deduction is best-effort
+        }
       }
 
       return updated;

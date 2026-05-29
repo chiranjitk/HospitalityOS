@@ -54,9 +54,11 @@ export async function POST(request: NextRequest) {
       data: {
         tenantId: user.tenantId, menuItemId, instructions, prepTime: prepTime || 0,
         cookTime: cookTime || 0, yield: servings || 1, costPerServing,
-        ingredients: { create: (ingredients || []).map((i: { name: string; quantity: number; unit: string; costPerUnit: number; sortOrder: number }, idx: number) => ({
+        ingredients: { create: (ingredients || []).map((i: { name: string; quantity: number; unit: string; costPerUnit: number; sortOrder: number; inventoryItemId?: string | null }, idx: number) => ({
           tenantId: user.tenantId, name: i.name, quantity: i.quantity, unit: i.unit || 'g',
           costPerUnit: i.costPerUnit || 0, sortOrder: i.sortOrder ?? idx,
+          // M-54: Allow linking ingredient to an inventory item for stock tracking
+          inventoryItemId: i.inventoryItemId || null,
         }))},
       },
       include: { menuItem: true, ingredients: true },
@@ -95,9 +97,11 @@ export async function PUT(request: NextRequest) {
       });
       if (ingredients && Array.isArray(ingredients)) {
         await tx.recipeIngredient.createMany({
-          data: ingredients.map((i: { name: string; quantity: number; unit: string; costPerUnit: number; sortOrder: number }, idx: number) => ({
+          data: ingredients.map((i: { name: string; quantity: number; unit: string; costPerUnit: number; sortOrder: number; inventoryItemId?: string | null }, idx: number) => ({
             tenantId: user.tenantId, recipeId: id, name: i.name, quantity: i.quantity,
             unit: i.unit || 'g', costPerUnit: i.costPerUnit || 0, sortOrder: i.sortOrder ?? idx,
+            // M-54: Allow linking ingredient to an inventory item for stock tracking
+            inventoryItemId: i.inventoryItemId || null,
           })),
         });
       }

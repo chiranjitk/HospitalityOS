@@ -9013,12 +9013,15 @@ model RecipeIngredient {
   unit            String    @default("g")
   costPerUnit     Float     @default(0)
   sortOrder       Int       @default(0)
+  /// M-54: Optional link to an inventory item so ingredient consumption can be tracked against stock.
+  inventoryItemId String?   @db.Uuid
   createdAt       DateTime  @default(now()) @db.Timestamptz
   updatedAt       DateTime  @updatedAt @db.Timestamptz
   tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([recipeId])
+  @@index([inventoryItemId])
 }
 
 model TableMerge {
