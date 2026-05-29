@@ -43,6 +43,8 @@ const PUBLIC_PATHS = [
   '/api/wifi/otp/send',           // Guest SMS OTP send (public, rate-limited)
   '/api/wifi/otp/verify',         // Guest SMS OTP verify (public, rate-limited)
   '/api/wifi/social-auth/',       // Guest social auth callbacks (public)
+  '/api/wifi/social/auth',       // Guest social OAuth initiation (public, captive portal)
+  '/api/wifi/social/callback',   // Guest social OAuth callback (public, captive portal)
   // Tenant listing (for signup flow)
   '/api/tenants',
   // Registration (public, license key based)

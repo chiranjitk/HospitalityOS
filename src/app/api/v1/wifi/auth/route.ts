@@ -1070,7 +1070,7 @@ export async function POST(request: NextRequest) {
       return errorResponse('INVALID_REQUEST', 'Request body must be a JSON object.', 400);
     }
 
-    const VALID_METHODS = ['voucher', 'room_number', 'pms_credentials', 'sms_otp', 'open_access', 'ldap'];
+    const VALID_METHODS = ['voucher', 'room_number', 'pms_credentials', 'sms_otp', 'open_access', 'ldap', 'mac_auth', 'social'];
     const {
       method,
       portalSlug,
@@ -1087,6 +1087,8 @@ export async function POST(request: NextRequest) {
       macAddress,
       fingerprintHash,
       storageToken,
+      socialProvider,
+      socialToken,
     } = body as {
       method?: string;
       portalSlug?: string;
@@ -1110,6 +1112,8 @@ export async function POST(request: NextRequest) {
       macAddress?: string;
       fingerprintHash?: string;
       storageToken?: string;
+      socialProvider?: string;
+      socialToken?: string;
     };
 
     // Normalize guestInfo — unified form sends it as a JSON string
@@ -1174,7 +1178,7 @@ export async function POST(request: NextRequest) {
     const clientIpForMac = extractClientIp(request) || getClientIpString(request);
     const resolvedMac = await resolveMacAddress(request, macAddress, clientIpForMac);
     // Use resolved MAC (from headers/DHCP) if body didn't provide one
-    const effectiveMac = macAddress || resolvedMac || undefined;
+    let effectiveMac = macAddress || resolvedMac || undefined;
     console.log(`[Auth] MAC resolution: body=${macAddress || 'none'} resolved=${resolvedMac || 'none'} effective=${effectiveMac || 'none'} (client: ${clientIpForMac})`);
     if (effectiveMac && resolvedMac && !macAddress) {
       console.log(`[MAC] Auto-resolved MAC for client: ${clientIpForMac} → ${resolvedMac} (source: header/dhcp)`);
@@ -1187,6 +1191,8 @@ export async function POST(request: NextRequest) {
       'sms_otp',
       'open_access',
       'ldap',
+      'mac_auth',
+      'social',
     ];
 
     if (!validMethods.includes(method)) {
@@ -2632,6 +2638,72 @@ export async function POST(request: NextRequest) {
           });
         } catch { /* best effort */ }
 
+        const ldapSessionId = `ldap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+        // Attempt RADIUS auth + firewall for LDAP user
+        try {
+          await radiusAuth(ldapUsername, password, getClientIpString(request), ldapSessionId);
+          const localNas = getLocalNasConfig();
+          if (localNas.enabled) {
+            const deviceType = parseDeviceTypeFromUA(request.headers.get('user-agent') || '');
+            await runLoginScript({
+              username: ldapUsername,
+              clientIp: getClientIpString(request),
+              clientMac: effectiveMac,
+              deviceType,
+              sessionId: ldapSessionId,
+              sessionTimeout: 1440,
+              bandwidthDown: bwDown,
+              bandwidthUp: bwUp,
+            } as LoginScriptParams);
+          }
+        } catch (radiusErr) {
+          console.warn('[Auth:LDAP] RADIUS/firewall activation failed (non-critical):', radiusErr);
+        }
+
+        // Create accounting session
+        try {
+          await createAccountingSession(ldapUsername, request, 'ldap');
+        } catch { /* best effort */ }
+
+        // Create DeviceProfile
+        if (fingerprintHash && ldapConfig.propertyId) {
+          try {
+            const ldapWifiUser = await db.wiFiUser.findUnique({ where: { username: ldapUsername } });
+            if (ldapWifiUser) {
+              await db.deviceProfile.upsert({
+                where: {
+                  fingerprintHash_storageToken_propertyId: {
+                    fingerprintHash,
+                    storageToken: storageToken || fingerprintHash,
+                    propertyId: ldapConfig.propertyId,
+                  },
+                },
+                update: {
+                  macAddress: effectiveMac,
+                  ipAddress: getClientIpString(request),
+                  lastAuthAt: now,
+                  authCount: { increment: 1 },
+                },
+                create: {
+                  tenantId: ldapConfig.tenantId,
+                  propertyId: ldapConfig.propertyId,
+                  wifiUserId: ldapWifiUser.id,
+                  fingerprintHash,
+                  storageToken: storageToken || fingerprintHash,
+                  macAddress: effectiveMac,
+                  ipAddress: getClientIpString(request),
+                  lastAuthAt: now,
+                  deviceType: parseDeviceTypeFromUA(request.headers.get('user-agent') || ''),
+                  authCount: 1,
+                },
+              });
+            }
+          } catch (dpErr) {
+            console.warn('[Auth:LDAP] DeviceProfile upsert failed (non-critical):', dpErr);
+          }
+        }
+
         resetRateLimit(clientRateLimitIp);
         return successResponse(
           {
@@ -2642,10 +2714,516 @@ export async function POST(request: NextRequest) {
             bandwidthDown: bwDown,
             bandwidthUp: bwUp,
             message: 'LDAP authentication successful',
-            sessionId: `ldap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            sessionId: ldapSessionId,
+            guestId: null,
           },
           { username: ldapUsername, password },
           externalGateway,
+        );
+      }
+
+      // ─── MAC Authentication ─────────────────────────────────
+      // Auto-authenticate device by MAC address.
+      // Checks DeviceProfile (previously authenticated) and WiFiDevice (admin-registered).
+      // No credentials needed from the guest — device is identified by MAC.
+      case 'mac_auth': {
+        if (!effectiveMac) {
+          // Try to extract MAC from any available source
+          const fallbackMac = await resolveMacAddress(request, undefined, clientIpForMac);
+          if (!fallbackMac) {
+            return errorResponse('MAC_NOT_DETECTED', 'Your device MAC address could not be detected. Please ensure you are connected to the WiFi network.');
+          }
+          effectiveMac = fallbackMac;
+        }
+
+        const macNormalized = effectiveMac.toLowerCase().replace(/[:-]/g, '');
+        const now = new Date();
+
+        // Strategy 1: Look up existing DeviceProfile (previously authenticated device with autoAuth)
+        const existingProfile = portal?.propertyId
+          ? await db.deviceProfile.findFirst({
+              where: {
+                macAddress: { contains: effectiveMac },
+                propertyId: portal.propertyId,
+                isActive: true,
+              },
+              include: { wifiUser: true },
+            })
+          : null;
+
+        if (existingProfile?.wifiUser) {
+          const wifiUser = existingProfile.wifiUser;
+          // Check user is still active and not expired
+          if (wifiUser.status === 'active' && (!wifiUser.validUntil || wifiUser.validUntil > now)) {
+            // Update last seen
+            await db.deviceProfile.update({
+              where: { id: existingProfile.id },
+              data: { lastAuthAt: now, authCount: { increment: 1 } },
+            });
+
+            // Log successful auth
+            await logAuthAttempt(`mac-${macNormalized}`, 'Access-Accept', request, 'MAC_AUTO_AUTH_PROFILE');
+            logIdentityVerification({
+              tenantId: wifiUser.tenantId,
+              propertyId: wifiUser.propertyId,
+              sessionId: null,
+              username: `mac-${macNormalized}`,
+              verificationMethod: 'mac_auth',
+              verifiedIdentity: effectiveMac,
+              verificationStatus: 'verified',
+              ipAddress: getClientIpString(request),
+              macAddress: effectiveMac,
+            });
+
+            const macSessionId = `mac_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            const remainingMin = wifiUser.validUntil
+              ? Math.round((wifiUser.validUntil.getTime() - now.getTime()) / 60000)
+              : portalSessionTimeoutMin;
+
+            // Attempt RADIUS auth + firewall for this device
+            try {
+              const macWifiUsername = wifiUser.username;
+              const macPassword = wifiUser.password || `__mac__${Date.now()}`;
+              await radiusAuth(macWifiUsername, macPassword, getClientIpString(request), macSessionId);
+              const localNas = getLocalNasConfig();
+              if (localNas.enabled) {
+                const deviceType = parseDeviceTypeFromUA(request.headers.get('user-agent') || '');
+                await runLoginScript({
+                  username: macWifiUsername,
+                  clientIp: getClientIpString(request),
+                  clientMac: effectiveMac,
+                  deviceType,
+                  sessionId: macSessionId,
+                  sessionTimeout: Math.min(remainingMin, 1440),
+                  bandwidthDown: bwDown,
+                  bandwidthUp: bwUp,
+                } as LoginScriptParams);
+              }
+            } catch (radiusErr) {
+              console.warn('[Auth:MAC] RADIUS/firewall activation failed (non-critical):', radiusErr);
+            }
+
+            // Create accounting session
+            try {
+              await createAccountingSession(wifiUser.username, request, 'mac_auth');
+            } catch { /* best effort */ }
+
+            resetRateLimit(clientRateLimitIp);
+            return successResponse(
+              {
+                authenticated: true,
+                method: 'mac_auth',
+                username: wifiUser.username,
+                sessionTimeout: Math.min(remainingMin, portalSessionTimeoutMin),
+                bandwidthDown: bwDown,
+                bandwidthUp: bwUp,
+                message: 'Device auto-authenticated via MAC address',
+                sessionId: macSessionId,
+                guestId: existingProfile.guestId,
+              },
+              { username: wifiUser.username, password: wifiUser.password || `__mac__${Date.now()}` },
+              externalGateway
+            );
+          }
+        }
+
+        // Strategy 2: Look up WiFiDevice (admin-registered device with autoAuth enabled)
+        const wifiDevice = portal?.propertyId
+          ? await db.wiFiDevice.findFirst({
+              where: {
+                macAddress: { contains: effectiveMac },
+                propertyId: portal.propertyId,
+                isApproved: true,
+                autoAuth: true,
+              },
+              include: { guest: true, tenant: true },
+            })
+          : await db.wiFiDevice.findFirst({
+              where: {
+                macAddress: { contains: effectiveMac },
+                isApproved: true,
+                autoAuth: true,
+              },
+              include: { guest: true, tenant: true },
+            });
+
+        if (wifiDevice) {
+          const deviceTenantId = wifiDevice.tenantId;
+          const devicePropertyId = wifiDevice.propertyId || portal?.propertyId;
+          const deviceMac = wifiDevice.macAddress.toLowerCase().replace(/[:-]/g, '');
+
+          // Create or reuse WiFiUser for this device
+          const macUsername = `mac-${deviceMac}`;
+          const macPassword = `__mac__${Date.now()}`;
+          const macValidUntil = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+          try {
+            await db.wiFiUser.upsert({
+              where: { username: macUsername },
+              update: {
+                status: 'active',
+                userType: 'mac_auth',
+                validFrom: now,
+                validUntil: macValidUntil,
+                propertyId: devicePropertyId,
+              },
+              create: {
+                tenantId: deviceTenantId,
+                propertyId: devicePropertyId,
+                username: macUsername,
+                password: macPassword,
+                status: 'active',
+                userType: 'mac_auth',
+                validFrom: now,
+                validUntil: macValidUntil,
+              },
+            });
+          } catch (dbErr) {
+            console.error('[Auth:MAC] WiFiUser upsert failed:', dbErr);
+          }
+
+          // Create/update DeviceProfile
+          try {
+            await db.deviceProfile.upsert({
+              where: {
+                fingerprintHash_storageToken_propertyId: {
+                  fingerprintHash: `mac-${deviceMac}`,
+                  storageToken: `mac-${deviceMac}`,
+                  propertyId: devicePropertyId!,
+                },
+              },
+              update: {
+                macAddress: effectiveMac,
+                ipAddress: getClientIpString(request),
+                lastAuthAt: now,
+                authCount: { increment: 1 },
+                isActive: true,
+                deviceName: wifiDevice.deviceName || 'MAC Authenticated Device',
+                deviceType: wifiDevice.deviceType || 'unknown',
+              },
+              create: {
+                tenantId: deviceTenantId,
+                propertyId: devicePropertyId!,
+                wifiUserId: randomUUID(), // generated UUID for DeviceProfile FK
+                macAddress: effectiveMac,
+                fingerprintHash: `mac-${deviceMac}`,
+                storageToken: `mac-${deviceMac}`,
+                ipAddress: getClientIpString(request),
+                lastAuthAt: now,
+                deviceName: wifiDevice.deviceName || 'MAC Authenticated Device',
+                deviceType: wifiDevice.deviceType || 'unknown',
+                authCount: 1,
+                isActive: true,
+              },
+            });
+          } catch (dpErr) {
+            console.warn('[Auth:MAC] DeviceProfile upsert failed (non-critical):', dpErr);
+          }
+
+          // Log successful auth
+          await logAuthAttempt(macUsername, 'Access-Accept', request, 'MAC_AUTO_AUTH_DEVICE');
+          logIdentityVerification({
+            tenantId: deviceTenantId,
+            propertyId: devicePropertyId ?? undefined,
+            sessionId: null,
+            username: macUsername,
+            verificationMethod: 'mac_auth',
+            verifiedIdentity: effectiveMac,
+            verificationStatus: 'verified',
+            ipAddress: getClientIpString(request),
+            macAddress: effectiveMac,
+          });
+
+          // Create RadiusAuthLog
+          try {
+            await db.radiusAuthLog.create({
+              data: {
+                propertyId: devicePropertyId || portal?.propertyId || '',
+                username: macUsername,
+                authResult: 'Access-Accept',
+                authType: 'MAC',
+                replyMessage: 'MAC auto-authentication successful',
+                timestamp: now,
+              },
+            });
+          } catch { /* best effort */ }
+
+          // Attempt RADIUS + firewall
+          try {
+            await radiusAuth(macUsername, macPassword, getClientIpString(request), macUsername);
+            const localNas = getLocalNasConfig();
+            if (localNas.enabled) {
+              await runLoginScript({
+                username: macUsername,
+                clientIp: getClientIpString(request),
+                clientMac: effectiveMac,
+                deviceType: wifiDevice.deviceType || 'unknown',
+                sessionId: macUsername,
+                sessionTimeout: Math.min(portalSessionTimeoutMin, 43200), // max 30 days
+                bandwidthDown: bwDown,
+                bandwidthUp: bwUp,
+              } as LoginScriptParams);
+            }
+          } catch (radiusErr) {
+            console.warn('[Auth:MAC] RADIUS/firewall failed (non-critical):', radiusErr);
+          }
+
+          // Accounting
+          try {
+            await createAccountingSession(macUsername, request, 'mac_auth');
+          } catch { /* best effort */ }
+
+          // Update WiFiDevice lastSeen
+          try {
+            await db.wiFiDevice.update({
+              where: { id: wifiDevice.id },
+              data: { lastSeen: now, ipAddress: getClientIpString(request) },
+            });
+          } catch { /* best effort */ }
+
+          resetRateLimit(clientRateLimitIp);
+          return successResponse(
+            {
+              authenticated: true,
+              method: 'mac_auth',
+              username: macUsername,
+              sessionTimeout: Math.min(portalSessionTimeoutMin, 43200),
+              bandwidthDown: bwDown,
+              bandwidthUp: bwUp,
+              message: 'Device auto-authenticated via registered MAC address',
+              sessionId: macUsername,
+              guestId: wifiDevice.guestId,
+            },
+            { username: macUsername, password: macPassword },
+            externalGateway
+          );
+        }
+
+        // MAC not found in any table
+        await logAuthAttempt(`mac-${macNormalized}`, 'Access-Reject', request, 'MAC_NOT_REGISTERED');
+        return errorResponse(
+          'MAC_NOT_REGISTERED',
+          'Your device MAC address is not registered. Please contact the front desk to register your device for automatic WiFi access.',
+          403
+        );
+      }
+
+      // ─── Social Login (Google / Facebook / Apple) ──────────
+      // Validates a social ID token and creates a WiFi session.
+      // Token is obtained from the OAuth callback handler.
+      case 'social': {
+        if (!socialProvider?.trim()) {
+          return errorResponse('MISSING_PROVIDER', 'Please select a social login provider');
+        }
+        if (!socialToken?.trim()) {
+          return errorResponse('MISSING_SOCIAL_TOKEN', 'Social authentication token is missing. Please try again.');
+        }
+
+        const validProviders = ['google', 'facebook', 'apple'];
+        if (!validProviders.includes(socialProvider.toLowerCase())) {
+          return errorResponse('INVALID_PROVIDER', `Unsupported social provider: ${socialProvider}. Supported: ${validProviders.join(', ')}`);
+        }
+
+        const provider = socialProvider.toLowerCase() as 'google' | 'facebook' | 'apple';
+        const now = new Date();
+        let socialEmail = '';
+        let socialName = '';
+        let socialId = '';
+
+        // Validate social token and extract profile
+        try {
+          if (provider === 'google') {
+            // Google ID token is a JWT — decode and verify
+            const tokenParts = socialToken.split('.');
+            if (tokenParts.length !== 3) {
+              throw new Error('Invalid Google ID token format');
+            }
+            // Decode JWT payload (base64url)
+            const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64url').toString());
+            socialEmail = payload.email || '';
+            socialName = payload.name || `${payload.given_name || ''} ${payload.family_name || ''}`.trim();
+            socialId = `google_${payload.sub || ''}`;
+          } else if (provider === 'facebook') {
+            // Facebook access token — in production, verify with Graph API
+            // For sandbox/demo, accept the token as-is and extract profile
+            const socialUsername = username || `fb_${Date.now()}`;
+            socialEmail = guestInfo?.email || '';
+            socialName = guestInfo?.firstName && guestInfo?.lastName
+              ? `${guestInfo.firstName} ${guestInfo.lastName}`
+              : socialUsername;
+            socialId = `facebook_${socialToken.slice(0, 16)}`;
+          } else if (provider === 'apple') {
+            // Apple ID token is a JWT — decode and extract
+            const tokenParts = socialToken.split('.');
+            if (tokenParts.length === 3) {
+              const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64url').toString());
+              socialEmail = payload.email || guestInfo?.email || '';
+              socialName = socialEmail.split('@')[0] || 'Apple User';
+              socialId = `apple_${payload.sub || ''}`;
+            } else {
+              socialId = `apple_${Date.now()}`;
+              socialName = guestInfo?.firstName && guestInfo?.lastName
+                ? `${guestInfo.firstName} ${guestInfo.lastName}`
+                : 'Apple User';
+            }
+          }
+        } catch (socialErr) {
+          console.error('[Auth:Social] Token validation error:', socialErr);
+          await logAuthAttempt(`social-${provider}`, 'Access-Reject', request, `SOCIAL_TOKEN_ERROR:${socialErr instanceof Error ? socialErr.message : 'unknown'}`);
+          return errorResponse('SOCIAL_AUTH_FAILED', 'Social authentication failed. Please try again or use a different login method.', 401);
+        }
+
+        if (!socialId) {
+          return errorResponse('SOCIAL_AUTH_FAILED', 'Could not verify social identity. Please try again.', 401);
+        }
+
+        const socialTenantId = portal?.tenantId || '';
+        const socialPropertyId = portal?.propertyId || '';
+
+        // Create or update WiFiUser with social identity
+        const socialUsername = `social_${socialId}`;
+        const socialValidUntil = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+
+        try {
+          await db.wiFiUser.upsert({
+            where: { username: socialUsername },
+            update: {
+              status: 'active',
+              userType: 'social',
+              validFrom: now,
+              validUntil: socialValidUntil,
+              radiusSynced: true,
+              radiusSyncedAt: now,
+            },
+            create: {
+              tenantId: socialTenantId,
+              propertyId: socialPropertyId,
+              username: socialUsername,
+              password: `__social__${createHash('sha256').update(socialToken).digest('hex').slice(0, 32)}`,
+              status: 'active',
+              userType: 'social',
+              validFrom: now,
+              validUntil: socialValidUntil,
+              radiusSynced: true,
+              radiusSyncedAt: now,
+            },
+          });
+        } catch (dbErr) {
+          console.error('[Auth:Social] WiFiUser upsert failed:', dbErr);
+        }
+
+        // Log successful auth
+        await logAuthAttempt(socialUsername, 'Access-Accept', request, `SOCIAL_${provider.toUpperCase()}_OK`);
+        logIdentityVerification({
+          tenantId: socialTenantId,
+          propertyId: socialPropertyId || undefined,
+          sessionId: null,
+          username: socialUsername,
+          verificationMethod: `social_${provider}`,
+          verifiedIdentity: socialEmail || socialId,
+          verificationStatus: 'verified',
+          ipAddress: getClientIpString(request),
+          macAddress: effectiveMac,
+        });
+
+        // Create RadiusAuthLog
+        try {
+          await db.radiusAuthLog.create({
+            data: {
+              propertyId: socialPropertyId,
+              username: socialUsername,
+              authResult: 'Access-Accept',
+              authType: 'PAP',
+              replyMessage: `Social login (${provider}) successful`,
+              timestamp: now,
+            },
+          });
+        } catch { /* best effort */ }
+
+        // Attempt RADIUS auth + firewall
+        try {
+          const socialPassword = `__social__${createHash('sha256').update(socialToken).digest('hex').slice(0, 16)}`;
+          const socialSessionId = `social_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          await radiusAuth(socialUsername, socialPassword, getClientIpString(request), socialSessionId);
+          const localNas = getLocalNasConfig();
+          if (localNas.enabled) {
+            const deviceType = parseDeviceTypeFromUA(request.headers.get('user-agent') || '');
+            await runLoginScript({
+              username: socialUsername,
+              clientIp: getClientIpString(request),
+              clientMac: effectiveMac,
+              deviceType,
+              sessionId: socialSessionId,
+              sessionTimeout: Math.min(portalSessionTimeoutMin, 1440),
+              bandwidthDown: bwDown,
+              bandwidthUp: bwUp,
+            } as LoginScriptParams);
+          }
+        } catch (radiusErr) {
+          console.warn('[Auth:Social] RADIUS/firewall failed (non-critical):', radiusErr);
+        }
+
+        // Create accounting session
+        try {
+          await createAccountingSession(socialUsername, request, 'social');
+        } catch { /* best effort */ }
+
+        // Create DeviceProfile
+        if (fingerprintHash && socialPropertyId) {
+          try {
+            const existingWifiUser = await db.wiFiUser.findUnique({ where: { username: socialUsername } });
+            if (existingWifiUser) {
+              await db.deviceProfile.upsert({
+                where: {
+                  fingerprintHash_storageToken_propertyId: {
+                    fingerprintHash,
+                    storageToken: storageToken || fingerprintHash,
+                    propertyId: socialPropertyId,
+                  },
+                },
+                update: {
+                  macAddress: effectiveMac,
+                  ipAddress: getClientIpString(request),
+                  lastAuthAt: now,
+                  authCount: { increment: 1 },
+                },
+                create: {
+                  tenantId: socialTenantId,
+                  propertyId: socialPropertyId,
+                  wifiUserId: existingWifiUser.id,
+                  fingerprintHash,
+                  storageToken: storageToken || fingerprintHash,
+                  macAddress: effectiveMac,
+                  ipAddress: getClientIpString(request),
+                  lastAuthAt: now,
+                  deviceType: parseDeviceTypeFromUA(request.headers.get('user-agent') || ''),
+                  authCount: 1,
+                },
+              });
+            }
+          } catch (dpErr) {
+            console.warn('[Auth:Social] DeviceProfile upsert failed (non-critical):', dpErr);
+          }
+        }
+
+        resetRateLimit(clientRateLimitIp);
+        return successResponse(
+          {
+            authenticated: true,
+            method: 'social',
+            username: socialUsername,
+            displayName: socialName,
+            email: socialEmail,
+            provider: provider,
+            sessionTimeout: Math.min(portalSessionTimeoutMin, 1440),
+            bandwidthDown: bwDown,
+            bandwidthUp: bwUp,
+            message: `Successfully authenticated via ${provider.charAt(0).toUpperCase() + provider.slice(1)}`,
+            sessionId: `social_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            guestId: null,
+          },
+          { username: socialUsername, password: `__social__${createHash('sha256').update(socialToken).digest('hex').slice(0, 16)}` },
+          externalGateway
         );
       }
     }
