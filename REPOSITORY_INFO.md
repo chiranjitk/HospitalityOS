@@ -8,7 +8,7 @@
 
 | Property | Value |
 |----------|-------|
-| **Repository** | https://github.com/chiranjitk/StaySuite-HospitalityOS.git |
+| **Repository** | https://github.com/chiranjitk/HospitalityOS.git |
 | **Branch** | main (NOT master) |
 | **Author** | chiranjitk |
 | **Email** | chiranjitk@outlook.com |
@@ -21,7 +21,7 @@
 ```bash
 git config user.name "chiranjitk"
 git config user.email "chiranjitk@outlook.com"
-git remote set-url origin https://github.com/chiranjitk/StaySuite-HospitalityOS.git
+git remote set-url origin https://github.com/chiranjitk/HospitalityOS.git
 ```
 
 ---
@@ -78,8 +78,9 @@ git status && echo "---" && git log --oneline -3
 - **Type**: Multi-Tenant SaaS Platform
 - **Modules**: 24+ integrated modules
 - **OTA Integrations**: 48+ channels
-- **Tech Stack**: Next.js 16, TypeScript, Prisma, SQLite, Tailwind CSS
+- **Tech Stack**: Next.js 16, TypeScript, Prisma, PostgreSQL, Tailwind CSS, FreeRADIUS
+- **Infrastructure**: PM2 (process manager), PostgreSQL 17, FreeRADIUS v3.2.7
 
 ---
 
-**Last Updated:** 2026-03-28
+**Last Updated:** 2025-07-11
