@@ -298,7 +298,11 @@ SELECT pa.id::text AS id,
     CASE
         WHEN pa.reply = 'Access-Accept'::text THEN
         CASE
-            WHEN COALESCE(replace(acct.framedipaddress, '/32'::text, ''::text), ''::text) <> ''::text THEN 'Authenticated — client IP: '::text || replace(acct.framedipaddress, '/32'::text, ''::text)
+            WHEN COALESCE(replace(acct.framedipaddress, '/32'::text, ''::text), ''::text) <> ''::text THEN
+                'Authenticated — client IP: '::text || replace(acct.framedipaddress, '/32'::text, ''::text) ||
+                COALESCE(' — device: '::text || dp."deviceName", ''::text) ||
+                COALESCE(' — MAC: '::text || COALESCE(pa.callingstationid, dp."macAddress"), ''::text) ||
+                COALESCE(' — room: '::text || rm.number, ''::text)
             WHEN COALESCE(pa."nasIpAddress", ''::text) <> ''::text THEN 'Authenticated from NAS '::text || pa."nasIpAddress"
             ELSE 'Authenticated successfully'::text
         END
@@ -412,6 +416,7 @@ SELECT pa.id::text AS id,
      LEFT JOIN "Room" rm ON b."roomId" = rm.id
      LEFT JOIN "Property" p ON u."propertyId" = p.id
      LEFT JOIN "WiFiPlan" wp ON u."planId" = wp.id
+     LEFT JOIN LATERAL (SELECT "deviceName", "macAddress" FROM "DeviceProfile" WHERE "wifiUserId" = u.id AND "isActive" = true ORDER BY "lastSeenAt" DESC LIMIT 1) dp ON true
      LEFT JOIN LATERAL (SELECT groupname FROM radusergroup WHERE username = pa.username LIMIT 1) rg ON true;
 
 -- ---------------------------------------------------------------------------
