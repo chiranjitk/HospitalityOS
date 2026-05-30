@@ -8,6 +8,7 @@ module.exports = {
       interpreter: 'none',
       watch: false,
       autorestart: true,
+      max_memory_restart: '512M',
       env: {
         LD_LIBRARY_PATH: '/home/z/my-project/freeradius-install/lib',
       },
@@ -19,8 +20,10 @@ module.exports = {
       cwd: '/home/z/my-project',
       watch: false,
       autorestart: true,
+      max_memory_restart: '2G',
       env: {
         PORT: 3000,
+        NODE_OPTIONS: '--max-old-space-size=1536',
         DATABASE_URL: 'postgresql://staysuite:Staysuite2025@localhost:5432/staysuite',
       },
     },
