@@ -8,6 +8,7 @@ export default async function loadAdmin(section: string): Promise<{ default: Rea
       return (await import('./load-settings')).default(section);
     case 'security':
     case 'surveillance':
+    case 'visitor':
       return (await import('./load-security')).default(section);
     case 'chain':
       return (await import('./load-chain')).default(section);
