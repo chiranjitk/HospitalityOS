@@ -1676,17 +1676,52 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
             <CardContent className="p-4 flex justify-center bg-muted/30 min-h-[400px] lg:min-h-[620px]">
               {/* Device Frame */}
               <div className={cn(
-                'relative bg-gray-900 shadow-2xl overflow-hidden',
-                previewDevice === 'phone' ? 'w-[240px] sm:w-[280px] h-[480px] sm:h-[560px] rounded-[36px] border-4 border-gray-800' : '',
-                previewDevice === 'tablet' ? 'w-[320px] sm:w-[420px] h-[480px] sm:h-[580px] rounded-[20px] border-3 border-gray-800' : '',
-                previewDevice === 'desktop' ? 'w-full h-[480px] sm:h-[580px] rounded-lg border-2 border-gray-700' : '',
+                'relative shadow-2xl overflow-hidden',
+                previewDevice === 'phone' ? 'w-[240px] sm:w-[280px] h-[480px] sm:h-[560px] rounded-[44px] border-[5px] bg-gradient-to-b from-gray-800 via-gray-900 to-gray-950' : '',
+                previewDevice === 'tablet' ? 'w-[320px] sm:w-[420px] h-[480px] sm:h-[580px] rounded-[24px] border-[4px] bg-gradient-to-b from-gray-800 via-gray-900 to-gray-950' : '',
+                previewDevice === 'desktop' ? 'w-full h-[480px] sm:h-[580px] rounded-lg border-2 border-gray-700 bg-gray-900' : '',
               )}>
-                {/* Notch (phone only) */}
-                {previewDevice === 'phone' && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-gray-900 rounded-b-xl z-10" />}
+                {/* Frame shine/reflection */}
+                <div className="absolute inset-0 rounded-[inherit] pointer-events-none z-20" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.03) 100%)' }} />
+                {/* Dynamic Island (phone only) */}
+                {previewDevice === 'phone' && (
+                  <div className="absolute top-[6px] left-1/2 -translate-x-1/2 z-20">
+                    <div className="w-[80px] h-[22px] bg-black rounded-full shadow-lg shadow-black/30 flex items-center justify-center">
+                      <div className="w-[8px] h-[8px] rounded-full bg-gray-800/80 ring-[1px] ring-gray-700/50" />
+                    </div>
+                  </div>
+                )}
+                {/* Status bar (phone) */}
+                {previewDevice === 'phone' && (
+                  <div className="absolute top-[9px] left-0 right-0 z-10 flex justify-between items-center px-6 pointer-events-none">
+                    <span className="text-[8px] font-semibold text-white/70">9:41</span>
+                    <div className="flex gap-1 items-center">
+                      {/* Signal */}
+                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none" className="text-white/60">
+                        <rect x="0" y="6" width="2" height="2" rx="0.5" fill="currentColor" />
+                        <rect x="3" y="4" width="2" height="4" rx="0.5" fill="currentColor" />
+                        <rect x="6" y="2" width="2" height="6" rx="0.5" fill="currentColor" />
+                        <rect x="9" y="0" width="1" height="8" rx="0.5" fill="currentColor" />
+                      </svg>
+                      {/* Battery */}
+                      <div className="flex items-center">
+                        <div className="w-[12px] h-[6px] rounded-[1px] border border-white/60 relative">
+                          <div className="absolute inset-[1px] right-[1px] rounded-[0.5px] bg-emerald-500" />
+                        </div>
+                        <div className="w-[1px] h-[3px] rounded-r-sm bg-white/60" />
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {/* Screen Content */}
-                <div className="w-full h-full overflow-auto" style={{ background: getBackgroundCSS(design), color: design.textColor }}>
+                <div className="w-full h-full overflow-auto rounded-[inherit]" style={{ background: getBackgroundCSS(design), color: design.textColor }}>
+                  <div className="pt-6">{/* Spacer for status bar area */}</div>
                   <PortalPreviewContent design={design} visibleFields={visibleFields} />
                 </div>
+                {/* Home indicator (phone) */}
+                {previewDevice === 'phone' && (
+                  <div className="absolute bottom-[6px] left-1/2 -translate-x-1/2 z-20 w-[100px] h-[4px] rounded-full bg-white/20" />
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1722,8 +1757,18 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                   return (
                   <div className="space-y-4">
                     <div>
-                      <h3 className="text-sm font-semibold flex items-center gap-2"><Sparkles className="h-4 w-4 text-amber-500 dark:text-amber-400" />Choose a Template</h3>
-                      <p className="text-xs text-muted-foreground mt-1">{PORTAL_TEMPLATES.length} professionally designed themes — pick one, then customize every detail</p>
+                      <h3 className="text-sm font-semibold flex items-center gap-2">
+                        <span className="relative">
+                          <Sparkles className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                          <span className="absolute inset-0 rounded-full animate-ping bg-amber-400/20" />
+                        </span>
+                        Choose a Template
+                        <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-sm">
+                          {PORTAL_TEMPLATES.length} themes
+                        </span>
+                      </h3>
+                      <div className="relative mt-2 h-[2px] rounded-full bg-gradient-to-r from-teal-500 via-amber-400 to-emerald-500 opacity-60" />
+                      <p className="text-xs text-muted-foreground mt-1.5">Professionally designed themes — pick one, then customize every detail</p>
                     </div>
                     {/* Category filter pills */}
                     <div className="flex flex-wrap gap-1.5">
@@ -1739,22 +1784,59 @@ function PortalDesignerTab({ portalOptions }: { portalOptions: Array<{ id: strin
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {filtered.map((tmpl) => (
                         <button key={tmpl.id} onClick={() => applyTemplate(tmpl)}
-                          className={cn('group relative rounded-xl overflow-hidden border-2 transition-all hover:shadow-lg text-left',
+                          className={cn('group relative rounded-xl overflow-hidden border-2 transition-all duration-300 hover:shadow-xl hover:shadow-teal-500/10 hover:scale-[1.02] text-left',
                             isCurrent(tmpl)
-                              ? 'border-teal-500 ring-2 ring-teal-500/20' : 'border-border hover:border-teal-300'
+                              ? 'border-teal-500 ring-2 ring-teal-500/20 shadow-lg shadow-teal-500/15' : 'border-border hover:border-teal-300'
                           )}>
-                          {/* Thumbnail */}
-                          <div className="h-28 relative" style={{ background: tmpl.preview }}>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-white/90 p-3">
-                              <Building className="h-6 w-6 opacity-60" />
-                              <div className="text-[10px] font-semibold text-center drop-shadow">{tmpl.name}</div>
+                          {/* Mini Portal Mockup Thumbnail */}
+                          <div className="h-36 relative flex items-center justify-center p-3" style={{ background: tmpl.preview }}>
+                            {/* Mini phone frame */}
+                            <div className="relative w-[52px] h-[96px] rounded-[10px] border-[2.5px] border-white/40 bg-white/10 backdrop-blur-sm shadow-lg overflow-hidden">
+                              {/* Mini Dynamic Island */}
+                              <div className="absolute top-0.5 left-1/2 -translate-x-1/2 w-[18px] h-[3px] rounded-full bg-black/50 z-10" />
+                              {/* Mini status bar */}
+                              <div className="flex justify-between items-center px-1 pt-1">
+                                <span className="text-[4px] font-bold text-white/50">9:41</span>
+                                <div className="flex gap-[2px] items-center">
+                                  <div className="w-[4px] h-[2px] rounded-sm bg-white/40" />
+                                  <div className="w-[4px] h-[2px] rounded-sm bg-white/40" />
+                                  <div className="w-[4px] h-[3px] rounded-sm bg-white/40" />
+                                </div>
+                              </div>
+                              {/* Mini portal content */}
+                              <div className="flex flex-col items-center gap-[3px] px-[5px] mt-2">
+                                {/* Logo circle */}
+                                <div className="w-[14px] h-[14px] rounded-full border-[1.5px] border-white/30 flex items-center justify-center" style={{ background: tmpl.colors.accent }}>
+                                  <Building className="h-[6px] w-[6px] text-white/80" />
+                                </div>
+                                {/* Title lines */}
+                                <div className="w-full space-y-[2px]">
+                                  <div className="h-[2px] w-3/4 mx-auto rounded-full bg-white/30" />
+                                  <div className="h-[1.5px] w-1/2 mx-auto rounded-full bg-white/20" />
+                                </div>
+                                {/* Input lines */}
+                                <div className="w-full space-y-[2px] mt-[2px]">
+                                  <div className="h-[5px] w-full rounded-[2px] bg-white/15 border border-white/10" />
+                                  <div className="h-[5px] w-full rounded-[2px] bg-white/15 border border-white/10" />
+                                </div>
+                                {/* CTA button */}
+                                <div className="h-[6px] w-full rounded-[2px] mt-[2px]" style={{ background: tmpl.colors.accent }} />
+                              </div>
+                              {/* Mini home indicator */}
+                              <div className="absolute bottom-[3px] left-1/2 -translate-x-1/2 w-[14px] h-[1.5px] rounded-full bg-white/30" />
+                            </div>
+                            {/* Watermark name */}
+                            <div className="absolute bottom-2 left-0 right-0 text-center">
+                              <span className="text-[9px] font-semibold text-white/70 drop-shadow-md tracking-wide">{tmpl.name}</span>
                             </div>
                             {/* Category badge */}
                             <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full bg-black/30 backdrop-blur-sm text-[8px] font-medium text-white/80">
                               {CATEGORY_ICONS[tmpl.category] || ''} {tmpl.category}
                             </div>
+                            {/* Hover glow overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                             {isCurrent(tmpl) && (
-                              <div className="absolute top-1.5 right-1.5 bg-teal-500 rounded-full p-0.5"><CheckCircle2 className="h-3 w-3 text-white" /></div>
+                              <div className="absolute top-1.5 right-1.5 bg-teal-500 rounded-full p-0.5 shadow-md shadow-teal-500/40"><CheckCircle2 className="h-3 w-3 text-white" /></div>
                             )}
                           </div>
                           <div className="p-2.5 bg-card">
