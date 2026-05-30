@@ -246,7 +246,9 @@ export async function GET(request: NextRequest) {
                         ELSE NULL END as ip_pool_source,
                    (SELECT rr.value FROM radreply rr
                     WHERE rr.username = vw.username AND rr.attribute = 'Session-Timeout'
-                    LIMIT 1) AS radius_session_timeout
+                    LIMIT 1) AS radius_session_timeout,
+                   (SELECT count(*)::int FROM "WiFiUserDevice" ud WHERE ud."wifiUserId" = vw.id) AS device_count,
+                   (SELECT count(*)::int FROM "WiFiUserDevice" ud WHERE ud."wifiUserId" = vw.id AND ud."isActive" = true) AS active_device_count
             FROM v_wifi_users vw
             LEFT JOIN "WiFiUser" u ON u.id = vw.id
             LEFT JOIN "IpPool" up ON up.id = u."ipPoolId"
@@ -295,6 +297,8 @@ export async function GET(request: NextRequest) {
             totalBytesIn: Number(row.totalBytesIn || 0),
             totalBytesOut: Number(row.totalBytesOut || 0),
             sessionCount: Number(row.sessionCount || 0),
+            deviceCount: Number(row.device_count || 0),
+            activeDeviceCount: Number(row.active_device_count || 0),
           };
           });
 

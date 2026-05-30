@@ -84,6 +84,12 @@ import {
   X,
   ChevronDown,
   UserCog,
+  Monitor,
+  Smartphone,
+  Tablet,
+  Star,
+  ToggleLeft,
+  ToggleRight,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { TwoFactorSetupModal } from '@/components/auth/two-factor-setup-modal';
@@ -219,6 +225,21 @@ interface RadiusUser {
   property_name?: string;
   plan_name?: string;
   sessionCount?: number;
+  deviceCount?: number;
+  activeDeviceCount?: number;
+}
+
+interface UserDevice {
+  id: string;
+  macAddress: string;
+  deviceName: string | null;
+  deviceType: string | null;
+  ipAddress: string | null;
+  isPrimary: boolean;
+  isActive: boolean;
+  source: string;
+  firstSeen: string | null;
+  lastSeen: string | null;
 }
 
 interface WiFiPlan {
@@ -281,6 +302,17 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
   const [resetQuotaChanging, setResetQuotaChanging] = useState(false);
   const originalSessionTimeout = useRef<number | undefined>(undefined);
   const [guestInfoOpen, setGuestInfoOpen] = useState(false);
+
+  // Device management dialog state
+  const [devicesDialogOpen, setDevicesDialogOpen] = useState(false);
+  const [devicesUser, setDevicesUser] = useState<RadiusUser | null>(null);
+  const [userDevices, setUserDevices] = useState<UserDevice[]>([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
+  const [addingDevice, setAddingDevice] = useState(false);
+  const [newMacInput, setNewMacInput] = useState('');
+  const [newDeviceNameInput, setNewDeviceNameInput] = useState('');
+  const [newDeviceTypeInput, setNewDeviceTypeInput] = useState('unknown');
+
   const [form, setForm] = useState({
     username: '',
     password: '',
@@ -346,6 +378,143 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
     fetchUsers();
     fetchPlans();
   }, [fetchUsers, fetchPlans]);
+
+  // ─── Device Management Functions ──────────────────────────────────────────────
+  const getDeviceTypeIcon = (type: string | null) => {
+    switch (type) {
+      case 'phone': return <Smartphone className="h-3.5 w-3.5" />;
+      case 'tablet': return <Tablet className="h-3.5 w-3.5" />;
+      case 'laptop': case 'desktop': return <Monitor className="h-3.5 w-3.5" />;
+      default: return <Monitor className="h-3.5 w-3.5 text-muted-foreground/60" />;
+    }
+  };
+
+  const getDeviceTypeBadge = (type: string | null) => {
+    switch (type) {
+      case 'phone': return <Badge variant="secondary" className="text-[9px] px-1.5 py-0">Phone</Badge>;
+      case 'tablet': return <Badge variant="secondary" className="text-[9px] px-1.5 py-0">Tablet</Badge>;
+      case 'laptop': return <Badge variant="secondary" className="text-[9px] px-1.5 py-0">Laptop</Badge>;
+      case 'desktop': return <Badge variant="secondary" className="text-[9px] px-1.5 py-0">Desktop</Badge>;
+      case 'iot': return <Badge variant="secondary" className="text-[9px] px-1.5 py-0">IoT</Badge>;
+      default: return <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-muted-foreground">Unknown</Badge>;
+    }
+  };
+
+  const getSourceBadge = (source: string) => {
+    const colors: Record<string, string> = {
+      pms_credentials: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+      room_number: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+      voucher: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+      mac_whitelist: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+      admin: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+      open_access: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300',
+      login: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
+    };
+    const label = source.replace(/_/g, ' ');
+    return (
+      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${colors[source] || 'bg-muted text-muted-foreground'}`}>
+        {label}
+      </span>
+    );
+  };
+
+  const openDevicesDialog = async (user: RadiusUser) => {
+    setDevicesUser(user);
+    setDevicesDialogOpen(true);
+    setNewMacInput('');
+    setNewDeviceNameInput('');
+    setNewDeviceTypeInput('unknown');
+    setDevicesLoading(true);
+    try {
+      const res = await fetch(`/api/wifi/users/${user.id}/devices`);
+      const data = await res.json();
+      if (data.success) {
+        setUserDevices(data.data || []);
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load devices', variant: 'destructive' });
+    } finally {
+      setDevicesLoading(false);
+    }
+  };
+
+  const toggleDeviceActive = async (device: UserDevice) => {
+    try {
+      const res = await fetch(`/api/wifi/users/${devicesUser?.id}/devices`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId: device.id, isActive: !device.isActive }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUserDevices(prev => prev.map(d => d.id === device.id ? { ...d, isActive: !d.isActive } : d));
+        toast({ title: 'Device updated', description: `${device.macAddress} ${!device.isActive ? 'activated' : 'deactivated'}` });
+        fetchUsers(); // Refresh device counts
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to update device', variant: 'destructive' });
+    }
+  };
+
+  const setDevicePrimary = async (device: UserDevice) => {
+    try {
+      const res = await fetch(`/api/wifi/users/${devicesUser?.id}/devices`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId: device.id, isPrimary: true }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUserDevices(prev => prev.map(d => ({ ...d, isPrimary: d.id === device.id })));
+        toast({ title: 'Primary device set', description: device.macAddress });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to set primary device', variant: 'destructive' });
+    }
+  };
+
+  const removeDevice = async (device: UserDevice) => {
+    try {
+      const res = await fetch(`/api/wifi/users/${devicesUser?.id}/devices?deviceId=${device.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUserDevices(prev => prev.filter(d => d.id !== device.id));
+        toast({ title: 'Device removed', description: device.macAddress });
+        fetchUsers();
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to remove device', variant: 'destructive' });
+    }
+  };
+
+  const addDevice = async () => {
+    if (!newMacInput.trim()) return;
+    setAddingDevice(true);
+    try {
+      const res = await fetch(`/api/wifi/users/${devicesUser?.id}/devices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ macAddress: newMacInput, deviceName: newDeviceNameInput || undefined, deviceType: newDeviceTypeInput || undefined }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: data.message || 'Device added', description: newMacInput });
+        setNewMacInput('');
+        setNewDeviceNameInput('');
+        setNewDeviceTypeInput('unknown');
+        // Reload devices
+        openDevicesDialog(devicesUser!);
+      } else {
+        toast({ title: 'Error', description: data.error?.message || 'Failed to add device', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to add device', variant: 'destructive' });
+    } finally {
+      setAddingDevice(false);
+    }
+  };
 
   // ─── Form Helpers ──────────────────────────────────────────────────────────
 
@@ -1057,6 +1226,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
+    <>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between gap-4">
@@ -1274,6 +1444,7 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                     <TableHead>Data Cap</TableHead>
                     <TableHead>FUP Policy</TableHead>
                     <TableHead>IP Pool</TableHead>
+                    <TableHead>Devices</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -1364,6 +1535,20 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
                           ) : (
                             <span className="text-xs text-muted-foreground">Inherit</span>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            onClick={() => openDevicesDialog(user)}
+                            className={cn(
+                              'inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors hover:bg-primary/10',
+                              (user.deviceCount || 0) > 0
+                                ? 'text-primary cursor-pointer'
+                                : 'text-muted-foreground cursor-pointer hover:text-primary'
+                            )}
+                          >
+                            <Monitor className="h-3.5 w-3.5" />
+                            <span>{(user.activeDeviceCount ?? 0)}/{user.deviceCount ?? 0}</span>
+                          </button>
                         </TableCell>
                         <TableCell>
                           <span className="text-xs text-muted-foreground">
@@ -2276,5 +2461,131 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
         }}
       />
     </div>
+
+      {/* Device Management Dialog */}
+      <Dialog open={devicesDialogOpen} onOpenChange={(open) => { setDevicesDialogOpen(open); if (!open) setUserDevices([]); }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Monitor className="h-5 w-5 text-primary" />
+              Registered Devices
+              {devicesUser && (
+                <span className="text-sm font-normal text-muted-foreground">
+                  — {devicesUser.username}
+                </span>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              Manage MAC devices registered for this user. Active devices can authenticate; inactive devices are blocked.
+            </DialogDescription>
+          </DialogHeader>
+
+          {devicesLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Add Device Form */}
+              <div className="border rounded-lg p-4 bg-muted/30">
+                <p className="text-sm font-medium mb-3">Register New Device</p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    placeholder="MAC Address (e.g. AA:BB:CC:DD:EE:FF)"
+                    value={newMacInput}
+                    onChange={(e) => setNewMacInput(e.target.value.toUpperCase())}
+                    className="font-mono text-sm flex-1"
+                  />
+                  <Input
+                    placeholder="Device Name (optional)"
+                    value={newDeviceNameInput}
+                    onChange={(e) => setNewDeviceNameInput(e.target.value)}
+                    className="text-sm sm:w-48"
+                  />
+                  <select
+                    value={newDeviceTypeInput}
+                    onChange={(e) => setNewDeviceTypeInput(e.target.value)}
+                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="unknown">Unknown</option>
+                    <option value="phone">Phone</option>
+                    <option value="tablet">Tablet</option>
+                    <option value="laptop">Laptop</option>
+                    <option value="desktop">Desktop</option>
+                    <option value="iot">IoT</option>
+                  </select>
+                  <Button
+                    size="sm"
+                    onClick={addDevice}
+                    disabled={addingDevice || !newMacInput.trim()}
+                  >
+                    {addingDevice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+                    Add
+                  </Button>
+                </div>
+              </div>
+
+              {/* Device List */}
+              {userDevices.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Monitor className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">No devices registered for this user</p>
+                  <p className="text-xs mt-1">Devices will be captured automatically when the user logs in</p>
+                </div>
+              ) : (
+                <div className="border rounded-lg divide-y max-h-[400px] overflow-y-auto">
+                  {userDevices.map((device) => (
+                    <div key={device.id} className={cn(
+                      'flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors',
+                      !device.isActive && 'opacity-50'
+                    )}>
+                      <div className="shrink-0">{getDeviceTypeIcon(device.deviceType)}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-medium truncate" title={device.macAddress}>{device.macAddress}</span>
+                          {device.isPrimary && <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500 shrink-0" title="Primary device" />}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          {getDeviceTypeBadge(device.deviceType)}
+                          {getSourceBadge(device.source)}
+                          {device.isActive ? (
+                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">Active</Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">Inactive</Badge>
+                          )}
+                        </div>
+                        {device.ipAddress && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">IP: {device.ipAddress} · Last seen: {device.lastSeen ? formatDistanceToNow(new Date(device.lastSeen), { addSuffix: true }) : 'never'}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button variant="ghost" size="sm" className={device.isActive ? 'text-green-600 hover:text-green-700 hover:bg-green-50' : 'text-muted-foreground hover:text-green-600 hover:bg-green-50'} onClick={() => toggleDeviceActive(device)} title={device.isActive ? 'Deactivate device' : 'Activate device'}>
+                          {device.isActive ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
+                        </Button>
+                        {!device.isPrimary && device.isActive && (
+                          <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700 hover:bg-amber-50" onClick={() => setDevicePrimary(device)} title="Set as primary device">
+                            <Star className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive/80 hover:bg-destructive/10" onClick={() => removeDevice(device)} title="Remove device">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {userDevices.length > 0 && (
+                <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                  <span>Total: {userDevices.length} devices</span>
+                  <span>Active: {userDevices.filter(d => d.isActive).length} · Inactive: {userDevices.filter(d => !d.isActive).length}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
