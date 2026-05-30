@@ -97,6 +97,7 @@ import {
   Copy,
   CheckCheck,
   Globe,
+  XCircle,
 } from 'lucide-react';
 import CredentialPolicyTab, { type CredentialConfig } from './credential-policy-tab';
 import { useToast } from '@/hooks/use-toast';
