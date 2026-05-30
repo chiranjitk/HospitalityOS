@@ -108,15 +108,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify property belongs to tenant
-    const property = await db.property.findFirst({
+    // Verify property belongs to tenant — if not found, try auto-resolving from tenant
+    let property = await db.property.findFirst({
       where: { id: resolvedPropertyId, tenantId },
     });
     if (!property) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Property not found' } },
-        { status: 404 }
-      );
+      // Fallback: use portal's own propertyId (always correct since portal belongs to tenant)
+      property = await db.property.findFirst({
+        where: { id: portal.propertyId, tenantId },
+      });
+      if (!property) {
+        console.error(`[auth-methods POST] Property not found. body.propertyId=${propertyId}, portal.propertyId=${portal.propertyId}, tenantId=${tenantId}`);
+        return NextResponse.json(
+          { success: false, error: { code: 'NOT_FOUND', message: 'Property not found' } },
+          { status: 404 }
+        );
+      }
     }
 
     // Check for duplicate method on same portal (unique constraint)
@@ -133,7 +140,7 @@ export async function POST(request: NextRequest) {
     const authMethod = await db.portalAuthentication.create({
       data: {
         tenantId,
-        propertyId: resolvedPropertyId,
+        propertyId: property.id, // Use the verified property ID (may differ from body if fallback resolved)
         portalId,
         method,
         enabled,

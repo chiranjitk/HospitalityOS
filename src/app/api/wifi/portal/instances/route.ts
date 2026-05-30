@@ -223,18 +223,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verify property belongs to tenant
-    const property = await db.property.findFirst({
-      where: { id: propertyId, tenantId },
-    });
-
-    if (!property) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Property not found' } },
-        { status: 404 }
-      );
-    }
-
     // Build zone fields data with proper serialization
     const zoneData: Record<string, unknown> = {};
     if (slug !== undefined) zoneData.slug = slug;
