@@ -28,6 +28,9 @@ const EventWifiTab = lazy(() => import('@/components/wifi/event-wifi'));
 const WifiQuickStats = lazy(() => import('@/components/wifi/wifi-quick-stats'));
 const IpPoolManagement = lazy(() => import('@/components/wifi/ip-pool-management'));
 const BandwidthPoolManagement = lazy(() => import('@/components/wifi/bandwidth-pool-management'));
+const GuestWifiOnboarding = lazy(() => import('@/components/wifi/guest-wifi-onboarding'));
+const WifiActivityFeed = lazy(() => import('@/components/wifi/wifi-activity-feed'));
+const WifiTopologyMini = lazy(() => import('@/components/wifi/wifi-topology-mini'));
 
 // ─── Loading Skeleton ─────────────────────────────────────────────────────────
 
@@ -281,6 +284,15 @@ export function WifiAccessPage() {
         )}
       </div>
 
+      {/* Guest WiFi Onboarding Card (shown only if setup is incomplete) */}
+      <div className="relative z-10">
+        <Suspense fallback={null}>
+          <ErrorBoundary section="WiFi Setup">
+            <GuestWifiOnboarding />
+          </ErrorBoundary>
+        </Suspense>
+      </div>
+
       {/* RADIUS Status + Quick Actions (inline) */}
       <div className="relative z-10">
         <RADIUSQuickActions onRefresh={handleRefresh} onSwitchToVouchers={handleSwitchToVouchers} statusRefreshTrigger={statusRefreshKey} />
@@ -291,6 +303,24 @@ export function WifiAccessPage() {
         <Suspense fallback={<TabSkeleton />}>
           <WifiQuickStats />
         </Suspense>
+      </div>
+
+      {/* Activity Feed + Topology Mini-Map (below stats, before tabs) */}
+      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <Suspense fallback={<TabSkeleton />}>
+            <ErrorBoundary section="Activity Feed">
+              <WifiActivityFeed />
+            </ErrorBoundary>
+          </Suspense>
+        </div>
+        <div>
+          <Suspense fallback={<TabSkeleton />}>
+            <ErrorBoundary section="Topology Map">
+              <WifiTopologyMini />
+            </ErrorBoundary>
+          </Suspense>
+        </div>
       </div>
 
       {/* Tab Switcher */}
