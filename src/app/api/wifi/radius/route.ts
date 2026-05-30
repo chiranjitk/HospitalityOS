@@ -1142,7 +1142,7 @@ export async function GET(request: NextRequest) {
       // ─── Live Speeds (Tier 2: real-time speed from live-speed-service) ──
       case 'live-speeds': {
         try {
-          const speedRes = await fetch('http://127.0.0.1:3018/speeds', {
+          const speedRes = await fetch(`${process.env.LIVE_SPEED_SERVICE_URL || 'http://127.0.0.1:3018'}/speeds`, {
             signal: AbortSignal.timeout(3000),
           });
           if (speedRes.ok) {
@@ -1193,10 +1193,13 @@ export async function GET(request: NextRequest) {
 
           const conditions: string[] = [];
           const sqlParams: unknown[] = [];
+          // Tenant isolation: only show policies for the requesting tenant
+          conditions.push(`fap."tenantId" = $${sqlParams.length + 1}::uuid`);
+          sqlParams.push(context.tenantId);
           if (propertyId) { conditions.push(`fap."propertyId" = $${sqlParams.length + 1}::uuid`); sqlParams.push(propertyId); }
           if (enabled === 'true') { conditions.push('fap."isEnabled" = true'); }
           else if (enabled === 'false') { conditions.push('fap."isEnabled" = false'); }
-          const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : 'WHERE 1=1';
+          const whereClause = `WHERE ${conditions.join(' AND ')}`;
           sqlParams.push(limit, offset);
 
           const policies = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(`
@@ -1217,7 +1220,7 @@ export async function GET(request: NextRequest) {
 
           const totalResult = await db.$queryRawUnsafe<[{ c: number | bigint }][]>(
             `SELECT COUNT(*) as c FROM "FairAccessPolicy" fap ${whereClause}`,
-            ...sqlParams.slice(0, sqlParams.length - 2)
+            ...sqlParams.slice(0, -2)
           );
           const total = Number(totalResult[0]?.c ?? 0);
 
@@ -1232,15 +1235,22 @@ export async function GET(request: NextRequest) {
       // ─── FUP Switch-Over Log ─────────────────────────────────────
       case 'fup-switch-log': {
         try {
-          const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 200);
+          const limit = Math.min(parseInt(searchParams.get('limit') || '100', 10), 1000);
           const action = searchParams.get('action');
           const username = searchParams.get('username');
 
           const conditions: string[] = [];
           const sqlParams: unknown[] = [];
+          // Tenant isolation: filter FUP logs through WiFiUser → Property
+          conditions.push(`EXISTS (
+            SELECT 1 FROM "WiFiUser" wu 
+            JOIN "Property" p ON p.id = wu."propertyId" 
+            WHERE wu.username = fup_switch_log.username AND p."tenantId" = $${sqlParams.length + 1}::uuid
+          )`);
+          sqlParams.push(context.tenantId);
           if (action) { conditions.push(`action = $${sqlParams.length + 1}`); sqlParams.push(action); }
           if (username) { conditions.push(`username LIKE $${sqlParams.length + 1}`); sqlParams.push(`%${username}%`); }
-          const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+          const whereClause = `WHERE ${conditions.join(' AND ')}`;
           sqlParams.push(limit);
 
           const logs = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(`

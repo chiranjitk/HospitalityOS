@@ -7,10 +7,10 @@ interface RouteParams {
 }
 
 // Notify conntrack-bridge of config changes (fire-and-forget)
-async function notifyConntrackBridge(): Promise<void> {
+async function notifyConntrackBridge(tenantId: string): Promise<void> {
   try {
     const servers = await db.syslogServer.findMany({
-      where: { enabled: true },
+      where: { enabled: true, tenantId },
       select: {
         id: true,
         name: true,
@@ -23,7 +23,7 @@ async function notifyConntrackBridge(): Promise<void> {
         enabled: true,
       },
     });
-    const res = await fetch('http://127.0.0.1:3020/api/syslog-config', {
+    const res = await fetch(`${process.env.CONNTRACK_BRIDGE_URL || 'http://127.0.0.1:3020'}/api/syslog-config`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ servers }),
@@ -32,8 +32,8 @@ async function notifyConntrackBridge(): Promise<void> {
     if (!res.ok) {
       console.warn(`[syslog] Failed to notify conntrack-bridge: ${res.status}`);
     }
-  } catch (err: any) {
-    console.warn(`[syslog] conntrack-bridge notification failed: ${err.message}`);
+  } catch (err: unknown) {
+    console.warn(`[syslog] conntrack-bridge notification failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -109,7 +109,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     });
 
     // Notify conntrack-bridge of config change
-    notifyConntrackBridge();
+    notifyConntrackBridge(user.tenantId);
 
     // Format the response for the frontend
     let parsedCategories: string[] = [];
@@ -167,7 +167,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     await db.syslogServer.delete({ where: { id } });
 
     // Notify conntrack-bridge of config change
-    notifyConntrackBridge();
+    notifyConntrackBridge(user.tenantId);
 
     return NextResponse.json({
       success: true,

@@ -28,6 +28,12 @@ export async function GET(request: NextRequest) {
       conditions.push(`acctstarttime <= $${params.length}::timestamptz`);
     }
 
+    // Tenant isolation: filter by tenant via WiFiUser
+    if (user.tenantId) {
+      params.push(user.tenantId);
+      conditions.push(`r.username IN (SELECT username FROM "WiFiUser" WHERE "tenantId" = $${params.length}::uuid)`);
+    }
+
     const whereClause = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
 
     // ── Query 1: Try radacct (real RADIUS accounting) ──
@@ -37,7 +43,7 @@ export async function GET(request: NextRequest) {
         COALESCE(SUM(acctoutputoctets), 0)::bigint AS download_bytes,
         COALESCE(SUM(acctinputoctets), 0)::bigint AS upload_bytes,
         COUNT(DISTINCT username) AS unique_users
-      FROM radacct
+      FROM radacct r
       WHERE 1=1 ${whereClause}
       GROUP BY DATE(acctstarttime)
       ORDER BY date ASC
@@ -62,17 +68,24 @@ export async function GET(request: NextRequest) {
       }
       const viewWhere = viewDateConditions.length > 0 ? `AND ${viewDateConditions.join(' AND ')}` : '';
 
+      // Re-add tenant filter for fallback query
+      const viewTenantParams = [...viewParams];
+      const viewTenantWhere = viewWhere
+        ? `${viewWhere} AND r.username IN (SELECT username FROM "WiFiUser" WHERE "tenantId" = $${viewTenantParams.length + 1}::uuid)`
+        : `AND r.username IN (SELECT username FROM "WiFiUser" WHERE "tenantId" = $${viewTenantParams.length + 1}::uuid)`;
+      viewTenantParams.push(user.tenantId);
+
       dailyRows = await db.$queryRawUnsafe(`
         SELECT
           DATE(acctstarttime) AS date,
           COALESCE(SUM(acctoutputoctets), 0)::bigint AS download_bytes,
           COALESCE(SUM(acctinputoctets), 0)::bigint AS upload_bytes,
           COUNT(DISTINCT username) AS unique_users
-        FROM v_session_history
-        WHERE 1=1 ${viewWhere}
+        FROM v_session_history r
+        WHERE 1=1 ${viewTenantWhere}
         GROUP BY DATE(acctstarttime)
         ORDER BY date ASC
-      `, ...viewParams) as Array<Record<string, unknown>>;
+      `, ...viewTenantParams) as Array<Record<string, unknown>>;
     }
 
     // ── Active sessions count ──
@@ -90,7 +103,7 @@ export async function GET(request: NextRequest) {
         SELECT
           EXTRACT(HOUR FROM acctstarttime)::text AS hour,
           COUNT(DISTINCT username)::text AS user_count
-        FROM ${peakSource}
+        FROM ${peakSource} r
         WHERE 1=1 ${whereClause}
         GROUP BY EXTRACT(HOUR FROM acctstarttime)
         ORDER BY COUNT(DISTINCT username) DESC

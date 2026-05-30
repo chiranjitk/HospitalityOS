@@ -89,7 +89,6 @@ import {
 } from '@/lib/wifi/utils/nftables-counters';
 import { runLogoutScript } from '@/lib/network/script-runner';
 import * as SELog from './session-engine-logger';
-import { getLocalNasConfig } from '@/lib/wifi/local-nas-config';
 import { Prisma } from '@prisma/client';
 
 // ────────────────────────────────────────────────────────────
@@ -189,47 +188,6 @@ const DISCONNECT_CONCURRENCY = 5;
 function safeGetTime(date: Date | unknown): number {
   if (date instanceof Date) return date.getTime();
   return new Date(String(date)).getTime();
-}
-
-/**
- * DEPRECATED: No longer used for queries — kept for backward compatibility.
- * All raw SQL queries now use Prisma parameterized queries ($executeRaw tagged template).
- *
- * Legacy SQL escape for string values. Defense-in-depth: removes semicolons,
- * double-dashes, block comments. Prefer parameterized queries instead.
- */
-function sqlEscape(val: string | null | undefined): string {
-  if (val == null) return '';
-  const s = String(val);
-  // Reject obviously malicious patterns and sanitize
-  return s
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "''")
-    .replace(/;/g, '')
-    .replace(/--/g, '')
-    .replace(/\/\*/g, '')
-    .replace(/\*\//g, '')
-    .replace(/\0/g, '')
-    .replace(/\n/g, ' ')
-    .replace(/\r/g, ' ')
-    .trim();
-}
-
-/**
- * DEPRECATED: No longer used — all numeric values now use Prisma parameterized queries.
- */
-function sqlNum(val: number | null | undefined): string {
-  const n = Number(val);
-  return Number.isFinite(n) ? String(n) : '0';
-}
-
-/**
- * DEPRECATED: No longer used — timestamps now use TO_TIMESTAMP(${epochSeconds})
- * in Prisma parameterized queries.
- */
-function sqlTimestamp(ms: number | null | undefined): string {
-  if (!ms || !Number.isFinite(ms)) return "TO_TIMESTAMP(0)";
-  return `TO_TIMESTAMP(${Math.floor(ms / 1000)})`;
 }
 
 /**
@@ -1018,7 +976,7 @@ async function disconnectSessionFallback(
         duration: Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000),
       },
     });
-  } catch { /* non-fatal */ }
+  } catch (dbErr) { SELog.warn(`[fallbackDisconnect] WiFiSession update failed for ${session.username}: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`); }
 
   try {
     // FIX: Use configurable internal URL instead of hardcoded localhost
@@ -1125,13 +1083,14 @@ async function disconnectSession(
         where: { macAddress: session.callingstationid || 'unknown', status: 'active' },
       });
       if (wifiSession) {
-        const dataUsedMB = Math.floor((downloadBytes + uploadBytes) / (1024 * 1024));
+        // FIX: Standardize dataUsed to bytes (BigInt) — matches disconnectSessionFallback path
+        const dataUsedBytes = BigInt(downloadBytes + uploadBytes);
         await tx.wiFiSession.update({
           where: { id: wifiSession.id },
-          data: { endTime: new Date(), dataUsed: dataUsedMB, duration: sessionTime, status: 'ended', updatedAt: new Date() },
+          data: { endTime: new Date(), dataUsed: dataUsedBytes, duration: sessionTime, status: 'ended', updatedAt: new Date() },
         });
       }
-    } catch { /* non-fatal */ }
+    } catch (dbErr) { SELog.warn(`[disconnectSession] WiFiSession update failed for ${session.username}: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`); }
 
     if (rowsAffected > 0) {
       try {
@@ -1140,7 +1099,6 @@ async function disconnectSession(
           data: {
             totalBytesIn: { increment: uploadDelta },
             totalBytesOut: { increment: downloadDelta },
-            sessionCount: { increment: 1 },
             lastAccountingAt: new Date(),
           },
         });

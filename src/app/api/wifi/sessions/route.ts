@@ -236,6 +236,59 @@ export async function POST(request: NextRequest) {    const user = await require
           return null; // Signal that session already exists
         }
 
+        // H-34 FIX: Check concurrent session limits INSIDE the transaction
+        // (before create) to prevent TOCTOU race condition.
+        if (guestId || planId) {
+          let maxSessions = 3; // Default
+          if (targetPropertyId) {
+            const aaaConfig = await tx.wiFiAAAConfig.findUnique({
+              where: { propertyId: targetPropertyId },
+              select: { maxConcurrentSessions: true },
+            });
+            if (aaaConfig?.maxConcurrentSessions) {
+              maxSessions = aaaConfig.maxConcurrentSessions;
+            }
+          }
+          if (planId) {
+            const plan = await tx.wiFiPlan.findUnique({
+              where: { id: planId },
+              select: { sessionLimit: true },
+            });
+            if (plan?.sessionLimit) {
+              maxSessions = plan.sessionLimit;
+            }
+          }
+          if (guestId) {
+            const wifiUser = await tx.wiFiUser.findFirst({
+              where: { guestId },
+              select: { maxSessions: true },
+            });
+            if (wifiUser?.maxSessions) {
+              maxSessions = wifiUser.maxSessions;
+            }
+          }
+          const whereClause: Record<string, unknown> = {
+            tenantId,
+            status: 'active',
+          };
+          if (guestId) {
+            whereClause.guestId = guestId;
+          }
+          const activeSessions = await tx.wiFiSession.count({
+            where: whereClause,
+          });
+          if (activeSessions >= maxSessions) {
+            throw new Error(
+              JSON.stringify({
+                code: 'SESSION_LIMIT_EXCEEDED',
+                message: `Maximum concurrent sessions (${maxSessions}) reached`,
+                activeSessions,
+                maxSessions,
+              })
+            );
+          }
+        }
+
         // Create new session within the same transaction
         // FIX: Only use valid WiFiSession schema fields (propertyId, nasIpAddress,
         // nasPortId, calledStationId, callingStationId, planName, sessionTimeout,
@@ -255,15 +308,55 @@ export async function POST(request: NextRequest) {    const user = await require
             authMethod: authMethod || 'pap',
           },
         });
+
+        // Increment session count on the WiFiUser when creating a new session
+        if (guestId) {
+          await tx.wiFiUser.updateMany({
+            where: { guestId, tenantId },
+            data: { sessionCount: { increment: 1 } },
+          }).catch(() => {}); // non-fatal
+        }
+
         return newSession;
       });
     } catch (txError) {
-      // Unique constraint violation = concurrent session creation
-      if (txError instanceof Error && txError.message.includes('Unique constraint')) {
-        return NextResponse.json(
-          { success: false, error: { code: 'SESSION_EXISTS', message: 'An active session already exists for this device' } },
-          { status: 400 }
-        );
+      if (txError instanceof Error) {
+        // Unique constraint violation = concurrent session creation
+        if (txError.message.includes('Unique constraint')) {
+          return NextResponse.json(
+            { success: false, error: { code: 'SESSION_EXISTS', message: 'An active session already exists for this device' } },
+            { status: 400 }
+          );
+        }
+        // Session limit exceeded — thrown inside the transaction before create
+        if (txError.message.includes('SESSION_LIMIT_EXCEEDED')) {
+          try {
+            const parsed = JSON.parse(txError.message);
+            if (parsed.code === 'SESSION_LIMIT_EXCEEDED') {
+              const plan = planId ? await db.wiFiPlan.findUnique({
+                where: { id: planId },
+                select: { name: true, sessionLimit: true },
+              }) : null;
+              return NextResponse.json(
+                {
+                  success: false,
+                  error: {
+                    code: 'SESSION_LIMIT_EXCEEDED',
+                    message: parsed.message,
+                    activeSessions: parsed.activeSessions,
+                    maxSessions: parsed.maxSessions,
+                    suggestion: 'Please upgrade your plan or wait for other sessions to end',
+                    currentPlan: plan ? {
+                      name: plan.name,
+                      sessionLimit: plan.sessionLimit,
+                    } : null,
+                  },
+                },
+                { status: 400 }
+              );
+            }
+          } catch { /* fall through to re-throw */ }
+        }
       }
       throw txError;
     }
@@ -273,42 +366,6 @@ export async function POST(request: NextRequest) {    const user = await require
         { success: false, error: { code: 'SESSION_EXISTS', message: 'An active session already exists for this device' } },
         { status: 400 }
       );
-    }
-
-    // Check concurrent session limits if we have guest or plan info
-    if (guestId || planId) {
-      const sessionLimitResult = await checkConcurrentSessionLimit(
-        tenantId,
-        guestId,
-        planId,
-        targetPropertyId
-      );
-
-      if (sessionLimitResult.exceeded) {
-        // Get plan name for upgrade suggestion
-        const plan = planId ? await db.wiFiPlan.findUnique({
-          where: { id: planId },
-          select: { name: true, sessionLimit: true },
-        }) : null;
-
-        return NextResponse.json(
-          {
-            success: false,
-            error: {
-              code: 'SESSION_LIMIT_EXCEEDED',
-              message: `Maximum concurrent sessions (${sessionLimitResult.maxSessions}) reached`,
-              activeSessions: sessionLimitResult.activeSessions,
-              maxSessions: sessionLimitResult.maxSessions,
-              suggestion: 'Please upgrade your plan or wait for other sessions to end',
-              currentPlan: plan ? {
-                name: plan.name,
-                sessionLimit: plan.sessionLimit,
-              } : null,
-            },
-          },
-          { status: 400 }
-        );
-      }
     }
 
     // If plan is specified, verify it exists
@@ -323,16 +380,6 @@ export async function POST(request: NextRequest) {    const user = await require
           { status: 400 }
         );
       }
-    }
-
-    // H-34 FIX: Session was already created inside the transaction above.
-    // The transaction handles existence check + creation atomically.
-    // Reload with plan relation for the response.
-    if (!session) {
-      return NextResponse.json(
-        { success: false, error: { code: 'SESSION_EXISTS', message: 'An active session already exists for this device' } },
-        { status: 400 }
-      );
     }
 
     // Reload session with plan relation for response
@@ -538,7 +585,7 @@ async function checkConcurrentSessionLimit(
   // Check WiFi user's max sessions
   if (guestId) {
     const wifiUser = await db.wiFiUser.findFirst({
-      where: { guestId },
+      where: { guestId, tenantId },
       select: { maxSessions: true },
     });
     if (wifiUser?.maxSessions) {
