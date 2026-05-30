@@ -2489,39 +2489,42 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
               {/* Add Device Form */}
               <div className="border rounded-lg p-4 bg-muted/30">
                 <p className="text-sm font-medium mb-3">Register New Device</p>
-                <div className="flex flex-col sm:flex-row gap-2">
+                <div className="space-y-2">
                   <Input
                     placeholder="MAC Address (e.g. AA:BB:CC:DD:EE:FF)"
                     value={newMacInput}
                     onChange={(e) => setNewMacInput(e.target.value.toUpperCase())}
-                    className="font-mono text-sm flex-1"
+                    className="font-mono text-sm w-full"
                   />
-                  <Input
-                    placeholder="Device Name (optional)"
-                    value={newDeviceNameInput}
-                    onChange={(e) => setNewDeviceNameInput(e.target.value)}
-                    className="text-sm sm:w-48"
-                  />
-                  <select
-                    value={newDeviceTypeInput}
-                    onChange={(e) => setNewDeviceTypeInput(e.target.value)}
-                    className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="unknown">Unknown</option>
-                    <option value="phone">Phone</option>
-                    <option value="tablet">Tablet</option>
-                    <option value="laptop">Laptop</option>
-                    <option value="desktop">Desktop</option>
-                    <option value="iot">IoT</option>
-                  </select>
-                  <Button
-                    size="sm"
-                    onClick={addDevice}
-                    disabled={addingDevice || !newMacInput.trim()}
-                  >
-                    {addingDevice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
-                    Add
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      placeholder="Device Name (optional)"
+                      value={newDeviceNameInput}
+                      onChange={(e) => setNewDeviceNameInput(e.target.value)}
+                      className="text-sm flex-1"
+                    />
+                    <select
+                      value={newDeviceTypeInput}
+                      onChange={(e) => setNewDeviceTypeInput(e.target.value)}
+                      className="h-9 rounded-md border border-input bg-background px-3 text-sm sm:w-40"
+                    >
+                      <option value="unknown">Unknown</option>
+                      <option value="phone">Phone</option>
+                      <option value="tablet">Tablet</option>
+                      <option value="laptop">Laptop</option>
+                      <option value="desktop">Desktop</option>
+                      <option value="iot">IoT</option>
+                    </select>
+                    <Button
+                      size="sm"
+                      onClick={addDevice}
+                      disabled={addingDevice || !newMacInput.trim()}
+                      className="sm:w-auto w-full"
+                    >
+                      {addingDevice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+                      Add
+                    </Button>
+                  </div>
                 </div>
               </div>
 
