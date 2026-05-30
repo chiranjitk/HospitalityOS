@@ -1017,8 +1017,8 @@ function WebSurfingTab() {
   };
 
   const handleExportCSV = useCallback(() => {
-    const headers = 'Domain,Source IP,Src Port,Dest IP,Dest Port,Interface,Guest Name,Category,Connections,Bytes,Last Accessed';
-    const rows = surfingLogs.map(l => [l.domain, maskIP(l.sourceIp || l.source_ip), l.srcPort || '', maskIP(l.destIp || ''), l.destPort || '', l.inIface || '', l.guestName || '', l.category, l.connections, l.totalBytes, l.lastAccess || l.last_access].map(f => csvSafeEscape(f)).join(','));
+    const headers = 'Domain,Source IP,Src Port,Dest IP,Dest Port,Interface,Username,Guest Name,Category,Connections,Bytes,Last Accessed';
+    const rows = surfingLogs.map(l => [l.domain, maskIP(l.sourceIp || l.source_ip), l.srcPort || '', maskIP(l.destIp || ''), l.destPort || '', l.inIface || '', l.username || '', l.guestName || '', l.category, l.connections, l.totalBytes, l.lastAccess || l.last_access].map(f => csvSafeEscape(f)).join(','));
     const csv = [headers, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1083,6 +1083,8 @@ function WebSurfingTab() {
     });
     return Object.values(counts).sort((a, b) => b.bytes - a.bytes).slice(0, 20);
   }, [surfingLogs]);
+
+  const DOMAIN_COLORS = ['#14b8a6', '#f59e0b', '#8b5cf6', '#ef4444', '#3b82f6', '#ec4899', '#10b981', '#f97316', '#06b6d4', '#d946ef', '#84cc16', '#e11d48', '#6366f1', '#0ea5e9', '#a855f7', '#22c55e', '#eab308', '#f43f5e', '#0d9488', '#d97706'];
 
   const maxDomainBytes = topDomains[0]?.bytes || 1;
 
@@ -1155,16 +1157,19 @@ function WebSurfingTab() {
           <CardContent className="overflow-hidden">
             <ScrollArea className="max-h-64">
               <div className="space-y-1.5">
-                {topDomains.map((d, i) => (
+                {topDomains.map((d, i) => {
+                  const barColor = DOMAIN_COLORS[i % DOMAIN_COLORS.length];
+                  return (
                   <div key={d.domain} className="flex items-center gap-1.5 sm:gap-2">
                     <span className="text-[10px] sm:text-xs text-muted-foreground w-4 sm:w-5 flex-shrink-0">{i + 1}</span>
                     <span className="text-[10px] sm:text-xs font-mono w-20 sm:w-36 truncate flex-shrink-0">{d.domain}</span>
                     <div className="flex-1 h-2.5 sm:h-3 bg-muted rounded-sm overflow-hidden min-w-0">
-                      <div className="h-full bg-gradient-to-r from-primary to-primary/70 rounded-sm" style={{ width: `${(d.bytes / maxDomainBytes) * 100}%` }} />
+                      <div className="h-full rounded-sm" style={{ width: `${(d.bytes / maxDomainBytes) * 100}%`, backgroundColor: barColor }} />
                     </div>
                     <span className="text-[10px] sm:text-xs text-muted-foreground w-12 sm:w-16 text-right flex-shrink-0">{formatBytes(d.bytes)}</span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </ScrollArea>
           </CardContent>
@@ -1209,6 +1214,7 @@ function WebSurfingTab() {
                     <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">{t('wrThDestIP')}</TableHead>
                     <TableHead className="text-xs whitespace-nowrap hidden lg:table-cell">{t('wrThDstPort')}</TableHead>
                     <TableHead className="text-xs whitespace-nowrap hidden xl:table-cell">{t('wrThInterface')}</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap hidden sm:table-cell">{t('wrThUsername')}</TableHead>
                     <TableHead className="text-xs whitespace-nowrap hidden sm:table-cell">{t('wrThGuestName')}</TableHead>
                     <TableHead className="text-xs whitespace-nowrap hidden md:table-cell">{t('wrThCategory')}</TableHead>
                     <TableHead className="text-xs whitespace-nowrap text-right">{t('wrThConns')}</TableHead>
@@ -1217,7 +1223,7 @@ function WebSurfingTab() {
                 </TableHeader>
                 <TableBody>
                   {filteredLogs.length === 0 ? (
-                    <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground text-xs">{t('wrNoWebSurfingData')}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground text-xs">{t('wrNoWebSurfingData')}</TableCell></TableRow>
                   ) : paginatedSurfingLogs.map((log, idx) => (
                     <TableRow key={log.id || `${log.domain}-${log.sourceIp || log.source_ip}-${idx}`} className="hover:bg-muted/30">
                       <TableCell className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">{new Date(log.timestamp || log.lastAccess || log.last_access).toLocaleString()}</TableCell>
@@ -1231,6 +1237,7 @@ function WebSurfingTab() {
                           <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono h-5">{log.inIface}</Badge>
                         ) : <span className="text-muted-foreground/50">—</span>}
                       </TableCell>
+                      <TableCell className="text-[10px] sm:text-xs font-mono hidden sm:table-cell">{log.username || <span className="text-muted-foreground">—</span>}</TableCell>
                       <TableCell className="text-[10px] sm:text-xs hidden sm:table-cell">{log.guestName || <span className="text-muted-foreground">—</span>}</TableCell>
                       <TableCell className="hidden md:table-cell">
                         <span className={cn('text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-medium', catColors[log.category] || catColors.other)}>
