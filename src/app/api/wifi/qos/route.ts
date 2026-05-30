@@ -95,10 +95,8 @@ export async function GET(request: NextRequest) {
       acctsessiontime: number | bigint | null;
       acctinputoctets: number | bigint | null;
       acctoutputoctets: number | bigint | null;
-      acctdelay: number | null;
-      acctstopdelay: number | null;
-      connectinfo: string | null;
-      property_id: string | null;
+      acctinterval: number | bigint | null;
+      connectinfo_start: string | null;
     }> = await db.$queryRawUnsafe(`
       SELECT DISTINCT ON (radacctid)
              radacct.username,
@@ -109,10 +107,8 @@ export async function GET(request: NextRequest) {
              radacct.acctsessiontime,
              radacct.acctinputoctets,
              radacct.acctoutputoctets,
-             radacct.acctdelay,
-             radacct.acctstopdelay,
-             radacct.connectinfo,
-             radacct.property_id
+             radacct.acctinterval,
+             radacct.connectinfo_start
       FROM radacct
       WHERE radacct.acctstoptime IS NULL
       ORDER BY radacct.radacctid, radacct.acctstarttime DESC
@@ -131,9 +127,10 @@ export async function GET(request: NextRequest) {
 
       const rng = seededRandom(s.username + s.callingstationid);
 
-      // Latency: use acctdelay if available, otherwise simulate based on NAS
-      const baseLatency = Number(s.acctdelay || 0) * 10; // RADIUS acctdelay in 1/100s
-      const latency = baseLatency > 0 ? Math.min(500, baseLatency) : Math.round(10 + rng() * 80);
+      // Latency: simulate based on acctinterval (RADIUS accounting interval)
+      // acctinterval represents delay between accounting updates — higher = worse latency
+      const acctInterval = Number(s.acctinterval || 0);
+      const latency = acctInterval > 0 ? Math.min(500, Math.round(acctInterval * 100)) : Math.round(10 + rng() * 80);
 
       // Jitter: simulate from session variation (longer sessions tend to have more stability)
       const stabilityFactor = Math.max(0.2, 1 - sessionTime / 3600);
