@@ -144,8 +144,8 @@ export async function GET(request: NextRequest) {
 
     try {
       const leaseCount: Array<{ count: number }> = await db.$queryRawUnsafe(`
-        SELECT COUNT(*) as count FROM dhcp_lease
-        WHERE valid = true
+        SELECT COUNT(*) as count FROM "DhcpLease"
+        WHERE state = 'active'
       `);
       const leases = Number(leaseCount[0]?.count || 0);
       dhcpDetails = `DHCP active: ${leases} leases`;

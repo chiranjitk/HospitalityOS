@@ -529,21 +529,24 @@ export default function WifiAdCampaigns() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-500/10 to-teal-500/5">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2.5">
+            <div className="rounded-lg bg-emerald-500/15 dark:bg-emerald-500/20 p-2.5">
               <Megaphone className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold tabular-nums">{stats?.overview.activeCampaigns ?? 0}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-2xl font-bold tabular-nums">{stats?.overview.activeCampaigns ?? 0}</p>
+                <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>
+              </div>
               <p className="text-xs text-muted-foreground">Active Campaigns</p>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-500/10 to-indigo-500/5">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-2.5">
-              <Eye className="h-5 w-5 text-primary" />
+            <div className="rounded-lg bg-blue-500/15 dark:bg-blue-500/20 p-2.5">
+              <Eye className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
               <p className="text-2xl font-bold tabular-nums">{stats?.overview.totalImpressions?.toLocaleString() ?? 0}</p>
@@ -551,10 +554,10 @@ export default function WifiAdCampaigns() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-500/10 to-fuchsia-500/5">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 p-2.5">
-              <MousePointerClick className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            <div className="rounded-lg bg-purple-500/15 dark:bg-purple-500/20 p-2.5">
+              <MousePointerClick className="h-5 w-5 text-purple-600 dark:text-purple-400" />
             </div>
             <div>
               <p className="text-2xl font-bold tabular-nums">{stats?.overview.totalClicks?.toLocaleString() ?? 0}</p>
@@ -562,10 +565,10 @@ export default function WifiAdCampaigns() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-500/10 to-orange-500/5">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-purple-50 dark:bg-purple-950/30 p-2.5">
-              <TrendingUp className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            <div className="rounded-lg bg-amber-500/15 dark:bg-amber-500/20 p-2.5">
+              <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
               <p className="text-2xl font-bold tabular-nums">{stats?.overview.ctr ?? 0}%</p>
@@ -652,7 +655,7 @@ export default function WifiAdCampaigns() {
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
+                      <TableRow className="bg-gradient-to-r from-muted/80 to-muted/40 font-semibold">
                         <TableHead>Name</TableHead>
                         <TableHead className="hidden md:table-cell">Advertiser</TableHead>
                         <TableHead>Slot</TableHead>
@@ -671,7 +674,7 @@ export default function WifiAdCampaigns() {
                         const ctr = campaign.impressions > 0 ? ((campaign.clicks / campaign.impressions) * 100).toFixed(1) : '0.0';
 
                         return (
-                          <TableRow key={campaign.id} className="hover:bg-muted/50">
+                          <TableRow key={campaign.id} className="hover:bg-muted/30 transition-colors border-b">
                             <TableCell>
                               <p className="text-sm font-medium max-w-[180px] truncate">{campaign.name}</p>
                             </TableCell>
@@ -749,7 +752,7 @@ export default function WifiAdCampaigns() {
             <>
               {/* Performance Overview */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <Card className="border-0 shadow-sm">
+                <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-500/10 to-teal-500/5">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -758,7 +761,7 @@ export default function WifiAdCampaigns() {
                     <p className="text-xl font-bold tabular-nums">{formatCurrency(stats.overview.totalRevenue)}</p>
                   </CardContent>
                 </Card>
-                <Card className="border-0 shadow-sm">
+                <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-500/10 to-fuchsia-500/5">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <TrendingUp className="h-4 w-4 text-purple-600 dark:text-purple-400" />
@@ -771,7 +774,7 @@ export default function WifiAdCampaigns() {
                     </p>
                   </CardContent>
                 </Card>
-                <Card className="border-0 shadow-sm">
+                <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-500/10 to-orange-500/5">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <MousePointerClick className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -780,7 +783,7 @@ export default function WifiAdCampaigns() {
                     <p className="text-xl font-bold tabular-nums">{stats.overview.ctr}%</p>
                   </CardContent>
                 </Card>
-                <Card className="border-0 shadow-sm">
+                <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-500/10 to-indigo-500/5">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Megaphone className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -877,7 +880,7 @@ export default function WifiAdCampaigns() {
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
-                          <TableRow>
+                          <TableRow className="bg-gradient-to-r from-muted/80 to-muted/40 font-semibold">
                             <TableHead>Advertiser</TableHead>
                             <TableHead className="text-right">Campaigns</TableHead>
                             <TableHead className="text-right">Impressions</TableHead>
@@ -887,7 +890,7 @@ export default function WifiAdCampaigns() {
                         </TableHeader>
                         <TableBody>
                           {stats.topAdvertisers.map((adv, index) => (
-                            <TableRow key={index}>
+                            <TableRow key={index} className="hover:bg-muted/30 transition-colors border-b">
                               <TableCell className="font-medium">{adv.advertiser}</TableCell>
                               <TableCell className="text-right tabular-nums">{adv.campaigns}</TableCell>
                               <TableCell className="text-right tabular-nums">{adv.impressions.toLocaleString()}</TableCell>

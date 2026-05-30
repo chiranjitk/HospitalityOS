@@ -15,7 +15,6 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -615,20 +614,23 @@ export default function WifiPartners() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-500/10 to-fuchsia-500/5">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-purple-50 dark:bg-purple-950/30 p-2.5">
+            <div className="rounded-lg bg-purple-500/15 dark:bg-purple-500/20 p-2.5">
               <Handshake className="h-5 w-5 text-purple-600 dark:text-purple-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold tabular-nums">{stats?.summary?.activePartners ?? 0}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-2xl font-bold tabular-nums">{stats?.summary?.activePartners ?? 0}</p>
+                <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>
+              </div>
               <p className="text-xs text-muted-foreground">Active Partners</p>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-sky-500/10 to-cyan-500/5">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-sky-50 dark:bg-sky-950/30 p-2.5">
+            <div className="rounded-lg bg-sky-500/15 dark:bg-sky-500/20 p-2.5">
               <ShieldCheck className="h-5 w-5 text-sky-600 dark:text-sky-400" />
             </div>
             <div>
@@ -637,9 +639,9 @@ export default function WifiPartners() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-500/10 to-teal-500/5">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2.5">
+            <div className="rounded-lg bg-emerald-500/15 dark:bg-emerald-500/20 p-2.5">
               <DollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
@@ -648,9 +650,9 @@ export default function WifiPartners() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-500/10 to-orange-500/5">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 p-2.5">
+            <div className="rounded-lg bg-amber-500/15 dark:bg-amber-500/20 p-2.5">
               <BarChart3 className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
@@ -743,7 +745,7 @@ export default function WifiPartners() {
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
+                      <TableRow className="bg-gradient-to-r from-muted/80 to-muted/40 font-semibold">
                         <TableHead className="w-[40px]"></TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead className="hidden md:table-cell">Type</TableHead>
@@ -760,7 +762,7 @@ export default function WifiPartners() {
                     <TableBody>
                       {partners.map((partner) => (
                         <React.Fragment key={partner.id}>
-                          <TableRow className="hover:bg-muted/50">
+                          <TableRow className="hover:bg-muted/30 transition-colors border-b">
                             <TableCell>
                               <Button
                                 variant="ghost"
@@ -961,7 +963,7 @@ export default function WifiPartners() {
                   <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
+                      <TableRow className="bg-gradient-to-r from-muted/80 to-muted/40 font-semibold">
                         <TableHead>Guest</TableHead>
                         <TableHead className="hidden md:table-cell">Partner</TableHead>
                         <TableHead className="hidden sm:table-cell">Promo Code</TableHead>
@@ -974,7 +976,7 @@ export default function WifiPartners() {
                     </TableHeader>
                     <TableBody>
                       {authSessions.map((auth) => (
-                        <TableRow key={auth.id} className="hover:bg-muted/50">
+                        <TableRow key={auth.id} className="hover:bg-muted/30 transition-colors border-b">
                           <TableCell>
                             <span className="font-mono text-xs">{auth.username}</span>
                           </TableCell>
@@ -1050,7 +1052,9 @@ export default function WifiPartners() {
                           </div>
                           <span className="text-xs font-semibold tabular-nums">{item.auths} auths</span>
                         </div>
-                        <Progress value={(item.auths / maxAuthsByPartner) * 100} className="h-2" />
+                        <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                          <div className="h-full rounded-full bg-gradient-to-r from-purple-500 to-fuchsia-500 transition-all" style={{ width: `${Math.min((item.auths / maxAuthsByPartner) * 100, 100)}%` }} />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1089,7 +1093,9 @@ export default function WifiPartners() {
                             <span className="text-[10px] text-muted-foreground block">{item.auths} auths</span>
                           </div>
                         </div>
-                        <Progress value={(item.revenue / maxRevenueByType) * 100} className="h-3" />
+                        <div className="h-3 w-full rounded-full bg-muted overflow-hidden">
+                          <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all" style={{ width: `${Math.min((item.revenue / maxRevenueByType) * 100, 100)}%` }} />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1120,7 +1126,7 @@ export default function WifiPartners() {
                     {stats.partnerBreakdown.slice(0, 10).map((item, index) => (
                       <div key={index} className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors">
                         <div className="flex items-center gap-3">
-                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-xs font-bold">
+                          <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${index === 0 ? 'bg-gradient-to-br from-yellow-400 to-amber-500 text-white' : index === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-white' : index === 2 ? 'bg-gradient-to-br from-orange-400 to-amber-600 text-white' : 'bg-muted'}`}>
                             {index + 1}
                           </span>
                           <div>
@@ -1163,7 +1169,9 @@ export default function WifiPartners() {
                       <div key={index} className="flex items-center gap-3">
                         <span className="text-xs text-muted-foreground w-20 shrink-0">{day.date}</span>
                         <div className="flex-1">
-                          <Progress value={(day.auths / maxDailyAuths) * 100} className="h-3" />
+                          <div className="h-3 w-full rounded-full bg-muted overflow-hidden">
+                            <div className="h-full rounded-full bg-gradient-to-r from-sky-500 to-cyan-500 transition-all" style={{ width: `${Math.min((day.auths / maxDailyAuths) * 100, 100)}%` }} />
+                          </div>
                         </div>
                         <div className="text-right shrink-0">
                           <span className="text-xs font-semibold tabular-nums">{day.auths} auths</span>

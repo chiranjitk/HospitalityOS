@@ -198,26 +198,23 @@ export default function WifiHeatmap() {
   useEffect(() => {
     async function fetchProperties() {
       try {
-        const res = await fetch('/api/wifi/heatmap/floor-plans?propertyId=dummy');
-        if (res.ok) {
-          // Get properties list from existing API
-          const propRes = await fetch('/api/wifi/nas');
-          if (propRes.ok) {
-            const propData = await propRes.json();
-            // Extract unique properties from gateways
-            const propMap = new Map<string, string>();
-            if (propData.data) {
-              propData.data.forEach((g: { propertyId: string; propertyName?: string; property?: { name: string } }) => {
-                if (g.propertyId && !propMap.has(g.propertyId)) {
-                  propMap.set(g.propertyId, g.propertyName || g.property?.name || g.propertyId);
-                }
-              });
-            }
-            const propList = Array.from(propMap.entries()).map(([id, name]) => ({ id, name }));
-            setProperties(propList);
-            if (propList.length > 0) {
-              setSelectedPropertyId(propList[0].id);
-            }
+        // Get properties list from existing API
+        const propRes = await fetch('/api/wifi/nas');
+        if (propRes.ok) {
+          const propData = await propRes.json();
+          // Extract unique properties from gateways
+          const propMap = new Map<string, string>();
+          if (propData.data) {
+            propData.data.forEach((g: { propertyId: string; propertyName?: string; property?: { name: string } }) => {
+              if (g.propertyId && !propMap.has(g.propertyId)) {
+                propMap.set(g.propertyId, g.propertyName || g.property?.name || g.propertyId);
+              }
+            });
+          }
+          const propList = Array.from(propMap.entries()).map(([id, name]) => ({ id, name }));
+          setProperties(propList);
+          if (propList.length > 0) {
+            setSelectedPropertyId(propList[0].id);
           }
         }
       } catch {

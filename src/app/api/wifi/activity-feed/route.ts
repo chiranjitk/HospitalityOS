@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
         reply: string | null;
       }>>(`
         SELECT id, username, "nasIpAddress" as nasipaddress,
-               "callingStationId" as callingstationid,
+               callingstationid,
                authdate, reply
         FROM radpostauth
         WHERE reply = 'Reject'
