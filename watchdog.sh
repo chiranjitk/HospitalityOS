@@ -1,122 +1,50 @@
 #!/bin/bash
-# StaySuite Watchdog - Keeps the Next.js dev server alive
-# Automatically restarts the process if it gets OOM-killed or crashes
-#
-# Usage: ./watchdog.sh [max-restarts-per-hour]
-# Default: 10 restarts per hour max
+# Permanent watchdog for PostgreSQL and Next.js
+# Runs every 30 seconds via cron, auto-restarts services if down
+# Also kills orphaned Chrome processes to free memory
 
-MAX_RESTARTS_PER_HOUR=${1:-10}
-RESTART_COUNT=0
-RESTART_TIMES=()
-LOG_FILE="/home/z/my-project/watchdog.log"
-NEXT_LOG="/home/z/my-project/dev.log"
+export PATH=/home/z/my-project/pgsql-runtime/bin:$PATH
+export LD_LIBRARY_PATH=/home/z/my-project/pgsql-runtime/lib:$LD_LIBRARY_PATH
+PGDATA="/home/z/my-project/pgsql-runtime/data"
 
-log() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] [Watchdog] $1" | tee -a "$LOG_FILE"
-}
-
-cleanup_stale() {
-  # Kill any existing next processes
-  pkill -f "next dev" 2>/dev/null
-  pkill -f "next-server" 2>/dev/null
-  sleep 2
-}
-
-count_recent_restarts() {
-  local now=$(date +%s)
-  local one_hour_ago=$((now - 3600))
-  local count=0
-  RESTART_TIMES=($(for t in "${RESTART_TIMES[@]}"; do
-    if [ "$t" -gt "$one_hour_ago" ] 2>/dev/null; then
-      echo "$t"
-      count=$((count + 1))
+# --- 1. PostgreSQL watchdog ---
+if ! pg_isready -h /tmp -p 5432 >/dev/null 2>&1; then
+    echo "$(date): PostgreSQL DOWN - restarting..." >> /home/z/my-project/watchdog.log
+    # Kill any stale postgres processes
+    pkill -9 -f "postgres.*5432" 2>/dev/null
+    sleep 2
+    # Remove stale PID file
+    rm -f "$PGDATA/postmaster.pid"
+    # Start PostgreSQL
+    pg_ctl -D "$PGDATA" -l /home/z/my-project/pgsql-runtime/logfile -o "-p 5432 -k /tmp" start >> /home/z/my-project/watchdog.log 2>&1
+    sleep 3
+    # Verify
+    if pg_isready -h /tmp -p 5432 >/dev/null 2>&1; then
+        echo "$(date): PostgreSQL restarted successfully" >> /home/z/my-project/watchdog.log
+    else
+        echo "$(date): PostgreSQL FAILED to restart" >> /home/z/my-project/watchdog.log
     fi
-  done))
-  echo $count
-}
+fi
 
-start_next() {
-  log "Starting Next.js dev server..."
-  
-  cd /home/z/my-project
-  
-  # Clear the dev log
-  > "$NEXT_LOG"
-  
-  # Start Next.js with heap limit to reduce OOM risk
-  DATABASE_URL="postgresql://staysuite:Staysuite2025@127.0.0.1:5432/staysuite?connection_limit=10&pool_timeout=30" \
-  NODE_OPTIONS="--max-old-space-size=4096" \
-  nohup npx next dev -p 3000 >> "$NEXT_LOG" 2>&1 &
-  
-  local pid=$!
-  log "Next.js started with PID $pid"
-  
-  # Wait for server to be ready
-  local retries=0
-  while [ $retries -lt 30 ]; do
-    sleep 1
-    if curl -s -o /dev/null http://localhost:3000/ 2>/dev/null; then
-      log "Server is ready and responding on port 3000"
-      return 0
-    fi
-    # Check if process is still alive
-    if ! kill -0 $pid 2>/dev/null; then
-      log "Process $pid died during startup"
-      return 1
-    fi
-    retries=$((retries + 1))
-  done
-  
-  # Even if curl didn't succeed, the process might still be starting
-  if kill -0 $pid 2>/dev/null; then
-    log "Process is alive but not yet responding (may be compiling)"
-    return 0
-  fi
-  
-  return 1
-}
+# --- 2. Kill orphaned Chrome processes (free ~700MB) ---
+CHROME_COUNT=$(pgrep -c -f "chrome.*headless" 2>/dev/null || echo 0)
+if [ "$CHROME_COUNT" -gt 0 ]; then
+    echo "$(date): Killing $CHROME_COUNT orphaned Chrome processes" >> /home/z/my-project/watchdog.log
+    pkill -9 -f "chrome.*headless" 2>/dev/null
+fi
 
-# Main loop
-log "=== StaySuite Watchdog Started ==="
-log "Max restarts per hour: $MAX_RESTARTS_PER_HOUR"
+# --- 3. PM2 process guard ---
+if ! pm2 pid staysuite-nextjs >/dev/null 2>&1; then
+    echo "$(date): Next.js DOWN - restarting via PM2" >> /home/z/my-project/watchdog.log
+    cd /home/z/my-project && pm2 restart staysuite-nextjs >> /home/z/my-project/watchdog.log 2>&1
+fi
 
-cleanup_stale
+if ! pm2 pid staysuite-freeradius >/dev/null 2>&1; then
+    echo "$(date): FreeRADIUS DOWN - restarting via PM2" >> /home/z/my-project/watchdog.log
+    cd /home/z/my-project && pm2 restart staysuite-freeradius >> /home/z/my-project/watchdog.log 2>&1
+fi
 
-while true; do
-  # Start the server
-  if start_next; then
-    # Monitor the process - wait for it to die
-    while true; do
-      # Check if next-server is running
-      NEXT_PID=$(pgrep -f "next-server" 2>/dev/null | head -1)
-      
-      if [ -z "$NEXT_PID" ]; then
-        # Check if the parent npx process is still running
-        NPX_PID=$(pgrep -f "next dev" 2>/dev/null | head -1)
-        if [ -z "$NPX_PID" ]; then
-          log "Next.js process has died!"
-          break
-        fi
-      fi
-      
-      sleep 10
-    done
-  else
-    log "Failed to start Next.js"
-  fi
-  
-  # Track restart
-  RESTART_TIMES+=($(date +%s))
-  local recent=$(count_recent_restarts)
-  
-  if [ "$recent" -ge "$MAX_RESTARTS_PER_HOUR" ]; then
-    log "Too many restarts ($recent in the last hour). Waiting 5 minutes..."
-    sleep 300
-    RESTART_TIMES=()
-  fi
-  
-  log "Restarting in 5 seconds..."
-  sleep 5
-  
-  cleanup_stale
-done
+# --- 4. Log rotation (keep last 200 lines) ---
+if [ -f /home/z/my-project/watchdog.log ]; then
+    tail -200 /home/z/my-project/watchdog.log > /tmp/watchdog.tmp 2>/dev/null && mv /tmp/watchdog.tmp /home/z/my-project/watchdog.log
+fi

@@ -1,6 +1,15 @@
 module.exports = {
   apps: [
     {
+      name: 'watchdog',
+      script: 'bash',
+      args: '-c \'while true; do sleep 30; /home/z/my-project/watchdog.sh; done\'',
+      cwd: '/home/z/my-project',
+      interpreter: 'none',
+      watch: false,
+      autorestart: true,
+    },
+    {
       name: 'staysuite-freeradius',
       script: '/home/z/my-project/freeradius-install/sbin/radiusd',
       args: '-d /home/z/my-project/freeradius-install/etc/raddb -D /home/z/my-project/freeradius-install/share/freeradius -f',
@@ -20,7 +29,7 @@ module.exports = {
       cwd: '/home/z/my-project',
       watch: false,
       autorestart: true,
-      max_memory_restart: '2G',
+      max_memory_restart: '6G',
       env: {
         PORT: 3000,
         NODE_OPTIONS: '--max-old-space-size=8192',
