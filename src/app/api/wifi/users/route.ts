@@ -19,26 +19,6 @@ import {
   BANDWIDTH_ATTRIBUTES,
 } from '@/lib/wifi/utils/vendor-attributes';
 
-import { z } from 'zod';
-
-const createUserSchema = z.object({
-  propertyId: z.string().min(1),
-  planId: z.string().min(1),
-  guestName: z.string().min(1).max(200).optional(),
-  roomId: z.string().min(1).optional(),
-  status: z.enum(['active', 'suspended', 'revoked']).default('active'),
-  downloadSpeed: z.number().int().min(64).max(104857600).optional(),
-  uploadSpeed: z.number().int().min(64).max(104857600).optional(),
-  sessionTimeoutMinutes: z.number().int().min(1).max(1440).optional(),  // 1 min to 24h
-  idleTimeoutMinutes: z.number().int().min(1).max(1440).optional(),
-  dataLimit: z.number().int().min(0).max(1099511627776).optional(),
-  validFrom: z.string().optional(),
-  validUntil: z.string().optional(),
-  notes: z.string().max(1000).optional(),
-  username: z.string().optional(),
-  password: z.string().min(6).max(128).optional(),  // min 6 chars
-}).passthrough();
-
 // Helper to generate random password using cryptographically secure random bytes
 function generatePassword(length: number = 8): string {
   return crypto.randomBytes(length).toString('base64url').slice(0, length);
@@ -92,7 +72,7 @@ export async function GET(request: NextRequest) {    const user = await requireP
              status, "authMethod", "macAddress", "validFrom", "validUntil",
              "totalBytesIn", "totalBytesOut", "sessionCount", "lastSeenAt",
              "createdAt", "updatedAt",
-             radius_group,
+             radius_password, radius_group,
              guest_first_name, guest_last_name, guest_email, guest_phone,
              guest_loyalty_tier, guest_is_vip,
              room_number, room_name, room_floor,
@@ -191,11 +171,7 @@ export async function POST(request: NextRequest) {    const user = await require
 
       try {
     const body = await request.json();
-    const parsed = createUserSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: parsed.error.issues.map(i => i.message).join(', ') } }, { status: 400 });
-    }
-    const data = parsed.data;
+    const data = nullifyEmptyStrings(body);
     const tenantId = user.tenantId;
 
     const {
@@ -215,15 +191,12 @@ export async function POST(request: NextRequest) {    const user = await require
       dataLimit, // Data cap in MB
     } = data;
 
-    // Enforce validFrom < validUntil
-    if (data.validFrom && data.validUntil && new Date(data.validFrom) >= new Date(data.validUntil)) {
-      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'validUntil must be after validFrom' } }, { status: 400 });
-    }
-
-    // Validate propertyId belongs to tenant
-    const propertyBelongsToTenant = await db.property.findFirst({ where: { id: data.propertyId, tenantId: user.tenantId } });
-    if (!propertyBelongsToTenant) {
-      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'Property does not belong to your tenant' } }, { status: 403 });
+    // Validate required fields
+    if (!propertyId || !validFrom || !validUntil) {
+      return NextResponse.json(
+        { success: false, error: 'Missing required fields' },
+        { status: 400 }
+      );
     }
 
     const finalUsername = username || generateUsername(propertyId);

@@ -16,19 +16,13 @@ export async function GET(request: NextRequest) {
     // ── Step 1: Get per-user aggregated bandwidth from v_user_usage ──
     // This view uses WiFiUser.totalBytesIn/Out (synced from Prisma sessions)
     // which always has data, unlike radacct which is only populated by live NAS.
-    // Tenant isolation: v_user_usage exposes tenantId from WiFiUser
     const viewParams: string[] = [];
-    const viewConditions: string[] = [];
-
-    // Always filter by tenant
-    viewParams.push(user.tenantId);
-    viewConditions.push(`u."tenantId" = $${viewParams.length}::uuid`);
+    let viewWhere = '';
 
     if (search) {
       viewParams.push(`%${search}%`);
-      viewConditions.push(`(u.username ILIKE $${viewParams.length} OR u.guest_first_name ILIKE $${viewParams.length} OR u.guest_last_name ILIKE $${viewParams.length} OR u.room_number ILIKE $${viewParams.length})`);
+      viewWhere = `WHERE u.username ILIKE $1 OR u.guest_first_name ILIKE $1 OR u.guest_last_name ILIKE $1 OR u.room_number ILIKE $1`;
     }
-    const viewWhere = viewConditions.length > 0 ? `WHERE ${viewConditions.join(' AND ')}` : '';
 
     // Left-join v_session_history to get latest IP/MAC per user
     const userQuery = `
@@ -77,7 +71,6 @@ export async function GET(request: NextRequest) {
     for (const row of userRows) {
       const username = String(row.username || '');
 
-      // Tenant isolation: v_session_history exposes tenantId
       const sessions = await db.$queryRawUnsafe(`
         SELECT
           session_id::text AS id,
@@ -89,10 +82,10 @@ export async function GET(request: NextRequest) {
           nasipaddress::text AS nas,
           session_status::text AS status
         FROM v_session_history
-        WHERE "tenantId" = $2::uuid AND username = $1
+        WHERE username = $1
         ORDER BY acctstarttime DESC
         LIMIT 5
-      `, username, user.tenantId) as Array<Record<string, unknown>>;
+      `, username) as Array<Record<string, unknown>>;
 
       const dl = Number(row.total_down) || 0;
       const ul = Number(row.total_up) || 0;

@@ -279,11 +279,6 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category');
 
     // ── Attempt ClickHouse query ────────────────────────────────
-    // NOTE: ClickHouse does not have a tenant concept natively.
-    // SNI/NAT data (ipdr.sni_log, ipdr.nat_log) is shared infrastructure data.
-    // Tenant scoping is applied via guest name resolution (correlateIpsToGuests)
-    // which matches IPs to guests within the authenticated tenant. This is a
-    // known limitation — raw domain/IP data from ClickHouse is not tenant-scoped.
     // Data source: ipdr.sni_log (NFLOG TLS SNI captures)
     // SNI is the TRUSTED source for domain identification because:
     // - Every HTTPS connection sends SNI in plaintext during TLS handshake

@@ -25,18 +25,6 @@ import { db } from '@/lib/db';
 import { runLogoutScript } from '@/lib/network/script-runner';
 
 // ────────────────────────────────────────────────────────────
-// Input Sanitization (command-injection prevention)
-// ────────────────────────────────────────────────────────────
-
-/**
- * Strip shell-dangerous characters from values interpolated into radclient commands.
- * Prevents command injection via username, NAS-IP, secret, or NAS-Port-Id.
- */
-function sanitizeForRadclient(value: string): string {
-  return value.replace(/['\\$`\n\r\t;]/g, '');
-}
-
-// ────────────────────────────────────────────────────────────
 // Types
 // ────────────────────────────────────────────────────────────
 
@@ -88,9 +76,8 @@ async function resolveRadiusSecret(): Promise<string> {
     // Non-fatal
   }
 
-  // 4. No secret found — refuse to proceed rather than use a well-known default
-  console.error('[RADIUS] No shared secret configured for disconnect. Set RADIUS_SECRET env var or configure RadiusNAS table.');
-  return '';
+  // 4. Default shared secret (FreeRADIUS testing default)
+  return 'testing123';
 }
 
 // ────────────────────────────────────────────────────────────
@@ -130,35 +117,20 @@ export async function sendDisconnectMessage(
     };
   }
 
-  // Resolve the RADIUS shared secret (mandatory — never fall back to a default)
+  // Resolve the RADIUS shared secret
   let secret: string;
   try {
     secret = await resolveRadiusSecret();
   } catch {
-    secret = process.env.RADIUS_SECRET || '';
-  }
-  if (!secret) {
-    console.error('[RADIUS] No shared secret configured for disconnect — aborting radclient call');
-    return {
-      success: false,
-      method: 'radclient-dm',
-      message: 'No RADIUS shared secret configured. Set RADIUS_SECRET env var or configure the secret in RadiusNAS table.',
-      durationMs: Date.now() - startTime,
-    };
+    secret = process.env.RADIUS_SECRET || 'testing123';
   }
 
-  // Sanitize all user-derived values before shell interpolation
-  const safeUsername = sanitizeForRadclient(username);
-  const safeNasIp = sanitizeForRadclient(nasIp);
-  const safeSecret = sanitizeForRadclient(secret);
-  const safeNasPortId = nasPortId ? sanitizeForRadclient(nasPortId) : null;
-
-  // Build the radclient packet attributes (using sanitized values)
-  const attributes: string[] = [`User-Name=${safeUsername}`];
+  // Build the radclient packet attributes
+  const attributes: string[] = [`User-Name=${username}`];
 
   // Add NAS-Port-Id if available (helps target the correct session)
-  if (safeNasPortId && safeNasPortId !== '' && safeNasPortId !== 'unknown') {
-    attributes.push(`NAS-Port-Id=${safeNasPortId}`);
+  if (nasPortId && nasPortId !== '' && nasPortId !== 'unknown') {
+    attributes.push(`NAS-Port-Id=${nasPortId}`);
   }
 
   // Add Message-Authenticator for security (required by many NAS vendors)
@@ -174,7 +146,7 @@ export async function sendDisconnectMessage(
   const dictionaryPath = process.env.RADDB_PATH || RADDB_PATH;
 
   const command = `echo '${packetStr.replace(/'/g, "'\\''")}' | ` +
-    `${radclientPath} -x -t 3 -r 1 -D ${dictionaryPath} ${safeNasIp}:${coaPort} disconnect ${safeSecret}`;
+    `${radclientPath} -x -t 3 -r 1 -D ${dictionaryPath} ${nasIp}:${coaPort} disconnect ${secret}`;
 
   try {
     // Use require for child_process (Edge Runtime safe via turbopackIgnore)

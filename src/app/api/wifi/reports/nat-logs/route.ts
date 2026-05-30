@@ -228,18 +228,7 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action');
     const guestOnly = searchParams.get('guestOnly') === 'true';
 
-    // Pre-fetch tenant usernames for radAcct tenant isolation
-    const tenantUserRows = await db.wiFiUser.findMany({
-      where: { tenantId: user.tenantId },
-      select: { username: true },
-    });
-    const tenantUsernames = tenantUserRows.map(r => r.username).filter(Boolean);
-
     // ── Try ClickHouse ──────────────────────────────────────────
-    // NOTE: ClickHouse does not have a tenant concept natively.
-    // NAT flow data (ipdr.nat_log) is shared infrastructure data.
-    // Tenant scoping is applied via guest name resolution (correlateIpsToGuests)
-    // and radAcct username lookups below. This is a known limitation.
     const chReady = await isAvailable();
     let enriched: Record<string, unknown>[] | null = null;
 
@@ -316,15 +305,13 @@ export async function GET(request: NextRequest) {
         // ── Resolve usernames from radAcct (time-window aware) ──
         const usernameMap = new Map<string, string>();
         const uniqueSrcIps = [...new Set(natRows.map((r) => String(r.src_ip ?? '')).filter(Boolean))];
-        if (uniqueSrcIps.length > 0 && tenantUsernames.length > 0) {
+        if (uniqueSrcIps.length > 0) {
           const sevenDaysAgo = new Date();
           sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-          // Tenant isolation: only resolve usernames for this tenant's users
           const radRecords = await db.radAcct.findMany({
             where: {
               framedipaddress: { in: uniqueSrcIps },
               acctstarttime: { gte: sevenDaysAgo },
-              username: { in: tenantUsernames },
             },
             select: { framedipaddress: true, username: true },
             orderBy: { acctstarttime: 'desc' },
@@ -403,15 +390,13 @@ export async function GET(request: NextRequest) {
         // Resolve usernames from radAcct
         const ulogdIps = [...new Set(ulogdData.map((d) => d.source_ip).filter(Boolean))];
         const ulogdUsernameMap = new Map<string, string>();
-        if (ulogdIps.length > 0 && tenantUsernames.length > 0) {
+        if (ulogdIps.length > 0) {
           const sevenDaysAgo = new Date();
           sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-          // Tenant isolation: only resolve usernames for this tenant's users
           const radRecords = await db.radAcct.findMany({
             where: {
               framedipaddress: { in: ulogdIps },
               acctstarttime: { gte: sevenDaysAgo },
-              username: { in: tenantUsernames },
             },
             select: { framedipaddress: true, username: true },
             orderBy: { acctstarttime: 'desc' },

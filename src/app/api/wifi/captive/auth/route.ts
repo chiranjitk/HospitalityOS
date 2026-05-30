@@ -1,30 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-// ---------------------------------------------------------------------------
-// Rate limiter (in-memory, per IP)
-// ---------------------------------------------------------------------------
-
-const authRateLimiter = new Map<string, { count: number; resetAt: number }>();
-function checkRateLimit(ip: string, maxRequests = 5, windowMs = 60000): boolean {
-  const now = Date.now();
-  const record = authRateLimiter.get(ip);
-  if (!record || now > record.resetAt) {
-    authRateLimiter.set(ip, { count: 1, resetAt: now + windowMs });
-    return true;
-  }
-  record.count++;
-  return record.count <= maxRequests;
-}
-
-// Cleanup stale entries every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, val] of authRateLimiter) {
-    if (now > val.resetAt) authRateLimiter.delete(key);
-  }
-}, 300000);
-
 /**
  * POST /api/wifi/captive/auth
  * Captive Portal WiFi Authentication
@@ -202,21 +178,15 @@ async function authenticateViaLdap(params: {
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limit check — extract client IP and enforce BEFORE any processing
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
-    if (!checkRateLimit(clientIp)) {
-      return NextResponse.json({ success: false, error: { code: 'RATE_LIMITED', message: 'Too many authentication attempts. Please try again later.' } }, { status: 429 });
-    }
-
     const body = await request.json()
     const { method, tenantId } = body
 
-    // Verify tenant exists and is active
+    // Minimum tenant validation: if tenantId is provided, verify it exists
     if (tenantId) {
-      const tenant = await db.tenant.findUnique({ where: { id: tenantId, status: 'active' } });
+      const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { id: true } });
       if (!tenant) {
         return NextResponse.json(
-          { success: false, error: { code: 'INVALID_TENANT', message: 'Invalid tenant' } },
+          { success: false, error: 'Invalid tenant' },
           { status: 400 }
         )
       }
@@ -234,20 +204,8 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Validate voucher against database
-      const voucher = await db.wiFiVoucher.findFirst({
-        where: {
-          code: code.trim().toUpperCase(),
-          status: 'active',
-          OR: [
-            { usedAt: null },
-            { isValidMultiUse: true }
-          ],
-        }
-      });
-      if (!voucher) {
-        return NextResponse.json({ success: false, error: { code: 'INVALID_VOUCHER', message: 'Invalid or expired voucher code' } }, { status: 401 });
-      }
+      // In production: validate voucher against database / RADIUS
+      // For demo: accept any non-empty code
       return NextResponse.json({
         success: true,
         method: 'voucher',
@@ -263,38 +221,26 @@ export async function POST(request: NextRequest) {
     // method=room
     // -----------------------------------------------------------------------
     if (method === 'room') {
-      const { roomNumber: room, lastName: guestName } = body
-      if (!room || typeof room !== 'string' || room.trim().length < 1) {
+      const { roomNumber, lastName } = body
+      if (!roomNumber || typeof roomNumber !== 'string' || roomNumber.trim().length < 1) {
         return NextResponse.json(
           { success: false, error: 'Room number is required' },
           { status: 400 }
         )
       }
-      if (!guestName || typeof guestName !== 'string' || guestName.trim().length < 1) {
+      if (!lastName || typeof lastName !== 'string' || lastName.trim().length < 1) {
         return NextResponse.json(
           { success: false, error: 'Last name is required' },
           { status: 400 }
         )
       }
 
-      // Validate room + guest against PMS
-      const booking = await db.$queryRawUnsafe(
-        `SELECT b.*, g."firstName", g."lastName" FROM "Booking" b JOIN "Guest" g ON b."primaryGuestId" = g.id WHERE b."roomId" = (SELECT id FROM "Room" WHERE number = $1 LIMIT 1) AND b."status" IN ('confirmed', 'checked_in') AND b."checkIn" <= NOW() AND b."checkOut" >= NOW() ORDER BY b."checkIn" DESC LIMIT 1`,
-        room
-      );
-      if (!booking || (booking as any).length === 0) {
-        return NextResponse.json({ success: false, error: { code: 'INVALID_ROOM', message: 'No active booking found for this room' } }, { status: 401 });
-      }
-      // Verify guest name matches
-      const guest = booking as any;
-      const fullName = `${guest.firstName} ${guest.lastName}`.toLowerCase().trim();
-      if (fullName !== guestName.toLowerCase().trim()) {
-        return NextResponse.json({ success: false, error: { code: 'INVALID_GUEST', message: 'Guest name does not match booking' } }, { status: 401 });
-      }
+      // In production: verify against guest reservation system
+      // For demo: accept any room + name combination
       return NextResponse.json({
         success: true,
         method: 'room',
-        roomNumber: room.trim(),
+        roomNumber: roomNumber.trim(),
         sessionId: `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         network: 'RoyalStay-Guest',
         bandwidthLimit: '100Mbps',

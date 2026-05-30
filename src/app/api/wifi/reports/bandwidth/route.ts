@@ -31,18 +31,15 @@ export async function GET(request: NextRequest) {
     const whereClause = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
 
     // ── Query 1: Try radacct (real RADIUS accounting) ──
-    // Tenant isolation: radacct has no tenantId column, so JOIN WiFiUser to scope by tenant
-    params.push(user.tenantId);
     const dailyQuery = `
       SELECT
-        DATE(r.acctstarttime) AS date,
-        COALESCE(SUM(r.acctoutputoctets), 0)::bigint AS download_bytes,
-        COALESCE(SUM(r.acctinputoctets), 0)::bigint AS upload_bytes,
-        COUNT(DISTINCT r.username) AS unique_users
-      FROM radacct r
-      JOIN "WiFiUser" wu ON r.username = wu.username
-      WHERE wu."tenantId" = $${params.length}::uuid ${whereClause}
-      GROUP BY DATE(r.acctstarttime)
+        DATE(acctstarttime) AS date,
+        COALESCE(SUM(acctoutputoctets), 0)::bigint AS download_bytes,
+        COALESCE(SUM(acctinputoctets), 0)::bigint AS upload_bytes,
+        COUNT(DISTINCT username) AS unique_users
+      FROM radacct
+      WHERE 1=1 ${whereClause}
+      GROUP BY DATE(acctstarttime)
       ORDER BY date ASC
     `;
     let dailyRows = await db.$queryRawUnsafe(dailyQuery, ...params) as Array<Record<string, unknown>>;
@@ -65,8 +62,6 @@ export async function GET(request: NextRequest) {
       }
       const viewWhere = viewDateConditions.length > 0 ? `AND ${viewDateConditions.join(' AND ')}` : '';
 
-      // Tenant isolation: v_session_history exposes tenantId from WiFiSession/WiFiUser
-      viewParams.push(user.tenantId);
       dailyRows = await db.$queryRawUnsafe(`
         SELECT
           DATE(acctstarttime) AS date,
@@ -74,71 +69,33 @@ export async function GET(request: NextRequest) {
           COALESCE(SUM(acctinputoctets), 0)::bigint AS upload_bytes,
           COUNT(DISTINCT username) AS unique_users
         FROM v_session_history
-        WHERE "tenantId" = $${viewParams.length}::uuid ${viewWhere}
+        WHERE 1=1 ${viewWhere}
         GROUP BY DATE(acctstarttime)
         ORDER BY date ASC
       `, ...viewParams) as Array<Record<string, unknown>>;
     }
 
     // ── Active sessions count ──
-    // Tenant isolation: v_active_sessions exposes tenantId
     const activeRows: Array<{ active_count: string }> = await db.$queryRawUnsafe(`
-      SELECT COUNT(*)::text AS active_count FROM v_active_sessions WHERE "tenantId" = $1::uuid
-    `, user.tenantId);
+      SELECT COUNT(*)::text AS active_count FROM v_active_sessions
+    `);
     const activeSessions = parseInt(activeRows[0]?.active_count || '0', 10);
 
     // ── Peak time from hour distribution ──
     let peakHour = '20:00';
     if (dailyRows && dailyRows.length > 0) {
       const peakSource = isFallback ? 'v_session_history' : 'radacct';
-      // Tenant isolation: build peak query with tenant filter
-      const peakParams: string[] = [];
-      const peakConds: string[] = [];
-
-      if (peakSource === 'radacct') {
-        peakParams.push(user.tenantId);
-        peakConds.push(`wu."tenantId" = $${peakParams.length}::uuid`);
-      } else {
-        peakParams.push(user.tenantId);
-        peakConds.push(`"tenantId" = $${peakParams.length}::uuid`);
-      }
-      if (startDate) {
-        const sd = startDate.length === 10 ? `${startDate} 00:00:00` : startDate;
-        peakParams.push(sd);
-        peakConds.push(`acctstarttime >= $${peakParams.length}::timestamptz`);
-      }
-      if (endDate) {
-        const ed = endDate.length === 10 ? `${endDate} 23:59:59` : endDate;
-        peakParams.push(ed);
-        peakConds.push(`acctstarttime <= $${peakParams.length}::timestamptz`);
-      }
-      const peakWhere = peakConds.join(' AND ');
-
-      let peakQuery: string;
-      if (peakSource === 'radacct') {
-        peakQuery = `
-          SELECT
-            EXTRACT(HOUR FROM r.acctstarttime)::text AS hour,
-            COUNT(DISTINCT r.username)::text AS user_count
-          FROM radacct r
-          JOIN "WiFiUser" wu ON r.username = wu.username
-          WHERE ${peakWhere}
-          GROUP BY EXTRACT(HOUR FROM r.acctstarttime)
-          ORDER BY COUNT(DISTINCT r.username) DESC
-          LIMIT 1
-        `;
-      } else {
-        peakQuery = `
-          SELECT
-            EXTRACT(HOUR FROM acctstarttime)::text AS hour,
-            COUNT(DISTINCT username)::text AS user_count
-          FROM v_session_history
-          WHERE ${peakWhere}
-          GROUP BY EXTRACT(HOUR FROM acctstarttime)
-          ORDER BY COUNT(DISTINCT username) DESC
-          LIMIT 1
-        `;
-      }
+      const peakParams = [...params];
+      const peakQuery = `
+        SELECT
+          EXTRACT(HOUR FROM acctstarttime)::text AS hour,
+          COUNT(DISTINCT username)::text AS user_count
+        FROM ${peakSource}
+        WHERE 1=1 ${whereClause}
+        GROUP BY EXTRACT(HOUR FROM acctstarttime)
+        ORDER BY COUNT(DISTINCT username) DESC
+        LIMIT 1
+      `;
       const hourRows = await db.$queryRawUnsafe(peakQuery, ...peakParams) as Array<Record<string, unknown>>;
       if (hourRows && hourRows.length > 0) {
         peakHour = `${String(hourRows[0].hour).padStart(2, '0')}:00`;

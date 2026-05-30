@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requirePermission } from '@/lib/auth/permissions';
+import { getServerSession } from 'next-auth';
 import { db } from '@/lib/db';
 
 // ═══════════════════════════════════════════════════════════════
@@ -10,26 +10,19 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await requirePermission(request, 'wifi.manage');
-  if (user instanceof NextResponse) return user;
-
   try {
+    const session = await getServerSession();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
     const { id: userId } = await params;
     if (!userId) {
       return NextResponse.json({ success: false, error: { code: 'MISSING_USER_ID', message: 'User ID is required' } }, { status: 400 });
     }
 
-    // Verify WiFi user belongs to this tenant
-    const wifiUser = await db.wiFiUser.findUnique({
-      where: { id: userId },
-      select: { tenantId: true },
-    });
-    if (!wifiUser || wifiUser.tenantId !== user.tenantId) {
-      return NextResponse.json({ success: false, error: { code: 'FORBIDDEN', message: 'WiFi user does not belong to your tenant' } }, { status: 403 });
-    }
-
     const devices = await db.wiFiUserDevice.findMany({
-      where: { wifiUserId: userId, tenantId: user.tenantId },
+      where: { wifiUserId: userId },
       select: {
         id: true,
         macAddress: true,
@@ -66,10 +59,12 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await requirePermission(request, 'wifi.manage');
-  if (user instanceof NextResponse) return user;
-
   try {
+    const session = await getServerSession();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
     const { id: userId } = await params;
     const body = await request.json();
     const { macAddress, deviceName, deviceType } = body as {
@@ -89,12 +84,12 @@ export async function POST(
     }
     const formattedMac = normalized.match(/.{2}/g)?.join(':') || '';
 
-    // Check user exists and belongs to tenant
-    const wifiUser = await db.wiFiUser.findUnique({
+    // Check user exists
+    const user = await db.wiFiUser.findUnique({
       where: { id: userId },
       select: { id: true, tenantId: true, propertyId: true, guestId: true },
     });
-    if (!wifiUser || wifiUser.tenantId !== user.tenantId) {
+    if (!user) {
       return NextResponse.json({ success: false, error: { code: 'USER_NOT_FOUND', message: 'WiFi user not found' } }, { status: 404 });
     }
 
@@ -126,10 +121,10 @@ export async function POST(
 
     const device = await db.wiFiUserDevice.create({
       data: {
-        tenantId: wifiUser.tenantId,
+        tenantId: user.tenantId,
         wifiUserId: userId,
-        propertyId: wifiUser.propertyId,
-        guestId: wifiUser.guestId || null,
+        propertyId: user.propertyId,
+        guestId: user.guestId || null,
         macAddress: formattedMac,
         deviceName: deviceName || 'Manual Registration',
         deviceType: deviceType || 'unknown',
@@ -159,10 +154,12 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await requirePermission(request, 'wifi.manage');
-  if (user instanceof NextResponse) return user;
-
   try {
+    const session = await getServerSession();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
     const { id: userId } = await params;
     const body = await request.json();
     const { deviceId, isActive, deviceName, isPrimary } = body as {
@@ -217,10 +214,12 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await requirePermission(request, 'wifi.manage');
-  if (user instanceof NextResponse) return user;
-
   try {
+    const session = await getServerSession();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
+    }
+
     const { id: userId } = await params;
     const { searchParams } = new URL(request.url);
     const deviceId = searchParams.get('deviceId');
