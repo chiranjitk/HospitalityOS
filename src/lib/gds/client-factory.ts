@@ -126,6 +126,20 @@ export function getGDSConfig(connection: GdsConnection): GDSConfig {
 }
 
 /**
+ * Validate a GDS config for completeness.
+ * Returns an array of error strings (empty if valid).
+ */
+export function validateGDSConfig(config: GDSConfig): string[] {
+  const errors: string[] = [];
+  if (!config.endpoint) errors.push('Endpoint URL is required');
+  if (!config.username) errors.push('Username is required');
+  if (!config.password) errors.push('Password is required');
+  if (!config.propertyCode) errors.push('Property code (hotelCode) is required');
+  if (!config.pcc) errors.push('PCC (Pseudo City Code) is required');
+  return errors;
+}
+
+/**
  * Get the supported GDS providers with their display metadata.
  */
 export function getSupportedProviders(): { provider: GDSProvider; displayName: string; code: string }[] {
