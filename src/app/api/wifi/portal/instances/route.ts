@@ -112,7 +112,10 @@ export async function POST(request: NextRequest) {
       ssidList,
     } = body;
 
+    console.log(`[PortalInstances POST] body:`, { propertyId: propertyId || 'MISSING', name: name || 'MISSING', slug: slug || 'none', tenantId });
+
     if (!propertyId || !name) {
+      console.warn('[PortalInstances POST] 400: Missing propertyId or name');
       return NextResponse.json(
         { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required fields: propertyId, name' } },
         { status: 400 }
@@ -122,11 +125,13 @@ export async function POST(request: NextRequest) {
     // Resolve propertyId: if 'default' or invalid UUID, use tenant's first property
     let resolvedPropertyId = propertyId;
     if (propertyId === 'default' || propertyId.length !== 36) {
+      console.log(`[PortalInstances POST] Resolving propertyId from "${propertyId}" for tenant ${tenantId}`);
       const firstProperty = await db.property.findFirst({
         where: { tenantId },
         select: { id: true },
       });
       if (!firstProperty) {
+        console.error(`[PortalInstances POST] 404: No property found for tenant ${tenantId}`);
         return NextResponse.json(
           { success: false, error: { code: 'NOT_FOUND', message: 'No property found for this tenant' } },
           { status: 404 }
@@ -141,6 +146,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!property) {
+      console.error(`[PortalInstances POST] 404: Property ${resolvedPropertyId} not found for tenant ${tenantId}`);
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Property not found' } },
         { status: 404 }

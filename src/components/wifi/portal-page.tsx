@@ -1043,7 +1043,12 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
       }),
     });
     if (!error) { toast({ title: 'Zone created', description: `${form.name} — /${form.slug}` }); await fetchPortals(); onPortalsChanged?.(); setAddOpen(false); }
-    else { toast({ title: 'Error', description: error || 'Failed', variant: 'destructive' }); }
+    else {
+      const hint = error.includes('property') || error.includes('Property')
+        ? ' — Please select a property from the top-right dropdown or create one in Settings first.'
+        : '';
+      toast({ title: 'Error', description: (error || 'Failed') + hint, variant: 'destructive' });
+    }
   };
 
   const updateZone = async () => {
@@ -1096,7 +1101,8 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
             {roamingZones.length > 0 && <span className="ml-2 text-blue-600 dark:text-blue-400">· {roamingZones.length} seamless roaming</span>}
           </p>
         </div>
-        <Button onClick={openAdd} className="bg-primary hover:bg-primary/90 text-primary-foreground"><Plus className="h-4 w-4 mr-2" />Add Zone</Button>
+        <Button onClick={openAdd} disabled={!propertyId} className="bg-primary hover:bg-primary/90 text-primary-foreground" title={propertyId ? undefined : 'Select a property first'}><Plus className="h-4 w-4 mr-2" />Add Zone</Button>
+        {!propertyId && <p className="text-xs text-muted-foreground">Select a property first to add zones.</p>}
       </div>
 
       {/* Zone Cards */}
