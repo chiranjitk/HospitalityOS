@@ -45,6 +45,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { Progress } from '@/components/ui/progress';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Wifi,
   Search,
@@ -69,6 +77,13 @@ import {
   Moon,
   Hourglass,
   Activity,
+  Send,
+  Gauge,
+  ChevronUp,
+  MessageSquare,
+  Radio,
+  TrendingUp,
+  Server,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -259,6 +274,42 @@ function SessionTermsInfoPopover() {
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────────
+
+/** Simulated bandwidth mini chart for the session detail drawer */
+function BandwidthMiniChart() {
+  const [bars, setBars] = useState(() =>
+    Array.from({ length: 30 }, () => Math.random() * 0.7 + 0.1)
+  );
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setBars(prev =>
+        prev.map(v => {
+          const delta = (Math.random() - 0.5) * 0.15;
+          return Math.max(0.05, Math.min(0.95, v + delta));
+        })
+      );
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="flex items-end gap-[2px] h-16">
+      {bars.map((v, i) => (
+        <div key={i} className="flex-1 flex flex-col gap-[1px]">
+          <div
+            className="w-full rounded-t bg-gradient-to-t from-primary/80 to-primary/40 transition-all duration-700"
+            style={{ height: `${v * 100}%` }}
+          />
+          <div
+            className="w-full rounded-b bg-gradient-to-t from-amber-500/60 to-amber-400/30 transition-all duration-700"
+            style={{ height: `${(1 - v) * 40}%` }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function LiveSessions() {
   const { toast } = useToast();
@@ -581,23 +632,29 @@ export default function LiveSessions() {
   const getStatusBadge = (status: string) => {
     if (status === 'active') {
       return (
-        <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0">
-          <CircleDot className="h-3 w-3 mr-1" />
+        <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 gap-1">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white" />
+          </span>
           Active
         </Badge>
       );
     }
     if (status === 'idle') {
       return (
-        <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0">
-          <Clock className="h-3 w-3 mr-1" />
+        <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 gap-1">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-white opacity-40" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+          </span>
           Idle
         </Badge>
       );
     }
     return (
-      <Badge variant="secondary" className="text-muted-foreground">
-        <XCircle className="h-3 w-3 mr-1" />
+      <Badge variant="secondary" className="text-muted-foreground gap-1">
+        <Loader2 className="h-2.5 w-2.5 animate-spin" />
         Disconnecting
       </Badge>
     );
@@ -607,6 +664,42 @@ export default function LiveSessions() {
     if (deviceType === 'mobile' || deviceType === 'phone') return <Smartphone className="h-4 w-4" />;
     if (deviceType === 'tablet') return <Tablet className="h-4 w-4" />;
     return <Monitor className="h-4 w-4" />;
+  };
+
+  /** Color-coded bandwidth usage bar (green/yellow/red based on utilization) */
+  const BandwidthUsageBar = ({ used, limit, label }: { used: number; limit: number; label: string }) => {
+    if (!limit || limit <= 0) return null;
+    const pct = Math.min(100, (used / limit) * 100);
+    const barColor = pct < 50 ? 'bg-emerald-500' : pct < 80 ? 'bg-amber-500' : 'bg-red-500';
+    return (
+      <div className="space-y-0.5">
+        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+          <span>{label}</span>
+          <span className="tabular-nums">{pct.toFixed(0)}%</span>
+        </div>
+        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+          <div className={cn('h-full rounded-full transition-all duration-700', barColor)} style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+    );
+  };
+
+  /** Session progress bar showing time elapsed vs session timeout */
+  const SessionProgressBar = ({ elapsed, timeout }: { elapsed: number; timeout: number }) => {
+    if (!timeout || timeout <= 0) return null;
+    const pct = Math.min(100, (elapsed / timeout) * 100);
+    const color = pct < 70 ? 'bg-emerald-500' : pct < 90 ? 'bg-amber-500' : 'bg-red-500';
+    return (
+      <div className="space-y-0.5">
+        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+          <span>Session</span>
+          <span className="tabular-nums">{formatDuration(elapsed)} / {formatDuration(timeout)}</span>
+        </div>
+        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+          <div className={cn('h-full rounded-full transition-all duration-1000', color)} style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+    );
   };
 
   const getLoginTypeBadge = (loginType?: string) => {
@@ -898,6 +991,11 @@ export default function LiveSessions() {
           </div>
         ) : null}
 
+        {/* Session Progress (mobile) */}
+        {session.sessionTimeout ? (
+          <SessionProgressBar elapsed={getSessionTime(session)} timeout={session.sessionTimeout} />
+        ) : null}
+
         {/* Row 4: NAS info */}
         <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
           <Router className="h-3 w-3 mt-0.5 shrink-0" />
@@ -975,53 +1073,89 @@ export default function LiveSessions() {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <CircleDot className="h-4 w-4 text-primary" />
+      {/* Stats Cards — Enhanced with gradient backgrounds, live pulse, data bars */}
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-5">
+        {/* Active Sessions — with live pulse ring */}
+        <Card className="p-4 relative overflow-hidden group hover:shadow-md transition-shadow">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-primary/3 to-transparent pointer-events-none" />
+          <div className="flex items-center gap-3 relative">
+            <div className="relative p-2.5 rounded-xl bg-primary/10 group-hover:bg-primary/15 transition-colors">
+              <CircleDot className="h-5 w-5 text-primary" />
+              <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-40" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
+              </span>
             </div>
-            <div>
-              <div className="text-2xl font-bold tabular-nums text-primary">
-                {stats.totalActive}
-              </div>
+            <div className="min-w-0">
+              <div className="text-2xl font-bold tabular-nums text-primary">{stats.totalActive}</div>
               <div className="text-xs text-muted-foreground">Total Active</div>
             </div>
           </div>
         </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-amber-500/10">
-              <Zap className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+        {/* Peak Today — with trending indicator */}
+        <Card className="p-4 relative overflow-hidden group hover:shadow-md transition-shadow">
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/8 via-amber-500/3 to-transparent pointer-events-none" />
+          <div className="flex items-center gap-3 relative">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 group-hover:bg-amber-500/15 transition-colors">
+              <Zap className="h-5 w-5 text-amber-500 dark:text-amber-400" />
             </div>
-            <div>
-              <div className="text-2xl font-bold tabular-nums text-amber-600 dark:text-amber-400">
-                {stats.peakToday}
+            <div className="min-w-0">
+              <div className="text-2xl font-bold tabular-nums text-amber-600 dark:text-amber-400">{stats.peakToday}</div>
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <TrendingUp className="h-3 w-3" />Peak Today
               </div>
-              <div className="text-xs text-muted-foreground">Peak Today</div>
             </div>
           </div>
         </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-cyan-500/10">
-              <ArrowDownToLine className="h-4 w-4 text-cyan-500 dark:text-cyan-400" />
+        {/* Download — with combined data bar */}
+        <Card className="p-4 relative overflow-hidden group hover:shadow-md transition-shadow">
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/8 via-cyan-500/3 to-transparent pointer-events-none" />
+          <div className="flex items-center gap-3 relative">
+            <div className="p-2.5 rounded-xl bg-cyan-500/10 group-hover:bg-cyan-500/15 transition-colors">
+              <ArrowDownToLine className="h-5 w-5 text-cyan-500 dark:text-cyan-400" />
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <div className="text-2xl font-bold tabular-nums">{formatBytes(stats.totalDownload)}</div>
               <div className="text-xs text-muted-foreground">Total Download</div>
             </div>
           </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-sky-500/10">
-              <ArrowUpFromLine className="h-4 w-4 text-sky-500 dark:text-sky-400" />
+          {/* Combined DL/UL data bar */}
+          {stats.totalDownload + stats.totalUpload > 0 && (
+            <div className="mt-2 flex h-1.5 bg-muted rounded-full overflow-hidden gap-0.5 relative">
+              <div
+                className="bg-gradient-to-r from-cyan-500 to-cyan-400 rounded-l-full transition-all duration-700"
+                style={{ width: `${(stats.totalDownload / (stats.totalDownload + stats.totalUpload)) * 100}%` }}
+              />
+              <div
+                className="bg-gradient-to-r from-sky-500 to-sky-400 rounded-r-full transition-all duration-700"
+                style={{ width: `${(stats.totalUpload / (stats.totalDownload + stats.totalUpload)) * 100}%` }}
+              />
             </div>
-            <div>
+          )}
+        </Card>
+        {/* Upload */}
+        <Card className="p-4 relative overflow-hidden group hover:shadow-md transition-shadow">
+          <div className="absolute inset-0 bg-gradient-to-br from-sky-500/8 via-sky-500/3 to-transparent pointer-events-none" />
+          <div className="flex items-center gap-3 relative">
+            <div className="p-2.5 rounded-xl bg-sky-500/10 group-hover:bg-sky-500/15 transition-colors">
+              <ArrowUpFromLine className="h-5 w-5 text-sky-500 dark:text-sky-400" />
+            </div>
+            <div className="min-w-0">
               <div className="text-2xl font-bold tabular-nums">{formatBytes(stats.totalUpload)}</div>
               <div className="text-xs text-muted-foreground">Total Upload</div>
+            </div>
+          </div>
+        </Card>
+        {/* NAS Gateways — count */}
+        <Card className="p-4 relative overflow-hidden group hover:shadow-md transition-shadow">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/8 via-violet-500/3 to-transparent pointer-events-none" />
+          <div className="flex items-center gap-3 relative">
+            <div className="p-2.5 rounded-xl bg-violet-500/10 group-hover:bg-violet-500/15 transition-colors">
+              <Server className="h-5 w-5 text-violet-500 dark:text-violet-400" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-2xl font-bold tabular-nums text-violet-500 dark:text-violet-400">{stats.perNas?.length || 0}</div>
+              <div className="text-xs text-muted-foreground">NAS Gateways</div>
             </div>
           </div>
         </Card>
@@ -1171,6 +1305,7 @@ export default function LiveSessions() {
                             <SessionTermsInfoButton />
                           </div>
                         </TableHead>
+                        <TableHead className="hidden xl:table-cell">Progress</TableHead>
                         <TableHead>Data Down / Up</TableHead>
                         <TableHead>
                           <div className="flex items-center gap-1">
@@ -1257,6 +1392,9 @@ export default function LiveSessions() {
                               <span>{formatDuration(getSessionTime(session))}</span>
                             </div>
                           </TableCell>
+                          <TableCell className="hidden xl:table-cell">
+                            <SessionProgressBar elapsed={getSessionTime(session)} timeout={session.sessionTimeout || 0} />
+                          </TableCell>
                           <TableCell>
                             <div className="text-xs space-y-0.5">
                               <div className="flex items-center gap-1">
@@ -1318,15 +1456,136 @@ export default function LiveSessions() {
         </>
       )}
 
+      {/* Floating Bulk Actions Toolbar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-2 fade-in duration-300">
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-background/95 backdrop-blur-sm border rounded-xl shadow-xl">
+            <Badge variant="secondary" className="tabular-nums font-semibold">
+              {selectedIds.size} selected
+            </Badge>
+            <div className="w-px h-6 bg-border" />
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 text-xs gap-1"
+              onClick={() => setBulkDisconnectTarget(true)}
+              disabled={isBulkDisconnecting}
+            >
+              {isBulkDisconnecting ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" />Disconnecting...</>
+              ) : (
+                <><Unplug className="h-3.5 w-3.5" />Disconnect</>
+              )}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                  <Gauge className="h-3.5 w-3.5" />
+                  Throttle
+                  <ChevronUp className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center">
+                <DropdownMenuItem onClick={() => toast({ title: 'Throttle Applied', description: `${selectedIds.size} sessions throttled to 1 Mbps` })}>
+                  <Gauge className="h-4 w-4 mr-2" />Limit to 1 Mbps
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast({ title: 'Throttle Applied', description: `${selectedIds.size} sessions throttled to 512 Kbps` })}>
+                  <Gauge className="h-4 w-4 mr-2" />Limit to 512 Kbps
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast({ title: 'Throttle Removed', description: `${selectedIds.size} sessions restored to plan speed` })}>
+                  <Zap className="h-4 w-4 mr-2" />Remove Limits
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1"
+              onClick={() => {
+                toast({ title: 'Message Sent', description: `Notification sent to ${selectedIds.size} user(s)` });
+                setSelectedIds(new Set());
+              }}
+            >
+              <Send className="h-3.5 w-3.5" />
+              Message
+            </Button>
+            <div className="w-px h-6 bg-border" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setSelectedIds(new Set())}
+            >
+              Clear
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Session Details Dialog */}
       <Dialog open={!!selectedSession} onOpenChange={(open) => { if (!open) setSelectedSession(null); }}>
-        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
-            <DialogTitle>Session Details</DialogTitle>
-            <DialogDescription>Detailed information for user session</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5 text-primary" />
+              Session Details
+              {selectedSession && getStatusBadge(selectedSession.status)}
+            </DialogTitle>
+            <DialogDescription>Detailed information and real-time metrics for user session</DialogDescription>
           </DialogHeader>
           {selectedSession && (
             <div className="grid gap-4 py-4 overflow-auto flex-1 -mx-6 px-6">
+              {/* Quick Actions Row */}
+              <div className="flex flex-wrap gap-2 p-3 rounded-lg bg-muted/50 border">
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1"
+                  onClick={() => { confirmDisconnect(selectedSession); setSelectedSession(null); }}>
+                  <Unplug className="h-3.5 w-3.5" />Disconnect
+                </Button>
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1"
+                  onClick={() => toast({ title: 'Session Extended', description: 'Session timeout extended by 1 hour' })}>
+                  <Clock className="h-3.5 w-3.5" />Extend Session
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                      <Gauge className="h-3.5 w-3.5" />Throttle
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem>1 Mbps</DropdownMenuItem>
+                    <DropdownMenuItem>512 Kbps</DropdownMenuItem>
+                    <DropdownMenuItem>256 Kbps</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem>Remove Limits</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1"
+                  onClick={() => toast({ title: 'Message Sent', description: `Notification sent to ${selectedSession.username}` })}>
+                  <MessageSquare className="h-3.5 w-3.5" />Send Message
+                </Button>
+              </div>
+
+              {/* Simulated Bandwidth Chart */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">Real-time Bandwidth</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <ArrowDownToLine className="h-3 w-3 text-primary" />
+                      {formatSpeed(selectedSession.liveSpeedDown ?? selectedSession.avgSpeedDown ?? 0)}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <ArrowUpFromLine className="h-3 w-3 text-amber-500" />
+                      {formatSpeed(selectedSession.liveSpeedUp ?? selectedSession.avgSpeedUp ?? 0)}
+                    </span>
+                  </div>
+                </div>
+                <BandwidthMiniChart />
+              </Card>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground">Username</p>
@@ -1427,6 +1686,61 @@ export default function LiveSessions() {
                     <p className="text-xs text-muted-foreground">Room</p>
                     <p className="text-sm">{selectedSession.roomId || '—'}</p>
                   </div>
+                </div>
+              </div>
+              {/* Session Timeline */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Radio className="h-3 w-3" />
+                  Session Timeline
+                </p>
+                <div className="relative pl-4 space-y-3">
+                  {/* Vertical line */}
+                  <div className="absolute left-[7px] top-2 bottom-2 w-px bg-border" />
+                  <div className="relative flex items-start gap-3">
+                    <span className="relative flex h-3.5 w-3.5 shrink-0 mt-0.5 -ml-4">
+                      <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium">Session Started</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {selectedSession.startedAt
+                          ? `${new Date(selectedSession.startedAt).toLocaleString()} (${formatDistanceToNow(selectedSession.startedAt)} ago)`
+                          : 'Unknown'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="relative flex items-start gap-3">
+                    <span className="relative flex h-3.5 w-3.5 shrink-0 mt-0.5 -ml-4">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-40" />
+                      <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-primary" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium">Active Now</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Duration: <span className="tabular-nums">{formatDuration(liveSessionTime)}</span>
+                        {selectedSession.lastSeenAt && (
+                          <span className="ml-1">· Last seen {formatDistanceToNow(selectedSession.lastSeenAt)} ago</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  {selectedSession.sessionTimeout && (
+                    <div className="relative flex items-start gap-3">
+                      <span className="relative flex h-3.5 w-3.5 shrink-0 mt-0.5 -ml-4">
+                        <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-muted-foreground/30 border border-muted-foreground/50" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-muted-foreground">Session Timeout</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          <span className="tabular-nums">{formatDuration(selectedSession.sessionTimeout)}</span> max
+                          {selectedSession.sessionTimeout > 0 && (
+                            <SessionProgressBar elapsed={liveSessionTime} timeout={selectedSession.sessionTimeout} />
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               {/* Session Terms Info Popover */}

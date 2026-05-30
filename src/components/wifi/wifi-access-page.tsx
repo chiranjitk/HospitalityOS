@@ -25,6 +25,7 @@ const WifiVouchers = lazy(() => import('@/components/wifi/vouchers'));
 const MacAuthTab = lazy(() => import('@/components/wifi/mac-auth'));
 const WifiFupPolicy = lazy(() => import('@/components/wifi/fup-policy'));
 const EventWifiTab = lazy(() => import('@/components/wifi/event-wifi'));
+const WifiQuickStats = lazy(() => import('@/components/wifi/wifi-quick-stats'));
 const IpPoolManagement = lazy(() => import('@/components/wifi/ip-pool-management'));
 const BandwidthPoolManagement = lazy(() => import('@/components/wifi/bandwidth-pool-management'));
 
@@ -283,6 +284,13 @@ export function WifiAccessPage() {
       {/* RADIUS Status + Quick Actions (inline) */}
       <div className="relative z-10">
         <RADIUSQuickActions onRefresh={handleRefresh} onSwitchToVouchers={handleSwitchToVouchers} statusRefreshTrigger={statusRefreshKey} />
+      </div>
+
+      {/* WiFi Dashboard Quick Stats Widget */}
+      <div className="relative z-10">
+        <Suspense fallback={<TabSkeleton />}>
+          <WifiQuickStats />
+        </Suspense>
       </div>
 
       {/* Tab Switcher */}

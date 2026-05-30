@@ -708,7 +708,10 @@ export default function PortalPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Captive Portal</h2>
+        <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+          <Wifi className="h-5 w-5 text-primary" />
+          Captive Portal
+        </h2>
         <p className="text-sm text-muted-foreground mt-1">
           Design stunning guest login experiences, manage portal instances, and print WiFi vouchers
         </p>
@@ -726,11 +729,12 @@ export default function PortalPage() {
               return (
                 <button key={tab.id} ref={tab.id === activeTab ? activeTabRef : null} onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all duration-150 whitespace-nowrap',
-                    isActive ? 'border-primary/30 text-primary'
-                      : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+                    'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all duration-150 whitespace-nowrap rounded-t-lg',
+                    isActive
+                      ? 'border-primary text-primary bg-primary/5 shadow-sm shadow-primary/10'
+                      : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/30'
                   )}>
-                  <Icon className="h-4 w-4" />
+                  <Icon className={cn('h-4 w-4 transition-transform duration-200', isActive && 'scale-110')} />
                   <span className="hidden sm:inline">{tab.label}</span>
                   <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
                 </button>
@@ -1080,17 +1084,27 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
 
   return (
     <div className="space-y-6">
-      {/* Server Config Banner */}
-      <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30">
+      {/* Server Config Banner — Enhanced with animated pulse indicators */}
+      <div className="flex items-center justify-between rounded-lg border border-emerald-500/30 p-4 bg-gradient-to-r from-emerald-500/5 via-transparent to-emerald-500/3">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10 dark:bg-primary/10"><Zap className="h-5 w-5 text-primary" /></div>
+          <div className="relative p-2 rounded-lg bg-primary/10 dark:bg-primary/10">
+            <Zap className="h-5 w-5 text-primary" />
+            <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-40" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
+            </span>
+          </div>
           <div>
             <p className="font-medium text-sm">Portal Server Active</p>
             <p className="text-xs text-muted-foreground">Single server serves all zones via slug routing. Configure SSL & domain in <span className="font-mono text-foreground">Network → Portal Settings</span></p>
           </div>
         </div>
-        <Badge variant="outline" className="border-emerald-300 text-emerald-700 bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:bg-emerald-950/30 gap-1">
-          <CheckCircle2 className="h-3 w-3" /> Running
+        <Badge variant="outline" className="border-emerald-300 text-emerald-700 bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:bg-emerald-950/30 gap-1.5 px-3 py-1">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+          </span>
+          Running
         </Badge>
       </div>
 
@@ -1105,21 +1119,44 @@ function PortalListTab({ onPortalsChanged }: { onPortalsChanged?: () => void }) 
         {!propertyId && <p className="text-xs text-muted-foreground">Select a property first to add zones.</p>}
       </div>
 
-      {/* Zone Cards */}
+      {/* Zone Cards — Enhanced with hover effects and status indicators */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {zones.map(zone => {
           const authDef = AUTH_METHODS.find(a => a.value === zone.authMethod);
           const roamingDefs = zone.allowsRoamingFrom.map(slug => zones.find(z => z.slug === slug)).filter(Boolean) as PortalZone[];
           return (
-            <Card key={zone.id} className={cn(!zone.enabled && 'opacity-50')}>
+            <Card key={zone.id} className={cn(
+              'group relative overflow-hidden transition-all duration-300',
+              !zone.enabled && 'opacity-50',
+              zone.enabled && 'hover:shadow-md hover:border-primary/30'
+            )}>
+              {/* Subtle top gradient bar */}
+              <div className={cn(
+                'absolute top-0 left-0 right-0 h-0.5 transition-all duration-300',
+                zone.enabled ? 'bg-gradient-to-r from-primary via-primary/50 to-transparent' : 'bg-gray-300 dark:bg-gray-700'
+              )} />
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={cn('p-2 rounded-lg', zone.enabled ? 'bg-primary/5 dark:bg-primary/5' : 'bg-gray-100 dark:bg-gray-800')}>
-                      <Globe className={cn('h-5 w-5', zone.enabled ? 'text-primary' : 'text-gray-400')} />
+                    <div className={cn(
+                      'p-2.5 rounded-xl transition-all duration-300',
+                      zone.enabled ? 'bg-primary/10 group-hover:bg-primary/15 dark:bg-primary/10' : 'bg-gray-100 dark:bg-gray-800'
+                    )}>
+                      <Globe className={cn('h-5 w-5 transition-colors', zone.enabled ? 'text-primary' : 'text-gray-400')} />
                     </div>
                     <div>
-                      <CardTitle className="text-base">{zone.name}</CardTitle>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        {zone.name}
+                        <span className="relative flex h-2 w-2">
+                          {zone.enabled ? (
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60" />
+                          ) : null}
+                          <span className={cn(
+                            'relative inline-flex rounded-full h-2 w-2',
+                            zone.enabled ? 'bg-emerald-500' : 'bg-gray-400'
+                          )} />
+                        </span>
+                      </CardTitle>
                       <p className="text-xs text-muted-foreground font-mono">/{zone.slug}</p>
                     </div>
                   </div>

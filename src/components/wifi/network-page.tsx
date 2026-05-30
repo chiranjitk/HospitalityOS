@@ -55,6 +55,8 @@ import {
   Copy,
   Download,
   Upload,
+  ArrowDownToLine,
+  ArrowUpFromLine,
   ArrowRightLeft,
   Server,
   Monitor,
@@ -367,16 +369,61 @@ function TrafficGraph({ rx, tx }: { rx: number; tx: number }) {
       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
         <span className="w-8">RX</span>
         <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-          <div className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70" style={{ width: `${rxPct}%` }} />
+          <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-700" style={{ width: `${rxPct}%` }} />
         </div>
         <span className="w-16 text-right font-mono">{formatBytes(rx)}</span>
       </div>
       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
         <span className="w-8">TX</span>
         <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-          <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-400" style={{ width: `${txPct}%` }} />
+          <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-400 transition-all duration-700" style={{ width: `${txPct}%` }} />
         </div>
         <span className="w-16 text-right font-mono">{formatBytes(tx)}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Interface status indicator with animated pulse */
+function InterfaceStatusIndicator({ status }: { status: 'up' | 'down' }) {
+  if (status === 'up') {
+    return (
+      <span className="relative flex h-3 w-3">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-50" />
+        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
+      </span>
+    );
+  }
+  return (
+    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-400">
+      <XCircle className="h-3 w-3 text-red-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+    </span>
+  );
+}
+
+/** Traffic flow indicators for interface cards */
+function TrafficFlowIndicator({ rx, tx }: { rx: number; tx: number }) {
+  const total = rx + tx;
+  if (total === 0) return null;
+  const rxPct = (rx / total) * 100;
+  return (
+    <div className="flex items-center gap-2 mt-3">
+      <div className="flex-1">
+        <div className="h-2 bg-muted rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400/70 transition-all duration-700"
+            style={{ width: `${rxPct}%` }}
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
+        <ArrowDownToLine className="h-3 w-3 text-emerald-500" />
+        <span className="tabular-nums">{formatBytes(rx)}</span>
+      </div>
+      <div className="w-px h-4 bg-border" />
+      <div className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
+        <ArrowUpFromLine className="h-3 w-3 text-amber-500" />
+        <span className="tabular-nums">{formatBytes(tx)}</span>
       </div>
     </div>
   );
@@ -1758,14 +1805,26 @@ export default function NetworkPage() {
                 return (
                 <Card
                   key={iface.id}
-                  className="cursor-pointer transition-all duration-200 hover:scale-[1.01] hover:shadow-md border-border/50 hover:border-primary/30"
+                  className={cn(
+                    'cursor-pointer transition-all duration-200 hover:scale-[1.01] hover:shadow-md group relative overflow-hidden',
+                    iface.status === 'up' ? 'border-emerald-500/30 hover:border-emerald-500/50' : 'border-red-400/30 hover:border-red-400/50'
+                  )}
                   onClick={() => handleOpenEditInterface(iface)}
                 >
-                  <CardHeader className="pb-3">
+                  {/* Top status bar — gradient line */}{/* Subtle gradient overlay on hover */}
+                  <div className={cn(
+                    'absolute top-0 left-0 right-0 h-0.5 transition-all duration-300',
+                    iface.status === 'up' ? 'bg-gradient-to-r from-emerald-500 via-emerald-400/50 to-transparent' : 'bg-gradient-to-r from-red-400 via-red-400/50 to-transparent'
+                  )} />
+                  <div className={cn(
+                    'absolute inset-0 pointer-events-none transition-opacity duration-300 opacity-0 group-hover:opacity-100',
+                    iface.status === 'up' ? 'bg-gradient-to-br from-emerald-500/3 via-transparent to-transparent' : 'bg-gradient-to-br from-red-400/3 via-transparent to-transparent'
+                  )} />
+                  <CardHeader className="pb-3 relative">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className={cn(
-                          'p-2 rounded-lg',
+                          'p-2 rounded-lg transition-colors',
                           iface.type === 'wireless' ? 'bg-rose-500/10' :
                           iface.type === 'bridge' ? 'bg-primary/10' :
                           iface.type === 'bond' ? 'bg-violet-500/10' :
@@ -1777,8 +1836,19 @@ export default function NetworkPage() {
                            <Network className="h-4 w-4 text-primary" />}
                         </div>
                         <div>
-                          <CardTitle className="text-base font-semibold">{iface.name}</CardTitle>
-                          <CardDescription className="text-xs">{iface.description}</CardDescription>
+                          <CardTitle className="text-base font-semibold flex items-center gap-2">
+                            {iface.name}
+                            <span className="relative flex h-2 w-2">
+                              {iface.status === 'up' && (
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-50" />
+                              )}
+                              <span className={cn(
+                                'relative inline-flex rounded-full h-2 w-2',
+                                iface.status === 'up' ? 'bg-emerald-500' : 'bg-red-400'
+                              )} />
+                            </span>
+                          </CardTitle>
+                          <CardDescription className="text-xs">{iface.description || iface.type}</CardDescription>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1797,7 +1867,7 @@ export default function NetworkPage() {
                         )}
                         <div className={cn(
                           'h-2.5 w-2.5 rounded-full',
-                          iface.status === 'up' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' : 'bg-gray-400'
+                          iface.status === 'up' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' : 'bg-red-400'
                         )} />
                       </div>
                     </div>
@@ -1829,16 +1899,18 @@ export default function NetworkPage() {
                     </div>
                     <Separator className="my-3" />
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Status</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-muted-foreground">Status</span>
+                        <InterfaceStatusIndicator status={iface.status} />
+                      </div>
                       <Badge variant={iface.status === 'up' ? 'default' : 'secondary'} className={cn(
                         'text-[10px]',
-                        iface.status === 'up' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' : 'bg-gray-500/15 text-gray-600'
+                        iface.status === 'up' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20' : 'bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/20'
                       )}>
-                        {iface.status === 'up' ? <CheckCircle2 className="h-3 w-3 mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
-                        {iface.status.toUpperCase()}
+                        {iface.status === 'up' ? 'UP' : 'DOWN'}
                       </Badge>
                     </div>
-                    <TrafficGraph rx={iface.rxBytes} tx={iface.txBytes} />
+                    <TrafficFlowIndicator rx={iface.rxBytes} tx={iface.txBytes} />
                   </CardContent>
                 </Card>
                 );
