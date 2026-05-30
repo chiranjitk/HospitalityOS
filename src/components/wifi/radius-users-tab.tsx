@@ -1226,7 +1226,6 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between gap-4">
@@ -2460,7 +2459,6 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
           toast({ title: '2FA Enabled', description: 'You can now proceed with MFA verification' });
         }}
       />
-    </div>
 
       {/* Device Management Dialog */}
       <Dialog open={devicesDialogOpen} onOpenChange={(open) => { setDevicesDialogOpen(open); if (!open) setUserDevices([]); }}>
@@ -2586,6 +2584,6 @@ export default function RadiusUsersTab({ onUsersChanged }: { onUsersChanged?: ()
           )}
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
