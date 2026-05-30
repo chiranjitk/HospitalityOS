@@ -79,7 +79,7 @@ export default function MyDevices({ username, maxDevices, className, onDeviceCou
   const fetchDevices = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/v1/wifi/devices?username=${encodeURIComponent(username)}`);
+      const res = await fetch(`/api/wifi/devices?username=${encodeURIComponent(username)}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setDevices(data.data);
@@ -100,7 +100,7 @@ export default function MyDevices({ username, maxDevices, className, onDeviceCou
     if (!removeDeviceId) return;
     setRemoving(true);
     try {
-      const res = await fetch('/api/v1/wifi/devices', {
+      const res = await fetch('/api/wifi/devices', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: removeDeviceId }),

@@ -14,7 +14,8 @@
 import { db } from '@/lib/db';
 import { CLIENTS_CONF } from '@/lib/wifi/paths';
 import { execSync } from 'child_process';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import path from 'path';
 
 // Section markers for StaySuite managed block in clients.conf
 const STAYSUITE_CLIENT_BEGIN = '# >>> StaySuite Managed NAS Clients BEGIN <<<';
@@ -151,6 +152,11 @@ export async function syncClientsConf(): Promise<boolean> {
       newContent = existingContent + (existingContent.length > 0 ? '\n' : '') + managedSection + '\n';
     }
 
+    // FIX: Ensure parent directory exists before writing (sandbox safety)
+    const clientsDir = path.dirname(CLIENTS_CONF);
+    if (!existsSync(clientsDir)) {
+      mkdirSync(clientsDir, { recursive: true });
+    }
     writeFileSync(CLIENTS_CONF, newContent, 'utf-8');
 
     // Set ownership for production

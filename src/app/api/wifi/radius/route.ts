@@ -3957,7 +3957,7 @@ export async function POST(request: NextRequest) {
           const id = crypto.randomUUID();
           const tenantId = context?.tenantId;
           const propertyId = data.propertyId || null;
-          const { name, description, cycleType, dataLimitMb, dataLimitUnit, applicableOn,
+          const { name, description, cycleType, limitType, dataLimitMb, dataLimitUnit, applicableOn,
                   throttleAction, throttleDownloadMbps, throttleUploadMbps,
                   cycleResetHour, cycleResetMinute, priority, isEnabled } = data;
 
@@ -3982,7 +3982,7 @@ export async function POST(request: NextRequest) {
           await db.$executeRawUnsafe(`
             INSERT INTO "FairAccessPolicy" (id, "tenantId", "propertyId", name, description, "cycleType", "limitType", "dataLimitMb", "dataLimitUnit", "switchOverBwPolicyId", "cycleResetHour", "cycleResetMinute", "applicableOn", "isEnabled", priority)
             VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10::uuid, $11, $12, $13, $14, $15)
-          `, id, tenantId, propertyId, name, description || null, cycleType || 'daily', applicableOn || 'total',
+          `, id, tenantId, propertyId, name, description || null, cycleType || 'daily', limitType || 'total',
              Number(dataLimitMb) || 1024, dataLimitUnit || 'mb', switchOverBwPolicyId,
              Number(cycleResetHour) || 23, Number(cycleResetMinute) || 59, applicableOn || 'total',
              isEnabled !== false, Number(priority) || 0);

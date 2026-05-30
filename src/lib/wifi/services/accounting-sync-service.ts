@@ -485,31 +485,34 @@ export class WiFiAccountingSyncService {
   }
 
   /**
-   * Get active sessions count for a property
+   * Get active sessions count for a property.
+   * FIX: Filter by propertyId via WiFiUser join (WiFiSession has no propertyId column).
    */
   async getActiveSessionsCount(propertyId: string): Promise<number> {
-    return db.wiFiSession.count({
-      where: { status: 'active' },
-    });
+    const result = await db.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*)::bigint AS count
+      FROM "WiFiSession" s
+      LEFT JOIN "WiFiUser" wu ON s.username = wu.username
+      WHERE s.status = 'active'
+        AND (wu."propertyId" = ${propertyId}::uuid OR ${propertyId}::uuid IS NULL)
+    `;
+    return Number(result[0]?.count || 0);
   }
 
   /**
    * Get bandwidth usage summary for a time period.
    * Note: dataUsed stores bytes, so we convert to MB for the response.
+   * FIX: Filter by propertyId via WiFiUser join.
    */
   async getBandwidthUsage(propertyId: string, startDate: Date, endDate: Date) {
-    const sessions = await db.wiFiSession.findMany({
-      where: {
-        startTime: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      select: {
-        dataUsed: true,
-        duration: true,
-      },
-    });
+    const sessions = await db.$queryRaw<Array<{ dataUsed: bigint; duration: number }>>`
+      SELECT s."dataUsed", s.duration
+      FROM "WiFiSession" s
+      LEFT JOIN "WiFiUser" wu ON s.username = wu.username
+      WHERE s."startTime" >= ${startDate}
+        AND s."startTime" <= ${endDate}
+        AND (wu."propertyId" = ${propertyId}::uuid OR ${propertyId}::uuid IS NULL)
+    `;
 
     // Bug 5 follow-up: dataUsed is now in bytes, convert to MB for reporting
     const totalDataBytes = sessions.reduce((sum, s) => {

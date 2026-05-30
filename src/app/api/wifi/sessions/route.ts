@@ -237,27 +237,21 @@ export async function POST(request: NextRequest) {    const user = await require
         }
 
         // Create new session within the same transaction
+        // FIX: Only use valid WiFiSession schema fields (propertyId, nasIpAddress,
+        // nasPortId, calledStationId, callingStationId, planName, sessionTimeout,
+        // idleTimeout, bandwidthLimitDown/Up, dataLimitBytes do NOT exist in schema)
         const newSession = await tx.wiFiSession.create({
           data: {
             tenantId,
-            propertyId: targetPropertyId || null,
             guestId: guestId || null,
             bookingId: bookingId || null,
             macAddress,
             ipAddress,
-            nasIpAddress: nasIp,
-            nasPortId: nasPortId || null,
-            calledStationId: calledStation || null,
-            callingStationId: callingStation || null,
-            username: sessionUsername || null,
-            planId: effectivePlanId || null,
-            planName: plan?.name || null,
+            deviceName: deviceName || null,
+            deviceType: deviceType || null,
+            username: null,
+            planId: planId || null,
             status: 'active',
-            sessionTimeout: plan?.sessionTimeout || 3600,
-            idleTimeout: plan?.idleTimeout || 300,
-            bandwidthLimitDown: plan?.bandwidthLimitDown || 0,
-            bandwidthLimitUp: plan?.bandwidthLimitUp || 0,
-            dataLimitBytes: plan?.dataLimitBytes || 0,
             authMethod: authMethod || 'pap',
           },
         });

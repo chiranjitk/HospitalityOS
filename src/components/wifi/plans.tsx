@@ -90,6 +90,7 @@ interface WiFiPlan {
   _count?: {
     vouchers: number;
     sessions: number;
+    wifiUsers: number;
   };
 }
 
@@ -894,7 +895,7 @@ export default function WifiPlans() {
                   {/* Price + Stats divider */}
                   <div className="flex items-center justify-between pt-3 border-t border-dashed">
                     <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                      <span>{(plan._count as any)?.wifiUsers || 0} users</span>
+                      <span>{plan._count?.wifiUsers || 0} users</span>
                       <span className="w-px h-3 bg-border" />
                       <span>{plan._count?.vouchers || 0} vouchers</span>
                       <span className="w-px h-3 bg-border" />

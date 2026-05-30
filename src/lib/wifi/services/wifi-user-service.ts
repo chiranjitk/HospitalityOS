@@ -352,7 +352,9 @@ export class WiFiUserService {
               }
             }
           }
-          const effectiveIdleTimeout = input.idleTimeoutSeconds || planIdleTimeoutSec;
+          // Note: idle timeout is handled at GROUP level by syncRadiusGroup (below),
+          // not at user level. Per-user idle timeout override is not needed since
+          // the group-level value from the plan is authoritative.
 
           // 1. Create WiFiUser
           const wifiUser = await tx.wiFiUser.create({

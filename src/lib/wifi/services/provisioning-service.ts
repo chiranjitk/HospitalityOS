@@ -736,7 +736,10 @@ class WiFiProvisioningService {
   }
 
   /**
-   * Get provisioning logs
+   * Get provisioning logs.
+   * NOTE: Returns in-memory logs only (since last restart).
+   * DB-persisted logs (via logProvisioning) are accessible via the
+   * /api/wifi/provisioning-logs API endpoint.
    */
   getLogs(options?: { 
     bookingId?: string; 

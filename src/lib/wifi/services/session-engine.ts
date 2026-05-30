@@ -857,27 +857,52 @@ async function bulkLoadUserPolicies(usernames: string[]): Promise<Map<string, Us
   if (usernames.length === 0) return policyMap;
 
   try {
+    // FIX: Also query group-level attributes from radgroupreply via radusergroup.
+    // The architecture stores idle timeout and data limits at the GROUP level
+    // (syncRadiusGroup writes them to radgroupreply). User-level attributes
+    // from radreply take precedence over group-level attributes.
     const rows = await db.$queryRaw<Array<{
       username: string;
       attribute: string;
       value: string;
+      source: string;
     }>>`
-      SELECT username, attribute, value
-      FROM radreply
-      WHERE username = ANY(${usernames}::text[])
-        AND attribute IN (
-          'Session-Timeout',
-          'Cryptsk-Idle-Timeout',
-          'Idle-Timeout',
-          'Cryptsk-Data-Limit',
-          'Cryptsk-Max-Input-Octets',
-          'Max-Input-Octets',
-          'ChilliSpot-Max-Total-Octets'
-        )
-        AND "isActive" = true
+      SELECT username, attribute, value, source FROM (
+        -- User-level attributes (take precedence)
+        SELECT r.username, r.attribute, r.value, 'user' AS source
+        FROM radreply r
+        WHERE r.username = ANY(${usernames}::text[])
+          AND r.attribute IN (
+            'Session-Timeout',
+            'Cryptsk-Idle-Timeout',
+            'Idle-Timeout',
+            'Cryptsk-Data-Limit',
+            'Cryptsk-Max-Input-Octets',
+            'Max-Input-Octets',
+            'ChilliSpot-Max-Total-Octets'
+          )
+          AND r."isActive" = true
+        UNION ALL
+        -- Group-level attributes (fallback)
+        SELECT ug.username, rg.attribute, rg.value, 'group' AS source
+        FROM radusergroup ug
+        JOIN radgroupreply rg ON ug.groupname = rg.groupname
+        WHERE ug.username = ANY(${usernames}::text[])
+          AND rg.attribute IN (
+            'Session-Timeout',
+            'Cryptsk-Idle-Timeout',
+            'Idle-Timeout',
+            'Cryptsk-Data-Limit',
+            'Cryptsk-Max-Input-Octets',
+            'Max-Input-Octets',
+            'ChilliSpot-Max-Total-Octets'
+          )
+      ) AS combined
+      ORDER BY username, source, attribute
     `;
 
-    // Build policy map from all rows
+    // Build policy map — user-level attributes take precedence over group-level.
+    // We process in ORDER BY source (group first, user second) so user values overwrite.
     for (const row of rows) {
       if (!policyMap.has(row.username)) {
         policyMap.set(row.username, { sessionTimeout: 0, idleTimeout: 0, dataLimit: 0 });
@@ -982,19 +1007,23 @@ async function disconnectSessionFallback(
   `;
 
   try {
+    // FIX: WiFiSession schema only has dataUsed (BigInt) and duration (Int),
+    // NOT downloadBytes/uploadBytes. Compute from raw counters.
     await db.wiFiSession.updateMany({
       where: { username: session.username, status: 'active' },
       data: {
         status: reason === 'Session-Cleanup' ? 'disconnected' : 'terminated',
         endTime: new Date(),
-        downloadBytes,
-        uploadBytes,
+        dataUsed: BigInt(downloadBytes + uploadBytes),
+        duration: Math.floor((Date.now() - safeGetTime(session.acctstarttime)) / 1000),
       },
     });
   } catch { /* non-fatal */ }
 
   try {
-    const coaRes = await fetch(`http://127.0.0.1:${process.env.PORT || 3000}/api/wifi/radius`, {
+    // FIX: Use configurable internal URL instead of hardcoded localhost
+    const internalUrl = process.env.INTERNAL_BASE_URL || `http://127.0.0.1:${process.env.PORT || 3000}`;
+    const coaRes = await fetch(`${internalUrl}/api/wifi/radius`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
