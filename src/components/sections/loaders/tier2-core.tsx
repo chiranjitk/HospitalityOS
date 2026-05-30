@@ -20,6 +20,8 @@ export default async function loadCore(section: string): Promise<{ default: Reac
     case 'registration':
     case 'express':
     case 'kiosk':
+    case 'guest':
+    case 'key':
       return (await import('./load-frontdesk')).default(section);
     case 'revenue':
       return (await import('./load-revenue')).default(section);
