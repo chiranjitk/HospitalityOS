@@ -20,9 +20,9 @@ export async function GET(request: NextRequest) {
     const range = searchParams.get('range') || '24h';
     const resolution = searchParams.get('resolution');
 
-    // Handle live source — real-time snapshot from radacct
+    // Handle live source — real-time snapshot from radacct (tenant-isolated)
     if (source === 'live') {
-      return NextResponse.json(await getLiveSnapshot());
+      return NextResponse.json(await getLiveSnapshot(user.tenantId));
     }
 
     // Calculate start/end from range
@@ -74,8 +74,8 @@ export async function GET(request: NextRequest) {
         break;
 
       case 'aggregate': {
-        // Aggregate all active users' RRDs
-        return NextResponse.json(await getAggregateData(start, now, res || 300));
+        // Aggregate all active users' RRDs (tenant-isolated)
+        return NextResponse.json(await getAggregateData(start, now, res || 300, user.tenantId));
       }
 
       default:
@@ -121,12 +121,14 @@ export async function GET(request: NextRequest) {
 /**
  * Get aggregate data across all active users
  */
-async function getAggregateData(start: number, end: number, resolution: number) {
+async function getAggregateData(start: number, end: number, resolution: number, tenantId: string) {
   try {
-    // Get all usernames with active sessions
+    // Tenant isolation: radacct has no tenantId, JOIN WiFiUser to scope by tenant
     const rows: Array<{ username: string }> = await db.$queryRawUnsafe(`
-      SELECT DISTINCT username FROM radacct WHERE acctstoptime IS NULL
-    `);
+      SELECT DISTINCT r.username FROM radacct r
+      JOIN "WiFiUser" wu ON r.username = wu.username
+      WHERE r.acctstoptime IS NULL AND wu."tenantId" = $1::uuid
+    `, tenantId);
 
     const usernames = rows.map(r => r.username);
     if (usernames.length === 0) {
@@ -194,8 +196,9 @@ async function getAggregateData(start: number, end: number, resolution: number) 
 /**
  * Get live snapshot from radacct for real-time data
  */
-async function getLiveSnapshot() {
+async function getLiveSnapshot(tenantId: string) {
   try {
+    // Tenant isolation: radacct has no tenantId, JOIN WiFiUser to scope by tenant
     const rows: Array<{
       username: string;
       acctinputoctets: bigint | number;
@@ -206,17 +209,18 @@ async function getLiveSnapshot() {
       acctsessiontime: bigint | number;
     }> = await db.$queryRawUnsafe(`
       SELECT
-        username,
-        acctinputoctets,
-        acctoutputoctets,
-        framedipaddress,
-        callingstationid,
-        acctstarttime,
-        acctsessiontime
-      FROM radacct
-      WHERE acctstoptime IS NULL
-      ORDER BY acctinputoctets + acctoutputoctets DESC
-    `);
+        r.username,
+        r.acctinputoctets,
+        r.acctoutputoctets,
+        r.framedipaddress,
+        r.callingstationid,
+        r.acctstarttime,
+        r.acctsessiontime
+      FROM radacct r
+      JOIN "WiFiUser" wu ON r.username = wu.username
+      WHERE r.acctstoptime IS NULL AND wu."tenantId" = $1::uuid
+      ORDER BY r.acctinputoctets + r.acctoutputoctets DESC
+    `, tenantId);
 
     const totalIn = rows.reduce((s, r) => s + Number(r.acctinputoctets || 0), 0);
     const totalOut = rows.reduce((s, r) => s + Number(r.acctoutputoctets || 0), 0);

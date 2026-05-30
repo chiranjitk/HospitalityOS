@@ -14,6 +14,7 @@
  * DO NOT: Block check-in/check-out if WiFi provisioning fails
  */
 
+import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 import { wifiUserService } from './wifi-user-service';
 import {
@@ -176,19 +177,11 @@ class WiFiProvisioningService {
       const hasRadReply = existingUser.radReply && existingUser.radReply.length > 0;
 
       if (hasRadCheck && hasRadReply && existingUser.status === 'active') {
-        // Check if the user was JUST created by the direct provisioning (within last 30 seconds).
-        // The direct check-in routes call provisionWiFiForBooking() BEFORE emitting this event.
-        // If the user was recently created, skip to avoid duplicate provisioning.
-        const ageMs = Date.now() - new Date(existingUser.createdAt).getTime();
-        if (ageMs < 30000) {
-          console.log(`[WiFi Provisioning] WiFi user ${existingUser.username} was just created ${Math.round(ageMs)}ms ago by direct provisioning — skipping event-based provisioning`);
-          return;
-        }
-
-        // User exists but was NOT recently created — it's from a previous check-in.
-        // The direct provisioning already handles re-provisioning when format changes,
-        // so log and skip here to avoid double-provisioning.
-        console.log(`[WiFi Provisioning] WiFi user ${existingUser.username} already exists for booking ${event.bookingId} (age: ${Math.round(ageMs / 1000)}s). Skipping event-based provisioning — direct route handles this.`);
+        // User already fully provisioned for this booking — skip to prevent duplicate provisioning.
+        // NOTE: Previously used a 30-second age heuristic which was a race condition.
+        // Now we simply check bookingId existence: if the booking already has an active
+        // user with credentials, we skip regardless of age.
+        console.log(`[WiFi Provisioning] WiFi user ${existingUser.username} already exists for booking ${event.bookingId}. Skipping event-based provisioning — direct route handles this.`);
         return;
       }
 
@@ -286,37 +279,49 @@ class WiFiProvisioningService {
   }): Promise<WiFiProvisioningResult> {
     try {
       // ─────────────────────────────────────────────────────────────────────
-      // EXISTING USER CHECK — Always deprovision and re-provision on check-in
-      // to ensure the CURRENT credential policy is applied. If the admin
-      // changes the username format (e.g. from room_random to mobile), the
-      // next check-in must use the new format — not reuse an old username.
-      //
-      // The event handler (handleCheckIn) skips if the user was created within
-      // the last 30 seconds to avoid double-provisioning with the direct call.
+      // TRANSACTION: Existing user check + deprovision must be atomic to prevent
+      // race conditions when multiple requests arrive simultaneously (e.g.
+      // kiosk check-in + event handler both trigger provisioning). Serializable
+      // isolation ensures no concurrent provision can slip in between the check
+      // and the deprovision.
       // ─────────────────────────────────────────────────────────────────────
-      const existingUser = await wifiUserService.getUserByBooking(input.bookingId);
-      if (existingUser) {
-        const hasRadCheck = existingUser.radCheck && existingUser.radCheck.length > 0;
-        const hasRadReply = existingUser.radReply && existingUser.radReply.length > 0;
+      await db.$transaction(async (tx) => {
+        const existingUser = await tx.wiFiUser.findFirst({
+          where: { bookingId: input.bookingId, status: { in: ['active', 'suspended'] } },
+          include: {
+            radCheck: { where: { isActive: true } },
+            radReply: { where: { isActive: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
 
-        if (hasRadCheck && hasRadReply && existingUser.status === 'active') {
-          // Fully provisioned user exists — deprovision to apply current credential policy
-          console.log(`[WiFi Provisioning] Deprovisioning existing user ${existingUser.username} (created: ${existingUser.createdAt.toISOString()}) to apply current credential policy for booking ${input.bookingId}`);
-          try {
-            await wifiUserService.deprovisionUser(existingUser.id);
-          } catch (cleanupError) {
-            console.warn(`[WiFi Provisioning] Failed to deprovision existing user ${existingUser.id}:`, cleanupError);
-          }
-        } else {
-          // Ghost user — clean up before re-provisioning
-          console.log(`[WiFi Provisioning] Cleaning up ghost WiFi user ${existingUser.id} (radCheck: ${existingUser.radCheck?.length || 0}, radReply: ${existingUser.radReply?.length || 0}, status: ${existingUser.status})`);
-          try {
-            await wifiUserService.deprovisionUser(existingUser.id);
-          } catch (cleanupError) {
-            console.warn(`[WiFi Provisioning] Failed to clean up ghost user ${existingUser.id}:`, cleanupError);
+        if (existingUser) {
+          const hasRadCheck = existingUser.radCheck && existingUser.radCheck.length > 0;
+          const hasRadReply = existingUser.radReply && existingUser.radReply.length > 0;
+
+          if (hasRadCheck && hasRadReply && existingUser.status === 'active') {
+            // Fully provisioned user exists — deprovision to apply current credential policy
+            console.log(`[WiFi Provisioning] Deprovisioning existing user ${existingUser.username} (created: ${existingUser.createdAt.toISOString()}) to apply current credential policy for booking ${input.bookingId}`);
+            await tx.wiFiUser.update({
+              where: { id: existingUser.id },
+              data: { status: 'revoked', radiusSynced: true, radiusSyncedAt: new Date() },
+            });
+            await tx.radCheck.deleteMany({ where: { username: existingUser.username } });
+            await tx.radReply.deleteMany({ where: { username: existingUser.username } });
+            await tx.radUserGroup.deleteMany({ where: { username: existingUser.username } });
+          } else {
+            // Ghost user — clean up before re-provisioning
+            console.log(`[WiFi Provisioning] Cleaning up ghost WiFi user ${existingUser.id} (radCheck: ${existingUser.radCheck?.length || 0}, radReply: ${existingUser.radReply?.length || 0}, status: ${existingUser.status})`);
+            await tx.wiFiUser.update({
+              where: { id: existingUser.id },
+              data: { status: 'revoked', radiusSynced: true, radiusSyncedAt: new Date() },
+            });
+            await tx.radCheck.deleteMany({ where: { username: existingUser.username } });
+            await tx.radReply.deleteMany({ where: { username: existingUser.username } });
+            await tx.radUserGroup.deleteMany({ where: { username: existingUser.username } });
           }
         }
-      }
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
       // ─────────────────────────────────────────────────────────────────────
       // PLAN SELECTION — Priority Chain:

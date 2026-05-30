@@ -136,6 +136,16 @@ export async function POST(request: NextRequest) {
       duplicateUsernameAction,
     } = body;
 
+    // Validate passwordFixedValue minimum length
+    if (passwordFixedValue !== undefined && passwordFixedValue !== null) {
+      if (passwordFixedValue.length < 6) {
+        return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'passwordFixedValue must be at least 6 characters' } }, { status: 400 });
+      }
+    }
+
+    // Clamp passwordLength to minimum of 6
+    const effectivePasswordLength = Math.max(6, passwordLength || 8);
+
     // Validate tenantId — frontend may send 'default' which is not a real tenant ID
     // Always prefer the authenticated user's tenantId from context
     const resolvedTenantId = user.tenantId;
@@ -151,7 +161,7 @@ export async function POST(request: NextRequest) {
       sessionTimeoutPolicy, portalEnabled, portalTitle, portalLogo, portalTerms,
       portalRedirectUrl, portalBrandColor,
       usernameFormat, usernamePrefix, usernameCase, usernameMinLength, usernameMaxLength,
-      passwordFormat, passwordFixedValue, passwordLength, passwordIncludeUppercase,
+      passwordFormat, passwordFixedValue, passwordLength: effectivePasswordLength, passwordIncludeUppercase,
       passwordIncludeNumbers, passwordIncludeSymbols, credentialSeparator,
       credentialPrintOnVoucher, credentialShowInPortal, duplicateUsernameAction,
     };
@@ -193,7 +203,7 @@ export async function POST(request: NextRequest) {
         usernameMaxLength: usernameMaxLength || CREDENTIAL_DEFAULTS.usernameMaxLength,
         passwordFormat: passwordFormat || CREDENTIAL_DEFAULTS.passwordFormat,
         passwordFixedValue,
-        passwordLength: passwordLength || CREDENTIAL_DEFAULTS.passwordLength,
+        passwordLength: effectivePasswordLength,
         passwordIncludeUppercase: passwordIncludeUppercase ?? CREDENTIAL_DEFAULTS.passwordIncludeUppercase,
         passwordIncludeNumbers: passwordIncludeNumbers ?? CREDENTIAL_DEFAULTS.passwordIncludeNumbers,
         passwordIncludeSymbols: passwordIncludeSymbols ?? CREDENTIAL_DEFAULTS.passwordIncludeSymbols,

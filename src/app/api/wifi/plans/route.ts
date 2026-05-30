@@ -50,19 +50,36 @@ async function migrateStaleGroupNames() {
 }
 
 // ──────────────────────────────────────────────
+// Helper: safe parseInt with NaN guard
+// ──────────────────────────────────────────────
+function safeParseInt(val: unknown, fallback?: number): number | null {
+  const parsed = parseInt(String(val), 10);
+  if (isNaN(parsed)) return fallback !== undefined ? fallback : null;
+  return parsed;
+}
+
+function safeParseIntOrError(val: unknown): number {
+  const parsed = parseInt(String(val), 10);
+  if (isNaN(parsed)) {
+    throw new Error(`Invalid integer value: ${val}`);
+  }
+  return parsed;
+}
+
+// ──────────────────────────────────────────────
 // M-48: Zod validation schemas
 // ──────────────────────────────────────────────
 
 const createPlanSchema = z.object({
-  name: z.string().min(1, 'Plan name is required').max(100),
+  name: z.string().min(1, 'Plan name is required').max(100).regex(/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/, 'Plan name must start with alphanumeric and contain only letters, numbers, spaces, hyphens, underscores'),
   description: z.string().max(500).nullable().optional(),
-  downloadSpeed: z.number().positive('Download speed must be positive'),
-  uploadSpeed: z.number().positive('Upload speed must be positive'),
+  downloadSpeed: z.number().int().min(64).max(104857600, 'Download speed must be between 64 Kbps and 100 Gbps'),
+  uploadSpeed: z.number().int().min(64).max(104857600, 'Upload speed must be between 64 Kbps and 100 Gbps'),
   burstDownloadSpeed: z.number().positive().optional(),
   burstUploadSpeed: z.number().positive().optional(),
-  dataLimit: z.number().int().min(0).nullable().optional(),
+  dataLimit: z.number().int().min(0).max(1099511627776, 'Data limit must be between 0 and 1 TB').nullable().optional(),
   sessionLimit: z.number().int().min(0).nullable().optional(),
-  maxDevices: z.number().int().min(1).max(100).optional().default(1),
+  maxDevices: z.number().int().min(1).max(50, 'Max devices must be between 1 and 50').optional().default(1),
   fupPolicyId: z.string().optional(),
   ipPoolId: z.string().optional(),
   ipPoolIds: z.array(z.object({
@@ -73,23 +90,23 @@ const createPlanSchema = z.object({
   currency: z.string().min(3).max(3).optional().default('USD'),
   priority: z.number().int().optional().default(0),
   validityDays: z.number().int().min(1).optional().default(1),
-  validityMinutes: z.number().int().min(1).optional().default(1440),
-  sessionTimeoutSec: z.number().int().min(0).optional(),
-  idleTimeoutSec: z.number().int().min(0).optional(),
+  validityMinutes: z.number().int().min(1).max(43200, 'Validity minutes must be between 1 and 43200 (30 days)').optional().default(1440),
+  sessionTimeoutSec: z.number().int().min(60, 'Session timeout must be at least 60 seconds').max(86400, 'Session timeout must be at most 86400 seconds (24h)').optional(),
+  idleTimeoutSec: z.number().int().min(30, 'Idle timeout must be at least 30 seconds').max(86400, 'Idle timeout must be at most 86400 seconds (24h)').optional(),
   status: z.enum(['active', 'inactive']).optional().default('active'),
 });
 
 const updatePlanSchema = z.object({
   id: z.string().min(1, 'Plan id is required'),
-  name: z.string().min(1).max(100).optional(),
+  name: z.string().min(1).max(100).regex(/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/, 'Plan name must start with alphanumeric and contain only letters, numbers, spaces, hyphens, underscores').optional(),
   description: z.string().max(500).nullable().optional(),
-  downloadSpeed: z.number().positive().optional(),
-  uploadSpeed: z.number().positive().optional(),
+  downloadSpeed: z.number().int().min(64).max(104857600, 'Download speed must be between 64 Kbps and 100 Gbps').optional(),
+  uploadSpeed: z.number().int().min(64).max(104857600, 'Upload speed must be between 64 Kbps and 100 Gbps').optional(),
   burstDownloadSpeed: z.number().positive().nullable().optional(),
   burstUploadSpeed: z.number().positive().nullable().optional(),
-  dataLimit: z.number().int().min(0).nullable().optional(),
+  dataLimit: z.number().int().min(0).max(1099511627776, 'Data limit must be between 0 and 1 TB').nullable().optional(),
   sessionLimit: z.number().int().min(0).nullable().optional(),
-  maxDevices: z.number().int().min(1).max(100).optional(),
+  maxDevices: z.number().int().min(1).max(50, 'Max devices must be between 1 and 50').optional(),
   fupPolicyId: z.string().nullable().optional(),
   ipPoolId: z.string().nullable().optional(),
   ipPoolIds: z.array(z.object({
@@ -100,10 +117,10 @@ const updatePlanSchema = z.object({
   currency: z.string().min(3).max(3).optional(),
   priority: z.number().int().optional(),
   validityDays: z.number().int().min(1).optional(),
-  validityMinutes: z.number().int().min(1).optional(),
-  sessionTimeoutSec: z.number().int().min(0).nullable().optional(),
-  idleTimeoutSec: z.number().int().min(0).nullable().optional(),
-  status: z.string().optional(),
+  validityMinutes: z.number().int().min(1).max(43200, 'Validity minutes must be between 1 and 43200 (30 days)').optional(),
+  sessionTimeoutSec: z.number().int().min(60, 'Session timeout must be at least 60 seconds').max(86400, 'Session timeout must be at most 86400 seconds (24h)').nullable().optional(),
+  idleTimeoutSec: z.number().int().min(30, 'Idle timeout must be at least 30 seconds').max(86400, 'Idle timeout must be at most 86400 seconds (24h)').nullable().optional(),
+  status: z.enum(['active', 'inactive']).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -162,8 +179,8 @@ export async function GET(request: NextRequest) {
         { priority: 'desc' },
         { createdAt: 'desc' },
       ],
-      ...(limit && { take: parseInt(limit, 10) }),
-      ...(offset && { skip: parseInt(offset, 10) }),
+      ...(limit && { take: safeParseInt(limit, undefined) ?? undefined }),
+      ...(offset && { skip: safeParseInt(offset, undefined) ?? undefined }),
     });
 
     const total = await db.wiFiPlan.count({ where });
@@ -193,8 +210,8 @@ export async function GET(request: NextRequest) {
       data: plans,
       pagination: {
         total,
-        limit: limit ? parseInt(limit, 10) : null,
-        offset: offset ? parseInt(offset, 10) : null,
+        limit: limit ? safeParseInt(limit) : null,
+        offset: offset ? safeParseInt(offset) : null,
       },
       summary: {
         totalPlans: total,
@@ -253,9 +270,17 @@ export async function POST(request: NextRequest) {
       status = 'active',
     } = parsed.data;
 
-    // Sanitize validity values
-    const sanitizedValidityDays = Math.max(1, parseInt(validityDays, 10) || 1);
-    const sanitizedValidityMinutes = Math.max(1, parseInt(String(validityMinutes), 10) || 1440);
+    // Sanitize validity values with NaN guard
+    const parsedValidityDays = safeParseInt(validityDays, 1);
+    if (parsedValidityDays === null) {
+      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid validityDays value' } }, { status: 400 });
+    }
+    const sanitizedValidityDays = Math.max(1, parsedValidityDays);
+    const parsedValidityMinutes = safeParseInt(validityMinutes, 1440);
+    if (parsedValidityMinutes === null) {
+      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid validityMinutes value' } }, { status: 400 });
+    }
+    const sanitizedValidityMinutes = Math.max(1, parsedValidityMinutes);
 
     // Check for duplicate name
     const existingPlan = await db.wiFiPlan.findFirst({
@@ -274,22 +299,24 @@ export async function POST(request: NextRequest) {
 
     // Unify maxDevices and sessionLimit: if sessionLimit not explicitly provided,
     // use maxDevices as the RADIUS Simultaneous-Use value.
-    const effectiveSessionLimit = sessionLimit
-      ? parseInt(sessionLimit, 10)
-      : parseInt(maxDevices, 10);
+    const parsedSessionLimit = safeParseInt(sessionLimit);
+    const parsedMaxDevices = safeParseInt(maxDevices, 1);
+    const effectiveSessionLimit = parsedSessionLimit !== null
+      ? parsedSessionLimit
+      : parsedMaxDevices !== null ? parsedMaxDevices : 1;
 
     const plan = await db.wiFiPlan.create({
       data: {
         tenantId,
         name,
         description,
-        downloadSpeed: parseInt(downloadSpeed, 10),
-        uploadSpeed: parseInt(uploadSpeed, 10),
-        burstDownloadSpeed: burstDownloadSpeed ? parseInt(burstDownloadSpeed, 10) : null,
-        burstUploadSpeed: burstUploadSpeed ? parseInt(burstUploadSpeed, 10) : null,
-        dataLimit: dataLimit ? parseInt(dataLimit, 10) : null,
+        downloadSpeed: safeParseIntOrError(downloadSpeed),
+        uploadSpeed: safeParseIntOrError(uploadSpeed),
+        burstDownloadSpeed: burstDownloadSpeed ? safeParseInt(burstDownloadSpeed) : null,
+        burstUploadSpeed: burstUploadSpeed ? safeParseInt(burstUploadSpeed) : null,
+        dataLimit: dataLimit ? safeParseInt(dataLimit) : null,
         sessionLimit: effectiveSessionLimit,
-        maxDevices: parseInt(maxDevices, 10),
+        maxDevices: safeParseIntOrError(maxDevices),
         ...(fupPolicyId && { fupPolicyId }),
         ...(ipPoolId && { ipPoolId }),
         ...(ipPoolIds?.length && {
@@ -302,11 +329,11 @@ export async function POST(request: NextRequest) {
         }),
         price: parseFloat(price),
         currency,
-        priority: parseInt(priority, 10),
+        priority: safeParseIntOrError(priority),
         validityDays: sanitizedValidityDays,
         validityMinutes: sanitizedValidityMinutes,
-        ...(sessionTimeoutSec !== undefined && { sessionTimeoutSec: parseInt(sessionTimeoutSec, 10) || null }),
-        ...(idleTimeoutSec !== undefined && { idleTimeoutSec: parseInt(idleTimeoutSec, 10) || null }),
+        ...(sessionTimeoutSec !== undefined && { sessionTimeoutSec: safeParseInt(sessionTimeoutSec) }),
+        ...(idleTimeoutSec !== undefined && { idleTimeoutSec: safeParseInt(idleTimeoutSec) }),
         status,
       },
       include: {
@@ -401,25 +428,25 @@ export async function PUT(request: NextRequest) {
       data: {
         ...(updateData.name && { name: updateData.name }),
         ...(updateData.description !== undefined && { description: updateData.description }),
-        ...(updateData.downloadSpeed !== undefined && { downloadSpeed: parseInt(updateData.downloadSpeed, 10) }),
-        ...(updateData.uploadSpeed !== undefined && { uploadSpeed: parseInt(updateData.uploadSpeed, 10) }),
-        ...(updateData.burstDownloadSpeed !== undefined && { burstDownloadSpeed: updateData.burstDownloadSpeed ? parseInt(updateData.burstDownloadSpeed, 10) : null }),
-        ...(updateData.burstUploadSpeed !== undefined && { burstUploadSpeed: updateData.burstUploadSpeed ? parseInt(updateData.burstUploadSpeed, 10) : null }),
-        ...(updateData.dataLimit !== undefined && { dataLimit: updateData.dataLimit ? parseInt(updateData.dataLimit, 10) : null }),
-        ...(updateData.sessionLimit !== undefined && { sessionLimit: updateData.sessionLimit ? parseInt(updateData.sessionLimit, 10) : null }),
-        ...(updateData.maxDevices !== undefined && { maxDevices: parseInt(updateData.maxDevices, 10) }),
+        ...(updateData.downloadSpeed !== undefined && { downloadSpeed: safeParseIntOrError(updateData.downloadSpeed) }),
+        ...(updateData.uploadSpeed !== undefined && { uploadSpeed: safeParseIntOrError(updateData.uploadSpeed) }),
+        ...(updateData.burstDownloadSpeed !== undefined && { burstDownloadSpeed: updateData.burstDownloadSpeed ? safeParseInt(updateData.burstDownloadSpeed) : null }),
+        ...(updateData.burstUploadSpeed !== undefined && { burstUploadSpeed: updateData.burstUploadSpeed ? safeParseInt(updateData.burstUploadSpeed) : null }),
+        ...(updateData.dataLimit !== undefined && { dataLimit: updateData.dataLimit ? safeParseInt(updateData.dataLimit) : null }),
+        ...(updateData.sessionLimit !== undefined && { sessionLimit: updateData.sessionLimit ? safeParseInt(updateData.sessionLimit) : null }),
+        ...(updateData.maxDevices !== undefined && { maxDevices: safeParseIntOrError(updateData.maxDevices) }),
         // Auto-sync: if maxDevices changed but sessionLimit wasn't explicitly provided,
         // update sessionLimit to match maxDevices (keeps app-level and RADIUS in sync)
-        ...(updateData.maxDevices !== undefined && updateData.sessionLimit === undefined && { sessionLimit: parseInt(updateData.maxDevices, 10) }),
+        ...(updateData.maxDevices !== undefined && updateData.sessionLimit === undefined && { sessionLimit: safeParseIntOrError(updateData.maxDevices) }),
         ...(updateData.fupPolicyId !== undefined && { fupPolicyId: updateData.fupPolicyId || null }),
         ...(updateData.ipPoolId !== undefined && { ipPoolId: updateData.ipPoolId || null }),
         ...(updateData.price !== undefined && { price: parseFloat(updateData.price) }),
         ...(updateData.currency && { currency: updateData.currency }),
-        ...(updateData.priority !== undefined && { priority: parseInt(updateData.priority, 10) }),
-        ...(updateData.validityDays !== undefined && { validityDays: Math.max(1, parseInt(updateData.validityDays, 10) || 1) }),
-        ...(updateData.validityMinutes !== undefined && { validityMinutes: Math.max(1, parseInt(updateData.validityMinutes, 10) || 1440) }),
-        ...(updateData.sessionTimeoutSec !== undefined && { sessionTimeoutSec: updateData.sessionTimeoutSec ? parseInt(updateData.sessionTimeoutSec, 10) : null }),
-        ...(updateData.idleTimeoutSec !== undefined && { idleTimeoutSec: updateData.idleTimeoutSec ? parseInt(updateData.idleTimeoutSec, 10) : null }),
+        ...(updateData.priority !== undefined && { priority: safeParseIntOrError(updateData.priority) }),
+        ...(updateData.validityDays !== undefined && { validityDays: Math.max(1, safeParseInt(updateData.validityDays, 1) ?? 1) }),
+        ...(updateData.validityMinutes !== undefined && { validityMinutes: Math.max(1, safeParseInt(updateData.validityMinutes, 1440) ?? 1440) }),
+        ...(updateData.sessionTimeoutSec !== undefined && { sessionTimeoutSec: updateData.sessionTimeoutSec ? safeParseInt(updateData.sessionTimeoutSec) : null }),
+        ...(updateData.idleTimeoutSec !== undefined && { idleTimeoutSec: updateData.idleTimeoutSec ? safeParseInt(updateData.idleTimeoutSec) : null }),
         ...(updateData.status && { status: updateData.status }),
       },
     });
@@ -646,7 +673,7 @@ export async function PUT(request: NextRequest) {
     // Sync idle timeout to existing users on this plan if it changed
     if (updateData.idleTimeoutSec !== undefined) {
       try {
-        const newIdleTimeout = updateData.idleTimeoutSec ? parseInt(updateData.idleTimeoutSec, 10) : 0;
+        const newIdleTimeout = updateData.idleTimeoutSec ? safeParseInt(updateData.idleTimeoutSec, 0) ?? 0 : 0;
         // Find all active WiFiUsers on this plan
         const usersOnPlan = await db.wiFiUser.findMany({
           where: { planId: id, status: 'active' },
