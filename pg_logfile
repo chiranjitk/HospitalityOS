@@ -60,3 +60,4 @@
 2026-05-30 12:48:08.447 UTC [2294] ERROR:  permission denied to set parameter "session_replication_role"
 2026-05-30 12:48:08.447 UTC [2294] STATEMENT:  SET session_replication_role = DEFAULT;
 2026-05-30 12:48:54.730 UTC [1377] LOG:  checkpoint starting: time
+2026-05-30 12:53:24.079 UTC [1377] LOG:  checkpoint complete: wrote 6629 buffers (40.5%); 0 WAL file(s) added, 0 removed, 1 recycled; write=269.277 s, sync=0.070 s, total=269.349 s; sync files=4007, longest=0.006 s, average=0.001 s; distance=25629 kB, estimate=25629 kB; lsn=0/2DF6A18, redo lsn=0/2DF3D98
