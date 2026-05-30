@@ -741,13 +741,13 @@ export async function POST(request: NextRequest) {
       try {
         const propertyWithSettings = await tx.property.findUnique({
           where: { id: propertyId },
-          select: { settings: true },
+          select: { id: true, noShowSettings: true },
         });
-        // Parse property settings for deposit policy
+        // Parse property noShowSettings for deposit policy (if available)
         let depositPercent = 0;
-        if (propertyWithSettings?.settings) {
+        if (propertyWithSettings?.noShowSettings) {
           try {
-            const settings = JSON.parse(propertyWithSettings.settings as string);
+            const settings = JSON.parse(propertyWithSettings.noShowSettings as string);
             depositPercent = settings?.depositPolicy?.percentage || 0;
           } catch { /* ignore parse error */ }
         }

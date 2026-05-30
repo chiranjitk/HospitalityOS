@@ -559,8 +559,6 @@ export default function WalkIn() {
           fees: serviceCharge,
           currency: selectedProperty?.currency || 'INR',
           source: 'walk_in',
-          status: 'checked_in',
-          actualCheckIn: new Date().toISOString(),
           specialRequests: bookingForm.specialRequests || undefined,
         }),
       });
