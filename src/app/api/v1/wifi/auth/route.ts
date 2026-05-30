@@ -3192,9 +3192,263 @@ export async function POST(request: NextRequest) {
         }
 
         const macNormalized = effectiveMac.toLowerCase().replace(/[:-]/g, '');
+        const macFormatted = effectiveMac.toUpperCase().replace(/[:\-\.]/g, '').replace(/(.{2})(?=.)/g, '$1:').slice(0, 17); // AA:BB:CC:DD:EE:FF
         const now = new Date();
 
-        // Strategy 1: Look up existing DeviceProfile (previously authenticated device with autoAuth)
+        // Strategy 1: Look up RadiusMacAuth (admin MAC whitelist — primary source of truth)
+        const macAuthEntry = portal?.propertyId
+          ? await db.radiusMacAuth.findFirst({
+              where: {
+                propertyId: portal.propertyId,
+                status: 'active',
+                OR: [
+                  { macAddress: { equals: macFormatted } },
+                  { macAddress: { contains: effectiveMac } },
+                  { macAddress: { equals: effectiveMac.toUpperCase() } },
+                  { macAddress: { equals: effectiveMac.toLowerCase() } },
+                ],
+              },
+            })
+          : null;
+
+        if (macAuthEntry) {
+          // Check validity
+          if (macAuthEntry.validUntil && macAuthEntry.validUntil < now) {
+            await logAuthAttempt(`mac-${macNormalized}`, 'Access-Reject', request, 'MAC_EXPIRED');
+            return errorResponse('MAC_EXPIRED', 'Your device MAC registration has expired. Please contact the front desk to renew.');
+          }
+
+          // Resolve plan details from RadiusMacAuth entry
+          let macPlanId = macAuthEntry.planId || null;
+          let macPlanName: string | null = null;
+          let macPlanMaxDevices = 1;
+          let macPlanDnKbps = (macAuthEntry.bandwidthDown || bwDown) * 1000;
+          let macPlanUpKbps = (macAuthEntry.bandwidthUp || bwUp) * 1000;
+          let macSessionTimeoutSec = macAuthEntry.sessionTimeout || portalSessionTimeoutMin * 60;
+          let macDataLimitMB = macAuthEntry.dataLimitMB ?? undefined;
+
+          if (macPlanId) {
+            try {
+              const plan = await db.wiFiPlan.findUnique({
+                where: { id: macPlanId },
+                select: { name: true, maxDevices: true, downloadSpeed: true, uploadSpeed: true, dataLimit: true, sessionTimeoutSec: true, validityMinutes: true, validityDays: true },
+              });
+              if (plan) {
+                macPlanName = plan.name;
+                macPlanMaxDevices = plan.maxDevices || 1;
+                if (!macAuthEntry.bandwidthDown) macPlanDnKbps = plan.downloadSpeed * 1000;
+                if (!macAuthEntry.bandwidthUp) macPlanUpKbps = plan.uploadSpeed * 1000;
+                if (!macAuthEntry.sessionTimeout) macSessionTimeoutSec = plan.sessionTimeoutSec || 0;
+                if (macDataLimitMB === undefined) macDataLimitMB = plan.dataLimit ?? undefined;
+              }
+            } catch { /* best effort */ }
+          }
+
+          // Create or reuse WiFiUser for this MAC
+          const macUsername = `mac-${macNormalized}`;
+          const macPassword = `__mac__${Date.now()}`;
+          const macValidDays = macAuthEntry.validUntil
+            ? Math.max(1, Math.ceil((macAuthEntry.validUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+            : 30;
+          const macValidUntil = macAuthEntry.validUntil || new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+          const macSessionTimeoutMin = Math.floor(macSessionTimeoutSec / 60) || portalSessionTimeoutMin;
+
+          try {
+            // Check concurrent session limit
+            const macSessionCheck = await isSessionLimitReached(macUsername, macPlanMaxDevices);
+            if (macSessionCheck.limitReached) {
+              await logAuthAttempt(macUsername, 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
+              return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
+            }
+
+            // Upsert WiFiUser
+            const existingMacUser = await db.wiFiUser.findUnique({ where: { username: macUsername } });
+            if (existingMacUser) {
+              await db.wiFiUser.update({
+                where: { id: existingMacUser.id },
+                data: {
+                  status: 'active',
+                  userType: 'mac_auth',
+                  validFrom: now,
+                  validUntil: macValidUntil,
+                  maxSessions: macPlanMaxDevices,
+                  planId: macPlanId || undefined,
+                  radiusSynced: true,
+                  radiusSyncedAt: now,
+                },
+              });
+            } else {
+              await provisionOrResumeUser(macUsername, now, macValidUntil, {
+                tenantId: portal.tenantId || macAuthEntry.propertyId,
+                propertyId: portal.propertyId || macAuthEntry.propertyId,
+                username: macUsername,
+                password: macPassword,
+                planId: macPlanId || undefined,
+                planName: macPlanName || undefined,
+                downloadSpeed: macPlanDnKbps / 1000,
+                uploadSpeed: macPlanUpKbps / 1000,
+                sessionTimeoutMinutes: macSessionTimeoutMin,
+                sessionLimit: macPlanMaxDevices,
+                dataLimit: macDataLimitMB,
+              });
+              // provisionOrResumeUser doesn't set maxSessions — fix it here
+              await db.wiFiUser.update({
+                where: { username: macUsername },
+                data: { maxSessions: macPlanMaxDevices },
+              }).catch(() => {});
+            }
+
+            // Ensure RadUserGroup exists (maps user to plan group for RADIUS attrs)
+            if (macPlanName) {
+              const groupName = macPlanName.toLowerCase().replace(/\s+/g, '_');
+              const existingGroup = await db.radusergroup.findFirst({ where: { username: macUsername } });
+              if (!existingGroup || existingGroup.groupname !== groupName) {
+                if (existingGroup) {
+                  await db.radusergroup.delete({ where: { id: existingGroup.id } }).catch(() => {});
+                }
+                await db.radusergroup.create({
+                  data: { username: macUsername, groupname: groupName, priority: 0 },
+                }).catch(() => {});
+              }
+            }
+
+            // Ensure RadCheck exists (password might differ after reprovision)
+            const existingCheck = await db.radCheck.findFirst({ where: { username: macUsername } });
+            if (!existingCheck) {
+              await db.radCheck.create({
+                data: { wifiUserId: existingMacUser?.id, username: macUsername, attribute: 'Cleartext-Password', op: ':=', value: macPassword, isActive: true },
+              }).catch(() => {});
+            }
+          } catch (macDbErr) {
+            console.error('[Auth:MAC] WiFiUser provision failed:', macDbErr);
+          }
+
+          // Update RadiusMacAuth lastSeen and loginCount
+          await db.radiusMacAuth.update({
+            where: { id: macAuthEntry.id },
+            data: { lastSeenAt: now, loginCount: { increment: 1 } },
+          }).catch(() => {});
+
+          // Create/update DeviceProfile for future auto-auth
+          try {
+            // Resolve wifiUserId — look up the WiFiUser we just created
+            const macWifiUser = await db.wiFiUser.findUnique({ where: { username: macUsername }, select: { id: true } });
+            const macWifiUserId = macWifiUser?.id || existingMacUser?.id;
+            if (macWifiUserId) {
+            await db.deviceProfile.upsert({
+              where: {
+                fingerprintHash_propertyId: {
+                  fingerprintHash: `mac-${macNormalized}`,
+                  propertyId: portal.propertyId || macAuthEntry.propertyId,
+                },
+              },
+              update: {
+                macAddress: effectiveMac,
+                ipAddress: getClientIpString(request),
+                lastAuthAt: now,
+                authCount: { increment: 1 },
+                isActive: true,
+                deviceName: macAuthEntry.guestName || 'MAC Authenticated Device',
+                deviceType: 'unknown',
+              },
+              create: {
+                tenantId: portal.tenantId || macAuthEntry.propertyId,
+                propertyId: portal.propertyId || macAuthEntry.propertyId,
+                wifiUserId: macWifiUserId,
+                macAddress: effectiveMac,
+                fingerprintHash: `mac-${macNormalized}`,
+                storageToken: `mac-${macNormalized}`,
+                ipAddress: getClientIpString(request),
+                lastAuthAt: now,
+                deviceName: macAuthEntry.guestName || 'MAC Authenticated Device',
+                deviceType: 'unknown',
+                authCount: 1,
+                isActive: true,
+              },
+            });
+            }
+          } catch (dpErr) {
+            console.warn('[Auth:MAC] DeviceProfile upsert failed (non-critical):', dpErr);
+          }
+
+          // Log successful auth
+          await logAuthAttempt(macUsername, 'Access-Accept', request, 'MAC_WHITELIST_AUTH');
+          logIdentityVerification({
+            tenantId: portal.tenantId || macAuthEntry.propertyId,
+            propertyId: portal.propertyId || macAuthEntry.propertyId,
+            sessionId: null,
+            username: macUsername,
+            verificationMethod: 'mac_auth',
+            verifiedIdentity: effectiveMac,
+            verificationStatus: 'verified',
+            ipAddress: getClientIpString(request),
+            macAddress: effectiveMac,
+          });
+
+          // Create RadiusAuthLog
+          try {
+            await db.radiusAuthLog.create({
+              data: {
+                propertyId: portal.propertyId || macAuthEntry.propertyId,
+                username: macUsername,
+                authResult: 'Access-Accept',
+                authType: 'MAC',
+                replyMessage: `MAC whitelist auth — plan: ${macPlanName || 'default'}`,
+                timestamp: now,
+              },
+            });
+          } catch { /* best effort */ }
+
+          // RADIUS + Firewall
+          const macSessionId = `mac_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          try {
+            await radiusAuth(macUsername, macPassword, getClientIpString(request), macSessionId);
+            const localNas = getLocalNasConfig();
+            if (localNas.enabled) {
+              await runLoginScript({
+                username: macUsername,
+                clientIp: getClientIpString(request),
+                clientMac: effectiveMac,
+                deviceType: 'unknown',
+                sessionId: macSessionId,
+                sessionTimeout: Math.min(macSessionTimeoutMin, 43200),
+                bandwidthDown: macPlanDnKbps / 1000,
+                bandwidthUp: macPlanUpKbps / 1000,
+              } as LoginScriptParams);
+            }
+          } catch (radiusErr) {
+            console.warn('[Auth:MAC] RADIUS/firewall failed (non-critical):', radiusErr);
+          }
+
+          // Accounting session
+          try {
+            await createAccountingSession(macUsername, request, 'mac_auth');
+          } catch { /* best effort */ }
+
+          const remainingMin = macValidUntil
+            ? Math.round((macValidUntil.getTime() - now.getTime()) / 60000)
+            : macSessionTimeoutMin;
+
+          resetRateLimit(clientRateLimitIp);
+          return successResponse(
+            {
+              authenticated: true,
+              method: 'mac_auth',
+              username: macUsername,
+              sessionTimeout: Math.min(remainingMin, macSessionTimeoutMin),
+              bandwidthDown: macPlanDnKbps / 1000,
+              bandwidthUp: macPlanUpKbps / 1000,
+              dataLimitMB: macDataLimitMB ?? undefined,
+              message: 'Device authenticated via registered MAC address',
+              sessionId: macSessionId,
+              guestId: macAuthEntry.guestId || undefined,
+            },
+            { username: macUsername, password: macPassword },
+            externalGateway
+          );
+        }
+
+        // Strategy 2: Look up existing DeviceProfile (previously authenticated device with autoAuth)
         const existingProfile = portal?.propertyId
           ? await db.deviceProfile.findFirst({
               where: {
@@ -3282,7 +3536,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Strategy 2: Look up WiFiDevice (admin-registered device with autoAuth enabled)
+        // Strategy 3: Look up WiFiDevice (admin-registered device with autoAuth enabled)
         const wifiDevice = portal?.propertyId
           ? await db.wiFiDevice.findFirst({
               where: {
