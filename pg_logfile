@@ -1,2 +1,62 @@
 2026-05-14 01:52:33 UTC [22864]: @ FATAL:  lock file "postmaster.pid" already exists
 2026-05-14 01:52:33 UTC [22864]: @ HINT:  Is another postmaster (PID 6657) running in data directory "/home/z/my-project/pgsql-runtime/data"?
+2026-05-30 12:43:54.624 UTC [1376] LOG:  starting PostgreSQL 17.4 on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2026-05-30 12:43:54.624 UTC [1376] LOG:  listening on IPv6 address "::1", port 5432
+2026-05-30 12:43:54.624 UTC [1376] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2026-05-30 12:43:54.625 UTC [1376] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2026-05-30 12:43:54.626 UTC [1379] LOG:  database system was shut down at 2026-05-30 12:43:46 UTC
+2026-05-30 12:43:54.627 UTC [1376] LOG:  database system is ready to accept connections
+2026-05-30 12:44:30.634 UTC [1483] FATAL:  no PostgreSQL user name specified in startup packet
+2026-05-30 12:44:30.635 UTC [1484] FATAL:  no PostgreSQL user name specified in startup packet
+2026-05-30 12:44:47.274 UTC [1583] ERROR:  type "citext" does not exist at character 151
+2026-05-30 12:44:47.274 UTC [1583] STATEMENT:  CREATE TABLE "Guest" (
+	    "id" UUID NOT NULL,
+	    "tenantId" UUID NOT NULL,
+	    "firstName" TEXT NOT NULL,
+	    "lastName" TEXT NOT NULL,
+	    "email" CITEXT,
+	    "phone" TEXT,
+	    "alternatePhone" TEXT,
+	    "nationality" TEXT,
+	    "dateOfBirth" TIMESTAMPTZ,
+	    "gender" TEXT,
+	    "idType" TEXT,
+	    "idNumber" TEXT,
+	    "idExpiry" TIMESTAMPTZ,
+	    "idCountry" TEXT,
+	    "address" TEXT,
+	    "city" TEXT,
+	    "state" TEXT,
+	    "country" TEXT,
+	    "postalCode" TEXT,
+	    "preferences" TEXT NOT NULL DEFAULT '{}',
+	    "dietaryRequirements" TEXT,
+	    "specialRequests" TEXT,
+	    "avatar" TEXT,
+	    "notes" TEXT,
+	    "tags" TEXT NOT NULL DEFAULT '[]',
+	    "loyaltyTier" TEXT NOT NULL DEFAULT 'bronze',
+	    "loyaltyPoints" INTEGER NOT NULL DEFAULT 0,
+	    "totalStays" INTEGER NOT NULL DEFAULT 0,
+	    "totalSpent" DOUBLE PRECISION NOT NULL DEFAULT 0,
+	    "creditLimit" DOUBLE PRECISION NOT NULL DEFAULT 0,
+	    "isVip" BOOLEAN NOT NULL DEFAULT false,
+	    "vipLevel" TEXT,
+	    "source" TEXT NOT NULL DEFAULT 'direct',
+	    "sourceId" UUID,
+	    "emailOptIn" BOOLEAN NOT NULL DEFAULT false,
+	    "smsOptIn" BOOLEAN NOT NULL DEFAULT false,
+	    "status" TEXT NOT NULL DEFAULT 'active',
+	    "kycStatus" TEXT NOT NULL DEFAULT 'pending',
+	    "kycVerifiedAt" TIMESTAMPTZ,
+	    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	    "updatedAt" TIMESTAMPTZ NOT NULL,
+	    "deletedAt" TIMESTAMPTZ,
+	
+	    CONSTRAINT "Guest_pkey" PRIMARY KEY ("id")
+	)
+2026-05-30 12:48:08.433 UTC [2294] ERROR:  permission denied to set parameter "session_replication_role"
+2026-05-30 12:48:08.433 UTC [2294] STATEMENT:  SET session_replication_role = replica;
+2026-05-30 12:48:08.447 UTC [2294] ERROR:  permission denied to set parameter "session_replication_role"
+2026-05-30 12:48:08.447 UTC [2294] STATEMENT:  SET session_replication_role = DEFAULT;
+2026-05-30 12:48:54.730 UTC [1377] LOG:  checkpoint starting: time
