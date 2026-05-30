@@ -175,6 +175,9 @@ export function getRejectMessage(code: string): string {
     INVALID_CREDENTIALS: 'Authentication failed. Please verify your credentials and try again.',
     RADIUS_UNREACHABLE: 'Network authentication service is temporarily unavailable. Please try again.',
     AUTH_FAILED: 'Authentication failed. Please try again or contact front desk.',
+    MAC_NOT_REGISTERED_FOR_USER: 'This device MAC is not registered for your account. Please contact front desk to register your device.',
+    MAC_NOT_REGISTERED: 'This MAC address is not registered in the system whitelist.',
+    MAC_NOT_ALLOWED: 'This device is not authorized. Please contact front desk to register your device.',
   };
   return messages[code] || messages.AUTH_FAILED;
 }

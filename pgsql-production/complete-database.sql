@@ -572,6 +572,23 @@ SELECT pa.id::text AS id,
                 'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
                 COALESCE(' — user: '::text || pa.username, ''::text) ||
                 COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text)
+            WHEN pa.pass LIKE 'MAC_%%'::text THEN
+                CASE
+                    WHEN pa.pass = 'MAC_NOT_REGISTERED_FOR_USER'::text THEN
+                        'Rejected — MAC address not registered for this account'::text ||
+                        COALESCE(' — user: '::text || pa.username, ''::text) ||
+                        COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text) ||
+                        COALESCE(' — MAC: '::text || pa.callingstationid, ''::text)
+                    WHEN pa.pass = 'MAC_NOT_REGISTERED'::text THEN
+                        'Rejected — MAC address not in whitelist'::text ||
+                        COALESCE(' — user: '::text || pa.username, ''::text) ||
+                        COALESCE(' — MAC: '::text || pa.callingstationid, ''::text)
+                    ELSE
+                        'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
+                        COALESCE(' — user: '::text || pa.username, ''::text) ||
+                        COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text) ||
+                        COALESCE(' — MAC: '::text || pa.callingstationid, ''::text)
+                END
             WHEN pa.pass LIKE 'INVALID_%%'::text OR pa.pass LIKE 'MISSING_%%'::text OR pa.pass LIKE 'VOUCHER_%%'::text OR pa.pass LIKE 'AUTH_%%'::text THEN
                 'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
                 COALESCE(' — user: '::text || pa.username, ''::text) ||

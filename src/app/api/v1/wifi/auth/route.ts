@@ -1529,7 +1529,7 @@ export async function POST(request: NextRequest) {
               const macRegistered = await isMacRegisteredForUser(voucherWifiUser.id, effectiveMac);
               if (!macRegistered) {
                 console.warn(`[Auth:MAC] MAC ${effectiveMac} not registered for user ${wifiUsername} — rejecting`);
-                await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER');
+                await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER', effectiveMac);
                 return errorResponse('MAC_NOT_REGISTERED', 'This device is not registered for your account. Please contact the front desk to register your device.');
               }
             }
@@ -1773,7 +1773,7 @@ export async function POST(request: NextRequest) {
               const macRegistered = await isMacRegisteredForUser(pmsUser.id, effectiveMac);
               if (!macRegistered) {
                 console.warn(`[Auth:MAC] MAC ${effectiveMac} not registered for user ${pmsUser.username} — rejecting`);
-                await logAuthAttempt(pmsUser.username, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER');
+                await logAuthAttempt(pmsUser.username, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER', effectiveMac);
                 return errorResponse('MAC_NOT_REGISTERED', 'This device is not registered for your account. Please contact the front desk to register your device.');
               }
             }
@@ -1965,7 +1965,7 @@ export async function POST(request: NextRequest) {
               const macRegistered = await isMacRegisteredForUser(roomFallbackWifiUser.id, effectiveMac);
               if (!macRegistered) {
                 console.warn(`[Auth:MAC] MAC ${effectiveMac} not registered for user ${wifiUsername} — rejecting`);
-                await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER');
+                await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER', effectiveMac);
                 return errorResponse('MAC_NOT_REGISTERED', 'This device is not registered for your account. Please contact the front desk to register your device.');
               }
             }
@@ -2149,7 +2149,7 @@ export async function POST(request: NextRequest) {
             const macRegistered = await isMacRegisteredForUser(wifiUser.id, effectiveMac);
             if (!macRegistered) {
               console.warn(`[Auth:MAC] MAC ${effectiveMac} not registered for user ${wifiUser.username} — rejecting`);
-              await logAuthAttempt(wifiUser.username, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER');
+              await logAuthAttempt(wifiUser.username, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER', effectiveMac);
               return errorResponse('MAC_NOT_REGISTERED', 'This device is not registered for your account. Please contact the front desk to register your device.');
             }
           }
@@ -2460,7 +2460,7 @@ export async function POST(request: NextRequest) {
                   const macRegistered = await isMacRegisteredForUser(smsWifiUser.id, effectiveMac);
                   if (!macRegistered) {
                     console.warn(`[Auth:MAC] MAC ${effectiveMac} not registered for user ${wifiUsername} — rejecting`);
-                    await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER');
+                    await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER', effectiveMac);
                     return errorResponse('MAC_NOT_REGISTERED', 'This device is not registered for your account. Please contact the front desk to register your device.');
                   }
                 }
@@ -2807,7 +2807,7 @@ export async function POST(request: NextRequest) {
                   const macRegistered = await isMacRegisteredForUser(emailWifiUser.id, effectiveMac);
                   if (!macRegistered) {
                     console.warn(`[Auth:MAC] MAC ${effectiveMac} not registered for user ${wifiUsername} — rejecting`);
-                    await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER');
+                    await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER', effectiveMac);
                     return errorResponse('MAC_NOT_REGISTERED', 'This device is not registered for your account. Please contact the front desk to register your device.');
                   }
                 }
@@ -3388,7 +3388,7 @@ export async function POST(request: NextRequest) {
               const macRegistered = await isMacRegisteredForUser(ldapWifiUser.id, effectiveMac);
               if (!macRegistered) {
                 console.warn(`[Auth:MAC] MAC ${effectiveMac} not registered for user ${ldapUsername} — rejecting`);
-                await logAuthAttempt(ldapUsername, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER');
+                await logAuthAttempt(ldapUsername, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER', effectiveMac);
                 return errorResponse('MAC_NOT_REGISTERED', 'This device is not registered for your account. Please contact the front desk to register your device.');
               }
             }
@@ -4106,7 +4106,7 @@ export async function POST(request: NextRequest) {
         }
 
         // MAC not found in any table
-        await logAuthAttempt(`mac-${macNormalized}`, 'Access-Reject', request, 'MAC_NOT_REGISTERED');
+        await logAuthAttempt(`mac-${macNormalized}`, 'Access-Reject', request, 'MAC_NOT_REGISTERED', effectiveMac);
         return errorResponse(
           'MAC_NOT_REGISTERED',
           'Your device MAC address is not registered. Please contact the front desk to register your device for automatic WiFi access.',
@@ -4837,6 +4837,9 @@ function getRejectMessageFromCode(code: string): string | null {
   if (code === 'IP_NOT_DETERMINED') return 'Could not determine client IP';
   if (code.startsWith('MAX_SESSION')) return 'Max concurrent sessions reached';
   if (code === 'RADIUS_UNREACHABLE') return 'RADIUS server unreachable';
+  if (code === 'MAC_NOT_REGISTERED_FOR_USER') return 'MAC address not registered for this account. Contact front desk to register your device.';
+  if (code === 'MAC_NOT_REGISTERED') return 'MAC address not registered in the system whitelist.';
+  if (code.startsWith('MAC_')) return code.replace(/_/g, ' ').toLowerCase();
   if (code.startsWith('ACCOUNT_')) return code.replace(/_/g, ' ').toLowerCase();
   if (code.startsWith('INVALID_') || code.startsWith('MISSING_') || code.startsWith('VOUCHER_') || code.startsWith('AUTH_')) return code.replace(/_/g, ' ').toLowerCase();
   return null;
