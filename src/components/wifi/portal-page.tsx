@@ -3096,7 +3096,7 @@ function AuthMethodsTab() {
   const { propertyId } = usePropertyId();
   const { toast } = useToast();
   const [entries, setEntries] = useState<any[]>([]);
-  const [portals, setPortals] = useState<Array<{ id: string; name: string }>>([]);
+  const [portals, setPortals] = useState<Array<{ id: string; name: string; propertyId?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [selectedPortal, setSelectedPortal] = useState('');
@@ -3118,7 +3118,7 @@ function AuthMethodsTab() {
 
   const fetchPortals = useCallback(async () => {
     const data = await apiFetch<any[]>('/api/wifi/portal/instances');
-    if (data) setPortals(data.map((p: any) => ({ id: p.id, name: p.name })));
+    if (data) setPortals(data.map((p: any) => ({ id: p.id, name: p.name, propertyId: p.propertyId })));
   }, []);
 
   useEffect(() => { void fetchPortals(); }, [fetchPortals]);
@@ -3130,7 +3130,7 @@ function AuthMethodsTab() {
     const config = addLabel ? JSON.stringify({ label: addLabel }) : '{}';
     const { error } = await apiMutate('/api/wifi/portal/auth-methods', {
       method: 'POST', body: JSON.stringify({
-        propertyId: propertyId || 'default',
+        propertyId: portals.find(p => p.id === selectedPortal)?.propertyId || propertyId || '',
         portalId: selectedPortal,
         method: selectedMethod,
         enabled: true,

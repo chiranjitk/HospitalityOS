@@ -81,21 +81,10 @@ export async function POST(request: NextRequest) {
       config = '{}',
     } = body;
 
-    if (!propertyId || !portalId) {
+    if (!portalId) {
       return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required fields: propertyId, portalId' } },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Missing required field: portalId' } },
         { status: 400 }
-      );
-    }
-
-    // Verify property belongs to tenant
-    const property = await db.property.findFirst({
-      where: { id: propertyId, tenantId },
-    });
-    if (!property) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Property not found' } },
-        { status: 404 }
       );
     }
 
@@ -106,6 +95,26 @@ export async function POST(request: NextRequest) {
     if (!portal) {
       return NextResponse.json(
         { success: false, error: { code: 'NOT_FOUND', message: 'Portal instance not found' } },
+        { status: 404 }
+      );
+    }
+
+    // Resolve propertyId: prefer body value, fallback to portal's propertyId
+    const resolvedPropertyId = propertyId || portal.propertyId;
+    if (!resolvedPropertyId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Cannot determine property for this portal' } },
+        { status: 400 }
+      );
+    }
+
+    // Verify property belongs to tenant
+    const property = await db.property.findFirst({
+      where: { id: resolvedPropertyId, tenantId },
+    });
+    if (!property) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Property not found' } },
         { status: 404 }
       );
     }
@@ -124,7 +133,7 @@ export async function POST(request: NextRequest) {
     const authMethod = await db.portalAuthentication.create({
       data: {
         tenantId,
-        propertyId,
+        propertyId: resolvedPropertyId,
         portalId,
         method,
         enabled,

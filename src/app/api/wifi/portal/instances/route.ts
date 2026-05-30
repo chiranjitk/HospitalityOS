@@ -119,6 +119,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Resolve propertyId: if 'default' or invalid UUID, use tenant's first property
+    let resolvedPropertyId = propertyId;
+    if (propertyId === 'default' || propertyId.length !== 36) {
+      const firstProperty = await db.property.findFirst({
+        where: { tenantId },
+        select: { id: true },
+      });
+      if (!firstProperty) {
+        return NextResponse.json(
+          { success: false, error: { code: 'NOT_FOUND', message: 'No property found for this tenant' } },
+          { status: 404 }
+        );
+      }
+      resolvedPropertyId = firstProperty.id;
+    }
+
+    // Verify property belongs to tenant
+    const property = await db.property.findFirst({
+      where: { id: resolvedPropertyId, tenantId },
+    });
+
+    if (!property) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Property not found' } },
+        { status: 404 }
+      );
+    }
+
     // Validate slug format (URL-safe: lowercase, hyphens, underscores, numbers)
     if (slug !== undefined) {
       const slugRegex = /^[a-z0-9][a-z0-9\-_]*$/;
@@ -227,7 +255,7 @@ export async function POST(request: NextRequest) {
     const instance = await db.captivePortal.create({
       data: {
         tenantId,
-        propertyId,
+        propertyId: resolvedPropertyId,
         name,
         description,
         // Server-level fields kept with defaults for backward compatibility
