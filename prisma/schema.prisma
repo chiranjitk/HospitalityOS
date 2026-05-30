@@ -2938,6 +2938,7 @@ model Guest {
   lostFoundItems      LostFoundItem[]
   laundryOrders       LaundryOrder[]
   wifiDevices         WiFiDevice[]
+  wifiUserDevices     WiFiUserDevice[]
   wifiSatisfactionSurveys WiFiSatisfactionSurvey[]
   wifiPartnerAuths    WiFiPartnerAuth[]
   spaAppointments     SpaAppointment[]
@@ -5007,6 +5008,7 @@ model Property {
   wifiAlerts                WiFiAlert[]
   wifiAlertConfigs           WiFiAlertConfig[]
   wifiDevices               WiFiDevice[]
+  wifiUserDevices           WiFiUserDevice[]
   wifiConsentLogs           WiFiConsentLog[]
   wifiIdentityLogs          WiFiIdentityLog[]
   wifiBandwidthUpgrades     WiFiBandwidthUpgrade[]
@@ -7050,6 +7052,7 @@ model Tenant {
   wifiAlerts                WiFiAlert[]
   wifiAlertConfigs           WiFiAlertConfig[]
   wifiDevices               WiFiDevice[]
+  wifiUserDevices           WiFiUserDevice[]
   wifiConsentLogs           WiFiConsentLog[]
   wifiIdentityLogs          WiFiIdentityLog[]
   wifiBandwidthUpgrades     WiFiBandwidthUpgrade[]
@@ -8308,6 +8311,7 @@ model WiFiUser {
   radReply         RadReply[]
   wifiInvoiceLines WiFiInvoiceLine[]
   deviceProfiles   DeviceProfile[]
+  wifiUserDevices  WiFiUserDevice[]
   plan             WiFiPlan?  @relation(fields: [planId], references: [id])
   ipPool           IpPool?    @relation("UserIpPoolOverride", fields: [ipPoolId], references: [id])
   property         Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
@@ -8320,6 +8324,51 @@ model WiFiUser {
   @@index([bookingId])
   @@index([status])
   @@index([ipPoolId])
+}
+
+/// WiFiUserDevice — Per-user device binding for MAC-based security and management.
+/// Tracks which physical devices (by MAC address) are associated with a WiFiUser account.
+/// Enables:
+///   - MAC credential binding (prevent credential sharing across devices)
+///   - Per-user device inventory management
+///   - Source tracking (how/when device was registered)
+///   - Guest self-service device management (My Devices)
+///
+/// Separation of concerns:
+///   - DeviceProfile = browser fingerprint for auto-auth (fingerprintHash, storageToken)
+///   - WiFiDevice = guest-level device registry (linked to Guest, admin-facing)
+///   - WiFiUserDevice = WiFiUser-level MAC binding (security enforcement, this table)
+model WiFiUserDevice {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  wifiUserId  String    @db.Uuid
+  propertyId  String    @db.Uuid
+  guestId     String?   @db.Uuid
+  macAddress  String    /// Formatted: AA:BB:CC:DD:EE:FF
+  deviceName  String?   /// Detected from User-Agent (e.g. "iPhone", "Windows PC")
+  deviceType  String?   /// phone, tablet, laptop, desktop, tv, watch, iot, unknown
+  userAgent   String?   /// Full User-Agent string (truncated to 500 chars)
+  ipAddress   String?   /// Last-known IP address
+  isPrimary   Boolean   @default(false) /// First device registered is auto-set as primary
+  isActive    Boolean   @default(true)  /// false = device blocked/removed but record kept
+  source      String    @default("login") /// How was this device registered: login, mac_whitelist, admin, api, checkin
+  firstSeen   DateTime  @default(now()) @db.Timestamptz
+  lastSeen    DateTime  @default(now()) @db.Timestamptz
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+
+  wifiUser    WiFiUser  @relation(fields: [wifiUserId], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  guest       Guest?    @relation(fields: [guestId], references: [id])
+
+  @@unique([wifiUserId, macAddress])
+  @@index([tenantId])
+  @@index([wifiUserId])
+  @@index([guestId])
+  @@index([macAddress])
+  @@index([isActive])
+  @@index([propertyId])
 }
 
 /// WiFiUserStatusHistory - User status change audit trail (Accsium tbluserstatushistory)

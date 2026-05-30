@@ -304,6 +304,150 @@ async function isDeviceAutoAuthDisabled(tenantId: string, macAddress: string | n
 }
 
 // ────────────────────────────────────────────────────────────
+// WiFiUserDevice Registration (MAC Binding)
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Register a device's MAC address in the WiFiUserDevice table.
+ * Called after every successful authentication to track which physical
+ * devices are associated with a WiFiUser account.
+ *
+ * Uses upsert on (wifiUserId, macAddress) unique constraint.
+ * If the device was previously deactivated, it gets re-activated.
+ * First device for a user is auto-set as primary.
+ *
+ * Fire-and-forget — failures are logged but don't block the auth response.
+ */
+async function registerUserDevice(params: {
+  wifiUserId: string;
+  tenantId: string;
+  propertyId: string;
+  guestId?: string | null;
+  macAddress: string | null | undefined;
+  request: NextRequest;
+  source?: string;
+}): Promise<void> {
+  if (!params.macAddress) return;
+
+  // Normalize MAC
+  const normalized = params.macAddress.replace(/[:\-\.\s]/g, '').toUpperCase();
+  if (!/^[0-9A-F]{12}$/.test(normalized)) return;
+  const formattedMac = normalized.match(/.{2}/g)?.join(':');
+  if (!formattedMac) return;
+
+  const { wifiUserId, tenantId, propertyId, guestId, request, source = 'login' } = params;
+  const clientIp = getClientIpString(request);
+  const userAgent = request.headers.get('user-agent') || '';
+  const deviceType = parseDeviceTypeFromUA(userAgent);
+  const deviceName = parseDeviceNameFromUA(userAgent);
+
+  try {
+    // Check if this is the first active device for this user → set as primary
+    const existingCount = await db.wiFiUserDevice.count({
+      where: { wifiUserId, isActive: true },
+    });
+    const isPrimary = existingCount === 0;
+
+    await db.wiFiUserDevice.upsert({
+      where: {
+        wifiUserId_macAddress: {
+          wifiUserId,
+          macAddress: formattedMac,
+        },
+      },
+      create: {
+        tenantId,
+        propertyId,
+        wifiUserId,
+        guestId: guestId || undefined,
+        macAddress: formattedMac,
+        deviceName,
+        deviceType,
+        userAgent: userAgent.substring(0, 500),
+        ipAddress: clientIp,
+        isPrimary,
+        source,
+        lastSeen: new Date(),
+      },
+      update: {
+        ipAddress: clientIp,
+        userAgent: userAgent.substring(0, 500),
+        deviceName,
+        deviceType,
+        lastSeen: new Date(),
+        isActive: true, // Re-activate if was deactivated
+        source, // Update source to latest auth method
+      },
+    });
+
+    console.log(`[Auth:Device] Registered ${formattedMac} for ${wifiUserId} (source: ${source}, primary: ${isPrimary})`);
+  } catch (err) {
+    console.warn('[Auth:Device] Failed to register device (non-critical):', err instanceof Error ? err.message : err);
+  }
+}
+
+/**
+ * Check if MAC binding is enforced for a property.
+ * When enabled, only previously registered MAC addresses can authenticate.
+ * Prevents credential sharing across multiple devices.
+ *
+ * Checks the WiFiSettings JSON or a property-level setting.
+ * Falls back to false (not enforced) if setting not found.
+ */
+async function isMacBindingEnforced(
+  propertyId: string,
+  tenantId: string
+): Promise<boolean> {
+  try {
+    const settings = await db.wiFiSettings.findFirst({
+      where: { propertyId, tenantId, key: 'wifi_settings' },
+      select: { value: true },
+    });
+
+    if (settings?.value) {
+      const config = JSON.parse(settings.value);
+      // Check mac_binding setting in wifi_settings
+      return config.mac_binding === true || config.macBinding === true;
+    }
+
+    return false; // Default: MAC binding not enforced
+  } catch {
+    return false; // Fail open — don't block auth if settings check fails
+  }
+}
+
+/**
+ * Check if a MAC address is registered for a given WiFiUser.
+ * Used when MAC binding is enforced.
+ */
+async function isMacRegisteredForUser(
+  wifiUserId: string,
+  macAddress: string
+): Promise<boolean> {
+  if (!macAddress) return false;
+
+  const normalized = macAddress.replace(/[:\-\.\s]/g, '').toUpperCase();
+  if (!/^[0-9A-F]{12}$/.test(normalized)) return false;
+  const formattedMac = normalized.match(/.{2}/g)?.join(':');
+  if (!formattedMac) return false;
+
+  try {
+    const device = await db.wiFiUserDevice.findUnique({
+      where: {
+        wifiUserId_macAddress: {
+          wifiUserId,
+          macAddress: formattedMac,
+        },
+      },
+      select: { isActive: true },
+    });
+    return device?.isActive === true;
+  } catch {
+    return false;
+  }
+}
+
+// ────────────────────────────────────────────────────────────
 // In-memory OTP store (sandbox — use Redis in production)
 // ────────────────────────────────────────────────────────────
 const otpStore = new Map<
@@ -1376,6 +1520,22 @@ export async function POST(request: NextRequest) {
           dataLimit: dataLimitMb,
         });
 
+        // MAC binding enforcement: check if this MAC is registered for the user
+        if (effectiveMac) {
+          const macBinding = await isMacBindingEnforced(resolvedPropertyId, voucher.tenantId);
+          if (macBinding) {
+            const voucherWifiUser = await db.wiFiUser.findUnique({ where: { username: wifiUsername }, select: { id: true } });
+            if (voucherWifiUser) {
+              const macRegistered = await isMacRegisteredForUser(voucherWifiUser.id, effectiveMac);
+              if (!macRegistered) {
+                console.warn(`[Auth:MAC] MAC ${effectiveMac} not registered for user ${wifiUsername} — rejecting`);
+                await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER');
+                return errorResponse('MAC_NOT_REGISTERED', 'This device is not registered for your account. Please contact the front desk to register your device.');
+              }
+            }
+          }
+        }
+
         const radiusResult = await radiusAuth(wifiUsername, voucher.code);
         if (!radiusResult.accepted) {
           await logAuthAttempt(wifiUsername, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
@@ -1437,6 +1597,16 @@ export async function POST(request: NextRequest) {
               portalSlug,
               request,
             });
+            // Register this device's MAC for the user
+            await registerUserDevice({
+              wifiUserId: voucherUser.id,
+              tenantId: voucherUser.tenantId,
+              propertyId: voucherUser.propertyId,
+              guestId: voucherUser.guestId,
+              macAddress: effectiveMac,
+              request,
+              source: 'voucher',
+            }).catch(() => {}); // Non-critical
           }
         } catch { /* best effort */ }
 
@@ -1596,6 +1766,19 @@ export async function POST(request: NextRequest) {
             return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
           }
 
+          // MAC binding enforcement: check if this MAC is registered for the user
+          if (effectiveMac) {
+            const macBinding = await isMacBindingEnforced(pmsUser.propertyId, pmsUser.tenantId);
+            if (macBinding) {
+              const macRegistered = await isMacRegisteredForUser(pmsUser.id, effectiveMac);
+              if (!macRegistered) {
+                console.warn(`[Auth:MAC] MAC ${effectiveMac} not registered for user ${pmsUser.username} — rejecting`);
+                await logAuthAttempt(pmsUser.username, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER');
+                return errorResponse('MAC_NOT_REGISTERED', 'This device is not registered for your account. Please contact the front desk to register your device.');
+              }
+            }
+          }
+
           const radiusResult = await radiusAuth(pmsUser.username, pmsUser.password);
           if (!radiusResult.accepted) {
             await logAuthAttempt(pmsUser.username, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
@@ -1687,6 +1870,17 @@ export async function POST(request: NextRequest) {
             request,
           }).catch(() => {});
 
+          // Register this device's MAC for the user
+          registerUserDevice({
+            wifiUserId: pmsUser.id,
+            tenantId: pmsUser.tenantId,
+            propertyId: pmsUser.propertyId,
+            guestId: pmsUser.guestId,
+            macAddress: effectiveMac,
+            request,
+            source: 'room_number',
+          }).catch(() => {}); // Non-critical
+
           resetRateLimit(clientRateLimitIp);
           await pmsSessionCheck.releaseLock();
           return successResponse(
@@ -1762,6 +1956,22 @@ export async function POST(request: NextRequest) {
           dataLimit: roomDataLimit,
         });
 
+        // MAC binding enforcement: check if this MAC is registered for the user
+        if (effectiveMac) {
+          const roomFallbackWifiUser = await db.wiFiUser.findUnique({ where: { username: wifiUsername }, select: { id: true, tenantId: true, propertyId: true } });
+          if (roomFallbackWifiUser) {
+            const macBinding = await isMacBindingEnforced(roomFallbackWifiUser.propertyId, roomFallbackWifiUser.tenantId);
+            if (macBinding) {
+              const macRegistered = await isMacRegisteredForUser(roomFallbackWifiUser.id, effectiveMac);
+              if (!macRegistered) {
+                console.warn(`[Auth:MAC] MAC ${effectiveMac} not registered for user ${wifiUsername} — rejecting`);
+                await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER');
+                return errorResponse('MAC_NOT_REGISTERED', 'This device is not registered for your account. Please contact the front desk to register your device.');
+              }
+            }
+          }
+        }
+
         const radiusResult = await radiusAuth(wifiUsername, userPassword);
         if (!radiusResult.accepted) {
           await logAuthAttempt(wifiUsername, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
@@ -1821,6 +2031,16 @@ export async function POST(request: NextRequest) {
               portalSlug,
               request,
             });
+            // Register this device's MAC for the user
+            registerUserDevice({
+              wifiUserId: roomUser.id,
+              tenantId: roomUser.tenantId,
+              propertyId: roomUser.propertyId,
+              guestId: roomUser.guestId,
+              macAddress: effectiveMac,
+              request,
+              source: 'room_number',
+            }).catch(() => {}); // Non-critical
           }
         } catch { /* best effort */ }
 
@@ -1920,6 +2140,19 @@ export async function POST(request: NextRequest) {
         if (pmsCredSessionCheck.limitReached) {
           await logAuthAttempt(username.trim(), 'Access-Reject', request, 'MAX_SESSIONS_REACHED');
           return errorResponse('MAX_SESSIONS_REACHED', 'Maximum concurrent sessions reached. Please disconnect another device first.');
+        }
+
+        // MAC binding enforcement: check if this MAC is registered for the user
+        if (effectiveMac) {
+          const macBinding = await isMacBindingEnforced(wifiUser.propertyId, wifiUser.tenantId);
+          if (macBinding) {
+            const macRegistered = await isMacRegisteredForUser(wifiUser.id, effectiveMac);
+            if (!macRegistered) {
+              console.warn(`[Auth:MAC] MAC ${effectiveMac} not registered for user ${wifiUser.username} — rejecting`);
+              await logAuthAttempt(wifiUser.username, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER');
+              return errorResponse('MAC_NOT_REGISTERED', 'This device is not registered for your account. Please contact the front desk to register your device.');
+            }
+          }
         }
 
         const radiusResult = await radiusAuth(username.trim(), password.trim());
@@ -2041,6 +2274,17 @@ export async function POST(request: NextRequest) {
             portalSlug,
             request,
           }).catch(() => {});
+
+          // Register this device's MAC for the user
+          registerUserDevice({
+            wifiUserId: wifiUser.id,
+            tenantId: wifiUser.tenantId,
+            propertyId: wifiUser.propertyId,
+            guestId: wifiUser.guestId,
+            macAddress: effectiveMac,
+            request,
+            source: 'pms_credentials',
+          }).catch(() => {}); // Non-critical
 
         resetRateLimit(clientRateLimitIp);
         await pmsCredSessionCheck.releaseLock();
@@ -2207,6 +2451,22 @@ export async function POST(request: NextRequest) {
             });
             console.log(`[SMS OTP] Updated radcheck password for ${wifiUsername}: ${smsOtpPassword} (matched ${radcheckUpdate.count} rows)`);
 
+            // MAC binding enforcement: check if this MAC is registered for the user
+            if (effectiveMac) {
+              const smsWifiUser = await db.wiFiUser.findUnique({ where: { username: wifiUsername }, select: { id: true, tenantId: true, propertyId: true } });
+              if (smsWifiUser) {
+                const macBinding = await isMacBindingEnforced(smsWifiUser.propertyId, smsWifiUser.tenantId);
+                if (macBinding) {
+                  const macRegistered = await isMacRegisteredForUser(smsWifiUser.id, effectiveMac);
+                  if (!macRegistered) {
+                    console.warn(`[Auth:MAC] MAC ${effectiveMac} not registered for user ${wifiUsername} — rejecting`);
+                    await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER');
+                    return errorResponse('MAC_NOT_REGISTERED', 'This device is not registered for your account. Please contact the front desk to register your device.');
+                  }
+                }
+              }
+            }
+
             const radiusResult = await radiusAuth(wifiUsername, smsOtpPassword);
             if (!radiusResult.accepted) {
               await logAuthAttempt(wifiUsername, 'Access-Reject', request, radiusResult.rejectReason || 'AUTH_FAILED');
@@ -2271,6 +2531,16 @@ export async function POST(request: NextRequest) {
                   portalSlug,
                   request,
                 });
+                // Register this device's MAC for the user
+                registerUserDevice({
+                  wifiUserId: smsUser.id,
+                  tenantId: smsUser.tenantId,
+                  propertyId: smsUser.propertyId,
+                  guestId: smsUser.guestId,
+                  macAddress: effectiveMac,
+                  request,
+                  source: 'sms_otp',
+                }).catch(() => {}); // Non-critical
               }
             } catch { /* best effort */ }
           }
@@ -2528,6 +2798,22 @@ export async function POST(request: NextRequest) {
             });
             console.log(`[Email OTP] Updated radcheck password for ${wifiUsername}`);
 
+            // MAC binding enforcement: check if this MAC is registered for the user
+            if (effectiveMac) {
+              const emailWifiUser = await db.wiFiUser.findUnique({ where: { username: wifiUsername }, select: { id: true, tenantId: true, propertyId: true } });
+              if (emailWifiUser) {
+                const macBinding = await isMacBindingEnforced(emailWifiUser.propertyId, emailWifiUser.tenantId);
+                if (macBinding) {
+                  const macRegistered = await isMacRegisteredForUser(emailWifiUser.id, effectiveMac);
+                  if (!macRegistered) {
+                    console.warn(`[Auth:MAC] MAC ${effectiveMac} not registered for user ${wifiUsername} — rejecting`);
+                    await logAuthAttempt(wifiUsername, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER');
+                    return errorResponse('MAC_NOT_REGISTERED', 'This device is not registered for your account. Please contact the front desk to register your device.');
+                  }
+                }
+              }
+            }
+
             // RADIUS authenticate
             const radiusResult = await radiusAuth(wifiUsername, emailOtpPassword);
             if (!radiusResult.accepted) {
@@ -2591,6 +2877,16 @@ export async function POST(request: NextRequest) {
                   portalSlug,
                   request,
                 });
+                // Register this device's MAC for the user
+                registerUserDevice({
+                  wifiUserId: emailUser.id,
+                  tenantId: emailUser.tenantId,
+                  propertyId: emailUser.propertyId,
+                  guestId: emailUser.guestId,
+                  macAddress: effectiveMac,
+                  request,
+                  source: 'email_otp',
+                }).catch(() => {}); // Non-critical
               }
             } catch { /* best effort */ }
           }
@@ -2949,6 +3245,24 @@ export async function POST(request: NextRequest) {
             portalSlug,
             request,
           }).catch(() => {});
+
+          // Register this device's MAC for the user
+          if (wifiUsername) {
+            db.wiFiUser.findUnique({ where: { username: wifiUsername }, select: { id: true } })
+              .then(openUser => {
+                if (openUser) {
+                  return registerUserDevice({
+                    wifiUserId: openUser.id,
+                    tenantId: portal.tenantId,
+                    propertyId: resolvedPropertyId || '',
+                    macAddress: effectiveMac,
+                    request,
+                    source: 'open_access',
+                  });
+                }
+              })
+              .catch(() => {}); // Non-critical
+          }
         }
 
         // Log auth for the no-portal case (null username, no RADIUS provisioning)
@@ -3065,6 +3379,22 @@ export async function POST(request: NextRequest) {
           console.error('[Auth:LDAP] WiFiUser upsert failed:', dbErr);
         }
 
+        // MAC binding enforcement: check if this MAC is registered for the user
+        if (effectiveMac) {
+          const ldapWifiUser = await db.wiFiUser.findUnique({ where: { username: ldapUsername }, select: { id: true, tenantId: true, propertyId: true } });
+          if (ldapWifiUser) {
+            const macBinding = await isMacBindingEnforced(ldapWifiUser.propertyId, ldapWifiUser.tenantId);
+            if (macBinding) {
+              const macRegistered = await isMacRegisteredForUser(ldapWifiUser.id, effectiveMac);
+              if (!macRegistered) {
+                console.warn(`[Auth:MAC] MAC ${effectiveMac} not registered for user ${ldapUsername} — rejecting`);
+                await logAuthAttempt(ldapUsername, 'Access-Reject', request, 'MAC_NOT_REGISTERED_FOR_USER');
+                return errorResponse('MAC_NOT_REGISTERED', 'This device is not registered for your account. Please contact the front desk to register your device.');
+              }
+            }
+          }
+        }
+
         // Log successful auth
         await logAuthAttempt(ldapUsername, 'Access-Accept', request, 'LDAP_AUTH_OK');
         logIdentityVerification({
@@ -3157,6 +3487,24 @@ export async function POST(request: NextRequest) {
           } catch (dpErr) {
             console.warn('[Auth:LDAP] DeviceProfile upsert failed (non-critical):', dpErr);
           }
+        }
+
+        // Register this device's MAC for the user
+        if (ldapConfig.propertyId) {
+          db.wiFiUser.findUnique({ where: { username: ldapUsername }, select: { id: true } })
+            .then(ldapUser => {
+              if (ldapUser) {
+                return registerUserDevice({
+                  wifiUserId: ldapUser.id,
+                  tenantId: ldapConfig.tenantId,
+                  propertyId: ldapConfig.propertyId,
+                  macAddress: effectiveMac,
+                  request,
+                  source: 'ldap',
+                });
+              }
+            })
+            .catch(() => {}); // Non-critical
         }
 
         resetRateLimit(clientRateLimitIp);
@@ -3429,6 +3777,25 @@ export async function POST(request: NextRequest) {
             ? Math.round((macValidUntil.getTime() - now.getTime()) / 60000)
             : macSessionTimeoutMin;
 
+          // Register this device's MAC for the user (mac_auth whitelist strategy)
+          if (portal.propertyId || macAuthEntry.propertyId) {
+            db.wiFiUser.findUnique({ where: { username: macUsername }, select: { id: true } })
+              .then(macWifiUser => {
+                if (macWifiUser) {
+                  return registerUserDevice({
+                    wifiUserId: macWifiUser.id,
+                    tenantId: portal.tenantId || macAuthEntry.propertyId,
+                    propertyId: portal.propertyId || macAuthEntry.propertyId,
+                    guestId: macAuthEntry.guestId,
+                    macAddress: effectiveMac,
+                    request,
+                    source: 'mac_whitelist',
+                  });
+                }
+              })
+              .catch(() => {}); // Non-critical
+          }
+
           resetRateLimit(clientRateLimitIp);
           return successResponse(
             {
@@ -3516,6 +3883,17 @@ export async function POST(request: NextRequest) {
             try {
               await createAccountingSession(wifiUser.username, request, 'mac_auth');
             } catch { /* best effort */ }
+
+            // Register this device's MAC for the user (mac_auth deviceprofile strategy)
+            registerUserDevice({
+              wifiUserId: wifiUser.id,
+              tenantId: wifiUser.tenantId,
+              propertyId: wifiUser.propertyId,
+              guestId: existingProfile.guestId,
+              macAddress: effectiveMac,
+              request,
+              source: 'mac_whitelist',
+            }).catch(() => {}); // Non-critical
 
             resetRateLimit(clientRateLimitIp);
             return successResponse(
@@ -3689,6 +4067,25 @@ export async function POST(request: NextRequest) {
               data: { lastSeen: now, ipAddress: getClientIpString(request) },
             });
           } catch { /* best effort */ }
+
+          // Register this device's MAC for the user (mac_auth wifidevice strategy)
+          if (devicePropertyId) {
+            db.wiFiUser.findUnique({ where: { username: macUsername }, select: { id: true } })
+              .then(macWifiDeviceUser => {
+                if (macWifiDeviceUser) {
+                  return registerUserDevice({
+                    wifiUserId: macWifiDeviceUser.id,
+                    tenantId: deviceTenantId,
+                    propertyId: devicePropertyId,
+                    guestId: wifiDevice.guestId,
+                    macAddress: effectiveMac,
+                    request,
+                    source: 'mac_whitelist',
+                  });
+                }
+              })
+              .catch(() => {}); // Non-critical
+          }
 
           resetRateLimit(clientRateLimitIp);
           return successResponse(
@@ -3913,6 +4310,24 @@ export async function POST(request: NextRequest) {
           } catch (dpErr) {
             console.warn('[Auth:Social] DeviceProfile upsert failed (non-critical):', dpErr);
           }
+        }
+
+        // Register this device's MAC for the user
+        if (socialPropertyId) {
+          db.wiFiUser.findUnique({ where: { username: socialUsername }, select: { id: true } })
+            .then(socialUser => {
+              if (socialUser) {
+                return registerUserDevice({
+                  wifiUserId: socialUser.id,
+                  tenantId: socialTenantId,
+                  propertyId: socialPropertyId,
+                  macAddress: effectiveMac,
+                  request,
+                  source: 'social',
+                });
+              }
+            })
+            .catch(() => {}); // Non-critical
         }
 
         resetRateLimit(clientRateLimitIp);
