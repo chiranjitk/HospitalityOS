@@ -72,6 +72,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow, format } from 'date-fns';
 import { isSafeURL, maskIP } from '@/lib/wifi/validation';
+import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -134,6 +135,15 @@ function getConsentTypeBadgeVariant(type: string): 'default' | 'secondary' | 'de
     case 'data_processing': return 'outline';
     default: return 'outline';
   }
+}
+
+function getConsentStatus(log: ConsentLog): { label: string; className: string } {
+  const now = new Date();
+  const expiresAt = new Date(log.expiresAt);
+  if (expiresAt < now) {
+    return { label: 'Expired', className: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700' };
+  }
+  return { label: 'Granted', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' };
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────────
@@ -403,7 +413,9 @@ export default function WiFiConsentManagement() {
       <div className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Shield className="h-5 w-5 text-primary" />
+            <div className="p-2 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/10">
+              <Shield className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            </div>
             WiFi Privacy & GDPR Consent
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -418,10 +430,10 @@ export default function WiFiConsentManagement() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="border-0 shadow-sm">
+        <Card className="rounded-xl border shadow-sm bg-gradient-to-br from-emerald-500/10 to-teal-500/5">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-2.5">
-              <FileText className="h-5 w-5 text-primary" />
+            <div className="rounded-lg bg-emerald-500/15 dark:bg-emerald-500/10 p-2.5">
+              <FileText className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
               <p className="text-2xl font-bold tabular-nums">{stats?.totalConsents ?? '—'}</p>
@@ -429,10 +441,10 @@ export default function WiFiConsentManagement() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card className="rounded-xl border shadow-sm bg-gradient-to-br from-purple-500/10 to-indigo-500/5">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-2.5">
-              <Activity className="h-5 w-5 text-primary" />
+            <div className="rounded-lg bg-purple-500/15 dark:bg-purple-500/10 p-2.5">
+              <Activity className="h-5 w-5 text-purple-600 dark:text-purple-400" />
             </div>
             <div>
               <p className="text-2xl font-bold tabular-nums">{stats?.marketingOptInRate ?? 0}%</p>
@@ -440,21 +452,27 @@ export default function WiFiConsentManagement() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card className="rounded-xl border shadow-sm bg-gradient-to-br from-sky-500/10 to-blue-500/5">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 p-2.5">
-              <CheckCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            <div className="rounded-lg bg-sky-500/15 dark:bg-sky-500/10 p-2.5">
+              <CheckCircle className="h-5 w-5 text-sky-600 dark:text-sky-400" />
             </div>
             <div>
-              <p className="text-2xl font-bold tabular-nums">{stats?.activeConsents ?? '—'}</p>
+              <p className="text-2xl font-bold tabular-nums flex items-center gap-1.5">
+                {stats?.activeConsents ?? '—'}
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+              </p>
               <p className="text-xs text-muted-foreground">Active Consents</p>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
+        <Card className="rounded-xl border shadow-sm bg-gradient-to-br from-amber-500/10 to-orange-500/5">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="rounded-lg bg-purple-50 dark:bg-purple-950/30 p-2.5">
-              <Shield className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            <div className="rounded-lg bg-amber-500/15 dark:bg-amber-500/10 p-2.5">
+              <Shield className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
               <p className="text-2xl font-bold tabular-nums">{consentRate}%</p>
@@ -562,20 +580,21 @@ export default function WiFiConsentManagement() {
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[150px]">Guest</TableHead>
-                        <TableHead className="w-[120px]">Consent Type</TableHead>
-                        <TableHead className="w-[120px]">IP Address</TableHead>
-                        <TableHead className="w-[100px]">Marketing</TableHead>
-                        <TableHead className="hidden md:table-cell w-[80px]">Retention</TableHead>
-                        <TableHead className="hidden lg:table-cell w-[100px]">Expires At</TableHead>
-                        <TableHead className="hidden xl:table-cell w-[100px]">Created</TableHead>
-                        <TableHead className="text-right w-[100px]">Actions</TableHead>
+                      <TableRow className="bg-gradient-to-r from-muted/80 to-muted/40 hover:bg-muted/40">
+                        <TableHead className="w-[150px] font-semibold">Guest</TableHead>
+                        <TableHead className="w-[100px] font-semibold">Status</TableHead>
+                        <TableHead className="w-[120px] font-semibold">Consent Type</TableHead>
+                        <TableHead className="w-[120px] font-semibold">IP Address</TableHead>
+                        <TableHead className="w-[100px] font-semibold">Marketing</TableHead>
+                        <TableHead className="hidden md:table-cell w-[80px] font-semibold">Retention</TableHead>
+                        <TableHead className="hidden lg:table-cell w-[100px] font-semibold">Expires At</TableHead>
+                        <TableHead className="hidden xl:table-cell w-[100px] font-semibold">Created</TableHead>
+                        <TableHead className="text-right w-[100px] font-semibold">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {logs.map((log) => (
-                        <TableRow key={log.id} className="hover:bg-muted/50">
+                      {logs.map((log, idx) => (
+                        <TableRow key={log.id} className="hover:bg-muted/30 transition-colors border-b border-border/40">
                           <TableCell>
                             {log.guest ? (
                               <div>
@@ -584,6 +603,11 @@ export default function WiFiConsentManagement() {
                             ) : (
                               <span className="text-xs text-muted-foreground">Anonymous</span>
                             )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={cn('text-[10px] font-medium px-2 py-0', getConsentStatus(log).className)}>
+                              {getConsentStatus(log).label}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <Badge variant={getConsentTypeBadgeVariant(log.consentType)} className="text-xs">
@@ -643,7 +667,7 @@ export default function WiFiConsentManagement() {
         <TabsContent value="settings" className="space-y-4">
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Consent Text Editor */}
-            <Card className="border-0 shadow-sm">
+            <Card className="border shadow-sm rounded-xl hover:shadow-md transition-shadow bg-gradient-to-br from-muted/30 to-background">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <FileText className="h-4 w-4 text-primary" />
@@ -672,7 +696,7 @@ export default function WiFiConsentManagement() {
             </Card>
 
             {/* Consent Configuration */}
-            <Card className="border-0 shadow-sm">
+            <Card className="border shadow-sm rounded-xl hover:shadow-md transition-shadow bg-gradient-to-br from-muted/30 to-background">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Settings className="h-4 w-4 text-primary" />

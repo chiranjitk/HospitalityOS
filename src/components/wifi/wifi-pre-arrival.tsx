@@ -532,39 +532,43 @@ export default function WifiPreArrival() {
 
       {/* ── Stats Cards ────────────────────────────────────────────── */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
-        <Card className="p-4 border-0 shadow-sm bg-primary/5 dark:bg-primary/5">
+        <Card className="p-4 rounded-xl border shadow-sm bg-gradient-to-br from-violet-500/10 to-purple-500/5">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-primary/15">
-              <Send className="h-5 w-5 text-primary" />
+            <div className="p-2.5 rounded-xl bg-violet-500/15">
+              <Send className="h-5 w-5 text-violet-600 dark:text-violet-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-primary">
+              <div className="text-2xl font-bold text-violet-700 dark:text-violet-300 flex items-center gap-1.5">
                 {logsSummary?.sent ?? 0}
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500" />
+                </span>
               </div>
-              <div className="text-xs text-primary/60 font-medium">
+              <div className="text-xs text-violet-600/70 dark:text-violet-400/70 font-medium">
                 Total Deliveries Sent
               </div>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 border-0 shadow-sm bg-primary/5 dark:bg-primary/5">
+        <Card className="p-4 rounded-xl border shadow-sm bg-gradient-to-br from-amber-500/10 to-orange-500/5">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-primary/15">
-              <TrendingUp className="h-5 w-5 text-primary" />
+            <div className="p-2.5 rounded-xl bg-amber-500/15">
+              <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-primary">
-                {logsSummary?.successRate ?? 0}%
+              <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">
+                {logsSummary?.pending ?? 0}
               </div>
-              <div className="text-xs text-primary/60 font-medium">
-                Delivery Success Rate
+              <div className="text-xs text-amber-600/70 dark:text-amber-400/70 font-medium">
+                Pending Deliveries
               </div>
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 border-0 shadow-sm bg-gradient-to-br from-cyan-50 to-sky-50 dark:from-cyan-950/30 dark:to-sky-950/30">
+        <Card className="p-4 rounded-xl border shadow-sm bg-gradient-to-br from-cyan-50 to-sky-50 dark:from-cyan-950/30 dark:to-sky-950/30">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-cyan-500/15">
               <Power className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
@@ -599,11 +603,11 @@ export default function WifiPreArrival() {
               <div className={cn(
                 'flex items-center gap-3 rounded-lg border p-3',
                 adapterStatus.email.configured
-                  ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30'
-                  : 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30',
+                  ? 'border-emerald-200 bg-gradient-to-r from-emerald-50 to-green-50 dark:border-emerald-900 dark:from-emerald-950/30 dark:to-green-950/30'
+                  : 'border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 dark:border-amber-900 dark:from-amber-950/30 dark:to-orange-950/30',
               )}>
                 {adapterStatus.email.configured ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 ) : (
                   <Info className="h-5 w-5 text-amber-500 dark:text-amber-400 shrink-0" />
                 )}
@@ -613,9 +617,14 @@ export default function WifiPreArrival() {
                     <span className="text-sm font-medium">Email</span>
                   </div>
                   {adapterStatus.email.configured ? (
-                    <span className="text-xs text-muted-foreground truncate block">
-                      {adapterStatus.email.name || adapterStatus.email.provider}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground truncate block">
+                        {adapterStatus.email.name || adapterStatus.email.provider}
+                      </span>
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />\n                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                      </span>
+                    </div>
                   ) : (
                     <span className="text-xs text-amber-600 dark:text-amber-400 truncate block">
                       Using mock (dev) — emails logged to console
@@ -628,11 +637,11 @@ export default function WifiPreArrival() {
               <div className={cn(
                 'flex items-center gap-3 rounded-lg border p-3',
                 adapterStatus.sms.configured
-                  ? 'border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30'
-                  : 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30',
+                  ? 'border-emerald-200 bg-gradient-to-r from-emerald-50 to-green-50 dark:border-emerald-900 dark:from-emerald-950/30 dark:to-green-950/30'
+                  : 'border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 dark:border-amber-900 dark:from-amber-950/30 dark:to-orange-950/30',
               )}>
                 {adapterStatus.sms.configured ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 ) : (
                   <Info className="h-5 w-5 text-amber-500 dark:text-amber-400 shrink-0" />
                 )}
@@ -642,9 +651,14 @@ export default function WifiPreArrival() {
                     <span className="text-sm font-medium">SMS / OTP</span>
                   </div>
                   {adapterStatus.sms.configured ? (
-                    <span className="text-xs text-muted-foreground truncate block">
-                      {adapterStatus.sms.name || adapterStatus.sms.provider}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground truncate block">
+                        {adapterStatus.sms.name || adapterStatus.sms.provider}
+                      </span>
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />\n                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                      </span>
+                    </div>
                   ) : (
                     <span className="text-xs text-amber-600 dark:text-amber-400 truncate block">
                       Using mock (dev) — SMS/OTP logged to console
@@ -752,17 +766,17 @@ export default function WifiPreArrival() {
             <>
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Guest</TableHead>
-                      <TableHead>Channel</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Sent At</TableHead>
-                      <TableHead>Error</TableHead>
+                    <TableRow className="bg-gradient-to-r from-muted/80 to-muted/40 hover:bg-muted/40">
+                      <TableHead className="font-semibold">Guest</TableHead>
+                      <TableHead className="font-semibold">Channel</TableHead>
+                      <TableHead className="font-semibold">Status</TableHead>
+                      <TableHead className="font-semibold">Sent At</TableHead>
+                      <TableHead className="font-semibold">Error</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {logs.map((log) => (
-                      <TableRow key={log.id} className="transition-colors hover:bg-muted/60">
+                      <TableRow key={log.id} className="hover:bg-muted/30 transition-colors border-b border-border/40">
                         <TableCell>
                           <div>
                             <p className="text-sm font-medium">{log.guestName}</p>
@@ -1194,10 +1208,10 @@ function PropertyConfigCard({
 
   return (
     <Card className={cn(
-      'border transition-all',
+      'rounded-xl border transition-all',
       config.enabled
-        ? 'border-primary/20 dark:border-primary/20 shadow-sm'
-        : 'border-border',
+        ? 'border-primary/20 dark:border-primary/20 shadow-sm hover:shadow-md hover:border-primary/30'
+        : 'border-border hover:shadow-sm',
     )}>
       <CardHeader className="pb-3">
         <div className="flex flex-col sm:flex-row justify-between gap-3">
@@ -1231,7 +1245,7 @@ function PropertyConfigCard({
               <Button
                 size="sm"
                 onClick={(e) => { e.stopPropagation(); onSendNow(); }}
-                className="h-8 text-xs gap-1.5"
+                className="h-8 text-xs gap-1.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white"
               >
                 <Send className="h-3.5 w-3.5" />
                 Send Now
@@ -1428,11 +1442,13 @@ function PropertyConfigCard({
 
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { label: string; className: string }> = {
-    enabled: { label: 'Enabled', className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800' },
-    disabled: { label: 'Disabled', className: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border-gray-200 dark:border-gray-700' },
-    sent: { label: 'Sent', className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800' },
+    enabled: { label: 'Enabled', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' },
+    disabled: { label: 'Disabled', className: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700' },
+    sent: { label: 'Delivered', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' },
+    delivered: { label: 'Delivered', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' },
     failed: { label: 'Failed', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800' },
     pending: { label: 'Pending', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800' },
+    scheduled: { label: 'Scheduled', className: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 border-sky-200 dark:border-sky-800' },
   };
 
   const c = config[status] || config.disabled;
