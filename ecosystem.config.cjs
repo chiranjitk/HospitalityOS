@@ -23,7 +23,7 @@ module.exports = {
       max_memory_restart: '2G',
       env: {
         PORT: 3000,
-        NODE_OPTIONS: '--max-old-space-size=5120',
+        NODE_OPTIONS: '--max-old-space-size=8192',
         DATABASE_URL: 'postgresql://staysuite:Staysuite2025@localhost:5432/staysuite',
       },
     },
