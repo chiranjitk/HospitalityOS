@@ -126,16 +126,35 @@ export function getGDSConfig(connection: GdsConnection): GDSConfig {
 }
 
 /**
- * Validate a GDS config for completeness.
- * Returns an array of error strings (empty if valid).
+ * Validate a GDS configuration and return a list of error messages.
+ * Returns an empty array if the configuration is valid.
+ *
+ * @param config - The GDSConfig to validate
+ * @returns Array of error strings (empty if valid)
  */
 export function validateGDSConfig(config: GDSConfig): string[] {
   const errors: string[] = [];
-  if (!config.endpoint) errors.push('Endpoint URL is required');
-  if (!config.username) errors.push('Username is required');
-  if (!config.password) errors.push('Password is required');
-  if (!config.propertyCode) errors.push('Property code (hotelCode) is required');
-  if (!config.pcc) errors.push('PCC (Pseudo City Code) is required');
+
+  if (!config.endpoint || config.endpoint.trim().length === 0) {
+    errors.push('GDS endpoint URL is required');
+  }
+
+  if (!config.username || config.username.trim().length === 0) {
+    errors.push('GDS username is required');
+  }
+
+  if (!config.password || config.password.trim().length === 0) {
+    errors.push('GDS password is required');
+  }
+
+  if (!config.pcc || config.pcc.trim().length === 0) {
+    errors.push('Pseudo City Code (PCC) is required');
+  }
+
+  if (!config.propertyCode || config.propertyCode.trim().length === 0) {
+    errors.push('Property code is required');
+  }
+
   return errors;
 }
 
