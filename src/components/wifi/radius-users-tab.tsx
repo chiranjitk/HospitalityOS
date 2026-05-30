@@ -219,6 +219,7 @@ interface RadiusUser {
   totalBytesIn?: number;
   totalBytesOut?: number;
   // Enriched fields from v_wifi_users view
+  guestName?: string;
   guest_first_name?: string;
   guest_last_name?: string;
   room_number?: string;
@@ -251,6 +252,7 @@ interface WiFiPlan {
   dataLimit: number | null; // MB (null = unlimited)
   sessionLimit: number | null;
   validityDays: number;
+  validityMinutes?: number; // May be returned by API
   price: number;
   status: string;
 }
