@@ -1282,8 +1282,8 @@ function NATLogsTab() {
   const { toast } = useToast();
 
   const handleExportCSV = useCallback(() => {
-    const headers = 'Timestamp,Source IP:Port,NAT IP:Port,Dest IP:Port,Proto,Event Type,Download,Upload,Packets,Duration(s),Domain,Guest Name,Action';
-    const rows = logs.map(l => [l.timestamp, `${l.source_ip}:${l.src_port}`, `${l.nat_src_ip || ''}:${l.nat_src_port || ''}`, `${l.dest_ip}:${l.dst_port}`, l.proto, l.event_type || '-', l.bytes_orig || 0, l.bytes_reply || 0, l.packets || 0, l.duration || 0, l.domain || '', l.guestName || '', l.action || 'allow'].map(f => csvSafeEscape(f)).join(','));
+    const headers = 'Timestamp,Source IP:Port,NAT IP:Port,Dest IP:Port,Proto,Event Type,Download,Upload,Packets,Duration(s),Domain,Username,Guest Name,Action';
+    const rows = logs.map(l => [l.timestamp, `${l.source_ip}:${l.src_port}`, `${l.nat_src_ip || ''}:${l.nat_src_port || ''}`, `${l.dest_ip}:${l.dst_port}`, l.proto, l.event_type || '-', l.bytes_orig || 0, l.bytes_reply || 0, l.packets || 0, l.duration || 0, l.domain || '', l.username || '', l.guestName || '', l.action || 'allow'].map(f => csvSafeEscape(f)).join(','));
     const csv = [headers, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1323,7 +1323,7 @@ function NATLogsTab() {
     let result = logs;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(l => (l.source_ip || l.sourceIp || '').includes(q) || (l.dest_ip || l.destIp || '').includes(q) || (l.guestName || '').toLowerCase().includes(q));
+      result = result.filter(l => (l.source_ip || l.sourceIp || '').includes(q) || (l.dest_ip || l.destIp || '').includes(q) || (l.guestName || '').toLowerCase().includes(q) || (l.username || '').toLowerCase().includes(q));
     }
     if (protocolFilter !== 'all') result = result.filter(l => (l.proto || l.protocol) === protocolFilter);
     if (actionFilter !== 'all') result = result.filter(l => l.action === actionFilter);
@@ -1435,12 +1435,13 @@ function NATLogsTab() {
                     <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right">{t('wrThULArrow')}</TableHead>
                     <TableHead className="text-[10px] sm:text-xs whitespace-nowrap text-right hidden md:table-cell">{t('wrThPkts')}</TableHead>
                     <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden md:table-cell">{t('wrThDomain')}</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden md:table-cell">{t('wrThUsername')}</TableHead>
                     <TableHead className="text-[10px] sm:text-xs whitespace-nowrap hidden lg:table-cell">{t('wrThGuest')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredLogs.length === 0 ? (
-                    <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground text-xs">{t('wrNoNatLogData')}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground text-xs">{t('wrNoNatLogData')}</TableCell></TableRow>
                   ) : paginatedNatLogs.map((log, idx) => (
                     <TableRow key={log.id || `nat-${idx}`} className={cn('hover:bg-muted/30', (log.action === 'deny') && 'bg-red-50/50 dark:bg-red-950/10')}>
                       <TableCell className="text-[10px] sm:text-xs text-muted-foreground font-mono whitespace-nowrap">
@@ -1475,6 +1476,7 @@ function NATLogsTab() {
                       <TableCell className="text-right text-[10px] sm:text-xs font-mono text-amber-600 dark:text-amber-400 whitespace-nowrap">{formatBytes(log.bytes_reply || 0)}</TableCell>
                       <TableCell className="text-right text-[10px] sm:text-xs font-mono hidden md:table-cell">{(log.packets || 0).toLocaleString()}</TableCell>
                       <TableCell className="text-[10px] sm:text-xs font-mono max-w-[100px] sm:max-w-[120px] truncate hidden md:table-cell">{log.domain || '—'}</TableCell>
+                      <TableCell className="text-[10px] sm:text-xs font-mono hidden md:table-cell">{log.username || <span className="text-muted-foreground">—</span>}</TableCell>
                       <TableCell className="text-[10px] sm:text-xs hidden lg:table-cell">{log.guestName || <span className="text-muted-foreground">—</span>}</TableCell>
                     </TableRow>
                   ))}

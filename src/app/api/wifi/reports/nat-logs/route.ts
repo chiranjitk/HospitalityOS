@@ -12,6 +12,14 @@ const SOURCE_IPS = [
   '10.0.3.201', '10.0.3.202', '10.0.4.301', '10.0.4.110', '10.0.2.108',
 ];
 
+const USERNAME_MAP: Record<string, string> = {
+  '10.0.1.101': 'rahul.sharma',
+  '10.0.1.102': 'priya.patel',
+  '10.0.2.104': 'amit.kumar',
+  '10.0.3.201': 'sneha.reddy',
+  '10.0.4.301': 'vikram.singh',
+};
+
 const DEST_IP_MAP: Record<string, string> = {
   '142.250.80.14': 'google.com',
   '157.240.1.35': 'facebook.com',
@@ -98,6 +106,9 @@ function generateDemoData(count: number) {
     // Guest name
     const guestName = GUEST_NAME_MAP[sourceIp] ?? '';
 
+    // Username (RADIUS login)
+    const username = USERNAME_MAP[sourceIp] ?? '';
+
     // Action: all allow for demo
     const action = 'allow';
 
@@ -124,6 +135,7 @@ function generateDemoData(count: number) {
       nat_src_port: natSrcPort,
       domain,
       guestName,
+      username,
       action,
     });
   }
@@ -290,6 +302,27 @@ export async function GET(request: NextRequest) {
         const correlation = await correlateIpsToGuests(ipTimestampPairs, user.tenantId);
         const guestMap = correlation.ipToGuest;
 
+        // ── Resolve usernames from radAcct (time-window aware) ──
+        const usernameMap = new Map<string, string>();
+        const uniqueSrcIps = [...new Set(natRows.map((r) => String(r.src_ip ?? '')).filter(Boolean))];
+        if (uniqueSrcIps.length > 0) {
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          const radRecords = await db.radAcct.findMany({
+            where: {
+              framedipaddress: { in: uniqueSrcIps },
+              acctstarttime: { gte: sevenDaysAgo },
+            },
+            select: { framedipaddress: true, username: true },
+            orderBy: { acctstarttime: 'desc' },
+          });
+          for (const r of radRecords) {
+            if (r.framedipaddress && r.username && !usernameMap.has(r.framedipaddress)) {
+              usernameMap.set(r.framedipaddress, r.username);
+            }
+          }
+        }
+
         // ── Build enriched response ───────────────────────────
         enriched = natRows.map((row, idx) => {
           const rawTs = String(row.timestamp ?? '');
@@ -316,6 +349,7 @@ export async function GET(request: NextRequest) {
           // Domain from SNI log (trusted source — captured from TLS handshake)
           domain: domainMap.get(String(row.dst_ip ?? '')) ?? '',
           guestName: guestMap.get(String(row.src_ip ?? '')) ?? '',
+          username: usernameMap.get(String(row.src_ip ?? '')) ?? '',
           action: 'allow',
         };
         });
@@ -353,9 +387,31 @@ export async function GET(request: NextRequest) {
         }));
         const guestMap = await resolveGuestNames(ipTimestampPairs, user.tenantId);
 
-        // Attach guest names
+        // Resolve usernames from radAcct
+        const ulogdIps = [...new Set(ulogdData.map((d) => d.source_ip).filter(Boolean))];
+        const ulogdUsernameMap = new Map<string, string>();
+        if (ulogdIps.length > 0) {
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          const radRecords = await db.radAcct.findMany({
+            where: {
+              framedipaddress: { in: ulogdIps },
+              acctstarttime: { gte: sevenDaysAgo },
+            },
+            select: { framedipaddress: true, username: true },
+            orderBy: { acctstarttime: 'desc' },
+          });
+          for (const r of radRecords) {
+            if (r.framedipaddress && r.username && !ulogdUsernameMap.has(r.framedipaddress)) {
+              ulogdUsernameMap.set(r.framedipaddress, r.username);
+            }
+          }
+        }
+
+        // Attach guest names and usernames
         for (const entry of ulogdData) {
           entry.guestName = guestMap.get(entry.source_ip) ?? '';
+          entry.username = ulogdUsernameMap.get(entry.source_ip) ?? '';
         }
 
         // Apply action filter if needed
