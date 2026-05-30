@@ -155,7 +155,10 @@ interface AuthResult {
   bandwidthUp: number;
   message: string;
   sessionId?: string;
+  username?: string;
   guestId?: string;
+  tenantId?: string;
+  propertyId?: string;
   // External gateway fields (MikroTik, etc.)
   needGatewayLogin?: boolean;
   gatewayCallbackUrl?: string;
@@ -2564,6 +2567,8 @@ function PortalContent() {
 
   // Auto-auth state
   const [autoAuthAttempted, setAutoAuthAttempted] = useState(false);
+  // Session-check state (detect existing active session by client IP)
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [maxDeviceMessage, setMaxDeviceMessage] = useState('');
   const [debugOtp, setDebugOtp] = useState<string | null>(null);
   const [emailOtpGuestInfo, setEmailOtpGuestInfo] = useState<{ guestName?: string; roomNumber?: string; maskedEmail?: string } | null>(null);
@@ -2712,8 +2717,41 @@ function PortalContent() {
     return () => { cancelled = true; };
   }, [applyPortalConfig]);
 
+  // ── Check for existing active session by client IP ──
+  // This runs BEFORE auto-auth. If the client already has an active RADIUS
+  // session (e.g. user closed browser and reopened it), the portal should
+  // show the post-login page with a logout button, not the login form.
+  useEffect(() => {
+    if (sessionChecked || !portalConfig) return;
+    setSessionChecked(true);
+
+    const checkSession = async () => {
+      try {
+        console.log('[Portal] Checking for existing active session by client IP...');
+        const res = await fetch('/api/v1/wifi/session-check');
+        if (!res.ok) return;
+        const result = await res.json();
+
+        if (result.success && result.hasSession && result.session) {
+          console.log('[Portal] ✅ Active session detected — showing post-login page');
+          setAuthResult(result.session);
+          setState('success');
+          return;
+        }
+
+        console.log('[Portal] No active session found — proceeding to login/auto-auth');
+      } catch (err) {
+        console.warn('[Portal] Session check failed:', err);
+        // Non-fatal — proceed with login form
+      }
+    };
+    checkSession();
+  }, [portalConfig, sessionChecked]);
+
   // ── After portal config loads, attempt auto-auth ──
   useEffect(() => {
+    // Skip if session was already detected
+    if (state === 'success') return;
     // Skip auto-auth if portal has it disabled (admin toggle)
     if (portalConfig?.autoAuthEnabled === false) {
       console.log('[Portal] Auto-auth disabled for this portal, showing login form');
@@ -2902,6 +2940,7 @@ function PortalContent() {
     // Reset portal state to show login form
     setAuthResult(null);
     setAutoAuthAttempted(false);
+    setSessionChecked(false);
     setState('auth_form');
     setErrorMessage('');
   }, [authResult]);
