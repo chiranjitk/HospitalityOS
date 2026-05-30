@@ -1191,6 +1191,7 @@ export async function POST(request: NextRequest) {
     // ════════════════════════════════════════════════════════════
     const clientRateLimitIp = extractClientIp(request) || 'unknown';
     if (isRateLimited(clientRateLimitIp)) {
+      await logAuthAttempt(clientRateLimitIp, 'Access-Reject', request, 'RATE_LIMITED');
       return errorResponse('RATE_LIMITED', 'Too many authentication attempts. Please try again later.', 429);
     }
 
@@ -1298,6 +1299,7 @@ export async function POST(request: NextRequest) {
           const hasTermsUrl = !!portalPage?.termsUrl;
           const termsRequired = hasTermsText || hasTermsUrl;
           if (termsRequired && termsAccepted !== true && termsAccepted !== 'true') {
+            await logAuthAttempt(method || 'unknown', 'Access-Reject', request, 'CONSENT_REQUIRED');
             return errorResponse('CONSENT_REQUIRED', 'You must accept the terms and conditions to connect.', 403);
           }
         }
@@ -1470,6 +1472,7 @@ export async function POST(request: NextRequest) {
           || await db.property.findFirst({ where: { tenantId: voucher.tenantId }, select: { id: true } }).then(p => p?.id);
 
         if (!resolvedPropertyId) {
+          await logAuthAttempt(`voucher-${voucher.code.toLowerCase()}`, 'Access-Reject', request, 'NO_PROPERTY');
           return errorResponse('NO_PROPERTY', 'No property configured. Please contact front desk.');
         }
 
@@ -1637,9 +1640,11 @@ export async function POST(request: NextRequest) {
       //   3. Fallback: create room-{number} user (original behavior)
       case 'room_number': {
         if (!roomNumber?.trim()) {
+          await logAuthAttempt('room-auth', 'Access-Reject', request, 'MISSING_ROOM');
           return errorResponse('MISSING_ROOM', 'Please enter your room number');
         }
         if (!lastName?.trim()) {
+          await logAuthAttempt('room-auth', 'Access-Reject', request, 'MISSING_NAME');
           return errorResponse('MISSING_NAME', 'Please enter your last name');
         }
 
@@ -1659,7 +1664,7 @@ export async function POST(request: NextRequest) {
         );
 
         if (!match) {
-          await logAuthAttempt(`room-${roomNumber.trim().toLowerCase()}`, 'Access-Reject', request, 'INVALID_CREDENTIALS');
+          await logAuthAttempt(`room-${roomNumber.trim().toLowerCase()}`, 'Access-Reject', request, 'ROOM_NOT_FOUND');
           logIdentityVerification({
             tenantId: effectiveTenantId || '',
             propertyId: null,
@@ -2317,6 +2322,7 @@ export async function POST(request: NextRequest) {
           try {
             const ivSettings = await getWifiSettings(portal.tenantId, 'identity_verification');
             if (!ivSettings.enableSmsOtp) {
+              await logAuthAttempt('sms-otp', 'Access-Reject', request, 'SMS_OTP_DISABLED');
               return errorResponse('SMS_OTP_DISABLED', 'SMS OTP verification is disabled for this property. Please use another authentication method.');
             }
           } catch { /* best effort — allow if settings can't be read */ }
@@ -2656,6 +2662,7 @@ export async function POST(request: NextRequest) {
           try {
             const ivSettings = await getWifiSettings(portal.tenantId, 'identity_verification');
             if (!ivSettings.enableEmailOtp) {
+              await logAuthAttempt('email-otp', 'Access-Reject', request, 'EMAIL_OTP_DISABLED');
               return errorResponse('EMAIL_OTP_DISABLED', 'Email OTP verification is disabled for this property. Please use another authentication method.');
             }
           } catch { /* best effort — allow if settings can't be read */ }
@@ -2914,6 +2921,7 @@ export async function POST(request: NextRequest) {
           }
 
           if (!isValidEmail(email.trim())) {
+            await logAuthAttempt(email?.trim() || 'unknown', 'Access-Reject', request, 'INVALID_EMAIL');
             return errorResponse('INVALID_EMAIL', 'Please enter a valid email address.');
           }
 
@@ -2923,6 +2931,7 @@ export async function POST(request: NextRequest) {
           // ── LOOKUP GUEST IN DATABASE ──
           // Must be an existing guest (booked or checked-in) — no self-registration
           if (!tenantId) {
+            await logAuthAttempt('email-otp', 'Access-Reject', request, 'CONFIG_ERROR');
             return errorResponse('CONFIG_ERROR', 'Portal configuration error. Please contact front desk.');
           }
 
@@ -2945,6 +2954,7 @@ export async function POST(request: NextRequest) {
           if (!guest) {
             // Guest not found in database
             console.log(`[Email OTP] Guest not found for email: ${normalizedEmail} (tenant: ${tenantId})`);
+            await logAuthAttempt(normalizedEmail, 'Access-Reject', request, 'EMAIL_NOT_REGISTERED');
             return errorResponse('EMAIL_NOT_REGISTERED',
               'This email is not registered with us. If you are a hotel guest, please contact the front desk for assistance.',
               403);
@@ -2973,6 +2983,7 @@ export async function POST(request: NextRequest) {
 
           if (!activeBooking) {
             console.log(`[Email OTP] Guest ${guest.id} (${normalizedEmail}) has no active booking`);
+            await logAuthAttempt(normalizedEmail, 'Access-Reject', request, 'NO_ACTIVE_BOOKING');
             return errorResponse('NO_ACTIVE_BOOKING',
               'No active booking found for this email. Please contact the front desk if you believe this is an error.',
               403);
@@ -2995,6 +3006,7 @@ export async function POST(request: NextRequest) {
 
           if (existingWifiUser) {
             console.log(`[Email OTP] Guest ${guest.id} (${normalizedEmail}) already has active WiFiUser: ${existingWifiUser.username}`);
+            await logAuthAttempt(normalizedEmail, 'Access-Reject', request, 'ALREADY_CONNECTED');
             return errorResponse('ALREADY_CONNECTED',
               'You are already checked in and have an active WiFi session. Please connect using your PMS Credentials or Room + Last Name.',
               403);
@@ -4180,6 +4192,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (!socialId) {
+          await logAuthAttempt(`social-${provider}`, 'Access-Reject', request, 'SOCIAL_AUTH_FAILED');
           return errorResponse('SOCIAL_AUTH_FAILED', 'Could not verify social identity. Please try again.', 401);
         }
 
@@ -4833,15 +4846,95 @@ async function provisionOrResumeUser(
  * human-readable message for the replyMessage column.
  */
 function getRejectMessageFromCode(code: string): string | null {
-  if (code.startsWith('IP_NOT_IN_POOL:')) return `IP not in managed pool: ${code.replace('IP_NOT_IN_POOL:', '')}`;
-  if (code === 'IP_NOT_DETERMINED') return 'Could not determine client IP';
-  if (code.startsWith('MAX_SESSION')) return 'Max concurrent sessions reached';
-  if (code === 'RADIUS_UNREACHABLE') return 'RADIUS server unreachable';
-  if (code === 'MAC_NOT_REGISTERED_FOR_USER') return 'MAC address not registered for this account. Contact front desk to register your device.';
-  if (code === 'MAC_NOT_REGISTERED') return 'MAC address not registered in the system whitelist.';
-  if (code.startsWith('MAC_')) return code.replace(/_/g, ' ').toLowerCase();
-  if (code.startsWith('ACCOUNT_')) return code.replace(/_/g, ' ').toLowerCase();
-  if (code.startsWith('INVALID_') || code.startsWith('MISSING_') || code.startsWith('VOUCHER_') || code.startsWith('AUTH_')) return code.replace(/_/g, ' ').toLowerCase();
+  // IP pool violations
+  if (code.startsWith('IP_NOT_IN_POOL:')) return `Client IP not in managed WiFi pool: ${code.replace('IP_NOT_IN_POOL:', '')}`;
+  if (code === 'IP_NOT_IN_POOL') return 'Client device is not connected to a managed WiFi network';
+  if (code === 'IP_NOT_DETERMINED') return 'Could not determine client IP address';
+
+  // Session limits
+  if (code === 'MAX_SESSIONS_REACHED' || code.startsWith('MAX_SESSION')) return 'Maximum concurrent sessions reached — disconnect another device first';
+
+  // MAC binding violations
+  if (code === 'MAC_NOT_REGISTERED_FOR_USER') return 'MAC address not registered for this user account';
+  if (code === 'MAC_NOT_REGISTERED') return 'MAC address not found in system whitelist';
+  if (code === 'MAC_EXPIRED') return 'MAC registration has expired — contact front desk';
+  if (code === 'MAC_NOT_DETECTED') return 'Device MAC address could not be detected';
+  if (code.startsWith('MAC_')) return `MAC violation: ${code.replace(/_/g, ' ').toLowerCase()}`;
+
+  // Account status
+  if (code === 'ACCOUNT_INACTIVE') return 'WiFi account is inactive — contact front desk';
+  if (code === 'ACCOUNT_EXPIRED') return 'WiFi session has expired — contact front desk to renew';
+
+  // Voucher issues
+  if (code === 'VOUCHER_USED') return 'Voucher code has already been used';
+  if (code === 'VOUCHER_EXPIRED') return 'Voucher code has expired';
+  if (code === 'VOUCHER_NOT_YET_VALID') return 'Voucher code is not yet valid';
+  if (code === 'INVALID_VOUCHER') return 'Invalid or expired voucher code';
+  if (code === 'MISSING_VOUCHER') return 'No voucher code provided';
+  if (code.startsWith('VOUCHER_')) return `Voucher error: ${code.replace(/_/g, ' ').toLowerCase()}`;
+
+  // OTP issues
+  if (code === 'OTP_INVALID') return 'Invalid OTP code — verify and try again';
+  if (code === 'OTP_EXPIRED') return 'OTP code has expired — request a new one';
+  if (code === 'OTP_NOT_FOUND') return 'No active OTP found — request a new one';
+  if (code === 'OTP_MAX_ATTEMPTS') return 'Too many incorrect OTP attempts — request a new OTP';
+  if (code.startsWith('OTP_')) return `OTP error: ${code.replace(/_/g, ' ').toLowerCase()}`;
+
+  // Credential issues
+  if (code === 'INVALID_CREDENTIALS') return 'Invalid username or password';
+  if (code === 'AUTH_FAILED') return 'Authentication failed';
+  if (code === 'RADIUS_UNREACHABLE') return 'RADIUS authentication server is unreachable';
+
+  // LDAP
+  if (code.startsWith('LDAP:') || code === 'LDAP_AUTH_FAILED' || code === 'LDAP_NOT_CONFIGURED') return `LDAP authentication ${code.startsWith('LDAP:') ? 'failed: ' + code.replace('LDAP:', '') : 'error'}`;
+
+  // Social login
+  if (code.startsWith('SOCIAL_')) return `Social login ${code.replace(/_/g, ' ').toLowerCase()}`;
+
+  // Rate limiting
+  if (code === 'RATE_LIMITED') return 'Too many authentication attempts — try again later';
+
+  // Room-based auth
+  if (code === 'ROOM_NOT_FOUND') return 'No active guest found for this room and name';
+  if (code === 'MISSING_ROOM') return 'Room number is required';
+  if (code === 'MISSING_NAME') return 'Guest last name is required';
+
+  // PMS/booking
+  if (code === 'NO_ACTIVE_BOOKING') return 'No active booking found for this guest';
+  if (code === 'ALREADY_CONNECTED') return 'Device is already connected to WiFi';
+
+  // Config / general
+  if (code === 'NO_PROPERTY' || code === 'CONFIG_ERROR') return 'Portal configuration error — contact front desk';
+  if (code === 'CONSENT_REQUIRED') return 'Terms acceptance is required to connect';
+  if (code === 'TENANT_MISMATCH') return 'Voucher is not valid for this property';
+  if (code === 'VOUCHER_ALREADY_CLAIMED') return 'Voucher has already been claimed by another device';
+
+  // Phone / email validation
+  if (code === 'MISSING_PHONE') return 'Phone number is required for authentication';
+  if (code === 'INVALID_PHONE') return 'Invalid phone number format';
+  if (code === 'MISSING_EMAIL') return 'Email address is required for authentication';
+  if (code === 'INVALID_EMAIL') return 'Invalid email address format';
+  if (code === 'EMAIL_NOT_REGISTERED') return 'Email address is not registered for WiFi access';
+  if (code.startsWith('SMS_OTP') || code.startsWith('EMAIL_OTP')) return `${code.replace(/_/g, ' ').toLowerCase()} for this property`;
+
+  // Method issues
+  if (code === 'MISSING_METHOD') return 'No authentication method specified';
+  if (code === 'INVALID_METHOD') return `Unsupported authentication method: ${code.replace('INVALID_METHOD', '').trim() || 'unknown'}`;
+  if (code === 'MISSING_USERNAME') return 'Username is required';
+  if (code === 'MISSING_PASSWORD') return 'Password is required';
+  if (code === 'MISSING_SOCIAL_TOKEN') return 'Social login token is missing';
+  if (code === 'MISSING_PROVIDER') return 'Social login provider not specified';
+  if (code === 'INVALID_PROVIDER') return 'Unsupported social login provider';
+
+  // Generic fallback for remaining patterns
+  if (code.startsWith('INVALID_') || code.startsWith('MISSING_') || code.startsWith('AUTH_') || code.startsWith('ACCOUNT_')) return code.replace(/_/g, ' ').toLowerCase();
+
+  // Pool success logs (not reject, but log them properly)
+  if (code.startsWith('pool:')) return code;
+  if (code.startsWith('LDAP_AUTH_OK')) return code;
+  if (code.startsWith('MAC_') && code.includes('AUTH')) return code;
+  if (code.startsWith('SOCIAL_') && code.includes('OK')) return code;
+
   return null;
 }
 
