@@ -120,6 +120,7 @@ import { csvSafeEscape, maskIP } from '@/lib/wifi/validation';
 const CoaAuditTab = lazy(() => import('./coa-audit'));
 const UserStatusHistoryTab = lazy(() => import('./user-status-history'));
 const SyslogTab = lazy(() => import('./syslog-tab'));
+const GuestBandwidthAnalytics = lazy(() => import('./guest-bandwidth-analytics'));
 
 // ==================== LOADING SPINNER ====================
 
@@ -211,7 +212,7 @@ function CircularGauge({ value, label, color, size = 120 }: { value: number; lab
 
 // ==================== TAB TYPES ====================
 
-type TabId = 'bandwidth' | 'user-bw' | 'web-surfing' | 'nat-logs' | 'voucher' | 'sys-health' | 'coa-audit' | 'user-status-history' | 'syslog';
+type TabId = 'bandwidth' | 'user-bw' | 'web-surfing' | 'nat-logs' | 'voucher' | 'sys-health' | 'coa-audit' | 'user-status-history' | 'syslog' | 'guest-analytics';
 
 function SortIcon({ col, isActive }: { col: string; isActive: boolean }) {
   return <ArrowUpDown className={cn('h-3 w-3 ml-1 inline', isActive ? 'opacity-100' : 'opacity-30')} />;
@@ -227,6 +228,7 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'sys-health', label: 'wrTabSysHealth', icon: Activity },
   { id: 'coa-audit', label: 'wrTabCoaAudit', icon: FileCheck },
   { id: 'user-status-history', label: 'wrTabUserHistory', icon: History },
+  { id: 'guest-analytics', label: 'Guest Analytics', icon: BarChart3 },
 ];
 
 // ==================== MAIN COMPONENT ====================
@@ -297,6 +299,11 @@ export default function ReportsPage() {
           {activeTab === 'syslog' && (
             <Suspense fallback={<LoadingSpinner message={t('wrLoadingSyslog')} />}>
               <SyslogTab />
+            </Suspense>
+          )}
+          {activeTab === 'guest-analytics' && (
+            <Suspense fallback={<LoadingSpinner message="Loading Guest Analytics..." />}>
+              <GuestBandwidthAnalytics />
             </Suspense>
           )}
         </div>

@@ -52,6 +52,9 @@ import {
   Zap,
   Database,
   ArrowUpRight,
+  CheckCircle2,
+  Receipt,
+  CalendarClock,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -156,14 +159,28 @@ function getChargeTypeIcon(chargeType: string) {
 }
 
 function getStatusBadge(status: string) {
-  const config: Record<string, { variant: 'default' | 'secondary' | 'outline' | 'destructive'; label: string }> = {
-    pending: { variant: 'outline', label: 'Pending' },
-    posted: { variant: 'default', label: 'Posted' },
-    invoiced: { variant: 'secondary', label: 'Invoiced' },
-    voided: { variant: 'destructive', label: 'Voided' },
-  };
-  const c = config[status] || { variant: 'outline' as const, label: status };
-  return <Badge variant={c.variant}>{c.label}</Badge>;
+  switch (status) {
+    case 'pending':
+      return <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 text-xs gap-1"><Clock className="h-3 w-3" />Pending</Badge>;
+    case 'posted':
+      return <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-xs gap-1"><CheckCircle2 className="h-3 w-3" />Paid</Badge>;
+    case 'invoiced':
+      return <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 text-xs gap-1"><FileText className="h-3 w-3" />Invoiced</Badge>;
+    case 'voided':
+      return <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 text-xs gap-1"><AlertCircle className="h-3 w-3" />Voided</Badge>;
+    case 'overdue':
+      return <Badge className="bg-red-600 hover:bg-red-700 text-white border-0 text-xs gap-1"><AlertCircle className="h-3 w-3" />Overdue</Badge>;
+    default:
+      return <Badge variant="outline" className="text-xs">{status}</Badge>;
+  }
+}
+
+function getBillingRunStatusColor(status: 'success' | 'pending' | 'failed') {
+  switch (status) {
+    case 'success': return 'bg-emerald-500';
+    case 'pending': return 'bg-amber-500';
+    case 'failed': return 'bg-red-500';
+  }
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────────
@@ -425,14 +442,56 @@ export default function WiFiBillingDashboard() {
         </div>
       </div>
 
+      {/* ── Summary Card ──────────────────────────────────────────── */}
+      {summary && (
+        <Card className="border-0 shadow-sm bg-gradient-to-r from-primary/8 via-primary/5 to-transparent dark:from-primary/10 dark:via-primary/5 dark:to-transparent">
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-primary/10 dark:bg-primary/20 p-2.5">
+                  <Receipt className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Billing Summary</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xl font-bold tabular-nums">{formatCurrency(summary.totalPending)}</p>
+                    <span className="text-xs text-muted-foreground">outstanding</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-6 sm:ml-auto">
+                <div className="text-center">
+                  <p className="text-lg font-bold tabular-nums text-amber-600 dark:text-amber-400">{lines.filter(l => l.status === 'pending' || l.status === 'overdue').length}</p>
+                  <p className="text-[10px] text-muted-foreground">Unpaid Invoices</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{lines.filter(l => l.status === 'posted').length}</p>
+                  <p className="text-[10px] text-muted-foreground">Paid</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="relative">
+                    <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                    <div className="absolute inset-0 h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+                  </div>
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <CalendarClock className="h-3 w-3" />
+                    Last run: just now
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Summary KPI Cards ──────────────────────────────────────── */}
       {summary && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Total Billed */}
-          <Card className="border-0 shadow-sm bg-primary/5 dark:bg-primary/5">
+          {/* Total Revenue */}
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-primary/8 to-primary/3 dark:from-primary/10 dark:to-primary/5">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-muted-foreground">Total Billed</span>
+                <span className="text-xs font-medium text-muted-foreground">Total Revenue</span>
                 <div className="rounded-md bg-primary/10 dark:bg-primary/10 p-1.5">
                   <DollarSign className="h-3.5 w-3.5 text-primary" />
                 </div>
@@ -446,11 +505,17 @@ export default function WiFiBillingDashboard() {
             </CardContent>
           </Card>
 
-          {/* Posted to Folio */}
-          <Card className="border-0 shadow-sm">
+          {/* Posted to Folio (Upgrades Sold equivalent) */}
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-50/50 dark:from-emerald-950/20 dark:to-emerald-950/10">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-muted-foreground">Posted to Folio</span>
+                <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <div className="relative">
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    <div className="absolute inset-0 h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  </div>
+                  Posted to Folio
+                </span>
                 <div className="rounded-md bg-emerald-100 dark:bg-emerald-900/40 p-1.5">
                   <FileCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                 </div>
@@ -463,10 +528,16 @@ export default function WiFiBillingDashboard() {
           </Card>
 
           {/* Pending */}
-          <Card className="border-0 shadow-sm">
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-50/50 dark:from-amber-950/20 dark:to-amber-950/10">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-muted-foreground">Pending</span>
+                <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <div className="relative">
+                    <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    <div className="absolute inset-0 h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
+                  </div>
+                  Pending
+                </span>
                 <div className="rounded-md bg-amber-100 dark:bg-amber-900/40 p-1.5">
                   <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                 </div>
@@ -478,13 +549,13 @@ export default function WiFiBillingDashboard() {
             </CardContent>
           </Card>
 
-          {/* This Month */}
-          <Card className="border-0 shadow-sm">
+          {/* This Month (Avg Upsell equivalent) */}
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-primary/8 to-primary/3 dark:from-primary/10 dark:to-primary/5">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-muted-foreground">This Month</span>
-                <div className="rounded-md bg-blue-100 dark:bg-blue-900/40 p-1.5">
-                  <TrendingUp className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                <div className="rounded-md bg-primary/10 dark:bg-primary/10 p-1.5">
+                  <TrendingUp className="h-3.5 w-3.5 text-primary" />
                 </div>
               </div>
               <p className="text-2xl font-bold tabular-nums">
@@ -557,20 +628,20 @@ export default function WiFiBillingDashboard() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs">Guest</TableHead>
-                    <TableHead className="text-xs">Plan</TableHead>
-                    <TableHead className="text-xs">Charge Type</TableHead>
-                    <TableHead className="text-xs text-right">Amount</TableHead>
-                    <TableHead className="text-xs text-right">Data Used</TableHead>
-                    <TableHead className="text-xs">Status</TableHead>
-                    <TableHead className="text-xs">Period</TableHead>
-                    <TableHead className="text-xs">Created</TableHead>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    <TableHead className="text-xs font-semibold">Guest</TableHead>
+                    <TableHead className="text-xs font-semibold">Plan</TableHead>
+                    <TableHead className="text-xs font-semibold">Charge Type</TableHead>
+                    <TableHead className="text-xs font-semibold text-right">Amount</TableHead>
+                    <TableHead className="text-xs font-semibold text-right">Data Used</TableHead>
+                    <TableHead className="text-xs font-semibold">Status</TableHead>
+                    <TableHead className="text-xs font-semibold">Period</TableHead>
+                    <TableHead className="text-xs font-semibold">Created</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {lines.map((line) => (
-                    <TableRow key={line.id}>
+                    <TableRow key={line.id} className="hover:bg-muted/30 transition-colors">
                       <TableCell>
                         <div>
                           <p className="text-sm font-medium">

@@ -36,6 +36,8 @@ import {
   Megaphone,
   Target,
   Clock,
+  Trophy,
+  Flame,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -117,6 +119,22 @@ function formatCompact(value: number, currencySymbol: string): string {
   return `${currencySymbol}${value.toFixed(0)}`;
 }
 
+// ─── Sparkline Component ───────────────────────────────────────
+function MiniSparkline({ values, color = 'bg-primary', height = 32 }: { values: number[]; color?: string; height?: number }) {
+  const max = Math.max(...values, 1);
+  return (
+    <div className="flex items-end gap-[2px]" style={{ height }}>
+      {values.map((v, i) => (
+        <div
+          key={i}
+          className={`flex-1 rounded-t-[1px] min-h-[1px] transition-all duration-500 ${color} opacity-${60 + Math.round((v / max) * 40)}`}
+          style={{ height: `${Math.max((v / max) * 100, 4)}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function getSourceIcon(source: string) {
   switch (source) {
     case 'Bandwidth Upsells': return <Zap className="h-3.5 w-3.5" />;
@@ -191,6 +209,9 @@ export default function WiFiRevenueDashboard() {
   }
 
   const maxDailyRevenue = Math.max(...data.dailyRevenue.map(d => d.revenue), 1);
+  const topRevenueDay = data.dailyRevenue.reduce((best, d) => d.revenue > best.revenue ? d : best, data.dailyRevenue[0]);
+  const monthlyTarget = data.revenueForecast.projectedMonthlyRevenue * 1.15;
+  const targetProgress = Math.min(Math.round((data.kpis.totalRevenue / monthlyTarget) * 100), 100);
 
   return (
     <div className="space-y-6">
@@ -211,9 +232,32 @@ export default function WiFiRevenueDashboard() {
         </Button>
       </div>
 
+      {/* ── Revenue Target Progress ──────────────────────────────── */}
+      <Card className="border-0 shadow-sm bg-gradient-to-r from-primary/8 via-primary/4 to-transparent dark:from-primary/10 dark:via-primary/5 dark:to-transparent">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold">Monthly Revenue Target</span>
+            </div>
+            <span className="text-sm font-bold tabular-nums text-primary">{targetProgress}%</span>
+          </div>
+          <div className="h-3 w-full bg-muted/50 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-700"
+              style={{ width: `${targetProgress}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-xs text-muted-foreground">{formatCurrencyFn(data.kpis.totalRevenue, currency)} earned</span>
+            <span className="text-xs text-muted-foreground">Target: {formatCurrencyFn(monthlyTarget, currency)}</span>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* ── KPI Cards ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        <Card className="border-0 shadow-sm bg-primary/5 dark:bg-primary/5">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-primary/8 to-primary/3 dark:from-primary/10 dark:to-primary/5">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-muted-foreground">Total Revenue (30d)</span>
@@ -222,6 +266,7 @@ export default function WiFiRevenueDashboard() {
               </div>
             </div>
             <p className="text-2xl font-bold tabular-nums">{formatCompact(data.kpis.totalRevenue, currencySymbol)}</p>
+            <MiniSparkline values={data.dailyRevenue.slice(-7).map(d => d.revenue)} color="bg-primary" height={28} />
             <div className="flex items-center gap-1 mt-1">
               {data.revenueForecast.growthRate >= 0 ? (
                 <TrendingUp className="h-3 w-3 text-primary" />
@@ -231,25 +276,26 @@ export default function WiFiRevenueDashboard() {
               <span className={`text-xs font-medium ${data.revenueForecast.growthRate >= 0 ? 'text-primary' : 'text-red-600'}`}>
                 {data.revenueForecast.growthRate >= 0 ? '+' : ''}{data.revenueForecast.growthRate}%
               </span>
-              <span className="text-xs text-muted-foreground">vs prev period</span>
+              <span className="text-xs text-muted-foreground">vs prev</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-50/50 dark:from-emerald-950/20 dark:to-emerald-950/10">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-muted-foreground">Monthly Recurring</span>
-              <div className="rounded-md bg-blue-100 dark:bg-blue-900/40 p-1.5">
-                <CreditCard className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+              <div className="rounded-md bg-emerald-100 dark:bg-emerald-900/40 p-1.5">
+                <CreditCard className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
               </div>
             </div>
             <p className="text-2xl font-bold tabular-nums">{formatCompact(data.kpis.monthlyRecurringRevenue, currencySymbol)}</p>
+            <MiniSparkline values={data.dailyRevenue.slice(-7).map(d => d.revenue)} color="bg-emerald-500" height={28} />
             <p className="text-xs text-muted-foreground mt-1">From active bandwidth upsells</p>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-50/50 dark:from-purple-950/20 dark:to-purple-950/10">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-muted-foreground">ARPU</span>
@@ -262,7 +308,7 @@ export default function WiFiRevenueDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-50/50 dark:from-amber-950/20 dark:to-amber-950/10">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-muted-foreground">Upsell Conversion</span>
@@ -275,7 +321,7 @@ export default function WiFiRevenueDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-sm">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-rose-50 to-rose-50/50 dark:from-rose-950/20 dark:to-rose-950/10">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-muted-foreground">Active Subscriptions</span>
@@ -316,7 +362,7 @@ export default function WiFiRevenueDashboard() {
                   </div>
                   <div className="h-2.5 w-full bg-muted/50 rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all duration-500 ${colors.bg}`}
+                      className={`h-full rounded-full bg-gradient-to-r ${colors.bg} ${colors.bg}/70 transition-all duration-500`}
                       style={{ width: `${Math.max(source.percentage, 0.5)}%` }}
                     />
                   </div>
@@ -398,16 +444,16 @@ export default function WiFiRevenueDashboard() {
               <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs">Plan Name</TableHead>
-                    <TableHead className="text-xs text-right">Subscriptions</TableHead>
-                    <TableHead className="text-xs text-right">Revenue</TableHead>
-                    <TableHead className="text-xs text-right">Avg/User</TableHead>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    <TableHead className="text-xs font-semibold">Plan Name</TableHead>
+                    <TableHead className="text-xs font-semibold text-right">Subscriptions</TableHead>
+                    <TableHead className="text-xs font-semibold text-right">Revenue</TableHead>
+                    <TableHead className="text-xs font-semibold text-right">Avg/User</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.topPlans.map((plan, idx) => (
-                    <TableRow key={plan.planId}>
+                    <TableRow key={plan.planId} className="hover:bg-muted/30 transition-colors">
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-muted-foreground w-5">{idx + 1}</span>
@@ -493,6 +539,41 @@ export default function WiFiRevenueDashboard() {
                 </span>
                 <span className="text-xs text-muted-foreground">growth rate</span>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Top Revenue Day */}
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-50/30 dark:from-amber-950/20 dark:to-amber-950/10">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                <Flame className="h-3.5 w-3.5 text-amber-500" />
+                Top Revenue Day
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <p className="text-xs text-muted-foreground">Date</p>
+                <p className="text-lg font-semibold">{topRevenueDay ? format(new Date(topRevenueDay.date), 'EEEE, MMM d') : 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Revenue</p>
+                <p className="text-xl font-bold tabular-nums text-amber-600 dark:text-amber-400">
+                  {topRevenueDay ? formatCurrencyFn(topRevenueDay.revenue, currency) : '—'}
+                </p>
+              </div>
+              {topRevenueDay && topRevenueDay.previousDay > 0 && (
+                <div className="flex items-center gap-1">
+                  {topRevenueDay.revenue >= topRevenueDay.previousDay ? (
+                    <TrendingUp className="h-3 w-3 text-emerald-500" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3 text-red-400" />
+                  )}
+                  <span className={`text-xs font-medium ${topRevenueDay.revenue >= topRevenueDay.previousDay ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {topRevenueDay.revenue >= topRevenueDay.previousDay ? '+' : ''}{((topRevenueDay.revenue - topRevenueDay.previousDay) / topRevenueDay.previousDay * 100).toFixed(1)}%
+                  </span>
+                  <span className="text-xs text-muted-foreground">vs prev day</span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

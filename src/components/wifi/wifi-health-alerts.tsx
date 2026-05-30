@@ -23,7 +23,7 @@
  *  - POST /api/wifi/health?action=acknowledge-alert  — acknowledge alert
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -81,6 +81,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { ErrorBoundary } from '@/components/common/error-boundary';
+
+const NetworkHealthDashboard = lazy(() => import('@/components/wifi/network-health-dashboard'));
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -530,6 +533,17 @@ export default function WiFiHealthAlerts() {
           )}
         </div>
       </div>
+
+      {/* ─── Network Health Dashboard ─── */}
+      <Suspense fallback={
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      }>
+        <ErrorBoundary section="Network Health Dashboard">
+          <NetworkHealthDashboard />
+        </ErrorBoundary>
+      </Suspense>
 
       {/* ─── Property Filter Card ─── */}
       <Card>

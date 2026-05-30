@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -35,10 +36,6 @@ import {
   Upload,
   Wifi,
   Signal,
-  SignalHigh,
-  SignalMedium,
-  SignalLow,
-  SignalZero,
   Eye,
   EyeOff,
   Layers,
@@ -553,19 +550,17 @@ export default function WifiHeatmap() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Floor Name</Label>
-                    <input
+                    <Input
                       type="text"
-                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       value={floorNameInput}
                       onChange={e => setFloorNameInput(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>Floor Number</Label>
-                    <input
+                    <Input
                       type="number"
-                      min="1"
-                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      min={1}
                       value={floorNumberInput}
                       onChange={e => setFloorNumberInput(parseInt(e.target.value) || 1)}
                     />

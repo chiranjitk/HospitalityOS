@@ -68,7 +68,6 @@ import {
   Activity,
   Clock,
   ExternalLink,
-  type LucideIcon,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow, format } from 'date-fns';

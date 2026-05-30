@@ -58,6 +58,8 @@ import {
   Trash2,
   Plus,
   BarChart3,
+  ArrowDown,
+  ArrowUp,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { clampPositive } from '@/lib/wifi/validation';
@@ -150,6 +152,24 @@ function getComplianceColor(compliant: boolean | null): string {
 function getComplianceBadgeVariant(compliant: boolean | null): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (compliant === null) return 'secondary';
   return compliant ? 'outline' : 'destructive';
+}
+
+function getGradientClass(compliant: boolean | null): string {
+  if (compliant === null) return '';
+  return compliant
+    ? 'bg-gradient-to-br from-emerald-50 to-emerald-50/30 dark:from-emerald-950/20 dark:to-emerald-950/10'
+    : 'bg-gradient-to-br from-red-50 to-red-50/30 dark:from-red-950/20 dark:to-red-950/10';
+}
+
+function getComplianceStatusBadge(compliant: boolean | null) {
+  if (compliant === null) {
+    return <Badge variant="secondary" className="text-[10px]">N/A</Badge>;
+  }
+  return compliant ? (
+    <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-[10px] gap-1"><CheckCircle className="h-2.5 w-2.5" />Compliant</Badge>
+  ) : (
+    <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 text-[10px] gap-1"><XCircle className="h-2.5 w-2.5" />Breach</Badge>
+  );
 }
 
 function ComplianceIndicator({
@@ -468,12 +488,15 @@ export default function WiFiSLAMonitoring() {
           {/* SLA Compliance Cards */}
           {latestMetrics ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card className="border-0 shadow-sm">
+              <Card className={`border-0 shadow-sm ${getGradientClass(latestMetrics.actualUptime !== null ? latestMetrics.actualUptime >= latestMetrics.targets.uptime : null)}`}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                       <Wifi className="h-3.5 w-3.5" /> Uptime
                     </span>
+                    {latestMetrics.actualUptime !== null && latestMetrics.actualUptime >= latestMetrics.targets.uptime && (
+                      <ArrowUp className="h-3 w-3 text-emerald-500" />
+                    )}
                   </div>
                   <ComplianceIndicator
                     label=""
@@ -484,12 +507,15 @@ export default function WiFiSLAMonitoring() {
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-sm">
+              <Card className={`border-0 shadow-sm ${getGradientClass(latestMetrics.actualSpeedDown !== null ? latestMetrics.actualSpeedDown >= latestMetrics.targets.speedDown : null)}`}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                       <TrendingDown className="h-3.5 w-3.5" /> Download Speed
                     </span>
+                    {latestMetrics.actualSpeedDown !== null && latestMetrics.actualSpeedDown >= latestMetrics.targets.speedDown && (
+                      <ArrowUp className="h-3 w-3 text-emerald-500" />
+                    )}
                   </div>
                   <ComplianceIndicator
                     label=""
@@ -500,12 +526,15 @@ export default function WiFiSLAMonitoring() {
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-sm">
+              <Card className={`border-0 shadow-sm ${getGradientClass(latestMetrics.actualSpeedUp !== null ? latestMetrics.actualSpeedUp >= latestMetrics.targets.speedUp : null)}`}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                       <TrendingUp className="h-3.5 w-3.5" /> Upload Speed
                     </span>
+                    {latestMetrics.actualSpeedUp !== null && latestMetrics.actualSpeedUp >= latestMetrics.targets.speedUp && (
+                      <ArrowUp className="h-3 w-3 text-emerald-500" />
+                    )}
                   </div>
                   <ComplianceIndicator
                     label=""
@@ -516,12 +545,15 @@ export default function WiFiSLAMonitoring() {
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-sm">
+              <Card className={`border-0 shadow-sm ${getGradientClass(latestMetrics.actualLatency !== null ? latestMetrics.actualLatency <= latestMetrics.targets.latency : null)}`}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                       <Clock className="h-3.5 w-3.5" /> Latency
                     </span>
+                    {latestMetrics.actualLatency !== null && latestMetrics.actualLatency <= latestMetrics.targets.latency && (
+                      <ArrowDown className="h-3 w-3 text-emerald-500" />
+                    )}
                   </div>
                   <ComplianceIndicator
                     label=""
@@ -545,14 +577,20 @@ export default function WiFiSLAMonitoring() {
 
           {/* Overall Compliance Score */}
           {complianceData?.overallCompliance && complianceData.overallCompliance.overallScore !== null && (
-            <Card className="border-0 shadow-sm bg-primary/5 dark:bg-primary/5">
+            <Card className="border-0 shadow-sm bg-gradient-to-r from-primary/8 via-primary/5 to-transparent dark:from-primary/10 dark:via-primary/5 dark:to-transparent">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">Overall SLA Compliance</p>
-                    <p className="text-3xl font-bold tabular-nums text-primary">
-                      {complianceData.overallCompliance.overallScore}%
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <p className="text-4xl font-bold tabular-nums text-primary">
+                        {complianceData.overallCompliance.overallScore}%
+                      </p>
+                      <div className="relative">
+                        <div className="h-3 w-3 rounded-full bg-primary" />
+                        <div className="absolute inset-0 h-3 w-3 rounded-full bg-primary animate-ping opacity-75" />
+                      </div>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {complianceData.breachSummary?.totalBreaches ?? 0} breach events in last 30 days
                     </p>
@@ -751,45 +789,44 @@ export default function WiFiSLAMonitoring() {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-xs">Property</TableHead>
-                      <TableHead className="text-xs text-center">Uptime</TableHead>
-                      <TableHead className="text-xs text-center">Download</TableHead>
-                      <TableHead className="text-xs text-center">Upload</TableHead>
-                      <TableHead className="text-xs text-center">Latency</TableHead>
-                      <TableHead className="text-xs text-center">Breaches</TableHead>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50">
+                      <TableHead className="text-xs font-semibold">Property</TableHead>
+                      <TableHead className="text-xs font-semibold text-center">Uptime</TableHead>
+                      <TableHead className="text-xs font-semibold text-center">Download</TableHead>
+                      <TableHead className="text-xs font-semibold text-center">Upload</TableHead>
+                      <TableHead className="text-xs font-semibold text-center">Latency</TableHead>
+                      <TableHead className="text-xs font-semibold text-center">Status</TableHead>
+                      <TableHead className="text-xs font-semibold text-center">Breaches</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {complianceData.propertyCompliance.map((prop) => (
-                      <TableRow key={prop.propertyId}>
+                      <TableRow key={prop.propertyId} className="hover:bg-muted/30 transition-colors">
                         <TableCell>
                           <span className="text-sm font-medium">{prop.propertyName}</span>
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant={getComplianceBadgeVariant(prop.uptimeCompliant)} className="text-[10px]">
-                            {prop.actualUptime !== null ? `${prop.actualUptime.toFixed(1)}%` : '—'}
-                          </Badge>
+                          {getComplianceStatusBadge(prop.uptimeCompliant)}
+                          {prop.actualUptime !== null && <p className="text-[10px] text-muted-foreground mt-0.5">{prop.actualUptime.toFixed(1)}%</p>}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant={getComplianceBadgeVariant(prop.speedDownCompliant)} className="text-[10px]">
-                            {prop.actualSpeedDown !== null ? `${prop.actualSpeedDown.toFixed(1)}` : '—'}
-                          </Badge>
+                          {getComplianceStatusBadge(prop.speedDownCompliant)}
+                          {prop.actualSpeedDown !== null && <p className="text-[10px] text-muted-foreground mt-0.5">{prop.actualSpeedDown.toFixed(1)} Mbps</p>}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant={getComplianceBadgeVariant(prop.speedUpCompliant)} className="text-[10px]">
-                            {prop.actualSpeedUp !== null ? `${prop.actualSpeedUp.toFixed(1)}` : '—'}
-                          </Badge>
+                          {getComplianceStatusBadge(prop.speedUpCompliant)}
+                          {prop.actualSpeedUp !== null && <p className="text-[10px] text-muted-foreground mt-0.5">{prop.actualSpeedUp.toFixed(1)} Mbps</p>}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant={getComplianceBadgeVariant(prop.latencyCompliant)} className="text-[10px]">
-                            {prop.actualLatency !== null ? `${prop.actualLatency.toFixed(0)}` : '—'}
-                          </Badge>
+                          {getComplianceStatusBadge(prop.latencyCompliant)}
+                          {prop.actualLatency !== null && <p className="text-[10px] text-muted-foreground mt-0.5">{prop.actualLatency.toFixed(0)} ms</p>}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {getComplianceStatusBadge(prop.breachCount === 0)}
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge
-                            variant={prop.breachCount > 5 ? 'destructive' : prop.breachCount > 0 ? 'outline' : 'secondary'}
-                            className="text-[10px]"
+                            className={prop.breachCount > 5 ? 'bg-red-500 hover:bg-red-600 text-white border-0 text-[10px]' : prop.breachCount > 0 ? 'bg-amber-500 hover:bg-amber-600 text-white border-0 text-[10px]' : 'bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-[10px]'}
                           >
                             {prop.breachCount}
                           </Badge>

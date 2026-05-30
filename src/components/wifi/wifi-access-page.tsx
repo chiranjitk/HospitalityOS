@@ -1,7 +1,7 @@
 'use client';
 
 import React, { lazy, useState, useEffect, useCallback, Suspense } from 'react';
-import { Wifi, Users, UserPlus, Ticket, BarChart3, Gauge, RefreshCw, QrCode, Server, ShieldCheck, ShieldAlert, Fingerprint, Activity, History, TrendingUp, Network, Layers, Building2 } from 'lucide-react';
+import { Wifi, Users, UserPlus, Ticket, BarChart3, Gauge, RefreshCw, QrCode, Server, ShieldCheck, ShieldAlert, Fingerprint, Activity, History, TrendingUp, Network, Layers, Building2, Signal } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +31,7 @@ const BandwidthPoolManagement = lazy(() => import('@/components/wifi/bandwidth-p
 const GuestWifiOnboarding = lazy(() => import('@/components/wifi/guest-wifi-onboarding'));
 const WifiActivityFeed = lazy(() => import('@/components/wifi/wifi-activity-feed'));
 const WifiTopologyMini = lazy(() => import('@/components/wifi/wifi-topology-mini'));
+const WifiQosMonitor = lazy(() => import('@/components/wifi/wifi-qos-monitor'));
 
 // ─── Loading Skeleton ─────────────────────────────────────────────────────────
 
@@ -179,7 +180,7 @@ function RADIUSQuickActions({ onRefresh, onSwitchToVouchers, statusRefreshTrigge
 // Removed low-usage: Smart Bandwidth (feature-incomplete)
 // Ordered by frequency: Live → Access → History → Policy
 
-type TabId = 'live-sessions' | 'users' | 'auth-logs' | 'session-history' | 'user-usage' | 'plans' | 'vouchers' | 'mac-auth' | 'fup-policy' | 'event-wifi' | 'ip-pools' | 'bw-pools';
+type TabId = 'live-sessions' | 'users' | 'auth-logs' | 'session-history' | 'user-usage' | 'plans' | 'vouchers' | 'mac-auth' | 'fup-policy' | 'event-wifi' | 'ip-pools' | 'bw-pools' | 'qos-monitor';
 
 type TabItem = {
   id: TabId;
@@ -220,6 +221,10 @@ const tabs: TabEntry[] = [
   { type: 'tab', id: 'vouchers', label: 'Vouchers', icon: <Ticket className="h-4 w-4" />, group: 'access' },
   { type: 'tab', id: 'mac-auth', label: 'MAC Auth', icon: <Fingerprint className="h-4 w-4" />, group: 'access' },
   { type: 'tab', id: 'event-wifi', label: 'Event WiFi', icon: <Users className="h-4 w-4" />, group: 'access' },
+
+  // ── Monitoring ──
+  { type: 'header', label: 'Monitoring', indicatorColor: 'bg-primary' },
+  { type: 'tab', id: 'qos-monitor', label: 'QoS Monitor', icon: <Signal className="h-4 w-4" />, group: 'monitoring' },
 ];
 
 // ─── Main Component ─────────────────────────────────────────────────────────
@@ -414,6 +419,10 @@ export function WifiAccessPage() {
           </ErrorBoundary>
           <ErrorBoundary section="Event WiFi">
             {activeTab === 'event-wifi' && <EventWifiTab />}
+          </ErrorBoundary>
+          <ErrorBoundary section="QoS Monitor">
+            {/* Monitoring */}
+            {activeTab === 'qos-monitor' && <WifiQosMonitor />}
           </ErrorBoundary>
         </Suspense>
       </div>

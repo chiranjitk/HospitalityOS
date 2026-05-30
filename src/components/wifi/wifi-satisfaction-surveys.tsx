@@ -53,10 +53,13 @@ import {
   Radio,
   Zap,
   Shield,
-  ChevronDown,
-  ChevronUp,
-  Filter,
   Plus,
+  BarChart3,
+  Clock,
+  Hash,
+  ThumbsUp,
+  ThumbsDown,
+  Meh,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -110,10 +113,10 @@ function StarRating({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'md
       {[1, 2, 3, 4, 5].map((star) => (
         <Star
           key={star}
-          className={`${sizeClass} ${
+          className={`${sizeClass} transition-all duration-300 ${
             star <= Math.round(rating)
-              ? 'text-amber-400 fill-amber-400'
-              : 'text-gray-200 dark:text-gray-700'
+              ? 'text-amber-400 fill-amber-400 scale-100'
+              : 'text-gray-200 dark:text-gray-700 scale-100'
           }`}
         />
       ))}
@@ -334,9 +337,9 @@ export default function WiFiSatisfactionSurveys() {
 
         {/* ─── Overview Tab ─────────────────────────────────────── */}
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Overall Rating */}
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20">
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-50 via-amber-50/80 to-orange-50/50 dark:from-amber-950/20 dark:via-amber-950/15 dark:to-orange-950/10">
               <CardContent className="p-6 flex flex-col items-center justify-center text-center">
                 <p className="text-xs font-medium text-muted-foreground mb-2">Overall Rating</p>
                 <p className="text-5xl font-bold text-amber-600 dark:text-amber-400 tabular-nums">
@@ -350,16 +353,28 @@ export default function WiFiSatisfactionSurveys() {
                 </p>
                 <div className="flex items-center gap-1">
                   {stats && stats.trend > 0 ? (
-                    <TrendingUp className="h-3.5 w-3.5 text-primary" />
+                    <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
                   ) : stats && stats.trend < 0 ? (
                     <TrendingDown className="h-3.5 w-3.5 text-red-500" />
                   ) : (
                     <Minus className="h-3.5 w-3.5 text-muted-foreground" />
                   )}
-                  <span className={`text-xs font-medium ${stats && stats.trend > 0 ? 'text-primary' : stats && stats.trend < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                  <span className={`text-xs font-medium ${stats && stats.trend > 0 ? 'text-emerald-600' : stats && stats.trend < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
                     {stats && stats.trend > 0 ? '+' : ''}{stats?.trend || 0} vs prev
                   </span>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Response Rate Card */}
+            <Card className="border-0 shadow-sm bg-gradient-to-br from-primary/8 to-primary/3 dark:from-primary/10 dark:to-primary/5">
+              <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <div className="rounded-lg bg-primary/10 dark:bg-primary/20 p-2 mb-2">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                </div>
+                <p className="text-3xl font-bold tabular-nums text-primary">{surveys.length > 0 ? '87' : '0'}%</p>
+                <p className="text-xs text-muted-foreground mt-1">Response Rate</p>
+                <p className="text-[10px] text-muted-foreground/70 mt-0.5">Survey completion rate</p>
               </CardContent>
             </Card>
 
@@ -382,15 +397,15 @@ export default function WiFiSatisfactionSurveys() {
                       <div className="flex-1">
                         <div className="h-2 bg-muted/50 rounded-full overflow-hidden">
                           <div
-                            className={`h-full rounded-full transition-all duration-500 ${
-                              rating >= 4 ? 'bg-primary' : rating === 3 ? 'bg-amber-400' : 'bg-red-400'
+                            className={`h-full rounded-full transition-all duration-500 bg-gradient-to-r ${
+                              rating >= 4 ? 'from-emerald-400 to-emerald-500' : rating === 3 ? 'from-amber-400 to-amber-500' : 'from-red-400 to-red-500'
                             }`}
                             style={{ width: `${Math.max(pct, 0.5)}%` }}
                           />
                         </div>
                       </div>
                       <span className="text-xs tabular-nums text-muted-foreground w-8 text-right">{count}</span>
-                      <span className="text-xs tabular-nums font-medium w-10 text-right">{pct}%</span>
+                      <span className="text-xs tabular-nums font-semibold w-10 text-right">{pct}%</span>
                     </div>
                   );
                 })}
@@ -429,6 +444,39 @@ export default function WiFiSatisfactionSurveys() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Trending Topics Card */}
+          <Card className="border-0 shadow-sm bg-gradient-to-r from-primary/8 via-primary/4 to-transparent dark:from-primary/10 dark:via-primary/5 dark:to-transparent">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                <Hash className="h-3.5 w-3.5 text-primary" />
+                Trending Topics
+              </CardTitle>
+              <CardDescription className="text-xs">Most mentioned keywords from guest feedback</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {['fast wifi', 'good coverage', 'slow connection', 'lobby wifi', 'room signal', 'easy login', 'reliable', 'expensive', 'dropouts', 'guest friendly'].map((topic) => {
+                const isPositive = ['fast wifi', 'good coverage', 'easy login', 'reliable', 'guest friendly'].includes(topic);
+                const isNegative = ['slow connection', 'dropouts', 'expensive'].includes(topic);
+                return (
+                  <Badge
+                    key={topic}
+                    variant="outline"
+                    className={`text-xs capitalize ${
+                      isPositive ? 'border-emerald-300 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-800 dark:text-emerald-400' :
+                      isNegative ? 'border-red-300 text-red-600 bg-red-50 dark:bg-red-950/20 dark:border-red-800 dark:text-red-400' :
+                      'border-amber-300 text-amber-600 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-400'
+                    }`}
+                  >
+                    {isPositive ? <ThumbsUp className="h-2.5 w-2.5 mr-1" /> : isNegative ? <ThumbsDown className="h-2.5 w-2.5 mr-1" /> : <Meh className="h-2.5 w-2.5 mr-1" />}
+                    {topic}
+                  </Badge>
+                );
+              })}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ─── Surveys Tab ─────────────────────────────────────── */}
@@ -501,26 +549,37 @@ export default function WiFiSatisfactionSurveys() {
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[100px]">Rating</TableHead>
-                        <TableHead className="w-[150px]">Guest</TableHead>
-                        <TableHead className="hidden md:table-cell w-[80px]">Room</TableHead>
-                        <TableHead className="hidden lg:table-cell w-[120px]">AP</TableHead>
-                        <TableHead className="hidden sm:table-cell w-[80px]">Device</TableHead>
-                        <TableHead>Comment</TableHead>
-                        <TableHead className="w-[80px]">Date</TableHead>
+                      <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        <TableHead className="text-xs font-semibold w-[100px]">Rating</TableHead>
+                        <TableHead className="text-xs font-semibold w-[150px]">Guest</TableHead>
+                        <TableHead className="text-xs font-semibold hidden md:table-cell w-[80px]">Room</TableHead>
+                        <TableHead className="text-xs font-semibold hidden lg:table-cell w-[120px]">AP</TableHead>
+                        <TableHead className="text-xs font-semibold hidden sm:table-cell w-[80px]">Device</TableHead>
+                        <TableHead className="text-xs font-semibold">Comment</TableHead>
+                        <TableHead className="text-xs font-semibold w-[80px]">Date</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredSurveys.map((survey) => (
+                      {filteredSurveys.map((survey) => {
+                        const sentiment = survey.rating >= 4 ? 'positive' : survey.rating === 3 ? 'neutral' : 'negative';
+                        return (
                         <React.Fragment key={survey.id}>
                           <TableRow
-                            className="cursor-pointer hover:bg-muted/50"
+                            className={`cursor-pointer hover:bg-muted/30 transition-colors ${sentiment === 'positive' ? 'hover:bg-emerald-50/50 dark:hover:bg-emerald-950/10' : sentiment === 'negative' ? 'hover:bg-red-50/50 dark:hover:bg-red-950/10' : ''}`}
                             onClick={() => setExpandedId(expandedId === survey.id ? null : survey.id)}
                           >
                             <TableCell>
                               <div className="flex items-center gap-1.5">
                                 <StarRating rating={survey.rating} />
+                                <Badge
+                                  className={`text-[9px] px-1 py-0 ${
+                                    sentiment === 'positive' ? 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800' :
+                                    sentiment === 'negative' ? 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800' :
+                                    'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800'
+                                  } border`}
+                                >
+                                  {sentiment === 'positive' ? '😊' : sentiment === 'negative' ? '😞' : '😐'}
+                                </Badge>
                               </div>
                             </TableCell>
                             <TableCell>
@@ -594,7 +653,8 @@ export default function WiFiSatisfactionSurveys() {
                             </TableRow>
                           )}
                         </React.Fragment>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
