@@ -2627,69 +2627,136 @@ function PortalPreviewContent({ design, visibleFields }: { design: PortalPageDes
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Mini Layout Preview — Visual thumbnail for layout selection
+// Mini Layout Preview — Visual thumbnail for layout selection (Enhanced)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function LayoutMiniPreview({ layout }: { layout: string }) {
-  const outerCls = 'w-12 h-8 rounded border border-gray-300 relative overflow-hidden';
-  const formCls = 'absolute bg-teal-500/30 border border-teal-400/50 rounded-sm';
+function LayoutMiniPreview({ layout, selected }: { layout: string; selected?: boolean }) {
+  const outerCls = cn(
+    'w-14 h-10 rounded-lg border-2 relative overflow-hidden transition-all duration-200',
+    selected ? 'border-teal-500 border-glow-teal shadow-lg shadow-teal-500/20' : 'border-gray-300 dark:border-gray-600'
+  );
+  const formCls = 'absolute bg-teal-500/40 border border-teal-400/60 rounded-sm';
 
   switch (layout) {
     case 'centered':
       return (
         <div className={outerCls} style={{ background: 'linear-gradient(135deg, #e2e8f0, #cbd5e1)' }}>
-          <div className={cn(formCls, 'w-6 h-4 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded')} />
+          <div className={cn(formCls, 'w-7 h-5 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-md')} />
+          <div className="absolute top-1 left-1.5 w-3 h-1 rounded-sm bg-gray-400/40" />
         </div>
       );
     case 'split_left':
       return (
         <div className={outerCls}>
-          <div className="absolute left-0 top-0 w-5 h-full bg-gradient-to-br from-teal-400/30 to-emerald-400/30" />
-          <div className={cn(formCls, 'right-1 top-1/2 -translate-y-1/2 w-5 h-5')} />
+          <div className="absolute left-0 top-0 w-5 h-full bg-gradient-to-br from-teal-400/40 to-emerald-400/40" />
+          <div className={cn(formCls, 'right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded')} />
         </div>
       );
     case 'split_right':
       return (
         <div className={outerCls}>
-          <div className={cn(formCls, 'left-1 top-1/2 -translate-y-1/2 w-5 h-5')} />
-          <div className="absolute right-0 top-0 w-5 h-full bg-gradient-to-br from-teal-400/30 to-emerald-400/30" />
+          <div className={cn(formCls, 'left-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded')} />
+          <div className="absolute right-0 top-0 w-5 h-full bg-gradient-to-br from-teal-400/40 to-emerald-400/40" />
         </div>
       );
     case 'card':
       return (
         <div className={outerCls} style={{ background: 'linear-gradient(135deg, #e2e8f0, #cbd5e1)' }}>
-          <div className={cn(formCls, 'w-7 h-5 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 shadow-md')} />
+          <div className={cn(formCls, 'w-8 h-6 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg shadow-md bg-white/60')} />
         </div>
       );
     case 'full_bleed':
       return (
         <div className={outerCls}>
-          <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/30 to-blue-500/30" />
-          <div className={cn(formCls, 'w-7 h-4 left-1/2 bottom-1.5 -translate-x-1/2 backdrop-blur bg-white/20')} />
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/40 to-blue-500/40" />
+          <div className={cn(formCls, 'w-8 h-5 left-1/2 bottom-1.5 -translate-x-1/2 backdrop-blur bg-white/25 rounded-lg')} />
         </div>
       );
     case 'hero_banner':
       return (
         <div className={outerCls} style={{ background: 'linear-gradient(180deg, #a78bfa 0%, #e2e8f0 60%)' }}>
-          <div className={cn(formCls, 'w-7 h-3 left-1/2 bottom-1 -translate-x-1/2 rounded')} />
+          <div className={cn(formCls, 'w-8 h-3 left-1/2 bottom-1 -translate-x-1/2 rounded-lg')} />
         </div>
       );
     case 'side_panel':
       return (
         <div className={outerCls}>
-          <div className="absolute left-0 top-0 w-3.5 h-full bg-gradient-to-b from-teal-500/40 to-teal-500/20" />
-          <div className={cn(formCls, 'left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-5')} />
+          <div className="absolute left-0 top-0 w-4 h-full bg-gradient-to-b from-teal-500/50 to-teal-500/25" />
+          <div className={cn(formCls, 'left-1.5 top-1/2 -translate-y-1/2 w-2 h-6 rounded-sm')} />
         </div>
       );
     case 'bottom_sheet':
       return (
         <div className={outerCls} style={{ background: 'linear-gradient(180deg, #e2e8f0, #f8fafc)' }}>
-          <div className={cn(formCls, 'w-full h-3 left-0 bottom-0 rounded-t-md')} />
+          <div className={cn(formCls, 'w-full h-3.5 left-0 bottom-0 rounded-t-lg')} />
         </div>
       );
     default:
       return null;
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Mini Style Preview — Visual mockup cards for form/input/button styles
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function FormStylePreview({ style }: { style: string }) {
+  const cardCls = (() => {
+    switch (style) {
+      case 'rounded': return 'rounded-2xl';
+      case 'square': return 'rounded-none';
+      case 'glass': return 'rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20';
+      case 'pill': return 'rounded-3xl';
+      case 'minimal': return 'rounded-none bg-transparent border border-dashed border-gray-300';
+      default: return 'rounded-2xl';
+    }
+  })();
+  return (
+    <div className={cn('p-3 bg-gray-100 dark:bg-gray-800/50 flex flex-col items-center gap-1.5', cardCls)}>
+      <div className="text-[8px] font-medium text-gray-500">Login</div>
+      <div className="w-full h-3 bg-white dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600" />
+      <div className="w-full h-3 bg-white dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600" />
+      <div className="w-full h-5 bg-teal-500 rounded text-[7px] text-white flex items-center justify-center font-medium">Connect</div>
+    </div>
+  );
+}
+
+function InputStylePreview({ style }: { style: string }) {
+  const inputCls = (() => {
+    switch (style) {
+      case 'rounded': return 'rounded-md';
+      case 'square': return 'rounded-none';
+      case 'pill': return 'rounded-full';
+      case 'underline': return 'rounded-none border-t-0 border-l-0 border-r-0 border-b-2';
+      default: return 'rounded-md';
+    }
+  })();
+  return (
+    <div className="p-2 flex flex-col gap-1.5">
+      <div className={cn('w-full h-4 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600', inputCls)} />
+      <div className={cn('w-full h-4 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600', inputCls)} />
+    </div>
+  );
+}
+
+function ButtonStylePreview({ style }: { style: string }) {
+  const btnCls = (() => {
+    switch (style) {
+      case 'filled': return 'bg-teal-500 text-white rounded-md';
+      case 'outlined': return 'border-2 border-teal-500 text-teal-600 dark:text-teal-400 rounded-md bg-transparent';
+      case 'gradient': return 'bg-gradient-to-r from-teal-400 to-emerald-500 text-white rounded-md';
+      case 'pill': return 'bg-teal-500 text-white rounded-full';
+      case 'rounded': return 'bg-teal-500 text-white rounded-lg';
+      default: return 'bg-teal-500 text-white rounded-md';
+    }
+  })();
+  return (
+    <div className="p-2 flex items-center justify-center">
+      <div className={cn('h-5 px-3 flex items-center justify-center', btnCls)}>
+        <span className="text-[8px] font-medium">Connect</span>
+      </div>
+    </div>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -770,6 +770,120 @@ export function getAnimationClasses(design: PortalDesignConfig): string {
 // Social media icon helper
 // ────────────────────────────────────────────────────────────
 
+// ────────────────────────────────────────────────────────────
+// Premium Visual Enhancement Helpers
+// ────────────────────────────────────────────────────────────
+
+/** CSS for a floating card animation */
+export function getFloatingCardAnimation(): React.CSSProperties {
+  return {
+    animation: 'portalFloat 6s ease-in-out infinite',
+  };
+}
+
+/** Generate the floating keyframes */
+export function getFloatingKeyframes(): string {
+  return `
+    @keyframes portalFloat {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-8px); }
+    }
+  `;
+}
+
+/** Generate animated WiFi signal wave keyframes for loading state */
+export function getWifiWaveKeyframes(): string {
+  return `
+    @keyframes wifiWave1 { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.1); } }
+    @keyframes wifiWave2 { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.1); } }
+    @keyframes wifiWave3 { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.1); } }
+    @keyframes successPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    @keyframes sparkleFloat {
+      0% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+      100% { opacity: 0; transform: translateY(-60px) scale(0) rotate(180deg); }
+    }
+    @keyframes checkDraw {
+      0% { stroke-dashoffset: 48; }
+      100% { stroke-dashoffset: 0; }
+    }
+    @keyframes circleScale {
+      0% { transform: scale(0); opacity: 0; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes connectedBadge {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    @keyframes fadeInUp {
+      0% { opacity: 0; transform: translateY(12px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes shakeIn {
+      0% { transform: translateX(-8px); opacity: 0; }
+      25% { transform: translateX(6px); opacity: 1; }
+      50% { transform: translateX(-4px); }
+      75% { transform: translateX(2px); }
+      100% { transform: translateX(0); }
+    }
+    @keyframes shimmerSweep {
+      0% { transform: translateX(-100%) rotate(25deg); }
+      100% { transform: translateX(200%) rotate(25deg); }
+    }
+  `;
+}
+
+/** Get the glowing border style for form card on dark backgrounds */
+export function getCardGlowStyle(design: PortalDesignConfig): React.CSSProperties {
+  const dark = isDarkBackground(design);
+  const accent = design.accentColor || '#14b8a6';
+  if (!dark) return {};
+  return {
+    boxShadow: `0 0 0 1px ${accent}15, 0 0 30px -5px ${accent}20, 0 8px 32px -8px rgba(0,0,0,0.4)`,
+  };
+}
+
+/** Get error display styles that adapt to card background */
+export function getErrorDisplayStyle(design: PortalDesignConfig): { bg: string; text: string; border: string } {
+  const dark = isDarkBackground(design);
+  if (dark) {
+    return {
+      bg: 'rgba(239, 68, 68, 0.08)',
+      text: '#fca5a5',
+      border: 'rgba(239, 68, 68, 0.15)',
+    };
+  }
+  return {
+    bg: 'rgba(254, 226, 226, 0.9)',
+    text: '#dc2626',
+    border: 'rgba(239, 68, 68, 0.2)',
+  };
+}
+
+/** Get accent glow input focus ring */
+export function getInputFocusGlow(design: PortalDesignConfig): React.CSSProperties {
+  const accent = design.accentColor || '#14b8a6';
+  return {
+    boxShadow: `0 0 0 3px ${accent}20, 0 0 12px -2px ${accent}30`,
+    borderColor: accent,
+  };
+}
+
+/** Generate portal CSS keyframes bundle */
+export function getPortalCSSKeyframes(design: PortalDesignConfig): string {
+  return `
+    ${getFloatingKeyframes()}
+    ${getWifiWaveKeyframes()}
+  `;
+}
+
+// ────────────────────────────────────────────────────────────
+// Social media icon helper
+// ────────────────────────────────────────────────────────────
+
 export function getSocialIconLabel(platform: string): string {
   switch (platform.toLowerCase()) {
     case 'facebook': return 'f';

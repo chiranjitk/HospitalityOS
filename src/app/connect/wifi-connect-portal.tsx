@@ -102,6 +102,11 @@ import {
   getSocialPlatformColor,
   getUIString,
   getLocalizedText,
+  getFloatingCardAnimation,
+  getCardGlowStyle,
+  getErrorDisplayStyle,
+  getInputFocusGlow,
+  getPortalCSSKeyframes,
 } from '@/lib/wifi/portal-design-utils';
 
 // ────────────────────────────────────────────────────────────
@@ -772,18 +777,44 @@ function DynamicInput({
   const inputCls = icon
     ? getInputWithIconClasses(design)
     : getInputClasses(design);
-
   const labelColor = getCardTextColor(design);
   const iconColor = getIconColor(design);
+  const [focused, setFocused] = useState(false);
+  const hasValue = value.length > 0;
+  const isFloating = hasValue || focused;
+
+  const accent = design.accentColor || '#14b8a6';
+  const focusGlow = focused ? getInputFocusGlow(design) : {};
 
   return (
-    <div className="space-y-2">
-      <label className="text-sm font-medium" style={{ color: labelColor }}>
+    <div className="relative">
+      {/* Floating label */}
+      <motion.label
+        className="absolute left-3 text-sm pointer-events-none z-10"
+        style={{
+          color: focused ? accent : iconColor,
+          top: isFloating ? -9 : '50%',
+          transform: isFloating ? 'translateY(0)' : 'translateY(-50%)',
+          fontSize: isFloating ? '0.7rem' : '0.875rem',
+          fontWeight: isFloating ? 500 : 400,
+          backgroundColor: isDarkBackground(design) ? 'rgba(255,255,255,0.03)' : '#ffffff',
+          padding: isFloating ? '0 4px' : '0',
+          borderRadius: '2px',
+          left: icon ? '38px' : '12px',
+        }}
+        animate={{
+          top: isFloating ? -9 : '50%',
+          fontSize: isFloating ? 11 : 14,
+          y: isFloating ? 0 : -7,
+          color: focused ? accent : undefined,
+        }}
+        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+      >
         {label}
-      </label>
+      </motion.label>
       <div className="relative">
         {icon && (
-          <div className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: iconColor }}>
+          <div className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: focused ? accent : iconColor, transition: 'color 0.2s' }}>
             {icon}
           </div>
         )}
@@ -791,13 +822,21 @@ function DynamicInput({
           type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
+          placeholder={isFloating ? placeholder : ' '}
           disabled={disabled}
           autoFocus={autoFocus}
           onKeyDown={onKeyDown}
           inputMode={inputMode}
           maxLength={maxLength}
-          className={cn(inputCls, className)}
+          className={cn(inputCls, className, 'relative')}
+          style={{
+            ...focusGlow,
+            transition: 'box-shadow 0.2s, border-color 0.2s',
+            paddingTop: '1.15rem',
+            paddingBottom: '0.45rem',
+          }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
         />
       </div>
     </div>
@@ -822,16 +861,47 @@ function DynamicButton({
   children: React.ReactNode;
 }) {
   const btn = getButtonClasses(design);
+  const [ripple, setRipple] = useState<{ x: number; y: number; id: number } | null>(null);
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setRipple({ x: e.clientX - rect.left, y: e.clientY - rect.top, id: Date.now() });
+    setTimeout(() => setRipple(null), 600);
+    onClick();
+  };
 
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
       disabled={disabled || loading}
       className={btn.className}
       style={btn.style}
     >
+      {ripple && (
+        <span
+          key={ripple.id}
+          className="absolute rounded-full animate-ping"
+          style={{
+            left: ripple.x,
+            top: ripple.y,
+            width: 4,
+            height: 4,
+            backgroundColor: 'rgba(255,255,255,0.4)',
+            transform: 'translate(-50%, -50%)',
+            position: 'absolute',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
       {loading ? (
-        <Loader2 className="w-5 h-5 animate-spin" />
+        <>
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          >
+            <Loader2 className="w-5 h-5" />
+          </motion.div>
+        </>
       ) : children}
     </button>
   );
@@ -841,12 +911,25 @@ function DynamicButton({
 // Error Display
 // ────────────────────────────────────────────────────────────
 
-function ErrorDisplay({ message }: { message: string }) {
+function ErrorDisplay({ message, design }: { message: string; design?: PortalDesignConfig }) {
+  const errStyle = design ? getErrorDisplayStyle(design) : { bg: 'rgba(254, 226, 226, 0.9)', text: '#dc2626', border: 'rgba(239, 68, 68, 0.2)' };
+  const radius = design?.formStyle === 'pill' ? '1.5rem' : design?.formStyle === 'square' ? '0' : '0.75rem';
   return (
-    <div className="flex items-start gap-2 bg-red-50 rounded-lg p-3">
-      <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-      <p className="text-sm text-red-700">{message}</p>
-    </div>
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+      className="flex items-start gap-2 p-3"
+      style={{
+        backgroundColor: errStyle.bg,
+        border: `1px solid ${errStyle.border}`,
+        borderRadius: radius,
+        animation: 'shakeIn 0.4s ease-out',
+      }}
+    >
+      <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: errStyle.text }} />
+      <p className="text-sm" style={{ color: errStyle.text }}>{message}</p>
+    </motion.div>
   );
 }
 
@@ -908,7 +991,7 @@ function VoucherForm({
         className="text-center text-lg font-mono font-bold tracking-wider uppercase"
       />
 
-      {error && <ErrorDisplay message={error} />}
+      {error && <ErrorDisplay message={error} design={design} />}
 
       <DynamicButton design={design} onClick={handleSubmit} disabled={!code.trim()} loading={loading}>
         <>
@@ -967,7 +1050,7 @@ function RoomNumberForm({
         onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
         icon={<User className="w-4 h-4" />}
       />
-      {error && <ErrorDisplay message={error} />}
+      {error && <ErrorDisplay message={error} design={design} />}
       <DynamicButton design={design} onClick={handleSubmit} disabled={!room.trim() || !name.trim()} loading={loading}>
         <>
           <Key className="w-5 h-5" />
@@ -1026,7 +1109,7 @@ function PmsCredentialsForm({
         onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
         icon={<Key className="w-4 h-4" />}
       />
-      {error && <ErrorDisplay message={error} />}
+      {error && <ErrorDisplay message={error} design={design} />}
       <DynamicButton design={design} onClick={handleSubmit} disabled={!uname.trim() || !pass.trim()} loading={loading}>
         <>
           <Key className="w-5 h-5" />
@@ -1118,7 +1201,7 @@ function SmsOtpForm({
           icon={<Phone className="w-4 h-4" />}
           inputMode="tel"
         />
-        {error && <ErrorDisplay message={error} />}
+        {error && <ErrorDisplay message={error} design={design} />}
         <DynamicButton design={design} onClick={handleSendOtp} disabled={!phone.trim()} loading={loading}>
           <>
             <Smartphone className="w-5 h-5" />
@@ -1165,7 +1248,7 @@ function SmsOtpForm({
           </button>
         </div>
       )}
-      {error && <ErrorDisplay message={error} />}
+      {error && <ErrorDisplay message={error} design={design} />}
       <DynamicButton design={design} onClick={handleVerifyOtp} disabled={otp.length < 6} loading={loading}>
         <>
           <CheckCircle className="w-5 h-5" />
@@ -1277,7 +1360,7 @@ function EmailOtpForm({
           icon={<Mail className="w-4 h-4" />}
           inputMode="email"
         />
-        {error && <ErrorDisplay message={error} />}
+        {error && <ErrorDisplay message={error} design={design} />}
         <DynamicButton design={design} onClick={handleSendOtp} disabled={!email.trim()} loading={loading}>
           <>
             <Mail className="w-5 h-5" />
@@ -1335,7 +1418,7 @@ function EmailOtpForm({
           </button>
         </div>
       )}
-      {error && <ErrorDisplay message={error} />}
+      {error && <ErrorDisplay message={error} design={design} />}
       <DynamicButton design={design} onClick={handleVerifyOtp} disabled={otp.length < 6} loading={loading}>
         <>
           <CheckCircle className="w-5 h-5" />
@@ -1493,22 +1576,87 @@ function FloatingOrb({ className, style, delay = 0 }: { className?: string; styl
         y: [0, -30, 15, -20, 0],
         x: [0, 15, -10, 20, 0],
         scale: [1, 1.1, 0.95, 1.05, 1],
+        opacity: [1, 0.8, 1, 0.9, 1],
       }}
       transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut', delay }}
     />
   );
 }
 
-// ─── GridPattern — subtle grid overlay ────────────────────────────────────────
-function GridPattern() {
+// ─── CardShimmer — subtle shine sweep across form cards ────────────────────────
+function CardShimmer({ accent }: { accent: string }) {
+  const dark = true; // shimmer works best on all backgrounds
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+      <div
+        className="absolute -inset-[2px]"
+        style={{
+          background: `linear-gradient(105deg, transparent 40%, ${accent}08 45%, ${accent}12 50%, ${accent}08 55%, transparent 60%)`,
+          animation: 'shimmerSweep 4s ease-in-out infinite',
+          backgroundSize: '200% 100%',
+        }}
+      />
+    </div>
+  );
+}
+
+// ─── AnimatedDotField — floating particle dots ────────────────────────────────
+function AnimatedDotField({ accent }: { accent: string }) {
+  const dots = Array.from({ length: 12 }, (_, i) => ({
+    id: i,
+    x: `${Math.random() * 100}%`,
+    y: `${Math.random() * 100}%`,
+    size: Math.random() * 3 + 1,
+    delay: Math.random() * 5,
+    duration: Math.random() * 4 + 4,
+  }));
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {dots.map((dot) => (
+        <motion.div
+          key={dot.id}
+          className="absolute rounded-full"
+          style={{
+            left: dot.x,
+            top: dot.y,
+            width: dot.size,
+            height: dot.size,
+            backgroundColor: accent,
+            opacity: 0.15,
+          }}
+          animate={{
+            y: [0, -20, 10, -15, 0],
+            opacity: [0.1, 0.3, 0.15, 0.25, 0.1],
+          }}
+          transition={{ duration: dot.duration, repeat: Infinity, ease: 'easeInOut', delay: dot.delay }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── GridPattern — subtle grid + dot overlay ───────────────────────────────────
+function GridPattern({ design }: { design?: PortalDesignConfig }) {
+  const dark = design ? isDarkBackground(design) : true;
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {/* Subtle grid lines */}
       <div
-        className="absolute inset-0 opacity-[0.03] dark:opacity-[0.02]"
+        className="absolute inset-0"
         style={{
+          opacity: dark ? 0.03 : 0.02,
           backgroundImage:
-            'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
+            `linear-gradient(${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'} 1px, transparent 1px), linear-gradient(90deg, ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'} 1px, transparent 1px)`,
           backgroundSize: '60px 60px',
+        }}
+      />
+      {/* Dot pattern overlay */}
+      <div
+        className="absolute inset-0"
+        style={{
+          opacity: dark ? 0.04 : 0.02,
+          backgroundImage: `radial-gradient(${dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'} 1px, transparent 1px)`,
+          backgroundSize: '24px 24px',
         }}
       />
     </div>
@@ -1953,7 +2101,7 @@ function UnifiedDesignerForm({
             </span>
           </label>
         )}
-        {error && <ErrorDisplay message={error} />}
+        {error && <ErrorDisplay message={error} design={design} />}
         <DynamicButton design={design} onClick={handleSubmit} disabled={termsRequired && !termsAccepted} loading={loading}>
           <>
             <Globe className="w-5 h-5" />
@@ -2007,7 +2155,7 @@ function UnifiedDesignerForm({
             </button>
           </div>
         )}
-        {error && <ErrorDisplay message={error} />}
+        {error && <ErrorDisplay message={error} design={design} />}
         <DynamicButton design={design} onClick={handleSubmit} disabled={otpCode.length < 6} loading={loading}>
           <>
             <CheckCircle className="w-5 h-5" />
@@ -2109,7 +2257,7 @@ function UnifiedDesignerForm({
       })}
 
       {/* Error display */}
-      {error && <ErrorDisplay message={error} />}
+      {error && <ErrorDisplay message={error} design={design} />}
 
       {/* Marketing Consent (Feature 2) */}
       <MarketingConsent
@@ -2199,7 +2347,7 @@ function SuccessScreen({
   const [countdown, setCountdown] = useState(10);
   const textColor = getCardTextColor(design);
   const mutedColor = getMutedTextColor(design);
-  const accent = design.accentColor;
+  const accent = design.accentColor || '#14b8a6';
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -2209,10 +2357,6 @@ function SuccessScreen({
   }, []);
 
   // ── External Gateway Redirect ──
-  // When the property uses an external MikroTik gateway (externalPortalMode=true),
-  // the auth API returns needGatewayLogin=true with the MikroTik login URL and
-  // RADIUS credentials. The portal must redirect the guest to that URL so MikroTik
-  // can open its own firewall via RADIUS auth.
   useEffect(() => {
     if (authResult.needGatewayLogin && authResult.gatewayCallbackUrl && authResult.radiusUsername && authResult.radiusPassword) {
       const redirectUrl = new URL(authResult.gatewayCallbackUrl);
@@ -2222,21 +2366,95 @@ function SuccessScreen({
       const timer = setTimeout(() => {
         console.log(`[Portal] Redirecting to external gateway: ${authResult.gatewayCallbackUrl}`);
         window.location.href = redirectUrl.toString();
-      }, 2000); // 2 second delay to show "Connected" message
+      }, 2000);
 
       return () => clearTimeout(timer);
     }
   }, [authResult.needGatewayLogin, authResult.gatewayCallbackUrl, authResult.radiusUsername, authResult.radiusPassword]);
 
+  // Sparkle particles for confetti effect
+  const sparkles = Array.from({ length: 8 }, (_, i) => ({
+    id: i,
+    x: 50 + (Math.cos((i / 8) * Math.PI * 2) * 40),
+    y: 50 + (Math.sin((i / 8) * Math.PI * 2) * 40),
+    delay: i * 0.15,
+    size: Math.random() * 4 + 2,
+  }));
+
+  const formRadius = design.formStyle === 'pill' ? '1.5rem' : design.formStyle === 'square' ? '0' : '0.75rem';
+
   return (
     <div className="text-center space-y-5 py-4">
-      <div
-        className="inline-flex items-center justify-center w-20 h-20 rounded-full"
-        style={{ backgroundColor: accent + '15' }}
-      >
-        <CheckCircle className="w-10 h-10" style={{ color: accent }} />
+      {/* Animated Checkmark with Sparkle Confetti */}
+      <div className="relative inline-flex items-center justify-center">
+        {/* Sparkle particles */}
+        {sparkles.map((s) => (
+          <motion.div
+            key={s.id}
+            className="absolute rounded-full"
+            style={{
+              left: `${s.x}%`,
+              top: `${s.y}%`,
+              width: s.size,
+              height: s.size,
+              backgroundColor: accent,
+              boxShadow: `0 0 6px ${accent}80`,
+            }}
+            initial={{ opacity: 0, scale: 0, y: 0 }}
+            animate={{ opacity: [0, 1, 0], scale: [0, 1.2, 0], y: [0, -20, -50] }}
+            transition={{ duration: 1.2, delay: 0.5 + s.delay, ease: 'easeOut' }}
+          />
+        ))}
+        {/* Outer glow ring */}
+        <motion.div
+          className="absolute rounded-full"
+          style={{ width: 80, height: 80, border: `2px solid ${accent}30`, animation: 'successPulse 2s ease-in-out infinite' }}
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: [0, 1.3, 1], opacity: [0, 0.5, 0.3] }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+        />
+        {/* Main checkmark circle */}
+        <motion.div
+          className="relative inline-flex items-center justify-center rounded-full"
+          style={{ width: 72, height: 72, backgroundColor: accent + '15', animation: 'circleScale 0.6s ease-out forwards' }}
+          initial={{ scale: 0 }}
+          animate={{ scale: [0, 1.2, 1] }}
+          transition={{ duration: 0.5, type: 'spring', stiffness: 200 }}
+        >
+          {/* Animated SVG Checkmark */}
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <motion.path
+              d="M5 13l4 4L19 7"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 0.6, delay: 0.4, ease: 'easeOut' }}
+              style={{ strokeDasharray: 48, strokeDashoffset: 48 }}
+            />
+          </svg>
+        </motion.div>
       </div>
-      <div>
+
+      {/* "Stay Connected" pulsing badge */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6, duration: 0.4 }}
+      >
+        <div
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium"
+          style={{
+            backgroundColor: accent + '15',
+            color: accent,
+            border: `1px solid ${accent}25`,
+            animation: 'connectedBadge 2s ease-in-out infinite',
+          }}
+        >
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: accent, boxShadow: `0 0 8px ${accent}80` }} />
+          Stay Connected
+        </div>
+      </motion.div>
+
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}>
         <h2 className="text-2xl font-bold" style={{ color: textColor }}>
           {getUIString(lang, 'connected')}
         </h2>
@@ -2257,98 +2475,84 @@ function SuccessScreen({
             </p>
           </div>
         )}
-      </div>
+      </motion.div>
 
-      {/* Session Info Card */}
-      <div
-        className="rounded-xl p-4 text-sm space-y-3"
-        style={{
-          backgroundColor: accent + '08',
-          border: `1px solid ${accent}20`,
-          borderRadius: design.formStyle === 'pill' ? '1.5rem' : design.formStyle === 'square' ? '0' : '0.75rem',
-        }}
+      {/* Session Info Cards — premium grid */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.0, duration: 0.5 }}
+        className="grid grid-cols-2 gap-2.5"
       >
-        <h3 className="font-semibold text-left" style={{ color: textColor }}>
-          {getUIString(lang, 'sessionDetails')}
-        </h3>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4" style={{ color: accent }} />
-            <div className="text-left">
-              <p className="text-xs" style={{ color: mutedColor }}>{getUIString(lang, 'duration')}</p>
-              <p className="font-medium" style={{ color: textColor }}>
-                {(() => {
-                  const mins = authResult.remainingMinutes ?? authResult.sessionTimeout;
-                  if (mins >= 60) {
-                    const h = Math.floor(mins / 60);
-                    const m = mins % 60;
-                    return m > 0 ? `${h}h ${m}m` : `${h}h`;
-                  }
-                  return `${mins} min`;
-                })()}
-              </p>
+        {[
+          { icon: <Clock className="w-4 h-4" style={{ color: accent }} />, label: getUIString(lang, 'duration'), value: (() => { const mins = authResult.remainingMinutes ?? authResult.sessionTimeout; if (mins >= 60) { const h = Math.floor(mins / 60); const m = mins % 60; return m > 0 ? `${h}h ${m}m` : `${h}h`; } return `${mins} min`; })() },
+          { icon: <Zap className="w-4 h-4" style={{ color: accent }} />, label: getUIString(lang, 'download'), value: `${authResult.bandwidthDown} Mbps` },
+          { icon: <Wifi className="w-4 h-4" style={{ color: accent }} />, label: getUIString(lang, 'upload'), value: `${authResult.bandwidthUp} Mbps` },
+          { icon: <Shield className="w-4 h-4" style={{ color: accent }} />, label: getUIString(lang, 'method'), value: authResult.method.replace('_', ' ') },
+        ].map((item, i) => (
+          <motion.div
+            key={i}
+            className="rounded-xl p-3 text-left"
+            style={{
+              backgroundColor: accent + '08',
+              border: `1px solid ${accent}15`,
+              borderRadius: formRadius === '0' ? '0.5rem' : formRadius,
+            }}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 1.1 + i * 0.1, duration: 0.3 }}
+            whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+          >
+            <div className="flex items-center gap-1.5 mb-1">
+              {item.icon}
+              <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: mutedColor }}>{item.label}</span>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4" style={{ color: accent }} />
-            <div className="text-left">
-              <p className="text-xs" style={{ color: mutedColor }}>{getUIString(lang, 'download')}</p>
-              <p className="font-medium" style={{ color: textColor }}>{authResult.bandwidthDown} Mbps</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Wifi className="w-4 h-4" style={{ color: accent }} />
-            <div className="text-left">
-              <p className="text-xs" style={{ color: mutedColor }}>{getUIString(lang, 'upload')}</p>
-              <p className="font-medium" style={{ color: textColor }}>{authResult.bandwidthUp} Mbps</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4" style={{ color: accent }} />
-            <div className="text-left">
-              <p className="text-xs" style={{ color: mutedColor }}>{getUIString(lang, 'method')}</p>
-              <p className="font-medium capitalize" style={{ color: textColor }}>
-                {authResult.method.replace('_', ' ')}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+            <p className="text-sm font-semibold capitalize" style={{ color: textColor }}>{item.value}</p>
+          </motion.div>
+        ))}
+      </motion.div>
 
-      <button
+      {/* Connect another device — styled link */}
+      <motion.button
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.5 }}
         onClick={() => window.location.reload()}
-        className="text-sm flex items-center gap-1 justify-center mx-auto hover:underline"
+        className="text-sm flex items-center gap-1.5 justify-center mx-auto group"
         style={{ color: accent }}
       >
-        <RefreshCw className="w-3 h-3" />
-        {getUIString(lang, 'connectAnotherDevice')}
-      </button>
+        <RefreshCw className="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-500" />
+        <span className="group-hover:underline underline-offset-2">{getUIString(lang, 'connectAnotherDevice')}</span>
+      </motion.button>
 
-      {/* Disconnect / Logout Button */}
-      <button
+      {/* Disconnect / Logout Button — premium */}
+      <motion.button
+        initial={{ opacity: 0, y: 5 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.6 }}
         onClick={onDisconnect}
-        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-sm font-medium rounded-lg transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
         style={{
-          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-          color: '#ef4444',
-          border: '1px solid rgba(239, 68, 68, 0.2)',
-          borderRadius: design.formStyle === 'pill' ? '1.5rem' : design.formStyle === 'square' ? '0' : '0.5rem',
+          backgroundColor: 'rgba(239, 68, 68, 0.08)',
+          color: '#fca5a5',
+          border: '1px solid rgba(239, 68, 68, 0.15)',
+          borderRadius: formRadius === '0' ? '0' : formRadius,
         }}
       >
         <LogOut className="w-4 h-4" />
         {getUIString(lang, 'disconnectLogout')}
-      </button>
+      </motion.button>
 
-      {/* Post-Connect Guest Survey — rendered via SurveyWidget when enabled in Portal Designer */}
+      {/* Post-Connect Guest Survey */}
       {design.surveyConfig?.enabled && tenantId && propertyId && (
-        <div className="mt-4">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.8 }} className="mt-2">
           <SurveyWidget
             tenantId={tenantId}
             propertyId={propertyId}
             sessionId={authResult?.sessionId}
             guestId={authResult?.guestId}
           />
-        </div>
+        </motion.div>
       )}
     </div>
   );
@@ -3041,14 +3245,83 @@ function PortalContent() {
 
   // ── Loading state ──
   if (state === 'loading') {
+    const accent = design.accentColor || '#14b8a6';
     return (
       <PortalLanguageContext.Provider value={effectiveLanguage}>
-        <div className="min-h-screen flex items-center justify-center" style={bgStyle}>
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin" style={{ color: dark ? '#ffffff' : design.textColor }} />
-            <p className="text-sm" style={{ color: dark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)' }}>
-              {getUIString(effectiveLanguage, 'loadingPortal')}
-            </p>
+        <style dangerouslySetInnerHTML={{ __html: getPortalCSSKeyframes(design) }} />
+        <div className="min-h-screen flex items-center justify-center relative" style={bgStyle}>
+          {/* Background effects for loading state */}
+          <GridPattern design={design} />
+          <div className="fixed inset-0 pointer-events-none">
+            <div className="absolute top-0 left-0 w-full h-full" style={{ background: `radial-gradient(ellipse at top left, ${accent}18 0%, transparent 50%)` }} />
+            <div className="absolute top-0 left-0 w-full h-full" style={{ background: `radial-gradient(ellipse at bottom right, ${accent}12 0%, transparent 50%)` }} />
+          </div>
+          <FloatingOrb className="w-[300px] h-[300px] opacity-15 -top-32 -right-32" style={{ backgroundColor: accent }} delay={0} />
+          <FloatingOrb className="w-[250px] h-[250px] opacity-10 bottom-0 -left-20" style={{ backgroundColor: accent }} delay={3} />
+
+          {/* Animated WiFi waves */}
+          <div className="flex flex-col items-center gap-6 relative z-10">
+            {/* WiFi icon with animated waves */}
+            <div className="relative">
+              <Wifi className="w-10 h-10" style={{ color: accent }} />
+              {/* Wave 1 */}
+              <motion.div
+                className="absolute inset-0 rounded-full"
+                style={{ border: `2px solid ${accent}40` }}
+                animate={{ scale: [1, 2.2], opacity: [0.6, 0] }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
+              />
+              {/* Wave 2 */}
+              <motion.div
+                className="absolute inset-0 rounded-full"
+                style={{ border: `2px solid ${accent}30` }}
+                animate={{ scale: [1, 2.2], opacity: [0.5, 0] }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut', delay: 0.6 }}
+              />
+              {/* Wave 3 */}
+              <motion.div
+                className="absolute inset-0 rounded-full"
+                style={{ border: `2px solid ${accent}20` }}
+                animate={{ scale: [1, 2.2], opacity: [0.4, 0] }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut', delay: 1.2 }}
+              />
+            </div>
+
+            {/* Loading text with fade-in */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+              className="text-center space-y-1"
+            >
+              {design.hotelName && (
+                <motion.p
+                  className="text-sm font-medium"
+                  style={{ color: dark ? 'rgba(255,255,255,0.9)' : design.textColor }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.6, duration: 0.5 }}
+                >
+                  {getLocalizedText(design, 'hotelName', effectiveLanguage) || design.hotelName}
+                </motion.p>
+              )}
+              <p className="text-xs" style={{ color: dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)' }}>
+                {getUIString(effectiveLanguage, 'loadingPortal')}
+              </p>
+            </motion.div>
+
+            {/* Dots loading indicator */}
+            <div className="flex items-center gap-1.5">
+              {[0, 1, 2].map((i) => (
+                <motion.div
+                  key={i}
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ backgroundColor: accent }}
+                  animate={{ opacity: [0.2, 1, 0.2], scale: [0.8, 1.2, 0.8] }}
+                  transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </PortalLanguageContext.Provider>
@@ -3426,8 +3699,8 @@ function PortalContent() {
     if (effectiveAuthMethod === 'social') {
       return (
         <>
-          {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
-          {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} />}
+          {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} design={design} />}
+          {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} design={design} />}
           {renderMethodTabs()}
           <AnimatePresence mode="wait" custom={tabDirection}>
             <motion.div
@@ -3460,8 +3733,8 @@ function PortalContent() {
     if (effectiveAuthMethod === 'mac_auth') {
       return (
         <>
-          {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
-          {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} />}
+          {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} design={design} />}
+          {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} design={design} />}
           {renderMethodTabs()}
           <AnimatePresence mode="wait" custom={tabDirection}>
             <motion.div
@@ -3490,8 +3763,8 @@ function PortalContent() {
     if (effectiveAuthMethod === 'open_access' && !useUnifiedForm) {
       return (
         <>
-          {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
-          {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} />}
+          {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} design={design} />}
+          {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} design={design} />}
           {renderMethodTabs()}
           <AnimatePresence mode="wait" custom={tabDirection}>
             <motion.div
@@ -3531,8 +3804,8 @@ function PortalContent() {
       // ══════════════════════════════════════════════════════════
       return (
         <>
-          {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
-          {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} />}
+          {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} design={design} />}
+          {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} design={design} />}
           {renderMethodTabs()}
           <AnimatePresence mode="wait" custom={tabDirection}>
             <motion.div
@@ -3568,8 +3841,8 @@ function PortalContent() {
     // ══════════════════════════════════════════════════════════
     return (
       <>
-        {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} />}
-        {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} />}
+        {state === 'error' && errorMessage && <ErrorDisplay message={errorMessage} design={design} />}
+        {maxDeviceMessage && <ErrorDisplay message={maxDeviceMessage} design={design} />}
         {renderMethodTabs()}
 
         {/* Auth Form with animated transitions */}
@@ -3703,7 +3976,9 @@ function PortalContent() {
           >
             {/* Gradient top border accent */}
             <div className="absolute top-0 left-0 right-0 h-px" style={{ background: `linear-gradient(to right, transparent, ${design.accentColor}50, transparent)` }} />
-            {renderCardContent()}
+            {/* Shimmer sweep effect */}
+            <CardShimmer accent={design.accentColor || '#14b8a6'} />
+            <div className="relative z-10">{renderCardContent()}</div>
           </div>
         );
       case 'social':
@@ -3730,6 +4005,8 @@ function PortalContent() {
   // ── Main Layout ──
   return (
     <PortalLanguageContext.Provider value={effectiveLanguage}>
+      {/* Premium Animation Keyframes */}
+      <style dangerouslySetInnerHTML={{ __html: getPortalCSSKeyframes(design) }} />
       <div
         className={cn('fixed inset-0 flex flex-col overflow-y-auto', animCls)}
         style={{
@@ -3742,18 +4019,22 @@ function PortalContent() {
         <div className="fixed inset-0 pointer-events-none" style={overlayStyle} />
 
         {/* Background Effects — always present */}
-        <GridPattern />
+        <GridPattern design={design} />
 
-        {/* Mesh gradient overlay */}
+        {/* Enhanced mesh gradient overlay */}
         <div className="fixed inset-0 pointer-events-none">
-          <div className="absolute top-0 left-0 w-full h-full" style={{ background: `radial-gradient(ellipse at top left, ${design.accentColor}15 0%, transparent 50%)` }} />
-          <div className="absolute top-0 left-0 w-full h-full" style={{ background: `radial-gradient(ellipse at bottom right, ${design.accentColor}10 0%, transparent 50%)` }} />
+          <div className="absolute top-0 left-0 w-full h-full" style={{ background: `radial-gradient(ellipse at top left, ${design.accentColor}18 0%, transparent 50%)` }} />
+          <div className="absolute top-0 left-0 w-full h-full" style={{ background: `radial-gradient(ellipse at bottom right, ${design.accentColor}12 0%, transparent 50%)` }} />
+          <div className="absolute top-0 left-0 w-full h-full" style={{ background: `radial-gradient(ellipse at 50% 50%, ${design.accentColor}08 0%, transparent 70%)` }} />
         </div>
 
-        {/* Floating Orbs */}
+        {/* Floating Orbs — enhanced */}
         <FloatingOrb className="w-[400px] h-[400px] opacity-20 -top-48 -right-48" style={{ backgroundColor: design.accentColor }} delay={0} />
         <FloatingOrb className="w-[350px] h-[350px] opacity-15 bottom-0 -left-32" style={{ backgroundColor: design.accentColor }} delay={5} />
         <FloatingOrb className="w-[250px] h-[250px] opacity-10 top-1/3 right-1/4" style={{ backgroundColor: design.accentColor }} delay={10} />
+
+        {/* Animated particle dots */}
+        <AnimatedDotField accent={design.accentColor || '#14b8a6'} />
 
         {/* Main content */}
         <main className={cn('flex-1 flex items-center justify-center p-4 relative z-10', isBottomSheet && 'items-end')}>
@@ -3839,8 +4120,10 @@ function PortalContent() {
                 >
                   {/* Gradient top border accent */}
                   <div className="absolute top-0 left-0 right-0 h-px" style={{ background: `linear-gradient(to right, transparent, ${design.accentColor}50, transparent)` }} />
+                  {/* Shimmer sweep effect */}
+                  <CardShimmer accent={design.accentColor || '#14b8a6'} />
                   {/* Mobile-only header */}
-                  <div className="md:hidden text-center space-y-2 mb-4">
+                  <div className="md:hidden text-center space-y-2 mb-4 relative z-10">
                     <PortalLogo design={design} size="small" />
                     <h2 className="text-xl font-bold" style={{ color: getCardTextColor(design), fontFamily: design.headingFontFamily }}>
                       {localizedTitle}
@@ -3855,7 +4138,7 @@ function PortalContent() {
                     )}
                   </div>
 
-                  {renderCardContent()}
+                  <div className="relative z-10">{renderCardContent()}</div>
 
                   {/* Marketing Consent (Feature 2) — inside the form card, after form content.
                       Only rendered in fallback mode; unified form handles consent internally. */}
@@ -3914,10 +4197,12 @@ function PortalContent() {
               })()}
 
               {/* Form Card */}
-              <div className={cn(formCls, 'mt-2 relative overflow-hidden backdrop-blur-2xl')} style={{ ...cardShadowStyle, backgroundColor: dark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.85)', border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}` }}>
+              <div className={cn(formCls, 'mt-2 relative overflow-hidden backdrop-blur-2xl')} style={{ ...cardShadowStyle, ...getFloatingCardAnimation(), backgroundColor: dark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.85)', border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}` }}>
                 {/* Gradient top border accent */}
                 <div className="absolute top-0 left-0 right-0 h-px" style={{ background: `linear-gradient(to right, transparent, ${design.accentColor}50, transparent)` }} />
-                {renderFormContent()}
+                {/* Shimmer sweep effect */}
+                <CardShimmer accent={design.accentColor || '#14b8a6'} />
+                <div className="relative z-10">{renderFormContent()}</div>
               </div>
 
               {/* Social Links */}
@@ -4075,10 +4360,38 @@ export function WifiConnectPortal() {
     <Suspense
       fallback={
         <PortalLanguageContext.Provider value="en">
-          <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0ea5e9, #065f46)' }}>
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="w-8 h-8 text-white animate-spin" />
-              <p className="text-white/80 text-sm">{getUIString('en', 'loadingPortal')}</p>
+          <style dangerouslySetInnerHTML={{ __html: getPortalCSSKeyframes(DEFAULT_PORTAL_DESIGN) }} />
+          <div className="min-h-screen flex items-center justify-center relative" style={{ background: 'linear-gradient(135deg, #0ea5e9, #065f46)' }}>
+            <GridPattern />
+            <FloatingOrb className="w-[300px] h-[300px] opacity-15 -top-32 -right-32" style={{ backgroundColor: '#14b8a6' }} delay={0} />
+            <FloatingOrb className="w-[250px] h-[250px] opacity-10 bottom-0 -left-20" style={{ backgroundColor: '#14b8a6' }} delay={3} />
+            <div className="flex flex-col items-center gap-6 relative z-10">
+              <div className="relative">
+                <Wifi className="w-10 h-10 text-white" />
+                <motion.div
+                  className="absolute inset-0 rounded-full"
+                  style={{ border: '2px solid rgba(255,255,255,0.25)' }}
+                  animate={{ scale: [1, 2.2], opacity: [0.6, 0] }}
+                  transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
+                />
+                <motion.div
+                  className="absolute inset-0 rounded-full"
+                  style={{ border: '2px solid rgba(255,255,255,0.18)' }}
+                  animate={{ scale: [1, 2.2], opacity: [0.5, 0] }}
+                  transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut', delay: 0.6 }}
+                />
+              </div>
+              <p className="text-white/60 text-xs">{getUIString('en', 'loadingPortal')}</p>
+              <div className="flex items-center gap-1.5">
+                {[0, 1, 2].map((i) => (
+                  <motion.div
+                    key={i}
+                    className="w-1.5 h-1.5 rounded-full bg-white"
+                    animate={{ opacity: [0.2, 1, 0.2], scale: [0.8, 1.2, 0.8] }}
+                    transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </PortalLanguageContext.Provider>
