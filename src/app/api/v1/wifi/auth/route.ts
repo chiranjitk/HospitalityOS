@@ -580,64 +580,42 @@ function resolveAllowedPoolIds(
 }
 
 /**
- * Acquire a per-user advisory lock to prevent concurrent session creation (TOCTOU).
- * Uses pg_advisory_lock which is automatically released when the DB connection returns.
- * Falls back gracefully if advisory locks are unavailable.
- */
-async function acquireUserSessionLock(username: string): Promise<(() => Promise<void>) | null> {
-  try {
-    // Hash username to an integer for advisory lock key
-    const lockId = await db.$queryRawUnsafe<Array<{ id: bigint }>>(`
-      SELECT abs(hashtext($1))::bigint as id
-    `, username);
-    const key = Number(lockId[0]?.id ?? 0);
-    if (key === 0) return null;
-
-    await db.$executeRawUnsafe(`SELECT pg_advisory_lock($1)`, key);
-    return async () => {
-      try { await db.$executeRawUnsafe(`SELECT pg_advisory_unlock($1)`, key); } catch {}
-    };
-  } catch {
-    return null; // Graceful fallback — advisory lock unavailable
-  }
-}
-
-/**
  * Check if a user has reached their concurrent session limit.
- * Acquires a PostgreSQL advisory lock per-user to prevent TOCTOU race conditions.
- * Returns { limitReached, releaseLock } — caller MUST call releaseLock() after session creation.
+ * Uses pg_advisory_xact_lock inside a transaction to prevent TOCTOU race conditions.
+ * The transaction-level lock is automatically released when the transaction commits/rolls back,
+ * eliminating the connection-pool advisory lock leak that caused 22-30s hangs.
+ *
+ * Returns { limitReached } — no manual releaseLock needed since the tx handles cleanup.
  */
 async function isSessionLimitReached(username: string, maxSessions: number): Promise<{ limitReached: boolean; releaseLock: () => Promise<void> }> {
   const noop = async () => {};
   if (maxSessions <= 0) return { limitReached: false, releaseLock: noop }; // 0 or negative = unlimited
 
-  // Acquire per-user advisory lock
-  const unlockFn = await acquireUserSessionLock(username);
-
   try {
-    // Only count real active sessions — exclude interim-update audit rows
-    // which have acctstoptime IS NULL but are NOT actual user sessions.
-    // Also exclude any rows with acctterminatecause set (already closed).
-    const result = await db.$queryRawUnsafe<Array<{ count: bigint }>>(`
-      SELECT COUNT(*)::bigint as count
-      FROM radacct
-      WHERE username = $1
-        AND acctstoptime IS NULL
-        AND (acctstatus IS NULL OR acctstatus = '' OR acctstatus = 'start')
-        AND acctterminatecause IS NULL
-    `, username);
+    // pg_advisory_xact_lock inside $transaction:
+    //   1. Both lock + count run on the SAME connection (no pool leak)
+    //   2. Lock auto-releases when transaction ends (no manual unlock needed)
+    //   3. RADIUS-level Simultaneous-Use provides a second enforcement layer
+    //      for the brief TOCTOU window between tx end and session creation.
+    const result = await db.$transaction(async (tx) => {
+      // Acquire transaction-level advisory lock (auto-released at tx end)
+      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1::text))`, username);
+
+      // Count active sessions — exclude interim-update rows and terminated sessions
+      return await tx.$queryRawUnsafe<Array<{ count: bigint }>>(`
+        SELECT COUNT(*)::bigint as count
+        FROM radacct
+        WHERE username = $1
+          AND acctstoptime IS NULL
+          AND (acctstatus IS NULL OR acctstatus = '' OR acctstatus = 'start')
+          AND acctterminatecause IS NULL
+      `, username);
+    });
 
     const activeCount = Number(result[0]?.count ?? 0);
-    const limitReached = activeCount >= maxSessions;
-    // If limit reached, release lock immediately (no session will be created)
-    if (limitReached) {
-      await unlockFn?.();
-      return { limitReached: true, releaseLock: noop };
-    }
-    return { limitReached: false, releaseLock: unlockFn || noop };
+    return { limitReached: activeCount >= maxSessions, releaseLock: noop };
   } catch (err) {
     console.error('[Session Limit] Failed to count active sessions:', err);
-    await unlockFn?.();
     return { limitReached: true, releaseLock: noop }; // Fail closed — deny access on error
   }
 }
