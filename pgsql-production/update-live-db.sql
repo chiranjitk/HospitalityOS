@@ -546,6 +546,10 @@ SELECT pa.id::text AS id,
                 COALESCE(' — user: '::text || pa.username, ''::text) ||
                 COALESCE(' — from: '::text || COALESCE(pa.clientipaddress, pa."nasIpAddress"), ''::text) ||
                 COALESCE(' — MAC: '::text || pa.callingstationid, ''::text)
+            WHEN pa.pass LIKE 'MAC_NOT_REGISTERED'::text THEN
+                'Rejected — MAC address not in whitelist'::text ||
+                COALESCE(' — user: '::text || pa.username, ''::text) ||
+                COALESCE(' — MAC: '::text || pa.callingstationid, ''::text)
             WHEN pa.pass LIKE 'MAC_%%'::text THEN
                 'Rejected — '::text || lower(replace(pa.pass, '_'::text, ' '::text)) ||
                 COALESCE(' — user: '::text || pa.username, ''::text) ||
@@ -596,7 +600,7 @@ SELECT pa.id::text AS id,
     COALESCE(g."lastName", ''::text) AS guest_last_name,
     COALESCE(rm.number, ''::text) AS room_number,
     COALESCE(p.name, ''::text) AS property_name,
-    COALESCE(u."propertyId"::text, ''::text) AS property_id,
+    u."propertyId" AS property_id,
     rg.groupname AS radius_group,
     wp.name AS plan_name,
     wp."downloadSpeed" AS plan_download_speed,
